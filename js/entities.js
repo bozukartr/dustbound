@@ -303,13 +303,15 @@ class Player extends Ent {
     // saldırılar
     if (!G.uiBlocksMove && !G.wheelOpen) this.updateCombat(dt);
     // fener ışığı
-    if (I.pressed('lantern')) {
+    if (I.pressed('lantern') && !G.wheelOpen) {
       if (this.has('lantern')) { this.lantern = !this.lantern; Audio_.ui('pick'); UI.feed(this.lantern ? '🏮 Fener yakıldı' : '🏮 Fener söndürüldü'); }
       else UI.feed('Fenerin yok. Genel mağazadan alabilirsin.', 'warn');
     }
-    if (I.pressed('crouch') && !this.riding) { this.crouch = !this.crouch; }
-    if (I.pressed('mask')) G.toggleMask();
-    if (I.pressed('whistle')) G.whistle();
+    if (!G.wheelOpen) {
+      if (I.pressed('crouch') && !this.riding) { this.crouch = !this.crouch; }
+      if (I.pressed('mask')) G.toggleMask();
+      if (I.pressed('whistle')) G.whistle();
+    }
     // mesafe istatistikleri
     const dd = dist(this.x, this.y, this.lastPos.x, this.lastPos.y);
     if (dd > 0 && dd < 50) {

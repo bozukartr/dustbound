@@ -158,6 +158,19 @@ const WHEEL_SLOTS = [
   { n: 'Yay', w: ['bow'] },
   { n: 'Atılabilir', w: ['dynamite'] },
 ];
+/* Eşya çarkı (RDR2 tarzı ikinci sayfa): her yuva bir kategori; yuvadaki eşyalar arasında ←/→ ile geçilir.
+   '@' ile başlayanlar sanal eşyalardır (matara, fener, mızıka). */
+const DRINKS = ['coffee', 'beer', 'whiskey'];
+const ITEM_SLOTS = [
+  { n: 'Yiyecek', g: 'meat', f: (id, it) => it.c === 'food' && !DRINKS.includes(id) },
+  { n: 'İçecek', g: 'drop', v: ['@canteen'], f: (id) => DRINKS.includes(id) },
+  { n: 'İlaç & Tonik', g: 'heart', f: (id, it) => it.c === 'med' && id !== 'tobacco' && id !== 'cigarette' },
+  { n: 'Tütün', g: 'steam', f: (id) => id === 'cigarette' || id === 'tobacco' },
+  { n: 'Bitkiler', g: 'wheat', f: (id, it) => it.c === 'herb' && !!it.e },
+  { n: 'At', g: 'horse', f: (id, it) => it.c === 'horse' },
+  { n: 'Kit', g: 'lamp', v: ['@lantern', '@harmonica'], f: (id) => id === 'treasure_map' || id === 'region_map' },
+  { n: 'Giysi', g: 'mask', f: (id, it) => it.c === 'clothing' },
+];
 
 /* Hayvanlar. b: biyom ağırlıkları. beh: flee | hostile | skittish | passive */
 const ANIMALS = {
