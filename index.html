@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Dustbound</title>
+  <meta name="description" content="Dustbound — 1890'lar Amerika'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunu.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Rye&family=Special+Elite&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+    <div id="fx-vignette"></div>
+    <div id="fx-hurt"></div>
+    <div id="fx-deadeye"></div>
+
+    <!-- ================= HUD ================= -->
+    <div id="hud" class="hidden">
+      <div id="hud-help" class="hidden"></div>
+      <div id="feed"></div>
+
+      <div id="hud-tr">
+        <div id="hud-money">$0.00</div>
+        <div id="hud-clock"><span id="hud-time">08:00</span><span id="hud-date"></span></div>
+        <div id="hud-age"></div>
+        <div id="hud-wanted" class="hidden">
+          <div class="wanted-title">ARANIYOR</div>
+          <div class="wanted-stars"></div>
+          <div class="wanted-bounty"></div>
+        </div>
+        <div id="hud-bounty" class="hidden"></div>
+      </div>
+
+      <div id="hud-bl">
+        <div id="cores">
+          <div class="core" id="core-hp"><div class="ring"></div><div class="fill"></div><span class="ic">♥</span></div>
+          <div class="core" id="core-sta"><div class="ring"></div><div class="fill"></div><span class="ic">⚡</span></div>
+          <div class="core" id="core-de"><div class="ring"></div><div class="fill"></div><span class="ic">◉</span></div>
+        </div>
+        <div id="needs">
+          <div class="need" id="need-hunger" title="Açlık"><span>🍖</span><i></i></div>
+          <div class="need" id="need-thirst" title="Susuzluk"><span>💧</span><i></i></div>
+          <div class="need" id="need-energy" title="Uyku"><span>🌙</span><i></i></div>
+          <div class="need" id="need-clean" title="Temizlik"><span>🧼</span><i></i></div>
+        </div>
+        <div id="radar-wrap">
+          <canvas id="radar" width="200" height="200"></canvas>
+          <div id="radar-n">K</div>
+          <div id="temp-gauge"><div id="temp-fill"></div><span id="temp-val">20°</span></div>
+        </div>
+        <div id="horse-cores" class="hidden">
+          <div class="core small" id="core-hhp"><div class="ring"></div><div class="fill"></div><span class="ic">🐴</span></div>
+          <div class="core small" id="core-hsta"><div class="ring"></div><div class="fill"></div><span class="ic">⚡</span></div>
+        </div>
+        <div id="status-icons"></div>
+      </div>
+
+      <div id="hud-br">
+        <div id="weapon-hud"><span id="w-icon"></span><span id="w-name"></span><span id="w-ammo"></span></div>
+        <div id="prompts"></div>
+      </div>
+
+      <div id="subtitle" class="hidden"></div>
+      <div id="loc-title" class="hidden"><div class="lt-name"></div><div class="lt-sub"></div></div>
+      <div id="toasts"></div>
+      <div id="honor-flash"></div>
+      <div id="fps" class="hidden"></div>
+    </div>
+
+    <!-- Silah çarkı -->
+    <div id="wheel" class="hidden"><div id="wheel-ring"></div><div id="wheel-center"><div id="wheel-name"></div><div id="wheel-ammo"></div></div></div>
+
+    <!-- Modal katmanı -->
+    <div id="modals"></div>
+
+    <!-- Harita -->
+    <div id="mapscreen" class="hidden">
+      <canvas id="mapcanvas"></canvas>
+      <div id="map-legend"></div>
+      <div id="map-info"></div>
+      <div id="map-hint"></div>
+      <div id="map-cursor"></div>
+    </div>
+
+    <!-- Ana menü -->
+    <div id="mainmenu" class="screen hidden">
+      <canvas id="menubg"></canvas>
+      <div class="mm-inner">
+        <div class="mm-title">
+          <div class="mm-pre">— Amerika, 1890 —</div>
+          <h1>DUSTBOUND</h1>
+          <div class="mm-sub">Bir Batılının Hayatı</div>
+        </div>
+        <div class="mm-items" id="mm-items"></div>
+        <div class="mm-foot" id="mm-foot"></div>
+      </div>
+    </div>
+
+    <!-- Yükleniyor -->
+    <div id="loading" class="screen hidden">
+      <div class="ld-inner">
+        <div class="ld-title">DUSTBOUND</div>
+        <div class="ld-bar"><i id="ld-fill"></i></div>
+        <div class="ld-msg" id="ld-msg">...</div>
+        <div class="ld-tip" id="ld-tip"></div>
+      </div>
+    </div>
+
+    <div id="fader"><div id="fader-text"></div></div>
+  </div>
+
+  <script src="js/util.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/systems.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
