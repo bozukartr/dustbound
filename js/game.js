@@ -167,8 +167,7 @@ const G = {
     this.world.setSeason(this.season);
     // görünür chunk'ları önceden üret
     this.prefetch(true);
-    Audio_.stopMusic();
-    setTimeout(() => Audio_.playMusic('explore'), 2000);
+    Audio_.playMusic('explore');
     this.curTown = null;
   },
 
@@ -241,6 +240,8 @@ const G = {
     const dt = Math.min(0.05, (ts - this.last) / 1000);
     this.last = ts;
     Input.poll(dt);
+    if (this.state !== 'play') Audio_.pianoLevel = 0;
+    Audio_.update(dt);
     try {
       if (this.state === 'play' || this.state === 'dead') this.update(dt);
       UI.update(dt);
@@ -307,17 +308,33 @@ const G = {
       const b = this.world.biomeAt(P.x, P.y);
       Audio_.ambientTick({ rain: env.rain, wind: Math.max(env.dust, env.snow * 0.6, env.storm ? 0.6 : 0.12), fire: this.nearFire ? 1 : 0, water: this.world.nearWater(P.x, P.y, 40) ? 1 : 0, night: this.isNight, nature: b === 'FOREST' || b === 'GRASS' || b === 'SWAMP' ? 1 : 0.4, wolves: b === 'FOREST' || b === 'SNOW' });
       if (env.storm && Math.random() < 0.02) { this.fx.lightning = 1; Audio_.thunder(); }
-      if (this.curTown) {
-        const sal = this.world.buildings.find(b => b.type === 'saloon' && b.town === this.curTown && dist2(b.door.x, b.door.y, P.x, P.y) < 170 * 170);
-        if (sal) {
-          const d = this.insideB === sal ? 20 : dist(sal.door.x, sal.door.y, P.x, P.y), v = 0.09 * (1 - d / 170) * (this.isNight ? 1.4 : 0.8) * (this.insideB === sal ? 1.6 : 1);
-          const scale = [262, 294, 330, 392, 440, 523, 587, 659];
-          if (Math.random() < 0.7) Audio_.pluck(pick(scale), v);
-          if (Math.random() < 0.3) Audio_.pluck(pick(scale) / 2, v * 1.2);
-        }
+      // piyano dosyası yüklenemezse eski prosedürel piyano
+      if (Audio_.tr && Audio_.tr.piano && Audio_.tr.piano.failed && Audio_.pianoLevel > 0.02) {
+        const scale = [262, 294, 330, 392, 440, 523, 587, 659], v = 0.12 * Audio_.pianoLevel;
+        if (Math.random() < 0.7) Audio_.pluck(pick(scale), v);
+        if (Math.random() < 0.3) Audio_.pluck(pick(scale) / 2, v * 1.2);
       }
     }
+    this.saloonAudio();
     this.updateCamera(dt);
+  },
+  /* Saloon piyanosu: içeride tam, dışarıda kapıya yaklaştıkça yükselir; duvar arkasından boğuk */
+  saloonAudio() {
+    const P = this.player, W = this.world;
+    let lvl = 0, muf = 1;
+    for (const b of W.buildings) {
+      if (b.type !== 'saloon' || !this.isOpen(b)) continue;
+      if (Math.abs(b.door.x - P.x) > 420 || Math.abs(b.door.y - P.y) > 420) continue;
+      if (this.insideB === b) { lvl = 1; muf = 0; break; }
+      const dd = dist(P.x, P.y, b.door.x, b.door.y);
+      const cx = (b.x + b.w / 2) * TS, cy = (b.y + b.h / 2) * TS;
+      const dc = Math.max(0, dist(P.x, P.y, cx, cy) - b.w * 7);
+      const k = clamp(1 - (dd - 18) / 250, 0, 1), door = k * k * (3 - 2 * k) * 0.6;
+      const k2 = clamp(1 - dc / 150, 0, 1), wall = k2 * k2 * 0.22;
+      const v = Math.max(door, wall);
+      if (v > lvl) { lvl = v; muf = door >= wall ? 0.35 + 0.5 * clamp((dd - 18) / 200, 0, 1) : 1; }
+    }
+    Audio_.pianoLevel = lvl; Audio_.pianoMuffle = muf;
   },
   handleGlobalInput(dt) {
     const I = Input, P = this.player;
@@ -770,7 +787,7 @@ const G = {
     this.advanceClock(18 * 60);
     this.cam.x = P.x; this.cam.y = P.y;
     this.state = 'play';
-    Audio_.stopMusic();
+    Audio_.playMusic('explore');
     UI.help(`${t.n} doktoru seni ölümün kıyısından döndürdü. <b>${fmtMoney(lost)}</b> kaybettin ve vücudunda kalıcı izler kaldı (maks. sağlık -3).`, 9);
     this.saveGame(true);
   },
