@@ -80,8 +80,9 @@ class Ent {
   move(dx, dy) {
     const W = G.world;
     let moved = false;
-    if (!W.blocked(this.x + dx, this.y, this.r)) { this.x += dx; moved = true; }
-    if (!W.blocked(this.x, this.y + dy, this.r)) { this.y += dy; moved = true; }
+    const ok = (x, y) => !W.blocked(x, y, this.r) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)));
+    if (ok(this.x + dx, this.y)) { this.x += dx; moved = true; }
+    if (ok(this.x, this.y + dy)) { this.y += dy; moved = true; }
     return moved;
   }
   slow() { return TINFO[G.world.tileAtPx(this.x, this.y)].slow || 1; }
@@ -93,7 +94,7 @@ Ent.nextId = 1;
 class Horse extends Ent {
   constructor(x, y, breed, opts = {}) {
     super(x, y);
-    this.kind = 'horse';
+    this.kind = 'horse'; this.noIndoor = true;
     this.breed = breed;
     const B = HORSE_BREEDS[breed];
     this.def = B;
@@ -589,7 +590,7 @@ class Player extends Ent {
 class Animal extends Ent {
   constructor(x, y, type) {
     super(x, y);
-    this.kind = 'animal';
+    this.kind = 'animal'; this.noIndoor = true;
     this.type = type;
     this.def = ANIMALS[type];
     this.hp = this.maxHp = this.def.hp;
@@ -760,7 +761,7 @@ class NPC extends Ent {
       if (this.t <= 0) { this.state = 'idle'; this.t = 2; }
       return;
     }
-    if (this.state === 'cower' || this.state === 'hurt' || this.state === 'sit' || this.state === 'static') {
+    if (this.state === 'cower' || this.state === 'hurt' || this.state === 'sit' || this.state === 'static' || this.state === 'sleep') {
       this.mv = 0;
       if (this.state === 'cower' && this.cowerT !== undefined && (this.cowerT -= dt) <= 0) { this.cowerT = undefined; this.state = 'idle'; this.t = 2; }
       if (this.state === 'static' && pd < 60) this.ang = turnTo(this.ang, Math.atan2(P.y - this.y, P.x - this.x), dt * 3);
@@ -787,6 +788,12 @@ class NPC extends Ent {
       const a = Math.atan2(tg.y - this.y, tg.x - this.x);
       this.ang = turnTo(this.ang, a, dt * 4);
       this.walk(dt, 28);
+      if (this.goHome) {
+        if (dist(this.x, this.y, tg.x, tg.y) < 10 || (this.t <= 0 && dist(this.x, this.y, G.player.x, G.player.y) > 260)) { this.remove = true; return; }
+        if (this.stuck > 1.2) { this.ang += rnd(-2, 2); this.stuck = 0; }
+        if (this.t <= 0) this.t = 10;
+        return;
+      }
       if (dist(this.x, this.y, tg.x, tg.y) < 8 || this.t <= 0 || this.stuck > 1.5) { this.state = 'idle'; this.t = rnd(2, 8); this.stuck = 0; }
     } else {
       this.mv = 0; this.spd = 0;
@@ -794,7 +801,7 @@ class NPC extends Ent {
       if (this.t <= 0 && this.home) {
         const h = this.home;
         let tx, ty, tries = 0;
-        do { tx = h.x + rnd(-h.r, h.r); ty = h.y + rnd(-h.r * 0.6, h.r * 0.6); tries++; } while (G.world.blocked(tx, ty, 4) && tries < 8);
+        do { tx = h.x + rnd(-h.r, h.r); ty = h.y + rnd(-h.r * 0.6, h.r * 0.6); tries++; } while ((G.world.blocked(tx, ty, 4) || G.world.indoorPx(tx, ty)) && tries < 8);
         this.target = { x: tx, y: ty }; this.state = 'walk'; this.t = 15;
       }
     }
@@ -886,7 +893,7 @@ class NPC extends Ent {
       return;
     }
     Spr.human(ctx, this.x, this.y, this.ang, this.look, {
-      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, crouch: this.state === 'cower' || this.held,
+      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held,
       aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing', wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
       swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon,
     });
@@ -977,6 +984,45 @@ class Train {
       const [x, y, a] = this.pos[i];
       if (x < x0 - 40 || x > x1 + 40 || y < y0 - 40 || y > y1 + 40) continue;
       Spr.trainCar(ctx, x, y, a, this.cars[i], G.t);
+    }
+  }
+}
+
+/* ---------------- Göçebe kamp dekoru (çadır, ateş, araba) ---------------- */
+class Prop extends Ent {
+  constructor(x, y, type, opts = {}) {
+    super(x, y); this.kind = 'prop'; this.type = type; this.r = 0; this.col = opts.col || '#c8b890'; this.ang = opts.ang || 0;
+  }
+  update() {
+    if (this.type === 'fire' && Math.random() < 0.08) G.parts.add(Math.random() < 0.5 ? 'ember' : 'smoke', this.x + rnd(-2, 2), this.y - 3, rnd(-3, 3), -10, 1.5, Math.random() < 0.5 ? 1 : 2, '70,66,60');
+  }
+  draw(ctx) {
+    const x = this.x, y = this.y;
+    if (this.type === 'tent') {
+      const c = this.col, d = shadeHex(c, -0.22);
+      Spr.shadow(ctx, x + 3, y + 2, 14, 5, 0.28);
+      ctx.fillStyle = d; ctx.beginPath(); ctx.moveTo(x - 13, y + 3); ctx.lineTo(x, y - 17); ctx.lineTo(x + 13, y + 3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x - 13, y + 3); ctx.lineTo(x, y - 17); ctx.lineTo(x - 1, y + 3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2a1c12'; ctx.beginPath(); ctx.moveTo(x - 3, y + 3); ctx.lineTo(x, y - 6); ctx.lineTo(x + 3, y + 3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#5a3a1e'; ctx.fillRect(x - 0.6, y - 20, 1.2, 4);
+    } else if (this.type === 'tipi') {
+      Spr.shadow(ctx, x + 3, y + 3, 12, 5, 0.28);
+      ctx.fillStyle = this.col; ctx.beginPath(); ctx.moveTo(x - 11, y + 4); ctx.lineTo(x, y - 20); ctx.lineTo(x + 11, y + 4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(120,40,30,0.8)'; ctx.fillRect(x - 8, y - 4, 16, 2); ctx.fillStyle = 'rgba(40,60,90,0.8)'; ctx.fillRect(x - 6, y - 9, 12, 1.5);
+      ctx.fillStyle = '#2a1c12'; ctx.fillRect(x - 2, y - 3, 4, 7);
+      ctx.strokeStyle = '#4a3020'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - 2, y - 20); ctx.lineTo(x + 3, y - 25); ctx.moveTo(x + 2, y - 20); ctx.lineTo(x - 3, y - 25); ctx.stroke();
+    } else if (this.type === 'fire') {
+      for (let k = 0; k < 7; k++) { const a = k / 7 * TAU; Spr.circ(ctx, x + Math.cos(a) * 5, y + Math.sin(a) * 3.5, 1.5, '#6a6660'); }
+      Spr.fire(ctx, x, y, G.t);
+    } else if (this.type === 'wagon') {
+      Spr.object(ctx, ctx, O.WAGON, x, y, 0.3, G.world);
+    } else if (this.type === 'rack') {
+      ctx.fillStyle = '#5a3a1e'; ctx.fillRect(x - 8, y - 10, 1.5, 12); ctx.fillRect(x + 7, y - 10, 1.5, 12); ctx.fillRect(x - 8, y - 10, 16.5, 1.5);
+      ctx.fillStyle = '#a0703e'; ctx.fillRect(x - 6, y - 8, 5, 7); ctx.fillStyle = '#7a5236'; ctx.fillRect(x + 1, y - 8, 5, 8);
+    } else if (this.type === 'log') {
+      Spr.shadow(ctx, x + 1, y + 2, 9, 2.5, 0.25); ctx.fillStyle = '#6a4428'; ctx.fillRect(x - 9, y - 2, 18, 4); ctx.fillStyle = '#8a6040'; ctx.fillRect(x - 9, y - 2, 18, 1); Spr.circ(ctx, x + 9, y, 2, '#b08a5a');
+    } else if (this.type === 'sluice') {
+      ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x - 10, y - 3, 20, 5); ctx.fillStyle = '#5a7a8a'; ctx.fillRect(x - 9, y - 2, 18, 2); ctx.fillStyle = '#4a3020'; for (let k = -8; k < 10; k += 4) ctx.fillRect(x + k, y - 3, 1, 5);
     }
   }
 }

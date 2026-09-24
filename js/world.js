@@ -54,10 +54,16 @@ const O = {
   BERRY: 20, GINSENG: 21, YARROW: 22, SAGE: 23, MINT: 24, OREGANO: 25, MILKWEED: 26, MUSHROOM: 27, WFLOWER: 28, ORE: 29, CROP: 30, ARTIFACT: 31,
   FENCEH: 40, FENCEV: 41, CRATE: 42, BARREL: 43, LAMP: 44, WELL: 45, TROUGH: 46, GRAVE: 47, CAMPFIRE: 48, TENT: 49, HAY: 50, SIGN: 51, WINDMILL: 52, CHEST: 53, POLE: 54,
   RUINWALL: 55, BONES: 56, WAGON: 57, HITCH: 58, BENCH: 59, BIGBONES: 60, SEQUOIA: 61, ARCH: 62, STEAM: 63, GALLOWS: 64, CROSS: 65, BOARD: 66, PUMP: 67, SHIP: 68,
+  // iç mekân eşyaları
+  COUNTER: 70, BAR: 71, TABLE: 72, PIANO: 73, CARDTABLE: 74, BED: 75, STOVE: 76, DESK: 77, CELL: 78, PEW: 79, ALTAR: 80, SAFE: 81, TUB: 82, BCHAIR: 83,
+  RACK: 84, WORKBENCH: 85, STALL: 86, TICKET: 87, SHELF: 88, CHAIR: 89, PLANT: 90, HOMECHEST: 91, IBLOCK: 92, MANNEQUIN: 93,
 };
-const SOLID_O = new Uint8Array(80);
+const isFurnO = o => o >= 70 && o <= 93;
+const SOLID_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.SAGUARO, O.BOULDER, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.FENCEH, O.FENCEV, O.CRATE, O.BARREL, O.LAMP, O.WELL, O.TROUGH, O.TENT, O.HAY,
-  O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP].forEach(o => (SOLID_O[o] = 1));
+  O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP,
+  O.COUNTER, O.BAR, O.TABLE, O.PIANO, O.CARDTABLE, O.BED, O.STOVE, O.DESK, O.CELL, O.PEW, O.ALTAR, O.SAFE, O.TUB, O.BCHAIR, O.RACK, O.WORKBENCH, O.STALL, O.TICKET,
+  O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN].forEach(o => (SOLID_O[o] = 1));
 /* Toplanabilirler: eşya, adet aralığı, yenilenme (gün), alet */
 const HARVEST = {
   [O.BERRY]: { item: 'berries', n: [2, 4], re: 2, label: 'Yaban Mersini Topla' },
@@ -83,7 +89,9 @@ class World {
     this.tile = new Uint8Array(N);
     this.obj = new Uint8Array(N);
     this.solid = new Uint8Array(N);
-    this.flags = new Uint8Array(N);   // 1: nesne yok, 2: ray, 4: kasaba, 8: bina
+    this.flags = new Uint8Array(N);   // 1: nesne yok, 2: ray, 4: kasaba, 8: bina, 16: iç mekân
+    this.bid = new Int16Array(N).fill(-1); // karo -> bina
+    this.dyn = [];   // hareketli engeller (göçebe çadırları) {x0,y0,x1,y1}
     this.heat = new Uint8Array(N);
     this.elev = new Uint8Array(N);
     this.buildings = [];
@@ -109,6 +117,7 @@ class World {
     if (this.season === season && !force) return false;
     this.season = season;
     this.chunks.clear(); this.jobs.clear();
+    for (const b of this.buildings) b.cover = null;
     this.buildMapImage();
     return true;
   }
@@ -126,12 +135,27 @@ class World {
   inb(x, y) { return x >= 0 && y >= 0 && x < WW && y < WH; }
   t(x, y) { return (x < 0 || y < 0 || x >= WW || y >= WH) ? T.DEEP : this.tile[y * WW + x]; }
   tileAtPx(px, py) { return this.t(px >> 4, py >> 4); }
+  /* solid: 0 boş, 1 dolu, 3 kapı, 16+maske kısmi duvar (1 üst, 2 alt, 4 sol, 8 sağ bant) */
   isSolidPx(px, py) {
     const x = px >> 4, y = py >> 4;
     if (x < 0 || y < 0 || x >= WW || y >= WH) return true;
-    return this.solid[y * WW + x] !== 0;
+    const i = y * WW + x, s = this.solid[i];
+    if (s < 2) return s === 1;
+    if (s === 3) return !this.doorOpen(i);
+    const lx = px & 15, ly = py & 15;
+    return ((s & 1) && ly < 6) || ((s & 2) && ly >= 12) || ((s & 4) && lx < 5) || ((s & 8) && lx >= 11);
+  }
+  doorOpen(i) { return this.doorFn ? this.doorFn(this.buildings[this.bid[i]]) : true; }
+  indoorPx(px, py) { const x = px >> 4, y = py >> 4; return x >= 0 && y >= 0 && x < WW && y < WH && (this.flags[y * WW + x] & 16) !== 0; }
+  buildingAtPx(px, py) {
+    const x = px >> 4, y = py >> 4;
+    if (x < 0 || y < 0 || x >= WW || y >= WH) return null;
+    const i = y * WW + x;
+    return (this.flags[i] & 16) ? this.buildings[this.bid[i]] : null;
   }
   blocked(px, py, r) {
+    const D = this.dyn;
+    if (D.length) for (let k = 0; k < D.length; k++) { const d = D[k]; if (px + r > d.x0 && px - r < d.x1 && py + r > d.y0 && py - r < d.y1) return true; }
     return this.isSolidPx(px - r, py - r) || this.isSolidPx(px + r, py - r) || this.isSolidPx(px - r, py + r) || this.isSolidPx(px + r, py + r);
   }
   isWaterPx(px, py) { return isWaterT(this.tileAtPx(px, py)); }
@@ -312,11 +336,13 @@ class World {
     const b = { id: this.buildings.length, type, x, y, w, h, town: town ? town.id : null, name: name || (town ? town.n + ' ' + def.n : def.n), def };
     b.door = { x: (x + Math.floor(w / 2)) * TS + TS / 2, y: (y + h) * TS + 6 };
     if (extra) Object.assign(b, extra);
+    b.enter = !def.noInt && w >= 5 && h >= 5;
+    b.doorI = (y + h - 1) * WW + x + Math.floor(w / 2);
     this.buildings.push(b);
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
       if (!this.inb(xx, yy)) continue;
       const i = yy * WW + xx;
-      this.flags[i] |= 8 | 1; this.obj[i] = 0;
+      this.flags[i] |= 8 | 1 | (b.enter ? 16 : 0); this.obj[i] = 0; this.bid[i] = b.id;
       if (this.tile[i] === T.DEEP || this.tile[i] === T.WATER) this.tile[i] = T.TOWN;
     }
     // veranda
@@ -327,98 +353,326 @@ class World {
       for (let k = 0; k < n; k++) this.lights.push({ x: (x + (k + 0.5) * w / n) * TS, y: (y + h) * TS - 8, r: 34, type: 'window', b: b.id });
     }
     if (def.light) this.lights.push({ x: (x + w / 2) * TS, y: y * TS - 10, r: 160, type: 'beacon' });
+    if (b.enter) {
+      const nl = w >= 10 ? 2 : 1;
+      for (let k = 0; k < nl; k++) this.lights.push({ x: (x + (k + 0.5) * w / nl) * TS, y: (y + h * 0.45) * TS, r: Math.max(w / nl, h) * TS * 0.62, type: 'inner', b: b.id });
+      this.furnish(b);
+    }
     return b;
   }
+  /* İç mekân yerleşimi: yerel karo koordinatları (0,0 sol üst; üst sıra arka duvar) */
+  furnish(b) {
+    const W = b.w, H = b.h, D = W >> 1, F = H - 2;
+    const put = (lx, ly, o) => { if (lx < 1 || lx > W - 2 || ly < 1 || ly > F) return; const i = (b.y + ly) * WW + b.x + lx; this.obj[i] = o; };
+    const row = (ly, x0, x1, o) => { for (let lx = x0; lx <= x1; lx++) put(lx, ly, o); };
+    const bed = (lx, ly) => { put(lx, ly, O.BED); put(lx, ly + 1, O.IBLOCK); };
+    const desk = (lx, ly) => { put(lx, ly, O.DESK); put(lx + 1, ly, O.IBLOCK); };
+    const at = (lx, ly) => ({ x: (b.x + lx) * TS + 8, y: (b.y + ly) * TS + 8 });
+    b.staff = null; b.seats = [];
+    const seat = (lx, ly) => { b.seats.push(at(lx - 0.72, ly), at(lx + 0.72, ly)); };
+    switch (b.type) {
+      case 'general': row(2, 2, W - 3, O.COUNTER); b.staff = at(D, 1); put(1, 1, O.STOVE); put(1, 4, O.SHELF); put(W - 2, 4, O.SHELF); put(W - 2, F, O.BARREL); put(1, F, O.CRATE); break;
+      case 'saloon': row(2, 1, 4, O.BAR); b.staff = at(2, 1); put(W - 2, 1, O.PIANO); b.piano = at(W - 2, 2);
+        put(3, 5, O.TABLE); seat(3, 5); put(W - 3, 4, O.TABLE); seat(W - 3, 4); put(W - 3, 6, O.CARDTABLE); seat(W - 3, 6); put(2, 7, O.TABLE); seat(2, 7); put(W - 2, F, O.STOVE); break;
+      case 'sheriff': desk(2, 2); b.staff = at(2, 1); [[5, 1], [5, 2], [5, 3], [6, 3], [7, 3]].forEach(([x, y]) => put(x, y, O.CELL)); put(1, 3, O.RACK); put(W - 2, F, O.STOVE); b.cell = at(6.5, 1.5); break;
+      case 'doctor': row(2, 1, 3, O.COUNTER); b.staff = at(2, 1); bed(W - 2, 2); put(1, F, O.PLANT); put(W - 2, F, O.SHELF); break;
+      case 'gunsmith': row(2, 2, W - 3, O.COUNTER); b.staff = at(D, 1); put(1, 1, O.WORKBENCH); put(1, 3, O.RACK); put(W - 2, 3, O.RACK); break;
+      case 'butcher': row(2, 2, W - 3, O.COUNTER); b.staff = at(3, 1); put(W - 2, 1, O.WORKBENCH); put(1, F, O.BARREL); put(W - 2, F, O.CRATE); break;
+      case 'tailor': row(2, 1, 3, O.COUNTER); b.staff = at(2, 1); put(W - 2, 1, O.SHELF); put(W - 2, 3, O.MANNEQUIN); put(W - 3, 1, O.MANNEQUIN); put(1, F, O.MANNEQUIN); break;
+      case 'fence': row(2, 1, 2, O.COUNTER); b.staff = at(1, 1); put(W - 2, 1, O.CRATE); put(W - 2, 2, O.BARREL); put(W - 2, F, O.CRATE); put(W - 3, 1, O.CRATE); break;
+      case 'land': desk(1, 2); b.staff = at(1, 1); put(W - 2, 1, O.SHELF); put(W - 2, F, O.PLANT); break;
+      case 'barber': put(1, 2, O.BCHAIR); put(W - 2, 2, O.BCHAIR); b.staff = at(2, 2); put(1, F, O.PLANT); put(W - 2, F, O.CHAIR); break;
+      case 'hotel': row(3, 1, 3, O.COUNTER); b.staff = at(2, 2); bed(W - 3, 1); bed(W - 2, 1); put(D - 1, 1, O.TUB); put(W - 2, F, O.PLANT); put(1, F, O.CHAIR); break;
+      case 'bank': row(3, 2, W - 3, O.COUNTER); b.staff = at(4, 2); put(W - 2, 1, O.SAFE); desk(1, 1); put(1, F, O.PLANT); put(W - 2, F, O.PLANT); break;
+      case 'station': row(2, 1, 3, O.TICKET); b.staff = at(2, 1); row(2, D + 1, W - 3, O.PEW); row(F, D + 1, W - 3, O.PEW); put(W - 2, 1, O.STOVE); break;
+      case 'church': put(D - 1, 1, O.ALTAR); put(D, 1, O.IBLOCK); b.staff = at(D - 0.5, 2.1);
+        for (let ly = 4; ly <= F - 1; ly += 2) { row(ly, 1, D - 2, O.PEW); row(ly, D + 1, W - 2, O.PEW); } break;
+      case 'stable': [[2, 1], [2, 2], [5, 1], [5, 2], [8, 1], [8, 2]].forEach(([x, y]) => put(x, y, O.STALL)); put(1, 1, O.HAY); put(W - 2, 1, O.HAY); row(4, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, 3); put(1, F, O.BARREL); break;
+      case 'lumber': row(2, 2, 4, O.WORKBENCH); desk(W - 4, 1); b.staff = at(W - 3, 2.2); put(1, F, O.CRATE); put(2, F, O.CRATE); put(W - 2, F, O.BARREL); break;
+      case 'docks': row(2, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, 1); put(1, 1, O.CRATE); put(2, 1, O.CRATE); put(1, 2, O.BARREL); put(1, F, O.CRATE); put(W - 2, F, O.BARREL); break;
+      case 'mine': row(2, 1, 3, O.COUNTER); b.staff = at(2, 1); put(W - 2, 1, O.CRATE); put(W - 2, F, O.BARREL); put(W - 3, 1, O.RACK); break;
+      case 'ranch': desk(D - 1, 1); b.staff = at(D, 2.2); put(1, 1, O.STOVE); bed(W - 2, 1); put(2, F - 1, O.TABLE); break;
+      case 'barn': put(1, 1, O.HAY); put(2, 1, O.HAY); put(W - 2, 1, O.HAY); put(W - 2, 2, O.HAY); put(D + 1, 2, O.STALL); put(D + 1, 3, O.STALL); put(1, F, O.BARREL); break;
+      case 'house': bed(1, 1); put(W - 2, 1, O.STOVE); put(W - 2, 3, O.TABLE); break;
+      case 'property': bed(1, 1); put(D, 1, O.HOMECHEST); put(W - 2, 1, O.STOVE); put(W - 2, 3, O.TABLE); break;
+      case 'cabin': row(2, 1, 2, O.COUNTER); b.staff = at(1, 1); put(W - 2, 1, O.STOVE); break;
+    }
+    // kapı ve kapı önü açık kalsın
+    for (let ly = 2; ly <= H - 1; ly++) { const i = (b.y + ly) * WW + b.x + D; if (ly >= F - 1 && this.obj[i] !== O.COUNTER) this.obj[i] = 0; }
+  }
   genTowns() {
-    const SZ = { s: [54, 26], m: [58, 38], l: [74, 50] };
+    const RAD = { s: 32, m: 42, l: 54 };
+    const nz = new Noise(this.seed + 911), nz2 = new Noise(this.seed + 912);
+    const R = this.rng;
+    // polyline üzerinde t (0..1) konumundaki nokta ve yön
+    const pointAt = (pts, t) => {
+      const L = [0];
+      for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + dist(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]));
+      const s = clamp(t, 0, 1) * L[L.length - 1];
+      let i = 1; while (i < L.length - 1 && L[i] < s) i++;
+      const f = (s - L[i - 1]) / (L[i] - L[i - 1] || 1);
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
+      return { x: lerp(ax, bx, f), y: lerp(ay, by, f), ang: Math.atan2(by - ay, bx - ax) };
+    };
     for (const td of TOWNS) {
-      const [w, h] = SZ[td.sz];
+      const rx = RAD[td.sz], ry = Math.round(rx * 0.74);
       const cx = Math.round(td.px * WW), cy = Math.round(td.py * WH);
-      const x0 = cx - (w >> 1), y0 = cy - (h >> 1);
-      const town = { ...td, x: x0, y: y0, w, h, cx: cx * TS, cy: cy * TS, buildings: [] };
+      const x0 = cx - rx - 3, y0 = cy - ry - 3, w = (rx + 3) * 2, h = (ry + 3) * 2;
+      const town = { ...td, x: x0, y: y0, w, h, cx: cx * TS, cy: cy * TS, buildings: [], streetPts: [], hitch: [], gates: [], rx, ry };
       this.towns.push(town);
-      // çevreyi yumuşat
-      for (let y = y0 - 8; y < y0 + h + 14; y++) for (let x = x0 - 8; x < x0 + w + 8; x++) {
+      const inside = (x, y, m = 0) => { const dx = (x - cx) / (rx + m), dy = (y - cy) / (ry + m); return dx * dx + dy * dy + (nz.v(x * 0.07, y * 0.07) - 0.5) * 0.4 < 1; };
+      // zemin hazırlığı: yumuşat, kasaba içindeki su/kaya/orman temizlenir
+      for (let y = y0 - 12; y < y0 + h + 22; y++) for (let x = x0 - 12; x < x0 + w + 12; x++) {
         if (!this.inb(x, y)) continue;
         const i = y * WW + x, t = this.tile[i];
         if (isCliffT(t)) this.tile[i] = T.ROCK;
         if (t === T.DEEP) this.tile[i] = T.WATER;
         this.flags[i] |= 1;
+        if (inside(x, y, 3)) {
+          this.obj[i] = 0; this.flags[i] |= 4;
+          const tt = this.tile[i];
+          if (isWaterT(tt) || tt === T.ROCK || tt === T.SWAMP || tt === T.MUD || tt === T.BRIDGE) this.tile[i] = T.TOWN;
+          else if (tt === T.FOREST) this.tile[i] = T.GRASS;
+          if (inside(x, y, -4) && nz2.v(x * 0.11, y * 0.11) < 0.42) this.tile[i] = T.TOWN;
+        }
       }
-      this.flatten(x0, y0, w, h);
-      // Sokaklar: satırlar
-      const BH = 9, ST = 3;
-      const rows = Math.floor((h - 1) / (BH + ST));
-      const vx = cx - 1; // dikey cadde
+      // yerel doluluk ızgarası: 3 yol, 1 yol kenarı, 2 bina, 5 patika/ayrılmış
+      const ox = x0 - 12, oy = y0 - 12, OW = w + 24, OH = h + 34;
+      const occ = new Uint8Array(OW * OH);
+      const oget = (x, y) => (x < ox || y < oy || x >= ox + OW || y >= oy + OH) ? 9 : occ[(y - oy) * OW + (x - ox)];
+      const oset = (x, y, v) => { if (x >= ox && y >= oy && x < ox + OW && y < oy + OH) occ[(y - oy) * OW + (x - ox)] = v; };
+      const ground = (x, y) => { const i = y * WW + x; if (this.tile[i] !== T.ROAD && this.tile[i] !== T.PLANK) this.tile[i] = T.TOWN; this.flags[i] |= 1 | 4; this.obj[i] = 0; };
+      // ---- sokaklar ----
+      const ang = (R.chance(0.5) ? 0 : Math.PI) + R.range(-0.55, 0.55);
+      const L = rx * 0.95;
+      const core = [];
+      for (let k = -2; k <= 2; k++) {
+        const off = Math.abs(k) === 2 ? R.range(-2, 2) : R.range(-ry * 0.22, ry * 0.22);
+        core.push([cx + Math.cos(ang) * L * k / 2 - Math.sin(ang) * off, cy + Math.sin(ang) * L * k / 2 * 0.85 + Math.cos(ang) * off]);
+      }
+      // uçları kasaba sınırının dışına uzat (kapılar)
+      const extend = (a, b) => {
+        const d = Math.atan2(b[1] - a[1], b[0] - a[0]);
+        const out = [];
+        let x = b[0], y = b[1];
+        for (let s = 0; s < 80; s++) { x += Math.cos(d) * 2; y += Math.sin(d) * 2; out.push([x, y]); if (x < x0 - 3 || x > x0 + w + 2 || y < y0 - 3 || y > y0 + h + 2) break; }
+        return out;
+      };
+      const mainPts = [...extend(core[1], core[0]).reverse(), ...core, ...extend(core[3], core[4])];
+      const streets = [{ pts: World.chaikin(mainPts, 3), r: 1.55, main: true }];
+      const mainS = streets[0].pts;
+      town.gates.push({ x: Math.round(mainS[0][0]), y: Math.round(mainS[0][1]) }, { x: Math.round(mainS[mainS.length - 1][0]), y: Math.round(mainS[mainS.length - 1][1]) });
+      const nSide = { s: 2, m: 3, l: 5 }[td.sz];
+      for (let k = 0; k < nSide; k++) {
+        const t = 0.22 + 0.56 * (k + 0.5) / nSide + R.range(-0.06, 0.06);
+        const p = pointAt(core, t);
+        const side = (k % 2 ? 1 : -1) * (R.chance(0.15) ? -1 : 1);
+        let a = p.ang + side * (Math.PI / 2 + R.range(-0.5, 0.5));
+        const len = R.range(ry * 0.55, ry * 1.05);
+        const pts = [[p.x, p.y]];
+        let x = p.x, y = p.y;
+        for (let s = 0; s < 4; s++) {
+          a += R.range(-0.3, 0.3);
+          x += Math.cos(a) * len / 4; y += Math.sin(a) * len / 4;
+          if (!inside(Math.round(x), Math.round(y), -2)) break;
+          pts.push([x, y]);
+        }
+        if (pts.length > 2) streets.push({ pts: World.chaikin(pts, 2), r: 1.05 });
+      }
+      // arka sokak: iki yan sokağın uçlarını bağla (büyük kasabalar)
+      if (td.sz !== 's' && streets.length > 3) {
+        const a = streets[1].pts, b = streets[3].pts;
+        const pa = a[a.length - 1], pb = b[b.length - 1];
+        if (dist(pa[0], pa[1], pb[0], pb[1]) < rx * 1.3) {
+          const mid = [(pa[0] + pb[0]) / 2 + R.range(-3, 3), (pa[1] + pb[1]) / 2 + R.range(-3, 3)];
+          if (inside(Math.round(mid[0]), Math.round(mid[1]), -1)) streets.push({ pts: World.chaikin([pa, mid, pb], 2), r: 0.9 });
+        }
+      }
+      // meydan
+      const plaza = pointAt(core, 0.5 + R.range(-0.08, 0.08));
+      town.plaza = plaza;
+      for (const st of streets) {
+        const P = st.pts;
+        for (let i = 0; i < P.length - 1; i++) {
+          const [ax, ay] = P[i], [bx, by] = P[i + 1];
+          const n = Math.max(1, Math.ceil(dist(ax, ay, bx, by) * 2));
+          for (let s = 0; s <= n; s++) {
+            const x = lerp(ax, bx, s / n), y = lerp(ay, by, s / n);
+            this.carveCircle(x, y, st.r + 2.4, (tx, ty, d, idx) => {
+              if (d <= st.r) { this.tile[idx] = T.ROAD; this.flags[idx] |= 1 | 4; this.obj[idx] = 0; oset(tx, ty, 3); }
+              else {
+                if (d <= st.r + 1 && oget(tx, ty) === 0) oset(tx, ty, 1);
+                if (d <= st.r + 1.2 + nz2.v(tx * 0.3, ty * 0.3) && this.tile[idx] !== T.ROAD) ground(tx, ty);
+              }
+            });
+          }
+        }
+        for (let s = 0; s < 1; s += 0.04) { const p = pointAt(P, s); if (inside(Math.round(p.x), Math.round(p.y), 1)) town.streetPts.push({ x: p.x * TS + 8, y: p.y * TS + 8 }); }
+      }
+      this.carveCircle(plaza.x, plaza.y, 4.2, (tx, ty, d, idx) => { if (d < 3.6) { this.tile[idx] = T.ROAD; this.flags[idx] |= 1 | 4; this.obj[idx] = 0; oset(tx, ty, 3); } else { ground(tx, ty); if (oget(tx, ty) === 0) oset(tx, ty, 1); } });
+      town.spawn = { x: plaza.x * TS + 8, y: (plaza.y + 2) * TS + 8 };
+      // ---- binalar ----
+      const fits = (bx, by, bw, bh, relax = 0) => {
+        for (let yy = by - 1; yy <= by + bh + 1; yy++) for (let xx = bx - 1; xx <= bx + bw; xx++) {
+          const v = oget(xx, yy);
+          if (yy >= by + bh) { if (v === 2 || v === 9 || v === 5) return false; if (yy === by + bh && v === 3) return false; continue; }
+          if (v !== 0) return false;
+          if (!inside(xx, yy, 1 + relax)) return false;
+        }
+        return true;
+      };
+      const place = (type, pull) => {
+        const def = BUILDINGS[type], bw = def.w, bh = def.h;
+        let best = null, bs = 1e9;
+        for (let k = 0; k < 320; k++) {
+          const relax = k > 220 ? 3 : 0;
+          const st = R.chance(0.5) ? streets[0] : R.pick(streets);
+          const p = pointAt(st.pts, R.range(0.03, 0.97));
+          const side = R.chance(0.5) ? 1 : -1;
+          const nx = -Math.sin(p.ang) * side, ny = Math.cos(p.ang) * side;
+          const ext = Math.abs(nx) * (bw / 2 + 0.5) + Math.abs(ny) * (bh / 2 + (ny < 0 ? 1.5 : 0.5));
+          const d = st.r + 1.2 + ext + R.range(0, 2.4) * (type === 'house' || type === 'church' ? 1.8 : 1);
+          const bx = Math.round(p.x + nx * d - bw / 2), by = Math.round(p.y + ny * d - bh / 2);
+          if (!fits(bx, by, bw, bh, relax)) continue;
+          const sc = dist(bx + bw / 2, by + bh / 2, cx, cy) * pull + (ny > 0.35 ? 14 : 0) + R.range(0, 8);
+          if (sc < bs) { bs = sc; best = { bx, by }; }
+        }
+        // yedek: sokaktan bağımsız, kasaba içinde boş bir yer (patikayla bağlanır)
+        for (let k = 0; k < 400 && !best; k++) {
+          const bx = Math.round(cx + R.range(-rx, rx) - bw / 2), by = Math.round(cy + R.range(-ry, ry) - bh / 2);
+          if (fits(bx, by, bw, bh, 5)) best = { bx, by };
+        }
+        return best;
+      };
+      // kapıdan en yakın yola patika (BFS)
+      const pathFrom = (sx, sy) => {
+        const N = OW * OH, prev = new Int32Array(N).fill(-2);
+        const s0 = (sy - oy) * OW + (sx - ox);
+        if (s0 < 0 || s0 >= N) return;
+        const q = [s0]; prev[s0] = -1;
+        let end = -1;
+        for (let qi = 0; qi < q.length && qi < 6000; qi++) {
+          const c = q[qi], x = c % OW, y = (c / OW) | 0;
+          if (occ[c] === 3) { end = c; break; }
+          const dirs = R.chance(0.5) ? [[0, 1], [1, 0], [0, -1], [-1, 0]] : [[1, 0], [0, 1], [-1, 0], [0, -1]];
+          for (const [dx, dy] of dirs) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= OW || ny >= OH) continue;
+            const ni = ny * OW + nx;
+            if (prev[ni] !== -2 || occ[ni] === 2) continue;
+            const wi = (ny + oy) * WW + nx + ox;
+            if (isWaterT(this.tile[wi]) && occ[ni] !== 3) continue;
+            prev[ni] = c; q.push(ni);
+          }
+        }
+        if (end < 0) return;
+        for (let c = prev[end]; c >= 0; c = prev[c]) {
+          const x = c % OW + ox, y = ((c / OW) | 0) + oy;
+          if (occ[c] !== 3) { ground(x, y); if (occ[c] !== 2) occ[c] = 5; }
+        }
+      };
       const queue = td.b.slice();
-      town.streets = [];
-      for (let r = 0; r < rows; r++) {
-        const ry = y0 + 1 + r * (BH + ST);
-        const sy = ry + BH; // cadde satırı
-        for (let yy = sy; yy < sy + ST; yy++) for (let xx = x0; xx < x0 + w; xx++) this.tile[yy * WW + xx] = T.ROAD;
-        town.streets.push(sy);
-        let x = x0 + 2;
-        while (x < x0 + w - 3) {
-          if (x + 1 >= vx - 1 && x <= vx + 3) { x = vx + 4; continue; }
-          const type = queue.length ? queue[0] : null;
-          if (!type) break;
-          const def = BUILDINGS[type];
-          const lim = (x < vx) ? vx - 2 : x0 + w - 2;
-          if (x + def.w > lim) { if (x < vx) { x = vx + 4; continue; } else break; }
-          queue.shift();
-          const b = this.addBuilding(type, x, sy - def.h - 1, town);
-          town.buildings.push(b);
-          // yan dekor
-          if (this.rng.chance(0.5) && x + def.w + 1 < lim) this.obj[(sy - 2) * WW + x + def.w] = this.rng.chance(0.5) ? O.BARREL : O.CRATE;
-          if (type === 'saloon' || type === 'general' || type === 'sheriff') {
-            this.obj[sy * WW + x] = O.HITCH;
-            town.hitch = town.hitch || []; town.hitch.push({ x: x * TS + 8, y: sy * TS + 14 });
-          }
-          if (type === 'sheriff') this.obj[(sy) * WW + x + def.w] = O.BOARD;
-          x += def.w + (this.rng.chance(0.5) ? 1 : 2);
+      queue.sort((a, b) => (a === 'house') - (b === 'house'));
+      queue.forEach((type, qi) => {
+        const pull = type === 'house' ? 0.25 : type === 'church' ? 0.5 : 1.6 - qi * 0.08;
+        const spot = place(type, Math.max(0.4, pull));
+        if (!spot) return;
+        const { bx, by } = spot, def = BUILDINGS[type];
+        for (let yy = by - 1; yy <= by + def.h + 1; yy++) for (let xx = bx - 1; xx <= bx + def.w; xx++) {
+          if (oget(xx, yy) === 3) continue;
+          if (yy <= by + def.h) { oset(xx, yy, 2); ground(xx, yy); } else if (oget(xx, yy) !== 5) oset(xx, yy, 5);
         }
-      }
-      for (let yy = y0 - 4; yy < y0 + h + 4; yy++) for (let xx = vx; xx < vx + 3; xx++) { const i = yy * WW + xx; if (!(this.flags[i] & 8)) { this.tile[i] = T.ROAD; this.flags[i] |= 1; this.obj[i] = 0; } }
-      town.gateY = town.streets[town.streets.length - 1] + 1;
-      for (let yy = town.gateY - 1; yy <= town.gateY + 1; yy++) for (let xx = x0 - 5; xx < x0 + w + 5; xx++) { const i = yy * WW + xx; if (!(this.flags[i] & 8)) { this.tile[i] = T.ROAD; this.flags[i] |= 1; this.obj[i] = 0; } }
-      // lambalar ve kuyu
-      for (const sy of town.streets) {
-        for (let xx = x0 + 1; xx < x0 + w - 1; xx += 9) {
-          const i = (sy + 2) * WW + xx;
-          if (this.tile[i] === T.ROAD && !(this.flags[i] & 8) && !this.obj[i] && Math.abs(xx - vx - 1) > 2) {
-            this.obj[i] = O.LAMP; this.lights.push({ x: xx * TS + 8, y: (sy + 2) * TS + 2, r: 55, type: 'lamp' });
+        const b = this.addBuilding(type, bx, by, town);
+        town.buildings.push(b);
+        pathFrom(bx + (def.w >> 1), by + def.h + 1);
+        // bina yanı dekor
+        const put = (x, y, o) => { if (this.inb(x, y) && !this.obj[y * WW + x] && !(this.flags[y * WW + x] & 8) && oget(x, y) !== 3) { this.obj[y * WW + x] = o; return true; } return false; };
+        if (type === 'saloon' || type === 'general' || type === 'sheriff' || type === 'hotel') {
+          const hx = R.chance(0.5) ? bx - 1 : bx + def.w, hy = by + def.h;
+          if (put(hx, hy, O.HITCH)) town.hitch.push({ x: hx * TS + 8, y: hy * TS + 14 });
+        }
+        if (type === 'sheriff') put(bx + def.w, by + def.h - 1, O.BOARD);
+        if (R.chance(0.55)) put(R.chance(0.5) ? bx - 1 : bx + def.w, by + def.h - 2, R.pick([O.BARREL, O.CRATE, O.BARREL]));
+        // evlerin arkasında bahçe
+        if (type === 'house' && R.chance(0.55)) {
+          const gy0 = by - 5, gy1 = by - 2;
+          let ok = true;
+          for (let yy = gy0 - 1; yy <= gy1; yy++) for (let xx = bx - 1; xx <= bx + def.w; xx++) if (oget(xx, yy) !== 0 && oget(xx, yy) !== 1) ok = false;
+          if (ok) {
+            for (let yy = gy0; yy <= gy1; yy++) for (let xx = bx; xx < bx + def.w; xx++) {
+              const i = yy * WW + xx; oset(xx, yy, 2);
+              if (yy === gy0) { this.obj[i] = O.FENCEH; this.flags[i] |= 1; continue; }
+              if (xx === bx || xx === bx + def.w - 1) { this.obj[i] = O.FENCEV; this.flags[i] |= 1; continue; }
+              this.tile[i] = T.FARM; this.flags[i] |= 1; this.obj[i] = (xx % 2 === 0 && yy < gy1) ? O.CROP : 0;
+            }
           }
         }
+      });
+      // ---- meydan ve sokak lambaları ----
+      const putFree = (x, y, o) => {
+        const v = oget(x, y);
+        if ((v === 0 || v === 1) && !this.obj[y * WW + x] && !(this.flags[y * WW + x] & 8)) { this.obj[y * WW + x] = o; oset(x, y, 5); return true; }
+        return false;
+      };
+      const pa = Math.atan2(Math.sin(plaza.ang), Math.cos(plaza.ang));
+      const around = (d, a) => [Math.round(plaza.x + Math.cos(a) * d), Math.round(plaza.y + Math.sin(a) * d)];
+      let placed = 0;
+      for (let k = 0; k < 24 && placed < 4; k++) {
+        const [x, y] = around(4.8 + (k % 3) * 0.6, pa + Math.PI / 2 + k * 0.9);
+        const o = [O.PUMP, O.TROUGH, O.BENCH, O.WELL][placed];
+        if (putFree(x, y, o)) placed++;
       }
-      const wy = town.streets[0] + 2;
-      this.obj[wy * WW + vx + 4] = O.PUMP;
-      this.obj[wy * WW + vx - 2] = O.TROUGH;
-      this.obj[wy * WW + vx + 6] = O.BENCH;
-      town.gates = [
-        { x: x0 - 4, y: town.gateY }, { x: x0 + w + 3, y: town.gateY },
-        { x: vx + 1, y: y0 - 4 }, { x: vx + 1, y: y0 + h + 3 },
-      ];
-      town.vx = vx;
-      // istasyon
+      for (const st of streets) {
+        const P = st.pts;
+        let side = 1;
+        for (let s = 0.05; s < 1; s += 7 / Math.max(10, P.length * 0.8)) {
+          const p = pointAt(P, s);
+          const d = st.r + 1.4;
+          const x = Math.round(p.x - Math.sin(p.ang) * d * side), y = Math.round(p.y + Math.cos(p.ang) * d * side);
+          side = -side;
+          if (!inside(x, y, 0)) continue;
+          if (putFree(x, y, O.LAMP)) this.lights.push({ x: x * TS + 8, y: y * TS + 2, r: 55, type: 'lamp' });
+        }
+      }
+      // ağaçlar ve çalılar
+      const n = Math.round(rx * ry * 0.012);
+      let trees = 0;
+      for (let k = 0; k < 400 && trees < n; k++) {
+        const x = Math.round(cx + R.range(-rx, rx)), y = Math.round(cy + R.range(-ry, ry));
+        if (!inside(x, y, 1) || oget(x, y) !== 0) continue;
+        const i = y * WW + x, t = this.tile[i];
+        if (SOLID_O[this.obj[i - 1]] || SOLID_O[this.obj[i + 1]] || SOLID_O[this.obj[i - WW]] || SOLID_O[this.obj[i + WW]]) continue;
+        const o = t === T.SNOW ? O.SNOWPINE : t === T.DESERT || t === T.SAND ? (R.chance(0.5) ? O.CACTUS : O.DRYBUSH) : t === T.REDROCK ? O.DRYBUSH : t === T.DRY ? (R.chance(0.4) ? O.DEAD : O.DRYBUSH) : (R.chance(0.35) ? O.OAK : R.chance(0.5) ? O.BUSH : O.TUFT);
+        this.obj[i] = o; oset(x, y, 5); trees++;
+      }
+      // ---- istasyon ----
       if (RAIL_LINES.some(l => l.includes(td.id))) {
-        const sx = vx - 13, sy = y0 + h + 2;
-        this.flatten(sx - 3, sy - 2, 18, 11, T.TOWN, 0);
-        for (let yy = y0 + h; yy < sy + 6; yy++) for (let xx = vx; xx < vx + 3; xx++) this.tile[yy * WW + xx] = T.ROAD;
+        const def = BUILDINGS.station;
+        const sx = cx - (def.w >> 1) + R.int(-6, 6), sy = y0 + h + 2;
+        this.flatten(sx - 4, sy - 2, def.w + 8, def.h + 6, T.TOWN, 4);
+        for (let yy = sy - 2; yy < sy + def.h + 4; yy++) for (let xx = sx - 4; xx < sx + def.w + 4; xx++) oset(xx, yy, 5);
+        for (let yy = sy - 1; yy < sy + def.h + 1; yy++) for (let xx = sx - 1; xx <= sx + def.w; xx++) oset(xx, yy, 2);
         const b = this.addBuilding('station', sx, sy, town);
         town.buildings.push(b);
-        for (let xx = sx - 3; xx < sx + 15; xx++) { const i = (sy + 5) * WW + xx; this.tile[i] = T.PLANK; this.flags[i] |= 1; }
+        for (let xx = sx - 4; xx < sx + def.w + 4; xx++) { const i = (sy + def.h) * WW + xx; this.tile[i] = T.PLANK; this.flags[i] |= 1; }
         town.station = b;
-        town.railPt = { x: sx + 5, y: sy + 7 };
-        for (let yy = sy + 6; yy < sy + 12; yy++) for (let xx = vx; xx < vx + 3; xx++) { const i = yy * WW + xx; this.tile[i] = T.ROAD; this.flags[i] |= 1; }
-        town.gates[3] = { x: vx + 1, y: sy + 12 };
+        town.railPt = { x: sx + (def.w >> 1), y: sy + def.h + 2 };
+        // istasyona patika: platformun yanından kasabaya
+        oset(sx - 2, sy + def.h, 0);
+        pathFrom(sx - 2, sy + def.h - 1);
       }
-      // tabelalar
-      this.signs.push({ x: (x0 - 3) * TS + 8, y: (town.gateY + 2) * TS + 8, town: town.id });
-      this.obj[(town.gateY + 2) * WW + x0 - 3] = O.SIGN;
-      this.signs.push({ x: (x0 + w + 2) * TS + 8, y: (town.gateY + 2) * TS + 8, town: town.id });
-      this.obj[(town.gateY + 2) * WW + x0 + w + 2] = O.SIGN;
+      // tabelalar (kapı yolunun kenarı)
+      for (const g of town.gates) {
+        const gx = g.x + (g.x < cx ? 2 : -2), gy = g.y + 2;
+        if (this.inb(gx, gy) && !this.obj[gy * WW + gx] && this.tile[gy * WW + gx] !== T.ROAD) {
+          this.signs.push({ x: gx * TS + 8, y: gy * TS + 8, town: town.id });
+          this.obj[gy * WW + gx] = O.SIGN;
+        }
+      }
+      town.gateY = town.gates[0].y;
     }
   }
+
 
   /* ---- Kaba maliyet ızgarası (A*) ---- */
   buildCost() {
@@ -944,6 +1198,19 @@ class World {
       if (o === O.ARCH) { this.solid[i - 3] = this.solid[i + 3] = this.solid[i - 2] = this.solid[i + 2] = 1; this.solid[i] = 0; }
       if (o === O.WAGON) { this.solid[i + 1] = 1; }
     }
+    for (const b of this.buildings) if (b.enter) this.buildingSolid(b);
+  }
+  buildingSolid(b) {
+    for (let ly = 0; ly < b.h; ly++) for (let lx = 0; lx < b.w; lx++) {
+      const i = (b.y + ly) * WW + b.x + lx;
+      if (ly === 0 || SOLID_O[this.obj[i]]) { this.solid[i] = 1; continue; }
+      if (i === b.doorI) { this.solid[i] = 3; continue; }
+      let m = 0;
+      if (lx === 0) m |= 4;
+      if (lx === b.w - 1) m |= 8;
+      if (ly === b.h - 1) m |= 2;
+      this.solid[i] = m ? 16 | m : 0;
+    }
   }
 
   /* ---- Parşömen harita görüntüsü ---- */
@@ -1125,14 +1392,14 @@ class World {
       for (let tx = tx0; tx < tx1; tx++) {
         if (!this.inb(tx, ty)) continue;
         const ob = this.obj[ty * WW + tx];
-        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
+        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16)) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
       }
       if ((ty & 15) === 0) yield 0;
     }
     for (const b of this.buildings) {
       const bx = b.x * TS, by = b.y * TS;
       if (bx + b.w * TS + 40 < ox || bx - 40 > ox + CPX || by + b.h * TS + 40 < oy || by - 60 > oy + CPX) continue;
-      Spr.building(gc, oc, b, this);
+      Spr.buildingGround(gc, b, this);
     }
     gc.restore(); oc.restore();
     return { g, o };

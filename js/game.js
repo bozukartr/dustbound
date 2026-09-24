@@ -23,7 +23,7 @@ const G = {
     this.clock = 8 * 60; this.pace = 'normal'; this.difficulty = 'story';
     this.weather = { type: 'clear', t: 180, i: 0, cloud: 0, fogI: 0 };
     this.law = { level: 0, bounty: 0, lastX: 0, lastY: 0, unseen: 0, spawnT: 0, radius: 0, maskBounty: 0, masked: false, desc: null };
-    this.reports = [];
+    this.reports = []; this.nomads = null;
     this.honor = 0; this.bank = 0; this.scars = 0;
     this.stats = { animals: 0, bears: 0, discoveries: 0, towns: 0, rideMiles: 0, walkMiles: 0, eaten: 0, herbs: 0, fish: 0, longKills: 0, bandits: 0, kills: 0, maxCash: 0, earned: 0, shifts: 0, helped: 0, maxBounty: 0, maxHonor: 0, minHonor: 0, properties: 0, married: 0, children: 0, bjWins: 0, armWins: 0, hoursDesert: 0, hoursCold: 0, nuggets: 0, collectibles: 0, tamed: 0, camps: 0, treasures: 0, trainRides: 0, deadeyes: 0, age: START_AGE };
     this.skills = {}; for (const k in SKILLS) this.skills[k] = { lv: 1, xp: 0 };
@@ -109,7 +109,7 @@ const G = {
     await this.buildWorld(seed);
     const BG = BACKGROUNDS.find(b => b.id === profile.bg);
     const town = this.world.towns.find(t => t.id === BG.town);
-    const sx = (town.vx + 1) * TS + 8, sy = (town.gateY) * TS + 8;
+    const sx = town.spawn.x, sy = town.spawn.y;
     const P = this.player = new Player(sx, sy, profile);
     P.money = BG.money;
     for (const k in BG.skills) this.skills[k].lv += BG.skills[k];
@@ -153,6 +153,8 @@ const G = {
     await w.generate((msg, p) => UI.loading(msg, p));
     World.initTables(seed);
     this.world = w;
+    w.doorFn = (b) => this.doorOpen(b);
+    this.insideB = null;
     this.trains = w.lines.map((l, i) => new Train(l, i));
     UI.loading('Hazır.', 1);
   },
@@ -220,6 +222,8 @@ const G = {
     const P = this.player = new Player(p.x, p.y, { name: p.name, look: p.look });
     Object.assign(P, { inv: p.inv, ammo: p.ammo, clip: p.clip, weapon: p.weapon, money: p.money, hp: p.hp, sta: p.sta, de: p.de, hunger: p.hunger, thirst: p.thirst, energy: p.energy, clean: p.clean, deCore: p.deCore, sick: p.sick, canteen: p.canteen, coat: p.coat, mask: p.mask || null, lastMask: p.lastMask || null, lantern: p.lantern });
     P.weapons = new Set(p.weapons);
+    // eski kayıtlar: kasaba düzeni değiştiyse duvarın içinde başlama
+    if (this.world.blocked(P.x, P.y, 4)) { const t = this.nearestTown(P.x, P.y); P.x = t.spawn.x; P.y = t.spawn.y; }
     if (!this.romances || !Object.keys(this.romances).length) this.initRomances();
     if (d.horse) {
       const h = new Horse(d.horse.x, d.horse.y, d.horse.breed, { owner: 'player', name: d.horse.name, look: d.horse.look, bond: d.horse.bond, hp: d.horse.hp });
@@ -282,6 +286,14 @@ const G = {
     P.hp = Math.min(P.hp, P.maxHp);
     this.lawUpdate(dt);
     this.witnessUpdate(dt);
+    const ib = this.world.buildingAtPx(P.x, P.y);
+    if (ib !== this.insideB) {
+      if (ib && (!this.insideB || this.insideB !== ib)) {
+        UI.feed(`${Icons.glyph('door', '#efe6d2', 'ic inl')} ${ib.name}`); Audio_.tone(180, 0.06, 'triangle', 0.05);
+        this.hintOnce('indoor', `Binaların içinde dolaşabilirsin. Tezgahtaki çalışanla, yataklarla, masalarla ve diğer eşyalarla ${Input.glyph('interact')} ile etkileşime geç. Dükkanlar gece kapanır.`);
+      }
+      this.insideB = ib;
+    }
     const T_ = this.timers;
     T_.spawn -= dt; if (T_.spawn <= 0) { T_.spawn = 1; this.spawnTick(); }
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
@@ -298,7 +310,7 @@ const G = {
       if (this.curTown) {
         const sal = this.world.buildings.find(b => b.type === 'saloon' && b.town === this.curTown && dist2(b.door.x, b.door.y, P.x, P.y) < 170 * 170);
         if (sal) {
-          const d = dist(sal.door.x, sal.door.y, P.x, P.y), v = 0.09 * (1 - d / 170) * (this.isNight ? 1.4 : 0.8);
+          const d = this.insideB === sal ? 20 : dist(sal.door.x, sal.door.y, P.x, P.y), v = 0.09 * (1 - d / 170) * (this.isNight ? 1.4 : 0.8) * (this.insideB === sal ? 1.6 : 1);
           const scale = [262, 294, 330, 392, 440, 523, 587, 659];
           if (Math.random() < 0.7) Audio_.pluck(pick(scale), v);
           if (Math.random() < 0.3) Audio_.pluck(pick(scale) / 2, v * 1.2);
@@ -355,6 +367,7 @@ const G = {
     else if (this.isNight) this.hintOnce('night', `Gece çöktü. ${g('lantern')} ile fenerini yak. Kurtlar gece daha tehlikelidir.`);
     else if (P.riding) this.hintOnce('ride', `${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
     else if (this.law.level > 0) this.hintOnce('law', 'Aranıyorsun! Radardaki kırmızı arama alanının dışına çık ve görünmeden bekle.');
+    else if (!this.world.townAt(P.x, P.y, 60) && this.hour >= 17) this.hintOnce('camp', P.has('bedroll') ? `Akşam oluyor. Kasabadan uzaktaysan ${g('camp')} tuşunu basılı tutarak kamp kurabilirsin.` : `Vahşi doğada kamp kurmak için bir <b>Uyku Tulumu</b> gerekir (genel mağazada $8). Sonra ${g('camp')} tuşunu basılı tut.`, 10);
     else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', `Su kenarındasın. ${g('interact')} ile su iç; basılı tutarak matara doldurma, yıkanma ve balık tutma seçeneklerine ulaş.`);
   },
   quickUse() {
@@ -430,6 +443,7 @@ const G = {
     const P = this.player, W = this.world;
     let near = false;
     if (this.camp && dist2(this.camp.x, this.camp.y, P.x, P.y) < 70 * 70) near = true;
+    if (!near && this.nomads) for (const c of this.nomads) if (c.spawned && dist2(c.x, c.y, P.x, P.y) < 60 * 60) near = true;
     if (!near) {
       const tx = P.x >> 4, ty = P.y >> 4;
       for (let y = ty - 4; y <= ty + 4 && !near; y++) for (let x = tx - 4; x <= tx + 4; x++) if (W.inb(x, y) && W.obj[y * WW + x] === O.CAMPFIRE) { near = true; break; }
@@ -550,6 +564,7 @@ const G = {
       else if (p.type === 'dynamite') { Spr.shadow(ctx, p.x, p.y + 2, 3, 1.5, 0.3); ctx.save(); ctx.translate(p.x, p.y - p.z); ctx.rotate(p.t * 12); ctx.fillStyle = '#b02a20'; ctx.fillRect(-3, -1, 6, 2.4); ctx.restore(); }
     }
     this.parts.draw(ctx, x0, y0, x1, y1);
+    this.drawCovers(ctx, x0, y0, x1, y1, dt);
     ctx.restore();
     // üst katman (ağaç tepeleri, çatılar)
     const under = this.playerUnderCanopy();
@@ -581,6 +596,24 @@ const G = {
     this.prefetch(false);
     W.runJobs(4);
   },
+  /* Bina cepheleri ve çatıları: içerideyken ya da arkasındayken soluklaşır */
+  drawCovers(ctx, x0, y0, x1, y1, dt) {
+    const W = this.world, P = this.player, IB = this.insideB;
+    const k = Math.min(1, dt * 7);
+    for (const b of W.buildings) {
+      const bx = b.x * TS, by = b.y * TS, bw = b.w * TS, bh = b.h * TS;
+      if (bx + bw + 50 < x0 || bx - 50 > x1 || by + bh + 30 < y0 || by - 80 > y1) continue;
+      let target = 1;
+      if (b === IB) target = 0;
+      else if (P.x > bx - 6 && P.x < bx + bw + 6 && P.y > by - 34 && P.y < by + bh - (b.def.tall ? 30 : 22)) target = 0.4;
+      b.coverA = b.coverA === undefined ? target : b.coverA + (target - b.coverA) * k;
+      if (b.coverA < 0.02) continue;
+      const c = Spr.cover(b, W);
+      ctx.globalAlpha = b.coverA;
+      ctx.drawImage(c.c, c.x, c.y);
+    }
+    ctx.globalAlpha = 1;
+  },
   playerUnderCanopy() {
     const P = this.player, W = this.world;
     const tx = P.x >> 4, ty = P.y >> 4;
@@ -588,7 +621,6 @@ const G = {
       if (!W.inb(x, y)) continue;
       const o = W.obj[y * WW + x];
       if (o === O.PINE || o === O.OAK || o === O.BIRCH || o === O.CYPRESS || o === O.SNOWPINE || o === O.APPLE || o === O.SEQUOIA || o === O.SAGUARO || o === O.WELL || o === O.SIGN || o === O.LAMP) return true;
-      if (W.flags[y * WW + x] & 8) return true;
     }
     for (let y = ty - 4; y <= ty + 4; y++) for (let x = tx - 4; x <= tx + 4; x++) { if (W.inb(x, y) && W.obj[y * WW + x] === O.SEQUOIA) return true; }
     return false;
@@ -631,6 +663,7 @@ const G = {
     const env = this.envCache || { rain: 0, snow: 0, dust: 0, fog: 0, cloud: 0 };
     const vw = this.vw, vh = this.vh;
     if (env.cloud > 0.05) { ctx.fillStyle = `rgba(40,48,60,${env.cloud * 0.22})`; ctx.fillRect(0, 0, vw, vh); }
+    if (this.insideB) return;
     const wind = env.storm ? 0.35 : 0.12;
     if (env.rain > 0.05) {
       ctx.strokeStyle = `rgba(190,205,225,${0.25 + env.rain * 0.35})`; ctx.lineWidth = 1;
@@ -694,10 +727,12 @@ const G = {
       if (!inView(L.x, L.y, L.r)) continue;
       if (L.type === 'window' && (!night || hash2(L.x | 0, L.y | 0, this.day) < 0.25)) continue;
       if (L.type === 'lamp' && !night) continue;
+      if (L.type === 'inner' && !(this.insideB && this.insideB.id === L.b)) continue;
       lights.push([L.x, L.y, L.r * (L.type === 'fire' ? 1 + Math.sin(this.t * 9) * 0.05 : 1), L.type === 'window' ? 0.75 : 1]);
     }
     for (const [x, y] of fires) lights.push([x, y, 80 + Math.sin(this.t * 11) * 4, 1]);
     if (this.camp) lights.push([this.camp.x, this.camp.y, 90 + Math.sin(this.t * 11) * 4, 1]);
+    if (this.nomads) for (const c of this.nomads) if (c.spawned && inView(c.x, c.y, 100)) lights.push([c.x, c.y, 95 + Math.sin(this.t * 10) * 5, 1]);
     if (P.lantern && P.has('lantern')) lights.push([P.x + Math.cos(P.ang) * 6, P.y + Math.sin(P.ang) * 6, 100, 1]);
     else lights.push([P.x, P.y, 26, 0.35]);
     if (this.fx.muzzle > 0) lights.push([P.x, P.y, 90, this.fx.muzzle * 12]);
