@@ -34,6 +34,7 @@ const G = {
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.reveal = new Uint8Array(65536);
     this.travelT = 10; this.eventT = 90;
+    this.amb = { birds: [], tumbles: [], flies: [] };
     this.curTown = null; this.curRegion = null; this.goalReached = false; this.hints = {};
   },
 
@@ -257,6 +258,7 @@ const G = {
     if (this.state === 'play') P.update(sdt);
     for (const e of this.ents) if (e !== P) e.update(sdt);
     this.updateProjectiles(sdt);
+    this.ambientLife(sdt);
     for (const tr of this.trains) tr.update(sdt);
     this.parts.update(sdt);
     if (this.state !== 'play') { this.updateCamera(dt); return; }
@@ -285,6 +287,15 @@ const G = {
       const b = this.world.biomeAt(P.x, P.y);
       Audio_.ambientTick({ rain: env.rain, wind: Math.max(env.dust, env.snow * 0.6, env.storm ? 0.6 : 0.12), fire: this.nearFire ? 1 : 0, water: this.world.nearWater(P.x, P.y, 40) ? 1 : 0, night: this.isNight, nature: b === 'FOREST' || b === 'GRASS' || b === 'SWAMP' ? 1 : 0.4, wolves: b === 'FOREST' || b === 'SNOW' });
       if (env.storm && Math.random() < 0.02) { this.fx.lightning = 1; Audio_.thunder(); }
+      if (this.curTown) {
+        const sal = this.world.buildings.find(b => b.type === 'saloon' && b.town === this.curTown && dist2(b.door.x, b.door.y, P.x, P.y) < 170 * 170);
+        if (sal) {
+          const d = dist(sal.door.x, sal.door.y, P.x, P.y), v = 0.09 * (1 - d / 170) * (this.isNight ? 1.4 : 0.8);
+          const scale = [262, 294, 330, 392, 440, 523, 587, 659];
+          if (Math.random() < 0.7) Audio_.pluck(pick(scale), v);
+          if (Math.random() < 0.3) Audio_.pluck(pick(scale) / 2, v * 1.2);
+        }
+      }
     }
     this.updateCamera(dt);
   },
@@ -347,6 +358,65 @@ const G = {
     if (P.hunger < 70) for (const id of ['cooked_game', 'cooked_big', 'beans', 'bread', 'jerky', 'cooked_fish', 'cooked_bird', 'peaches', 'apple', 'corn', 'berries']) if (P.has(id)) { this.consume(id); return; }
     if (P.sta < P.maxSta * 0.4) for (const id of ['stamina_tonic', 'chocolate', 'ginseng']) if (P.has(id)) { this.consume(id); return; }
     UI.feed('Hızlı kullanılacak bir şey yok.', 'warn');
+  },
+  /* Ortam canlıları: kuş sürüleri, çalı topları, ateşböcekleri */
+  ambientLife(dt) {
+    const A = this.amb, P = this.player, C = this.cam;
+    if (!A) return;
+    const env = this.envCache || { rain: 0, snow: 0 };
+    const b = this.world.biomeAt(P.x, P.y);
+    const x0 = C.ox, y0 = C.oy, vw = this.vw, vh = this.vh;
+    if (!this.isNight && env.rain < 0.3 && A.birds.length < 12 && Math.random() < dt * 0.04) {
+      const dir = Math.random() < 0.5 ? 1 : -1, n = rndi(4, 8);
+      const sy = y0 + rnd(0, vh), sx = dir > 0 ? x0 - 60 : x0 + vw + 60, vy = rnd(-15, 15);
+      for (let i = 0; i < n; i++) A.birds.push({ x: sx - dir * (i % 2 ? i : -i) * 3 - dir * i * 6, y: sy + (i % 2 ? 1 : -1) * i * 5, vx: dir * rnd(55, 70), vy, ph: Math.random() * 6 });
+    }
+    for (let i = A.birds.length - 1; i >= 0; i--) { const q = A.birds[i]; q.x += q.vx * dt; q.y += q.vy * dt; q.ph += dt * 12; if (q.x < x0 - 200 || q.x > x0 + vw + 200) A.birds.splice(i, 1); }
+    const dry = b === 'DESERT' || b === 'DRY' || b === 'REDROCK';
+    if (dry && A.tumbles.length < 3 && Math.random() < dt * 0.12) {
+      const dir = this.hour % 2 < 1 ? 1 : -1;
+      A.tumbles.push({ x: dir > 0 ? x0 - 20 : x0 + vw + 20, y: y0 + rnd(20, vh - 20), vx: dir * rnd(35, 65) * (env.dust ? 2 : 1), r: rnd(3, 5.5), rot: 0, bt: 0 });
+    }
+    for (let i = A.tumbles.length - 1; i >= 0; i--) {
+      const q = A.tumbles[i];
+      q.x += q.vx * dt; q.rot += q.vx * dt / q.r; q.bt += dt * 6; q.y += Math.sin(q.bt * 0.7) * dt * 6;
+      if (this.world.isSolidPx(q.x, q.y)) q.vx *= -0.6;
+      if (q.x < x0 - 60 || q.x > x0 + vw + 60) A.tumbles.splice(i, 1);
+    }
+    if (this.isNight && this.season < 3 && (b === 'GRASS' || b === 'FOREST' || b === 'SWAMP') && A.flies.length < 34 && Math.random() < dt * 4) {
+      A.flies.push({ x: x0 + rnd(0, vw), y: y0 + rnd(0, vh), vx: rnd(-6, 6), vy: rnd(-6, 6), t: 0, life: rnd(4, 9) });
+    }
+    for (let i = A.flies.length - 1; i >= 0; i--) { const q = A.flies[i]; q.t += dt; q.vx += rnd(-12, 12) * dt; q.vy += rnd(-12, 12) * dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.t > q.life) A.flies.splice(i, 1); }
+  },
+  drawTumbles(ctx) {
+    for (const q of this.amb.tumbles) {
+      const hop = Math.abs(Math.sin(q.bt)) * 3;
+      Spr.shadow(ctx, q.x + 1, q.y + q.r * 0.6, q.r, q.r * 0.4, 0.2);
+      ctx.save(); ctx.translate(q.x, q.y - hop); ctx.rotate(q.rot);
+      ctx.strokeStyle = '#9a7a4a'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.arc(0, 0, q.r, 0, TAU);
+      for (let k = 0; k < 5; k++) { const a = k * 1.3; ctx.moveTo(Math.cos(a) * q.r, Math.sin(a) * q.r); ctx.lineTo(-Math.cos(a + 2) * q.r * 0.6, -Math.sin(a + 2) * q.r * 0.6); }
+      ctx.stroke(); ctx.restore();
+    }
+  },
+  drawBirds(ctx) {
+    for (const q of this.amb.birds) {
+      ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(q.x + 24, q.y + 36, 2, 1);
+      const f = Math.sin(q.ph) * 2;
+      ctx.strokeStyle = '#1a1614'; ctx.lineWidth = 0.9;
+      ctx.beginPath(); ctx.moveTo(q.x - 3, q.y - f); ctx.lineTo(q.x, q.y); ctx.lineTo(q.x + 3, q.y - f); ctx.stroke();
+    }
+  },
+  drawFlies(ctx) {
+    const x0 = this.cam.ox, y0 = this.cam.oy;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const q of this.amb.flies) {
+      const a = Math.max(0, Math.sin(q.t * 3 + q.life)) * Math.min(1, (q.life - q.t));
+      if (a <= 0.05) continue;
+      ctx.fillStyle = `rgba(200,255,120,${a * 0.25})`; ctx.beginPath(); ctx.arc(q.x - x0, q.y - y0, 3, 0, TAU); ctx.fill();
+      ctx.fillStyle = `rgba(240,255,180,${a})`; ctx.fillRect(q.x - x0 - 0.5, q.y - y0 - 0.5, 1, 1);
+    }
+    ctx.globalCompositeOperation = 'source-over';
   },
   checkFire() {
     const P = this.player, W = this.world;
@@ -452,6 +522,7 @@ const G = {
     if (this.treasure && P.has('treasure_map') && dist2(this.treasure.x, this.treasure.y, P.x, P.y) < 120 * 120) { ctx.fillStyle = 'rgba(90,60,30,0.6)'; ctx.beginPath(); ctx.ellipse(this.treasure.x, this.treasure.y, 6, 4, 0, 0, TAU); ctx.fill(); }
     // trenler
     for (const tr of this.trains) tr.draw(ctx, x0, y0, x1, y1);
+    this.drawTumbles(ctx);
     // varlıklar
     const vis = [];
     for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.kind === 'horse' && e.rider === P)) vis.push(e);
@@ -486,10 +557,12 @@ const G = {
     // dünya uzayı arayüz öğeleri
     ctx.save();
     ctx.translate(-x0, -y0);
+    this.drawBirds(ctx);
     this.drawWorldUI(ctx);
     ctx.restore();
     this.drawWeather(ctx, dt);
     this.drawLighting(ctx, fires);
+    if (this.amb.flies.length) this.drawFlies(ctx);
     // flaşlar
     if (this.fx.lightning > 0) { ctx.fillStyle = `rgba(230,235,255,${this.fx.lightning * 0.6})`; ctx.fillRect(0, 0, vw, vh); this.fx.lightning = Math.max(0, this.fx.lightning - dt * 3); }
     if (this.fx.boom > 0) { ctx.fillStyle = `rgba(255,220,160,${this.fx.boom})`; ctx.fillRect(0, 0, vw, vh); this.fx.boom = Math.max(0, this.fx.boom - dt * 2); }

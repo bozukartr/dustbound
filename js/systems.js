@@ -38,6 +38,8 @@ const GameSystems = {
     for (const id of this.props) { const P = PROPERTIES.find(p => p.id === id); if (P && P.income) inc += P.income; }
     if (inc > 0) { inc *= this.hasPerk('tycoon') ? 1.5 : 1; this.bank += inc; UI.feed(`🏠 Mülk geliri bankaya yatırıldı: ${fmtMoney(inc)}`); this.stats.earned += inc; }
     this.bounties = null; // ilanlar yenilenir
+    const L = this.player.look;
+    if (L.sex === 'm' && L.beard > 0) { L.beardLen = Math.min(1, (L.beardLen || 0.3) + 0.08); this.player._lk = null; }
     this.dailyTalk = {};
     this.saveGame(true);
   },
@@ -99,7 +101,8 @@ const GameSystems = {
   ambientTemp(px, py) {
     const h = this.world.climateAt(px, py);
     const t = this.world.tileAtPx(px, py);
-    let T0 = -4 + h * 40 + this.daylight * 3;
+    const sun = Math.max(0, Math.sin((this.hour - 6) / 12 * Math.PI));
+    let T0 = -4 + h * 36 + sun * 4;
     if (t === T.ROCK || isCliffT(t)) T0 -= 5;
     if (t === T.SNOW) T0 -= 5;
     if (t === T.WATER) T0 -= 2;
@@ -576,6 +579,22 @@ const GameSystems = {
       const d = dist(t.cx, t.cy, P.x, P.y);
       if (d < 1100 && !t.spawned) this.spawnTown(t);
       else if (d > 1500 && t.spawned) { t.spawned = false; for (const e of ents) if (e.town === t.id) e.remove = true; }
+    }
+    // kasaba günlük nüfus döngüsü
+    const ct = W.townAt(P.x, P.y, 40);
+    if (ct && ct.spawned) {
+      const base = ct.sz === 'l' ? 18 : ct.sz === 'm' ? 13 : 9;
+      const h = this.hour;
+      const want = Math.round(base * (h < 5 || h > 22 ? 0.25 : h < 7 || h > 20 ? 0.55 : 1));
+      const towns = ents.filter(e => e.town === ct.id && e.role === 'town' && !e.dead && !e.remove);
+      if (towns.length < want && chance(0.35)) {
+        const b = pick(ct.buildings.filter(b => b.type !== 'station'));
+        const n = new NPC(b.door.x, b.door.y + 8, 'town', { home: { x: b.door.x, y: b.door.y + 30, r: rnd(60, 150) } });
+        n.town = ct.id; n.ang = Math.PI / 2; this.addEnt(n);
+      } else if (towns.length > want && chance(0.25)) {
+        const far = towns.find(e => dist2(e.x, e.y, P.x, P.y) > 280 * 280 && e.state !== 'flee');
+        if (far) far.remove = true;
+      }
     }
     // çiftlikler & kamplar
     for (const p of W.pois) {
