@@ -619,6 +619,7 @@ class Animal extends Ent {
     this.t -= dt; this.atkCd -= dt;
     let sense = d.sense * (P.crouch ? 0.5 : 1) * (P.sprinting ? 1.3 : 1) * (P.riding ? 1.2 : 1) * (G.hasPerk('hunt100') ? 0.7 : 1) * (1 - G.skill('hunting') * 0.03);
     if (G.isNight) sense *= 0.8;
+    if (d.tame && P.crouch && !P.riding) sense = 16;
     if (this.state === 'idle' || this.state === 'wander') {
       if (d.beh === 'hostile' && pd < d.aggro * (G.isNight && d.night ? 1.3 : 1)) { this.state = 'attack'; this.t = 25; if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar') Audio_.growl(); }
       else if (d.beh === 'skittish' && pd < d.aggro && (P.hp < P.maxHp * 0.35 || G.isNight)) { this.state = 'attack'; this.t = 12; }
@@ -700,12 +701,12 @@ class NPC extends Ent {
     this.hp -= dmg;
     G.parts.burst('blood', this.x, this.y, 3 + dmg / 12, 35, 0.6, 1.4);
     if (by === 'player') {
-      if (!this.hostile && this.role !== 'bandit') {
+      if (!this.hostile && this.role !== 'bandit' && !(this.fistOK && how === 'melee')) {
         if (this.hp > 0 && !this.assaulted) { this.assaulted = true; G.crime(this.isLaw ? 'assaultLaw' : 'assault', this.x, this.y, this); }
       }
       if (this.isLaw) this.hostile = true;
       if (this.role === 'bandit' || this.role === 'target') this.hostile = true;
-      if (!this.hostile && this.hp > 0) { this.state = 'flee'; this.t = 10; this.say(pick(LINES.flee)); }
+      if (!this.hostile && this.hp > 0 && !(this.fistOK && how === 'melee')) { this.state = 'flee'; this.t = 10; this.say(pick(LINES.flee)); }
     }
     if (this.mounted && (dmg > 25 || this.hp <= 0)) {
       const h = new Horse(this.x + 6, this.y, 'mustang', { look: this.mounted, owner: 'npc' });

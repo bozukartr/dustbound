@@ -514,7 +514,9 @@ const GameSystems = {
   playerDied(cause) {
     if (this.state !== 'play') return;
     this.state = 'dead';
-    this.deathCause = cause || 'bilinmeyen';
+    const CAUSES = { train: 'tren kazası', fist: 'kavga', fall: 'attan düşme', patlama: 'patlama', haydut: 'haydut kurşunu', kanun: 'kanun adamlarının kurşunu', zehir: 'zehirlenme', test: 'bilinmeyen' };
+    this.deathCause = ANIMALS[cause] ? ANIMALS[cause].n + ' saldırısı' : (CAUSES[cause] || cause || 'bilinmeyen');
+    if (this.difficulty === 'hard') this.deleteSave();
     this.player.deadeye = false;
     if (this.player.riding) this.player.dismount();
     Audio_.stopMusic();
@@ -910,7 +912,7 @@ const GameSystems = {
       }
       if (e.kind === 'animal') {
         if (e.dead && !e.skinned) add(e.x, e.y, e.def.n + ' Leşi', [{ n: 'Derisini Yüz', hold: 1.3, fn: () => this.skin(e) }]);
-        else if (!e.dead && e.def.tame && d < 26) add(e.x, e.y, e.def.n, [{ n: 'Sakinleştir ve Evcilleştir', hold: 2.5, fn: () => this.tameHorse(e), check: () => P.crouch || e.state !== 'flee' }]);
+        else if (!e.dead && e.def.tame && d < 30) add(e.x, e.y, e.def.n, [{ n: 'Sakinleştir ve Evcilleştir', hold: 2.5, fn: () => this.tameHorse(e), check: () => P.crouch || e.state !== 'flee' }]);
         continue;
       }
       if (e.kind === 'camp') { add(e.x, e.y, 'Kamp', [{ n: 'Kamp Menüsü', fn: () => UI.openCamp() }], 4); continue; }
@@ -1051,7 +1053,7 @@ const GameSystems = {
     UI.subtitle(this.player.name, pick(['Ne bakıyorsun öyle?', 'Kıyafetlerin çok komik.', 'Yolumdan çekil!', 'Korkak herif.']), 1.5, true);
     this.addHonor(-0.5);
     if (e.role === 'traveler' || e.role === 'town') {
-      if (e.sex === 'm' && chance(0.45)) { e.say(pick(LINES.antag)); e.state = 'fightFist'; e.cool = 1; }
+      if (e.sex === 'm' && chance(0.45)) { e.say(pick(LINES.antag)); e.state = 'fightFist'; e.fistOK = true; e.cool = 1; }
       else { e.say(pick(['Bırak beni!', 'Delisin sen!', 'Seni şerife şikayet edeceğim!'])); e.state = 'flee'; e.t = 6; }
     } else e.say(pick(LINES.antag));
   },

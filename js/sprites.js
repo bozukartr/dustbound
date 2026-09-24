@@ -494,7 +494,7 @@ const Spr = {
         o.fillText(txt, X + W / 2, wy - fh + 5.2);
       }
     } else if (SIGN_TEXT[b.type]) {
-      const txt = SIGN_TEXT[b.type];
+      const txt = b.type === 'property' ? (b.owned ? 'HOME' : 'FOR SALE') : SIGN_TEXT[b.type];
       const sw = txt.length * 4.6 + 6;
       o.fillStyle = d.sign || '#c9a45c'; o.fillRect(X + W / 2 - sw / 2, wy - 9, sw, 8);
       o.fillStyle = '#1a120c'; o.font = 'bold 7px monospace'; o.textAlign = 'center'; o.textBaseline = 'middle';
