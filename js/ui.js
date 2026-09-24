@@ -1476,7 +1476,7 @@ const UI = {
     items.push(['set', 'Ayarlar', ''], ['ctrl', 'Kontroller', ''], ['about', 'Hakkında', '']);
     $('#mm-items').innerHTML = items.map(([id, n, s]) => `<div class="mm-item nav" data-id="${id}"><div class="mm-n">${n}</div>${s ? `<div class="mm-s">${s}</div>` : ''}</div>`).join('');
     $('#mm-foot').innerHTML = `${Input.glyph('confirm')} Seç &nbsp;&nbsp; PlayStation kolu desteklenir`;
-    const m = this.makeModal(mm, { keepEl: true, onBack: () => {} });
+    const m = this.makeModal(mm, { keepEl: true, transparent: true, onBack: () => {} });
     $$('.mm-item', mm).forEach(n => {
       n.onmouseenter = () => m.setFocus(n, true);
       n.onclick = () => {
@@ -1579,43 +1579,118 @@ const UI = {
     const go = $('#cr-go', el); m.setFocus(go, true);
   },
 
-  /* Ana menü arka planı: gün batımında çöl */
+  /* Ana menü arka planı: gün batımında çöl (paralaks, döngüsel) */
   initMenuBg() {
     const c = this.menuCanvas;
-    c.width = 480; c.height = 270;
-    this.bg = { t: 0, rider: -60, dust: [] };
+    const W = 480, H = clamp(Math.round(480 * innerHeight / Math.max(1, innerWidth)), 200, 420);
+    c.width = W; c.height = H;
     const R = new RNG(77);
-    this.bg.layers = [0, 1, 2].map(k => { const pts = []; let y = 150 + k * 25; for (let x = 0; x <= 480; x += 8) { y += R.range(-6, 6) * (3 - k) * 0.6; y = clamp(y, 110 + k * 30, 200 + k * 20); pts.push([x, y]); } return pts; });
-    this.bg.cacti = [0, 1, 2, 3, 4, 5].map(() => [R.range(0, 480), R.range(0.6, 1.2)]);
+    const L = W * 2; // döngü uzunluğu
+    const wave = (n, amp) => { const a = []; for (let k = 0; k < n; k++) a.push([R.int(1, 3 + k * 3), R.range(0, TAU), amp / (k + 1)]); return a; };
+    const hor = Math.round(H * 0.64);
+    this.bg = {
+      t: 0, W, H, L, hor, rider: -60, dust: [],
+      layers: [
+        { w: wave(4, 1), base: hor - 4, amp: 46, mesa: true, col: '#6a3048', spd: 3 },
+        { w: wave(5, 1), base: hor + 6, amp: 26, mesa: false, col: '#44202e', spd: 8 },
+        { w: wave(5, 1), base: hor + 26, amp: 14, mesa: false, col: '#2a1219', spd: 16 },
+      ],
+      stars: Array.from({ length: 70 }, () => [R.range(0, W), R.range(0, hor * 0.55), R.range(0.3, 1), R.range(0, 6)]),
+      clouds: Array.from({ length: 7 }, () => [R.range(0, W), R.range(hor * 0.18, hor * 0.62), R.range(40, 110), R.range(2, 5), R.range(1, 3)]),
+      cacti: Array.from({ length: 7 }, () => [R.range(0, L), R.range(0.7, 1.3), R.int(0, 2)]),
+      poles: Array.from({ length: 6 }, (_, i) => i * (L / 6)),
+      scrub: Array.from({ length: 40 }, () => [R.range(0, L), R.range(0, 1), R.range(2, 5)]),
+      birds: Array.from({ length: 5 }, (_, i) => [W * 0.62 + i * 9, hor * 0.34 + (i % 2) * 6 + i * 2, R.range(0, 6)]),
+    };
   },
   menuBg(dt) {
-    if (!this.bg) return;
-    const c = this.bgctx, B = this.bg;
+    const c = this.bgctx;
+    if (!this.bg || this.bg.W !== this.menuCanvas.width || Math.abs(this.bg.H - clamp(Math.round(480 * innerHeight / Math.max(1, innerWidth)), 200, 420)) > 4) this.initMenuBg();
+    const B = this.bg, W = B.W, H = B.H, hor = B.hor, L = B.L;
     B.t += dt;
-    const g = c.createLinearGradient(0, 0, 0, 270);
-    g.addColorStop(0, '#1a1030'); g.addColorStop(0.35, '#6a2a3a'); g.addColorStop(0.62, '#e0602a'); g.addColorStop(0.8, '#f0b050');
-    c.fillStyle = g; c.fillRect(0, 0, 480, 270);
-    c.fillStyle = '#ffd890'; c.beginPath(); c.arc(300, 175, 34, 0, TAU); c.fill();
-    c.fillStyle = 'rgba(255,220,150,0.25)'; c.beginPath(); c.arc(300, 175, 50, 0, TAU); c.fill();
-    const cols = ['#5a2a30', '#3a1a22', '#1e0e12'];
-    B.layers.forEach((pts, k) => {
-      c.fillStyle = cols[k];
-      c.beginPath(); c.moveTo(0, 270);
-      const off = (B.t * (4 + k * 6)) % 8;
-      for (const [x, y] of pts) c.lineTo(x - off, y);
-      c.lineTo(480, 270); c.fill();
-    });
-    c.fillStyle = '#120808';
-    c.fillRect(0, 232, 480, 40);
-    for (const [x0, s] of B.cacti) {
-      const x = ((x0 - B.t * 22) % 520 + 520) % 520 - 20;
-      c.fillRect(x, 232 - 26 * s, 5 * s, 26 * s); c.fillRect(x - 6 * s, 232 - 18 * s, 6 * s, 3 * s); c.fillRect(x - 6 * s, 232 - 24 * s, 3 * s, 8 * s); c.fillRect(x + 5 * s, 232 - 14 * s, 5 * s, 3 * s); c.fillRect(x + 8 * s, 232 - 20 * s, 3 * s, 8 * s);
+    // gökyüzü
+    const g = c.createLinearGradient(0, 0, 0, hor + 10);
+    g.addColorStop(0, '#120c26'); g.addColorStop(0.35, '#3c1d44'); g.addColorStop(0.62, '#a8384a'); g.addColorStop(0.84, '#e8763a'); g.addColorStop(1, '#f8c068');
+    c.fillStyle = g; c.fillRect(0, 0, W, hor + 10);
+    for (const [x, y, a, p] of B.stars) { c.fillStyle = `rgba(255,240,220,${a * (0.55 + 0.45 * Math.sin(B.t * 1.5 + p)) * (1 - y / (hor * 0.55))})`; c.fillRect(x, y, 1, 1); }
+    // güneş
+    const sx = W * 0.64, sy = hor - 6;
+    const sg = c.createRadialGradient(sx, sy, 4, sx, sy, W * 0.45);
+    sg.addColorStop(0, 'rgba(255,220,150,0.55)'); sg.addColorStop(0.25, 'rgba(255,160,80,0.22)'); sg.addColorStop(1, 'rgba(255,120,60,0)');
+    c.fillStyle = sg; c.fillRect(0, 0, W, hor + 10);
+    c.fillStyle = '#ffe2a0'; c.beginPath(); c.arc(sx, sy, 22, 0, TAU); c.fill();
+    c.fillStyle = '#fff2c8'; c.beginPath(); c.arc(sx, sy, 16, 0, TAU); c.fill();
+    // bulutlar
+    for (const cl of B.clouds) {
+      cl[0] -= dt * cl[4];
+      if (cl[0] + cl[2] < 0) cl[0] = W + 10;
+      const [x, y, w, h] = cl;
+      const warm = y / hor;
+      c.fillStyle = `rgba(${Math.round(120 + warm * 130)},${Math.round(60 + warm * 70)},${Math.round(90 - warm * 20)},0.55)`;
+      c.beginPath(); c.ellipse(x + w / 2, y, w / 2, h, 0, 0, TAU); c.fill();
+      c.fillStyle = `rgba(255,${Math.round(150 + warm * 60)},120,${0.18 + warm * 0.2})`;
+      c.fillRect(x + w * 0.15, y + h * 0.4, w * 0.7, 1);
+    }
+    // kuşlar
+    c.strokeStyle = 'rgba(30,10,20,0.8)'; c.lineWidth = 1;
+    for (const b of B.birds) {
+      b[0] -= dt * 10; if (b[0] < -10) b[0] = W + 20;
+      const f = Math.sin(B.t * 7 + b[2]) * 2;
+      c.beginPath(); c.moveTo(b[0] - 3, b[1] - f); c.lineTo(b[0], b[1]); c.lineTo(b[0] + 3, b[1] - f); c.stroke();
+    }
+    // tepe katmanları (periyodik)
+    const hAt = (Lr, x) => {
+      let s = 0;
+      for (const [k, ph, a] of Lr.w) s += Math.sin(TAU * k * x / L + ph) * a;
+      if (Lr.mesa) { const m = clamp((s - 0.15) * 5, 0, 1); return Lr.base - m * Lr.amp - (s + 1) * 3; }
+      return Lr.base - (s + 1) * Lr.amp * 0.5;
+    };
+    for (const Lr of B.layers) {
+      const off = (B.t * Lr.spd) % L;
+      c.fillStyle = Lr.col;
+      c.beginPath(); c.moveTo(0, H);
+      for (let x = 0; x <= W + 2; x += 2) c.lineTo(x, hAt(Lr, (x + off) % L));
+      c.lineTo(W, H); c.closePath(); c.fill();
+      if (Lr.mesa) { // güneşin vurduğu kenar
+        c.strokeStyle = 'rgba(255,170,110,0.35)'; c.lineWidth = 1; c.beginPath();
+        for (let x = 0; x <= W; x += 2) { const y = hAt(Lr, (x + off) % L); x ? c.lineTo(x, y) : c.moveTo(x, y); }
+        c.stroke();
+      }
+    }
+    // zemin
+    const gy = hor + 34;
+    const gg = c.createLinearGradient(0, gy, 0, H);
+    gg.addColorStop(0, '#5a2c1c'); gg.addColorStop(0.5, '#3a1a12'); gg.addColorStop(1, '#1c0c08');
+    c.fillStyle = gg; c.fillRect(0, gy, W, H - gy);
+    c.fillStyle = 'rgba(255,150,90,0.12)'; c.fillRect(0, gy, W, 1);
+    const goff = (B.t * 26) % L;
+    c.fillStyle = 'rgba(120,60,40,0.8)';
+    for (const [x0, yy, w] of B.scrub) { const x = ((x0 - goff) % L + L) % L; if (x < W + 10) c.fillRect(x, gy + 4 + yy * (H - gy - 8), w, 1); }
+    // telgraf direkleri
+    c.fillStyle = '#0e0606'; c.strokeStyle = 'rgba(14,6,6,0.9)'; c.lineWidth = 0.7;
+    const poff = (B.t * 20) % L;
+    const px = B.poles.map(p => ((p - poff) % L + L) % L).sort((a, b) => a - b);
+    for (const x of px) { if (x > W + 20) continue; c.fillRect(x, gy - 30, 2, 32); c.fillRect(x - 6, gy - 28, 14, 1.5); }
+    c.beginPath();
+    for (let i = 0; i < px.length - 1; i++) { const a = px[i], b = px[i + 1]; if (a > W + 20) break; c.moveTo(a - 5, gy - 27); c.quadraticCurveTo((a + b) / 2, gy - 21, b - 5, gy - 27); }
+    c.stroke();
+    // kaktüsler
+    c.fillStyle = '#0a0404';
+    const coff = (B.t * 30) % L;
+    for (const [x0, s, kind] of B.cacti) {
+      const x = ((x0 - coff) % L + L) % L;
+      if (x > W + 30) continue;
+      const by = H - 6 - (1.3 - s) * 20;
+      c.fillRect(x, by - 30 * s, 5 * s, 30 * s);
+      c.beginPath(); c.arc(x + 2.5 * s, by - 30 * s, 2.5 * s, Math.PI, 0); c.fill();
+      if (kind !== 1) { c.fillRect(x - 7 * s, by - 17 * s, 7 * s, 3 * s); c.fillRect(x - 7 * s, by - 25 * s, 3 * s, 10 * s); }
+      if (kind !== 2) { c.fillRect(x + 5 * s, by - 13 * s, 6 * s, 3 * s); c.fillRect(x + 8 * s, by - 21 * s, 3 * s, 10 * s); }
     }
     // atlı siluet
-    B.rider += dt * 30;
-    if (B.rider > 540) B.rider = -60;
-    const rx = B.rider, ry = 226, p = B.t * 12;
-    c.fillStyle = '#0a0404';
+    B.rider += dt * 34;
+    if (B.rider > W + 60) B.rider = -60;
+    const rx = B.rider, ry = gy + (H - gy) * 0.35, p = B.t * 12;
+    c.fillStyle = '#080303';
     c.beginPath(); c.ellipse(rx, ry, 13, 6, 0, 0, TAU); c.fill();
     c.beginPath(); c.moveTo(rx + 10, ry - 2); c.lineTo(rx + 19, ry - 12); c.lineTo(rx + 23, ry - 10); c.lineTo(rx + 15, ry + 1); c.fill();
     for (const [lx, ph] of [[-9, 0], [-6, 2], [7, 1], [10, 3]]) { c.save(); c.translate(rx + lx, ry + 3); c.rotate(Math.sin(p + ph) * 0.6); c.fillRect(-1, 0, 2, 11); c.restore(); }
@@ -1623,10 +1698,14 @@ const UI = {
     c.fillRect(rx - 3, ry - 17, 7, 12); c.beginPath(); c.arc(rx + 0.5, ry - 20, 3.4, 0, TAU); c.fill();
     c.fillRect(rx - 7, ry - 23, 15, 2); c.fillRect(rx - 3, ry - 27, 7, 5);
     if (Math.random() < 0.5) B.dust.push([rx - 12, ry + 8, 1]);
-    c.fillStyle = 'rgba(80,40,30,0.35)';
-    for (const d of B.dust) { d[2] -= dt * 0.8; d[0] -= dt * 12; d[1] -= dt * 4; c.beginPath(); c.arc(d[0], d[1], (1 - d[2]) * 6 + 1, 0, TAU); c.globalAlpha = Math.max(0, d[2]); c.fill(); }
+    c.fillStyle = 'rgba(120,60,40,0.3)';
+    for (const d of B.dust) { d[2] -= dt * 0.8; d[0] -= dt * 14; d[1] -= dt * 4; c.globalAlpha = Math.max(0, d[2]); c.beginPath(); c.arc(d[0], d[1], (1 - d[2]) * 6 + 1, 0, TAU); c.fill(); }
     c.globalAlpha = 1;
     B.dust = B.dust.filter(d => d[2] > 0);
+    // vinyet
+    const v = c.createRadialGradient(W / 2, H * 0.55, H * 0.3, W / 2, H * 0.55, W * 0.75);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.5)');
+    c.fillStyle = v; c.fillRect(0, 0, W, H);
   },
 };
 
