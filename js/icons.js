@@ -103,6 +103,8 @@ const ITEM_ICON = {
   bedroll: IK.bedroll, fishing_rod: IK.rod, gold_pan: IK.pan, pickaxe: IK.pickaxe, shovel: IK.shovel, canteen: IK.canteen, lantern: IK.lantern, hay: IK.hay, horse_brush: IK.brush,
   horse_reviver: IK.syringe, horse_tonic: () => IK.flask('#8ab040'), bait: IK.worm, harmonica: IK.harmonica, treasure_map: () => IK.scroll(true), region_map: () => IK.scroll(false),
   coat_duster: () => IK.coat('#6b5a44'), coat_sheep: () => IK.coat('#8a6a4a'), coat_fur: () => IK.coat('#4a3a2c'), coat_poncho: () => IK.poncho('#9a4a2a'), coat_linen: () => IK.shirt('#d8cdb4'),
+  mask_bandana: () => OUT(_p('M4 10 Q16 7 28 10 L26 15 Q22 26 16 28 Q10 26 6 15Z', '#a8281f') + _p('M4 10 Q16 7 28 10 L27.4 12.5 Q16 9.5 4.6 12.5Z', '#7e1c16', NS) + [[10, 16], [16, 15], [22, 16], [13, 21], [19, 21], [16, 25]].map(([x, y]) => _c(x, y, 1, IC.L, NS)).join('') + _p('M27 11 L31 8.5 L30 13Z', '#a8281f')),
+  mask_sack: () => OUT(_p('M7 27 Q4 14 8 8 Q16 1 24 8 Q28 14 25 27Z', '#c8a870') + _e(12, 14, 2.4, 2, IC.D, 0, NS) + _e(20, 14, 2.4, 2, IC.D, 0, NS) + _s('M7 24 Q16 21 25 24', '#7a5a30', 1.6) + _s('M10 9 l1 2 M18 7 l1 2 M22 19 l1 2 M11 20 l1 1', '#9a7a48', 0.9)),
   hat_cowboy: () => IK.hat('cowboy', '#6a4a30'), hat_bowler: () => IK.hat('bowler', '#2a2420'), hat_flat: () => IK.hat('flat', '#5a5048'), hat_wide: () => IK.hat('wide', '#a08a64'),
   dynamite: IK.dynamite,
 };
@@ -177,6 +179,8 @@ const GLYPHS = {
   fort: k => _p('M5 29 V8 H9 V11 H12 V8 H16 V11 H19 V8 H23 V11 H27 V29Z', k) + _p('M13 29 V21 Q16 17 19 21 V29Z', 'rgba(0,0,0,0.6)'),
   windmill: k => _p('M13 29 L14.5 14 H17.5 L19 29Z', k) + `<g transform="rotate(20 16 12)">${_p('M16 12 L14 1 H18Z', k)}${_p('M16 12 L27 10 V14Z', k)}${_p('M16 12 L18 23 H14Z', k)}${_p('M16 12 L5 14 V10Z', k)}</g>` + _c(16, 12, 2, k),
   palm: k => _s('M15 29 Q17 20 15 10', k, 3) + _p('M15 10 Q8 4 2 9 Q9 7 15 10Z', k) + _p('M15 10 Q22 3 29 8 Q22 7 15 10Z', k) + _p('M15 10 Q10 12 7 19 Q12 13 15 10Z', k) + _p('M15 10 Q21 12 24 19 Q19 13 15 10Z', k) + _p('M15 10 Q15 3 19 1 Q16 5 15 10Z', k),
+  mask: k => _p('M3 10 Q16 6 29 10 L27 16 Q23 27 16 28.5 Q9 27 5 16Z', k) + _s('M9 15 Q16 13 23 15', 'rgba(0,0,0,0.45)', 1.4) + _c(12, 20, 1.2, 'rgba(0,0,0,0.45)') + _c(20, 20, 1.2, 'rgba(0,0,0,0.45)') + _c(16, 23.5, 1.2, 'rgba(0,0,0,0.45)'),
+  witness: k => _p('M3 16 Q16 4 29 16 Q16 28 3 16Z', k) + _c(16, 16, 5, 'rgba(0,0,0,0.7)') + _p('M14.8 9 H17.2 L16.8 17 H15.2Z', k) + _c(16, 20, 1.3, k),
   eye: k => _p('M3 16 Q16 4 29 16 Q16 28 3 16Z', k) + _c(16, 16, 5, 'rgba(0,0,0,0.7)') + _c(17.5, 14.5, 1.5, k),
   paw: k => _e(16, 21, 7, 6, k) + _c(8, 13, 2.6, k) + _c(13, 9, 2.6, k) + _c(19, 9, 2.6, k) + _c(24, 13, 2.6, k),
   grave: k => _p('M3 29 Q16 21 29 29Z', k) + _r(14, 5, 4, 20, k) + _r(9, 9, 14, 4, k),
@@ -241,7 +245,7 @@ const EMOJI_GLYPH = {
   '🔥': 'fire', '🪰': 'flies', '👣': 'feet', '📍': 'pin', '🫗': 'drop', '💧': 'drop', '🧼': 'soap', '🃏': 'cards', '💪': 'fist', '👂': 'talk', '📰': 'newspaper', '⚖': 'scales', '🧽': 'brush',
   '💣': 'dynamite', '🙏': 'candle', '⏳': 'hourglass', '📦': 'chest', '💵': 'cash', '🏮': 'lamp', '🎮': 'pad', '🥩': 'cleaver', '👔': 'scissors', '🪓': 'axe', '🧙': 'hut', '🌾': 'wheat', '☄': 'crater',
   '🌲': 'tree', '🏛': 'ruins', '👻': 'ghost', '🦴': 'bones', '⚰': 'gallows', '🛞': 'wheel', '🗼': 'lighthouse', '🛖': 'hut', '⚔': 'swords', '🏰': 'fort', '🌀': 'windmill', '🌴': 'palm', '👁': 'eye',
-  '🐻': 'paw', '🌉': 'arch', '✊': 'fist', '🎲': 'dice', '♠': 'cards',
+  '🐻': 'paw', '🌉': 'arch', '✊': 'fist', '🎲': 'dice', '♠': 'cards', '🎭': 'mask',
 };
 
 const Icons = {

@@ -288,15 +288,25 @@ const UI = {
     // aranma
     const L = G.law;
     const wz = this.cache.wz || (this.cache.wz = $('#hud-wanted'));
-    const wk = L.level + '|' + Math.round(L.bounty);
+    const wk = L.level + '|' + Math.round(L.bounty) + '|' + Math.round(L.maskBounty || 0) + L.masked;
     if (wz._k !== wk) {
       wz._k = wk;
       wz.classList.toggle('hidden', L.level <= 0);
       $('.wanted-stars', wz).innerHTML = '★'.repeat(L.level) + '<span>' + '★'.repeat(5 - L.level) + '</span>';
-      $('.wanted-bounty', wz).textContent = 'Ödül: ' + fmtMoney(L.bounty);
+      $('.wanted-bounty', wz).innerHTML = L.masked ? 'Maskeli yabancı aranıyor' + (L.maskBounty ? ` <span class="mb">Ödül: ${fmtMoney(L.maskBounty)}</span>` : '') : 'Ödül: ' + fmtMoney(L.bounty) + (L.maskBounty ? ` <span class="mb">+ maskeli: ${fmtMoney(L.maskBounty)}</span>` : '');
       const hb = $('#hud-bounty');
       hb.classList.toggle('hidden', L.level > 0 || L.bounty <= 0);
       hb.textContent = 'Başındaki ödül: ' + fmtMoney(L.bounty);
+    }
+    // tanıklar
+    const wt = this.cache.wt || (this.cache.wt = $('#hud-witness'));
+    let wn = 0, wp = 0;
+    for (const r of G.reports) if (!r.done) { wn += r.ws.length; wp = Math.max(wp, r.t / r.limit); }
+    const wtk = wn + '|' + Math.round(wp * 50);
+    if (wt._k !== wtk) {
+      wt._k = wtk;
+      wt.classList.toggle('hidden', !wn);
+      if (wn) { $('.wt-t', wt).innerHTML = `${Icons.glyph('witness', '#f0b050')}${wn > 1 ? wn + ' TANIK' : 'TANIK'} KANUNA KOŞUYOR`; $('.wt-bar i', wt).style.width = Math.round((1 - wp) * 100) + '%'; }
     }
     // at
     const h = G.horse;
@@ -307,6 +317,7 @@ const UI = {
     // durum simgeleri
     const st = [];
     const gi = (g, t, col, blink) => st.push(`<span title="${t}" class="${blink ? 'blink' : ''}">${Icons.glyph(g, col)}</span>`);
+    if (P.masked) gi('mask', P.maskBlown ? 'Maskeli (görüldün)' : 'Maskeli', P.maskBlown ? '#e0a080' : '#efe6d2');
     if (P.sick > 0) gi('sick', 'Hasta', '#b8d890');
     if (P.poison > 0) gi('skull', 'Zehirlendin', '#b8e070', 1);
     if (P.drunk > 30) gi('mug', 'Sarhoş', '#e8c060');
@@ -451,7 +462,8 @@ const UI = {
       const [x, y] = toR(e.x, e.y);
       if (Math.hypot(x - R, y - R) > R - 4) continue;
       if (e.kind === 'npc') {
-        if (e.hostile && (e.aggro || e.isLaw)) { c.fillStyle = e.isLaw ? '#e0e0ff' : '#e02020'; c.beginPath(); c.arc(x, y, 3, 0, TAU); c.fill(); c.strokeStyle = e.isLaw ? '#2040c0' : '#400'; c.lineWidth = 1; c.stroke(); }
+        if (e.witness && !e.witness.done) { const im = Icons.img('witness', '#fff4dc', 32); c.fillStyle = 'rgba(200,120,20,0.95)'; c.beginPath(); c.arc(x, y, 6, 0, TAU); c.fill(); if (im.complete) c.drawImage(im, x - 4.5, y - 4.5, 9, 9); }
+        else if (e.hostile && (e.aggro || e.isLaw)) { c.fillStyle = e.isLaw ? '#e0e0ff' : '#e02020'; c.beginPath(); c.arc(x, y, 3, 0, TAU); c.fill(); c.strokeStyle = e.isLaw ? '#2040c0' : '#400'; c.lineWidth = 1; c.stroke(); }
         else if (e.role === 'romance' || e.role === 'spouse') { const im = Icons.img('heart', '#e06090', 32); if (im.complete) c.drawImage(im, x - 5, y - 5, 10, 10); }
         else if (e.role === 'stranger') { const im = Icons.img('question', '#ffffff', 32); if (im.complete) c.drawImage(im, x - 5, y - 5, 10, 10); }
         else { c.fillStyle = 'rgba(40,30,20,0.55)'; c.fillRect(x - 1.5, y - 1.5, 3, 3); }
@@ -740,7 +752,7 @@ const UI = {
         const ids = Object.keys(P.inv).filter(id => cats[m.tab].includes(ITEMS[id].c) && id !== 'canteen').sort((a, b) => ITEMS[a].n.localeCompare(ITEMS[b].n, 'tr'));
         for (const id of ids) {
           const it = ITEMS[id];
-          const worn = (P.coat === id) || (it.hat && P.look.hat === it.hat);
+          const worn = (P.coat === id) || (it.hat && P.look.hat === it.hat) || (it.mask && P.masked && P.mask === id);
           items.push({ id, icon: Icons.item(id), label: it.n + (worn ? ' <em>(giyili)</em>' : ''), right: 'x' + P.inv[id], fn: () => { G.consume(id); }, sideHtml: this.itemSide(it) });
         }
         return items;
@@ -840,9 +852,55 @@ const UI = {
     </div>`;
   },
   controlsTable() {
-    const rows = [['Hareket', 'Sol Analog', 'W A S D'], ['Nişan / Bakış', 'Sağ Analog', 'Fare'], ['Koş / Dörtnala', '✕ (basılı)', 'Shift'], ['Etkileşim / Ata Bin / İn', '△', 'E'], ['Nişan Al', 'L2', 'Sağ Tık'], ['Ateş Et', 'R2', 'Sol Tık'], ['Şarjör Değiştir', '□', 'R'], ['Yakın Dövüş', '○', 'F'], ['Çömel / Gizlen', 'L3', 'C'], ['Dead Eye (nişan alırken)', 'R3', 'Q'], ['Silah Çarkı', 'L1 (basılı)', 'Tab (basılı)'], ['Hızlı İyileş / Ye', 'R1', 'T'], ['Atı Çağır (ıslık)', 'D-Pad ↑', 'H'], ['Fener', 'D-Pad ←', 'L'], ['Çanta', 'D-Pad →', 'I'], ['Kamp Kur', 'D-Pad ↓ (basılı)', 'B (basılı)'], ['Harita', 'Touchpad', 'M'], ['Günlük', 'Share', 'J'], ['Duraklat', 'Options', 'Esc / P']];
-    return `<table class="ctrl"><tr><th>Eylem</th><th>PlayStation</th><th>Klavye / Fare</th></tr>${rows.map(r => `<tr><td>${r[0]}</td><td class="c-ps">${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</table>`;
+    const B = Input.binds;
+    const rows = GAME_ACTIONS.map(g => [g.n, g.kbOnly ? 'Sol Analog' : Input.padGlyph(B.pad[g.id]), (B.kb[g.id] || []).filter(Boolean).map(c => Input.kbGlyph(c)).join(' ') || '—']);
+    rows.unshift(['Hareket', 'Sol Analog', `${Input.kbGlyph(B.kb.moveUp[0])}${Input.kbGlyph(B.kb.moveLeft[0])}${Input.kbGlyph(B.kb.moveDown[0])}${Input.kbGlyph(B.kb.moveRight[0])}`], ['Nişan Yönü', 'Sağ Analog', 'Fare']);
+    return `<table class="ctrl"><tr><th>Eylem</th><th>PlayStation</th><th>Klavye / Fare</th></tr>${rows.filter(r => !['İleri', 'Geri', 'Sol', 'Sağ'].includes(r[0])).map(r => `<tr><td>${r[0]}</td><td class="c-ps">${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</table><p class="dim">Tuşları Ayarlar → Tuş Atamaları'ndan değiştirebilirsin.</p>`;
   },
+  openControls(tab = Input.device === 'pad' ? 1 : 0) {
+    let capturing = null;
+    const m = this.menu({
+      title: 'Tuş Atamaları', cls: 'shop controls', tabs: ['Klavye / Fare', 'PS Kolu'], tab,
+      sub: (mm) => mm.tab === 0 ? 'Bir eyleme bas, ardından yeni tuşa ya da fare düğmesine bas. Esc iptal eder.' : 'Bir eyleme bas, ardından koldaki yeni tuşa bas. 6 saniye beklersen iptal olur. Menülerde ✕ seç, ○ geri sabittir.',
+      altLabel: 'Varsayılana Dön', okLabel: 'Değiştir',
+      side: (it) => it.sideHtml || '',
+      build: (mm) => {
+        const dev = mm.tab === 0 ? 'kb' : 'pad';
+        const items = [];
+        for (const g of GAME_ACTIONS) {
+          if (dev === 'pad' && g.kbOnly) continue;
+          const cur = dev === 'kb' ? (Input.binds.kb[g.id] || []).filter(Boolean).map(c => Input.kbGlyph(c)).join(' ') || Input.kbGlyph(null) : Input.padGlyph(Input.binds.pad[g.id]);
+          const wait = capturing === g.id;
+          items.push({
+            label: g.n, right: wait ? '<em class="cap">Bir tuşa bas…</em>' : cur, cls: wait ? 'capturing' : '',
+            sideHtml: `<div class="ps-t">${g.n}</div><div class="ps-d">Şu an: ${cur}</div><div class="ps-e">${dev === 'kb' ? 'Enter ya da tık ile değiştir.' : '✕ ile değiştir.'}</div>`,
+            fn: () => {
+              if (capturing) return;
+              capturing = g.id;
+              mm.render();
+              Input.startCapture(dev, (v) => {
+                capturing = null;
+                if (v !== undefined && v !== null) {
+                  const sw = Input.bind(dev, g.id, v);
+                  if (sw) this.feed(`"${GAME_ACTIONS.find(x => x.id === sw).n}" ile tuşlar takas edildi.`);
+                  G.saveSettings();
+                  Audio_.ui('ok');
+                } else Audio_.ui('back');
+                if (mm.alive) mm.render();
+              });
+            },
+          });
+        }
+        items.push({ header: ' ' });
+        items.push({ label: 'Bu Sekmeyi Varsayılana Döndür', cls: 'danger', fn: () => { Input.resetBinds(dev); G.saveSettings(); } });
+        return items;
+      },
+      onAlt: () => { const dev = m.tab === 0 ? 'kb' : 'pad'; Input.resetBinds(dev); G.saveSettings(); this.feed('Tuşlar varsayılana döndü.'); },
+      onClose: () => { if (Input.capture) Input.finishCapture(undefined); G.saveSettings(); },
+    });
+    return m;
+  },
+
 
   /* ================= DURAKLAT ================= */
   openPause() {
@@ -856,7 +914,7 @@ const UI = {
         { label: 'Günlük', fn: () => { this.pop(); this.openJournal(); } },
         { label: 'Oyunu Kaydet', fn: () => G.saveGame() },
         { label: 'Ayarlar', fn: () => this.openSettings() },
-        { label: 'Kontroller', fn: () => this.info('Kontroller', this.controlsTable()) },
+        { label: 'Tuş Atamaları', fn: () => this.openControls() },
         { label: 'Ana Menüye Dön', fn: () => this.confirm('Ana Menü', 'Kaydedilmemiş ilerleme kaybolabilir. Kaydedip çıkılsın mı?', () => { G.saveGame(true); this.closeAll(); this.showMainMenu(); }, 'Vazgeç', 'Kaydet ve Çık') },
       ],
     });
@@ -869,7 +927,7 @@ const UI = {
       ['zoom', 'Piksel Ölçeği', 'zoom'], ['shake', 'Ekran Sarsıntısı', 'bool'], ['fps', 'FPS Göster', 'bool'],
     ];
     const val = (k, t) => t === 'vol' ? Math.round(S[k] * 10) * 10 + '%' : t === 'bool' ? (S[k] ? 'Açık' : 'Kapalı') : (S[k] ? S[k] + 'x' : 'Otomatik');
-    el.innerHTML = `<div class="p-head"><div class="p-title">Ayarlar</div></div><div class="p-body"><div class="p-list">${rows.map(([k, n, t]) => `<div class="p-item nav opt" data-k="${k}" data-t="${t}" data-lr><span class="pi-l">${n}</span><span class="pi-r"><b class="arr">◀</b> <span class="v">${val(k, t)}</span> <b class="arr">▶</b></span></div>`).join('')}<div class="p-item nav" id="set-back"><span class="pi-l">Kaydet ve Geri Dön</span></div></div></div><div class="p-foot">◀ ▶ Değiştir &nbsp; ${Input.glyph('back')} Geri</div>`;
+    el.innerHTML = `<div class="p-head"><div class="p-title">Ayarlar</div></div><div class="p-body"><div class="p-list">${rows.map(([k, n, t]) => `<div class="p-item nav opt" data-k="${k}" data-t="${t}" data-lr><span class="pi-l">${n}</span><span class="pi-r"><b class="arr">◀</b> <span class="v">${val(k, t)}</span> <b class="arr">▶</b></span></div>`).join('')}<div class="p-item nav" id="set-keys"><span class="pi-l">Tuş Atamaları</span><span class="pi-r">›</span></div><div class="p-item nav" id="set-back"><span class="pi-l">Kaydet ve Geri Dön</span></div></div></div><div class="p-foot">◀ ▶ Değiştir &nbsp; ${Input.glyph('back')} Geri</div>`;
     const m = this.makeModal(el, { onBack: () => { G.saveSettings(); this.pop(); } });
     $$('.opt', el).forEach(n => {
       const k = n.dataset.k, t = n.dataset.t;
@@ -884,6 +942,7 @@ const UI = {
       $$('.arr', n).forEach((a, i) => (a.onclick = (e) => { e.stopPropagation(); n._lr(i ? 1 : -1); }));
       n.onmouseenter = () => m.setFocus(n, true);
     });
+    $('#set-keys', el).onclick = () => { G.saveSettings(); this.openControls(); };
     $('#set-back', el).onclick = () => { G.saveSettings(); this.pop(); };
     this.push(m);
   },
@@ -899,6 +958,13 @@ const UI = {
         const it = [];
         const closed = (G.hour < 6 || G.hour > 22) && !['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable'].includes(b.type);
         if (closed) { it.push({ html: '<p class="closed">Dükkan kapalı. Açılış saati 06:00.</p>' }); if (svc.includes('rob')) it.push({ label: 'Kapıyı Kır ve Soy', icon: '🔫', fn: () => this.robStore(b, true) }); return it; }
+        if (P.masked && b.type !== 'fence') {
+          it.push({ html: `<p class="closed">${b.type === 'sheriff' ? '"Maskeyle şerif ofisine mi giriyorsun? Çıkar onu, hemen!"' : b.type === 'bank' ? '"Maskeli müşteriye hizmet yok. Çıkar onu ya da defol."' : '"Maskeni çıkar, yoksa sana hizmet etmem."'}</p>` });
+          it.push({ icon: '🎭', label: 'Maskeyi Çıkar', fn: () => G.toggleMask(null, true) });
+          if (svc.includes('rob')) it.push({ icon: '🔫', label: 'Dükkanı Soy', cls: 'danger', fn: () => this.robStore(b) });
+          if (svc.includes('robbank')) it.push({ icon: '💣', label: 'Bankayı Soy', cls: 'danger', fn: () => this.robBank(b) });
+          return it;
+        }
         for (const s of svc) {
           switch (s) {
             case 'shop': it.push({ icon: '🛒', label: 'Alışveriş', fn: () => this.openShop(d.shop, b.name) }); break;
@@ -983,7 +1049,7 @@ const UI = {
           }
           for (const id of ids) {
             const it = ITEMS[id], pr = G.sellPrice(id, shopId);
-            const worn = P.coat === id;
+            const worn = P.coat === id || (P.masked && P.mask === id);
             items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, sideHtml: this.itemSide(it), disabled: worn, why: 'Üzerindeki giysiyi satamazsın.', fn: () => { P.removeItem(id, 1); G.earn(pr, ''); G.skillXp('trade', 1 + pr * 0.1); } });
           }
         }
@@ -1537,7 +1603,7 @@ const UI = {
         if (id === 'cont') { this.pop(m); mm.classList.add('hidden'); G.loadGame(); }
         else if (id === 'new') { if (info) this.confirm('Yeni Hayat', 'Mevcut kaydın silinecek. Emin misin?', () => { this.pop(m); this.showCreate(); }); else { this.pop(m); this.showCreate(); } }
         else if (id === 'set') this.openSettings();
-        else if (id === 'ctrl') this.info('Kontroller', this.controlsTable());
+        else if (id === 'ctrl') this.openControls();
         else if (id === 'about') this.info('Dustbound', '<p><b>Dustbound</b>, 1890\'lar Amerika\'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunudur.</p><p>Görev yok; sadece hayat var. 18 yaşında başla, avlan, çalış, sev, keşfet ve 80 yaşına kadar hayatta kalmaya çalış.</p><p class="dim">HTML5 Canvas • Prosedürel dünya, grafik ve ses</p>');
       };
     });

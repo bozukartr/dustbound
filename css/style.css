@@ -84,6 +84,12 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .wanted-stars { font-size: 20px; color: #ffe8a0; letter-spacing: 2px; }
 .wanted-stars span { color: rgba(255, 255, 255, 0.25); }
 .wanted-bounty { font-family: var(--type); font-size: 14px; }
+.wanted-bounty .mb { display: block; color: #f0c890; font-size: 12px; }
+#hud-witness { margin-top: 8px; background: linear-gradient(270deg, rgba(150, 90, 10, 0.9), rgba(150, 90, 10, 0)); padding: 5px 12px 7px 40px; border-right: 3px solid #f0a030; text-align: right; }
+#hud-witness .wt-t { font-family: var(--type); font-size: 14px; color: #fff4dc; animation: bl 1.2s steps(2) infinite; }
+#hud-witness .wt-t .ic { width: 18px; height: 18px; vertical-align: -4px; margin-right: 4px; }
+#hud-witness .wt-bar { height: 4px; margin-top: 4px; background: rgba(0, 0, 0, 0.45); }
+#hud-witness .wt-bar i { display: block; height: 100%; width: 0; margin-left: auto; background: #f0a030; }
 #hud-bounty { margin-top: 8px; font-family: var(--type); font-size: 13px; color: #e8a090; }
 #hud-help { position: absolute; left: 24px; top: 20px; max-width: 440px; background: rgba(0, 0, 0, 0.78); padding: 14px 18px; font-size: 17px; line-height: 1.45; border-left: 3px solid var(--red); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5); }
 #hud-help b { color: #fff; }
@@ -126,7 +132,7 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .toast.tk-wanted .t-t { font-family: var(--west); letter-spacing: 2px; }
 .toast.tk-family .t-t { color: #ffc0d0; }
 @keyframes toastin { from { opacity: 0; transform: scale(0.9); } }
-#honor-flash { position: absolute; right: 30px; top: 150px; font-family: var(--sc); font-size: 16px; opacity: 0; }
+#honor-flash { margin-top: 6px; height: 20px; font-family: var(--sc); font-size: 16px; opacity: 0; }
 #honor-flash.show { animation: hflash 2s ease-out; }
 #honor-flash.good::after { content: '▲ Onur'; color: #9fe07a; text-shadow: 0 0 4px #000; }
 #honor-flash.bad::after { content: '▼ Onur'; color: #ff7a6a; text-shadow: 0 0 4px #000; }
@@ -225,6 +231,9 @@ body.modal-open #modals { background: rgba(0, 0, 0, 0.45); }
 .p-item.dis { opacity: 0.45; }
 .p-item.danger .pi-l { color: #ff9a8a; }
 .p-item.focus.danger .pi-l { color: #fff; }
+.p-item.capturing { background: rgba(214, 170, 60, 0.18); outline: 1px dashed rgba(240, 200, 90, 0.7); }
+.p-item em.cap { font-style: normal; color: #f3d27a; animation: bl 0.9s steps(2) infinite; }
+.btn.kb.none { background: transparent; color: #8a8070; border: 1px dashed #6a6050; border-bottom-width: 1px; }
 .p-hdr { font-family: var(--sc); font-size: 14px; letter-spacing: 3px; color: var(--gold); padding: 12px 24px 4px; }
 .p-html { padding: 6px 24px; font-size: 17px; line-height: 1.5; }
 .p-html p { margin: 6px 0; }

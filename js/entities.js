@@ -187,6 +187,7 @@ class Player extends Ent {
     this.sick = 0; this.poison = 0;
     this.canteen = 3;
     this.coat = null;
+    this.mask = null;
     this.lantern = false;
     this.crouch = false;
     this.riding = null;
@@ -306,6 +307,7 @@ class Player extends Ent {
       else UI.feed('Fenerin yok. Genel mağazadan alabilirsin.', 'warn');
     }
     if (I.pressed('crouch') && !this.riding) { this.crouch = !this.crouch; }
+    if (I.pressed('mask')) G.toggleMask();
     if (I.pressed('whistle')) G.whistle();
     // mesafe istatistikleri
     const dd = dist(this.x, this.y, this.lastPos.x, this.lastPos.y);
@@ -568,14 +570,16 @@ class Player extends Ent {
     if (w.throw) return 'throw';
     return w.kind;
   }
+  get masked() { return !!this.mask && !!this.inv[this.mask]; }
   lookNow() {
     const age = G.age;
     const L = this.look;
-    if (!this._lk || this._lkAge !== age || this._lkCoat !== this.coat || this._lkHat !== L.hat) {
+    const mask = this.masked ? ITEMS[this.mask].mask : null;
+    if (!this._lk || this._lkAge !== age || this._lkCoat !== this.coat || this._lkHat !== L.hat || this._lkMask !== mask) {
       const grey = clamp((age - 42) / 30, 0, 1);
       const coat = this.coat ? ITEMS[this.coat].coat : null;
-      this._lk = Object.assign({}, L, { hairNow: grey > 0 ? mixHex(L.hair, '#d8d4cc', grey) : L.hair, coat: coat && coat.col ? coat.col : L.coat, coatLen: coat ? coat.len : 0 });
-      this._lkAge = age; this._lkCoat = this.coat; this._lkHat = L.hat;
+      this._lk = Object.assign({}, L, { hairNow: grey > 0 ? mixHex(L.hair, '#d8d4cc', grey) : L.hair, coat: coat && coat.col ? coat.col : L.coat, coatLen: coat ? coat.len : 0, mask });
+      this._lkAge = age; this._lkCoat = this.coat; this._lkHat = L.hat; this._lkMask = mask;
     }
     return this._lk;
   }
@@ -709,7 +713,7 @@ class NPC extends Ent {
       }
       if (this.isLaw) this.hostile = true;
       if (this.role === 'bandit' || this.role === 'target') this.hostile = true;
-      if (!this.hostile && this.hp > 0 && !(this.fistOK && how === 'melee')) { this.state = 'flee'; this.t = 10; this.say(pick(LINES.flee)); }
+      if (!this.hostile && this.hp > 0 && !(this.fistOK && how === 'melee')) { this.state = this.witness ? 'report' : 'flee'; this.t = 10; this.say(pick(LINES.flee)); }
     }
     if (this.mounted && (dmg > 25 || this.hp <= 0)) {
       const h = new Horse(this.x + 6, this.y, 'mustang', { look: this.mounted, owner: 'npc' });
@@ -737,8 +741,9 @@ class NPC extends Ent {
     this.t -= dt; this.cool -= dt;
     const P = G.player;
     const pd = dist(this.x, this.y, P.x, P.y);
-    if (this.isLaw && !this.hostile && G.law.level > 0 && this.canSee(P.x, P.y, 260)) { this.hostile = true; this.say(pick(LINES.law)); }
-    if (this.isLaw && this.hostile && G.law.level === 0 && !this.personal) { this.hostile = false; this.state = 'idle'; }
+    if (this.isLaw && !this.hostile && G.law.level > 0 && G.suspect() && this.canSee(P.x, P.y, 260)) { this.hostile = true; this.say(pick(LINES.law)); }
+    if (this.isLaw && this.hostile && (G.law.level === 0 || !G.suspect()) && !this.personal) { if (G.law.level > 0 && pd < 300) this.say(pick(['Nereye kayboldu bu maskeli?', 'Onu gördün mü? Maskeli biri!', 'İzini kaybettik!']), 2); this.hostile = false; this.state = 'idle'; }
+    if (this.state === 'report') { this.reportUpdate(dt, pd); return; }
     if (this.hostile && P.hp > 0) {
       if (this.role === 'bandit' && pd > 520 && !this.aggro) { this.idleUpdate(dt, pd); return; }
       if (this.role === 'bandit' || this.role === 'target') {
@@ -757,10 +762,11 @@ class NPC extends Ent {
     }
     if (this.state === 'cower' || this.state === 'hurt' || this.state === 'sit' || this.state === 'static') {
       this.mv = 0;
+      if (this.state === 'cower' && this.cowerT !== undefined && (this.cowerT -= dt) <= 0) { this.cowerT = undefined; this.state = 'idle'; this.t = 2; }
       if (this.state === 'static' && pd < 60) this.ang = turnTo(this.ang, Math.atan2(P.y - this.y, P.x - this.x), dt * 3);
       return;
     }
-    if (this.state === 'robbed') { this.mv = 0; if (this.t <= 0) { this.state = 'flee'; this.t = 8; } return; }
+    if (this.state === 'robbed') { this.mv = 0; if (this.t <= 0) { this.state = this.witness ? 'report' : 'flee'; this.t = 8; } return; }
     if (this.state === 'fightFist') { this.fistFight(dt, pd); return; }
     this.idleUpdate(dt, pd);
   }
@@ -792,6 +798,33 @@ class NPC extends Ent {
         this.target = { x: tx, y: ty }; this.state = 'walk'; this.t = 15;
       }
     }
+  }
+  /* Tanık: en yakın kanun adamına ya da şerif ofisine koşar */
+  reportUpdate(dt, pd) {
+    const P = G.player, r = this.witness;
+    if (!r || r.done) { this.witness = null; this.held = false; this.state = 'flee'; this.t = 6; return; }
+    this.braveT = Math.max(0, (this.braveT || 0) - dt);
+    const toMe = Math.atan2(this.y - P.y, this.x - P.x);
+    const aimed = P.isArmed && (P.aiming || P.rsAim) && pd < 150 && this.braveT <= 0 && Math.abs(angDiff(P.aimAng !== undefined ? P.aimAng : P.ang, toMe)) < 0.4 && G.los(P.x, P.y, this.x, this.y);
+    if (aimed) {
+      if (!this.held) { this.held = true; this.say(pick(LINES.witnessHold), 2); }
+      this.mv = 0; this.ang = turnTo(this.ang, toMe + Math.PI, dt * 5);
+      return;
+    }
+    this.held = false;
+    this.tgtT = (this.tgtT || 0) - dt;
+    if (this.tgtT <= 0) { this.tgtT = 1.5; this.rTarget = G.reportTarget(this); }
+    const tg = this.rTarget && !this.rTarget.dead ? this.rTarget : null;
+    let a = tg ? Math.atan2(tg.y - this.y, tg.x - this.x) : toMe;
+    if (pd < 50 && tg && Math.abs(angDiff(a, toMe)) > 1.6) a = toMe + (angDiff(toMe, a) > 0 ? 0.9 : -0.9);
+    // engele takılırsa bir süre yan yoldan dolaş
+    if (this.stuck > 0.6 && !(this.detourT > 0)) { this.detour = (chance(0.5) ? 1 : -1) * rnd(1.1, 1.8); this.detourT = rnd(0.6, 1.1); this.stuck = 0; }
+    if (this.detourT > 0) { this.detourT -= dt; a += this.detour; }
+    this.ang = turnTo(this.ang, a, dt * 5);
+    this.walk(dt, (this.mounted ? 130 : 62) * (this.fear || 1));
+    this.chatT = (this.chatT || 0) - dt;
+    if (this.chatT <= 0) { this.chatT = rnd(4, 7); this.say(pick(LINES.witness), 2); }
+    if (tg && dist(this.x, this.y, tg.x, tg.y) < (tg.door ? 14 : 22)) G.deliverReport(r, this, tg);
   }
   walk(dt, sp) {
     const ox = this.x, oy = this.y;
@@ -853,10 +886,16 @@ class NPC extends Ent {
       return;
     }
     Spr.human(ctx, this.x, this.y, this.ang, this.look, {
-      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, crouch: this.state === 'cower',
+      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, crouch: this.state === 'cower' || this.held,
       aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing', wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
       swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon,
     });
+    if (this.witness && !this.dead) {
+      // tanık işareti
+      const bob = Math.sin(G.t * 6) * 0.8;
+      ctx.fillStyle = 'rgba(20,12,6,0.8)'; ctx.fillRect(this.x - 1.6, this.y - 15 + bob, 3.2, 8.4);
+      ctx.fillStyle = this.held ? '#f0e0b0' : '#f0a030'; ctx.fillRect(this.x - 0.8, this.y - 14.2 + bob, 1.6, 4.2); ctx.fillRect(this.x - 0.8, this.y - 9.2 + bob, 1.6, 1.6);
+    }
   }
 }
 

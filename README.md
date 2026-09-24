@@ -35,9 +35,12 @@ Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation kolu (Du
 | Kamp kur | D-Pad ↓ (basılı) | B (basılı) |
 | Harita | Touchpad | M |
 | Günlük | Share | J |
+| Maske tak / çıkar | (boş — istersen ata) | V |
 | Duraklat | Options | Esc / P |
 
 Menülerde: ✕ / Enter seçer, ○ / Esc geri döner, L1-R1 / Q-E sekme değiştirir.
+
+Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir. Klavye/fare ve PS kolu ayrı ayrı ayarlanır; bir tuşu başka bir eylemin tuşuna atarsan ikisi yer değiştirir. Atamalar tarayıcıda saklanır.
 
 ## Neler var?
 
@@ -47,7 +50,8 @@ Menülerde: ✕ / Enter seçer, ○ / Esc geri döner, L1-R1 / Q-E sekme değiş
 - Kasabaları bağlayan yollar, köprüler ve istasyonlar arasında gidip gelen **trenler** (bilet alıp seyahat edebilirsin).
 - 25 keşfedilecek önemli yer: göktaşı krateri, bin yıllık sekoya, hayalet kasaba, terk edilmiş maden, sıcak kaynaklar, dinozor kemikleri, karaya oturmuş gemi, gözetleme tepeleri. Bunlara haydut kampları, çiftlikler ve satılık mülkler eklenir.
 - Gezdikçe açılan parşömen harita, GPS rotası ve RDR2 tarzı radar.
-- Gece-gündüz döngüsü, mevsimler, yağmur, fırtına, kar, kum fırtınası ve sis.
+- Gece-gündüz döngüsü, yağmur, fırtına, kar, kum fırtınası ve sis.
+- **Mevsimler görünür**: kışın soğuk bölgeler, çatılar ve ağaçlar karla kaplanır, göller donar, yapraklı ağaçlar çıplak kalır; sonbaharda yapraklar sararır; yazın otlar kurur. Harita da mevsime göre değişir.
 
 **Hayatta kalma ve hayat**
 - Açlık, susuzluk, uyku, temizlik, vücut ısısı, hastalık, zehirlenme ve sarhoşluk.
@@ -65,7 +69,9 @@ Menülerde: ✕ / Enter seçer, ○ / Esc geri döner, L1-R1 / Q-E sekme değiş
 - Atlar: satın alma, yabani at evcilleştirme, bağ seviyesi, ıslıkla çağırma.
 
 **Kanun ve onur**
-- Görülen suçlar başına ödül koydurur. Aranma seviyesi, arama alanı ve peşine düşen kanun adamları. Ödülünü şerif ofisinde ödeyebilirsin.
+- **Tanıklar**: Suçunu gören biri önce en yakın kanun adamına ya da şerif ofisine koşar. Ulaşamadan onu durdurursan (silah doğrultup tehdit ederek, rüşvet vererek ya da daha kötüsüyle) suç kayda geçmez. Kanun adamlarının gözü önünde işlenen suçlar ve dükkan/banka soygunları anında bildirilir.
+- **Maske ve kılık**: Bandana ya da çuval maske takarak işlediğin suçlar sana değil, "maskeli bir yabancıya" yazılır. Kimse görmeden maskeni çıkarırsan izini kaybederler; biri görürse kimliğin açığa çıkar ve ödül senin adına geçer. Maskeyi takarken görülürsen de maske işe yaramaz. Kanun, suç anındaki şapkanı ve paltonu hatırlar: kıyafet değiştirirsen kasabalarda tanınman zorlaşır. Dükkanlar maskeli müşteriye hizmet etmez (kaçakçı hariç).
+- Aranma seviyesi, arama alanı ve peşine düşen kanun adamları. Ödülünü şerif ofisinde ödeyebilirsin.
 - Onur sistemi fiyatları ve insanların sana nasıl davrandığını etkiler.
 
 **Gelişim**
