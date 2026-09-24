@@ -130,6 +130,8 @@ const G = {
     this.rebuildFog();
     this.revealAt(town.cx, town.cy, 1000);
     this.visited.add(town.id);
+    // kasabaya varış sinematiği (5 geçmişe özel, geçilebilir)
+    try { await Cinema.play(profile.bg, { look: profile.look, seed }); } catch (e) { console.warn(e); }
     this.unlock('begin');
     this.startPlay();
     setTimeout(() => {
@@ -338,14 +340,14 @@ const G = {
   },
   handleGlobalInput(dt) {
     const I = Input, P = this.player;
+    // silah / eşya çarkı (açıkken diğer kısayollar çalışmaz)
+    if (I.down('wheel')) { if (!this.wheelOpen) UI.openWheel(); this.wheelOpen = true; UI.updateWheel(); }
+    else if (this.wheelOpen) { this.wheelOpen = false; UI.closeWheel(); }
+    if (this.wheelOpen) return;
     if (I.pressed('pause')) { UI.openPause(); return; }
     if (I.pressed('map')) { UI.openMap(); return; }
     if (I.pressed('satchel')) { UI.openSatchel(); return; }
     if (I.pressed('journal')) { UI.openJournal(); return; }
-    // silah çarkı
-    if (I.down('wheel')) { if (!this.wheelOpen) UI.openWheel(); this.wheelOpen = true; UI.updateWheel(); }
-    else if (this.wheelOpen) { this.wheelOpen = false; UI.closeWheel(); }
-    if (this.wheelOpen) return;
     // dead eye
     if (I.pressed('deadeye')) {
       if (P.deadeye) { P.deadeye = false; }

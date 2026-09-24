@@ -650,30 +650,73 @@ const UI = {
     c.fillStyle = g; c.fillRect(0, 0, w, h);
   },
 
-  /* ================= SİLAH ÇARKI ================= */
-  wheelOwned(i) {
-    const P = G.player, s = WHEEL_SLOTS[i];
-    return s ? s.w.find(id => (id === 'dynamite' ? P.has('dynamite') : P.weapons.has(id))) : null;
+  /* ================= SİLAH / EŞYA ÇARKI (RDR2 tarzı iki sayfa) ================= */
+  wheelSlots(page) { return page === 0 ? WHEEL_SLOTS : ITEM_SLOTS; },
+  /* Bir yuvadaki seçilebilir girdiler */
+  wheelEntries(page, i) {
+    const P = G.player, sl = this.wheelSlots(page)[i];
+    if (!sl) return [];
+    if (page === 0) return sl.w.filter(id => (id === 'dynamite' ? P.has('dynamite') : P.weapons.has(id))).map(id => ({ id, kind: 'w' }));
+    const out = [];
+    for (const v of sl.v || []) {
+      if (v === '@canteen' && P.has('canteen')) out.push({ id: v, kind: 'v' });
+      if (v === '@lantern' && P.has('lantern')) out.push({ id: v, kind: 'v' });
+      if (v === '@harmonica' && P.has('harmonica')) out.push({ id: v, kind: 'v' });
+    }
+    for (const id in P.inv) { const it = ITEMS[id]; if (it && P.inv[id] > 0 && sl.f(id, it)) out.push({ id, kind: 'i' }); }
+    return out;
+  },
+  wheelPickOf(page, i) {
+    const P = G.player, E = this.wheelEntries(page, i);
+    if (!E.length) return null;
+    P.wheelPick = P.wheelPick || {};
+    const key = page + ':' + i;
+    let e = E.find(x => x.id === P.wheelPick[key]);
+    if (!e && page === 0) e = E.find(x => x.id === P.weapon);
+    return e || E[0];
+  },
+  wheelEntryInfo(e) {
+    const P = G.player;
+    if (e.kind === 'w') {
+      const W = WEAPONS[e.id];
+      return { n: W.n, ic: Icons.weapon(e.id, 'ic wpn'), am: W.clip ? `${P.clip[e.id] || 0}<span>|</span>${P.ammo[W.ammo]}` : W.throw ? `x${P.count('dynamite')}` : '' };
+    }
+    if (e.id === '@canteen') return { n: 'Matara', ic: Icons.item('canteen'), am: `${P.canteen}/5`, d: P.canteen > 0 ? 'Bir yudum su iç. (Susuzluk +32)' : 'Matara boş. Bir kuyu ya da nehirde doldur.' };
+    if (e.id === '@lantern') return { n: P.lantern ? 'Feneri Söndür' : 'Feneri Yak', ic: Icons.item('lantern'), am: P.lantern ? 'Açık' : 'Kapalı', d: 'Karanlıkta yolunu aydınlatır.' };
+    if (e.id === '@harmonica') return { n: 'Mızıka Çal', ic: Icons.item('harmonica'), am: '', d: 'Kısa bir ezgi çal. Ruhunu dinlendirir.' };
+    const it = ITEMS[e.id];
+    const worn = (P.coat === e.id) || (it.hat && P.look.hat === it.hat) || (it.mask && P.masked && P.mask === e.id);
+    const EN = { hunger: 'Açlık', thirst: 'Susuzluk', health: 'Sağlık', stamina: 'Dayanıklılık', energy: 'Uyku', deadeye: 'Dead Eye', warmth: 'Sıcaklık', drunk: 'Sarhoşluk' };
+    const fx = it.e ? Object.keys(it.e).filter(k => EN[k]).map(k => `${EN[k]} ${it.e[k] > 0 ? '+' : ''}${it.e[k]}`).join(' • ') : '';
+    return { n: it.n, ic: Icons.item(e.id), am: it.c === 'clothing' ? (worn ? 'Giyili' : '') : `x${P.count(e.id)}`, d: fx || it.d || '', worn, raw: !!it.raw };
   },
   openWheel() {
     const w = $('#wheel');
-    w.classList.remove('hidden');
-    const P = G.player, N = WHEEL_SLOTS.length;
+    w.classList.remove('hidden'); document.body.classList.add('wheel-open');
+    const P = G.player;
+    this.wheelPage = 0;
+    this.wheelSelP = this.wheelSelP || [0, 0];
+    this.wheelSelP[0] = Math.max(0, WHEEL_SLOTS.findIndex(sl => sl.w.includes(P.weapon)));
+    this.wheelOpenT = 0;
+    Audio_.tone(500, 0.1, 'sine', 0.05);
+    this.renderWheel();
+  },
+  renderWheel() {
+    const page = this.wheelPage, S = this.wheelSlots(page), N = S.length;
     const rin = 96, rout = 232, gap = 0.035;
     const pt = (r, a) => `${(Math.cos(a) * r).toFixed(1)} ${(Math.sin(a) * r).toFixed(1)}`;
     let wedges = '', slots = '';
-    WHEEL_SLOTS.forEach((sl, i) => {
+    S.forEach((sl, i) => {
       const ac = (i / N) * TAU - Math.PI / 2, a0 = ac - Math.PI / N + gap, a1 = ac + Math.PI / N - gap;
-      const owned = this.wheelOwned(i);
-      wedges += `<path class="wh-w ${owned ? '' : 'empty'}" data-i="${i}" d="M${pt(rin, a0)} L${pt(rout, a0)} A${rout} ${rout} 0 0 1 ${pt(rout, a1)} L${pt(rin, a1)} A${rin} ${rin} 0 0 0 ${pt(rin, a0)}Z"/>`;
-      const W = owned ? WEAPONS[owned] : null;
+      const E = this.wheelEntries(page, i), e = this.wheelPickOf(page, i);
+      wedges += `<path class="wh-w ${e ? '' : 'empty'}" data-i="${i}" d="M${pt(rin, a0)} L${pt(rout, a0)} A${rout} ${rout} 0 0 1 ${pt(rout, a1)} L${pt(rin, a1)} A${rin} ${rin} 0 0 0 ${pt(rin, a0)}Z"/>`;
       const cx = Math.cos(ac) * 166, cy = Math.sin(ac) * 166;
-      let ammo = '';
-      if (W && W.clip) ammo = `${P.clip[owned] || 0}<span>|</span>${P.ammo[W.ammo]}`;
-      else if (W && W.throw) ammo = `x${P.count('dynamite')}`;
-      slots += `<div class="wh-slot ${owned ? '' : 'empty'}" data-i="${i}" style="left:calc(50% + ${cx.toFixed(1)}px);top:calc(50% + ${cy.toFixed(1)}px)">
-        <div class="wh-ic">${owned ? Icons.weapon(owned, 'ic wpn') : Icons.glyph('fist', 'rgba(239,230,210,0.18)')}</div>
-        <div class="wh-lab">${sl.n}</div>${ammo ? `<div class="wh-am">${ammo}</div>` : ''}</div>`;
+      const inf = e ? this.wheelEntryInfo(e) : null;
+      const empty = page === 0 ? Icons.glyph('fist', 'rgba(239,230,210,0.18)') : Icons.glyph(sl.g, 'rgba(239,230,210,0.18)');
+      const more = E.length > 1 ? `<div class="wh-more"><b>◀</b>${E.indexOf(E.find(x => x.id === e.id)) + 1}/${E.length}<b>▶</b></div>` : '';
+      slots += `<div class="wh-slot ${e ? '' : 'empty'} ${page ? 'items' : ''}" data-i="${i}" style="left:calc(50% + ${cx.toFixed(1)}px);top:calc(50% + ${cy.toFixed(1)}px)">
+        <div class="wh-ic">${inf ? inf.ic : empty}</div>
+        <div class="wh-lab">${sl.n}</div>${inf && inf.am ? `<div class="wh-am">${inf.am}</div>` : ''}${more}</div>`;
     });
     $('#wheel-ring').innerHTML = `<svg class="wh-svg" viewBox="-260 -260 520 520">
         <defs><radialGradient id="whSel" cx="0" cy="0" r="240" gradientUnits="userSpaceOnUse"><stop offset="0.35" stop-color="#5a0a06"/><stop offset="1" stop-color="#b3180f"/></radialGradient>
@@ -684,56 +727,95 @@ const UI = {
         <circle r="90" fill="rgba(10,8,6,0.94)" stroke="rgba(201,164,92,0.45)" stroke-width="1.5"/>
         <circle r="84" fill="none" stroke="rgba(201,164,92,0.15)" stroke-width="1"/>
         <path id="wh-ptr" d="M0 -100 L-9 -112 L9 -112Z" fill="#e6c27a"/>
-      </svg>${slots}<div id="wheel-center" class="wh-center"></div>`;
-    const sc = Math.min(1.25, Math.min(innerWidth, innerHeight) * 0.86 / 520);
+      </svg>${slots}<div id="wheel-center" class="wh-center"></div>
+      <div class="wh-tabs"><span class="${page === 0 ? 'on' : ''}">Silahlar</span><i></i><span class="${page === 1 ? 'on' : ''}">Eşyalar</span></div>`;
+    const sc = Math.min(1.25, Math.min(innerWidth, innerHeight) * 0.86 / 540);
     $('#wheel-ring').style.transform = `scale(${sc.toFixed(3)})`;
-    $('#wheel-hint').innerHTML = I_WHEEL_HINT();
-    this.wheelSel = WHEEL_SLOTS.findIndex(sl => sl.w.includes(P.weapon));
+    $('#wheel-hint').innerHTML = I_WHEEL_HINT(page);
     this._whSel = -1;
-    Audio_.tone(500, 0.1, 'sine', 0.05);
-    this.updateWheel(true);
+    this.drawWheelSel(true);
   },
   updateWheel(force) {
-    const I = Input, P = G.player, N = WHEEL_SLOTS.length;
+    const I = Input, P = G.player;
+    const page = this.wheelPage, S = this.wheelSlots(page), N = S.length;
+    this.wheelOpenT += 1;
+    // sayfa değiştir: R1 (kol) / Q-E ya da sağ tık (klavye)
+    if ((I.padTap(PS.R1) || (this.wheelOpenT > 2 && I.keyTap('KeyQ', 'KeyE')) || I.justMouse[2])) {
+      this.wheelPage = 1 - page; Audio_.ui('move'); this.renderWheel(); return;
+    }
+    let sel = this.wheelSelP[page];
     let ang = null;
     if (I.device === 'pad') {
-      // yalnızca sağ analog; sol analog çarkı etkilemez
-      const a = I.aimVec();
+      const a = I.aimVec();                  // yalnızca sağ analog
       if (a.m > 0.55) ang = Math.atan2(a.y, a.x);
     } else {
       const dx = I.mouse.x - innerWidth / 2, dy = I.mouse.y - innerHeight / 2;
       if (Math.hypot(dx, dy) > 60) ang = Math.atan2(dy, dx);
-      if (I.mouse.wheel) this.wheelSel = ((this.wheelSel + (I.mouse.wheel > 0 ? 1 : -1)) % N + N) % N;
     }
-    if (ang !== null) {
-      let i = Math.round(((ang + Math.PI / 2) / TAU) * N);
-      i = ((i % N) + N) % N;
-      this.wheelSel = i;
+    if (ang !== null) { let i = Math.round(((ang + Math.PI / 2) / TAU) * N); sel = ((i % N) + N) % N; }
+    this.wheelSelP[page] = sel;
+    // aynı kategorideki girdiler arasında geç: D-Pad ←/→ (kol), tekerlek ya da ←/→ (klavye)
+    let cyc = 0;
+    if (I.padTap(PS.LEFT)) cyc = -1; else if (I.padTap(PS.RIGHT)) cyc = 1;
+    if (I.device === 'kb') { if (I.mouse.wheel) cyc = I.mouse.wheel > 0 ? 1 : -1; else if (I.keyTap('ArrowLeft')) cyc = -1; else if (I.keyTap('ArrowRight')) cyc = 1; }
+    let changed = false;
+    if (cyc) {
+      const E = this.wheelEntries(page, sel), cur = this.wheelPickOf(page, sel);
+      if (E.length > 1) {
+        const k = (E.findIndex(x => x.id === cur.id) + cyc + E.length) % E.length;
+        P.wheelPick[page + ':' + sel] = E[k].id;
+        Audio_.ui('move'); changed = true;
+      }
     }
-    if (this.wheelSel === this._whSel && !force) return;
-    if (this._whSel !== -1 && this.wheelSel !== this._whSel) Audio_.ui('move');
-    this._whSel = this.wheelSel;
-    $$('.wh-w').forEach(n => n.classList.toggle('sel', +n.dataset.i === this.wheelSel));
-    $$('.wh-slot').forEach(n => n.classList.toggle('sel', +n.dataset.i === this.wheelSel));
+    // eşya kullan: ✕ (kol) / sol tık, Enter, Boşluk (klavye)
+    if (page === 1 && (I.padTap(PS.X) || I.justMouse[0] || I.keyTap('Enter', 'Space'))) {
+      const e = this.wheelPickOf(1, sel);
+      if (e) { this.wheelUse(e); changed = true; } else Audio_.ui('error');
+    }
+    if (changed) { this.renderWheel(); return; }
+    this.drawWheelSel(force);
+  },
+  drawWheelSel(force) {
+    const P = G.player, page = this.wheelPage, S = this.wheelSlots(page), N = S.length, sel = this.wheelSelP[page];
+    if (sel === this._whSel && !force) return;
+    if (this._whSel !== -1 && sel !== this._whSel) Audio_.ui('move');
+    this._whSel = sel;
+    $$('.wh-w').forEach(n => n.classList.toggle('sel', +n.dataset.i === sel));
+    $$('.wh-slot').forEach(n => n.classList.toggle('sel', +n.dataset.i === sel));
     const ptr = $('#wh-ptr');
-    if (ptr) ptr.setAttribute('transform', `rotate(${(this.wheelSel / N) * 360})`);
-    const sl = WHEEL_SLOTS[this.wheelSel];
-    const owned = this.wheelOwned(this.wheelSel);
-    const W = owned ? WEAPONS[owned] : null;
+    if (ptr) ptr.setAttribute('transform', `rotate(${(sel / N) * 360})`);
+    const sl = S[sel], e = this.wheelPickOf(page, sel);
     const c = $('#wheel-center');
-    if (!W) { c.innerHTML = `<div class="whc-cat">${sl ? sl.n : ''}</div><div class="whc-n dim">Boş</div><div class="whc-hint">Bu yuvada silahın yok</div>`; return; }
+    const E = this.wheelEntries(page, sel);
+    const nav = E.length > 1 ? `<div class="whc-nav">${Input.device === 'pad' ? Input.padGlyph(PS.LEFT) : '◀'} ${E.findIndex(x => x.id === e.id) + 1} / ${E.length} ${Input.device === 'pad' ? Input.padGlyph(PS.RIGHT) : '▶'}</div>` : '';
+    if (!e) { c.innerHTML = `<div class="whc-cat">${sl ? sl.n : ''}</div><div class="whc-n dim">Boş</div><div class="whc-hint">${page ? 'Bu türde eşyan yok' : 'Bu yuvada silahın yok'}</div>`; return; }
+    if (page === 1) {
+      const inf = this.wheelEntryInfo(e);
+      c.innerHTML = `<div class="whc-cat">${sl.n}</div><div class="whc-big">${inf.ic}</div><div class="whc-n">${inf.n}</div>${inf.am ? `<div class="whc-at">${inf.am}</div>` : ''}<div class="whc-d">${inf.d || ''}</div>${nav}<div class="whc-use">${Input.device === 'pad' ? Input.padGlyph(PS.X) : Input.kbGlyph('Mouse0')} ${ITEMS[e.id] && ITEMS[e.id].c === 'clothing' ? (inf.worn ? 'Çıkar' : 'Giy') : 'Kullan'}</div>`;
+      return;
+    }
+    const W = WEAPONS[e.id];
     const bar = (lbl, v) => `<div class="whc-st"><span>${lbl}</span><i><b style="width:${Math.round(clamp(v, 0.04, 1) * 100)}%"></b></i></div>`;
     const dmg = (W.dmg * (W.pellets || 1)) / 160, rng = (W.range || 14) / 560, rate = W.rate ? clamp(0.35 / W.rate, 0, 1) : 0;
     let ammo = '';
-    if (W.clip) ammo = `<div class="whc-am">${P.clip[owned] || 0}<small> / ${P.ammo[W.ammo]}</small></div><div class="whc-at">${AMMO[W.ammo].n}</div>`;
+    if (W.clip) ammo = `<div class="whc-am">${P.clip[e.id] || 0}<small> / ${P.ammo[W.ammo]}</small></div><div class="whc-at">${AMMO[W.ammo].n}</div>`;
     else if (W.throw) ammo = `<div class="whc-am">x${P.count('dynamite')}</div>`;
     c.innerHTML = `<div class="whc-cat">${sl.n}</div><div class="whc-n">${W.n}</div>${ammo}
-      <div class="whc-stats">${bar('Hasar', dmg)}${W.melee ? '' : bar('Menzil', rng)}${bar('Hız', rate)}</div>`;
+      <div class="whc-stats">${bar('Hasar', dmg)}${W.melee ? '' : bar('Menzil', rng)}${bar('Hız', rate)}</div>${nav}`;
+  },
+  wheelUse(e) {
+    const P = G.player;
+    if (e.id === '@canteen') { G.drinkCanteen(); return; }
+    if (e.id === '@lantern') { P.lantern = !P.lantern; Audio_.ui('pick'); this.feed(P.lantern ? '🏮 Fener yakıldı' : '🏮 Fener söndürüldü'); return; }
+    if (e.id === '@harmonica') { Audio_.harmonica(); P.deCore = Math.min(100, P.deCore + 8); this.feed('🎵 Mızıkayla kısa bir ezgi çaldın.'); return; }
+    G.consume(e.id);
   },
   closeWheel() {
-    $('#wheel').classList.add('hidden');
+    $('#wheel').classList.add('hidden'); document.body.classList.remove('wheel-open');
     const P = G.player;
-    const owned = this.wheelOwned(this.wheelSel);
+    if (this.wheelPage !== 0) return;          // eşya sayfasında bırakmak yalnızca kapatır
+    const e = this.wheelPickOf(0, this.wheelSelP[0]);
+    const owned = e && e.id;
     if (owned && owned !== P.weapon) { P.weapon = owned; P.reloadT = 0; P.draw_ = 0; Audio_.tone(700, 0.05, 'square', 0.05); if (owned === 'dynamite') P.weapons.add('dynamite'); }
   },
 
@@ -1631,68 +1713,110 @@ const UI = {
     look.coatLen = 0;
     const prof = { name: pick(NAMES[look.sex]) + ' ' + pick(NAMES.last), look, bg: 'farm', difficulty: 'story', pace: 'normal' };
     const el = el_('div', 'modal create');
+    const TABS = [{ n: 'Kimlik', g: 'quill' }, { n: 'Görünüm', g: 'barber' }, { n: 'Kıyafet', g: 'scissors' }, { n: 'Hikâye', g: 'book' }];
     const rows = [
-      { k: 'sex', n: 'Cinsiyet', opts: ['m', 'f'], lab: v => (v === 'm' ? 'Erkek' : 'Kadın') },
-      { k: 'skin', n: 'Ten Rengi', opts: LOOKS.skin, sw: 1 },
-      { k: 'hair', n: 'Saç Rengi', opts: LOOKS.hair, sw: 1 },
-      { k: 'hairStyle', n: 'Saç Stili', opts: [0, 1, 2, 3, 4], lab: v => LOOKS.hairStyle[v] },
-      { k: 'beard', n: 'Sakal', opts: [0, 1, 2, 3, 4], lab: v => LOOKS.beard[v], male: 1 },
-      { k: 'eyes', n: 'Göz Rengi', opts: LOOKS.eyes, sw: 1 },
-      { k: 'hat', n: 'Şapka', opts: LOOKS.hat, lab: v => LOOKS.hatN[v] },
-      { k: 'hatCol', n: 'Şapka Rengi', opts: LOOKS.hatCol, sw: 1 },
-      { k: 'coat', n: 'Ceket', opts: LOOKS.coat, sw: 1 },
-      { k: 'shirt', n: 'Gömlek', opts: LOOKS.shirt, sw: 1 },
-      { k: 'pants', n: 'Pantolon', opts: LOOKS.pants, sw: 1 },
-      { k: 'bg', n: 'Geçmiş', opts: BACKGROUNDS.map(b => b.id), lab: v => BACKGROUNDS.find(b => b.id === v).n, prof: 1 },
-      { k: 'difficulty', n: 'Zorluk', opts: DIFFICULTIES.map(b => b.id), lab: v => DIFFICULTIES.find(b => b.id === v).n, prof: 1 },
-      { k: 'pace', n: 'Yaşlanma Hızı', opts: LIFE_PACES.map(b => b.id), lab: v => LIFE_PACES.find(b => b.id === v).n, prof: 1 },
+      { t: 0, k: 'sex', n: 'Cinsiyet', opts: ['m', 'f'], lab: v => (v === 'm' ? 'Erkek' : 'Kadın') },
+      { t: 0, k: 'skin', n: 'Ten Rengi', opts: LOOKS.skin, sw: 1 },
+      { t: 0, k: 'eyes', n: 'Göz Rengi', opts: LOOKS.eyes, sw: 1 },
+      { t: 1, k: 'hair', n: 'Saç Rengi', opts: LOOKS.hair, sw: 1 },
+      { t: 1, k: 'hairStyle', n: 'Saç Stili', opts: [0, 1, 2, 3, 4], lab: v => LOOKS.hairStyle[v] },
+      { t: 1, k: 'beard', n: 'Sakal', opts: [0, 1, 2, 3, 4], lab: v => LOOKS.beard[v], male: 1 },
+      { t: 2, k: 'hat', n: 'Şapka', opts: LOOKS.hat, lab: v => LOOKS.hatN[v] },
+      { t: 2, k: 'hatCol', n: 'Şapka Rengi', opts: LOOKS.hatCol, sw: 1 },
+      { t: 2, k: 'coat', n: 'Ceket', opts: LOOKS.coat, sw: 1 },
+      { t: 2, k: 'shirt', n: 'Gömlek', opts: LOOKS.shirt, sw: 1 },
+      { t: 2, k: 'pants', n: 'Pantolon', opts: LOOKS.pants, sw: 1 },
+      { t: 3, k: 'bg', n: 'Geçmiş', opts: BACKGROUNDS.map(b => b.id), lab: v => BACKGROUNDS.find(b => b.id === v).n, prof: 1 },
+      { t: 3, k: 'difficulty', n: 'Zorluk', opts: DIFFICULTIES.map(b => b.id), lab: v => DIFFICULTIES.find(b => b.id === v).n, prof: 1 },
+      { t: 3, k: 'pace', n: 'Yaşlanma Hızı', opts: LIFE_PACES.map(b => b.id), lab: v => LIFE_PACES.find(b => b.id === v).n, prof: 1 },
     ];
+    const BGI = { farm: 'wheat', immigrant: 'anchor', outlaw: 'skull', rail: 'train', trapper: 'fox' };
+    let tab = 0;
     const get = r => (r.prof ? prof[r.k] : look[r.k]);
-    const html = () => `<div class="cr-left"><div class="p-title">Karakter Yarat</div><div class="cr-sub">Amerika, ${START_YEAR}. Sen 18 yaşındasın.</div>
-      <div class="cr-row nav" id="cr-name-row"><span class="cr-l">İsim</span><input id="cr-name" maxlength="28" value="${escapeHtml(prof.name)}"><span class="cr-rand" id="cr-rn">${Icons.glyph('dice', '#c9a45c')}</span></div>
-      ${rows.map((r, i) => `<div class="cr-row nav opt ${r.male && look.sex !== 'm' ? 'hidden' : ''}" data-i="${i}" data-lr><span class="cr-l">${r.n}</span><span class="cr-v"><b class="arr">◀</b><span class="v">${r.sw ? `<i class="swatch" style="background:${get(r)}"></i>` : r.lab(get(r))}</span><b class="arr">▶</b></span></div>`).join('')}
-      <div class="cr-btns"><div class="p-item nav" id="cr-rand">Rastgele</div><div class="p-item nav pref" id="cr-go">Hayata Başla</div></div>
-      </div><div class="cr-right"><canvas id="cr-portrait" width="300" height="360"></canvas><canvas id="cr-top" width="96" height="96"></canvas><div class="cr-desc" id="cr-desc"></div></div>
-      <div class="p-foot">◀ ▶ Değiştir &nbsp; ${Input.glyph('confirm')} Seç &nbsp; ${Input.glyph('back')} Geri</div>`;
+    const valHtml = (r) => {
+      const v = get(r);
+      if (!r.sw) return `<span class="v">${r.lab(v)}</span><span class="cr-dots">${r.opts.map(o => `<i class="${o === v ? 'on' : ''}"></i>`).join('')}</span>`;
+      return `<span class="cr-chips">${r.opts.map((o, j) => `<i class="chip ${o === v ? 'on' : ''}" data-j="${j}" style="background:${o}"></i>`).join('')}</span>`;
+    };
+    const rowsHtml = () => {
+      let h = '';
+      if (tab === 0) h += `<div class="cr-row nav" id="cr-name-row"><span class="cr-l">İsim</span><span class="cr-name-w"><input id="cr-name" maxlength="28" value="${escapeHtml(prof.name)}"><span class="cr-rand" id="cr-rn" title="Rastgele isim">${Icons.glyph('dice', '#c9a45c')}</span></span></div>`;
+      rows.forEach((r, i) => {
+        if (r.t !== tab || (r.male && look.sex !== 'm')) return;
+        h += `<div class="cr-row nav opt ${r.sw ? 'sw' : ''}" data-i="${i}" data-lr><span class="cr-l">${r.n}</span><span class="cr-v"><b class="arr">◀</b>${valHtml(r)}<b class="arr">▶</b></span></div>`;
+      });
+      if (tab === 3) h += `<div class="cr-cards">${BACKGROUNDS.map(b => `<div class="cr-card ${b.id === prof.bg ? 'on' : ''}" data-bg="${b.id}">${Icons.glyph(BGI[b.id] || 'star', b.id === prof.bg ? '#fff' : '#c9a45c')}<span>${b.n}</span></div>`).join('')}</div>`;
+      return h;
+    };
+    const html = () => `
+      <div class="cr-head">
+        <div class="cr-title"><div class="p-title">Yeni Bir Hayat</div><div class="cr-sub">Amerika, ${START_YEAR} • 18 yaşındasın</div></div>
+        <div class="cr-tabs">${Input.glyph('tabL')}${TABS.map((t, i) => `<span class="cr-tab ${i === tab ? 'on' : ''}" data-t="${i}">${Icons.glyph(t.g, i === tab ? '#fff' : '#a89c88')}${t.n}</span>`).join('')}${Input.glyph('tabR')}</div>
+      </div>
+      <div class="cr-left"><div class="cr-sec">${TABS[tab].n}</div><div class="cr-list">${rowsHtml()}</div></div>
+      <div class="cr-stage">
+        <div class="cr-frame"><canvas id="cr-portrait" width="300" height="360"></canvas><i class="cr-c tl"></i><i class="cr-c tr"></i><i class="cr-c bl"></i><i class="cr-c br"></i></div>
+        <div class="cr-plate"><div class="cr-pn" id="cr-pn"></div><div class="cr-ps" id="cr-ps"></div></div>
+        <div class="cr-ped"><canvas id="cr-top" width="96" height="96"></canvas></div>
+      </div>
+      <div class="cr-right" id="cr-desc"></div>
+      <div class="cr-foot"><div class="cr-keys">${Input.glyph('up')}${Input.glyph('down')} Seç &nbsp; ◀ ▶ Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Bölüm &nbsp; ${Input.glyph('back')} Geri</div>
+        <div class="cr-btns"><div class="p-item nav" id="cr-rand">${Icons.glyph('dice', '#e8dcc6')} Rastgele</div><div class="p-item nav pref" id="cr-go">Hayata Başla ${Input.glyph('confirm')}</div></div></div>`;
     let m;
     const refresh = () => {
       Spr.portrait($('#cr-portrait', el).getContext('2d'), 300, 360, look, 18);
-      const tc = $('#cr-top', el).getContext('2d');
-      tc.setTransform(1, 0, 0, 1, 0, 0); tc.clearRect(0, 0, 96, 96); tc.fillStyle = '#a78b62'; tc.fillRect(0, 0, 96, 96);
-      tc.imageSmoothingEnabled = false;
-      tc.setTransform(5, 0, 0, 5, 48, 48);
-      Spr.human(tc, 0, 0, -Math.PI / 2 + Math.sin(performance.now() / 900) * 0.3, look, { walk: performance.now() / 150, mv: 0.6 });
-      tc.setTransform(1, 0, 0, 1, 0, 0);
       const BG = BACKGROUNDS.find(b => b.id === prof.bg), D = DIFFICULTIES.find(d => d.id === prof.difficulty), L = LIFE_PACES.find(p => p.id === prof.pace);
       const town = TOWNS.find(t => t.id === BG.town);
-      $('#cr-desc', el).innerHTML = `<b>${BG.n}</b> — ${BG.d}<br><small>Başlangıç: ${town.n} • ${fmtMoney(BG.money)} • ${Object.keys(BG.skills).map(k => SKILLS[k].n + ' +' + BG.skills[k]).join(', ')}${BG.horse ? ' • Atlı' : ' • Atsız'}${BG.bounty ? ' • Başında $' + BG.bounty + ' ödül' : ''}</small><br><b>${D.n}:</b> ${D.d}<br><b>Yaşlanma ${L.n}:</b> ${L.d}`;
+      $('#cr-pn', el).textContent = prof.name || '—';
+      $('#cr-ps', el).textContent = `${look.sex === 'm' ? 'Erkek' : 'Kadın'} • 18 yaşında • ${BG.n}`;
+      const sk = Object.keys(BG.skills).map(k => `<span class="cr-tag">${SKILLS[k].n} +${BG.skills[k]}</span>`).join('');
+      const items = Object.keys(BG.items).map(id => `<span class="cr-it" title="${ITEMS[id].n}">${Icons.item(id)}</span>`).join('') + BG.weapons.filter(w => w !== 'knife').map(w => `<span class="cr-it wpn" title="${WEAPONS[w].n}">${Icons.weapon(w, 'ic wpn')}</span>`).join('');
+      $('#cr-desc', el).innerHTML = `
+        <div class="cr-card-big"><div class="cr-cb-h">${Icons.glyph(BGI[BG.id] || 'star', '#c9a45c')}<div><div class="cr-cb-k">Geçmiş</div><div class="cr-cb-n">${BG.n}</div></div></div>
+          <p>${BG.d}</p>
+          <div class="cr-facts"><div><span>Başlangıç</span><b>${town.n}</b></div><div><span>Cüzdan</span><b>${fmtMoney(BG.money)}</b></div><div><span>At</span><b>${BG.horse ? HORSE_BREEDS[BG.horse].n : 'Yok'}</b></div>${BG.bounty ? `<div><span>Ödül</span><b class="red">$${BG.bounty}</b></div>` : ''}</div>
+          <div class="cr-tags">${sk}</div><div class="cr-items">${items}</div></div>
+        <div class="cr-mini"><div><span>Zorluk</span><b>${D.n}</b><p>${D.d}</p></div><div><span>Yaşlanma</span><b>${L.n}</b><p>${L.d}</p></div></div>`;
     };
+    const drawTop = () => {
+      const c = $('#cr-top', el); if (!c) return;
+      const tc = c.getContext('2d');
+      tc.setTransform(1, 0, 0, 1, 0, 0); tc.clearRect(0, 0, 96, 96);
+      tc.imageSmoothingEnabled = false;
+      tc.setTransform(5, 0, 0, 5, 48, 50);
+      Spr.human(tc, 0, 0, -Math.PI / 2 + Math.sin(performance.now() / 900) * 0.5, look, { walk: performance.now() / 150, mv: 0.6 });
+      tc.setTransform(1, 0, 0, 1, 0, 0);
+    };
+    const setTab = (t, focusRows) => { tab = (t + TABS.length) % TABS.length; build(); if (focusRows) { const f = $('.cr-list .nav', el); if (f) m.setFocus(f, true); } Audio_.ui('move'); };
     const build = () => {
       el.innerHTML = html();
       const nameIn = $('#cr-name', el);
-      nameIn.onfocus = () => (Input.textFocus = true);
-      nameIn.onblur = () => (Input.textFocus = false);
-      nameIn.oninput = () => (prof.name = nameIn.value);
-      nameIn.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); nameIn.blur(); } };
-      $('#cr-name-row', el).onclick = () => nameIn.focus();
-      $('#cr-rn', el).onclick = (e) => { e.stopPropagation(); prof.name = pick(NAMES[look.sex]) + ' ' + pick(NAMES.last); nameIn.value = prof.name; };
-      $('#cr-name-row', el)._lr = () => { prof.name = pick(NAMES[look.sex]) + ' ' + pick(NAMES.last); nameIn.value = prof.name; };
-      $('#cr-name-row', el).dataset.lr = '';
+      if (nameIn) {
+        nameIn.onfocus = () => (Input.textFocus = true);
+        nameIn.onblur = () => (Input.textFocus = false);
+        nameIn.oninput = () => { prof.name = nameIn.value; $('#cr-pn', el).textContent = prof.name || '—'; };
+        nameIn.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); nameIn.blur(); } };
+        $('#cr-name-row', el).onclick = () => nameIn.focus();
+        const rn = () => { prof.name = pick(NAMES[look.sex]) + ' ' + pick(NAMES.last); nameIn.value = prof.name; refresh(); };
+        $('#cr-rn', el).onclick = (e) => { e.stopPropagation(); rn(); };
+        $('#cr-name-row', el)._lr = rn;
+        $('#cr-name-row', el).dataset.lr = '';
+      }
+      $$('.cr-tab', el).forEach(n => (n.onclick = () => setTab(+n.dataset.t, true)));
+      $$('.cr-card', el).forEach(n => (n.onclick = () => { prof.bg = n.dataset.bg; const f = m.focusEl && m.focusEl.dataset.i; build(); const back = f !== undefined && $(`.opt[data-i="${f}"]`, el); m.setFocus(back || $('.cr-list .nav', el), true); Audio_.ui('move'); }));
       $$('.opt', el).forEach(n => {
         const r = rows[+n.dataset.i];
-        n._lr = (d) => {
-          const cur = get(r); const i = r.opts.indexOf(cur);
-          const v = r.opts[(i + d + r.opts.length) % r.opts.length];
+        const setV = (v) => {
           if (r.prof) prof[r.k] = v; else look[r.k] = v;
-          if (r.k === 'sex') { if (v === 'f') { look.beard = 0; if (look.hairStyle === 3) look.hairStyle = 1; } prof.name = pick(NAMES[v]) + ' ' + pick(NAMES.last); build(); m.setFocus($$('.opt', el)[0], true); return; }
-          $('.v', n).innerHTML = r.sw ? `<i class="swatch" style="background:${v}"></i>` : r.lab(v);
-          refresh();
+          if (r.k === 'sex') { if (v === 'f') { look.beard = 0; if (look.hairStyle === 3) look.hairStyle = 1; } prof.name = pick(NAMES[v]) + ' ' + pick(NAMES.last); }
+          const i = +n.dataset.i; build(); const back = $(`.opt[data-i="${i}"]`, el); if (back) m.setFocus(back, true);
         };
-        n.onclick = () => n._lr(1);
+        n._lr = (d) => { const i = r.opts.indexOf(get(r)); setV(r.opts[(i + d + r.opts.length) % r.opts.length]); };
+        n.onclick = (e) => { if (e.target.classList.contains('chip')) { setV(r.opts[+e.target.dataset.j]); return; } n._lr(1); };
         $$('.arr', n).forEach((a, i) => (a.onclick = (e) => { e.stopPropagation(); n._lr(i ? 1 : -1); }));
         n.onmouseenter = () => m && m.setFocus(n, true);
       });
-      $('#cr-rand', el).onclick = () => { const nl = randomLook(look.sex); Object.assign(look, nl, { coatLen: 0 }); prof.name = pick(NAMES[look.sex]) + ' ' + pick(NAMES.last); build(); m.focusFirst(); };
+      $('#cr-rand', el).onclick = () => { const nl = randomLook(look.sex); Object.assign(look, nl, { coatLen: 0 }); prof.name = pick(NAMES[look.sex]) + ' ' + pick(NAMES.last); build(); m.setFocus($('#cr-rand', el), true); };
       $('#cr-go', el).onclick = () => {
         prof.name = (prof.name || '').trim() || pick(NAMES[look.sex]) + ' ' + pick(NAMES.last);
         look.beardLen = 0.4;
@@ -1700,11 +1824,11 @@ const UI = {
         G.deleteSave();
         G.newGame({ name: prof.name, look, bg: prof.bg, difficulty: prof.difficulty, pace: prof.pace });
       };
-      refresh();
+      refresh(); drawTop();
     };
-    m = this.makeModal(el, { onBack: () => { this.pop(m); this.showMainMenu(); } });
+    m = this.makeModal(el, { onBack: () => { this.pop(m); this.showMainMenu(); }, onTab: (d) => setTab(tab + d, true) });
     build();
-    m.update = () => { if (this.frame % 3 === 0) { const tc = $('#cr-top', el); if (tc) refresh(); } };
+    m.update = () => { if (this.frame % 2 === 0) drawTop(); };
     this.push(m);
     const go = $('#cr-go', el); m.setFocus(go, true);
   },
@@ -1840,7 +1964,13 @@ const UI = {
 };
 
 const el_ = el;
-const I_WHEEL_HINT = () => Input.device === 'pad' ? `Seçmek için sağ analog • Kuşanmak için ${Input.glyph('wheel')} bırak` : `Seçmek için fare ya da tekerlek • Kuşanmak için ${Input.glyph('wheel')} bırak`;
+const I_WHEEL_HINT = (page) => {
+  const pad = Input.device === 'pad';
+  const sw = pad ? Input.padGlyph(PS.R1) : `${Input.kbGlyph('KeyQ')}${Input.kbGlyph('KeyE')}`;
+  const cyc = pad ? `${Input.padGlyph(PS.LEFT)}${Input.padGlyph(PS.RIGHT)}` : 'Tekerlek';
+  const sel = pad ? 'Sağ analog' : 'Fare';
+  return page ? `${sel}: seç • ${cyc}: aynı türde değiştir • ${pad ? Input.padGlyph(PS.X) : Input.kbGlyph('Mouse0')} kullan • ${sw} Silahlar` : `${sel}: seç • ${cyc}: aynı türde değiştir • ${Input.glyph('wheel')} bırak: kuşan • ${sw} Eşyalar`;
+};
 const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence']);
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house' };
 const PICON = { camp: 'tent', farm: 'wheat', property: 'house', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };

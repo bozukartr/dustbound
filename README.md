@@ -27,7 +27,7 @@ Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation kolu (Du
 | Yakın dövüş | ○ | F |
 | Çömel / Gizlen | L3 | C |
 | Dead Eye (nişan alırken) | R3 | Q |
-| Silah çarkı | L1 (basılı) + sağ analog ile seç | Tab (basılı) + fare / tekerlek |
+| Silah / eşya çarkı | L1 (basılı) + sağ analog ile seç; R1 sayfa (Silahlar / Eşyalar); D-Pad ←/→ aynı türde değiştir; ✕ eşya kullan | Tab (basılı) + fare ile seç; Q/E sayfa; tekerlek ya da ←/→ aynı türde değiştir; sol tık eşya kullan |
 | Hızlı iyileş / ye | R1 | T |
 | Atı çağır (ıslık) | D-Pad ↑ | H |
 | Fener | D-Pad ← | L |
@@ -64,7 +64,12 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - Madenlerde, kerestecide, limanda ve çiftliklerde çalışarak para kazanırsın. Mülk satın alabilir, bankaya para yatırabilirsin.
 - Her kasabada tanışabileceğin biri yaşar. Onunla ilişki kurup evlenebilir, çocuk sahibi olabilirsin.
 
+**Başlangıç**
+- Karakter oluşturma ekranı dört bölümden oluşur: Kimlik, Görünüm, Kıyafet, Hikâye. Ortada çerçeveli portre, sağda seçilen geçmişin kartı (başlangıç kasabası, para, at, yetenekler, eşyalar) görünür.
+- Yeni bir hayat, seçilen geçmişe özel kısa bir **3D varış sinematiğiyle** başlar: Harlow'a at arabasıyla, Saint Clement'e buharlı gemiyle, Dust Creek'e gün batımında dörtnala, Fort Mercy'ye trenle, Cedar Falls'a sisli ormandan. Sinematikler aynı piksel sanat görünümünü korur (düşük çözünürlük, renk kademesi, dither) ve bir tuşla geçilebilir.
+
 **Etkileşim ve eşyalar**
+- RDR2 tarzı iki sayfalı çark: **Silahlar** ve **Eşyalar** (yiyecek, içecek, ilaç, tütün, bitkiler, at eşyaları, kit, giysi). Aynı yuvadaki silah ya da eşyalar arasında geçilebilir; eşyalar çarktan doğrudan kullanılır.
 - 90'dan fazla eşya: yiyecekler, ilaçlar, bitkiler, postlar, balıklar, değerli eşyalar, koleksiyonlar, aletler ve giysiler.
 - Avcılık ve deri yüzme, bitki toplama, balık tutma (mini oyun), altın eleme, cevher kazma, hazine haritaları.
 - Silahlar: bıçak, iki tabanca, iki karabina, uzun tüfek, av tüfeği, yay ve dinamit. Bir de Dead Eye.
@@ -112,6 +117,7 @@ js/sprites.js   karakter, hayvan, at, bina ve nesne çizimleri
 js/entities.js  oyuncu, at, hayvan, NPC, tren, parçacıklar
 js/systems.js   zaman, hava, hayatta kalma, kanun, doğma, etkileşim
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar
+js/cinema.js    kasabaya varış sinematikleri (kütüphanesiz WebGL)
 js/game.js      oyun döngüsü, kamera, render, ışık, kayıt
 js/main.js      başlatıcı
 ```

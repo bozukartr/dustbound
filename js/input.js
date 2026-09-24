@@ -53,6 +53,7 @@ const MOUSE_LABEL = ['Sol Tık', 'Orta Tık', 'Sağ Tık'];
 const Input = {
   keys: new Set(),
   tapped: new Set(),
+  justKeys: new Set(), justMouse: [false, false, false],
   mtapped: [false, false, false],
   mouse: { x: 0, y: 0, b: [false, false, false], wheel: 0, moved: false },
   pad: null,
@@ -78,6 +79,7 @@ const Input = {
       if (this.textFocus && e.code !== 'Escape' && e.code !== 'Enter' && e.code !== 'Tab') return;
       this.keys.add(e.code);
       this.tapped.add(e.code);
+      if (!e.repeat) this.justKeys.add(e.code);
       this.device = 'kb';
       if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Backspace'].includes(e.code) && !this.textFocus) e.preventDefault();
       if (e.code === 'Tab') e.preventDefault();
@@ -91,6 +93,7 @@ const Input = {
       if (this.device !== 'kb') { this._mm = (this._mm || 0) + Math.abs(e.movementX) + Math.abs(e.movementY); if (this._mm > 60) { this.device = 'kb'; this._mm = 0; } }
     });
     window.addEventListener('mousedown', e => {
+      this.justMouse[e.button] = true;
       if (this.capture && this.capture.device === 'kb') { e.preventDefault(); this.finishCapture('Mouse' + e.button); this.suppressClick = true; return; }
       this.mouse.b[e.button] = true; this.mtapped[e.button] = true; this.device = 'kb'; if (typeof Audio_ !== 'undefined') Audio_.unlock();
     });
@@ -107,6 +110,7 @@ const Input = {
 
   poll(dt) {
     // kol
+    this.btnPrev = this.btn.slice();
     this.pad = null;
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     if (pads) {
@@ -174,7 +178,10 @@ const Input = {
     this.tapped.clear();
     this.mtapped[0] = this.mtapped[1] = this.mtapped[2] = false;
   },
-  endFrame() { this.mouse.wheel = 0; this.mouse.moved = false; },
+  endFrame() { this.mouse.wheel = 0; this.mouse.moved = false; this.justKeys.clear(); this.justMouse[0] = this.justMouse[1] = this.justMouse[2] = false; },
+  /* Bu karede basılan ham tuşlar (eylem eşlemesinden bağımsız) */
+  keyTap(...codes) { return codes.some(c => this.justKeys.has(c)); },
+  padTap(i) { return this.pad && this.btn[i] > 0.5 && !(this.btnPrev && this.btnPrev[i] > 0.5); },
   down(a) { return this.state[a]; },
   pressed(a) { return this.state[a] && !this.prev[a]; },
   released(a) { return !this.state[a] && this.prev[a]; },
