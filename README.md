@@ -21,7 +21,7 @@ Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation kolu (Du
 | Nişan yönü | Sağ analog (L2 olmadan: kalçadan nişan, karakter o yöne döner) | Fare |
 | Koş / Dörtnala | ✕ (basılı) | Shift |
 | Etkileşim / Ata bin / İn | △ (basılı tut: seçenekler) | E |
-| Nişan al | L2 | Sağ tık |
+| Nişan al | L2 (en uygun hedefe kilitlenir; sağ analogu savurarak hedef değiştir) | Sağ tık |
 | Ateş et | R2 | Sol tık |
 | Şarjör değiştir | □ | R |
 | Yakın dövüş | ○ | F |
@@ -39,6 +39,8 @@ Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation kolu (Du
 | Duraklat | Options | Esc / P |
 
 Menülerde: ✕ / Enter seçer, ○ / Esc geri döner, L1-R1 / Q-E sekme değiştirir.
+
+Kolda nişan: sağ analog ölü bölge ve yumuşatmayla çalışır; nişangah hedefin üzerinden geçerken yavaşlar (sürtünme). L2 basınca baktığın yöndeki en uygun hedefe (önce düşmanlar, sonra saldıran hayvanlar, sonra av) kilitlenir; kilitliyken sağ analogu bir yöne savurunca o taraftaki hedefe geçer. Siviller yalnızca sağ analogla onlara doğru nişan alırsan hedeflenir. Nişanı sabit tuttukça dağılım daralır. **Ayarlar → Nişan Yardımı** (Kapalı / Hafif / Standart / Tam Kilit) ve **Nişan Hassasiyeti** ile ayarlanabilir.
 
 Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir. Klavye/fare ve PS kolu ayrı ayrı ayarlanır; bir tuşu başka bir eylemin tuşuna atarsan ikisi yer değiştirir. Atamalar tarayıcıda saklanır.
 

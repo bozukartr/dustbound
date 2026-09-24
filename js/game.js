@@ -14,7 +14,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true },
+  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1 },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -659,10 +659,18 @@ const G = {
       const rx = P.x + Math.cos(P.aimAng) * d, ry = P.y + Math.sin(P.aimAng) * d;
       let enemy = false;
       for (const e of this.ents) if (!e.dead && (e.kind === 'animal' || e.kind === 'npc') && dist2(e.x, e.y, rx, ry) < 64) { enemy = true; break; }
+      const L = P.lockTarget;
+      if (L && !L.dead && (P.aiming || P.rsAim)) {
+        // kilit göstergesi: hedefin çevresinde köşe işaretleri
+        const hostile = P.targetClass(L) >= 2.5, r = (L.r || 4) + 4 + Math.sin(this.t * 8) * 0.6;
+        ctx.fillStyle = hostile ? '#ff4a3a' : 'rgba(255,255,255,0.95)';
+        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.fillRect(L.x + sx * r - (sx > 0 ? 2 : 0), L.y + sy * r - (sy > 0 ? 0.6 : 0), 2.6, 0.9); ctx.fillRect(L.x + sx * r - (sx > 0 ? 0.6 : 0), L.y + sy * r - (sy > 0 ? 2 : 0), 0.9, 2.6); }
+        enemy = hostile;
+      }
       const col = P.deadeye ? '#e03020' : enemy ? '#ff5040' : 'rgba(255,255,255,0.9)';
       ctx.fillStyle = col;
       if (P.aiming || P.rsAim) {
-        const sp = P.W && P.W.spread ? P.W.spread * d * (P.deadeye ? 0.2 : 1) * (P.aiming ? 1 : 1.7) + 2 : 3;
+        const sp = P.W && P.W.spread ? P.W.spread * d * (P.deadeye ? 0.2 : 1) * (P.aiming ? 1 : 1.7) * (1 - 0.45 * clamp((P.aimSteady || 0) / 0.7, 0, 1)) + 2 : 3;
         ctx.fillRect(rx - 0.5, ry - 0.5, 1, 1);
         ctx.fillRect(rx - sp - 2, ry - 0.5, 2, 1); ctx.fillRect(rx + sp, ry - 0.5, 2, 1);
         ctx.fillRect(rx - 0.5, ry - sp - 2, 1, 2); ctx.fillRect(rx - 0.5, ry + sp, 1, 2);

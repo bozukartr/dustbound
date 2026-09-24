@@ -298,6 +298,7 @@ class Player extends Ent {
     // nişan
     this.aiming = !G.uiBlocksMove && I.down('aim') && this.weapon !== 'fists';
     this.updateAim(dt, mv);
+    this.steadyUpdate(dt);
     if (this.riding) this.updateRiding(dt, mv);
     else this.updateFoot(dt, mv, age);
     // saldırılar
@@ -326,33 +327,105 @@ class Player extends Ent {
     if (G.wheelOpen) return; // çark açıkken sağ analog yalnızca çarkı kontrol eder
     const sx = G.cam.sx(this.x), sy = G.cam.sy(this.y);
     if (I.device === 'kb') {
+      this.lockTarget = null;
       const mx = I.mouse.x / G.scale, my = I.mouse.y / G.scale;
       this.aimAng = Math.atan2(my - sy, mx - sx);
       this.aimDist = clamp(Math.hypot(mx - sx, my - sy), 14, this.W && this.W.range ? this.W.range : 200);
-    } else {
-      const a = I.aimVec();
-      if (a.m > 0.3) { this.aimAng = Math.atan2(a.y, a.x); this.aimDist = lerp(this.aimDist, 40 + a.m * 70, dt * 5); this.rsAim = this.isArmed || this.W.melee; }
-      else if (!this.aiming) this.aimAng = this.riding ? this.riding.ang : this.ang;
-      // nişan yardımı
-      if (this.aiming) {
-        const cone = this.deadeye ? 0.7 : 0.3;
-        let best = null, bs = cone;
-        for (const e of G.ents) {
-          if (e.dead || e === this.riding || e.kind === 'horse' && e.owner === 'player') continue;
-          if (e.kind === 'npc' && !e.hostile && !this.deadeye) continue;
-          const d = dist(this.x, this.y, e.x, e.y);
-          if (d > (this.W.range || 200) || d < 8) continue;
-          const da = Math.abs(angDiff(this.aimAng, Math.atan2(e.y - this.y, e.x - this.x)));
-          if (da < bs) { bs = da; best = e; }
-        }
-        if (best) {
-          const ta = Math.atan2(best.y - this.y, best.x - this.x);
-          this.aimAng = turnTo(this.aimAng, ta, dt * (this.deadeye ? 12 : 3.5));
-          this.aimDist = lerp(this.aimDist, dist(this.x, this.y, best.x, best.y), dt * 6);
-          this.lockTarget = best;
-        } else this.lockTarget = null;
-      }
+    } else this.padAim(dt);
+  }
+  /* ---- Kol ile nişan (RDR2 tarzı): ölü bölge + yumuşatma, L2 ile kilitlenme,
+     sağ analogu savurarak hedef değiştirme, hedef üzerinde sürtünme ---- */
+  angTo(e) { return Math.atan2(e.y - this.y, e.x - this.x); }
+  targetClass(e) {
+    if (e.kind === 'npc') { if (e.hostile && (e.aggro !== false || e.isLaw)) return 3; return e.role === 'bandit' || e.role === 'target' ? 3 : 0; }
+    if (e.kind === 'animal') { if (e.def.owned) return 0; return e.state === 'attack' ? 2.5 : 1.5; }
+    return -1;
+  }
+  validTarget(e, range) {
+    if (!e || e.dead || e.remove || e === this.riding || e.kind === 'prop') return false;
+    if (e.kind === 'horse' || e.kind === 'camp') return false;
+    const d = dist(this.x, this.y, e.x, e.y);
+    return d >= 6 && d <= range * 1.05 && G.los(this.x, this.y, e.x, e.y);
+  }
+  /* dir yönüne en uygun hedef: açı + mesafe + tehdit önceliği */
+  pickTarget(dir, cone, exclude, neutralOk) {
+    const range = (this.W && this.W.range) || 200;
+    let best = null, bs = Infinity;
+    for (const e of G.ents) {
+      if (e === exclude) continue;
+      const cls = this.targetClass(e);
+      if (cls < 0 || (cls === 0 && !neutralOk && !this.deadeye)) continue;
+      if (Math.abs(e.x - this.x) > range || Math.abs(e.y - this.y) > range) continue;
+      const da = Math.abs(angDiff(dir, this.angTo(e)));
+      const c = cls === 0 ? Math.min(cone, 0.3) : cone;
+      if (da > c || !this.validTarget(e, range)) continue;
+      const sc = da / c + dist(this.x, this.y, e.x, e.y) / range * 0.6 - cls * 0.18;
+      if (sc < bs) { bs = sc; best = e; }
     }
+    return best;
+  }
+  padAim(dt) {
+    const I = Input, S = G.settings || {};
+    const assist = S.aimAssist === undefined ? 2 : S.aimAssist;   // 0 kapalı, 1 hafif, 2 standart, 3 tam kilit
+    const sens = [0.65, 1, 1.45][S.aimSens === undefined ? 1 : S.aimSens];
+    const W = this.W || {}, range = W.range || 200;
+    const raw = I.aimVec(), DZ = 0.2;
+    const m = raw.m > DZ ? Math.min(1, (raw.m - DZ) / (1 - DZ)) : 0;
+    const stick = m > 0 ? Math.atan2(raw.y, raw.x) : null;
+    const flick = raw.m > 0.85 && !((this._prevM || 0) > 0.85);
+    this._prevM = raw.m;
+    const justAimed = this.aiming && !this._wasAiming;
+    this._wasAiming = this.aiming;
+    if (stick !== null) this.rsAim = this.isArmed || !!W.melee;
+    const aimingNow = this.aiming || this.rsAim;
+    // --- kilit (yalnızca L2 ile nişan alırken) ---
+    let L = this.lockTarget;
+    if (!this.aiming || assist < 2) L = null;
+    if (this.aiming && assist >= 2) {
+      if (justAimed) {
+        L = this.pickTarget(stick !== null ? stick : (this.riding ? this.riding.ang : this.ang), assist >= 3 ? 1.25 : 0.85, null, stick !== null);
+        if (L) Input.rumble(0.12, 0.08, 40);
+      }
+      if (L && !this.validTarget(L, range)) L = null;
+      if (L && flick && stick !== null && !justAimed) {            // sağ analogu savur: o yöndeki hedefe geç
+        const n = this.pickTarget(stick, 1.1, L, true);
+        if (n) { L = n; Audio_.tone(880, 0.03, 'square', 0.03); Input.rumble(0.1, 0.05, 30); }
+      }
+      if (L && assist === 2 && stick !== null && m > 0.6 && Math.abs(angDiff(stick, this.angTo(L))) > 0.6) L = null;   // bilerek başka yöne
+      if (!L && assist >= 2 && this.deadeye) L = this.pickTarget(this.aimAng, 0.7, null, true);
+    }
+    this.lockTarget = L;
+    if (L) {
+      const ta = this.angTo(L);
+      this.aimAng = turnTo(this.aimAng, ta, dt * (assist >= 3 ? 22 : 11) * (this.deadeye ? 2 : 1));
+      this.aimDist = lerp(this.aimDist, dist(this.x, this.y, L.x, L.y), Math.min(1, dt * 12));
+      return;
+    }
+    // --- serbest nişan: yumuşatılmış sağ analog ---
+    if (stick !== null) {
+      let rate = (10 + 24 * m) * sens;
+      const fr = assist >= 1 && aimingNow ? this.pickTarget(this.aimAng, this.aiming ? 0.16 : 0.09, null, false) : null;
+      if (fr) rate *= 0.45;                                          // sürtünme
+      this.aimAng = turnTo(this.aimAng, stick, dt * rate);
+      if (fr) this.aimAng = turnTo(this.aimAng, this.angTo(fr), dt * (this.aiming ? 2.6 : 1.4));   // hafif çekim
+    } else if (!this.aiming) this.aimAng = this.riding ? this.riding.ang : this.ang;
+    else if (assist >= 1) { const fr = this.pickTarget(this.aimAng, 0.16, null, false); if (fr) this.aimAng = turnTo(this.aimAng, this.angTo(fr), dt * 2.6); }
+    if (this.deadeye) { const t = this.pickTarget(this.aimAng, 0.7, null, true); if (t) this.aimAng = turnTo(this.aimAng, this.angTo(t), dt * 12); }
+    const base = clamp(range * 0.3, 55, 130);
+    this.aimDist = lerp(this.aimDist, base + m * 40, Math.min(1, dt * 5));
+  }
+  /* Atış açısı: kilitliyken ve nişangah hedefin üstündeyse tam hedefe */
+  /* Nişan oturması: L2 basılıyken nişangah fazla oynamazsa artar */
+  steadyUpdate(dt) {
+    const d = Math.abs(angDiff(this.aimAng, this._lastAim === undefined ? this.aimAng : this._lastAim));
+    this._lastAim = this.aimAng;
+    if (!this.aiming) { this.aimSteady = 0; return; }
+    this.aimSteady = d / Math.max(dt, 0.001) > 2.2 ? Math.max(0, (this.aimSteady || 0) - dt * 2) : (this.aimSteady || 0) + dt;
+  }
+  shotAng() {
+    const L = this.lockTarget;
+    if (L && !L.dead && Math.abs(angDiff(this.aimAng, this.angTo(L))) < 0.08) return this.angTo(L);
+    return this.aimAng;
   }
   updateFoot(dt, mv, age) {
     const I = Input;
@@ -495,10 +568,12 @@ class Player extends Ent {
     const lvl = G.skill('shooting');
     let spread = Wp.spread * (1 - lvl * 0.05) * (this.aiming ? 1 : this.rsAim ? 1.7 : 2.6) * (this.riding && this.riding.spd > 60 ? 1.8 : 1) * (this.drunk > 30 ? 1.8 : 1);
     if (this.deadeye) spread *= 0.1;
+    spread *= 1 - 0.45 * clamp((this.aimSteady || 0) / 0.7, 0, 1);   // nişan oturdukça dağılım daralır
     const n = Wp.pellets || 1;
-    const ox = this.x + Math.cos(this.aimAng) * 8, oy = this.y + Math.sin(this.aimAng) * 8;
+    const sa = this.shotAng();
+    const ox = this.x + Math.cos(sa) * 8, oy = this.y + Math.sin(sa) * 8;
     for (let i = 0; i < n; i++) {
-      const a = this.aimAng + (Math.random() - 0.5) * spread * 2;
+      const a = sa + (Math.random() - 0.5) * spread * 2;
       G.fireRay(ox, oy, a, Wp.range, Wp.dmg * (1 + lvl * 0.03), this, { weapon: this.weapon });
     }
     G.parts.add('flash', ox, oy, 0, 0, 0.06, 4);
@@ -517,7 +592,7 @@ class Player extends Ent {
     this.fireCd = 0.5;
     const lvl = G.skill('shooting');
     const spread = 0.03 * (1 - lvl * 0.05) * (this.deadeye ? 0.1 : 1);
-    const a = this.aimAng + (Math.random() - 0.5) * spread;
+    const a = this.shotAng() + (Math.random() - 0.5) * spread;
     const sp = 260 + 260 * this.draw_;
     G.projs.push({ type: 'arrow', x: this.x + Math.cos(a) * 8, y: this.y + Math.sin(a) * 8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1.4, dmg: WEAPONS.bow.dmg * (0.4 + 0.6 * this.draw_), owner: this, ang: a });
     Audio_.shot('bow', 0.6);
