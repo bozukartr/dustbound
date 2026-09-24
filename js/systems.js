@@ -682,6 +682,7 @@ const GameSystems = {
     return null;
   },
   playPiano(b) {
+    Audio_.pianoHold = 4;
     const sc = [262, 294, 330, 349, 392, 440, 494, 523];
     const tune = [0, 2, 4, 4, 5, 4, 2, 0, 1, 2, 4, 2, 0];
     tune.forEach((n, k) => setTimeout(() => { Audio_.pluck(sc[n], 0.12); if (k % 3 === 0) Audio_.pluck(sc[n] / 2, 0.08); }, k * 230));

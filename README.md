@@ -95,7 +95,8 @@ Oyun, uyuduğunda ve her yeni günde otomatik kaydedilir (tarayıcının `localS
 - Arayüzdeki bütün ikonlar (eşyalar, silahlar, radar ve harita işaretleri, PS tuşları) koddan üretilen SVG'lerdir.
 - Dünya, 512 piksellik parçalar (chunk) halinde önceden çizilip önbelleğe alınır. Yeni parçalar kare başına küçük bir zaman bütçesiyle arka planda hazırlanır, bu yüzden hareket ederken takılma olmaz.
 - Oyun düşük çözünürlüklü bir tuvale çizilip piksel ölçeklemeyle büyütülür. Bu hem piksel sanat görünümü verir hem de akıcı FPS sağlar.
-- Ses, WebAudio ile prosedürel olarak üretilir: silah sesleri, ortam sesleri ve Karplus-Strong gitar teliyle çalan western müzik.
+- Efektler ve ortam sesleri WebAudio ile prosedürel olarak üretilir. Ana tema ve saloon piyanosu `audio/` klasöründeki sıkıştırılmış mp3 dosyalarından akışla çalınır (belleğe tamamen açılmaz). Ana tema menüde ve keşif sırasında aralıklarla, Karplus-Strong gitarıyla çalan prosedürel müzikle dönüşümlü çalar.
+- Saloon piyanosu üç parça arasından rastgele seçilir. İçeride tam sesle duyulur; dışarıda kapıya yaklaştıkça yavaşça yükselir, duvar arkasından boğuk gelir. Piyano duyulurken ana tema kısılır.
 
 ```
 index.html
@@ -104,7 +105,8 @@ js/util.js      yardımcılar, RNG, gürültü
 js/icons.js     SVG ikon seti (eşya, silah, glif, PS tuşları)
 js/data.js      eşyalar, silahlar, hayvanlar, kasabalar, başarımlar
 js/input.js     klavye, fare ve PlayStation kolu
-js/audio.js     prosedürel ses ve müzik
+js/audio.js     prosedürel ses, müzik ve mp3 akışı
+audio/          ana tema ve saloon piyanosu (mp3)
 js/world.js     dünya üretimi, chunk render, harita
 js/sprites.js   karakter, hayvan, at, bina ve nesne çizimleri
 js/entities.js  oyuncu, at, hayvan, NPC, tren, parçacıklar
