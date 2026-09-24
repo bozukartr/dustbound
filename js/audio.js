@@ -260,7 +260,7 @@ const Audio_ = {
 
   /* ---- Kayıtlı ses dosyaları: HTMLAudio ile akış (belleğe açılmaz), http'de WebAudio'dan geçer ---- */
   FILES: { theme: 'audio/main-theme.mp3', piano: ['audio/saloon-piano-1.mp3', 'audio/saloon-piano-2.mp3', 'audio/saloon-piano-3.mp3'] },
-  GAIN: { theme: 0.8, piano: 0.85 },
+  GAIN: { theme: 0.8, themePlay: 0.42, piano: 0.85 },   // oyun sırasında tema daha kısık
   clock: 0, tr: null, pianoLevel: 0, pianoMuffle: 1, pianoHold: 0,
   track(key, lowpass) {
     this.tr = this.tr || {};
@@ -346,7 +346,7 @@ const Audio_ = {
     tw *= 1 - Math.min(1, P.fade * 1.4);            // piyano duyulurken tema kısılır
     T.fade += (tw - T.fade) * Math.min(1, dt * (tw > T.fade ? 0.5 : 0.9));
     if (tw === 0 && T.fade < 0.003 && T.busy && !T.el.paused && (!this.phase || this.phase.k !== 'theme')) { T.el.pause(); T.busy = false; }
-    this.applyTrack(T, T.fade * this.GAIN.theme);
+    this.applyTrack(T, T.fade * (this.mode === 'menu' ? this.GAIN.theme : this.GAIN.themePlay));
   },
   playSeq(name) {
     if (!this.ctx) { this.pendingMusic = name; return; }

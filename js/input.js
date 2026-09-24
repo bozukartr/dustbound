@@ -14,16 +14,16 @@ const GAME_ACTIONS = [
   { id: 'reload', n: 'Şarjör Değiştir' }, { id: 'melee', n: 'Yakın Dövüş' }, { id: 'crouch', n: 'Çömel / Gizlen' }, { id: 'deadeye', n: 'Dead Eye' },
   { id: 'wheel', n: 'Silah Çarkı' }, { id: 'quick', n: 'Hızlı İyileş / Ye' }, { id: 'whistle', n: 'Atı Çağır' }, { id: 'lantern', n: 'Fener' },
   { id: 'mask', n: 'Maske Tak / Çıkar' }, { id: 'satchel', n: 'Çanta' }, { id: 'camp', n: 'Kamp Kur (basılı)' }, { id: 'map', n: 'Harita' },
-  { id: 'journal', n: 'Günlük' }, { id: 'pause', n: 'Duraklat' },
+  { id: 'journal', n: 'Günlük' }, { id: 'pause', n: 'Duraklat' }, { id: 'zoomIn', n: 'Yakınlaştır (Piksel Ölçeği +)' }, { id: 'zoomOut', n: 'Uzaklaştır (Piksel Ölçeği −)' },
 ];
 const DEFAULT_KB = {
   moveUp: ['KeyW'], moveDown: ['KeyS'], moveLeft: ['KeyA'], moveRight: ['KeyD'], sprint: ['ShiftLeft'], interact: ['KeyE'], aim: ['Mouse2'], fire: ['Mouse0'],
   reload: ['KeyR'], melee: ['KeyF'], crouch: ['KeyC'], deadeye: ['KeyQ'], wheel: ['Tab'], quick: ['KeyT'], whistle: ['KeyH'], lantern: ['KeyL'],
-  mask: ['KeyV'], satchel: ['KeyI'], camp: ['KeyB'], map: ['KeyM'], journal: ['KeyJ'], pause: ['KeyP'],
+  mask: ['KeyV'], satchel: ['KeyI'], camp: ['KeyB'], map: ['KeyM'], journal: ['KeyJ'], pause: ['KeyP'], zoomIn: ['Equal', 'NumpadAdd'], zoomOut: ['Minus', 'NumpadSubtract'],
 };
 const DEFAULT_PAD = {
   sprint: PS.X, interact: PS.TRI, aim: PS.L2, fire: PS.R2, reload: PS.SQ, melee: PS.O, crouch: PS.L3, deadeye: PS.R3, wheel: PS.L1, quick: PS.R1,
-  whistle: PS.UP, lantern: PS.LEFT, mask: null, satchel: PS.RIGHT, camp: PS.DOWN, map: PS.TP, journal: PS.SHARE, pause: PS.OPT,
+  whistle: PS.UP, lantern: PS.LEFT, mask: null, satchel: PS.RIGHT, camp: PS.DOWN, map: PS.TP, journal: PS.SHARE, pause: PS.OPT, zoomIn: null, zoomOut: null,
 };
 /* Her zaman geçerli ek tuşlar (değiştirilemez) */
 const FIXED_KB = { moveUp: ['ArrowUp'], moveDown: ['ArrowDown'], moveLeft: ['ArrowLeft'], moveRight: ['ArrowRight'], pause: ['Escape'] };

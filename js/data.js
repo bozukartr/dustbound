@@ -461,6 +461,33 @@ const NAMES = {
 };
 
 /* NPC konuşmaları */
+/* Selamlaşmalar: günün saatine, havaya, role ve tanışıklığa göre. {ad} = oyuncunun adı, {kasaba} = bulunulan yer */
+const GREETS = {
+  morning: ['Günaydın.', 'Günaydın, yabancı.', 'Hayırlı sabahlar.', 'Erkencisin bakıyorum.', 'Sabahın köründe nereye böyle?', 'Günaydın. Kahveni içtin mi?',
+    'Horozlar bile yeni uyandı.', 'Güzel bir sabah, değil mi?', 'Sabah sabah yollara düşmüşsün.', 'Günaydın dostum, gün sana güzel geçsin.', 'Sabah ayazı insanın kemiğine işliyor.', 'Hayırlı işler.'],
+  day: ['İyi günler.', 'Tünaydın.', 'Merhaba, yabancı.', 'Nasılsın dostum?', 'Güneş tepede, gölge bul kendine.', 'Selam.', 'Öğle sıcağında ne geziyorsun?',
+    'Allah\'a emanet.', 'İyi günler, bayım.', 'Yolun açık olsun.', 'Hava bugün güzel, değil mi?', 'Başın belada değildir umarım.', 'Hoş geldin.', 'Buralarda yeni misin?'],
+  evening: ['İyi akşamlar.', 'Akşamın hayrolsun.', 'Güneş batıyor, yakında karanlık basar.', 'İyi akşamlar, yabancı.', 'Günün yorgunluğu yüzünden okunuyor.',
+    'Akşam yemeğine geç kalma.', 'Saloonda bu akşam kalabalık olur.', 'Hava serinledi nihayet.', 'Akşam ezanı gibi sessiz her yer.', 'İyi akşamlar dostum, yolun açık olsun.'],
+  night: ['İyi geceler.', 'Bu saatte ne işin var dışarıda?', 'Gece yarısı yollarda dolaşılmaz, yabancı.', 'Hayırlı geceler.', 'Uykun yok mu senin?',
+    'Karanlıkta kimseye güvenme.', 'Kurtlar uluyor, dikkatli ol.', 'Geç oldu. Evine git.', 'Fenerin var mı? Yollar zifiri karanlık.', 'Şşşt, herkes uyuyor.'],
+  rain: ['Bu yağmur hiç dinmeyecek galiba.', 'Sırılsıklam olmuşsun.', 'Toprak susamıştı, iyi oldu bu yağmur.', 'Çamurda dikkat et, atın kayar.', 'Şemsiyen yok mu senin?'],
+  snow: ['Kemiklerime kadar dondum.', 'Kalın giyin, bu soğuk adam öldürür.', 'Kar yolları kapatacak yakında.', 'Ateşin başından ayrılmamalı bu havada.'],
+  hot: ['Bu sıcak insanı öldürür.', 'Suyun var mı yanında? Bol iç.', 'Güneş kafamı kaynatıyor.', 'Gölge bul kendine, yabancı.'],
+  known: ['Yine sen, {ad}!', 'Ooo {ad}, hoş geldin!', 'Seni görmek ne güzel, {ad}.', 'Nasıl gidiyor {ad}? Uzun zaman oldu.', '{ad}! Sağ salim dönmüşsün.', 'Bizim {ad} geldi!'],
+  again: ['Az önce selamlaşmıştık ya.', 'Evet, evet, merhaba yine.', 'Hâlâ buradasın demek.', 'Bir şey mi istiyorsun?', 'Bugün ikinci kez görüyorum seni.'],
+  law: ['Başını beladan uzak tut, evlat.', 'Gözüm üzerinde, yabancı.', 'Kasabamda sorun istemem.', 'Silahını kılıfında tut.', 'Kanun burada benim.', 'Sakin bir gün. Öyle kalsın.'],
+  clerk: ['Hoş geldiniz! Neye bakmıştınız?', 'Buyurun, bir şey mi lazım?', 'Taze mallar geldi bugün.', 'Veresiye yok, baştan söyleyeyim.', 'Rahatınıza bakın, acele yok.'],
+  nomad: ['Ateşimize hoş geldin.', 'Yolcu yolunda gerek.', 'Uzun yoldan mı geliyorsun?', 'Kervanımız her yıl başka yerde.', 'Otur biraz, hikâye anlat.'],
+  traveler: ['Yolun açık olsun.', 'Bu yollarda haydut çok, dikkat et.', 'Kasabaya daha ne kadar var?', 'Atın yorgun görünüyor.', 'Selam, yolcu.'],
+  farmer: ['Ekinler bu yıl iyi.', 'Toprak insanı yorar ama doyurur.', 'Çitlerime dikkat et, yabancı.', 'İnekleri korkutma sakın.'],
+  reply: {
+    morning: ['Günaydın.', 'Hayırlı sabahlar.', 'Günaydın, dostum.', 'Sabah şerifleriniz hayrolsun.'],
+    day: ['İyi günler.', 'Merhaba.', 'Nasıl gidiyor?', 'Selam dostum.', 'Tünaydın.'],
+    evening: ['İyi akşamlar.', 'Akşamınız hayrolsun.', 'İyi akşamlar, dostum.'],
+    night: ['İyi geceler.', 'Hayırlı geceler.', 'Geç oldu, biliyorum.'],
+  },
+};
 const LINES = {
   greet: ['İyi günler.', 'Selam, yabancı.', 'Hava bugün güzel, değil mi?', 'Hoş geldin.', 'Nasılsın dostum?', 'Merhaba.', 'Allah\'a emanet.', 'Başın belada değildir umarım.'],
   greetLow: ['Senin gibilerden uzak dururum.', 'Ne bakıyorsun?', 'Yoluna git.', 'Kanun kaçağı...', 'Sana güvenmiyorum.'],
@@ -471,6 +498,7 @@ const LINES = {
   dirty: ['Uff, bu koku ne?', 'Bir banyo yapsan fena olmaz.', 'Leş gibi kokuyorsun.'],
   drunk: ['Sarhoş musun sen?', 'Git de ayıl biraz.'],
   law: ['Dur! Kanun adına!', 'Silahını bırak!', 'Teslim ol!', 'Ateş serbest!'],
+  arrest: ['Eller yukarı!', 'Kanun adına tutuklusun!', 'Silahını bırak ve teslim ol!', 'Yavaş ol, kimse ölmek zorunda değil.', 'Dur olduğun yerde!', 'Teslim ol, cezanı öde, herkes evine gitsin.'],
   witness: ['Şerif! Şerif!', 'Yardım edin! Kanuna haber verin!', 'Gördüm! Her şeyi gördüm!', 'Şerifi çağırın!', 'Kanun nerede?!'],
   witnessHold: ['Ateş etme! Lütfen!', 'Tamam, tamam! Durdum!', 'Beni vurma!'],
   silenced: ['Tamam! Kimseye bir şey söylemeyeceğim!', 'Hiçbir şey görmedim, yemin ederim!', 'Ağzımı açmam, söz!'],
