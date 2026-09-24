@@ -115,6 +115,8 @@ const ITEMS = {
   hat_bowler:    { n: 'Melon Şapka', c: 'clothing', p: 8, i: '🎩', max: 1, hat: 'bowler' },
   hat_flat:      { n: 'Kasket', c: 'clothing', p: 4, i: '🧢', max: 1, hat: 'flat' },
   hat_wide:      { n: 'Geniş Kenarlı Şapka', c: 'clothing', p: 10, i: '👒', max: 1, hat: 'wide', d: 'Çölde hayat kurtarır.' },
+  mask_bandana:  { n: 'Bandana', c: 'clothing', p: 2, i: '🎭', max: 1, mask: 'bandana', d: 'Yüzünün alt yarısını örter. Maskeliyken işlenen suçlar sana yazılmaz — ama maskeyi birileri görürken çıkarma.' },
+  mask_sack:     { n: 'Çuval Maske', c: 'clothing', p: 1, i: '🎭', max: 1, mask: 'sack', d: 'Göz delikleri açılmış bir un çuvalı. Kimse yüzünü göremez; ama herkes sana bakar.' },
   // ---- Patlayıcı
   dynamite:      { n: 'Dinamit', c: 'ammo', p: 6, i: '🧨', max: 5, d: 'Atılabilir. Dikkatli kullan.' },
 };
@@ -267,14 +269,14 @@ const JOBS = {
 
 /* Dükkan stokları ve alım oranları */
 const SHOPS = {
-  general: { n: 'Genel Mağaza', sell: ['beans', 'bread', 'jerky', 'peaches', 'corn', 'coffee', 'chocolate', 'health_cure', 'stamina_tonic', 'bandage', 'tobacco', 'cigarette', 'canteen', 'bedroll', 'fishing_rod', 'bait', 'gold_pan', 'pickaxe', 'shovel', 'lantern', 'hay', 'horse_brush', 'horse_tonic', 'region_map', 'wildflower', 'harmonica'],
+  general: { n: 'Genel Mağaza', sell: ['beans', 'bread', 'jerky', 'peaches', 'corn', 'coffee', 'chocolate', 'health_cure', 'stamina_tonic', 'bandage', 'tobacco', 'cigarette', 'canteen', 'bedroll', 'fishing_rod', 'bait', 'gold_pan', 'pickaxe', 'shovel', 'lantern', 'hay', 'horse_brush', 'horse_tonic', 'region_map', 'wildflower', 'harmonica', 'mask_bandana'],
              ammo: ['pistol', 'repeater'], buy: { food: 0.5, herb: 0.6, valuable: 0.5, animal: 0.35, collect: 0.5, tool: 0.4, clothing: 0.4, horse: 0.4 } },
   saloon:  { n: 'Bar', sell: ['beer', 'whiskey', 'stew', 'coffee', 'cigarette', 'bread'], buy: {} },
   doctor:  { n: 'Doktor', sell: ['health_cure', 'bandage', 'antidote', 'snake_oil', 'stamina_tonic', 'herbal_tonic'], buy: { herb: 1.0, med: 0.5 } },
   gunsmith:{ n: 'Silahçı', weapons: ['knife', 'cattleman', 'schofield', 'repeater', 'winchester', 'rifle', 'shotgun', 'bow'], ammo: ['pistol', 'repeater', 'rifle', 'shotgun', 'arrow'], sell: ['dynamite'], buy: {} },
   butcher: { n: 'Kasap', sell: ['cooked_game', 'cooked_big', 'jerky', 'raw_game', 'bait'], buy: { animal: 1.0, food: 0.7 } },
-  tailor:  { n: 'Terzi', sell: ['coat_duster', 'coat_sheep', 'coat_fur', 'coat_poncho', 'coat_linen', 'hat_cowboy', 'hat_bowler', 'hat_flat', 'hat_wide'], buy: { clothing: 0.5 } },
-  fence:   { n: 'Kaçakçı', sell: ['dynamite', 'snake_oil', 'whiskey', 'tobacco'], buy: { valuable: 1.0, collect: 0.9, clothing: 0.6 } },
+  tailor:  { n: 'Terzi', sell: ['coat_duster', 'coat_sheep', 'coat_fur', 'coat_poncho', 'coat_linen', 'hat_cowboy', 'hat_bowler', 'hat_flat', 'hat_wide', 'mask_bandana'], buy: { clothing: 0.5 } },
+  fence:   { n: 'Kaçakçı', sell: ['dynamite', 'snake_oil', 'whiskey', 'tobacco', 'mask_bandana', 'mask_sack'], buy: { valuable: 1.0, collect: 0.9, clothing: 0.6 } },
   stable:  { n: 'Ahır', sell: ['hay', 'horse_brush', 'horse_reviver', 'horse_tonic'], buy: { horse: 0.5 } },
   mine:    { n: 'Maden Deposu', sell: ['pickaxe', 'gold_pan', 'lantern', 'coffee', 'beans'], buy: { valuable: 0.85 } },
   docks:   { n: 'Liman Tüccarı', sell: ['fishing_rod', 'bait', 'whiskey', 'peaches', 'beans'], buy: { food: 0.8, animal: 0.6 } },
@@ -444,6 +446,13 @@ const LINES = {
   dirty: ['Uff, bu koku ne?', 'Bir banyo yapsan fena olmaz.', 'Leş gibi kokuyorsun.'],
   drunk: ['Sarhoş musun sen?', 'Git de ayıl biraz.'],
   law: ['Dur! Kanun adına!', 'Silahını bırak!', 'Teslim ol!', 'Ateş serbest!'],
+  witness: ['Şerif! Şerif!', 'Yardım edin! Kanuna haber verin!', 'Gördüm! Her şeyi gördüm!', 'Şerifi çağırın!', 'Kanun nerede?!'],
+  witnessHold: ['Ateş etme! Lütfen!', 'Tamam, tamam! Durdum!', 'Beni vurma!'],
+  silenced: ['Tamam! Kimseye bir şey söylemeyeceğim!', 'Hiçbir şey görmedim, yemin ederim!', 'Ağzımı açmam, söz!'],
+  bribed: ['Ne gördüğümü unuttum bile.', 'Bu para iyi gelir... Ben bir şey görmedim.', 'Sen hiç burada değildin, dostum.'],
+  maskLaw: ['Maskeni çıkar, yabancı!', 'O bez yüzünde ne arıyor? Çıkar onu!', 'Kasabada maskeli dolaşmak yasak, bilesin.'],
+  maskTown: ['Neden maskelisin?', 'Tanrım, bir haydut!', 'Maskeli biri... Uzak dur benden.', 'Yüzünü neden saklıyorsun?'],
+  reported: ['Şerif, adamı gördüm! Tarif edeyim...', 'Şu tarafa kaçtı, şerif!'],
   bandit: ['Öldürün şunu!', 'Parasını alın!', 'Bu yoldan sağ çıkamayacaksın!', 'Sıkın!'],
   rumor: [
     'Kuzeydeki dağlarda sıcak sular varmış, yaşlıların ağrılarına iyi gelirmiş.',

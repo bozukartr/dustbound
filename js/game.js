@@ -22,7 +22,8 @@ const G = {
     this.ents = []; this.projs = []; this.trains = []; this.parts = new Particles();
     this.clock = 8 * 60; this.pace = 'normal'; this.difficulty = 'story';
     this.weather = { type: 'clear', t: 180, i: 0, cloud: 0, fogI: 0 };
-    this.law = { level: 0, bounty: 0, lastX: 0, lastY: 0, unseen: 0, spawnT: 0, radius: 0 };
+    this.law = { level: 0, bounty: 0, lastX: 0, lastY: 0, unseen: 0, spawnT: 0, radius: 0, maskBounty: 0, masked: false, desc: null };
+    this.reports = [];
     this.honor = 0; this.bank = 0; this.scars = 0;
     this.stats = { animals: 0, bears: 0, discoveries: 0, towns: 0, rideMiles: 0, walkMiles: 0, eaten: 0, herbs: 0, fish: 0, longKills: 0, bandits: 0, kills: 0, maxCash: 0, earned: 0, shifts: 0, helped: 0, maxBounty: 0, maxHonor: 0, minHonor: 0, properties: 0, married: 0, children: 0, bjWins: 0, armWins: 0, hoursDesert: 0, hoursCold: 0, nuggets: 0, collectibles: 0, tamed: 0, camps: 0, treasures: 0, trainRides: 0, deadeyes: 0, age: START_AGE };
     this.skills = {}; for (const k in SKILLS) this.skills[k] = { lv: 1, xp: 0 };
@@ -69,9 +70,14 @@ const G = {
   },
   loadSettings() {
     try { const s = JSON.parse(localStorage.getItem(SET_KEY)); if (s) Object.assign(this.settings, s); } catch (e) {}
+    Input.setBinds(this.settings.binds);
     this.applySettings();
   },
-  saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(this.settings)); } catch (e) {} this.applySettings(); },
+  saveSettings() {
+    this.settings.binds = JSON.parse(JSON.stringify(Input.binds));
+    try { localStorage.setItem(SET_KEY, JSON.stringify(this.settings)); } catch (e) {}
+    this.applySettings();
+  },
   applySettings() {
     const S = this.settings;
     Object.assign(Audio_.vol, { master: S.master, music: S.music, sfx: S.sfx, amb: S.amb });
@@ -156,6 +162,7 @@ const G = {
     UI.hideScreens();
     $('#hud').classList.remove('hidden');
     this.cam.x = this.player.x; this.cam.y = this.player.y;
+    this.world.setSeason(this.season);
     // görünür chunk'ları önceden üret
     this.prefetch(true);
     Audio_.stopMusic();
@@ -172,7 +179,7 @@ const G = {
     const data = {
       v: 1, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
       profile: this.profile,
-      player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, canteen: P.canteen, coat: P.coat, lantern: P.lantern, riding: !!P.riding },
+      player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, canteen: P.canteen, coat: P.coat, mask: P.masked ? P.mask : null, lastMask: P.lastMask || null, lantern: P.lantern, riding: !!P.riding },
       horse: h ? { breed: h.breed, name: h.name, look: h.look, hp: h.hp, bond: h.bond, x: h.x, y: h.y, dead: h.dead } : null,
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
@@ -197,7 +204,7 @@ const G = {
     this.seed = d.seed;
     await this.buildWorld(d.seed);
     Object.assign(this, { clock: d.clock, pace: d.pace, difficulty: d.difficulty, background: d.background, profile: d.profile, honor: d.honor, bank: d.bank, scars: d.scars || 0, goalReached: d.goalReached });
-    Object.assign(this.weather, d.weather); Object.assign(this.law, d.law); this.law.level = 0;
+    Object.assign(this.weather, d.weather); Object.assign(this.law, d.law); this.law.level = 0; this.law.maskBounty = 0; this.law.masked = false;
     Object.assign(this.stats, d.stats); Object.assign(this.skills, d.skills); this.achieved = d.achieved || {};
     this.visited = new Set(d.visited); this.discovered = new Set(d.discovered); this.rumored = new Set(d.rumored || []);
     this.props = d.props || []; this.family = d.family || { spouse: null, children: [] }; this.romances = d.romances || {}; this.stable = d.stable || [];
@@ -211,7 +218,7 @@ const G = {
     this.rebuildFog();
     const p = d.player;
     const P = this.player = new Player(p.x, p.y, { name: p.name, look: p.look });
-    Object.assign(P, { inv: p.inv, ammo: p.ammo, clip: p.clip, weapon: p.weapon, money: p.money, hp: p.hp, sta: p.sta, de: p.de, hunger: p.hunger, thirst: p.thirst, energy: p.energy, clean: p.clean, deCore: p.deCore, sick: p.sick, canteen: p.canteen, coat: p.coat, lantern: p.lantern });
+    Object.assign(P, { inv: p.inv, ammo: p.ammo, clip: p.clip, weapon: p.weapon, money: p.money, hp: p.hp, sta: p.sta, de: p.de, hunger: p.hunger, thirst: p.thirst, energy: p.energy, clean: p.clean, deCore: p.deCore, sick: p.sick, canteen: p.canteen, coat: p.coat, mask: p.mask || null, lastMask: p.lastMask || null, lantern: p.lantern });
     P.weapons = new Set(p.weapons);
     if (!this.romances || !Object.keys(this.romances).length) this.initRomances();
     if (d.horse) {
@@ -274,6 +281,7 @@ const G = {
     if (P.poison > 0) { P.poison -= dt; P.hurt(dt * 1.6, 'zehir', true); }
     P.hp = Math.min(P.hp, P.maxHp);
     this.lawUpdate(dt);
+    this.witnessUpdate(dt);
     const T_ = this.timers;
     T_.spawn -= dt; if (T_.spawn <= 0) { T_.spawn = 1; this.spawnTick(); }
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
@@ -458,7 +466,7 @@ const G = {
     const P = this.player, C = this.cam;
     let tx = P.x, ty = P.y;
     if (P.riding) { tx += Math.cos(P.riding.ang) * P.riding.spd * 0.45; ty += Math.sin(P.riding.ang) * P.riding.spd * 0.45; }
-    if (P.aiming) { const d = Math.min(P.aimDist, 90) * 0.45; tx += Math.cos(P.aimAng) * d; ty += Math.sin(P.aimAng) * d; }
+    if (P.aiming || P.rsAim) { const d = Math.min(P.aimDist, 90) * 0.45; tx += Math.cos(P.aimAng) * d; ty += Math.sin(P.aimAng) * d; }
     C.x = lerp(C.x, tx, Math.min(1, dt * 4));
     C.y = lerp(C.y, ty, Math.min(1, dt * 4));
     let sx = 0, sy = 0;
@@ -506,6 +514,7 @@ const G = {
         const o = obj[row + tx];
         if (!o) continue;
         if (o >= 20 && o <= 28) {
+          if (W.season === 3 && W.snowyTile(tx, ty)) continue;
           const hv = W.harvested.get(row + tx);
           if (hv !== undefined && hv > day) continue;
           const near = dist2(tx * TS + 8, ty * TS + 8, P.x, P.y) < 60 * 60;
@@ -594,15 +603,15 @@ const G = {
       ctx.beginPath(); ctx.moveTo(it.x - 3, it.y - 16 + b); ctx.lineTo(it.x + 3, it.y - 16 + b); ctx.lineTo(it.x, it.y - 12 + b); ctx.fill();
     }
     // nişangah
-    if (P.aiming || (Input.device === 'kb' && P.isArmed && this.state === 'play' && !UI.isModal())) {
-      const d = P.aiming ? P.aimDist : Math.min(P.aimDist, 60);
+    if (P.aiming || (P.rsAim && P.isArmed) || (Input.device === 'kb' && P.isArmed && this.state === 'play' && !UI.isModal())) {
+      const d = (P.aiming || P.rsAim) ? P.aimDist : Math.min(P.aimDist, 60);
       const rx = P.x + Math.cos(P.aimAng) * d, ry = P.y + Math.sin(P.aimAng) * d;
       let enemy = false;
       for (const e of this.ents) if (!e.dead && (e.kind === 'animal' || e.kind === 'npc') && dist2(e.x, e.y, rx, ry) < 64) { enemy = true; break; }
       const col = P.deadeye ? '#e03020' : enemy ? '#ff5040' : 'rgba(255,255,255,0.9)';
       ctx.fillStyle = col;
-      if (P.aiming) {
-        const sp = P.W && P.W.spread ? P.W.spread * d * (P.deadeye ? 0.2 : 1) + 2 : 3;
+      if (P.aiming || P.rsAim) {
+        const sp = P.W && P.W.spread ? P.W.spread * d * (P.deadeye ? 0.2 : 1) * (P.aiming ? 1 : 1.7) + 2 : 3;
         ctx.fillRect(rx - 0.5, ry - 0.5, 1, 1);
         ctx.fillRect(rx - sp - 2, ry - 0.5, 2, 1); ctx.fillRect(rx + sp, ry - 0.5, 2, 1);
         ctx.fillRect(rx - 0.5, ry - sp - 2, 1, 2); ctx.fillRect(rx - 0.5, ry + sp, 1, 2);

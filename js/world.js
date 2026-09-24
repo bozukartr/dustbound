@@ -36,8 +36,17 @@ const TINFO = [
   { c: '#5a9aa0', v: 5, slow: 0.6, map: '#b8ccc4', water: 1 },  // HOTWATER
 ];
 const TPAL = TINFO.map(t => hexToRgb(t.c));
+/* Mevsim paletleri */
+const SNOWC = hexToRgb('#e6ebf0'), SNOWM = hexToRgb('#d2dae0'), SNOWCL = hexToRgb('#b8c0c8'), ICE = hexToRgb('#b6ccd6'), LEAF2 = hexToRgb('#b8702c');
+const SNOWABLE = new Uint8Array(32), LEAFY = new Uint8Array(32);
+const AUT = [], SUM = [];
 const isCliffT = t => t === T.CLIFF || t === T.MESA || t === T.SNOWCLIFF;
+[T.GRASS, T.DRY, T.FOREST, T.ROCK, T.FARM, T.SAND, T.MUD, T.TOWN, T.ROAD, T.CLIFF, T.SWAMP, T.DESERT, T.REDROCK].forEach(t => (SNOWABLE[t] = 1));
+[T.GRASS, T.DRY, T.FOREST, T.FARM].forEach(t => (LEAFY[t] = 1));
+AUT[T.GRASS] = hexToRgb('#94883e'); AUT[T.DRY] = hexToRgb('#b89a52'); AUT[T.FOREST] = hexToRgb('#6e5a2c'); AUT[T.FARM] = hexToRgb('#8a6c34');
+SUM[T.GRASS] = hexToRgb('#7a9040'); SUM[T.DRY] = hexToRgb('#bca45a'); SUM[T.FOREST] = hexToRgb('#4a6630'); SUM[T.FARM] = hexToRgb('#7a6a30');
 const isWaterT = t => t === T.DEEP || t === T.WATER || t === T.HOTWATER;
+const SNOW_LINE = 0.6; // kışın bu sıcaklığın altı karla kaplanır
 
 /* Nesneler */
 const O = {
@@ -92,8 +101,28 @@ class World {
     this.jobs = new Map();
     this.mapCanvas = null;
     this.harvested = new Map(); // idx -> gün
+    this.season = 0;
   }
   idx(x, y) { return y * WW + x; }
+  /* ---- Mevsimler ---- */
+  setSeason(season, force) {
+    if (this.season === season && !force) return false;
+    this.season = season;
+    this.chunks.clear(); this.jobs.clear();
+    this.buildMapImage();
+    return true;
+  }
+  /* Kış karı: sıcaklık haritasına göre (0 = yok, >0 = karlı), kenarlar gürültüyle yumuşak */
+  snowAmt(i, n = 0) {
+    if (this.season !== 3) return 0;
+    return (SNOW_LINE - this.heat[i] / 255) * 7 + n;
+  }
+  snowyTile(tx, ty) {
+    if (this.season !== 3 || !this.inb(tx, ty)) return false;
+    return this.snowAmt(ty * WW + tx, (hash2(tx, ty, 71) - 0.5) * 0.8) > 0.25;
+  }
+  /* Yaprak döken ağaçların kışın çıplak kalıp kalmadığı */
+  bareTree(tx, ty) { return this.season === 3 && this.inb(tx, ty) && this.heat[ty * WW + tx] / 255 < 0.7; }
   inb(x, y) { return x >= 0 && y >= 0 && x < WW && y < WH; }
   t(x, y) { return (x < 0 || y < 0 || x >= WW || y >= WH) ? T.DEEP : this.tile[y * WW + x]; }
   tileAtPx(px, py) { return this.t(px >> 4, py >> 4); }
@@ -925,6 +954,8 @@ class World {
     for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
       const i = y * WW + x, t = this.tile[i];
       let [r, g, b] = MC[t];
+      if (this.season === 3 && SNOWABLE[t] && this.snowAmt(i, (hash2(x, y, 71) - 0.5) * 0.8) > 0.25) { r = 238; g = 236; b = 230; }
+      else if (this.season === 2 && LEAFY[t]) { r += 14; g -= 4; b -= 16; }
       const e0 = this.elev[i], e1 = this.elev[Math.min(WW * WH - 1, i + WW + 1)];
       let sh = (e0 - e1) * 1.6;
       if (isCliffT(t) && ((x + y) % 3 === 0)) sh -= 34;
@@ -1008,7 +1039,7 @@ class World {
     const g = makeCanvas(CPX, CPX), gc = g.getContext('2d');
     const img = gc.createImageData(CPX, CPX), d = img.data;
     const ox = cx * CPX, oy = cy * CPX;
-    const tile = this.tile, JX = World.JX, JY = World.JY, DET = World.DET;
+    const tile = this.tile, JX = World.JX, JY = World.JY, DET = World.DET, heat = this.heat, season = this.season;
     const TV = World.TV || (World.TV = new Float32Array(TINFO.map(t => t.v)));
     const MAXP = WW * TS - 1;
     const CL = World.CLF || (World.CLF = new Uint8Array(TINFO.map(t => (t.cliff ? 1 : 0))));
@@ -1044,9 +1075,23 @@ class World {
           t = tile[(sy >> 4) * WW + (sx >> 4)];
           if (t === T.BRIDGE || t === T.PLANK) t = base;
         }
-        const col = TPAL[t];
+        let col = TPAL[t];
         let v = DET[k] * TV[t];
         let mul = 1;
+        if (season) {
+          if (season === 3) {
+            const ti = base === t ? rowT + (wx >> 4) : (Math.min(MAXP, Math.max(0, wy + JY[k])) >> 4) * WW + (Math.min(MAXP, Math.max(0, wx + JX[k])) >> 4);
+            const sn = (SNOW_LINE - heat[ti] / 255) * 7 + DET[k] * 0.35;
+            if (sn > 0.25 && SNOWABLE[t]) {
+              if (t === T.ROAD || t === T.TOWN) { if (sn > 0.25 + (DET[k] + 0.7) * 0.45) col = SNOWC; }
+              else if (CL[t]) { if (DET[k] > -0.2) col = SNOWCL; }
+              else col = sn > 0.4 ? SNOWC : SNOWM;
+              if (col === SNOWC || col === SNOWM || col === SNOWCL) v = DET[k] * 6;
+            } else if (sn > 0.9 && (t === T.WATER || t === T.DEEP)) { col = ICE; v = DET[k] * 5; }
+          } else if (season === 2 && LEAFY[t]) {
+            if (t === T.FOREST && DET[k] > 0.72) col = LEAF2; else col = AUT[t];
+          } else if (season === 1 && LEAFY[t]) col = SUM[t];
+        }
         if (nearCliff[ncRow + ((wx >> 4) - cx * CHUNK) + 2]) {
           if (CL[t]) {
             if (!CL[tAt(wx + (JX[k] >> 1), wy + 7)]) { mul = 0.72; if ((wx * 3 + (wy >> 1)) % 5 === 0) v -= 10; }
@@ -1087,7 +1132,7 @@ class World {
     for (const b of this.buildings) {
       const bx = b.x * TS, by = b.y * TS;
       if (bx + b.w * TS + 40 < ox || bx - 40 > ox + CPX || by + b.h * TS + 40 < oy || by - 60 > oy + CPX) continue;
-      Spr.building(gc, oc, b);
+      Spr.building(gc, oc, b, this);
     }
     gc.restore(); oc.restore();
     return { g, o };

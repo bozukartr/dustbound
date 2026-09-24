@@ -33,6 +33,10 @@ const GameSystems = {
     if (this.age !== prevAge) for (let a = prevAge + 1; a <= this.age; a++) this.onBirthday(a);
   },
   onNewDay(d) {
+    if (this.world && this.world.setSeason(this.season)) {
+      const msg = ['İlkbahar geldi. Karlar eriyor, ovalar yeşeriyor.', 'Yaz geldi. Güneş yakıyor, suyunu eksik etme.', 'Sonbahar geldi. Yapraklar sararıyor, geceler serinliyor.', 'Kış geldi. Kuzey ve ovalar karla örtüldü; sıkı giyin, bitki bulmak zorlaşacak.'][this.season];
+      UI.toast(SEASONS[this.season], msg, 'ok');
+    }
     // mülk geliri
     let inc = 0;
     for (const id of this.props) { const P = PROPERTIES.find(p => p.id === id); if (P && P.income) inc += P.income; }
@@ -84,7 +88,7 @@ const GameSystems = {
     const t = this.world.tileAtPx(px, py);
     const h = this.world.climateAt(px, py);
     const out = { rain: 0, snow: 0, dust: 0, fog: 0, cloud: W.cloud, storm: W.type === 'storm' && W.i > 0.6 };
-    const cold = h < 0.24 || (this.season === 3 && h < 0.5) || t === T.SNOW;
+    const cold = h < 0.24 || (this.season === 3 && h < SNOW_LINE) || t === T.SNOW;
     const dry = (t === T.DESERT || t === T.REDROCK || t === T.MESA) && h > 0.55;
     if (W.i > 0.05) {
       if (cold) out.snow = W.i;
@@ -192,7 +196,7 @@ const GameSystems = {
     if (it.raw && Math.random() < it.raw * (this.hasPerk('eater') ? 0.5 : 1)) { P.sick = Math.max(P.sick, 8); UI.help('Çiğ et yedin ve midenin bozulduğunu hissediyorsun. <b>Hastasın.</b>', 5); }
     if (it.c === 'food') { this.stat('eaten', 1); Audio_.tone(300, 0.08, 'triangle', 0.06); Audio_.tone(240, 0.08, 'triangle', 0.06, null, 0.12); }
     else Audio_.ui('pick');
-    UI.feed(`${it.i} ${it.n} kullanıldı`);
+    UI.feed(`${Icons.item(id, 'ic inl')} ${it.n} kullanıldı`);
     return true;
   },
   drinkCanteen() {
@@ -208,6 +212,8 @@ const GameSystems = {
     if (it.coat) {
       if (P.coat === id) { P.coat = null; UI.feed(`${it.n} çıkarıldı`); }
       else { P.coat = id; UI.feed(`${it.n} giyildi`); }
+    } else if (it.mask) {
+      this.toggleMask(id);
     } else if (it.hat) {
       P.look.hat = P.look.hat === it.hat ? 'none' : it.hat;
       UI.feed(P.look.hat === 'none' ? 'Şapka çıkarıldı' : `${it.n} takıldı`);
@@ -330,36 +336,226 @@ const GameSystems = {
     }[type];
     if (!C) return;
     const [bounty, lvl, honor, name] = C;
-    const always = type === 'storerob' || type === 'bankrob';
-    let witness = always;
-    if (!witness) {
-      for (const e of this.ents) {
-        if (e.kind !== 'npc' || e.dead || e === victim || e.hostile || e.role === 'bandit') continue;
-        if (e.state === 'hurt') continue;
-        if (dist2(e.x, e.y, x, y) < 340 * 340 && this.los(e.x, e.y, x, y)) { witness = true; break; }
+    this.addHonor(honor);
+    if (lvl === 0) return;
+    const P = this.player;
+    // dükkan ve banka soygununda alarm hemen verilir
+    let instant = type === 'storerob' || type === 'bankrob';
+    const ws = [];
+    for (const e of this.ents) {
+      if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
+      if (e.state === 'hurt') continue;
+      const see = e === victim ? dist2(e.x, e.y, x, y) < 60 * 60 : dist2(e.x, e.y, x, y) < 340 * 340 && this.los(e.x, e.y, x, y);
+      if (!see) continue;
+      if (e.isLaw) instant = true;
+      ws.push(e);
+    }
+    if (!instant && !ws.length) { UI.feed('Kimse görmedi...'); return; }
+    const r = { type, name, bounty, lvl, masked: this.anonymous(), desc: this.outfit(), x, y, t: 0, victim, ws: [] };
+    if (instant) { this.applyCrime(r, true); return; }
+    // tanıklar kanuna haber vermeye koşar
+    let R = this.reports.find(o => !o.done && o.masked === r.masked && (o.ws.some(w => ws.includes(w)) || (o.t < 30 && dist2(o.x, o.y, x, y) < 500 * 500)));
+    if (R) {
+      R.bounty += bounty; R.lvl = Math.max(R.lvl, lvl); R.name = lvl >= R.lvl ? name : R.name; R.desc = r.desc; R.t = Math.min(R.t, 8);
+      if (type === 'murderLaw') R.type = type;
+    } else {
+      R = r;
+      R.limit = this.reportTarget({ x, y }) ? 40 : 70;
+      this.reports.push(R);
+    }
+    for (const e of ws) {
+      if (!R.ws.includes(e)) R.ws.push(e);
+      e.witness = R; e.state = 'report'; e.held = false; e.braveT = 0; e.tgtT = 0; e.chatT = rnd(0.2, 1.2);
+    }
+    UI.feed(`${Icons.glyph('witness', '#f0b050', 'ic inl')} ${R.ws.length > 1 ? R.ws.length + ' tanık' : 'Bir tanık'} kanuna haber vermeye koşuyor! Onları durdur ya da kaç.`, 'law');
+    this.hintOnce('witness', `Suçunu gören biri şerife koşuyor. Kanuna ulaşmadan önce ona silah doğrultup ${Input.glyph('interact')} ile <b>tehdit edebilir</b> ya da <b>rüşvet</b> verebilirsin. Tanık kalmazsa suç kayda geçmez.`);
+    for (const e of this.ents) if (e.kind === 'npc' && !e.dead && !e.hostile && e.role !== 'bandit' && e.state !== 'report' && dist2(e.x, e.y, x, y) < 300 * 300) { e.state = 'flee'; e.t = 10; }
+  },
+  /* Maskeli ve kimliği bilinmeyen biri mi? */
+  anonymous() {
+    const P = this.player, L = this.law;
+    return P.masked && !P.maskBlown && (L.level === 0 || L.masked);
+  },
+  outfit() { const P = this.player; return { hat: P.look.hat, coat: P.coat || null }; },
+  /* Kanun peşindeki kişi oyuncu olarak mı tanınıyor? */
+  suspect() { return !this.law.masked || this.player.masked; },
+  applyCrime(r, instant) {
+    const L = this.law, P = this.player;
+    const was = L.level > 0;
+    if (r.masked) { L.maskBounty = (L.maskBounty || 0) + r.bounty; if (!was) L.masked = true; }
+    else { L.bounty += r.bounty; L.masked = false; L.desc = r.desc; if (L.maskBounty) { L.bounty += L.maskBounty; L.maskBounty = 0; } }
+    L.level = Math.max(L.level, r.lvl);
+    if (r.type === 'murderLaw') L.level = Math.min(5, L.level + 1);
+    L.lastX = instant ? P.x : r.x; L.lastY = instant ? P.y : r.y; L.unseen = 0;
+    L.spawnT = instant ? 2 : 5;
+    if (r.masked) UI.toast(r.name.toUpperCase(), `Maskeli bir yabancı aranıyor (+${fmtMoney(r.bounty)})`, 'wanted');
+    else UI.wanted(r.name, r.bounty);
+    if (r.masked) this.hintOnce('masked', 'Maskeliyken suç işledin: kanun <b>maskeli bir yabancıyı</b> arıyor, seni değil. Kimse görmeden maskeni çıkarırsan izini kaybederler. Biri görürse kimliğin açığa çıkar.');
+    for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && (instant || dist2(e.x, e.y, r.x, r.y) < 900 * 900)) e.hostile = true;
+    if (instant) for (const e of this.ents) if (e.kind === 'npc' && !e.dead && !e.hostile && e.role !== 'bandit' && e.state !== 'report' && dist2(e.x, e.y, r.x, r.y) < 300 * 300) { e.state = 'flee'; e.t = 10; }
+  },
+  reportTarget(e) {
+    let best = null, bd = 800 * 800;
+    for (const o of this.ents) if (o.kind === 'npc' && o.isLaw && !o.dead && !o.remove) { const d = dist2(o.x, o.y, e.x, e.y); if (d < bd) { bd = d; best = o; } }
+    if (best) return best;
+    bd = 1500 * 1500;
+    for (const b of this.world.buildings) if (b.type === 'sheriff') { const d = dist2(b.door.x, b.door.y, e.x, e.y); if (d < bd) { bd = d; best = { x: b.door.x, y: b.door.y + 4, door: true }; } }
+    return best;
+  },
+  deliverReport(r, by, tg) {
+    if (r.done) return;
+    r.done = true;
+    if (by) by.say(pick(LINES.reported), 2.5);
+    if (tg && tg.kind === 'npc') { tg.say(pick(LINES.law), 2); tg.hostile = true; }
+    for (const w of r.ws) if (w.witness === r) { w.witness = null; w.held = false; if (!w.dead) { w.state = 'flee'; w.t = 8; } }
+    this.applyCrime(r, false);
+    UI.feed(`${Icons.glyph('witness', '#f0b050', 'ic inl')} Tanık kanuna ulaştı${r.masked ? ' — ama yüzünü görmedi.' : '.'}`, 'law');
+  },
+  cancelReport(r, why) {
+    if (r.done) return;
+    r.done = true;
+    for (const w of r.ws) if (w.witness === r) w.witness = null;
+    UI.feed(why || 'Tanık kalmadı. Suç kanuna ulaşmayacak.', 'ok');
+    Audio_.ui('ok');
+  },
+  silenceWitness(e) {
+    const r = e.witness;
+    e.silenced = true; e.witness = null; e.held = false;
+    e.state = 'cower'; e.cowerT = rnd(4, 7);
+    if (r && !r.done) { r.ws = r.ws.filter(w => w !== e); if (!r.ws.some(w => !w.dead && !w.silenced)) this.cancelReport(r); }
+  },
+  intimidate(e) {
+    const P = this.player, r = e.witness;
+    if (!r) return;
+    UI.subtitle(P.name, pick(['Tek kelime edersen geri gelirim.', 'Hiçbir şey görmedin. Anlaşıldı mı?', 'Çeneni kapalı tut, yaşarsın.']), 2, true);
+    let ch = 0.55 + this.skill('charisma') * 0.03 + (this.honor < -30 ? 0.15 : 0) + (P.masked ? 0.05 : 0) - (r.victim === e ? 0.15 : 0) - (e.intimidated ? 0.3 : 0);
+    if (e.isLaw) ch = 0;
+    if (chance(ch)) {
+      setTimeout(() => e.say(pick(LINES.silenced), 2.5), 700);
+      this.silenceWitness(e);
+      this.addHonor(-2); this.skillXp('charisma', 2);
+      UI.feed(`${Icons.glyph('witness', '#efe6d2', 'ic inl')} Tanık susturuldu.`);
+    } else {
+      e.intimidated = true; e.held = false; e.braveT = 4; e.fear = 1.35;
+      setTimeout(() => e.say(pick(['Yardım edin! Deli bu!', 'Asla! Şerife gidiyorum!', 'Beni korkutamazsın!']), 2), 600);
+      UI.feed('Tanık korkmadı ve kaçıyor!', 'warn');
+    }
+  },
+  bribeCost(e) { return Math.round(5 + (e.witness ? e.witness.bounty : 10) * 0.3); },
+  bribeWitness(e) {
+    const P = this.player, r = e.witness;
+    if (!r) return;
+    const cost = this.bribeCost(e);
+    if (P.money < cost) { UI.feed('Rüşvet için yeterli paran yok.', 'warn'); Audio_.ui('error'); return; }
+    UI.subtitle(P.name, pick(['Al şunu ve unut.', 'Bu senin sessizliğin için.', 'Kimse bir şey görmedi, değil mi?']), 2, true);
+    const ch = 0.7 + this.skill('charisma') * 0.03 - (r.victim === e ? 0.35 : 0) - (r.type === 'murder' || r.type === 'murderLaw' ? 0.15 : 0);
+    e.bribeTried = true;
+    if (chance(ch)) {
+      P.money -= cost; Audio_.ui('cash');
+      setTimeout(() => e.say(pick(LINES.bribed), 2.5), 700);
+      this.silenceWitness(e); e.state = 'idle'; e.t = 3;
+      this.addHonor(-1); this.skillXp('charisma', 1.5);
+      UI.feed(`💵 -${fmtMoney(cost)} — tanık parayı aldı.`);
+    } else {
+      e.braveT = 4; e.held = false;
+      setTimeout(() => e.say(pick(['Paranı istemiyorum!', 'Beni satın alamazsın!', 'Kanun seni bulacak!']), 2), 600);
+      UI.feed('Tanık rüşveti reddetti!', 'warn');
+    }
+  },
+  witnessUpdate(dt) {
+    const P = this.player, L = this.law;
+    for (let i = this.reports.length - 1; i >= 0; i--) {
+      const r = this.reports[i];
+      if (r.done) { this.reports.splice(i, 1); continue; }
+      r.t += dt;
+      r.ws = r.ws.filter(w => !w.dead && !w.silenced && w.witness === r);
+      if (!r.ws.length) { this.cancelReport(r); this.reports.splice(i, 1); continue; }
+      const gone = r.ws.find(w => w.remove);
+      if (gone || r.t > r.limit) this.deliverReport(r, gone ? null : r.ws[0], null);
+    }
+    // maske: kasabada tepkiler
+    this._maskT = (this._maskT || 0) - dt;
+    if (this._maskT <= 0) {
+      this._maskT = 1;
+      if (P.masked && L.level === 0 && this.world.townAt(P.x, P.y)) {
+        for (const e of this.ents) {
+          if (e.kind !== 'npc' || e.dead || e.hostile || e.remark > this.clock) continue;
+          const d = dist(e.x, e.y, P.x, P.y);
+          if (e.isLaw && d < 110 && e.canSee(P.x, P.y, 110)) { e.say(pick(LINES.maskLaw), 2.5); e.remark = this.clock + 60; break; }
+          if (!e.isLaw && d < 60 && chance(0.25)) { e.say(pick(LINES.maskTown), 2); e.remark = this.clock + 90; break; }
+        }
       }
     }
-    this.addHonor(honor);
-    if (!witness || lvl === 0) { if (lvl > 0) UI.feed('Kimse görmedi...'); return; }
-    this.law.bounty += bounty;
-    this.law.level = Math.max(this.law.level, lvl);
-    if (type === 'murderLaw') this.law.level = Math.min(5, this.law.level + 1);
-    this.law.lastX = this.player.x; this.law.lastY = this.player.y; this.law.unseen = 0;
-    this.law.spawnT = 2;
-    UI.wanted(name, bounty);
-    // yakındaki kanun adamları düşman
-    for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead) e.hostile = true;
-    for (const e of this.ents) if (e.kind === 'npc' && !e.dead && !e.hostile && e.role !== 'bandit' && dist2(e.x, e.y, x, y) < 300 * 300) { e.state = 'flee'; e.t = 10; }
+  },
+  /* Maskeyi tak / çıkar */
+  toggleMask(id, force) {
+    const P = this.player;
+    P._lk = null;
+    if (P.masked && (!id || id === P.mask)) {
+      P.mask = null;
+      UI.feed(`${Icons.glyph('mask', '#efe6d2', 'ic inl')} Maske çıkarıldı`);
+      Audio_.ui('pick');
+      this.unmaskCheck(force);
+      P.maskBlown = false;
+      return;
+    }
+    id = id || (P.lastMask && P.has(P.lastMask) ? P.lastMask : ['mask_bandana', 'mask_sack'].find(k => P.has(k)));
+    if (!id) { UI.feed('Maskenin yok. Genel mağaza, terzi ya da kaçakçıdan bandana alabilirsin.', 'warn'); Audio_.ui('error'); return; }
+    const was = P.masked;
+    P.mask = id; P.lastMask = id;
+    UI.feed(`${Icons.item(id, 'ic inl')} ${ITEMS[id].n} takıldı`);
+    Audio_.ui('pick');
+    if (!was) {
+      P.maskBlown = !!this.watcher(90);
+      if (P.maskBlown) UI.feed('Maskeni takarken biri seni gördü. Onun gözünde artık kim olduğun belli.', 'warn');
+    }
+  },
+  /* Oyuncuyu gören en yakın kişi */
+  watcher(r) {
+    const P = this.player;
+    for (const e of this.ents) {
+      if (e.kind !== 'npc' || e.dead || e.role === 'bandit' || e.state === 'hurt') continue;
+      const rr = e.isLaw ? r * 2 : r;
+      if (Math.abs(e.x - P.x) > rr || Math.abs(e.y - P.y) > rr) continue;
+      if (e.canSee(P.x, P.y, rr)) return e;
+    }
+    return null;
+  },
+  unmaskCheck(force) {
+    const L = this.law;
+    const hot = (L.level > 0 && (L.masked || L.maskBounty > 0)) || this.reports.some(r => !r.done && r.masked);
+    if (!hot) return;
+    const by = this.watcher(130) || (force ? { say() {} } : null);
+    if (by) this.identify(by);
+  },
+  identify(by) {
+    const L = this.law, P = this.player;
+    let mb = 0;
+    for (const r of this.reports) if (!r.done && r.masked) { r.masked = false; r.desc = this.outfit(); }
+    if (L.maskBounty > 0 || L.masked) {
+      mb = L.maskBounty || 0;
+      L.bounty += mb; L.maskBounty = 0; L.masked = false; L.desc = this.outfit();
+      if (L.level > 0) {
+        L.lastX = P.x; L.lastY = P.y; L.unseen = 0;
+        for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && dist2(e.x, e.y, P.x, P.y) < 700 * 700) e.hostile = true;
+      }
+    }
+    if (by && by.say) by.say(pick(['Bu o! Maskeli adam bu!', 'Yüzünü gördüm! Sensin!', 'Seni tanıdım!']), 2.5);
+    UI.toast('KİMLİĞİN AÇIĞA ÇIKTI', mb ? `Maskeli suçlar artık senin adına: +${fmtMoney(mb)}` : 'Tanıklar yüzünü gördü.', 'wanted');
+    Audio_.ui('error');
   },
   lawUpdate(dt) {
     const L = this.law, P = this.player;
     if (L.level <= 0) {
       // tanınma
-      if (L.bounty >= 40) {
+      if (L.bounty >= 40 && !P.masked) {
         const town = this.world.townAt(P.x, P.y);
+        // kıyafet eşkâle ne kadar uyuyor? (şapka + palto)
+        const D = L.desc, match = D ? (D.hat === P.look.hat) + (D.coat === (P.coat || null)) : 2;
+        const [need, near] = match === 2 ? [6, 70] : match === 1 ? [14, 45] : L.bounty >= 200 ? [20, 34] : [1e9, 0];
         if (town) {
           L.recog = (L.recog || 0) + dt;
-          for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && dist(e.x, e.y, P.x, P.y) < 70 && L.recog > 6) {
+          for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && dist(e.x, e.y, P.x, P.y) < near && L.recog > need && e.canSee(P.x, P.y, near)) {
             L.level = 1; L.lastX = P.x; L.lastY = P.y; L.unseen = 0; e.hostile = true;
             UI.wanted('Tanındın! Başında ödül var', 0); e.say('Seni tanıyorum! Başında ödül var!'); L.recog = 0; break;
           }
@@ -369,14 +565,16 @@ const GameSystems = {
     }
     const lawmen = this.ents.filter(e => e.kind === 'npc' && e.isLaw && !e.dead);
     let seen = false;
-    for (const e of lawmen) if (e.hostile && e.canSee(P.x, P.y, 280)) { seen = true; break; }
+    if (this.suspect()) for (const e of lawmen) if (e.hostile && e.canSee(P.x, P.y, 280)) { seen = true; break; }
     if (seen) { L.lastX = P.x; L.lastY = P.y; L.unseen = 0; } else L.unseen += dt;
     L.radius = 360 + L.level * 110;
     const out = dist(P.x, P.y, L.lastX, L.lastY) > L.radius;
     const need = this.hasPerk('outlaw') ? 7 : 12;
     if (out && L.unseen > need) {
       L.level = 0;
-      UI.feed('Kanundan kaçtın. Ama başındaki ödül hâlâ duruyor.', 'law');
+      if (L.masked && L.bounty <= 0) UI.feed('Maskeli yabancının izi kayboldu. Kimse kim olduğunu bilmiyor.', 'law');
+      else UI.feed(L.masked ? 'Maskeli yabancının izi kayboldu.' : 'Kanundan kaçtın. Ama başındaki ödül hâlâ duruyor.', 'law');
+      L.maskBounty = 0; L.masked = false;
       Audio_.ui('ok');
       for (const e of lawmen) { e.hostile = false; if (!this.world.townAt(e.x, e.y)) e.remove = true; }
       return;
@@ -385,7 +583,7 @@ const GameSystems = {
     if (L.spawnT <= 0) {
       L.spawnT = 7;
       const want = Math.min(8, 1 + L.level * 2);
-      if (lawmen.filter(e => e.hostile).length < want) {
+      if (lawmen.filter(e => e.hostile).length < want && this.suspect()) {
         for (let k = 0; k < 2; k++) {
           const pos = this.findSpawnPos(P.x, P.y, 330, 430);
           if (!pos) continue;
@@ -401,7 +599,7 @@ const GameSystems = {
     if (b <= 0) return;
     if (this.law.level > 0) { UI.feed('Aranırken ödül ödeyemezsin!', 'warn'); return; }
     if (!this.spend(b)) return;
-    this.law.bounty = 0;
+    this.law.bounty = 0; this.law.desc = null;
     this.addHonor(2);
     UI.feed(`⚖️ ${fmtMoney(b)} ödül ödendi. Artık temizsin.`);
   },
@@ -485,7 +683,7 @@ const GameSystems = {
         if (e.def.beh === 'hostile' && d2 < 200 * 200) { e.state = 'attack'; e.t = 15; }
         else if (e.def.beh !== 'hostile') { e.state = 'flee'; e.t = rnd(6, 10); e.fleeFrom({ x, y }); }
       } else if (e.kind === 'npc' && !e.hostile && e.role !== 'bandit' && type === 'gun') {
-        if (e.state !== 'hurt' && e.state !== 'static') { e.state = e.role === 'town' && chance(0.4) ? 'cower' : 'flee'; e.t = rnd(5, 10); if (chance(0.2)) e.say(pick(LINES.flee), 2); if (e.state === 'cower') setTimeout(() => { if (e.state === 'cower') e.state = 'idle'; }, 8000); }
+        if (e.state !== 'hurt' && e.state !== 'static' && e.state !== 'report') { e.state = e.role === 'town' && chance(0.4) ? 'cower' : 'flee'; e.t = rnd(5, 10); if (chance(0.2)) e.say(pick(LINES.flee), 2); if (e.state === 'cower') setTimeout(() => { if (e.state === 'cower') e.state = 'idle'; }, 8000); }
       } else if (e.kind === 'horse' && e.owner !== 'player' && !e.rider && type === 'gun' && !e.hitch) { e.state = 'flee'; e.t = 5; e.ang = Math.atan2(e.y - y, e.x - x); }
       else if (e.kind === 'npc' && e.role === 'bandit' && type === 'gun' && d2 < 500 * 500) e.aggro = true;
     }
@@ -502,7 +700,7 @@ const GameSystems = {
   onNpcKill(n, how) {
     this.stat('kills', 1);
     if (n.role === 'bandit' || n.role === 'target') { this.stat('bandits', 1); this.addHonor(1); this.skillXp('shooting', 6); }
-    else if (n.isLaw) { if (!n.hostile || this.law.level === 0) this.crime('murderLaw', n.x, n.y, n); else { this.law.bounty += 40; this.law.level = Math.min(5, this.law.level + (chance(0.4) ? 1 : 0)); this.addHonor(-4); UI.wanted('Kanun adamı öldürüldü', 40); } }
+    else if (n.isLaw) { if (!n.hostile || this.law.level === 0) this.crime('murderLaw', n.x, n.y, n); else { if (this.anonymous()) this.law.maskBounty = (this.law.maskBounty || 0) + 40; else this.law.bounty += 40; this.law.level = Math.min(5, this.law.level + (chance(0.4) ? 1 : 0)); this.addHonor(-4); UI.wanted('Kanun adamı öldürüldü', 40); } }
     else if (!n.hostile) { if (n.assaulted) { this.law.bounty = Math.max(0, this.law.bounty - 12); this.addHonor(3); } this.crime(how === 'trample' ? 'trample' : 'murder', n.x, n.y, n); }
     if (n.event && n.event.onDeath) n.event.onDeath(n);
     if (n.role === 'target' && this.activeBounty && n.bountyId === this.activeBounty.id) {
@@ -899,7 +1097,7 @@ const GameSystems = {
     for (const e of this.ents) {
       if (e.remove) continue;
       const d = dist(P.x, P.y, e.x, e.y);
-      if (d > 30) continue;
+      if (d > (e.held ? 50 : 30)) continue;
       if (e.kind === 'horse') {
         if (e === this.horse) {
           if (e.dead) { add(e.x, e.y, e.name, [{ n: 'At Diriltici Kullan', fn: () => this.consume('horse_reviver') }]); continue; }
@@ -943,6 +1141,7 @@ const GameSystems = {
       const ox = tx * TS + 8, oy = ty * TS + 8;
       if (dist2(P.x, P.y, ox, oy) > 22 * 22) continue;
       const H = HARVEST[o];
+      if (H && W.season === 3 && (isHerbO(o) || o === O.APPLE || o === O.CROP) && (W.snowyTile(tx, ty) || o !== O.ORE && W.bareTree(tx, ty) && o === O.APPLE)) continue;
       if (H) {
         const hv = W.harvested.get(i);
         if (hv !== undefined && hv > this.day) continue;
@@ -1018,6 +1217,11 @@ const GameSystems = {
       } else acts.push({ n: 'Konuş', fn: () => e.say('Sağ ol yabancı. Seni unutmayacağım.') });
       return acts;
     }
+    if (e.witness && !e.witness.done) {
+      if (P.isArmed && (P.aiming || P.rsAim || e.held)) acts.push({ n: 'Tehdit Et', fn: () => this.intimidate(e) });
+      if (!e.bribeTried) acts.push({ n: `Rüşvet Ver (${fmtMoney(this.bribeCost(e))})`, fn: () => this.bribeWitness(e) });
+      if (acts.length) return acts;
+    }
     if (e.eventType === 'wagon' && !ev.done) { acts.push({ n: 'Konuş', fn: () => e.say('Arabanın yanındaki tekerleğe bir bak, tamir edebilir misin?') }); return acts; }
     if (e.eventType === 'peddler') { acts.push({ n: 'Alışveriş Yap', fn: () => UI.openShop('peddler', 'Seyyar Satıcı') }); }
     if (e.eventType === 'duel') { acts.push({ n: 'Düelloyu Kabul Et', fn: () => UI.openDuel(e) }); acts.push({ n: 'Reddet', fn: () => { e.say(pick(['Korkak!', 'Tahmin etmiştim, tavuk.', 'Git anana ağla.'])); e.eventType = null; e.state = 'idle'; } }); return acts; }
@@ -1045,7 +1249,8 @@ const GameSystems = {
   greet(e) {
     const P = this.player;
     let line;
-    if (P.clean < 20 && chance(0.5)) line = pick(LINES.dirty);
+    if (P.masked) line = pick(LINES.maskTown);
+    else if (P.clean < 20 && chance(0.5)) line = pick(LINES.dirty);
     else if (P.drunk > 50) line = pick(LINES.drunk);
     else if (this.honor < -40) line = pick(LINES.greetLow);
     else if (this.honor > 40 && chance(0.5)) line = pick(LINES.greetHigh);
