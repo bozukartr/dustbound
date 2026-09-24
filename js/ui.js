@@ -1498,7 +1498,7 @@ const UI = {
       nameIn.onfocus = () => (Input.textFocus = true);
       nameIn.onblur = () => (Input.textFocus = false);
       nameIn.oninput = () => (prof.name = nameIn.value);
-      nameIn.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Escape') nameIn.blur(); };
+      nameIn.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); nameIn.blur(); } };
       $('#cr-name-row', el).onclick = () => nameIn.focus();
       $('#cr-rn', el).onclick = (e) => { e.stopPropagation(); prof.name = pick(NAMES[look.sex]) + ' ' + pick(NAMES.last); nameIn.value = prof.name; };
       $('#cr-name-row', el)._lr = () => { prof.name = pick(NAMES[look.sex]) + ' ' + pick(NAMES.last); nameIn.value = prof.name; };

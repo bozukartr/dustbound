@@ -976,7 +976,7 @@ class World {
   storeChunk(key, c) {
     c.used = performance.now();
     this.chunks.set(key, c);
-    if (this.chunks.size > 44) {
+    if (this.chunks.size > 36) {
       let oldK = -1, oldT = Infinity;
       for (const [k, v] of this.chunks) if (v.used < oldT) { oldT = v.used; oldK = k; }
       this.chunks.delete(oldK);

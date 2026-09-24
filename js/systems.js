@@ -464,6 +464,7 @@ const GameSystems = {
     this.parts.add('flash', x, y, 0, 0, 0.25, 26);
     this.parts.add('ring', x, y, 0, 0, 0.4, 50);
     this.fx.shake = 9; this.fx.boom = 0.35;
+    Input.rumble(1, 1, 400);
     const R = 55;
     for (const e of [...this.ents, this.player]) {
       if (e.dead || !e.hurt) continue;

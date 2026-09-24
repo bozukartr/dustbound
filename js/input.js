@@ -153,6 +153,14 @@ const Input = {
     const m = Math.min(1, Math.hypot(ax, ay));
     return { x: ax, y: ay, m };
   },
+  rumble(strong, weak, ms) {
+    const p = this.pad;
+    if (!p || this.device !== 'pad') return;
+    try {
+      if (p.vibrationActuator && p.vibrationActuator.playEffect) p.vibrationActuator.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: weak });
+      else if (p.hapticActuators && p.hapticActuators[0]) p.hapticActuators[0].pulse(strong, ms);
+    } catch (e) {}
+  },
   glyph(action) {
     const b = BINDS[action];
     if (!b) return '';

@@ -278,7 +278,7 @@ class Player extends Ent {
     G.fx.flash = Math.min(0.6, G.fx.flash + dmg / 40);
     G.fx.shake = Math.min(6, G.fx.shake + dmg / 8);
     G.parts.burst('blood', this.x, this.y, 4 + dmg / 6, 30, 0.5, 1.4);
-    if (!silent) Audio_.thud(0.3);
+    if (!silent) { Audio_.thud(0.3); Input.rumble(Math.min(1, dmg / 30), 0.5, 180); }
     if (this.hp <= 0) { this.hp = 0; G.playerDied(src); }
   }
 
@@ -498,6 +498,7 @@ class Player extends Ent {
     G.fx.shake = Math.max(G.fx.shake, Wp.kind === 'long' ? 2.2 : 1.4);
     G.fx.muzzle = 0.06;
     Audio_.shot(this.weapon === 'rifle' ? 'rifle' : this.weapon === 'shotgun' ? 'shotgun' : 'pistol', 0.9);
+    Input.rumble(Wp.kind === 'long' ? 0.7 : 0.45, 0.3, Wp.kind === 'long' ? 140 : 90);
     G.noise(this.x, this.y, 620, 'gun');
     G.skillXp('shooting', 0.6);
     if ((this.clip[this.weapon] || 0) <= 0 && this.ammo[Wp.ammo] > 0) this.startReload();

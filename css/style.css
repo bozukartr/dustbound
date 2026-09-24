@@ -109,7 +109,7 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 #subtitle { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); max-width: 70%; text-align: center; font-size: 21px; text-shadow: 0 0 4px #000, 0 2px 3px #000, 0 0 10px #000; }
 #subtitle .sn { color: #ffd890; }
 #subtitle .sn.self { color: #a8d0ff; }
-#loc-title { position: absolute; left: 0; right: 0; top: 16%; text-align: center; opacity: 0; transition: opacity 1.2s; pointer-events: none; }
+#loc-title { position: absolute; left: 0; right: 0; top: 23%; text-align: center; opacity: 0; transition: opacity 1.2s; pointer-events: none; }
 #loc-title.show { opacity: 1; }
 .lt-name { font-family: var(--sc); font-size: 54px; letter-spacing: 6px; color: #f6f0e2; text-shadow: 0 0 12px #000, 0 3px 6px #000; }
 .lt-sub { font-family: var(--serif); font-style: italic; font-size: 20px; color: #e0d4bc; text-shadow: 0 0 6px #000; }

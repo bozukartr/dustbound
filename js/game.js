@@ -34,7 +34,7 @@ const G = {
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.reveal = new Uint8Array(65536);
     this.travelT = 10; this.eventT = 90;
-    this.curTown = null; this.curRegion = null; this.goalReached = false;
+    this.curTown = null; this.curRegion = null; this.goalReached = false; this.hints = {};
   },
 
   init() {
@@ -42,7 +42,7 @@ const G = {
     this.ctx = this.canvas.getContext('2d', { alpha: false });
     this.light = makeCanvas(16, 16); this.lctx = this.light.getContext('2d');
     this.over = makeCanvas(16, 16); this.octx = this.over.getContext('2d');
-    this.fogCanvas = makeCanvas(256, 256); this.fogCtx = this.fogCanvas.getContext('2d');
+    this.fogCanvas = makeCanvas(256, 256); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true });
     // ışık sprite'ı
     this.lightSpr = makeCanvas(64, 64);
     const lc = this.lightSpr.getContext('2d');
@@ -176,7 +176,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, savedAt: Date.now(),
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -202,6 +202,7 @@ const G = {
     this.props = d.props || []; this.family = d.family || { spouse: null, children: [] }; this.romances = d.romances || {}; this.stable = d.stable || [];
     this.campCleared = d.campCleared || {}; this.chestsOpened = d.chestsOpened || {}; this.graves = d.graves || {}; this.treasure = d.treasure; this.activeBounty = d.activeBounty; this.stash = d.stash || {};
     if (this.activeBounty) this.activeBounty.spawned = false;
+    this.hints = d.hints || {};
     this.world.harvested = new Map(d.harvested || []);
     for (const b of this.world.buildings) if (b.prop && this.props.includes(b.prop)) b.owned = true;
     const bin = atob(d.reveal);
@@ -275,7 +276,7 @@ const G = {
     T_.spawn -= dt; if (T_.spawn <= 0) { T_.spawn = 1; this.spawnTick(); }
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
     T_.ach -= dt; if (T_.ach <= 0) { T_.ach = 1; this.checkAchievements(); }
-    T_.fire -= dt; if (T_.fire <= 0) { T_.fire = 0.5; this.checkFire(); }
+    T_.fire -= dt; if (T_.fire <= 0) { T_.fire = 0.5; this.checkFire(); if (this.t > 30) this.hintTick(); }
     T_.gps -= dt; if (T_.gps <= 0 && this.waypoint) { T_.gps = 5; if (dist(P.x, P.y, this.waypoint.x, this.waypoint.y) < 40) { this.setWaypoint(null); UI.feed('📍 Hedefe ulaştın'); } else this.computeGps(); }
     T_.amb -= dt;
     if (T_.amb <= 0) {
@@ -303,10 +304,39 @@ const G = {
       else if (P.aiming && P.isArmed && P.de > 12) { P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60); }
       else if (!P.aiming) UI.feed('Dead Eye için önce nişan al.', 'warn');
     }
+    if (Input.mouse.wheel && Input.device === 'kb') this.cycleWeapon(Input.mouse.wheel > 0 ? 1 : -1);
     if (I.held('camp') > 0.7 && !this._campHeld) { this._campHeld = true; this.setupCamp(); }
     if (!I.down('camp')) this._campHeld = false;
     if (I.pressed('quick')) this.quickUse();
     UI.interactUpdate(dt);
+  },
+  cycleWeapon(d) {
+    const P = this.player;
+    const list = [];
+    for (const s of WHEEL_SLOTS) { const w = s.w.find(id => P.weapons.has(id) || (id === 'dynamite' && P.has('dynamite'))); if (w) list.push(w); }
+    if (!list.length) return;
+    let i = list.indexOf(P.weapon);
+    i = (i + d + list.length) % list.length;
+    P.weapon = list[i]; P.reloadT = 0; P.draw_ = 0;
+    Audio_.tone(700, 0.04, 'square', 0.04);
+  },
+  hintOnce(key, html, dur = 8) {
+    this.hints = this.hints || {};
+    if (this.hints[key]) return;
+    this.hints[key] = 1;
+    UI.help(html, dur);
+  },
+  hintTick() {
+    const P = this.player, g = k => Input.glyph(k);
+    if (P.hunger < 30) this.hintOnce('hunger', `Açıkıyorsun. ${g('satchel')} ile çantanı açıp yemek ye ya da ${g('quick')} ile hızlıca bir şeyler atıştır.`);
+    else if (P.thirst < 30) this.hintOnce('thirst', `Susadın. Mataranı iç (${g('quick')}) ya da bir nehir/kuyu başında ${g('interact')} ile su iç.`);
+    else if (P.energy < 25) this.hintOnce('sleep', `Yorgunsun. Bir otelde, evinde ya da kampta (${g('camp')} basılı tut) uyu.`);
+    else if (this.coldness > 0.05) this.hintOnce('cold', 'Üşüyorsun! Kalın bir palto giy, ateş yak ya da sıcak bir şeyler iç. Terzilerden kürk alabilirsin.');
+    else if (this.hotness > 0.05) this.hintOnce('hot', 'Sıcak çarpıyor! Daha sık su iç, geniş kenarlı şapka ya da keten gömlek giy.');
+    else if (this.isNight) this.hintOnce('night', `Gece çöktü. ${g('lantern')} ile fenerini yak. Kurtlar gece daha tehlikelidir.`);
+    else if (P.riding) this.hintOnce('ride', `${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
+    else if (this.law.level > 0) this.hintOnce('law', 'Aranıyorsun! Radardaki kırmızı arama alanının dışına çık ve görünmeden bekle.');
+    else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', `Su kenarındasın. ${g('interact')} ile su iç; basılı tutarak matara doldurma, yıkanma ve balık tutma seçeneklerine ulaş.`);
   },
   quickUse() {
     const P = this.player;
@@ -371,7 +401,8 @@ const G = {
     const W = this.world, C = this.cam;
     const x0 = C.ox, y0 = C.oy;
     const cx0 = Math.floor(x0 / CPX), cy0 = Math.floor(y0 / CPX), cx1 = Math.floor((x0 + this.vw) / CPX), cy1 = Math.floor((y0 + this.vh) / CPX);
-    if (sync) for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) W.getChunk(cx, cy, true);
+    const NC = WW / CHUNK;
+    if (sync) for (let cy = Math.max(0, cy0); cy <= Math.min(NC - 1, cy1); cy++) for (let cx = Math.max(0, cx0); cx <= Math.min(NC - 1, cx1); cx++) W.getChunk(cx, cy, true);
     // hareket yönünde bir halka
     const P = this.player;
     const vx = P.riding ? Math.cos(P.riding.ang) : 0, vy = P.riding ? Math.sin(P.riding.ang) : 0;
@@ -386,7 +417,9 @@ const G = {
     const x0 = C.ox, y0 = C.oy, x1 = x0 + vw, y1 = y0 + vh;
     const cx0 = Math.floor(x0 / CPX), cy0 = Math.floor(y0 / CPX), cx1 = Math.floor(x1 / CPX), cy1 = Math.floor(y1 / CPX);
     const chunks = [];
+    const NC = WW / CHUNK;
     for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+      if (cx < 0 || cy < 0 || cx >= NC || cy >= NC) { ctx.fillStyle = '#2c4b5e'; ctx.fillRect(cx * CPX - x0, cy * CPX - y0, CPX, CPX); continue; }
       const c = W.getChunk(cx, cy, true);
       chunks.push([c, cx * CPX - x0, cy * CPX - y0]);
       ctx.drawImage(c.g, cx * CPX - x0, cy * CPX - y0);
