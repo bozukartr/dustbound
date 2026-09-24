@@ -857,6 +857,7 @@ const UI = {
             case 'arm': it.push({ icon: '💪', label: 'Bilek Güreşi ($5 bahis)', fn: () => this.openArmWrestle() }); break;
             case 'rumor': it.push({ icon: '👂', label: 'Söylenti Dinle', right: fmtMoney(0.5), fn: () => this.rumor() }); break;
             case 'rob': it.push({ icon: '🔫', label: 'Dükkanı Soy', cls: 'danger', fn: () => this.robStore(b) }); break;
+            case 'news': it.push({ icon: '📰', label: 'Gazete Oku', right: '$0.10', fn: () => this.readNews() }); break;
             case 'room': it.push({ icon: '🛏', label: 'Oda Tut ve Uyu', right: fmtMoney(2 * G.priceMul(true)), fn: () => this.openSleep('hotel', 2 * G.priceMul(true)) }); break;
             case 'bath': it.push({ icon: '🛁', label: 'Sıcak Banyo', right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.clean = 100; P.warmBuff = 60; this.feed('🛁 Tertemiz oldun. Kokun bile değişti.'); G.advanceClock(30); } } }); break;
             case 'heal': { const c = 5 * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: 'Tedavi Ol (Sağlık, hastalık, zehir)', right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed('✚ Doktor seni muayene edip tedavi etti.'); G.advanceClock(30); } } }); break; }
@@ -958,6 +959,49 @@ const UI = {
       Audio_.boom(0.6);
     });
   },
+  readNews() {
+    if (!G.spend(0.1)) return;
+    const [h, t] = pick(HEADLINES);
+    const unk = G.world.pois.filter(p => p.kind === 'landmark' && !G.discovered.has(p.id) && !G.rumored.has(p.id));
+    let extra = '';
+    if (unk.length && chance(0.5)) { const p = pick(unk); G.rumored.add(p.id); extra = `<p class="dim">Gazetenin arka sayfasında <b>${p.n}</b> hakkında bir okur mektubu var. Haritanda işaretlendi.</p>`; }
+    this.info('The Dustbound Gazette', `<div class="news"><div class="nw-h">${h}</div><p>${t}</p></div>${extra}`);
+  },
+  openDuel(e) {
+    const P = G.player;
+    if (!P.weapons.has('cattleman') && !P.weapons.has('schofield')) { e.say('Tabancan bile yok. Git başımdan!'); return; }
+    const bet = Math.round(e.money + 10);
+    const el = el_('div', 'modal duel');
+    const st = { phase: 'ready', t: rnd(2, 4.5), react: 0, opp: rnd(0.3, 0.55) * (1 - G.skill('shooting') * 0.02) + (P.drunk > 40 ? -0.1 : 0) };
+    const draw = (msg, big) => { el.innerHTML = `<div class="du-inner"><div class="du-t">${big || ''}</div><div class="du-m">${msg}</div><div class="du-h">${Input.glyph('fire')} ya da ${Input.glyph('confirm')} ile çek</div></div>`; };
+    draw(`${escapeHtml(e.name)} ile düello. Ödül: ${fmtMoney(bet)}`, 'HAZIR OL');
+    P.weapon = P.weapons.has('schofield') ? 'schofield' : 'cattleman';
+    P.ang = Math.atan2(e.y - P.y, e.x - P.x); e.ang = P.ang + Math.PI;
+    const m = this.makeModal(el, { customInput: true, transparent: true });
+    const finish = (win, msg) => {
+      st.phase = 'end';
+      Audio_.shot('pistol', 1);
+      G.parts.add('flash', P.x + Math.cos(P.ang) * 8, P.y + Math.sin(P.ang) * 8, 0, 0, 0.08, 5);
+      if (win) { e.hurt(999, 'duel'); G.earn(bet, 'Düello'); G.addHonor(1); G.skillXp('shooting', 15); G.stat('duels', 1); draw(msg, 'KAZANDIN'); }
+      else { P.hurt(55, 'haydut'); if (G.state === 'play') { e.state = 'idle'; e.eventType = null; e.path = null; e.home = { x: e.x + 200, y: e.y, r: 50 }; } draw(msg, 'VURULDUN'); }
+      setTimeout(() => { if (m.alive) this.pop(m); }, 2200);
+    };
+    m.update = (dt) => {
+      const I = Input;
+      if (m.born >= this.frame - 1 || st.phase === 'end') return;
+      const pulled = I.pressed('fire') || I.pressed('confirm');
+      if (st.phase === 'ready') {
+        st.t -= dt;
+        if (pulled) { finish(false, 'Erken davrandın! Rakibin seni fark etti.'); return; }
+        if (st.t <= 0) { st.phase = 'draw'; draw('', 'ÇEK!'); Audio_.tone(880, 0.15, 'square', 0.08); }
+      } else if (st.phase === 'draw') {
+        st.react += dt;
+        if (pulled) finish(st.react < st.opp, `Tepki süren: ${(st.react * 1000) | 0} ms • Rakip: ${(st.opp * 1000) | 0} ms`);
+        else if (st.react > st.opp) finish(false, `Çok yavaştın. Rakip: ${(st.opp * 1000) | 0} ms`);
+      }
+    };
+    this.push(m);
+  },
   rumor() {
     if (!G.spend(0.5)) return;
     const unk = G.world.pois.filter(p => (p.kind === 'landmark' || p.kind === 'camp') && !G.discovered.has(p.id) && !G.rumored.has(p.id));
@@ -1000,6 +1044,7 @@ const UI = {
         { icon: '🛏', label: 'Uyu', fn: () => this.openSleep('camp') },
         { icon: '🍖', label: 'Pişir ve Üret', fn: () => this.openCook() },
         { icon: '⏳', label: 'Ateş Başında Bekle', fn: () => this.openWait() },
+        ...(P.has('harmonica') ? [{ icon: '🎵', label: 'Mızıka Çal', fn: () => { const d = Audio_.harmonica(); P.deCore = Math.min(100, P.deCore + 15); P.energy = Math.min(100, P.energy + 3); G.advanceClock(15); this.feed('🎵 Ateşin başında hüzünlü bir ezgi çaldın.'); } }] : []),
         { icon: '💾', label: 'Oyunu Kaydet', fn: () => G.saveGame() },
         { icon: '⛺', label: 'Kampı Topla', fn: () => { if (G.camp) { G.camp.remove = true; G.ents = G.ents.filter(e => e !== G.camp); G.camp = null; } this.pop(); } },
         { icon: '←', label: 'Kapat', fn: () => this.pop() },

@@ -248,7 +248,7 @@ const G = {
     const modal = UI.isModal() || UI.state === 'fade';
     this.uiBlocksMove = modal || this.state !== 'play';
     if (this.state === 'play' && !modal) this.handleGlobalInput(dt);
-    if (modal) return;
+    if (modal) { this.updateCamera(dt); return; }
     let ts = 1;
     if (this.wheelOpen) ts = 0.2;
     if (P.deadeye) ts = 0.35;

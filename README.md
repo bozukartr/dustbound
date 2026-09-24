@@ -61,7 +61,7 @@ Menülerde: ✕ / Enter seçer, ○ / Esc geri döner, L1-R1 / Q-E sekme değiş
 - Avcılık ve deri yüzme, bitki toplama, balık tutma (mini oyun), altın eleme, cevher kazma, hazine haritaları.
 - Silahlar: bıçak, iki tabanca, iki karabina, uzun tüfek, av tüfeği, yay ve dinamit. Bir de Dead Eye.
 - NPC'lerle selamlaşma, kışkırtma, soygun; yol olayları (yaralı yolcular, soygunlar, pusu, kırık arabalar, seyyar satıcılar); ödül ilanları.
-- Yirmi Bir (blackjack), bilek güreşi, söylenti dinleme.
+- Yirmi Bir (blackjack), bilek güreşi, hızlı çekiş düellosu, söylenti dinleme, gazete okuma, kamp ateşinde mızıka çalma.
 - Atlar: satın alma, yabani at evcilleştirme, bağ seviyesi, ıslıkla çağırma.
 
 **Kanun ve onur**

@@ -154,6 +154,24 @@ const Audio_ = {
     [0, 0.05].forEach(w => { this.tone(370, 1.2, 'sawtooth', 0.03, this.amb, w); this.tone(466, 1.2, 'sawtooth', 0.03, this.amb, w); this.tone(554, 1.2, 'sawtooth', 0.025, this.amb, w); });
   },
 
+  harmonica() {
+    if (!this.ctx) return 0;
+    const A = 220, n = s => A * Math.pow(2, s / 12);
+    const riff = [[7, 0.3], [10, 0.3], [12, 0.6], [10, 0.3], [7, 0.3], [5, 0.6], [3, 0.3], [5, 0.3], [7, 0.9], [0, 0.3], [3, 0.3], [5, 0.3], [7, 0.3], [10, 0.6], [7, 1.2]];
+    let t = 0;
+    for (const [sm, d] of riff) {
+      const c = this.ctx, st = c.currentTime + t;
+      for (const [mul, typ, v] of [[1, 'square', 0.025], [2, 'sine', 0.02]]) {
+        const o = c.createOscillator(); o.type = typ; o.frequency.setValueAtTime(n(sm) * mul * 0.985, st); o.frequency.linearRampToValueAtTime(n(sm) * mul, st + 0.06);
+        const lfo = c.createOscillator(); lfo.frequency.value = 6; const lg = c.createGain(); lg.gain.value = n(sm) * 0.01; lfo.connect(lg); lg.connect(o.frequency);
+        const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.8;
+        const g = c.createGain(); g.gain.setValueAtTime(0.0001, st); g.gain.exponentialRampToValueAtTime(v * 3, st + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, st + d * 0.95);
+        o.connect(f); f.connect(g); g.connect(this.music); o.start(st); lfo.start(st); o.stop(st + d); lfo.stop(st + d);
+      }
+      t += d * 0.9;
+    }
+    return t;
+  },
   /* Karplus-Strong gitar teli */
   pluckBuf(freq) {
     const k = Math.round(freq);

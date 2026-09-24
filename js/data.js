@@ -100,6 +100,7 @@ const ITEMS = {
   horse_brush:  { n: 'At Fırçası', c: 'tool', p: 2, i: '🧹', max: 1, d: 'Atını temizler, bağınızı güçlendirir.' },
   horse_reviver:{ n: 'At Diriltici', c: 'horse', p: 8, i: '💉', max: 5, d: 'Yaralı atını ayağa kaldırır.' },
   horse_tonic:  { n: 'At Toniği', c: 'horse', p: 3, i: '🍶', max: 10, d: 'Atının dayanıklılığını yeniler.' },
+  harmonica:    { n: 'Mızıka', c: 'tool', p: 3, i: '🎵', max: 1, d: 'Kamp ateşinin başında çalınır. Ruhu dinlendirir.' },
   bait:         { n: 'Solucan Yem', c: 'tool', p: 0.3, i: '🪱', max: 30, d: 'Balıklar daha çabuk vurur.' },
   // ---- Belgeler
   treasure_map: { n: 'Hazine Haritası', c: 'doc', p: 0, i: '🗺️', max: 5, d: 'Kürekle işaretli yeri kaz.' },
@@ -227,7 +228,7 @@ const REGIONS = [
 
 /* ---- Binalar ---- */
 const BUILDINGS = {
-  general:  { n: 'Genel Mağaza', w: 8, h: 6, wall: '#8a6a48', roof: '#5b3a29', sign: '#c9a45c', svc: ['shop', 'rob'], shop: 'general' },
+  general:  { n: 'Genel Mağaza', w: 8, h: 6, wall: '#8a6a48', roof: '#5b3a29', sign: '#c9a45c', svc: ['shop', 'news', 'rob'], shop: 'general' },
   saloon:   { n: 'Saloon', w: 9, h: 7, wall: '#7a4f33', roof: '#46291c', sign: '#b3261e', svc: ['meal', 'shop', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
   sheriff:  { n: 'Şerif Ofisi', w: 6, h: 6, wall: '#9a8a70', roof: '#4a3a2a', sign: '#d8c080', svc: ['bounty', 'board'] },
   doctor:   { n: 'Doktor', w: 6, h: 6, wall: '#d8d0c0', roof: '#5a4a40', sign: '#e8e8e8', svc: ['heal', 'shop'], shop: 'doctor' },
@@ -266,7 +267,7 @@ const JOBS = {
 
 /* Dükkan stokları ve alım oranları */
 const SHOPS = {
-  general: { n: 'Genel Mağaza', sell: ['beans', 'bread', 'jerky', 'peaches', 'corn', 'coffee', 'chocolate', 'health_cure', 'stamina_tonic', 'bandage', 'tobacco', 'cigarette', 'canteen', 'bedroll', 'fishing_rod', 'bait', 'gold_pan', 'pickaxe', 'shovel', 'lantern', 'hay', 'horse_brush', 'horse_tonic', 'region_map', 'wildflower'],
+  general: { n: 'Genel Mağaza', sell: ['beans', 'bread', 'jerky', 'peaches', 'corn', 'coffee', 'chocolate', 'health_cure', 'stamina_tonic', 'bandage', 'tobacco', 'cigarette', 'canteen', 'bedroll', 'fishing_rod', 'bait', 'gold_pan', 'pickaxe', 'shovel', 'lantern', 'hay', 'horse_brush', 'horse_tonic', 'region_map', 'wildflower', 'harmonica'],
              ammo: ['pistol', 'repeater'], buy: { food: 0.5, herb: 0.6, valuable: 0.5, animal: 0.35, collect: 0.5, tool: 0.4, clothing: 0.4, horse: 0.4 } },
   saloon:  { n: 'Bar', sell: ['beer', 'whiskey', 'stew', 'coffee', 'cigarette', 'bread'], buy: {} },
   doctor:  { n: 'Doktor', sell: ['health_cure', 'bandage', 'antidote', 'snake_oil', 'stamina_tonic', 'herbal_tonic'], buy: { herb: 1.0, med: 0.5 } },
@@ -459,6 +460,20 @@ const LINES = {
   ],
 };
 
+const HEADLINES = [
+  ['DEMİRYOLU BATIYA UZANIYOR', 'Yeni hat Silver Ridge dağlarını aşarak madencilere umut oldu. Yatırımcılar Saint Clement borsasında bayram ediyor.'],
+  ['KANYONDA TREN SOYGUNU', 'Maskeli haydutlar posta vagonunu boşalttı. Şerif, ele başının Kızıl Çakallar çetesinden olduğunu düşünüyor.'],
+  ['ALTIN BULUNDU!', 'Dağ derelerinde altın eleyen bir göçmen, bir haftada bir yıllık kazancı kadar altın buldu. Nehirlere akın başladı.'],
+  ['KURAKLIK SIĞIRCILARI VURDU', 'Heartland ovalarında otlaklar kurudu. Sığır fiyatları düşerken kasaplar et fiyatlarını artırdı.'],
+  ['GÖKTEN ATEŞ DÜŞTÜ', 'Sundown çölünde çobanlar gece yarısı gökyüzünü yaran bir ateş topu gördüklerini anlatıyor.'],
+  ['ELEKTRİK SAINT CLEMENT\'TE', 'Şehrin ana caddesi ilk kez elektrik lambalarıyla aydınlatıldı. Kasabalılar bu mucizeyi görmek için saatlerce yürüdü.'],
+  ['BATAKLIKTA KAYIP AVCI', 'Bayou Noir yakınlarında kaybolan tuzakçıdan hâlâ haber yok. Yerliler timsahlardan şüpheleniyor.'],
+  ['KURT SÜRÜLERİ ÇOĞALDI', 'Cedar Falls keresteciler birliği, gece ormana girilmemesi konusunda uyardı.'],
+  ['SİRK KASABAYA GELİYOR', 'Profesör Harriet\'in gezici gösterisi bu yaz Harlow\'a uğrayacak. Fil ve ateş yutan adam bekleniyor!'],
+  ['YENİ ŞERİF ATANDI', 'Dust Creek\'e atanan yeni şerif, kasabayı kanunsuzlardan temizleyeceğine yemin etti.'],
+  ['DOKTORDAN UYARI', 'Çiğ et ve bataklık suyu dizanteriye yol açıyor. Suyu kaynatın, eti iyi pişirin.'],
+  ['ARAZİ SATIŞLARI PATLADI', 'Hükümetin yeni çiftçi yasasıyla ovadaki araziler hızla sahiplerini buluyor.'],
+];
 const SEASONS = ['İlkbahar', 'Yaz', 'Sonbahar', 'Kış'];
 const SEASON_TEMP = [0, 8, -2, -12];
 

@@ -373,3 +373,12 @@ table.ctrl td.c-ps { color: #a8c0ff; }
   .create { grid-template-columns: 1fr; }
   .cr-right { display: none; }
 }
+
+/* Gazete & düello */
+.news { background: #e8dcc0; color: #1a120c; padding: 14px 18px; font-family: var(--serif); box-shadow: inset 0 0 30px rgba(120, 90, 50, 0.3); }
+.nw-h { font-family: var(--west); font-size: 24px; border-bottom: 2px solid #1a120c; margin-bottom: 8px; }
+.duel { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 14vh; pointer-events: none; background: radial-gradient(ellipse, transparent 40%, rgba(0, 0, 0, 0.55)); }
+.du-inner { text-align: center; text-shadow: 0 0 10px #000, 0 3px 6px #000; }
+.du-t { font-family: var(--west); font-size: clamp(48px, 9vw, 110px); color: #f6e6c0; letter-spacing: 6px; }
+.du-m { font-family: var(--sc); font-size: 22px; }
+.du-h { margin-top: 10px; font-size: 16px; color: var(--dim); }

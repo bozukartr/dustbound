@@ -757,7 +757,7 @@ const GameSystems = {
     const pos = this.findSpawnPos(cx, cy, 0, 120);
     if (!pos) return;
     const [x, y] = pos;
-    const types = ['injured', 'snakebite', 'robbery', 'ambush', 'wagon', 'peddler', 'lostitem'];
+    const types = ['injured', 'snakebite', 'robbery', 'ambush', 'wagon', 'peddler', 'lostitem', 'duel'];
     if (this.isNight) types.push('wolves', 'wolves');
     const type = pick(types);
     const ev = { type, x, y, done: false };
@@ -790,6 +790,10 @@ const GameSystems = {
       const n = new NPC(x, y, 'stranger', { state: 'static', event: ev, look: Object.assign(randomLook('m'), { hat: 'bowler', coat: '#4a2a3a' }) });
       n.eventType = 'peddler'; this.addEnt(n);
       setTimeout(() => n.say('Tonikler, iksirler, mücevherler! Gel bak, yabancı!'), 400);
+    } else if (type === 'duel') {
+      const n = new NPC(x, y, 'stranger', { state: 'static', event: ev, weapon: 'cattleman', money: rnd(5, 25), look: Object.assign(randomLook('m'), { hat: 'cowboy', coat: '#2a2622', coatLen: 1 }) });
+      n.eventType = 'duel'; this.addEnt(n);
+      setTimeout(() => n.say('Hey sen! Bu topraklara ikimiz fazlayız. Düello mu, yoksa korkak mısın?'), 400);
     } else if (type === 'wolves') {
       for (let k = 0; k < rndi(3, 4); k++) { const p = this.findSpawnPos(x, y, 0, 60); if (p) { const a = new Animal(p[0], p[1], 'wolf'); a.state = 'attack'; a.t = 30; this.addEnt(a); } }
       Audio_.growl();
@@ -1016,6 +1020,7 @@ const GameSystems = {
     }
     if (e.eventType === 'wagon' && !ev.done) { acts.push({ n: 'Konuş', fn: () => e.say('Arabanın yanındaki tekerleğe bir bak, tamir edebilir misin?') }); return acts; }
     if (e.eventType === 'peddler') { acts.push({ n: 'Alışveriş Yap', fn: () => UI.openShop('peddler', 'Seyyar Satıcı') }); }
+    if (e.eventType === 'duel') { acts.push({ n: 'Düelloyu Kabul Et', fn: () => UI.openDuel(e) }); acts.push({ n: 'Reddet', fn: () => { e.say(pick(['Korkak!', 'Tahmin etmiştim, tavuk.', 'Git anana ağla.'])); e.eventType = null; e.state = 'idle'; } }); return acts; }
     if (e.role === 'farmer') {
       acts.push({ n: 'İş İste', fn: () => UI.openWork('ranch', 'Çiftlik') });
       acts.push({ n: 'Selamla', fn: () => this.greet(e) });
