@@ -147,7 +147,7 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 #wheel-ammo { font-family: var(--type); font-size: 18px; color: var(--dim); }
 
 /* ---------------- Modallar / paneller ---------------- */
-#modals { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
+#modals { position: fixed; inset: 0; pointer-events: none; z-index: 40; }
 body.modal-open #modals { background: rgba(0, 0, 0, 0.45); }
 .modal { pointer-events: auto; }
 .panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, 94vw); max-height: 88vh; display: flex; flex-direction: column;
@@ -267,7 +267,7 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 /* ---------------- Ana menü ---------------- */
 .screen { position: fixed; inset: 0; z-index: 30; }
 #mainmenu { background: #000; }
-#menubg { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; object-fit: cover; }
+#menubg { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
 .mm-inner { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 7vh 7vw; background: linear-gradient(90deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.15) 60%, transparent); }
 .mm-title h1 { font-family: var(--west); font-size: clamp(54px, 10vw, 130px); margin: 0; letter-spacing: 6px; color: #f0e2c4; text-shadow: 0 4px 0 #3a1a0e, 0 8px 30px rgba(0, 0, 0, 0.8); line-height: 1; }
 .mm-pre { font-family: var(--sc); font-size: 20px; letter-spacing: 6px; color: #e8c890; }
