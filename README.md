@@ -47,6 +47,10 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 **Dünya**
 - 1024×1024 karelik prosedürel dünya: karlı zirveler, çam ormanları, geniş ovalar, kızıl kanyonlar, çöl, bataklık ve okyanus kıyısı.
 - 8 kasaba (Harlow, Saint Clement, Dust Creek, Silver Ridge, Cedar Falls, Bayou Noir, Fort Mercy, Coyote Springs); mağaza, saloon, şerif, doktor, silahçı, kasap, ahır, otel, banka, kilise, berber, terzi ve daha fazlası.
+- Kasabalar ızgara değil: kavisli bir ana cadde, farklı açılarla ayrılan yan sokaklar, caddeden farklı uzaklıkta duran binalar, kapılardan caddeye uzanan patikalar, meydan, bahçeli evler ve sokak lambaları. Her dünyada farklı bir düzen çıkar.
+- **Binaların içi var.** Kapıdan yürüyerek girersin; çatı ve cephe soluklaşır, içerisi görünür. Tezgahın arkasında çalışan, saloonda bar, piyano, kart ve yemek masaları, şerif ofisinde nezarethane, kilisede sıralar ve sunak, otelde yataklar ve küvet, bankada vezne ve kasa var. Hizmetler bu eşyaların başında alınır.
+- Dükkanlar gece kapanır ve kapıları kilitlenir (kapı kırılabilir). Evler kilitlidir. Atlar ve hayvanlar binalara giremez. Kasabalılar akşam evlerine girer, sabah çıkar; saloon akşamları kalabalıklaşır, piyanist çalar.
+- **Göçebe kampları**: tüccar kervanları, sığırtmaçlar, altın arayıcıları, kürkçüler ve seyyar bir kumpanya kasabaların dışında kamp kurar. Takas yapabilir, ateş başında dinlenip hikâye dinleyebilirsin. Her kamp 5–10 yılda bir başka bir yere göç eder.
 - Kasabaları bağlayan yollar, köprüler ve istasyonlar arasında gidip gelen **trenler** (bilet alıp seyahat edebilirsin).
 - 25 keşfedilecek önemli yer: göktaşı krateri, bin yıllık sekoya, hayalet kasaba, terk edilmiş maden, sıcak kaynaklar, dinozor kemikleri, karaya oturmuş gemi, gözetleme tepeleri. Bunlara haydut kampları, çiftlikler ve satılık mülkler eklenir.
 - Gezdikçe açılan parşömen harita, GPS rotası ve RDR2 tarzı radar.
@@ -56,7 +60,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 **Hayatta kalma ve hayat**
 - Açlık, susuzluk, uyku, temizlik, vücut ısısı, hastalık, zehirlenme ve sarhoşluk.
 - **Yaşlanma**: 18 yaşında başlarsın. 30'lardan sonra dayanıklılık, 50'lerden sonra sağlık azalır; saçın ağarır. Yaşlanma hızı seçilebilir.
-- Otellerde, kendi evinde ya da kamp kurup uyuyabilirsin. Kamp ateşinde yemek pişirip tonik ve ok yapabilirsin.
+- Otellerde, kendi evinde ya da kamp kurup uyuyabilirsin. Kamp kurmak için bir Uyku Tulumu (genel mağaza) gerekir; kasabadan uzakta kamp tuşunu basılı tut. Kamp ateşinde yemek pişirip tonik ve ok yapabilirsin.
 - Madenlerde, kerestecide, limanda ve çiftliklerde çalışarak para kazanırsın. Mülk satın alabilir, bankaya para yatırabilirsin.
 - Her kasabada tanışabileceğin biri yaşar. Onunla ilişki kurup evlenebilir, çocuk sahibi olabilirsin.
 
@@ -71,6 +75,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 **Kanun ve onur**
 - **Tanıklar**: Suçunu gören biri önce en yakın kanun adamına ya da şerif ofisine koşar. Ulaşamadan onu durdurursan (silah doğrultup tehdit ederek, rüşvet vererek ya da daha kötüsüyle) suç kayda geçmez. Kanun adamlarının gözü önünde işlenen suçlar ve dükkan/banka soygunları anında bildirilir.
 - **Maske ve kılık**: Bandana ya da çuval maske takarak işlediğin suçlar sana değil, "maskeli bir yabancıya" yazılır. Kimse görmeden maskeni çıkarırsan izini kaybederler; biri görürse kimliğin açığa çıkar ve ödül senin adına geçer. Maskeyi takarken görülürsen de maske işe yaramaz. Kanun, suç anındaki şapkanı ve paltonu hatırlar: kıyafet değiştirirsen kasabalarda tanınman zorlaşır. Dükkanlar maskeli müşteriye hizmet etmez (kaçakçı hariç).
+- Tavuk ya da inek öldürmek gibi küçük kabahatler kovalamaca başlatmaz, yalnızca para cezası yazılır.
 - Aranma seviyesi, arama alanı ve peşine düşen kanun adamları. Ödülünü şerif ofisinde ödeyebilirsin.
 - Onur sistemi fiyatları ve insanların sana nasıl davrandığını etkiler.
 

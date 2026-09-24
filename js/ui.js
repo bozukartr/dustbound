@@ -454,6 +454,7 @@ const UI = {
       icon(p.x, p.y, G.rumored.has(p.id) && !G.discovered.has(p.id) ? 'question' : (PICON[p.kind === 'landmark' ? p.type : p.kind] || 'eye'), '#efe6d2', p.kind === 'camp' ? 'rgba(130,20,14,0.9)' : null);
     }
     if (G.camp) icon(G.camp.x, G.camp.y, 'tent', '#efe6d2');
+    if (G.nomads) for (const nc of G.nomads) if (nc.era >= 0 && G.discovered.has(G.nomadId(nc))) icon(nc.x, nc.y, 'tent', '#f0e4c8', 'rgba(120,80,20,0.9)', 13);
     if (G.activeBounty && !G.activeBounty.done) icon(G.activeBounty.x, G.activeBounty.y, 'skull', '#fff', 'rgba(150,20,20,0.9)', 15);
     if (G.waypoint) icon(G.waypoint.x, G.waypoint.y, 'waypoint', '#fff', 'rgba(140,40,140,0.9)', 15);
     // canlılar
@@ -619,6 +620,14 @@ const UI = {
       if (im.complete) c.drawImage(im, x - 6.5, y - 6.5, 13, 13);
       if (M.zoom > 2.2 && known) { c.font = 'italic 12px "IM Fell English", serif'; c.fillStyle = '#2a1a0e'; c.fillText(p.n, x, y + 17); c.font = '13px serif'; }
       if (p.kind === 'property' && G.props.includes(p.prop)) { c.strokeStyle = '#e8c860'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 11, 0, TAU); c.stroke(); }
+    }
+    // göçebe kamplar (keşfedilmiş, güncel yerleri)
+    if (G.nomads) for (const nc of G.nomads) {
+      if (nc.era < 0 || !G.discovered.has(G.nomadId(nc))) continue;
+      const [x, y] = toS(nc.x, nc.y);
+      c.fillStyle = 'rgba(120,80,20,0.9)'; c.beginPath(); c.arc(x, y, 9, 0, TAU); c.fill();
+      const im = Icons.img('tent', '#f0e4c8', 32); if (im.complete) c.drawImage(im, x - 6.5, y - 6.5, 13, 13);
+      if (M.zoom > 2.2) { c.font = 'italic 12px "IM Fell English", serif'; c.fillStyle = '#2a1a0e'; c.fillText(nc.n, x, y + 17); c.font = '13px serif'; }
     }
     // demiryolu istasyonları
     // hazine
@@ -965,40 +974,44 @@ const UI = {
           if (svc.includes('robbank')) it.push({ icon: '💣', label: 'Bankayı Soy', cls: 'danger', fn: () => this.robBank(b) });
           return it;
         }
-        for (const s of svc) {
-          switch (s) {
-            case 'shop': it.push({ icon: '🛒', label: 'Alışveriş', fn: () => this.openShop(d.shop, b.name) }); break;
-            case 'meal': it.push({ icon: '🍲', label: 'Sıcak Yemek Ye', right: fmtMoney(2.5 * G.priceMul(true)), fn: () => { if (G.spend(2.5 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed('🍲 Doyasıya yedin.'); G.advanceClock(20); } } });
-              it.push({ icon: '🥃', label: 'Bir Viski İç', right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); } } }); break;
-            case 'blackjack': it.push({ icon: '🃏', label: 'Yirmi Bir Oyna', fn: () => this.openBlackjack() }); break;
-            case 'arm': it.push({ icon: '💪', label: 'Bilek Güreşi ($5 bahis)', fn: () => this.openArmWrestle() }); break;
-            case 'rumor': it.push({ icon: '👂', label: 'Söylenti Dinle', right: fmtMoney(0.5), fn: () => this.rumor() }); break;
-            case 'rob': it.push({ icon: '🔫', label: 'Dükkanı Soy', cls: 'danger', fn: () => this.robStore(b) }); break;
-            case 'news': it.push({ icon: '📰', label: 'Gazete Oku', right: '$0.10', fn: () => this.readNews() }); break;
-            case 'room': it.push({ icon: '🛏', label: 'Oda Tut ve Uyu', right: fmtMoney(2 * G.priceMul(true)), fn: () => this.openSleep('hotel', 2 * G.priceMul(true)) }); break;
-            case 'bath': it.push({ icon: '🛁', label: 'Sıcak Banyo', right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.clean = 100; P.warmBuff = 60; this.feed('🛁 Tertemiz oldun. Kokun bile değişti.'); G.advanceClock(30); } } }); break;
-            case 'heal': { const c = 5 * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: 'Tedavi Ol (Sağlık, hastalık, zehir)', right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed('✚ Doktor seni muayene edip tedavi etti.'); G.advanceClock(30); } } }); break; }
-            case 'bounty':
-              if (G.law.bounty > 0) it.push({ icon: '⚖', label: 'Başındaki Ödülü Öde', right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
-              if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: 'Ödül Avı Ödülünü Al', right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, 'Ödül avı'); G.addHonor(3); G.activeBounty = null; } });
-              break;
-            case 'board': it.push({ icon: '📜', label: 'Ödül İlanları', fn: () => this.openBountyBoard() }); break;
-            case 'horses': it.push({ icon: '🐴', label: 'At Satın Al', fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: 'Ahırdaki Atların', fn: () => this.openStable(b) }); break;
-            case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: `${G.horse.name}'i Tımar Ettir`, right: fmtMoney(2), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed('Atın burada değil.', 'warn'); return; } if (G.spend(2)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
-            case 'bank': it.push({ icon: '🏦', label: 'Banka İşlemleri', right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
-            case 'robbank': it.push({ icon: '💣', label: 'Bankayı Soy', cls: 'danger', fn: () => this.robBank(b) }); break;
-            case 'train': it.push({ icon: '🚂', label: 'Tren Bileti Al', fn: () => this.openTrain(b) }); break;
-            case 'donate': it.push({ icon: '🙏', label: 'Kiliseye Bağış Yap', right: '$5.00', fn: () => { if (G.spend(5)) { G.addHonor(3); this.feed('Rahip sana teşekkür etti.'); } } }); break;
-            case 'pray': it.push({ icon: '✝', label: 'Dua Et', fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed('Bugün zaten dua ettin.'); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed('İçin huzurla doldu.'); G.advanceClock(20); } }); break;
-            case 'property': it.push({ icon: '📜', label: 'Satılık Mülkler', fn: () => this.openLand() }); break;
-            case 'barber': it.push({ icon: '💈', label: 'Tıraş Ol / Saç Kestir', right: '$1.50', fn: () => this.openBarber() }); break;
-            case 'work': it.push({ icon: '⚒', label: JOBS[d.work].n, fn: () => this.openWork(d.work, b.name) }); break;
-          }
-        }
+        for (const s of svc) it.push(...this.svcItems(b, s));
         it.push({ icon: '🚪', label: 'Çık', fn: () => this.pop() });
         return it;
       },
     });
+  },
+  /* Bir bina hizmetinin menü öğeleri (bina menüsü ve iç mekân eşyaları ortak kullanır) */
+  svcItems(b, s) {
+    const d = b.def, P = G.player, it = [];
+    switch (s) {
+      case 'shop': it.push({ icon: '🛒', label: 'Alışveriş', fn: () => this.openShop(d.shop, b.name) }); break;
+      case 'meal': it.push({ icon: '🍲', label: 'Sıcak Yemek Ye', right: fmtMoney(2.5 * G.priceMul(true)), fn: () => { if (G.spend(2.5 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed('🍲 Doyasıya yedin.'); G.advanceClock(20); } } });
+        it.push({ icon: '🥃', label: 'Bir Viski İç', right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); } } }); break;
+      case 'blackjack': it.push({ icon: '🃏', label: 'Yirmi Bir Oyna', fn: () => this.openBlackjack() }); break;
+      case 'arm': it.push({ icon: '💪', label: 'Bilek Güreşi ($5 bahis)', fn: () => this.openArmWrestle() }); break;
+      case 'rumor': it.push({ icon: '👂', label: 'Söylenti Dinle', right: fmtMoney(0.5), fn: () => this.rumor() }); break;
+      case 'rob': it.push({ icon: '🔫', label: 'Dükkanı Soy', cls: 'danger', fn: () => this.robStore(b) }); break;
+      case 'news': it.push({ icon: '📰', label: 'Gazete Oku', right: '$0.10', fn: () => this.readNews() }); break;
+      case 'room': it.push({ icon: '🛏', label: 'Oda Tut ve Uyu', right: fmtMoney(2 * G.priceMul(true)), fn: () => this.openSleep('hotel', 2 * G.priceMul(true)) }); break;
+      case 'bath': it.push({ icon: '🛁', label: 'Sıcak Banyo', right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.clean = 100; P.warmBuff = 60; this.feed('🛁 Tertemiz oldun. Kokun bile değişti.'); G.advanceClock(30); } } }); break;
+      case 'heal': { const c = 5 * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: 'Tedavi Ol (Sağlık, hastalık, zehir)', right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed('✚ Doktor seni muayene edip tedavi etti.'); G.advanceClock(30); } } }); break; }
+      case 'bounty':
+        if (G.law.bounty > 0) it.push({ icon: '⚖', label: 'Başındaki Ödülü Öde', right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
+        if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: 'Ödül Avı Ödülünü Al', right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, 'Ödül avı'); G.addHonor(3); G.activeBounty = null; } });
+        break;
+      case 'board': it.push({ icon: '📜', label: 'Ödül İlanları', fn: () => this.openBountyBoard() }); break;
+      case 'horses': it.push({ icon: '🐴', label: 'At Satın Al', fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: 'Ahırdaki Atların', fn: () => this.openStable(b) }); break;
+      case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: `${G.horse.name}'i Tımar Ettir`, right: fmtMoney(2), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed('Atın burada değil.', 'warn'); return; } if (G.spend(2)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
+      case 'bank': it.push({ icon: '🏦', label: 'Banka İşlemleri', right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
+      case 'robbank': it.push({ icon: '💣', label: 'Bankayı Soy', cls: 'danger', fn: () => this.robBank(b) }); break;
+      case 'train': it.push({ icon: '🚂', label: 'Tren Bileti Al', fn: () => this.openTrain(b) }); break;
+      case 'donate': it.push({ icon: '🙏', label: 'Kiliseye Bağış Yap', right: '$5.00', fn: () => { if (G.spend(5)) { G.addHonor(3); this.feed('Rahip sana teşekkür etti.'); } } }); break;
+      case 'pray': it.push({ icon: '✝', label: 'Dua Et', fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed('Bugün zaten dua ettin.'); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed('İçin huzurla doldu.'); G.advanceClock(20); } }); break;
+      case 'property': it.push({ icon: '📜', label: 'Satılık Mülkler', fn: () => this.openLand() }); break;
+      case 'barber': it.push({ icon: '💈', label: 'Tıraş Ol / Saç Kestir', right: '$1.50', fn: () => this.openBarber() }); break;
+      case 'work': it.push({ icon: '⚒', label: JOBS[d.work].n, fn: () => this.openWork(d.work, b.name) }); break;
+    }
+    return it;
   },
   openShop(shopId, title) {
     const S = SHOPS[shopId], P = G.player;
@@ -1058,11 +1071,11 @@ const UI = {
     });
   },
   robStore(b, closed) {
-    this.confirm('Dükkanı Soy', 'Bu bir suçtur. Kanun peşine düşecek. Emin misin?', () => {
+    this.confirm(closed ? 'Kasayı Boşalt' : 'Dükkanı Soy', 'Bu bir suçtur. Kanun peşine düşecek. Emin misin?', () => {
       const v = rnd(25, 70) * (G.hasPerk('devil') ? 2 : 1) * (closed ? 0.7 : 1);
       this.closeAll();
       G.earn(v, 'Soygun');
-      G.crime('storerob', G.player.x, G.player.y);
+      G.crime(closed ? 'storeNight' : 'storerob', G.player.x, G.player.y);
       Audio_.shot('pistol', 0.6);
     });
   },
@@ -1225,7 +1238,7 @@ const UI = {
   buyProperty(PR) {
     if (!G.spend(PR.p)) return;
     G.props.push(PR.id);
-    for (const b of G.world.buildings) if (b.prop === PR.id) { b.owned = true; b.name = PR.n + ' (Evin)'; G.world.invalidateChunkAt(b.door.x, b.door.y); }
+    for (const b of G.world.buildings) if (b.prop === PR.id) { b.owned = true; b.name = PR.n + ' (Evin)'; b.cover = null; G.world.invalidateChunkAt(b.door.x, b.door.y); }
     this.closeAll();
     this.toast('Mülk Satın Alındı', PR.n, 'ach');
     Audio_.chime();

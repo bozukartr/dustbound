@@ -132,7 +132,8 @@ const GameSystems = {
     if (P.warmBuff > 0) felt += 8;
     if (this.nearFire) felt += 18;
     if (P.look.hat === 'wide' && amb > 28) felt -= 2;
-    if (this.envCache && this.envCache.rain > 0.3 && !(P.coat && ITEMS[P.coat].coat.rain)) felt -= 3;
+    if (this.envCache && this.envCache.rain > 0.3 && !(P.coat && ITEMS[P.coat].coat.rain) && !this.insideB) felt -= 3;
+    if (this.insideB) felt = lerp(felt, 21, 0.6); // iç mekân: rüzgâr ve güneşten korunur
     if (sleeping) felt = Math.max(felt, 18);
     this.feltTemp = felt;
     const coldT = 3 - (this.hasPerk('cold') ? 6 : 0) - this.skill('survival') * 0.4;
@@ -331,13 +332,14 @@ const GameSystems = {
   crime(type, x, y, victim) {
     const C = {
       murder: [60, 2, -12, 'Cinayet'], murderLaw: [120, 3, -15, 'Kanun adamı öldürme'], assault: [12, 1, -3, 'Saldırı'], assaultLaw: [25, 2, -4, 'Kanun adamına saldırı'],
-      livestock: [15, 1, -3, 'Hayvan öldürme'], livestockHurt: [0, 0, -1, ''], horsetheft: [35, 1, -4, 'At hırsızlığı'], robbery: [20, 1, -6, 'Soygun'],
-      storerob: [70, 2, -8, 'Dükkan soygunu'], bankrob: [350, 4, -15, 'Banka soygunu'], looting: [8, 1, -2, 'Ceset soyma'], trample: [15, 1, -3, 'Ezme'],
+      livestock: [10, 0, -3, 'Hayvan öldürme', 1], livestockHurt: [0, 0, -1, ''], horsetheft: [35, 1, -4, 'At hırsızlığı'], robbery: [20, 1, -6, 'Soygun'],
+      storerob: [70, 2, -8, 'Dükkan soygunu'], storeNight: [45, 2, -6, 'Gece dükkan soygunu'], trespass: [5, 0, -2, 'Haneye tecavüz', 1], bankrob: [350, 4, -15, 'Banka soygunu'], looting: [8, 1, -2, 'Ceset soyma'], trample: [15, 1, -3, 'Ezme'],
     }[type];
     if (!C) return;
-    const [bounty, lvl, honor, name] = C;
+    let [bounty, lvl, honor, name, minor] = C;
+    if (type === 'livestock' && victim && victim.type === 'chicken') { bounty = 2; honor = -1; name = 'Tavuk öldürme'; }
     this.addHonor(honor);
-    if (lvl === 0) return;
+    if (lvl === 0 && !minor) return;
     const P = this.player;
     // dükkan ve banka soygununda alarm hemen verilir
     let instant = type === 'storerob' || type === 'bankrob';
@@ -351,6 +353,15 @@ const GameSystems = {
       ws.push(e);
     }
     if (!instant && !ws.length) { UI.feed('Kimse görmedi...'); return; }
+    // küçük kabahat: kovalamaca yok, yalnızca para cezası
+    if (minor) {
+      if (this.anonymous()) { UI.feed('Maskeli olduğun için kimse seni tanımadı.'); return; }
+      this.law.bounty += bounty;
+      const by = ws.find(e => e.isLaw) || ws[0];
+      if (by) by.say(pick(['Hey! O hayvanın bir sahibi var!', 'Bunun cezasını ödeyeceksin!', 'Şerife söyleyeceğim!']), 2.5);
+      UI.feed(`${name}: ${fmtMoney(bounty)} para cezası yazıldı. Şerif ofisinde ödeyebilirsin.`, 'law');
+      return;
+    }
     const r = { type, name, bounty, lvl, masked: this.anonymous(), desc: this.outfit(), x, y, t: 0, victim, ws: [] };
     if (instant) { this.applyCrime(r, true); return; }
     // tanıklar kanuna haber vermeye koşar
@@ -604,6 +615,93 @@ const GameSystems = {
     UI.feed(`⚖️ ${fmtMoney(b)} ödül ödendi. Artık temizsin.`);
   },
 
+  /* ================= BİNALAR ================= */
+  knock(b) {
+    Audio_.thud(0.3);
+    const t = this.hour;
+    setTimeout(() => UI.subtitle('İçeriden bir ses', t < 6 || t > 21 ? pick(['Gecenin bu saatinde ne istiyorsun?!', 'Git buradan, yoksa şerifi çağırırım!']) : pick(['Kim o? Bir şey almıyoruz!', 'Evde kimse yok... yani, git!', 'Kapıyı çalan kim? Yabancılara açmam.']), 3), 600);
+  },
+  breakDoor(b) {
+    b.forced = this.day;
+    Audio_.thud(0.8); this.fx.shake = 3;
+    this.noise(b.door.x, b.door.y, 260, 'loud');
+    this.crime('trespass', b.door.x, b.door.y);
+    UI.feed('Kapıyı kırdın.', 'warn');
+  },
+  /* İç mekân eşyası -> etkileşimler */
+  furnActions(b, o) {
+    const P = this.player, U = UI;
+    const svc = (...ids) => {
+      const acts = [];
+      for (const id of ids) if (b.def.svc.includes(id)) for (const it of U.svcItems(b, id)) acts.push({ n: it.label + (it.right ? ` (${it.right})` : ''), fn: () => { if (P.masked && b.type !== 'fence' && !/rob/.test(id)) { UI.feed('"Maskeni çıkar, yoksa sana hizmet etmem."', 'warn'); return; } it.fn(); } });
+      return acts;
+    };
+    const staff = b.staffNpc && !b.staffNpc.dead && !b.staffNpc.remove ? b.staffNpc : null;
+    const counter = (label) => {
+      if (staff || !b.staff) return { label, acts: [{ n: staff ? `${staff.name} ile Konuş` : 'Hizmet Al', fn: () => U.openBuilding(b) }] };
+      const acts = [{ n: 'Tezgahta kimse yok', fn: () => UI.feed('Tezgahın arkasında kimse yok.') }];
+      if (b.def.svc.includes('rob')) acts.push({ n: 'Kasayı Boşalt', fn: () => U.robStore(b, true) });
+      return { label, acts };
+    };
+    switch (o) {
+      case O.COUNTER: return counter(b.type === 'bank' ? 'Veznedar' : b.type === 'hotel' ? 'Resepsiyon' : 'Tezgah');
+      case O.BAR: return counter('Bar');
+      case O.TICKET: return staff ? { label: 'Bilet Gişesi', acts: svc('train') } : counter('Bilet Gişesi');
+      case O.DESK:
+        if (b.type === 'sheriff') return { label: 'Şerifin Masası', acts: [...svc('bounty', 'board'), { n: 'Konuş', fn: () => U.openBuilding(b) }] };
+        if (b.type === 'land') return { label: 'Tapu Memuru', acts: svc('property') };
+        if (b.type === 'ranch' || b.type === 'lumber') return { label: 'İş Masası', acts: svc('work') };
+        return counter('Masa');
+      case O.BED:
+        if (b.type === 'hotel') return { label: 'Otel Odası', acts: svc('room') };
+        if (b.type === 'doctor') return { label: 'Muayene Yatağı', acts: svc('heal') };
+        if (b.type === 'property' && this.props.includes(b.prop)) return { label: 'Yatağın', acts: [{ n: 'Uyu', fn: () => U.openSleep('home') }, { n: 'Oyunu Kaydet', fn: () => this.saveGame() }] };
+        return null;
+      case O.TUB: return b.def.svc.includes('bath') ? { label: 'Küvet', acts: svc('bath') } : null;
+      case O.CARDTABLE: return { label: 'Kart Masası', acts: svc('blackjack') };
+      case O.TABLE:
+        if (b.type === 'saloon') return { label: 'Masa', acts: [...svc('meal'), ...svc('rumor'), ...svc('arm')] };
+        return { label: 'Masa', acts: [{ n: 'Otur ve Bekle', fn: () => U.openWait() }] };
+      case O.PIANO: return { label: 'Piyano', acts: [{ n: 'Piyano Çal', fn: () => this.playPiano(b) }] };
+      case O.PEW:
+        if (b.type === 'church') return { label: 'Sıra', acts: svc('pray') };
+        return { label: 'Bank', acts: [{ n: 'Otur ve Bekle', fn: () => U.openWait() }] };
+      case O.ALTAR: return { label: 'Sunak', acts: [...svc('donate'), ...svc('pray')] };
+      case O.SAFE: return b.def.svc.includes('robbank') ? { label: 'Kasa', acts: svc('robbank') } : null;
+      case O.BCHAIR: return { label: 'Berber Koltuğu', acts: svc('barber') };
+      case O.STALL: return b.type === 'stable' ? counter('Ahır Bölmesi') : null;
+      case O.STOVE:
+        if (b.type === 'property' && this.props.includes(b.prop)) return { label: 'Ocak', acts: [{ n: 'Yemek Pişir', fn: () => U.openCook() }] };
+        return { label: 'Soba', acts: [{ n: 'Isın', fn: () => { P.warmBuff = Math.max(P.warmBuff, 90); UI.feed('Sobanın başında ısındın.'); this.advanceClock(10); } }] };
+      case O.HOMECHEST: return this.props.includes(b.prop) ? { label: 'Sandık', acts: [{ n: 'Sandığı Aç', fn: () => U.openStash() }] } : null;
+      case O.SHELF: case O.RACK: case O.MANNEQUIN:
+        return b.def.shop ? { label: 'Raflar', acts: [{ n: 'Mallara Bak', fn: () => (staff || !b.staff ? U.openBuilding(b) : UI.feed('Satıcı yok.')) }] } : null;
+      case O.WORKBENCH: return b.def.work ? { label: 'Tezgah', acts: svc('work') } : null;
+      case O.CELL: return { label: 'Hücre', acts: [{ n: 'Parmaklıklara Bak', fn: () => UI.subtitle('Mahkum', pick(['Bir sigaran var mı, dostum?', 'Masumum, yemin ederim!', 'Beni buradan çıkar, sana altının yerini söylerim...']), 3) }] };
+    }
+    return null;
+  },
+  playPiano(b) {
+    const sc = [262, 294, 330, 349, 392, 440, 494, 523];
+    const tune = [0, 2, 4, 4, 5, 4, 2, 0, 1, 2, 4, 2, 0];
+    tune.forEach((n, k) => setTimeout(() => { Audio_.pluck(sc[n], 0.12); if (k % 3 === 0) Audio_.pluck(sc[n] / 2, 0.08); }, k * 230));
+    UI.feed('🎵 Piyanoda eski bir türkü çaldın.');
+    const k = 'piano' + b.id;
+    if (!this.dailyTalk[k]) { this.dailyTalk[k] = 1; if (chance(0.5)) { const tip = rnd(0.2, 1.5); setTimeout(() => this.earn(tip, 'Bahşiş'), tune.length * 230); } this.skillXp('charisma', 1); }
+  },
+  isOpen(b) {
+    if (['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn'].includes(b.type)) return true;
+    return !(this.hour < 6 || this.hour > 22);
+  },
+  doorOpen(b) {
+    if (!b) return true;
+    if (this.insideB === b) return true;
+    if (b.type === 'property') return this.props.includes(b.prop);
+    if (b.def.lock) return false;
+    if (b.forced === this.day) return true;
+    return this.isOpen(b);
+  },
+
   /* ================= SAVAŞ YARDIMCILARI ================= */
   los(x1, y1, x2, y2) {
     const d = dist(x1, y1, x2, y2), n = Math.ceil(d / 8);
@@ -611,8 +709,12 @@ const GameSystems = {
       const x = lerp(x1, x2, i / n), y = lerp(y1, y2, i / n);
       const tx = x >> 4, ty = y >> 4;
       const idx = ty * WW + tx;
-      if (this.world.solid[idx] && !isWaterT(this.world.tile[idx])) {
+      const sv = this.world.solid[idx];
+      if (sv && !isWaterT(this.world.tile[idx])) {
+        if (sv === 3) { if (this.world.doorOpen(idx)) continue; return false; }
+        if (sv >= 16) { if (this.world.isSolidPx(x, y)) return false; continue; }
         const o = this.world.obj[idx];
+        if (isFurnO(o)) continue;
         if (this.world.flags[idx] & 8 || o === O.BOULDER || o === O.RUINWALL || isCliffT(this.world.tile[idx]) || (o && o < 20 && SOLID_O[o] && Math.random() < 0.5)) return false;
       }
     }
@@ -627,8 +729,12 @@ const GameSystems = {
       const x = ox + dx * s, y = oy + dy * s;
       const idx = (y >> 4) * WW + (x >> 4);
       if (x < 0 || y < 0 || x >= WW * TS || y >= WH * TS) { wallD = s; break; }
-      if (W.solid[idx] && !isWaterT(W.tile[idx])) {
+      const sv = W.solid[idx];
+      if (sv && !isWaterT(W.tile[idx])) {
+        if (sv === 3) { if (W.doorOpen(idx)) continue; wallD = s; break; }
+        if (sv >= 16) { if (W.isSolidPx(x, y)) { wallD = s; break; } continue; }
         const o = W.obj[idx];
+        if (isFurnO(o) && o !== O.SAFE && o !== O.STOVE) continue;
         if ((W.flags[idx] & 8) || isCliffT(W.tile[idx]) || o === O.BOULDER || o === O.RUINWALL || o === O.CRATE || o === O.BARREL || o === O.WAGON || (o && o < 20 && Math.random() < 0.6)) { wallD = s; break; }
       }
     }
@@ -782,18 +888,29 @@ const GameSystems = {
     }
     // kasaba günlük nüfus döngüsü
     const ct = W.townAt(P.x, P.y, 40);
+    for (const t of W.towns) if (t.spawned) this.townStaff(t);
+    this.nomadTick();
     if (ct && ct.spawned) {
       const base = ct.sz === 'l' ? 18 : ct.sz === 'm' ? 13 : 9;
       const h = this.hour;
       const want = Math.round(base * (h < 5 || h > 22 ? 0.25 : h < 7 || h > 20 ? 0.55 : 1));
       const towns = ents.filter(e => e.town === ct.id && e.role === 'town' && !e.dead && !e.remove);
       if (towns.length < want && chance(0.35)) {
-        const b = pick(ct.buildings.filter(b => b.type !== 'station'));
+        const houses = ct.buildings.filter(b => b.type === 'house');
+        const b = (h >= 5 && h < 10 && houses.length && chance(0.7)) ? pick(houses) : pick(ct.buildings.filter(b => b.type !== 'station'));
         const n = new NPC(b.door.x, b.door.y + 8, 'town', { home: { x: b.door.x, y: b.door.y + 30, r: rnd(60, 150) } });
         n.town = ct.id; n.ang = Math.PI / 2; this.addEnt(n);
       } else if (towns.length > want && chance(0.25)) {
-        const far = towns.find(e => dist2(e.x, e.y, P.x, P.y) > 280 * 280 && e.state !== 'flee');
-        if (far) far.remove = true;
+        // akşam: biri evine yürür ve kapıdan içeri girer
+        const e = towns.find(e => !e.goHome && !e.seat && (e.state === 'idle' || e.state === 'walk'));
+        if (e) {
+          const hs = ct.buildings.filter(b => b.type === 'house' || b.type === 'hotel');
+          const b = hs.length ? hs.reduce((a, c) => dist2(c.door.x, c.door.y, e.x, e.y) < dist2(a.door.x, a.door.y, e.x, e.y) ? c : a) : pick(ct.buildings);
+          e.goHome = b; e.home = null; e.state = 'walk'; e.target = { x: b.door.x, y: b.door.y + 2 }; e.t = 45;
+        } else {
+          const far = towns.find(e => dist2(e.x, e.y, P.x, P.y) > 280 * 280 && e.state !== 'flee' && !e.seat);
+          if (far) far.remove = true;
+        }
       }
     }
     // çiftlikler & kamplar
@@ -896,11 +1013,10 @@ const GameSystems = {
     t.spawned = true;
     const W = this.world;
     const n = t.sz === 'l' ? 18 : t.sz === 'm' ? 13 : 9;
-    const streets = t.streets;
     for (let i = 0; i < n; i++) {
-      const sy = pick(streets);
-      const x = (t.x + 3 + Math.random() * (t.w - 6)) * TS, y = (sy + 1) * TS + 8;
-      if (W.blocked(x, y, 4)) continue;
+      const sp = pick(t.streetPts);
+      const x = sp.x + rnd(-10, 10), y = sp.y + rnd(-10, 10);
+      if (W.blocked(x, y, 4) || W.indoorPx(x, y)) continue;
       const npc = new NPC(x, y, 'town', { home: { x, y, r: rnd(60, 160) } });
       npc.town = t.id; this.addEnt(npc);
     }
@@ -928,6 +1044,183 @@ const GameSystems = {
       c.home = { x: b.door.x, y: b.door.y + 16, r: 40 }; c.town = t.id; c.keepTown = true; this.addEnt(c);
     }
     for (const e of this.ents) if (e.town === t.id && e.kind === 'animal') e.keep = false;
+    this.townStaff(t);
+  },
+  /* ================= GÖÇEBELER ================= */
+  nomadInit() {
+    this.nomads = NOMADS.map((N, k) => {
+      const h = hash2(k * 17 + 3, this.seed & 0xffff, 511);
+      const period = 5 + Math.floor(h * 6);                 // 5-10 yıl
+      return Object.assign({}, N, { k, period, phase: Math.floor(hash2(k, this.seed & 0xffff, 77) * period), era: -1, x: 0, y: 0, spawned: false, ents: [] });
+    });
+  },
+  yearsPassed() { return Math.floor(this.day / this.dpy); },
+  nomadId(c) { return 'nomad' + c.k + '_' + c.era; },
+  nomadPlace(c) {
+    const W = this.world, R = new RNG((this.seed * 131 + c.k * 977 + c.era * 7919) >>> 0);
+    const others = (this.nomads || []).filter(o => o !== c && o.era >= 0);
+    for (let tries = 0; tries < 500; tries++) {
+      const x = R.int(40, WW - 40), y = R.int(40, WH - 40), i = y * WW + x;
+      if (!c.bio.includes(TNAME[W.tile[i]]) || (W.flags[i] & 14)) continue;
+      let dT = 1e9; for (const tw of W.towns) dT = Math.min(dT, dist(x, y, tw.cx / TS, tw.cy / TS));
+      if (dT < 80 || dT > 240) continue;
+      if (W.pois.some(p => dist2(p.tx, p.ty, x, y) < 26 * 26)) continue;
+      if (others.some(o => dist2(o.x / TS, o.y / TS, x, y) < 90 * 90)) continue;
+      let bad = 0;
+      for (let yy = -5; yy <= 5; yy++) for (let xx = -6; xx <= 6; xx++) { const j = (y + yy) * WW + x + xx, tt = W.tile[j]; if (isWaterT(tt) || isCliffT(tt) || (W.flags[j] & 14) || SOLID_O[W.obj[j]] === 1 && W.obj[j] < 20 && (Math.abs(xx) < 3 && Math.abs(yy) < 3)) bad++; }
+      if (bad > 3) continue;
+      return [x * TS + 8, y * TS + 8];
+    }
+    return null;
+  },
+  nomadTick() {
+    if (!this.nomads) this.nomadInit();
+    const P = this.player, yrs = this.yearsPassed();
+    for (const c of this.nomads) {
+      const era = Math.floor((yrs + c.phase) / c.period);
+      if (era !== c.era) {
+        const wasKnown = c.era >= 0 && this.discovered.has(this.nomadId(c));
+        if (c.spawned) this.nomadDespawn(c);
+        c.era = era;
+        const pos = this.nomadPlace(c);
+        if (!pos) { c.x = c.y = -9999; continue; }
+        [c.x, c.y] = pos;
+        if (wasKnown) UI.toast('Göçebeler Taşındı', `${c.n} başka bir yere göç etti. Yeni yerleri bilinmiyor.`, 'ok');
+      }
+      const d = dist(c.x, c.y, P.x, P.y);
+      if (!c.spawned && d < 760) this.nomadSpawn(c);
+      else if (c.spawned && d > 1150) this.nomadDespawn(c);
+      if (c.spawned) {
+        if (d < 230 && !this.discovered.has(this.nomadId(c))) {
+          this.discovered.add(this.nomadId(c));
+          UI.toast('Keşfedildi', c.n, 'ok'); Audio_.chime(); this.skillXp('survival', 3);
+        }
+        this.nomadRoutine(c);
+      }
+    }
+  },
+  nomadSpawn(c) {
+    c.spawned = true; c.ents = []; c.dyn = [];
+    const W = this.world, R = new RNG((this.seed * 7 + c.k * 31 + c.era * 101) >>> 0);
+    const add = (e) => { e.nomad = c.k; this.addEnt(e); c.ents.push(e); return e; };
+    const fire = add(new Prop(c.x, c.y, 'fire'));
+    c.fire = fire;
+    const tentCols = c.kind === 'trappers' ? ['#8a7a5a', '#6a5a40'] : c.kind === 'drovers' ? ['#c8b890', '#b0a078'] : ['#d8ccb0', '#c8b890', '#b8a070'];
+    const nt = c.kind === 'traders' ? 3 : 2 + R.int(0, 1);
+    for (let k = 0; k < nt; k++) {
+      const a = -Math.PI / 2 + (k - (nt - 1) / 2) * 0.95 + R.range(-0.2, 0.2), r = R.range(46, 58);
+      const x = c.x + Math.cos(a) * r, y = c.y + Math.sin(a) * r * 0.75;
+      if (W.blocked(x, y, 10)) continue;
+      add(new Prop(x, y, c.kind === 'trappers' && k === 0 ? 'tipi' : 'tent', { col: R.pick(tentCols) }));
+      const d = { x0: x - 11, y0: y - 8, x1: x + 11, y1: y + 3 }; W.dyn.push(d); c.dyn.push(d);
+    }
+    const wx = c.x + R.range(40, 60) * (R.chance(0.5) ? 1 : -1), wy = c.y + R.range(14, 30);
+    if (!W.blocked(wx, wy, 12)) { add(new Prop(wx, wy, 'wagon')); const d = { x0: wx - 16, y0: wy - 6, x1: wx + 16, y1: wy + 6 }; W.dyn.push(d); c.dyn.push(d); c.wagon = { x: wx, y: wy }; }
+    else c.wagon = { x: c.x + 30, y: c.y + 20 };
+    add(new Prop(c.x - 16, c.y + 12, 'log')); add(new Prop(c.x + 16, c.y - 12, 'log'));
+    if (c.kind === 'trappers') add(new Prop(c.x - 40, c.y + 20, 'rack'));
+    if (c.kind === 'prospectors') add(new Prop(c.x + 44, c.y - 20, 'sluice'));
+    // insanlar
+    c.seats = []; for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + 0.3; c.seats.push({ x: c.x + Math.cos(a) * 17, y: c.y + Math.sin(a) * 12 }); }
+    const n = 3 + R.int(0, 2);
+    for (let k = 0; k < n; k++) {
+      const s = c.seats[k];
+      const e = add(new NPC(s.x, s.y, 'nomad', { home: { x: c.x, y: c.y, r: 70 }, money: rnd(2, 10), weapon: c.kind === 'traders' ? null : (R.chance(0.6) ? 'repeater' : null) }));
+      e.seat = s; e.camp = null;
+      if (k === 0) { e.leader = true; e.shop = c.shop; e.name = e.name + (c.kind === 'traders' ? ' (Tüccar)' : c.kind === 'prospectors' ? ' (Arayıcı)' : c.kind === 'trappers' ? ' (Kürkçü)' : ' (Kâhya)'); }
+    }
+    // atlar ve sığırlar
+    for (let k = 0; k < 2; k++) { const h = add(new Horse(c.wagon.x + (k ? 14 : -14), c.wagon.y + 18, R.pick(['mustang', 'nag', 'morgan']), { owner: 'npc' })); h.hitch = true; h.ang = Math.PI / 2; }
+    if (c.kind === 'drovers') for (let k = 0; k < 6; k++) { const a = new Animal(c.x + R.range(-120, 120), c.y + R.range(70, 140), 'cow'); a.home = { x: c.x, y: c.y + 100, r: 90 }; add(a); }
+    c.routineT = 0;
+    this.nomadRoutine(c, true);
+  },
+  nomadDespawn(c) {
+    c.spawned = false;
+    for (const e of c.ents) if (!(e === this.horse)) e.remove = true;
+    const W = this.world;
+    W.dyn = W.dyn.filter(d => !c.dyn.includes(d));
+    c.ents = []; c.dyn = [];
+  },
+  /* Göçebe gündelik hayatı: gündüz iş, akşam ateş başı, gece uyku */
+  nomadRoutine(c, force) {
+    c.routineT = (c.routineT || 0) - 1;
+    if (c.routineT > 0 && !force) return;
+    c.routineT = 5;
+    const h = this.hour, P = this.player;
+    const evening = h >= 18 || h < 1, night = h >= 1 && h < 6;
+    for (const e of c.ents) {
+      if (e.kind !== 'npc' || e.dead || e.hostile || e.state === 'flee' || e.state === 'report' || e.state === 'robbed') continue;
+      const far = dist(e.x, e.y, P.x, P.y) > 320;
+      if ((evening || night) && e.seat) {
+        if (e.state !== 'sit' && (far || force)) { e.x = e.seat.x; e.y = e.seat.y; }
+        if (dist(e.x, e.y, e.seat.x, e.seat.y) < 10) { e.x = e.seat.x; e.y = e.seat.y; e.state = night ? 'sleep' : 'sit'; e.ang = Math.atan2(c.y - e.y, c.x - e.x); }
+        else { e.state = 'walk'; e.target = e.seat; e.t = 12; }
+      } else if (e.state === 'sit' || e.state === 'sleep') { e.state = 'idle'; e.t = rnd(1, 5); }
+    }
+  },
+  nomadActions(e) {
+    const acts = [{ n: 'Selamla', fn: () => this.greet(e) }];
+    if (e.leader && e.shop) acts.push({ n: 'Takas Et', fn: () => UI.openShop(e.shop, NOMADS.find(n => n.shop === e.shop).n) });
+    if (this.hour >= 17 || this.hour < 2) acts.push({ n: 'Ateş Başında Dinlen', fn: () => this.nomadRest(e) });
+    else acts.push({ n: 'Sohbet Et', fn: () => this.nomadTalk(e) });
+    return acts;
+  },
+  nomadTalk(e) {
+    const c = this.nomads && this.nomads.find(n => n.k === e.nomad);
+    const lines = { traders: ['Doğudan mal getirdik, her şeyden biraz var.', 'Yol uzun, kazanç az ama hayat güzel.', 'Birkaç yıla kalmaz yine göçeriz.'],
+      drovers: ['Sürüyü Kansas\'a götürüyoruz. Kurtlara dikkat.', 'İnek sayısı dün gece iki eksikti. Hırsız mı, kurt mu, bilemedim.', 'Toz, ter ve boğa. Bizim hayatımız bu.'],
+      prospectors: ['Bu derede altın var, hissediyorum.', 'Kazmasız adam, silahsız adam gibidir.', 'Geçen hafta bir parmak kadar külçe buldum!'],
+      trappers: ['Kış erken geliyor bu yıl, postlar kalın.', 'Ayı izleri gördüm doğu sırtında.', 'Kasaba adamları postun değerini bilmez.'] };
+    e.say(pick((c && lines[c.kind]) || lines.traders), 3.5);
+    if (!this.dailyTalk['nt' + e.id]) { this.dailyTalk['nt' + e.id] = 1; this.skillXp('charisma', 1); }
+  },
+  nomadRest(e) {
+    const P = this.player;
+    e.say(pick(['Otur, kahve taze.', 'Ateş herkese yeter, yabancı.', 'Gel bakalım, bir hikâye anlat.']), 3);
+    P.energy = Math.min(100, P.energy + 12); P.warmBuff = Math.max(P.warmBuff, 120); P.deCore = Math.min(100, P.deCore + 10);
+    this.advanceClock(60);
+    const unk = this.world.pois.filter(p => p.kind === 'landmark' && !this.discovered.has(p.id) && !this.rumored.has(p.id));
+    if (unk.length && !this.dailyTalk['nr' + e.nomad]) {
+      this.dailyTalk['nr' + e.nomad] = 1;
+      const p = pick(unk); this.rumored.add(p.id);
+      UI.feed(`Ateş başında ${p.n} hakkında bir hikâye dinledin. Haritanda işaretlendi.`);
+    } else UI.feed('Ateş başında bir saat dinlendin.');
+  },
+
+  /* Dükkan çalışanları, saloon müşterileri, piyanist: saate göre gelir ve gider */
+  townStaff(t) {
+    const h = this.hour, day = this.day;
+    const alive = e => e && !e.dead && !e.remove;
+    for (const b of t.buildings) {
+      if (!b.enter) continue;
+      // çalışan
+      if (b.staff) {
+        const open = this.isOpen(b) && !b.def.lock;
+        if (b.staffNpc && b.staffNpc.dead) { b.staffDead = day; b.staffNpc = null; }
+        if (open && !alive(b.staffNpc) && b.staffDead !== day) {
+          const role = b.type === 'sheriff' ? 'law' : 'clerk';
+          const n = new NPC(b.staff.x, b.staff.y, role, { state: 'static', home: { x: b.staff.x, y: b.staff.y, r: 6 }, money: rnd(3, 12) });
+          n.ang = Math.PI / 2; n.town = t.id; n.work = b.id; n.keepTown = true;
+          if (b.type === 'church') { n.look = Object.assign({}, n.look, { coat: '#1a1a1e', hat: 'none', shirt: '#f0ece0' }); n.name = 'Peder ' + n.name.split(' ')[1]; }
+          this.addEnt(n); b.staffNpc = n;
+        } else if (!open && alive(b.staffNpc) && this.insideB !== b) { b.staffNpc.remove = true; b.staffNpc = null; }
+      }
+      // saloon müşterileri ve piyanist
+      if (b.type === 'saloon') {
+        b.patrons = (b.patrons || []).filter(alive);
+        const want = Math.min(b.seats.length, h >= 18 || h < 2 ? 5 : h >= 11 ? 2 : 0);
+        if (b.patrons.length < want && chance(this.insideB === b ? 0.05 : 1)) {
+          const P = this.player;
+          const free = b.seats.filter(s => !b.patrons.some(p => p.seat === s) && dist2(s.x, s.y, P.x, P.y) > 30 * 30);
+          const s = pick(free);
+          if (s) { const n = new NPC(s.x, s.y, 'town', { state: 'sit' }); n.seat = s; n.town = t.id; n.ang = s.x < b.x * TS + b.w * 8 ? 0 : Math.PI; n.keepTown = true; this.addEnt(n); b.patrons.push(n); }
+        } else if (b.patrons.length > want && this.insideB !== b) { const n = b.patrons.pop(); n.remove = true; }
+        const night = h >= 19 || h < 1;
+        if (night && !alive(b.pianist) && b.piano) { const n = new NPC(b.piano.x, b.piano.y + 2, 'clerk', { state: 'sit' }); n.ang = -Math.PI / 2; n.town = t.id; n.name = 'Piyanist ' + n.name.split(' ')[0]; this.addEnt(n); b.pianist = n; }
+        else if (!night && alive(b.pianist) && this.insideB !== b) { b.pianist.remove = true; b.pianist = null; }
+      }
+    }
   },
   spawnTraveler() {
     const P = this.player;
@@ -1171,6 +1464,12 @@ const GameSystems = {
         case O.HAY: add(ox, oy, 'Saman', [{ n: 'Saman Al', fn: () => { const k = 'hay' + i; if (this.dailyTalk[k]) { UI.feed('Bugün zaten aldın.'); return; } this.dailyTalk[k] = 1; P.addItem('hay', 2); } }]); break;
         case O.STEAM: add(ox, oy, 'Sıcak Kaynak', [{ n: 'Kaplıcada Dinlen', fn: () => this.hotSpring() }]); break;
         case O.BIGBONES: case O.BONES: break;
+        default:
+          if (isFurnO(o) && W.bid[i] >= 0) {
+            const fo = o === O.IBLOCK ? (W.obj[i - WW] === O.BED ? O.BED : W.obj[i - 1]) : o;
+            const fa = this.furnActions(W.buildings[W.bid[i]], fo);
+            if (fa) add(ox, oy, fa.label, fa.acts, 2);
+          }
       }
     }
     // su
@@ -1183,16 +1482,17 @@ const GameSystems = {
       if (P.has('gold_pan')) acts.push({ n: 'Altın Ele', hold: 3, fn: () => this.panGold() });
       add(wx, wy, onT === T.WATER ? 'Nehir' : 'Su Kenarı', acts, -6);
     }
-    // binalar
+    // binalar: kapılar
     for (const b of W.buildings) {
       if (Math.abs(b.door.x - P.x) > 40 || Math.abs(b.door.y - P.y) > 30) continue;
       if (dist2(P.x, P.y, b.door.x, b.door.y) > 20 * 20) continue;
-      if (b.type === 'property') {
-        add(b.door.x, b.door.y, b.name, [{ n: this.props.includes(b.prop) ? 'Eve Gir' : 'Mülkü İncele', fn: () => UI.openProperty(b) }], 5);
-        continue;
-      }
-      if (!b.def.svc || !b.def.svc.length) continue;
-      add(b.door.x, b.door.y, b.name, [{ n: 'Gir', fn: () => UI.openBuilding(b) }], 5);
+      if (b.type === 'property' && !this.props.includes(b.prop)) { add(b.door.x, b.door.y, b.name, [{ n: 'Mülkü İncele', fn: () => UI.openProperty(b) }], 5); continue; }
+      if (!b.enter) { if (b.def.svc && b.def.svc.length) add(b.door.x, b.door.y, b.name, [{ n: 'Gir', fn: () => UI.openBuilding(b) }], 5); continue; }
+      if (this.doorOpen(b)) continue;
+      if (b.def.lock) { add(b.door.x, b.door.y, 'Kilitli Kapı', [{ n: 'Kapıyı Çal', fn: () => this.knock(b) }], 5); continue; }
+      const acts = [{ n: 'Kapalı (06:00\'da açılır)', fn: () => UI.feed(`${b.name} kapalı. Sabah 06:00'da açılır.`) }];
+      if (b.def.svc.includes('rob') || b.def.svc.includes('robbank')) acts.push({ n: 'Kapıyı Kır', hold: 1.6, fn: () => this.breakDoor(b) });
+      add(b.door.x, b.door.y, b.name, acts, 5);
     }
     // hazine
     if (P.has('treasure_map') && this.treasure) {
@@ -1234,6 +1534,7 @@ const GameSystems = {
       acts.push({ n: 'Sohbet Et', fn: () => { e.say(pick(['Seni özledim.', 'Bugün nasıldı?', 'Eve erken gel, olur mu?', 'Çocuklar seni soruyordu.'])); P.hp = Math.min(P.maxHp, P.hp + 10); } });
       return acts;
     }
+    if (e.role === 'nomad') { const a = this.nomadActions(e); if (P.aiming && P.isArmed && !e.robbed) a.push({ n: 'Soy', fn: () => this.robNpc(e) }); return a; }
     if (e.role === 'child') { acts.push({ n: 'Oyna', fn: () => { e.say(pick(['Baba/Anne bak ne buldum!', 'Hikaye anlatır mısın?', 'Ben de büyüyünce kovboy olacağım!'])); } }); return acts; }
     acts.push({ n: 'Selamla', fn: () => this.greet(e) });
     if (e.role === 'romance') {
@@ -1545,7 +1846,7 @@ const GameSystems = {
   },
   setupCamp() {
     const P = this.player, W = this.world;
-    if (!P.has('bedroll')) { UI.feed('Kamp kurmak için bir uyku tulumuna ihtiyacın var.', 'warn'); return; }
+    if (!P.has('bedroll')) { UI.feed('Kamp kurmak için bir Uyku Tulumu gerekir. Genel mağazalarda satılır.', 'warn'); return; }
     if (W.townAt(P.x, P.y, 30)) { UI.feed('Kasabaya bu kadar yakın kamp kuramazsın.', 'warn'); return; }
     if (this.law.level > 0) { UI.feed('Aranırken kamp kuramazsın.', 'warn'); return; }
     for (const e of this.ents) if (!e.dead && ((e.kind === 'npc' && e.hostile) || (e.kind === 'animal' && e.state === 'attack')) && dist2(e.x, e.y, P.x, P.y) < 400 * 400) { UI.feed('Yakında tehlike var!', 'warn'); return; }
