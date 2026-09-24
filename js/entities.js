@@ -210,7 +210,7 @@ class Player extends Ent {
     const add = Math.max(0, Math.min(n, it.max - cur));
     if (add > 0) this.inv[id] = cur + add;
     if (!silent) {
-      if (add > 0) UI.feed(`${it.i} +${add} ${it.n}`);
+      if (add > 0) UI.feed(`${Icons.item(it.id, 'ic inl')} +${add} ${it.n}`);
       if (add < n) UI.feed(`Çantada yer yok: ${it.n}`, 'warn');
     }
     if (add > 0 && it.c === 'collect') G.stat('collectibles', add);
@@ -227,7 +227,7 @@ class Player extends Ent {
       this.weapons.add(w);
       const W = WEAPONS[w];
       if (W.clip) this.clip[w] = W.clip;
-      if (!silent) UI.feed(`${W.i} Yeni silah: ${W.n}`);
+      if (!silent) UI.feed(`${Icons.weapon(w, 'ic wpn inl')} Yeni silah: ${W.n}`);
     }
   }
   get maxHp() {
@@ -317,6 +317,8 @@ class Player extends Ent {
   }
   updateAim(dt, mv) {
     const I = Input;
+    this.rsAim = false;
+    if (G.wheelOpen) return; // çark açıkken sağ analog yalnızca çarkı kontrol eder
     const sx = G.cam.sx(this.x), sy = G.cam.sy(this.y);
     if (I.device === 'kb') {
       const mx = I.mouse.x / G.scale, my = I.mouse.y / G.scale;
@@ -324,7 +326,7 @@ class Player extends Ent {
       this.aimDist = clamp(Math.hypot(mx - sx, my - sy), 14, this.W && this.W.range ? this.W.range : 200);
     } else {
       const a = I.aimVec();
-      if (a.m > 0.3) { this.aimAng = Math.atan2(a.y, a.x); this.aimDist = lerp(this.aimDist, 40 + a.m * 70, dt * 5); }
+      if (a.m > 0.3) { this.aimAng = Math.atan2(a.y, a.x); this.aimDist = lerp(this.aimDist, 40 + a.m * 70, dt * 5); this.rsAim = this.isArmed || this.W.melee; }
       else if (!this.aiming) this.aimAng = this.riding ? this.riding.ang : this.ang;
       // nişan yardımı
       if (this.aiming) {
@@ -373,7 +375,7 @@ class Player extends Ent {
     this.mv = mv.m * speed / 58;
     if (mv.m > 0.1) {
       this.phase += dt * speed * 0.2;
-      if (!this.aiming) this.ang = turnTo(this.ang, Math.atan2(mv.y, mv.x), dt * 12);
+      if (!this.aiming && !this.rsAim) this.ang = turnTo(this.ang, Math.atan2(mv.y, mv.x), dt * 12);
       this.stepT -= dt * speed;
       if (this.stepT <= 0) {
         this.stepT = 22;
@@ -385,6 +387,7 @@ class Player extends Ent {
       }
     }
     if (this.aiming) this.ang = this.aimAng;
+    else if (this.rsAim) this.ang = turnTo(this.ang, this.aimAng, dt * 16);
   }
   updateRiding(dt, mv) {
     const I = Input, h = this.riding;
@@ -437,7 +440,7 @@ class Player extends Ent {
         }
       }
     }
-    this.x = h.x; this.y = h.y; this.ang = this.aiming ? this.aimAng : h.ang;
+    this.x = h.x; this.y = h.y; this.ang = (this.aiming || this.rsAim) ? this.aimAng : h.ang;
     this.mv = 0;
   }
   /* ---- savaş ---- */
@@ -485,7 +488,7 @@ class Player extends Ent {
     this.clip[this.weapon] = c - 1;
     this.fireCd = Wp.rate;
     const lvl = G.skill('shooting');
-    let spread = Wp.spread * (1 - lvl * 0.05) * (this.aiming ? 1 : 2.6) * (this.riding && this.riding.spd > 60 ? 1.8 : 1) * (this.drunk > 30 ? 1.8 : 1);
+    let spread = Wp.spread * (1 - lvl * 0.05) * (this.aiming ? 1 : this.rsAim ? 1.7 : 2.6) * (this.riding && this.riding.spd > 60 ? 1.8 : 1) * (this.drunk > 30 ? 1.8 : 1);
     if (this.deadeye) spread *= 0.1;
     const n = Wp.pellets || 1;
     const ox = this.x + Math.cos(this.aimAng) * 8, oy = this.y + Math.sin(this.aimAng) * 8;

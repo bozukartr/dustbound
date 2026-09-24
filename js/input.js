@@ -74,7 +74,11 @@ const Input = {
     });
     window.addEventListener('keyup', e => { this.keys.delete(e.code); });
     window.addEventListener('blur', () => { this.keys.clear(); this.mouse.b = [false, false, false]; });
-    window.addEventListener('mousemove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.moved = true; if (this.device !== 'kb' && (Math.abs(e.movementX) + Math.abs(e.movementY) > 3)) this.device = 'kb'; });
+    window.addEventListener('mousemove', e => {
+      this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.moved = true;
+      // kol kullanılırken masadaki farenin ufak kaymaları nişanı fareye kilitlemesin
+      if (this.device !== 'kb') { this._mm = (this._mm || 0) + Math.abs(e.movementX) + Math.abs(e.movementY); if (this._mm > 60) { this.device = 'kb'; this._mm = 0; } }
+    });
     window.addEventListener('mousedown', e => { this.mouse.b[e.button] = true; this.mtapped[e.button] = true; this.device = 'kb'; if (typeof Audio_ !== 'undefined') Audio_.unlock(); });
     window.addEventListener('mouseup', e => { this.mouse.b[e.button] = false; });
     window.addEventListener('contextmenu', e => e.preventDefault());
@@ -102,9 +106,21 @@ const Input = {
           if (v > 0.3 && this.btn[i] <= 0.3) active = true;
           this.btn[i] = v;
         }
+        // Standart dışı eşleme (ör. bazı Firefox sürümleri): [LX, LY, L2, RX, RY, R2]
+        let rx = 2, ry = 3;
+        if (p.mapping !== 'standard' && p.axes.length >= 6) {
+          if (this.trigLayout === undefined) this.trigLayout = p.axes[2] < -0.8 && p.axes[5] < -0.8;
+          if (this.trigLayout) {
+            rx = 3; ry = 4;
+            const l2 = (p.axes[2] + 1) / 2, r2 = (p.axes[5] + 1) / 2;
+            if (l2 > this.btn[6]) this.btn[6] = l2;
+            if (r2 > this.btn[7]) this.btn[7] = r2;
+          }
+        }
         const dz = (v) => (Math.abs(v) < 0.18 ? 0 : (v - Math.sign(v) * 0.18) / 0.82);
-        for (let i = 0; i < 4; i++) { const v = dz(p.axes[i] || 0); if (Math.abs(v) > 0.4 && Math.abs(this.axes[i]) <= 0.4) active = true; this.axes[i] = v; }
-        if (active) this.device = 'pad';
+        const src = [0, 1, rx, ry];
+        for (let i = 0; i < 4; i++) { const v = dz(p.axes[src[i]] || 0); if (Math.abs(v) > 0.4 && Math.abs(this.axes[i]) <= 0.4) active = true; this.axes[i] = v; }
+        if (active) { this.device = 'pad'; this._mm = 0; }
       } else { this.btn.fill(0); this.axes = [0, 0, 0, 0]; }
     }
     for (const a in BINDS) {
@@ -166,6 +182,8 @@ const Input = {
     if (!b) return '';
     if (this.device === 'pad' && b.p !== undefined) {
       const [g, c] = GLYPH_PS[b.p] || ['?', 'sh'];
+      const svgKey = { x: 'x', o: 'o', sq: 'sq', tri: 'tri', tp: 'tp' }[c] || (c === 'dp' ? { [PS.UP]: 'up', [PS.DOWN]: 'down', [PS.LEFT]: 'left', [PS.RIGHT]: 'right' }[b.p] : null);
+      if (svgKey && typeof PS_SVG !== 'undefined') return `<span class="btn ps ${c}">${PS_SVG[svgKey]}</span>`;
       return `<span class="btn ps ${c}">${g}</span>`;
     }
     if (b.m !== undefined && (action === 'aim' || action === 'fire')) return `<span class="btn kb">${MOUSE_LABEL[b.m]}</span>`;

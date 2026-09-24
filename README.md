@@ -18,7 +18,7 @@ Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation kolu (Du
 | Eylem | PlayStation | Klavye / Fare |
 |---|---|---|
 | Hareket | Sol analog | W A S D |
-| Nişan yönü | Sağ analog | Fare |
+| Nişan yönü | Sağ analog (L2 olmadan: kalçadan nişan, karakter o yöne döner) | Fare |
 | Koş / Dörtnala | ✕ (basılı) | Shift |
 | Etkileşim / Ata bin / İn | △ (basılı tut: seçenekler) | E |
 | Nişan al | L2 | Sağ tık |
@@ -27,7 +27,7 @@ Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation kolu (Du
 | Yakın dövüş | ○ | F |
 | Çömel / Gizlen | L3 | C |
 | Dead Eye (nişan alırken) | R3 | Q |
-| Silah çarkı | L1 (basılı) + sağ analog | Tab (basılı) + fare / tekerlek |
+| Silah çarkı | L1 (basılı) + sağ analog ile seç | Tab (basılı) + fare / tekerlek |
 | Hızlı iyileş / ye | R1 | T |
 | Atı çağır (ıslık) | D-Pad ↑ | H |
 | Fener | D-Pad ← | L |
@@ -81,6 +81,7 @@ Oyun, uyuduğunda ve her yeni günde otomatik kaydedilir (tarayıcının `localS
 ## Teknik
 
 - Saf HTML, CSS ve JavaScript. Hiçbir kütüphane ve varlık dosyası yok; bütün grafik ve sesler kodla üretiliyor.
+- Arayüzdeki bütün ikonlar (eşyalar, silahlar, radar ve harita işaretleri, PS tuşları) koddan üretilen SVG'lerdir.
 - Dünya, 512 piksellik parçalar (chunk) halinde önceden çizilip önbelleğe alınır. Yeni parçalar kare başına küçük bir zaman bütçesiyle arka planda hazırlanır, bu yüzden hareket ederken takılma olmaz.
 - Oyun düşük çözünürlüklü bir tuvale çizilip piksel ölçeklemeyle büyütülür. Bu hem piksel sanat görünümü verir hem de akıcı FPS sağlar.
 - Ses, WebAudio ile prosedürel olarak üretilir: silah sesleri, ortam sesleri ve Karplus-Strong gitar teliyle çalan western müzik.
@@ -89,6 +90,7 @@ Oyun, uyuduğunda ve her yeni günde otomatik kaydedilir (tarayıcının `localS
 index.html
 css/style.css
 js/util.js      yardımcılar, RNG, gürültü
+js/icons.js     SVG ikon seti (eşya, silah, glif, PS tuşları)
 js/data.js      eşyalar, silahlar, hayvanlar, kasabalar, başarımlar
 js/input.js     klavye, fare ve PlayStation kolu
 js/audio.js     prosedürel ses ve müzik

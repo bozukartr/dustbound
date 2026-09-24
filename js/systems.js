@@ -192,7 +192,7 @@ const GameSystems = {
     if (it.raw && Math.random() < it.raw * (this.hasPerk('eater') ? 0.5 : 1)) { P.sick = Math.max(P.sick, 8); UI.help('Çiğ et yedin ve midenin bozulduğunu hissediyorsun. <b>Hastasın.</b>', 5); }
     if (it.c === 'food') { this.stat('eaten', 1); Audio_.tone(300, 0.08, 'triangle', 0.06); Audio_.tone(240, 0.08, 'triangle', 0.06, null, 0.12); }
     else Audio_.ui('pick');
-    UI.feed(`${it.i} ${it.n} kullanıldı`);
+    UI.feed(`${Icons.item(id, 'ic inl')} ${it.n} kullanıldı`);
     return true;
   },
   drinkCanteen() {

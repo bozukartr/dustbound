@@ -458,7 +458,7 @@ const G = {
     const P = this.player, C = this.cam;
     let tx = P.x, ty = P.y;
     if (P.riding) { tx += Math.cos(P.riding.ang) * P.riding.spd * 0.45; ty += Math.sin(P.riding.ang) * P.riding.spd * 0.45; }
-    if (P.aiming) { const d = Math.min(P.aimDist, 90) * 0.45; tx += Math.cos(P.aimAng) * d; ty += Math.sin(P.aimAng) * d; }
+    if (P.aiming || P.rsAim) { const d = Math.min(P.aimDist, 90) * 0.45; tx += Math.cos(P.aimAng) * d; ty += Math.sin(P.aimAng) * d; }
     C.x = lerp(C.x, tx, Math.min(1, dt * 4));
     C.y = lerp(C.y, ty, Math.min(1, dt * 4));
     let sx = 0, sy = 0;
@@ -594,15 +594,15 @@ const G = {
       ctx.beginPath(); ctx.moveTo(it.x - 3, it.y - 16 + b); ctx.lineTo(it.x + 3, it.y - 16 + b); ctx.lineTo(it.x, it.y - 12 + b); ctx.fill();
     }
     // nişangah
-    if (P.aiming || (Input.device === 'kb' && P.isArmed && this.state === 'play' && !UI.isModal())) {
-      const d = P.aiming ? P.aimDist : Math.min(P.aimDist, 60);
+    if (P.aiming || (P.rsAim && P.isArmed) || (Input.device === 'kb' && P.isArmed && this.state === 'play' && !UI.isModal())) {
+      const d = (P.aiming || P.rsAim) ? P.aimDist : Math.min(P.aimDist, 60);
       const rx = P.x + Math.cos(P.aimAng) * d, ry = P.y + Math.sin(P.aimAng) * d;
       let enemy = false;
       for (const e of this.ents) if (!e.dead && (e.kind === 'animal' || e.kind === 'npc') && dist2(e.x, e.y, rx, ry) < 64) { enemy = true; break; }
       const col = P.deadeye ? '#e03020' : enemy ? '#ff5040' : 'rgba(255,255,255,0.9)';
       ctx.fillStyle = col;
-      if (P.aiming) {
-        const sp = P.W && P.W.spread ? P.W.spread * d * (P.deadeye ? 0.2 : 1) + 2 : 3;
+      if (P.aiming || P.rsAim) {
+        const sp = P.W && P.W.spread ? P.W.spread * d * (P.deadeye ? 0.2 : 1) * (P.aiming ? 1 : 1.7) + 2 : 3;
         ctx.fillRect(rx - 0.5, ry - 0.5, 1, 1);
         ctx.fillRect(rx - sp - 2, ry - 0.5, 2, 1); ctx.fillRect(rx + sp, ry - 0.5, 2, 1);
         ctx.fillRect(rx - 0.5, ry - sp - 2, 1, 2); ctx.fillRect(rx - 0.5, ry + sp, 1, 2);
