@@ -203,7 +203,7 @@ const UI = {
     }
   },
   toast(title, sub, kind) {
-    const e = el_('div', 'toast ' + (kind || ''), `<div class="t-k">${{ ach: 'BAŞARIM', skill: 'YETENEK', year: 'YAŞ', family: 'AİLE', bounty: 'ÖDÜL', horse: 'AT', ok: '' }[kind] || ''}</div><div class="t-t">${title}</div><div class="t-s">${sub || ''}</div>`);
+    const e = el_('div', 'toast tk-' + (kind || 'none'), `<div class="t-k">${{ ach: 'BAŞARIM', skill: 'YETENEK', year: 'YAŞ', family: 'AİLE', bounty: 'ÖDÜL', horse: 'AT', ok: '' }[kind] || ''}</div><div class="t-t">${title}</div><div class="t-s">${sub || ''}</div>`);
     this.el.toasts.appendChild(e);
     setTimeout(() => e.classList.add('out'), 5200);
     setTimeout(() => e.remove(), 6000);

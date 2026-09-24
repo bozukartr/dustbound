@@ -253,10 +253,16 @@ const Audio_ = {
     } else {
       prog = [[0, 7, 12, 16, 19, 16], [5, 12, 17, 21, 24, 21], [7, 14, 19, 23, 26, 23], [0, 7, 12, 16, 19, 16]]; tempo = 0.32; mel = null;
     }
-    const seq = { name, step: 0, next: this.ctx.currentTime + 0.1, alive: true };
+    const seq = { name, step: 0, next: this.ctx.currentTime + 0.1, alive: true, on: true, flip: this.ctx.currentTime + 75 };
     this.seq = seq;
     const tick = () => {
       if (!seq.alive) return;
+      if (name === 'explore' && this.ctx.currentTime > seq.flip) {
+        seq.on = !seq.on;
+        seq.flip = this.ctx.currentTime + (seq.on ? rnd(50, 90) : rnd(90, 180));
+        seq.next = Math.max(seq.next, this.ctx.currentTime + 0.1);
+      }
+      if (!seq.on) { seq.next = this.ctx.currentTime + 0.1; seq.timer = setTimeout(tick, 500); return; }
       while (seq.next < this.ctx.currentTime + 0.3) {
         const bar = Math.floor(seq.step / prog[0].length) % prog.length;
         const n = prog[bar][seq.step % prog[bar].length];

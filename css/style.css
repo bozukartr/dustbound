@@ -120,11 +120,11 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .toast .t-k { font-family: var(--sc); font-size: 13px; letter-spacing: 4px; color: var(--gold); }
 .toast .t-t { font-family: var(--sc); font-size: 26px; color: #fff; }
 .toast .t-s { font-size: 16px; color: #d8cdb8; }
-.toast.ach { border-top: 1px solid var(--gold); border-bottom: 1px solid var(--gold); }
-.toast.ach .t-t { color: #ffe6a8; }
-.toast.wanted { background: linear-gradient(90deg, rgba(120, 0, 0, 0), rgba(130, 10, 6, 0.92) 15%, rgba(130, 10, 6, 0.92) 85%, rgba(120, 0, 0, 0)); }
-.toast.wanted .t-t { font-family: var(--west); letter-spacing: 2px; }
-.toast.family .t-t { color: #ffc0d0; }
+.toast.tk-ach { border-top: 1px solid var(--gold); border-bottom: 1px solid var(--gold); }
+.toast.tk-ach .t-t { color: #ffe6a8; }
+.toast.tk-wanted { background: linear-gradient(90deg, rgba(120, 0, 0, 0), rgba(130, 10, 6, 0.92) 15%, rgba(130, 10, 6, 0.92) 85%, rgba(120, 0, 0, 0)); }
+.toast.tk-wanted .t-t { font-family: var(--west); letter-spacing: 2px; }
+.toast.tk-family .t-t { color: #ffc0d0; }
 @keyframes toastin { from { opacity: 0; transform: scale(0.9); } }
 #honor-flash { position: absolute; right: 30px; top: 150px; font-family: var(--sc); font-size: 16px; opacity: 0; }
 #honor-flash.show { animation: hflash 2s ease-out; }
@@ -365,6 +365,13 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 .bob { display: inline-block; animation: bob 1s infinite; }
 @keyframes bob { 50% { transform: translateY(4px); } }
 
+@media (min-height: 1000px) and (min-width: 1500px) {
+  #hud-bl { transform: scale(1.25); transform-origin: left bottom; }
+  #hud-tr { transform: scale(1.2); transform-origin: right top; }
+  #hud-br { transform: scale(1.2); transform-origin: right bottom; }
+  #hud-help, #feed { transform: scale(1.15); transform-origin: left top; }
+  #feed { top: 220px; }
+}
 @media (max-width: 800px) {
   #hud-bl { transform: scale(0.72); transform-origin: left bottom; }
   #hud-help { max-width: 70vw; font-size: 14px; }
