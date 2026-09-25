@@ -266,7 +266,7 @@ const G = {
       const h = new Horse(d.horse.x, d.horse.y, d.horse.breed, { owner: 'player', name: d.horse.name, look: d.horse.look, bond: d.horse.bond, hp: d.horse.hp });
       h.dead = d.horse.dead;
       this.setHorse(h, true);
-      if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h); }
+      if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h, true); }
     }
     this.loadCarry(d.carry);
     if ((d.v || 1) < 2) this.migrateEconomy();
@@ -426,8 +426,10 @@ const G = {
     if (I.pressed('zoomIn')) this.quickZoom(1);
     if (I.pressed('zoomOut')) this.quickZoom(-1);
     if (Input.mouse.wheel && Input.device === 'kb') this.cycleWeapon(Input.mouse.wheel > 0 ? 1 : -1);
+    // kamp tuşu (kolda D-pad ↓): basılı tut = kamp kur, kısa bas = genişletilmiş radar/HUD
     if (I.held('camp') > 0.7 && !this._campHeld) { this._campHeld = true; this.setupCamp(); }
-    if (!I.down('camp')) this._campHeld = false;
+    if (I.down('camp')) this._campT = (this._campT || 0) + dt;
+    else { if (this._campT > 0 && this._campT < 0.35 && !this._campHeld) UI.expandHud(); this._campT = 0; this._campHeld = false; }
     if (I.pressed('quick')) this.quickUse();
     UI.interactUpdate(dt);
   },
@@ -573,7 +575,8 @@ const G = {
           else if (e.kind === 'animal') { if (e.def.shape === 'snake' || e.def.shape === 'gator') continue; r = e.r + 4; }
           else if (e.kind === 'wagon') { if (!e.driver) continue; r = 12; }   // sürücüyü arabadan çeker
           else continue;
-          if (dist2(e.x, e.y, p.x, p.y) < r * r) { hit = e; break; }
+          const hc = e.kind === 'wagon' ? e.seat : e;
+          if (dist2(hc.x, hc.y, p.x, p.y) < r * r) { hit = e; break; }
         }
         if (hit) {
           if (hit.kind === 'animal') this.lassoAnimal(hit);
@@ -676,7 +679,7 @@ const G = {
     vis.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     for (const e of vis) {
       if (e === P && P.riding) continue;
-      if (e.rider === P) { e.draw(ctx); if (e.kind === 'horse') P.draw(ctx); continue; }   // araba sürücüyü kendisi çizer
+      if (e.rider === P) { e.draw(ctx); if (e.kind === 'horse' || P.mountAnim) P.draw(ctx); continue; }   // araba sürücüyü kendisi çizer (binme animasyonu hariç)
       if (e.child) { ctx.save(); ctx.translate(e.x, e.y); ctx.scale(0.7, 0.7); ctx.translate(-e.x, -e.y); e.draw(ctx); ctx.restore(); continue; }
       e.draw(ctx);
     }

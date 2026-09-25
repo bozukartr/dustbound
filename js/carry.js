@@ -116,7 +116,7 @@ const CarrySystems = {
     if (e.mounted) {
       // at binicisiz kalır ve olduğu yerde durur: çalınabilir
       const h = new Horse(e.x + 6, e.y, 'mustang', { look: e.mounted, owner: 'npc' });
-      h.ang = e.ang; h.spd = 30;
+      h.ang = e.hAng === undefined ? e.ang : e.hAng; h.spd = 30;
       this.addEnt(h);
       e.mounted = null;
     }
@@ -154,7 +154,7 @@ const CarrySystems = {
   pullOffHorse(e) {
     if (!e.mounted) return;
     const h = new Horse(e.x + 7, e.y, 'mustang', { look: e.mounted, owner: 'npc' });
-    h.ang = e.ang;
+    h.ang = e.hAng === undefined ? e.ang : e.hAng;
     this.addEnt(h);
     e.mounted = null; e.path = null;
     Audio_.thud(0.4);

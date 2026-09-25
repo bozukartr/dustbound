@@ -191,8 +191,17 @@ class Wagon extends Ent {
     this.def = { spd: stage ? 0.8 : 0.62 }; this.sta = this.maxSta = 220; this.load = []; this.rider = null;
     this.hp = this.maxHp = 400;
     if (road.pts[i + dir]) this.ang = Math.atan2(road.pts[i + dir][1] - this.y, road.pts[i + dir][0] - this.x);
+    this.trail(true);
   }
-  get seat() { return { x: this.x + Math.cos(this.ang) * 7, y: this.y + Math.sin(this.ang) * 7 }; }
+  /* x, y ve ang atların (çekici) konumu ve yönüdür. Araba gövdesi (bx, by, bang) atların
+     arkasındaki çeki demirine bağlıdır ve tır dorsesi gibi arkadan sürüklenir: atlar döner, araba izler. */
+  trail(init) {
+    const hx = this.x - Math.cos(this.ang) * 8, hy = this.y - Math.sin(this.ang) * 8;
+    if (init || this.bx === undefined) this.bang = this.ang;
+    else this.bang = Math.atan2(hy - this.by, hx - this.bx);
+    this.bx = hx - Math.cos(this.bang) * 11; this.by = hy - Math.sin(this.bang) * 11;
+  }
+  get seat() { return { x: this.bx + Math.cos(this.bang) * 8, y: this.by + Math.sin(this.bang) * 8 }; }
   /* Oyuncunun ateşi: sürücü isabet alabilir, almazsa atları kamçılayıp kaçar */
   hurt(dmg, by) {
     if (by !== 'player' || this.rider === G.player || !this.driver) return;
@@ -202,7 +211,7 @@ class Wagon extends Ent {
   }
   /* Sürücü arabadan iner (düşer); NPC olarak dünyaya eklenir */
   throwDriver() {
-    const d = this.driver, st = this.seat, side = this.ang + Math.PI / 2;
+    const d = this.driver, st = this.seat, side = this.bang + Math.PI / 2;
     this.driver = null; this.route = null; this.parkT = 0;
     let x = st.x + Math.cos(side) * 12, y = st.y + Math.sin(side) * 12;
     if (G.world.blocked(x, y, 4)) { x = st.x - Math.cos(side) * 12; y = st.y - Math.sin(side) * 12; }
@@ -224,7 +233,8 @@ class Wagon extends Ent {
   }
   update(dt) {
     if (this.rider) {
-      // oyuncu sürüyor: hareketi binicilik sistemi yapar
+      // oyuncu sürüyor: hareketi binicilik sistemi yapar, gövde arkadan izler
+      this.trail();
       if (this.spd > 40 && Math.random() < 0.15) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.x - Math.cos(this.ang) * 12, this.y - Math.sin(this.ang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
       return;
     }
@@ -233,11 +243,11 @@ class Wagon extends Ent {
       this.spd = Math.max(0, this.spd - 40 * dt);
       if (this.spd > 0.5) this.move(Math.cos(this.ang) * this.spd * dt, Math.sin(this.ang) * this.spd * dt);
       this.mv = this.spd / 60; this.phase += dt * this.spd * 0.15;
+      this.trail();
       return;
     }
     if (this.parkT > 0) {
       this.spd = 0; this.mv = 0; this.parkT -= dt;
-      this.ang = turnTo(this.ang, Math.abs(angDiff(this.ang, 0)) < Math.PI / 2 ? 0 : Math.PI, dt * 0.8);   // kapının önünde düzgün hizalanır
       if (this.parkT <= 0) { this.route = TownPath.find(this.stopT, this.x, this.y, this.exitPt[0], this.exitPt[1]) || [this.exitPt.slice()]; this.ri = 0; this.leg = 'out'; }
       return;
     }
@@ -255,7 +265,7 @@ class Wagon extends Ent {
     const a = Math.atan2(pt[1] - this.y, pt[0] - this.x), da = Math.abs(angDiff(this.ang, a));
     this.ang = turnTo(this.ang, a, dt * 2.6);
     // önünde oyuncu varsa dur ve seslen
-    const P = G.player, fx = this.x + Math.cos(this.ang) * 20, fy = this.y + Math.sin(this.ang) * 20;
+    const P = G.player, fx = this.x + Math.cos(this.ang) * 12, fy = this.y + Math.sin(this.ang) * 12;
     const block = dist2(fx, fy, P.x, P.y) < 16 * 16;
     this.honkT -= dt; this.panicT = (this.panicT || 0) - dt;
     if (block && this.honkT <= 0) { this.honkT = 5; Bubbles.add(this, pick([Tr('Yoldan çekil!'), Tr('Hey! Çekil önümden!'), Tr('Açılın!')]), 2); }
@@ -264,6 +274,7 @@ class Wagon extends Ent {
     const target = block ? 0 : this.max * (this.panicT > 0 ? 1.7 : 1) * turnK;
     this.spd += clamp(target - this.spd, -90 * dt, 30 * dt);
     this.x += Math.cos(this.ang) * this.spd * dt; this.y += Math.sin(this.ang) * this.spd * dt;
+    this.trail();
     this.phase += dt * this.spd * 0.15; this.mv = this.spd / 60;
     // hedef noktaya varınca ya da onu geçince (arkada kalınca) bir sonrakine geç
     const d2 = dist2(this.x, this.y, pt[0], pt[1]);
@@ -272,16 +283,19 @@ class Wagon extends Ent {
     if (!(d2 < (this.bestD2 === undefined ? Infinity : this.bestD2) - 9)) this.wpT = (this.wpT || 0) + dt; else { this.bestD2 = d2; this.wpT = 0; }
     if (block) this.wpT = 0;
     if (d2 < 14 * 14 || (behind && d2 < 40 * 40) || this.wpT > 4) { this.wpT = 0; this.bestD2 = undefined; if (this.route) this.ri++; else this.pi += this.dir; }
-    if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.x - Math.cos(this.ang) * 12, this.y - Math.sin(this.ang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
+    if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.bx - Math.cos(this.bang) * 10, this.by - Math.sin(this.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
   }
   draw(ctx) {
     const c = Math.cos(this.ang), s = Math.sin(this.ang);
-    // atlar önde, yan yana
-    for (const k of [-1, 1]) Spr.horse(ctx, this.x + c * 17 - s * k * 4.2, this.y + s * 17 + c * k * 4.2, this.ang, { col: this.hc[k < 0 ? 0 : 1], mane: '#1a1410' }, { phase: this.phase + (k > 0 ? 1.5 : 0), mv: this.mv });
-    ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.ang);
+    // çeki oku: gövdenin önünden atların arasına
+    const fx = this.bx + Math.cos(this.bang) * 9, fy = this.by + Math.sin(this.bang) * 9;
+    ctx.strokeStyle = '#3a2616'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(this.x + c * 4, this.y + s * 4); ctx.stroke();
+    ctx.save(); ctx.translate(this.bx, this.by); ctx.rotate(this.bang);
     Spr.shadow(ctx, 1, 2, 14, 7, 0.28);
-    for (const [wx, wy] of [[-7, -6], [-7, 6], [6, -6], [6, 6]]) { ctx.fillStyle = '#1e140c'; ctx.fillRect(wx - 2.5, wy - 1, 5, 2); }
-    ctx.strokeStyle = '#3a2616'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(15, 0); ctx.stroke();   // ok
+    // ön tekerlekler oka bağlı döner
+    const steer = clamp(angDiff(this.bang, this.ang), -0.6, 0.6);
+    ctx.fillStyle = '#1e140c';
+    for (const wy of [-6, 6]) { ctx.fillRect(-7 - 2.5, wy - 1, 5, 2); ctx.save(); ctx.translate(6, wy); ctx.rotate(steer); ctx.fillRect(-2.5, -1, 5, 2); ctx.restore(); }
     if (this.stage) {
       ctx.fillStyle = this.body; ctx.fillRect(-10, -5.5, 19, 11);
       ctx.fillStyle = shadeHex(this.body, 0.2); ctx.fillRect(-10, -5.5, 19, 2);
@@ -294,10 +308,12 @@ class Wagon extends Ent {
       if (!this.cargo) { ctx.fillStyle = 'rgba(40,26,14,0.55)'; ctx.fillRect(-9.5, -1.2, 3, 2.4); }   // açılmış branda
     }
     ctx.restore();
+    // atlar önde, yan yana
+    for (const k of [-1, 1]) Spr.horse(ctx, this.x - s * k * 4.2, this.y + c * k * 4.2, this.ang, { col: this.hc[k < 0 ? 0 : 1], mane: '#1a1410' }, { phase: this.phase + (k > 0 ? 1.5 : 0), mv: this.mv });
     // sürücü önde oturur (oyuncu sürüyorsa oyuncu)
     const st = this.seat, P = G.player;
-    if (this.rider === P) Spr.human(ctx, st.x, st.y, P.ang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ });
-    else if (this.driver) Spr.human(ctx, st.x, st.y, this.ang, this.driver.look, { riding: true });
+    if (this.rider === P && !P.mountAnim) Spr.human(ctx, st.x, st.y, P.aiming || P.rsAim ? P.ang : this.bang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ });
+    else if (this.driver) Spr.human(ctx, st.x, st.y, this.bang, this.driver.look, { riding: true });
   }
 }
 
