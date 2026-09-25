@@ -140,6 +140,7 @@ class Horse extends Ent {
     this.maxHp = B.hp; this.hp = opts.hp || B.hp;
     this.maxSta = B.sta; this.sta = this.maxSta;
     this.owner = opts.owner || null;
+    this.load = [];             // eyere yüklenmiş cesetler, leşler, postlar
     this.bond = opts.bond || 0;
     this.r = 5;
     this.spd = 0;
@@ -193,12 +194,18 @@ class Horse extends Ent {
     G.parts.burst('blood', this.x, this.y, 5, 30, 0.5, 1.5);
     if (this.hp <= 0) {
       this.hp = 0; this.dead = true;
+      if (this.load && this.load.length) G.dropHorseLoad(this);
       if (this.rider === G.player) G.player.dismount(true);
       if (this === G.horse) { UI.help(Tr`${this.name} yaralandı ve yere düştü. Bir <b>At Diriltici</b> kullanabilir ya da ahırdan yeni at alabilirsin.`, 8); Audio_.neigh(); }
     } else if (!this.rider && this.owner !== 'player') { this.state = 'flee'; this.t = 4; }
   }
   draw(ctx) {
     Spr.horse(ctx, this.x, this.y, this.ang, this.look, { phase: this.phase, mv: this.mv, saddle: this.saddle, dead: this.dead, graze: this.graze && !this.rider, bags: this.owner === 'player' });
+    // eyerin arkasına yüklenmiş cesetler, leşler ve postlar
+    if (this.load && this.load.length && !this.dead) {
+      const c = Math.cos(this.ang), s = Math.sin(this.ang);
+      this.load.forEach((e, k) => { const b = -6.5 - k * 2.8; Spr.carried(ctx, e, this.x + c * b, this.y + s * b, this.ang + Math.PI / 2, e.kind === 'pelt' ? 0.8 : 0.68); });
+    }
   }
 }
 
@@ -237,6 +244,8 @@ class Player extends Ent {
     this.hurtT = 0;
     this.lastPos = { x, y };
     this.greeted = new Set();
+    this.carry = null;      // omuzda taşınan ceset, bağlı kişi, leş ya da post
+    this.rope = null;       // kementle yakalanmış kişi
   }
   /* ---- envanter ---- */
   count(id) { return this.inv[id] || 0; }
@@ -290,6 +299,7 @@ class Player extends Ent {
 
   mount(h) {
     if (h.dead) return;
+    if (this.carry && !G.stowOnHorse(h)) return;
     this.riding = h; h.rider = this; h.state = 'idle';
     this.x = h.x; this.y = h.y; this.ang = h.ang;
     this.crouch = false;
@@ -332,11 +342,12 @@ class Player extends Ent {
     }
     const mv = G.uiBlocksMove ? { x: 0, y: 0, m: 0 } : I.moveVec();
     // nişan
-    this.aiming = !G.uiBlocksMove && I.down('aim') && this.weapon !== 'fists';
+    this.aiming = !G.uiBlocksMove && I.down('aim') && this.weapon !== 'fists' && !this.carry;
     this.updateAim(dt, mv);
     this.steadyUpdate(dt);
     if (this.riding) this.updateRiding(dt, mv);
     else this.updateFoot(dt, mv, age);
+    this.ropeUpdate(dt);
     // saldırılar
     if (!G.uiBlocksMove && !G.wheelOpen) this.updateCombat(dt);
     // fener ışığı
@@ -466,7 +477,7 @@ class Player extends Ent {
   updateFoot(dt, mv, age) {
     const I = Input;
     let speed = 58;
-    const wantSprint = I.down('sprint') && mv.m > 0.2 && !this.aiming;
+    const wantSprint = I.down('sprint') && mv.m > 0.2 && !this.aiming && !this.carry;
     if (mv.m > 0 && mv.m < 0.55 && !mv.kb) speed = 32;
     if (this.crouch) speed = 26;
     this.sprinting = false;
@@ -479,6 +490,7 @@ class Player extends Ent {
       this.sta = Math.min(this.maxSta, this.sta + dt * regen);
     }
     if (this.aiming) speed = Math.min(speed, 32);
+    if (this.carry) speed = Math.min(speed, this.carry.kind === 'pelt' ? 46 : 38);   // yük taşırken koşulamaz
     if (age > 60) speed *= 1 - Math.min(0.25, (age - 60) * 0.012);
     if (this.hp < this.maxHp * 0.2) speed *= 0.85;
     speed *= this.slow();
@@ -528,6 +540,7 @@ class Player extends Ent {
       target *= 0.4 + 0.6 * align;
     } else { this.galloping = false; h.sta = Math.min(h.maxSta, h.sta + dt * 7); }
     if (this.aiming) target = Math.min(target, 70);
+    if (h.load && h.load.length) target *= 1 - 0.035 * G.loadWeight(h.load);
     if (h.sta < 5) target = Math.min(target, 60);
     const acc = target > h.spd ? 90 : 180;
     h.spd += clamp(target - h.spd, -acc * dt, acc * dt);
@@ -560,9 +573,18 @@ class Player extends Ent {
   /* ---- savaş ---- */
   updateCombat(dt) {
     const I = Input, Wp = this.W;
-    if (I.pressed('reload')) this.startReload();
+    if (this.rope && this.weapon !== 'lasso') this.releaseRope();
+    if (this.carry) {
+      if (I.pressed('fire') || I.pressed('melee')) UI.feed(Tr('Omzunda yük varken silah kullanamazsın. Önce yükü bırak.'), 'warn');
+      return;
+    }
+    if (I.pressed('reload') && !(UI.curInteract && UI.curInteract.alt)) this.startReload();
     if (Wp.melee) {
       if ((I.pressed('melee') || (I.pressed('fire') && !this.riding)) && this.meleeCd <= 0) this.melee();
+      return;
+    }
+    if (Wp.lasso) {
+      if (I.pressed('fire') && this.fireCd <= 0) { if (this.rope) this.releaseRope(true); else this.throwLasso(); }
       return;
     }
     if (I.pressed('melee') && this.meleeCd <= 0 && !this.riding) { this.melee(true); return; }
@@ -654,6 +676,38 @@ class Player extends Ent {
     Audio_.tone(200, 0.2, 'sine', 0.1);
     if (!this.has('dynamite')) { this.weapon = 'fists'; }
   }
+  /* ---- kement ---- */
+  throwLasso() {
+    this.fireCd = WEAPONS.lasso.rate;
+    const a = this.shotAng(), sp = 300;
+    const R = WEAPONS.lasso.range * (1 + G.skill('riding') * 0.03);
+    // atış yönüne yakın bir kişi varsa ilmek ona yönelir (nişan yardımı)
+    const tg = this.pickTarget(a, 0.35, null, true);
+    G.projs.push({ type: 'lasso', x: this.x + Math.cos(a) * 6, y: this.y + Math.sin(a) * 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: R / sp, owner: this, ang: a, t: 0, tg: tg && tg.kind === 'npc' ? tg : null });
+    Audio_.tone(380, 0.18, 'sine', 0.04, null, 0, 220);
+    this.swing = 1;
+    this.sta = Math.max(0, this.sta - 4);
+  }
+  releaseRope(say) {
+    const e = this.rope;
+    this.rope = null;
+    if (say && e) UI.feed(Tr`Kementi bıraktın. ${e.name} kurtuluyor.`);
+  }
+  /* Kementteki kişi ip boyundan uzaklaşamaz: oyuncu (ya da atı) onu peşinden sürükler */
+  ropeUpdate(dt) {
+    const e = this.rope;
+    if (!e) return;
+    if (e.dead || e.remove || e.state !== 'lassoed') { this.rope = null; return; }
+    const L = 44, d = dist(this.x, this.y, e.x, e.y);
+    if (d > 150) { this.rope = null; UI.feed(Tr('Kement koptu!'), 'warn'); return; }
+    if (d > L) {
+      const k = (d - L) / d;
+      e.move((this.x - e.x) * k, (this.y - e.y) * k);
+      e.ang = Math.atan2(e.y - this.y, e.x - this.x);
+      e.lasT = Math.max(e.lasT, 2);                       // sürüklenirken kurtulamaz
+      if (this.riding && this.riding.spd > 90) { e.dragT = (e.dragT || 0) + dt; if (e.dragT > 0.5) { e.dragT = 0; e.hurt(4, 'player', 'drag'); } }
+    }
+  }
   melee(bash) {
     this.meleeCd = 0.5;
     this.swing = 1;
@@ -686,12 +740,15 @@ class Player extends Ent {
       walk: this.phase, mv: Math.min(1, this.mv), aim: this.aiming || this.swing > 0.2, wk: this.aimKind(), crouch: this.crouch, swing: this.swing, draw: this.draw_,
       hasGun: this.weapons.has('cattleman') || this.weapons.has('schofield'), backGun: this.weapons.has('repeater') || this.weapons.has('winchester') || this.weapons.has('rifle') || this.weapons.has('shotgun'),
     });
+    // omuzdaki yük omuz hattı boyunca yatar
+    if (this.carry) Spr.carried(ctx, this.carry, this.x - Math.cos(this.ang) * 0.8, this.y - Math.sin(this.ang) * 0.8, this.ang + Math.PI / 2, this.carry.kind === 'pelt' ? 0.9 : 0.8);
   }
   aimKind() {
     const w = this.W;
     if (!w) return null;
     if (w.melee) return this.weapon === 'knife' ? 'knife' : 'fists';
     if (w.throw) return 'throw';
+    if (w.lasso) return 'throw';
     return w.kind;
   }
   get masked() { return !!this.mask && !!this.inv[this.mask]; }
@@ -827,6 +884,8 @@ class NPC extends Ent {
     Object.assign(this, opts.extra || {});
   }
   get isLaw() { return this.role === 'law'; }
+  /* Kementte, bağlı ya da yaralı yerde: savaşamaz, kaçamaz, tanıklık edemez */
+  get bound() { return this.state === 'lassoed' || this.state === 'tied' || this.state === 'downed'; }
   hurt(dmg, by, how) {
     if (this.dead) return;
     this.hp -= dmg;
@@ -837,7 +896,7 @@ class NPC extends Ent {
       }
       if (this.isLaw) this.hostile = true;
       if (this.role === 'bandit' || this.role === 'target') this.hostile = true;
-      if (!this.hostile && this.hp > 0 && !(this.fistOK && how === 'melee')) { this.state = this.witness ? 'report' : 'flee'; this.t = 10; this.say(pick(LINES.flee)); }
+      if (!this.hostile && this.hp > 0 && !this.bound && !(this.fistOK && how === 'melee')) { this.state = this.witness ? 'report' : 'flee'; this.t = 10; this.say(pick(LINES.flee)); }
     }
     if (this.mounted && (dmg > 25 || this.hp <= 0)) {
       const h = new Horse(this.x + 6, this.y, 'mustang', { look: this.mounted, owner: 'npc' });
@@ -845,10 +904,54 @@ class NPC extends Ent {
       G.addEnt(h);
       this.mounted = null;
     }
+    // yumrukla bayılır; ödül hedefi ağır yaralanınca çoğunlukla ölmez, yere yığılır (canlı yakalanabilsin)
+    if (this.hp <= 0 && by === 'player') {
+      const ko = how === 'melee';
+      if (this.state === 'downed' || this.state === 'tied') {
+        if (ko) { this.hp = 1; if (this.state === 'downed') this.downT = Math.max(this.downT, 20); return; }
+      } else if (ko || (this.role === 'target' && dmg < 90 && chance(0.65))) {
+        this.hp = 1;
+        this.down(ko ? rnd(30, 45) : rnd(70, 100), ko);
+        return;
+      }
+    }
     if (this.hp <= 0) {
+      if (G.player.rope === this) G.player.rope = null;
       this.hp = 0; this.dead = true; this.state = 'dead'; this.deadT = 0;
       if (by === 'player') G.onNpcKill(this, how);
       else if (this.event && this.event.onDeath) this.event.onDeath(this);
+    }
+  }
+  down(t, ko) {
+    if (G.player.rope === this) G.player.rope = null;
+    this.state = 'downed'; this.downT = t; this.aggro = false; this.wrig = 0;
+    this.say(ko ? pick([Tr('Ugh...'), Tr('Yıldızları görüyorum...')]) : pick([Tr('Ahh... vuruldum...'), Tr('Yeter... Teslim oluyorum...'), Tr('Bacağım... Ateş etme!')]), 2);
+    if (this.bountyId) G.bountyTargetDown(this);
+  }
+  /* Kementten, iplerden ya da baygınlıktan kurtulunca */
+  recover() {
+    this.wrig = 0;
+    if (this.role === 'bandit' || this.role === 'target' || this.isLaw && this.hostile) { this.state = 'idle'; this.hostile = true; this.aggro = true; }
+    else { this.state = 'flee'; this.t = 10; this.say(pick(LINES.flee), 2); }
+  }
+  boundUpdate(dt) {
+    this.mv = 0;
+    if (this.state === 'lassoed') {
+      this.wrig = (this.wrig || 0) + dt;
+      if (G.player.rope !== this) { this.recover(); return; }
+      this.lasT -= dt;
+      if (this.lasT <= 0) { G.player.rope = null; UI.feed(Tr`${this.name} kementten kurtuldu!`, 'warn'); this.recover(); }
+    } else if (this.state === 'tied') {
+      this.tieT -= dt;
+      this.wrig = this.tieT < 15 ? (this.wrig || 0) + dt : 0;
+      if (this.tieT <= 0) {
+        if (dist(this.x, this.y, G.player.x, G.player.y) < 400) UI.feed(Tr`${this.name} iplerini çözüp kurtuldu!`, 'warn');
+        this.say(pick([Tr('Bu ipler beni tutamaz!'), Tr('Sonunda!')]), 2);
+        this.recover();
+      }
+    } else if (this.state === 'downed') {
+      this.downT -= dt;
+      if (this.downT <= 0) { this.hp = Math.max(this.hp, this.maxHp * 0.3); this.recover(); }
     }
   }
   say(text, dur = 3) {
@@ -862,6 +965,7 @@ class NPC extends Ent {
   }
   update(dt) {
     if (this.dead) { this.deadT = (this.deadT || 0) + dt; return; }
+    if (this.bound) { this.boundUpdate(dt); return; }
     this.t -= dt; this.cool -= dt;
     const P = G.player;
     const pd = dist(this.x, this.y, P.x, P.y);
@@ -1026,6 +1130,12 @@ class NPC extends Ent {
       Spr.human(ctx, this.x, this.y, this.ang, this.look, { dead: true });
       return;
     }
+    if (this.bound) {
+      Spr.human(ctx, this.x, this.y, this.ang, this.look, { lying: true, tied: this.state === 'tied', wriggle: this.wrig ? this.wrig : 0 });
+      if (this.state === 'lassoed') { ctx.strokeStyle = '#c8a870'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.ellipse(this.x, this.y, 4.2, 3, this.ang, 0, TAU); ctx.stroke(); }
+      if (this.state === 'downed' && this.downT > 0 && Math.sin(G.t * 3) > 0.6) { ctx.fillStyle = 'rgba(240,230,200,0.7)'; ctx.fillRect(this.x - 0.6, this.y - 9, 1.2, 1.2); ctx.fillRect(this.x + 2, this.y - 10, 1, 1); }
+      return;
+    }
     Spr.human(ctx, this.x, this.y, this.ang, this.look, {
       walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held,
       aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing', wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
@@ -1159,6 +1269,19 @@ class Prop extends Ent {
       ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x - 10, y - 3, 20, 5); ctx.fillStyle = '#5a7a8a'; ctx.fillRect(x - 9, y - 2, 18, 2); ctx.fillStyle = '#4a3020'; for (let k = -8; k < 10; k += 4) ctx.fillRect(x + k, y - 3, 1, 5);
     }
   }
+}
+
+/* ---------------- Yerdeki post ---------------- */
+class Pelt extends Ent {
+  constructor(x, y, id, q = 1) {
+    super(x, y);
+    this.kind = 'pelt'; this.id = id; this.q = q; this.r = 0; this.ang = rnd(-0.5, 0.5); this.big = !!ITEMS[id].big; this.age = 0;
+    const src = Object.values(ANIMALS).find(a => a.pelt && a.pelt[0] === id);
+    this.col = src ? src.col : '#8a6a4a';
+  }
+  get name() { return this.q > 1 ? Tr`Kusursuz ${ITEMS[this.id].n}` : ITEMS[this.id].n; }
+  update(dt) { this.age += dt; }
+  draw(ctx) { Spr.pelt(ctx, this.x, this.y, this.ang, this.col, this.big); }
 }
 
 /* ---------------- Kamp ---------------- */

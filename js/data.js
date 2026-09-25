@@ -52,17 +52,17 @@ const ITEMS = {
   wildflower:   { n: 'Kır Çiçeği', c: 'herb', p: 0.4, i: '💐', gift: 6, max: 30, d: 'Birine hediye etmek için ideal.' },
   // ---- Hayvansal ürünler
   rabbit_pelt:  { n: 'Tavşan Postu', c: 'animal', p: 1.5, i: '🐇', max: 30 },
-  deer_hide:    { n: 'Geyik Derisi', c: 'animal', p: 4, i: '🦌', max: 20 },
-  elk_hide:     { n: 'Kızıl Geyik Derisi', c: 'animal', p: 7, i: '🦌', max: 15 },
-  prong_hide:   { n: 'Antilop Derisi', c: 'animal', p: 5, i: '🦌', max: 20 },
+  deer_hide:    { n: 'Geyik Derisi', c: 'animal', p: 4, i: '🦌', max: 20, big: 1 },
+  elk_hide:     { n: 'Kızıl Geyik Derisi', c: 'animal', p: 7, i: '🦌', max: 15, big: 1 },
+  prong_hide:   { n: 'Antilop Derisi', c: 'animal', p: 5, i: '🦌', max: 20, big: 1 },
   wolf_pelt:    { n: 'Kurt Postu', c: 'animal', p: 8, i: '🐺', max: 20 },
   coyote_pelt:  { n: 'Çakal Postu', c: 'animal', p: 4, i: '🐕', max: 20 },
   fox_pelt:     { n: 'Tilki Postu', c: 'animal', p: 6, i: '🦊', max: 20 },
-  bear_pelt:    { n: 'Ayı Postu', c: 'animal', p: 25, i: '🐻', max: 10 },
-  bison_hide:   { n: 'Bizon Derisi', c: 'animal', p: 15, i: '🦬', max: 10 },
-  cougar_pelt:  { n: 'Puma Postu', c: 'animal', p: 18, i: '🐆', max: 10 },
-  boar_hide:    { n: 'Yaban Domuzu Derisi', c: 'animal', p: 5, i: '🐗', max: 20 },
-  gator_skin:   { n: 'Timsah Derisi', c: 'animal', p: 20, i: '🐊', max: 10 },
+  bear_pelt:    { n: 'Ayı Postu', c: 'animal', p: 25, i: '🐻', max: 10, big: 1 },
+  bison_hide:   { n: 'Bizon Derisi', c: 'animal', p: 15, i: '🦬', max: 10, big: 1 },
+  cougar_pelt:  { n: 'Puma Postu', c: 'animal', p: 18, i: '🐆', max: 10, big: 1 },
+  boar_hide:    { n: 'Yaban Domuzu Derisi', c: 'animal', p: 5, i: '🐗', max: 20, big: 1 },
+  gator_skin:   { n: 'Timsah Derisi', c: 'animal', p: 20, i: '🐊', max: 10, big: 1 },
   snake_skin:   { n: 'Yılan Derisi', c: 'animal', p: 3, i: '🐍', max: 20 },
   horse_hide:   { n: 'At Derisi', c: 'animal', p: 4, i: '🐴', max: 10 },
   feather:      { n: 'Tüy', c: 'animal', p: 0.3, i: '🪶', max: 60 },
@@ -147,6 +147,7 @@ const WEAPONS = {
   shotgun:   { n: 'Çift Namlulu Av Tüfeği', slot: 5, ammo: 'shotgun', dmg: 22, pellets: 7, rate: 0.5, clip: 2, reload: 2.2, spread: 0.2, range: 150, i: '💥', p: 150, kind: 'long' },
   bow:       { n: 'Av Yayı', slot: 6, ammo: 'arrow', dmg: 75, rate: 0.9, clip: 1, reload: 0.5, spread: 0.02, range: 320, i: '🏹', p: 45, kind: 'bow', silent: true, projectile: true },
   dynamite:  { n: 'Dinamit', slot: 7, item: 'dynamite', dmg: 220, rate: 1.0, i: '🧨', throw: true },
+  lasso:     { n: 'Kement', slot: 8, dmg: 0, rate: 0.9, range: 120, i: '➰', p: 6, lasso: true },
 };
 const WHEEL_SLOTS = [
   { n: 'Silahsız', w: ['fists'] },
@@ -157,6 +158,7 @@ const WHEEL_SLOTS = [
   { n: 'Av Tüfeği', w: ['shotgun'] },
   { n: 'Yay', w: ['bow'] },
   { n: 'Atılabilir', w: ['dynamite'] },
+  { n: 'Kement', w: ['lasso'] },
 ];
 /* Eşya çarkı (ikinci sayfa): her yuva bir kategori; yuvadaki eşyalar arasında ←/→ ile geçilir.
    '@' ile başlayanlar sanal eşyalardır (matara, fener, mızıka). */
@@ -286,7 +288,7 @@ const SHOPS = {
              ammo: ['pistol', 'repeater'], buy: { food: 0.5, herb: 0.6, valuable: 0.5, animal: 0.35, collect: 0.5, tool: 0.4, clothing: 0.4, horse: 0.4 } },
   saloon:  { n: 'Bar', sell: ['beer', 'whiskey', 'stew', 'coffee', 'cigarette', 'bread'], buy: {} },
   doctor:  { n: 'Doktor', sell: ['health_cure', 'bandage', 'antidote', 'snake_oil', 'stamina_tonic', 'herbal_tonic'], buy: { herb: 1.0, med: 0.5 } },
-  gunsmith:{ n: 'Silahçı', weapons: ['knife', 'cattleman', 'schofield', 'repeater', 'winchester', 'rifle', 'shotgun', 'bow'], ammo: ['pistol', 'repeater', 'rifle', 'shotgun', 'arrow'], sell: ['dynamite'], buy: {} },
+  gunsmith:{ n: 'Silahçı', weapons: ['knife', 'lasso', 'cattleman', 'schofield', 'repeater', 'winchester', 'rifle', 'shotgun', 'bow'], ammo: ['pistol', 'repeater', 'rifle', 'shotgun', 'arrow'], sell: ['dynamite'], buy: {} },
   butcher: { n: 'Kasap', sell: ['cooked_game', 'cooked_big', 'jerky', 'raw_game', 'bait'], buy: { animal: 1.0, food: 0.7 } },
   tailor:  { n: 'Terzi', sell: ['coat_duster', 'coat_sheep', 'coat_fur', 'coat_poncho', 'coat_linen', 'hat_cowboy', 'hat_bowler', 'hat_flat', 'hat_wide', 'mask_bandana'], buy: { clothing: 0.5 } },
   fence:   { n: 'Kaçakçı', sell: ['dynamite', 'snake_oil', 'whiskey', 'tobacco', 'mask_bandana', 'mask_sack'], buy: { valuable: 1.0, collect: 0.9, clothing: 0.6 } },
@@ -420,15 +422,15 @@ const SKILLS = {
 
 const BACKGROUNDS = [
   { id: 'farm', n: 'Çiftçi Çocuğu', d: 'Harlow ovalarında büyüdün. Toprağı ve hayvanları bilirsin.', town: 'harlow', money: 18,
-    skills: { survival: 2, riding: 1 }, items: { bread: 3, beans: 2, apple: 4, canteen: 1 }, weapons: ['knife', 'cattleman'], ammo: { pistol: 24 }, horse: 'nag' },
+    skills: { survival: 2, riding: 1 }, items: { bread: 3, beans: 2, apple: 4, canteen: 1 }, weapons: ['knife', 'lasso', 'cattleman'], ammo: { pistol: 24 }, horse: 'nag' },
   { id: 'immigrant', n: 'Göçmen', d: 'Okyanusu aşıp Saint Clement limanına ayak bastın. Cebinde biraz para, kafanda hayaller.', town: 'stclement', money: 45,
     skills: { trade: 2, charisma: 2 }, items: { bread: 2, chocolate: 1, canteen: 1, pocket_watch: 1 }, weapons: ['knife'], ammo: {}, horse: null },
   { id: 'outlaw', n: 'Kanun Kaçağı', d: 'Genç yaşta yanlış insanlarla takıldın. Başında küçük bir ödül var.', town: 'dustcreek', money: 30, bounty: 45,
-    skills: { shooting: 2, riding: 1 }, items: { jerky: 3, whiskey: 1, canteen: 1, tobacco: 2 }, weapons: ['knife', 'cattleman', 'repeater'], ammo: { pistol: 30, repeater: 24 }, horse: 'mustang', honor: -15 },
+    skills: { shooting: 2, riding: 1 }, items: { jerky: 3, whiskey: 1, canteen: 1, tobacco: 2 }, weapons: ['knife', 'lasso', 'cattleman', 'repeater'], ammo: { pistol: 30, repeater: 24 }, horse: 'mustang', honor: -15 },
   { id: 'rail', n: 'Demiryolu İşçisi', d: 'Rayların döşenmesinde ter döktün. Güçlüsün ve yorulmazsın.', town: 'fortmercy', money: 28,
     skills: { strength: 3 }, items: { beans: 3, coffee: 2, canteen: 1, pickaxe: 1 }, weapons: ['knife', 'cattleman'], ammo: { pistol: 18 }, horse: null },
   { id: 'trapper', n: 'Tuzakçı', d: 'Kuzey ormanlarında avcı bir babanın yanında yetiştin.', town: 'cedarfalls', money: 12,
-    skills: { hunting: 3, survival: 1 }, items: { jerky: 4, canteen: 1, bedroll: 1, coat_sheep: 1 }, weapons: ['knife', 'bow'], ammo: { arrow: 20 }, horse: 'morgan' },
+    skills: { hunting: 3, survival: 1 }, items: { jerky: 4, canteen: 1, bedroll: 1, coat_sheep: 1 }, weapons: ['knife', 'lasso', 'bow'], ammo: { arrow: 20 }, horse: 'morgan' },
 ];
 
 const DIFFICULTIES = [

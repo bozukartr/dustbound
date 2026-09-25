@@ -353,6 +353,8 @@ const UI = {
     }
     const it = this.curInteract;
     if (I.pressed('interact') && it) { this.holdTarget = it; this.holdT = 0; this.menuOpened = false; }
+    // ikincil eylem (ör. Omzuna Al) şarjör tuşunda
+    if (it && it.alt && !this.holdTarget && I.pressed('reload')) { it.alt.fn(); this.curInteract = null; this._scanT = 0.05; }
     const tgt = this.holdTarget;
     let holdPct = 0;
     if (tgt) {
@@ -381,7 +383,9 @@ const UI = {
       lines.push(`<div class="prompt-title">${shown.label}</div>`);
       lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
       if (hasMenu) lines.push(`<div class="prompt dim">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`}</span></div>`);
+      if (shown.alt) lines.push(`<div class="prompt">${I.glyph('reload')}<span>${shown.alt.n}</span></div>`);
     }
+    if (P.rope && !shown) lines.push(`<div class="prompt dim">${I.glyph('fire')}<span>${Tr('Kementi Bırak')}</span></div>`);
     if (P.aiming && P.isArmed && !P.deadeye && P.de > 12) lines.push(`<div class="prompt dim">${I.glyph('deadeye')}<span>${Tr('Odak')}</span></div>`);
     if (P.riding) lines.push(`<div class="prompt dim">${I.glyph('sprint')}<span>${Tr`Dörtnala`}</span></div>`);
     const key = lines.join('');
@@ -455,7 +459,7 @@ const UI = {
     }
     if (G.camp) icon(G.camp.x, G.camp.y, 'tent', '#efe6d2');
     if (G.nomads) for (const nc of G.nomads) if (nc.era >= 0 && G.discovered.has(G.nomadId(nc))) icon(nc.x, nc.y, 'tent', '#f0e4c8', 'rgba(120,80,20,0.9)', 13);
-    if (G.activeBounty && !G.activeBounty.done) icon(G.activeBounty.x, G.activeBounty.y, 'skull', '#fff', 'rgba(150,20,20,0.9)', 15);
+    if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') icon(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', '#fff', 'rgba(150,20,20,0.9)', 15);
     if (G.waypoint) icon(G.waypoint.x, G.waypoint.y, 'waypoint', '#fff', 'rgba(140,40,140,0.9)', 15);
     // canlılar
     for (const e of G.ents) {
@@ -633,7 +637,7 @@ const UI = {
     // hazine
     if (G.treasure && G.player.has('treasure_map')) { const [x, y] = toS(G.treasure.x + G.treasure.ox || G.treasure.x, G.treasure.y); c.strokeStyle = 'rgba(140,20,10,0.6)'; c.lineWidth = 2; c.setLineDash([4, 4]); c.beginPath(); c.arc(x, y, 180 / TS * M.zoom * 4, 0, TAU); c.stroke(); c.setLineDash([]); }
         const badge = (wx, wy, g, bg, col = '#fff', r = 10) => { const [x, y] = toS(wx, wy); c.fillStyle = bg; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); const im = Icons.img(g, col, 32); if (im.complete) c.drawImage(im, x - r * 0.72, y - r * 0.72, r * 1.44, r * 1.44); };
-    if (G.activeBounty && !G.activeBounty.done) badge(G.activeBounty.x, G.activeBounty.y, 'skull', 'rgba(150,20,20,0.9)');
+    if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') badge(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', 'rgba(150,20,20,0.9)');
     if (G.camp) badge(G.camp.x, G.camp.y, 'tent', 'rgba(30,20,12,0.85)', '#efe6d2');
     if (G.horse && !G.horse.dead) badge(G.horse.x, G.horse.y, 'horse', 'rgba(60,36,20,0.9)', '#f0d8a8');
     if (G.waypoint) badge(G.waypoint.x, G.waypoint.y, 'waypoint', 'rgba(140,40,140,0.95)');
@@ -801,7 +805,7 @@ const UI = {
     if (W.clip) ammo = `<div class="whc-am">${P.clip[e.id] || 0}<small> / ${P.ammo[W.ammo]}</small></div><div class="whc-at">${AMMO[W.ammo].n}</div>`;
     else if (W.throw) ammo = `<div class="whc-am">x${P.count('dynamite')}</div>`;
     c.innerHTML = `<div class="whc-cat">${sl.n}</div><div class="whc-n">${W.n}</div>${ammo}
-      <div class="whc-stats">${bar(Tr('Hasar'), dmg)}${W.melee ? '' : bar(Tr('Menzil'), rng)}${bar(Tr('Hız'), rate)}</div>${nav}`;
+      <div class="whc-stats">${W.lasso ? '' : bar(Tr('Hasar'), dmg)}${W.melee ? '' : bar(Tr('Menzil'), rng)}${bar(Tr('Hız'), rate)}</div>${W.lasso ? `<div class="whc-d">${Tr('Yakala, bağla, taşı. Aranan suçluları canlı teslim et.')}</div>` : ''}${nav}`;
   },
   wheelUse(e) {
     const P = G.player;
@@ -834,7 +838,7 @@ const UI = {
           for (const w of P.weapons) {
             const W = WEAPONS[w];
             if (w === 'dynamite') continue;
-            items.push({ icon: Icons.weapon(w), label: W.n + (P.weapon === w ? Tr(' <em>(elinde)</em>') : ''), right: W.clip ? `${P.clip[w] || 0} / ${P.ammo[W.ammo]}` : '', fn: () => { P.weapon = w; this.feed(Tr`${W.n} kuşanıldı`); }, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.melee ? Tr('Yakın dövüş') : Tr('Hasar ') + W.dmg + (W.pellets ? 'x' + W.pellets : '') + Tr(' • Menzil ') + W.range + Tr(' • Şarjör ') + (W.clip || '-')}</div>` });
+            items.push({ icon: Icons.weapon(w), label: W.n + (P.weapon === w ? Tr(' <em>(elinde)</em>') : ''), right: W.clip ? `${P.clip[w] || 0} / ${P.ammo[W.ammo]}` : '', fn: () => { P.weapon = w; this.feed(Tr`${W.n} kuşanıldı`); }, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.lasso ? Tr('Yakala, bağla, taşı. Aranan suçluları canlı teslim et.') : W.melee ? Tr('Yakın dövüş') : Tr('Hasar ') + W.dmg + (W.pellets ? 'x' + W.pellets : '') + Tr(' • Menzil ') + W.range + Tr(' • Şarjör ') + (W.clip || '-')}</div>` });
           }
           items.push({ header: Tr('Mühimmat') });
           for (const a in AMMO) items.push({ icon: Icons.glyph('ammo', '#d9c8a4'), label: AMMO[a].n, right: `${P.ammo[a]} / ${AMMO[a].max}`, disabled: true });
@@ -898,7 +902,7 @@ const UI = {
         <div class="jr-row">${Tr`<b>Aile:</b> ${G.family.spouse ? Tr`Eşi: ${G.family.spouse.name}` : Tr('Bekar')}${G.family.children.length ? Tr(' • Çocuklar: ') + G.family.children.map(c => c.name).join(', ') : ''}`}</div>
         <div class="jr-row">${Tr`<b>Hayat Hedefi:</b> 80 yaş — kalan ${Math.max(0, GOAL_AGE - G.age)} yıl`}</div>
         <div class="lifebar"><i style="width:${clamp((G.age - START_AGE) / (GOAL_AGE - START_AGE), 0, 1) * 100}%"></i></div>
-        ${G.activeBounty ? `<div class="jr-row">${Tr`<b>Aktif Ödül Avı:</b> ${G.activeBounty.name} — ${fmtMoney(G.activeBounty.reward)} ${G.activeBounty.done ? Tr('(Tamamlandı, ödülü al)') : ''}`}</div>` : ''}
+        ${G.activeBounty ? `<div class="jr-row">${Tr`<b>Aktif Ödül Avı:</b> ${G.activeBounty.name} — ${fmtMoney(G.activeBounty.reward)} ${G.activeBounty.done ? Tr('(Tamamlandı, ödülü al)') : Tr('(Şerif ofisine canlı teslim: tam ödül, ceset: yarısı)')}`}</div>` : ''}
       </div></div>`;
     }
     if (t === 1) {
@@ -1089,7 +1093,12 @@ const UI = {
   svcItems(b, s) {
     const d = b.def, P = G.player, it = [];
     switch (s) {
-      case 'shop': it.push({ icon: '🛒', label: Tr('Alışveriş'), fn: () => this.openShop(d.shop, b.name) }); break;
+      case 'shop': {
+        it.push({ icon: '🛒', label: Tr('Alışveriş'), fn: () => this.openShop(d.shop, b.name) });
+        const L = G.sellables(d.shop);
+        if (L.length) it.push({ icon: '🦌', label: Tr`Getirdiğin Avı Sat (${L.length})`, right: fmtMoney(L.reduce((a, c) => a + G.loadValue(c.e, d.shop), 0)), fn: () => { G.sellCarried(d.shop); this.pop(); } });
+        break;
+      }
       case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(2.5 * G.priceMul(true)), fn: () => { if (G.spend(2.5 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); } } });
         it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); } } }); break;
       case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
@@ -1103,6 +1112,8 @@ const UI = {
       case 'bounty':
         if (G.law.bounty > 0) it.push({ icon: '⚖', label: Tr('Başındaki Ödülü Öde'), right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
         if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: Tr('Ödül Avı Ödülünü Al'), right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, Tr('Ödül avı')); G.addHonor(3); G.activeBounty = null; } });
+        // omuzda ya da kapıdaki atın eyerinde getirilen suçlular
+        for (const c of G.carriedAll()) if (c.e.kind === 'npc' && G.wantedValue(c.e)) it.push({ icon: '⚖', label: Tr`Teslim Et: ${c.e.name} ${c.e.dead ? Tr('(ölü)') : Tr('(canlı)')}`, right: fmtMoney(G.wantedValue(c.e)), fn: () => { G.deliverToSheriff(c); this.pop(); } });
         break;
       case 'board': it.push({ icon: '📜', label: Tr('Ödül İlanları'), fn: () => this.openBountyBoard() }); break;
       case 'horses': it.push({ icon: '🐴', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) }); break;
@@ -1132,7 +1143,7 @@ const UI = {
             for (const w of S.weapons) {
               const W = WEAPONS[w], pr = W.p * G.priceMul(true) * regional;
               const own = P.weapons.has(w);
-              items.push({ icon: Icons.weapon(w), label: W.n, right: own ? Tr('Sahipsin') : fmtMoney(pr), disabled: own, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.melee ? Tr('Yakın dövüş silahı.') : Tr`Hasar: ${W.dmg}${W.pellets ? ' x' + W.pellets : ''}<br>Menzil: ${W.range}<br>Şarjör: ${W.clip}<br>Mühimmat: ${AMMO[W.ammo].n}`}</div>`, fn: () => { if (G.spend(pr)) { P.giveWeapon(w); if (W.ammo) P.ammo[W.ammo] = Math.min(AMMO[W.ammo].max, P.ammo[W.ammo] + AMMO[W.ammo].box); Audio_.ui('cash'); } } });
+              items.push({ icon: Icons.weapon(w), label: W.n, right: own ? Tr('Sahipsin') : fmtMoney(pr), disabled: own, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.lasso ? Tr('Yakala, bağla, taşı. Aranan suçluları canlı teslim et.') : W.melee ? Tr('Yakın dövüş silahı.') : Tr`Hasar: ${W.dmg}${W.pellets ? ' x' + W.pellets : ''}<br>Menzil: ${W.range}<br>Şarjör: ${W.clip}<br>Mühimmat: ${AMMO[W.ammo].n}`}</div>`, fn: () => { if (G.spend(pr)) { P.giveWeapon(w); if (W.ammo) P.ammo[W.ammo] = Math.min(AMMO[W.ammo].max, P.ammo[W.ammo] + AMMO[W.ammo].box); Audio_.ui('cash'); } } });
             }
           }
           if (S.ammo) {
