@@ -102,7 +102,8 @@ class Heap {
   }
 }
 
-const fmtMoney = v => '$' + (Math.round(v * 100) / 100).toFixed(2);
+/* 1890 doları: bir doların altındaki tutarlar sent olarak (25¢), üstü $1.50 biçiminde */
+const fmtMoney = v => { const c = Math.round(v * 100); return Math.abs(c) < 100 && c !== 0 ? c + '¢' : '$' + (c / 100).toFixed(2); };
 const pad2 = n => (n < 10 ? '0' : '') + n;
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));

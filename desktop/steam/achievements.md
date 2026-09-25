@@ -19,11 +19,11 @@ Steamworks > Stats & Achievements sayfasına bu API adlarıyla girilir. Simgeler
 | `ACH_FISHER` | **Master Angler** — Catch 20 fish. Fish bite sooner. | **Oltanın Ustası** — 20 balık tut. Balıklar daha çabuk vurur. |
 | `ACH_LONGSHOT` | **Sharpshooter** — Hit 10 targets from over 25 meters away. Focus drains 25% slower. | **Keskin Nişancı** — 10 hedefi 25 metreden uzaktan vur. Odak %25 daha yavaş tükenir. |
 | `ACH_GUNSLINGER` | **Gunslinger** — Kill 25 bandits. Reloading 25% faster. | **Silahşör** — 25 haydut öldür. Şarjör değiştirme %25 hızlı. |
-| `ACH_RICH` | **Deep Pockets** — Have $1000 in your pocket. 10% discount at shops. | **Cebi Dolu** — Cebinde $1000 biriktir. Dükkanlarda %10 indirim. |
-| `ACH_TYCOON` | **Tycoon** — Earn a total of $10,000. Property income +50%. | **Baron** — Toplam $10.000 kazan. Mülk gelirleri %50 artar. |
+| `ACH_RICH` | **Deep Pockets** — Have $250 in your pocket. 10% discount at shops. | **Cebi Dolu** — Cebinde $250 biriktir. Dükkanlarda %10 indirim. |
+| `ACH_TYCOON` | **Tycoon** — Earn a total of $2,500. Property income +50%. | **Baron** — Toplam $2.500 kazan. Mülk gelirleri %50 artar. |
 | `ACH_WORKER` | **Sweat of Your Brow** — Work 10 shifts. Job wages +25%. | **Alın Teri** — 10 vardiya çalış. İş ücretleri %25 artar. |
 | `ACH_SAMARITAN` | **Good Samaritan** — Help 5 strangers. 1.5x honor gain. | **İyi Samiriyeli** — 5 yabancıya yardım et. Onur kazanımı 1.5 kat. |
-| `ACH_OUTLAW` | **Outlaw** — Have a $250 bounty on your head. The law loses track of you faster. | **Kanun Kaçağı** — Başına $250 ödül konsun. Kanun seni daha çabuk kaybeder. |
+| `ACH_OUTLAW` | **Outlaw** — Have a $150 bounty on your head. The law loses track of you faster. | **Kanun Kaçağı** — Başına $150 ödül konsun. Kanun seni daha çabuk kaybeder. |
 | `ACH_SAINT` | **Saint** — Raise your honor to 80. Doctor services at half price. | **Aziz** — Onurunu 80'e çıkar. Doktor hizmetleri yarı fiyat. |
 | `ACH_DEVIL` | **The Devil Himself** — Drop your honor to -80. 2x loot from robberies. | **Şeytanın Ta Kendisi** — Onurunu -80'e düşür. Soygunlardan 2 kat kazanç. |
 | `ACH_HOME` | **Homeowner** — Buy a property. Sleeping at home refills all cores. | **Ev Sahibi** — Bir mülk satın al. Evde uyumak tüm çekirdekleri doldurur. |

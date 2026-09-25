@@ -901,10 +901,25 @@ const Spr = {
       this.circ(ctx, 5.5 + st.swing * 3, 1, 1.4, look.skin);
       if (wk === 'knife') { ctx.fillStyle = '#c8ccd0'; ctx.fillRect(6 + st.swing * 3, 0.5, 4, 1); }
       this.circ(ctx, -sw * 0.7, -4.8, 1.6, look.coat);
+    } else if (st.hold === 'crate') {
+      // iki eliyle önünde sandık taşır
+      this.circ(ctx, 2, -4.2, 1.6, look.coat); this.circ(ctx, 2, 4.2, 1.6, look.coat);
+      ctx.fillStyle = '#6a4626'; ctx.fillRect(3.4, -3.6, 5.4, 7.2);
+      ctx.fillStyle = '#9a6e40'; ctx.fillRect(3.8, -3.2, 4.6, 6.4);
+      ctx.fillStyle = '#6a4626'; ctx.fillRect(3.8, -0.4, 4.6, 0.8); ctx.fillRect(5.8, -3.2, 0.7, 6.4);
+      this.circ(ctx, 3.6, -3.8, 1, look.skin); this.circ(ctx, 3.6, 3.8, 1, look.skin);
     } else {
       this.circ(ctx, -sw * 0.7, -4.8, 1.7, look.coat); this.circ(ctx, sw * 0.7, 4.8, 1.7, look.coat);
       this.circ(ctx, -sw * 0.7 + 0.8, -5.2, 1, look.skin); this.circ(ctx, sw * 0.7 + 0.8, 5.2, 1, look.skin);
       if (st.hasGun) { ctx.fillStyle = '#2a1c14'; ctx.fillRect(-1, 3.8, 3, 1.6); }
+      if (st.hold === 'broom') {
+        const k = Math.sin((st.walk || 0) * 0.5) * 1.5;
+        ctx.strokeStyle = '#8a6a44'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(sw * 0.7 + 0.8, 5.2); ctx.lineTo(9, 7 + k); ctx.stroke();
+        ctx.fillStyle = '#c8a860'; ctx.beginPath(); ctx.ellipse(9.6, 7.2 + k, 1.4, 2.4, 0.5, 0, TAU); ctx.fill();
+      } else if (st.hold === 'paper') {
+        ctx.fillStyle = '#d8d0bc'; ctx.fillRect(-2.2, 4.4, 4.6, 2.6);
+        ctx.fillStyle = '#8a8478'; ctx.fillRect(-1.8, 5.2, 3.8, 0.4); ctx.fillRect(-1.8, 6, 3.8, 0.4);
+      }
     }
     // kafa
     const hc = look.hairNow || look.hair;
