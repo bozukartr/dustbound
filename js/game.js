@@ -204,6 +204,7 @@ const G = {
     const P = this.player;
     const enc = (arr) => { let s = ''; for (let i = 0; i < arr.length; i += 8) { let b = 0; for (let k = 0; k < 8; k++) if (arr[i + k]) b |= 1 << k; s += String.fromCharCode(b); } return btoa(s); };
     const h = this.horse;
+    this.noteBountyState();
     const data = {
       v: 1, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
       profile: this.profile,
@@ -212,7 +213,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), savedAt: Date.now(),
     };
     try {
       Platform.set(SAVE_KEY, JSON.stringify(data));
@@ -257,6 +258,7 @@ const G = {
       this.setHorse(h, true);
       if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h); }
     }
+    this.loadCarry(d.carry);
     Platform.syncAchievements(this.achieved);
     this.startPlay();
     UI.feed(Tr('Kayıt yüklendi. Hoş geldin, ') + P.name + '.');
@@ -525,11 +527,26 @@ const G = {
           p.x += p.vx * dt / steps; p.y += p.vy * dt / steps;
           if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { done = true; break; }
           for (const e of this.ents) {
-            if (e.dead || e === p.owner || e === this.player.riding || e.kind === 'camp' || e === this.horse) continue;
+            if (e.dead || e === p.owner || e === this.player.riding || e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e === this.horse) continue;
             if (dist2(e.x, e.y, p.x, p.y) < (e.r + 2) * (e.r + 2)) { e.hurt(p.dmg, 'player', 'arrow'); done = true; break; }
           }
         }
         if (done || p.life <= 0) L.splice(i, 1);
+      } else if (p.type === 'lasso') {
+        // kement ilmeği: ilk değdiği kişiyi yakalar
+        p.life -= dt; p.t += dt;
+        const tg = p.tg;
+        if (tg && !tg.dead && !tg.bound && !tg.remove) { const sp = Math.hypot(p.vx, p.vy), aa = Math.atan2(tg.y - p.y, tg.x - p.x); p.vx = Math.cos(aa) * sp; p.vy = Math.sin(aa) * sp; }
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        let hit = null;
+        if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { L.splice(i, 1); continue; }
+        for (const e of this.ents) {
+          if (e.kind !== 'npc' || e.dead || e.remove || e.bound || e.role === 'spouse' || e.role === 'child') continue;
+          const r = e.r + (e.mounted ? 7 : 4);
+          if (dist2(e.x, e.y, p.x, p.y) < r * r) { hit = e; break; }
+        }
+        if (hit) { this.lassoHit(hit); L.splice(i, 1); }
+        else if (p.life <= 0) L.splice(i, 1);
       } else if (p.type === 'dynamite') {
         p.t += dt; p.fuse -= dt;
         const f = Math.min(1, p.t / p.dur);
@@ -620,7 +637,8 @@ const G = {
     for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.kind === 'horse' && e.rider === P)) vis.push(e);
     if (P.riding) vis.push(P.riding);
     vis.push(P);
-    vis.sort((a, b) => (a.y + (a.dead ? -20 : 0)) - (b.y + (b.dead ? -20 : 0)));
+    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' ? -20 : 0;   // yerde yatanlar altta çizilir
+    vis.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     for (const e of vis) {
       if (e === P && P.riding) continue;
       if (e.kind === 'horse' && e.rider === P) { e.draw(ctx); P.draw(ctx); continue; }
@@ -630,8 +648,11 @@ const G = {
     // mermiler
     for (const p of this.projs) {
       if (p.type === 'arrow') { ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - Math.cos(p.ang) * 7, p.y - Math.sin(p.ang) * 7); ctx.stroke(); ctx.fillStyle = '#e8e0d0'; ctx.fillRect(p.x - Math.cos(p.ang) * 7 - 1, p.y - Math.sin(p.ang) * 7 - 1, 2, 2); }
+      else if (p.type === 'lasso') { const o = p.owner; Spr.rope(ctx, o.x, o.y, p.x, p.y, 2); ctx.strokeStyle = '#c8a870'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(p.x, p.y, 4.5, 3.2, p.t * 14, 0, TAU); ctx.stroke(); }
       else if (p.type === 'dynamite') { Spr.shadow(ctx, p.x, p.y + 2, 3, 1.5, 0.3); ctx.save(); ctx.translate(p.x, p.y - p.z); ctx.rotate(p.t * 12); ctx.fillStyle = '#b02a20'; ctx.fillRect(-3, -1, 6, 2.4); ctx.restore(); }
     }
+    // kementteki kişiye uzanan ip
+    if (P.rope) { const e = P.rope, d = dist(P.x, P.y, e.x, e.y); Spr.rope(ctx, P.x, P.y, e.x, e.y, Math.max(0, 44 - d) * 0.25); }
     this.parts.draw(ctx, x0, y0, x1, y1);
     this.drawCovers(ctx, x0, y0, x1, y1, dt);
     ctx.restore();
@@ -855,3 +876,4 @@ const G = {
   },
 };
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(GameSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(CarrySystems));

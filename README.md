@@ -96,7 +96,10 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - İki sayfalı çark: **Silahlar** ve **Eşyalar** (yiyecek, içecek, ilaç, tütün, bitkiler, at eşyaları, kit, giysi). Aynı yuvadaki silah ya da eşyalar arasında geçilebilir; eşyalar çarktan doğrudan kullanılır.
 - 90'dan fazla eşya: yiyecekler, ilaçlar, bitkiler, postlar, balıklar, değerli eşyalar, koleksiyonlar, aletler ve giysiler.
 - Avcılık ve deri yüzme, bitki toplama, balık tutma (mini oyun), altın eleme, cevher kazma, hazine haritaları.
-- Silahlar: bıçak, iki tabanca, iki karabina, uzun tüfek, av tüfeği, yay ve dinamit. Bir de zamanı yavaşlatan **Odak** modu.
+- Silahlar: bıçak, kement, iki tabanca, iki karabina, uzun tüfek, av tüfeği, yay ve dinamit. Bir de zamanı yavaşlatan **Odak** modu.
+- **Kement ve bağlama**: Kementle yakaladığın kişiyi yaklaşıp etkileşim tuşunu basılı tutarak bağlarsın. Uzaklaşırsan (at sırtında da) onu peşinden sürüklersin; ateş tuşu ipi bırakır. Yumrukla yere serilen biri ölmez, bayılır. Ödül avının hedefi ağır yaralanınca çoğunlukla yere yığılır; o da bağlanabilir. Bağlı kişi bir süre sonra iplerinden kurtulur.
+- **Taşıma**: Cesetleri, bağlı ya da baygın kişileri, leşleri ve büyük postları **omzuna alabilir** (leş ve cesette ikincil eylem: şarjör tuşu), atının yanındayken **eyere yükleyebilirsin**. Eyer 4 birim taşır (kişi ve iri leş 2, post ve küçük leş 1). Omuzda yükle koşamaz, silah kullanamazsın; yüklü at biraz yavaşlar. Yükler kayda geçer.
+- **Postlar**: Geyik, kızıl geyik, antilop, bizon, ayı, puma, yaban domuzu ve timsah postları çantaya sığmaz; yüzdükten sonra omzunda ya da eyerde taşınır. Ayı, bizon ve timsah gibi iri hayvanların leşi taşınamaz, önce derisi yüzülür. Postları ve leşleri kasap, tuzakçı ya da genel mağazanın içinde sat; atın kapıdaysa eyerdekiler de satılır. Bütün leş, parça parça satmaktan biraz daha iyi fiyat getirir.
 - NPC'lerle selamlaşma (günün saatine, havaya, role ve tanışıklığa göre değişen 100'ü aşkın replik), kışkırtma, soygun; yol olayları (yaralı yolcular, soygunlar, pusu, kırık arabalar, seyyar satıcılar); ödül ilanları.
 - Yirmi Bir (blackjack), bilek güreşi, hızlı çekiş düellosu, söylenti dinleme, gazete okuma, kamp ateşinde mızıka çalma.
 - Atlar: satın alma, yabani at evcilleştirme, bağ seviyesi, ıslıkla çağırma.
@@ -108,6 +111,8 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - Soyulan bir dükkânın kasası boşalır ve ancak 3 gün sonra dolar; bankanın kasası 7 günde yenilenir. Dükkânlarda satılan eşyalar en ucuz alış fiyatının altında satılır, al-sat döngüsüyle para basılamaz. Bilek güreşi günde 3 kez oynanabilir.
 - **Teslim olma ve tutuklanma**: Düşük aranma seviyesinde (1–2 yıldız) kanun adamları önce silah doğrultup yaklaşır ve teslim olmanı ister; ateş etmezler. Yanlarında etkileşim tuşunu basılı tutarak teslim olursun: ya ödülü ceza olarak ödersin ya da ödüle göre 1–7 gün hapis yatarsın. Ateş edersen, kanun adamına silah doğrultursan, kaçarsan ya da uyarılara rağmen teslim olmazsan ateş açarlar. Cinayet ve kanun adamına saldırı ise doğrudan çatışma başlatır.
 - Aranma seviyesi, arama alanı ve peşine düşen kanun adamları. Ödülünü şerif ofisinde ödeyebilirsin.
+- **Ödül avı ve teslim**: İlan panosundan alınan hedef ölünce ödül kendiliğinden verilmez; kişiyi şerif ofisine getirmen gerekir. Canlı teslim tam ödülü, ceset yarısını getirir. Haydutları da teslim edebilirsin (canlı $15, ceset $5). Omzundakini ofisin içinde, eyerdekini ofis kapısında at sırtında ya da şerifin masasında teslim edersin.
+- **Kanıt**: Öldürdüğün masum birinin cesedi kanıttır. Biri cesedi bulduğunda sen yakındaysan suç sana yazılır ve tanık şerife koşar; uzaktaysan iz kalmaz. Ceset ya da bağlı biriyle görülmek de suçtur. Cesedi ıssız bir yere taşıyabilir, suya atabilir ya da kürekle gömebilirsin. Bağlanan tanık haber veremez.
 - Onur sistemi fiyatları ve insanların sana nasıl davrandığını etkiler.
 
 **Gelişim**

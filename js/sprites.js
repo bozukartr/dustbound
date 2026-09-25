@@ -831,12 +831,21 @@ const Spr = {
   human(ctx, x, y, ang, look, st) {
     ctx.save();
     ctx.translate(x, y);
-    if (st.dead) {
-      this.ell(ctx, 2, 2, 8, 5, 'rgba(110,10,10,0.55)');
+    if (st.dead || st.lying) {
+      // yerde yatan beden: ölü (kan gölü), yaralı ya da bağlı
+      if (st.dead && !st.noPool) this.ell(ctx, 2, 2, 8, 5, 'rgba(110,10,10,0.55)');
+      else if (!st.noPool) this.shadow(ctx, 0, 1.5, 7, 3.4, 0.22);
       ctx.rotate(ang);
       this.ell(ctx, 0, 0, 5.5, 3.2, look.coat);
       ctx.fillStyle = look.pants; ctx.fillRect(-9, -2.4, 5, 1.8); ctx.fillRect(-9, 0.6, 5, 1.8);
       this.circ(ctx, 5.5, 0, 2.6, look.hat === 'none' ? look.hair : look.skin);
+      if (st.tied) {
+        // el ve ayak bileklerinde ip
+        ctx.fillStyle = '#c8a870';
+        ctx.fillRect(-8.2, -2.8, 1.2, 5.6); ctx.fillRect(-1.2, -3.5, 1.2, 7);
+        ctx.fillStyle = '#8a6a3a'; ctx.fillRect(-8.2, -0.3, 1.2, 0.6); ctx.fillRect(-1.2, -0.3, 1.2, 0.6);
+      }
+      if (st.wriggle) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(6.5 + Math.sin(st.wriggle * 20), -0.4, 1.2, 0.8); }
       ctx.restore();
       return;
     }
@@ -922,6 +931,38 @@ const Spr = {
     ctx.restore();
   },
 
+  /* ---------- Taşınan yük: post, ceset, leş ---------- */
+  /* Katlanmış post (yerde ya da sırtta) */
+  pelt(ctx, x, y, ang, col, big) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    const w = big ? 7 : 5, h = big ? 4.6 : 3.4;
+    this.ell(ctx, 0.8, 1.2, w, h, 'rgba(0,0,0,0.22)');
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(-w, -h * 0.6); ctx.quadraticCurveTo(0, -h * 1.2, w, -h * 0.6); ctx.lineTo(w * 0.9, h * 0.7); ctx.quadraticCurveTo(0, h * 1.1, -w * 0.9, h * 0.7); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = shadeHex(col, 0.18); ctx.fillRect(-w * 0.7, -h * 0.35, w * 1.4, h * 0.3);
+    ctx.fillStyle = shadeHex(col, -0.3); ctx.fillRect(-w * 0.9, h * 0.25, w * 1.8, 0.8);
+    ctx.fillStyle = '#c8a870'; ctx.fillRect(-w * 0.35, -h, 1, h * 2); ctx.fillRect(w * 0.3, -h, 1, h * 2);
+    ctx.restore();
+  },
+  /* Omuzda ya da eyerde taşınan varlık. (x, y) çizim merkezi, rot uzun eksenin açısı */
+  carried(ctx, e, x, y, rot, sc = 1) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
+    if (e.kind === 'npc') this.human(ctx, 0, 0, rot, e.look, { dead: e.dead, lying: true, tied: e.state === 'tied', noPool: true });
+    else if (e.kind === 'pelt') this.pelt(ctx, 0, 0, rot, e.col, e.big);
+    else if (e.kind === 'animal') {
+      const o = { def: e.def, x: 0, y: 0, ang: rot, dead: true, noPool: true, phase: 0, mv: 0, male: e.male, look: e.look, skinned: false };
+      this.animal(ctx, o);
+    }
+    ctx.restore();
+  },
+  /* Kement ipi: iki nokta arasında hafif sarkan çizgi */
+  rope(ctx, x0, y0, x1, y1, slack) {
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2 + slack;
+    ctx.strokeStyle = 'rgba(40,26,14,0.55)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(x0, y0 + 0.6); ctx.quadraticCurveTo(mx, my + 0.6, x1, y1 + 0.6); ctx.stroke();
+    ctx.strokeStyle = '#c8a870'; ctx.lineWidth = 0.9;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
+  },
+
   /* ---------- At ---------- */
   horse(ctx, x, y, ang, look, st) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
@@ -967,8 +1008,7 @@ const Spr = {
     const L = d.len, Wd = d.wid, c = d.col, c2 = d.col2;
     const p = a.phase || 0, m = a.dead ? 0 : Math.min(1, a.mv || 0);
     if (a.dead) {
-      this.ell(ctx, 0, L * 0.1, L * 0.55, Wd * 0.9, 'rgba(110,10,10,0.5)');
-      ctx.globalAlpha = a.skinned ? 1 : 1;
+      if (!a.noPool) this.ell(ctx, 0, L * 0.1, L * 0.55, Wd * 0.9, 'rgba(110,10,10,0.5)');
     } else this.ell(ctx, 1, 2, L * 0.55, Wd * 0.75, 'rgba(0,0,0,0.25)');
     const bodyC = a.skinned ? '#9a3a2a' : c;
     if (d.shape === 'snake') {

@@ -119,6 +119,9 @@ const WPN_ICON = {
   shotgun: () => OUT(_r(18, 7.6, 26, 2.2, IC.metal, 1) + _r(18, 9.8, 26, 2.2, shadeHex(IC.metal, -0.2), 1) + _p('M2 12 L12 8.5 L19 8.5 L19 12.5 L12 13.5 L4 18Z', IC.W) + _r(13, 8, 7, 5, IC.metalD, 1) + _p('M20 12 L32 12 L31 14 L21 14Z', IC.W)),
   bow: () => _s('M14 2.5 Q30 12 14 21.5', IC.D, 4) + _s('M14 2.5 Q30 12 14 21.5', IC.W, 2.2) + _s('M14 2.5 L14 21.5', IC.L, 0.8) + OUT(_s('M6 12 L40 12', IC.M, 1.4) + _p('M40 10 L45 12 L40 14Z', IC.metal) + _p('M6 12 L3 9.5 L8 12 L3 14.5Z', IC.red)),
   dynamite: () => `<g transform="translate(8 -4) scale(0.95)">${IK.dynamite()}</g>`,
+  lasso: () => _s('M24 12 m-10 0 a10 7.5 0 1 0 20 0 a10 7.5 0 1 0 -20 0 M24 12 m-7.5 0 a7.5 5.5 0 1 0 15 0 a7.5 5.5 0 1 0 -15 0 M24 12 m-5 0 a5 3.6 0 1 0 10 0 a5 3.6 0 1 0 -10 0', IC.D, 3.6)
+    + _s('M24 12 m-10 0 a10 7.5 0 1 0 20 0 a10 7.5 0 1 0 -20 0 M24 12 m-7.5 0 a7.5 5.5 0 1 0 15 0 a7.5 5.5 0 1 0 -15 0 M24 12 m-5 0 a5 3.6 0 1 0 10 0 a5 3.6 0 1 0 -10 0', '#c8a870', 2)
+    + _s('M33 16 Q40 20 45 15', IC.D, 3.6) + _s('M33 16 Q40 20 45 15', '#c8a870', 2),
 };
 WPN_ICON.cattleman = () => WPN_ICON.revolver(IC.metal);
 WPN_ICON.schofield = () => WPN_ICON.revolver('#c8ccd4');
