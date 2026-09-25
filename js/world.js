@@ -113,6 +113,8 @@ class World {
   }
   idx(x, y) { return y * WW + x; }
   /* ---- Mevsimler ---- */
+  /* Chunk önbelleğini boşalt (efekt kalitesi değişince) */
+  refreshChunks() { this.chunks.clear(); this.jobs.clear(); }
   setSeason(season, force) {
     if (this.season === season && !force) return false;
     this.season = season;
@@ -1392,7 +1394,7 @@ class World {
       for (let tx = tx0; tx < tx1; tx++) {
         if (!this.inb(tx, ty)) continue;
         const ob = this.obj[ty * WW + tx];
-        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16)) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
+        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16) && !FX.dyn(ob)) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
       }
       if ((ty & 15) === 0) yield 0;
     }

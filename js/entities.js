@@ -39,8 +39,19 @@ class Particles {
       p.life -= dt;
       if (p.life <= 0) { L[i] = L[L.length - 1]; L.pop(); this.pool.push(p); continue; }
       p.x += p.vx * dt; p.y += p.vy * dt;
-      if (p.type === 'smoke' || p.type === 'steam') { p.vx *= 0.98; p.vy = p.vy * 0.98 - 6 * dt; p.size += dt * 6; }
-      else if (p.type === 'dust') { p.vx *= 0.92; p.vy *= 0.92; p.size += dt * 5; }
+      if (p.type === 'smoke' || p.type === 'steam') { p.vx = p.vx * 0.98 + FX.wind.x * 9 * dt; p.vy = p.vy * 0.98 - 6 * dt + FX.wind.y * 5 * dt; p.size += dt * 6; }
+      else if (p.type === 'dust') { p.vx = p.vx * 0.92 + FX.wind.x * 6 * dt; p.vy *= 0.92; p.size += dt * 5; }
+      else if (p.type === 'breath') { p.vx = p.vx * 0.94 + FX.wind.x * 10 * dt; p.vy = p.vy * 0.94 - 3 * dt; p.size += dt * 3.2; }
+      else if (p.type === 'chip' || p.type === 'casing' || p.type === 'drop') {
+        // basit zıplama: z yukarı, yerçekimi, yere çarpınca sekme
+        p.vz -= 240 * dt; p.z += p.vz * dt;
+        if (p.z <= 0) {
+          p.z = 0;
+          if (p.type === 'drop') { p.life = 0; continue; }
+          if (p.vz < -18) { p.vz = -p.vz * 0.35; p.vx *= 0.5; p.vy *= 0.5; if (p.type === 'casing' && p.vz > 12 && Math.random() < 0.5) Audio_.tone(3200 + Math.random() * 900, 0.02, 'triangle', 0.012); }
+          else { p.vz = 0; p.vx *= 0.8; p.vy *= 0.8; }
+        }
+      }
       else if (p.type === 'blood' || p.type === 'spark' || p.type === 'debris') { p.vx *= 0.9; p.vy *= 0.9; }
       else if (p.type === 'ember') { p.vy -= 10 * dt; p.vx += (Math.random() - 0.5) * 20 * dt; }
       else if (p.type === 'feather') { p.vx *= 0.96; p.vy = p.vy * 0.96 + 4 * dt; }
@@ -64,6 +75,10 @@ class Particles {
         case 'flash': ctx.fillStyle = `rgba(255,230,150,${a})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + a), 0, TAU); ctx.fill(); break;
         case 'ring': ctx.strokeStyle = `rgba(255,200,120,${a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1.2 - a), 0, TAU); ctx.stroke(); break;
         case 'tracer': ctx.strokeStyle = `rgba(255,240,190,${a * 0.9})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x2, p.y2); ctx.stroke(); break;
+        case 'breath': ctx.fillStyle = `rgba(236,241,248,${a * 0.3})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.fill(); break;
+        case 'chip': ctx.fillStyle = p.col; ctx.globalAlpha = Math.min(1, a * 3); ctx.fillRect(p.x, p.y - p.z, p.size, p.size); ctx.globalAlpha = 1; break;
+        case 'drop': ctx.fillStyle = `rgba(210,232,244,${a})`; ctx.fillRect(p.x, p.y - p.z, 1, 1); break;
+        case 'casing': ctx.fillStyle = p.col; ctx.globalAlpha = Math.min(1, a * 4); ctx.fillRect(p.x, p.y - p.z, p.size, 1); ctx.globalAlpha = 1; break;
         case 'text': ctx.fillStyle = p.col; ctx.globalAlpha = Math.min(1, a * 2); ctx.font = '7px monospace'; ctx.textAlign = 'center'; ctx.fillText(p.size, p.x, p.y); ctx.globalAlpha = 1; break;
       }
     }
@@ -549,6 +564,11 @@ class Player extends Ent {
     if ((this.clip[this.weapon] || 0) >= Wp.clip || have <= 0) return;
     let t = Wp.reload * (G.hasPerk('gunslinger') ? 0.75 : 1);
     this.reloadT = t;
+    if (Wp.kind === 'pistol' || Wp.clip <= 2) {
+      const spent = Math.min(6, (this.spent && this.spent[this.weapon]) || 0);
+      for (let i = 0; i < spent; i++) FX.casing(this.x + rnd(-1, 1), this.y + rnd(-1, 1), this.ang + rnd(-1, 1), this.weapon === 'shotgun');
+      if (this.spent) this.spent[this.weapon] = 0;
+    }
     Audio_.tone(900, 0.05, 'square', 0.04); Audio_.tone(700, 0.05, 'square', 0.04, null, t * 0.6);
   }
   finishReload() {
@@ -564,6 +584,7 @@ class Player extends Ent {
     const c = this.clip[this.weapon] || 0;
     if (c <= 0) { if (this.ammo[Wp.ammo] > 0) this.startReload(); else { Audio_.tone(1200, 0.03, 'square', 0.05); UI.feed('Mermin kalmadı!', 'warn'); } this.fireCd = 0.3; return; }
     this.clip[this.weapon] = c - 1;
+    this.spent = this.spent || {}; this.spent[this.weapon] = (this.spent[this.weapon] || 0) + 1;
     this.fireCd = Wp.rate;
     const lvl = G.skill('shooting');
     let spread = Wp.spread * (1 - lvl * 0.05) * (this.aiming ? 1 : this.rsAim ? 1.7 : 2.6) * (this.riding && this.riding.spd > 60 ? 1.8 : 1) * (this.drunk > 30 ? 1.8 : 1);
@@ -574,10 +595,12 @@ class Player extends Ent {
     const ox = this.x + Math.cos(sa) * 8, oy = this.y + Math.sin(sa) * 8;
     for (let i = 0; i < n; i++) {
       const a = sa + (Math.random() - 0.5) * spread * 2;
-      G.fireRay(ox, oy, a, Wp.range, Wp.dmg * (1 + lvl * 0.03), this, { weapon: this.weapon });
+      G.fireRay(ox, oy, a, Wp.range, Wp.dmg * (1 + lvl * 0.03), this, { weapon: this.weapon, gd: (this.aiming || this.rsAim) ? this.aimDist + rnd(6, 60) : 0 });
     }
     G.parts.add('flash', ox, oy, 0, 0, 0.06, 4);
-    G.parts.add('smoke', ox, oy, Math.cos(this.aimAng) * 20, Math.sin(this.aimAng) * 20, 0.8, 2);
+    FX.gunSmoke(ox, oy, sa, Wp.kind === 'long');
+    // kollu tüfekler her atışta kovan fırlatır; toplu tabanca, av tüfeği ve tek atımlık tüfek dolumda boşaltır
+    if (Wp.kind === 'long' && Wp.clip > 2) FX.casing(this.x + Math.cos(sa) * 3, this.y + Math.sin(sa) * 3, sa, false);
     G.fx.shake = Math.max(G.fx.shake, Wp.kind === 'long' ? 2.2 : 1.4);
     G.fx.muzzle = 0.06;
     Audio_.shot(this.weapon === 'rifle' ? 'rifle' : this.weapon === 'shotgun' ? 'shotgun' : 'pistol', 0.9);
@@ -955,8 +978,9 @@ class NPC extends Ent {
       const acc = (this.isLaw ? 0.08 : 0.11) + (P.sprinting || (P.riding && P.riding.spd > 80) ? 0.07 : 0) + (P.crouch ? 0.03 : 0);
       const n = W.pellets ? 4 : 1;
       const dmg = this.weapon === 'shotgun' ? 7 : this.weapon === 'repeater' ? 13 : this.weapon === 'rifle' ? 22 : 11;
-      for (let i = 0; i < n; i++) G.fireRay(this.x + Math.cos(this.ang) * 7, this.y + Math.sin(this.ang) * 7, this.ang + rnd(-acc, acc), W.range, dmg * (G.difficulty === 'hard' ? 1.25 : 1), this, { npc: true });
+      for (let i = 0; i < n; i++) G.fireRay(this.x + Math.cos(this.ang) * 7, this.y + Math.sin(this.ang) * 7, this.ang + rnd(-acc, acc), W.range, dmg * (G.difficulty === 'hard' ? 1.25 : 1), this, { npc: true, gd: pd + rnd(4, 50) });
       G.parts.add('flash', this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, 0, 0, 0.06, 3.5);
+      if (pd < 500) FX.gunSmoke(this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, this.ang, W.kind === 'long');
       Audio_.shot(this.weapon === 'shotgun' ? 'shotgun' : 'pistol', clamp(1 - pd / 700, 0.1, 0.8));
       if (chance(0.15)) this.say(pick(this.isLaw ? LINES.law : LINES.bandit), 2);
     }
@@ -1083,7 +1107,7 @@ class Prop extends Ent {
     super(x, y); this.kind = 'prop'; this.type = type; this.r = 0; this.col = opts.col || '#c8b890'; this.ang = opts.ang || 0;
   }
   update() {
-    if (this.type === 'fire' && Math.random() < 0.08) G.parts.add(Math.random() < 0.5 ? 'ember' : 'smoke', this.x + rnd(-2, 2), this.y - 3, rnd(-3, 3), -10, 1.5, Math.random() < 0.5 ? 1 : 2, '70,66,60');
+    if (this.type === 'fire') { if (Math.random() < 0.05) G.parts.add('ember', this.x + rnd(-2, 2), this.y - 3, rnd(-3, 3), -10, 1.5, 1); FX.fireSource(this.x, this.y); }
   }
   draw(ctx) {
     const x = this.x, y = this.y;
@@ -1119,7 +1143,7 @@ class Prop extends Ent {
 /* ---------------- Kamp ---------------- */
 class Camp extends Ent {
   constructor(x, y) { super(x, y); this.kind = 'camp'; this.r = 0; }
-  update() {}
+  update() { FX.fireSource(this.x, this.y); }
   draw(ctx) {
     const x = this.x, y = this.y;
     Spr.shadow(ctx, x + 18, y - 4, 9, 4, 0.25);

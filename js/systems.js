@@ -842,6 +842,8 @@ const GameSystems = {
       const t = rayCircle(ox, oy, dx, dy, e.x, e.y, r);
       if (t >= 0 && t < hd) { hd = t; hit = e; }
     }
+    // ıskalayan mermi nişan noktasının biraz ötesinde yere saplanır (opts.gd): toz görünür yerde kalkar
+    if (!hit && opts.gd && opts.gd < hd) hd = opts.gd;
     const ex = ox + dx * hd, ey = oy + dy * hd;
     this.parts.tracer(ox, oy, ex, ey);
     if (hit) {
@@ -849,8 +851,7 @@ const GameSystems = {
       else hit.hurt(dmg, owner === this.player ? 'player' : 'npc', 'gun');
       if (owner === this.player && hit.dead && hd > 400) this.stat('longKills', 1);
     } else {
-      this.parts.burst('debris', ex, ey, 3, 30, 0.4, 1, '#8a7a6a');
-      if (W.isWaterPx(ex, ey)) this.parts.add('splash', ex, ey, 0, 0, 0.5, 4);
+      if (Math.abs(ex - this.player.x) < 700 && Math.abs(ey - this.player.y) < 500) FX.impact(ex, ey, ang);
     }
     return hit;
   },
