@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — giriş: klavye, fare ve PlayStation kolu
+   FRONTIER'S END — giriş: klavye, fare ve PlayStation kolu
    (RDR2 / GTA V tarzı tuş yerleşimi)
    ========================================================== */
 
@@ -103,7 +103,7 @@ const Input = {
     window.addEventListener('wheel', e => { this.mouse.wheel += Math.sign(e.deltaY); }, { passive: true });
     window.addEventListener('gamepadconnected', e => {
       this.padIndex = e.gamepad.index; this.device = 'pad';
-      if (typeof UI !== 'undefined' && UI.toast) UI.feed('🎮 Kol bağlandı: ' + e.gamepad.id.slice(0, 32));
+      if (typeof UI !== 'undefined' && UI.toast) UI.feed(Tr('🎮 Kol bağlandı: ') + e.gamepad.id.slice(0, 32));
     });
     window.addEventListener('gamepaddisconnected', e => { if (e.gamepad.index === this.padIndex) this.padIndex = -1; });
   },
@@ -230,7 +230,7 @@ const Input = {
   },
   keyLabel(code) {
     if (!code) return '—';
-    return KEY_LABEL[code] || code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'Num ');
+    return KEY_LABEL[code] || code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, Tr('Num '));
   },
   kbGlyph(code) { return `<span class="btn kb ${code ? '' : 'none'}">${this.keyLabel(code)}</span>`; },
   glyph(action) {

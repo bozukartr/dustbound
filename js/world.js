@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — dünya üretimi, parça (chunk) önbelleği, harita
+   FRONTIER'S END — dünya üretimi, parça (chunk) önbelleği, harita
    ========================================================== */
 
 const TS = 16;            // bir karonun piksel boyutu
@@ -188,25 +188,25 @@ class World {
   async generate(progress) {
     const step = async (msg, pct) => { progress && progress(msg, pct); await new Promise(r => setTimeout(r, 0)); };
     this.rng = new RNG(this.seed * 7 + 13);
-    await step('Topraklar şekilleniyor...', 0.05);
+    await step(Tr('Topraklar şekilleniyor...'), 0.05);
     this.genTerrain();
-    await step('Nehirler akıyor...', 0.2);
+    await step(Tr('Nehirler akıyor...'), 0.2);
     this.genRivers();
-    await step('Kasabalar kuruluyor...', 0.3);
+    await step(Tr('Kasabalar kuruluyor...'), 0.3);
     this.genTowns();
     this.buildCost();
-    await step('Yollar açılıyor...', 0.4);
+    await step(Tr('Yollar açılıyor...'), 0.4);
     this.genRoads();
-    await step('Raylar döşeniyor...', 0.5);
+    await step(Tr('Raylar döşeniyor...'), 0.5);
     this.genRails();
-    await step('Keşfedilecek yerler saklanıyor...', 0.6);
+    await step(Tr('Keşfedilecek yerler saklanıyor...'), 0.6);
     this.genPOIs();
-    await step('Ormanlar büyüyor...', 0.72);
+    await step(Tr('Ormanlar büyüyor...'), 0.72);
     this.genObjects();
     this.computeSolid();
-    await step('Harita çiziliyor...', 0.85);
+    await step(Tr('Harita çiziliyor...'), 0.85);
     this.buildMapImage();
-    await step('Hazır.', 1);
+    await step(Tr('Hazır.'), 1);
   }
 
   genTerrain() {
@@ -900,7 +900,7 @@ class World {
     }
     for (const C of CAMPS) {
       const [x, y] = this.findSpot(C.near, null, { minD: 25 });
-      const p = this.addPOI({ id: 'camp_' + this.pois.length, n: C.n, type: 'camp', tx: x, ty: y, kind: 'camp', desc: 'Haydut kampı. Dikkatli ol.' });
+      const p = this.addPOI({ id: 'camp_' + this.pois.length, n: C.n, type: 'camp', tx: x, ty: y, kind: 'camp', desc: Tr('Haydut kampı. Dikkatli ol.') });
       this.clearArea(x, y, 7, T.MUD);
       this.setObj(x, y, O.CAMPFIRE); this.lights.push({ x: p.x, y: p.y, r: 70, type: 'fire' });
       for (let k = 0; k < 4; k++) { const a = k / 4 * TAU + 0.4; this.setObj(Math.round(x + Math.cos(a) * 4), Math.round(y + Math.sin(a) * 4), O.TENT); }
@@ -909,11 +909,11 @@ class World {
     }
     for (const F of FARMS) {
       const [x, y] = this.findSpot(F.near, ['GRASS', 'DRY', 'FOREST'], { minD: 22 });
-      const p = this.addPOI({ id: 'farm_' + this.pois.length, n: F.n, type: 'farm', tx: x, ty: y, kind: 'farm', desc: 'Burada iş bulabilirsin.' });
+      const p = this.addPOI({ id: 'farm_' + this.pois.length, n: F.n, type: 'farm', tx: x, ty: y, kind: 'farm', desc: Tr('Burada iş bulabilirsin.') });
       this.clearArea(x, y, 12, T.DRY);
       this.flatten(x - 12, y - 6, 26, 16, T.DRY, 0);
       const b = this.addBuilding('ranch', x - 11, y - 6, null, F.n);
-      this.addBuilding('barn', x - 3, y - 7, null, F.n + ' Ambarı');
+      this.addBuilding('barn', x - 3, y - 7, null, Tr('{0} Ambarı', F.n));
       p.building = b.id;
       for (let yy = y + 2; yy < y + 9; yy++) for (let xx = x - 10; xx < x + 12; xx++) {
         const i = yy * WW + xx; this.tile[i] = T.FARM; this.flags[i] |= 1;
@@ -979,17 +979,17 @@ class World {
       case 'ghost':
         this.clearArea(x, y, 12, T.DRY);
         for (let yy = y - 1; yy <= y + 1; yy++) for (let xx = x - 12; xx <= x + 12; xx++) this.tile[yy * WW + xx] = T.ROAD;
-        this.addBuilding('ruin', x - 11, y - 7, null, 'Hollow Rock Saloon');
-        this.addBuilding('ruin', x - 3, y - 7, null, 'Hollow Rock Mağazası');
-        this.addBuilding('ruin', x + 5, y - 7, null, 'Hollow Rock Oteli');
-        this.addBuilding('ruin', x - 7, y + 3, null, 'Ev', { w: 5, h: 4 });
+        this.addBuilding('ruin', x - 11, y - 7, null, Tr('Hollow Rock Saloon'));
+        this.addBuilding('ruin', x - 3, y - 7, null, Tr('Hollow Rock Mağazası'));
+        this.addBuilding('ruin', x + 5, y - 7, null, Tr('Hollow Rock Oteli'));
+        this.addBuilding('ruin', x - 7, y + 3, null, Tr('Ev'), { w: 5, h: 4 });
         for (let k = 0; k < 5; k++) this.setObj(x + 4 + k * 2, y + 5, O.GRAVE);
         this.addChest(x, y + 4, 'ghost');
         break;
       case 'mine':
         this.clearArea(x, y, 8, T.ROCK);
         this.carveCircle(x, y - 9, 6, (tx, ty, d, i) => { if (ty < y - 6) { this.tile[i] = T.CLIFF; this.obj[i] = 0; } });
-        this.addBuilding('mineentrance', x - 2, y - 6, null, 'Terk Edilmiş Maden');
+        this.addBuilding('mineentrance', x - 2, y - 6, null, Tr('Terk Edilmiş Maden'));
         for (let k = 0; k < 9; k++) this.setObj(x + R.int(-7, 7), y + R.int(0, 6), O.ORE);
         this.setObj(x + 4, y - 2, O.CRATE); this.setObj(x - 5, y - 2, O.WAGON); this.addChest(x + 3, y + 3, 'mine');
         break;
@@ -1043,7 +1043,7 @@ class World {
           if (R.chance(0.8)) this.setObj(x - 8, y + k, O.RUINWALL);
           if (R.chance(0.8)) this.setObj(x + 8, y + k, O.RUINWALL);
         }
-        this.addBuilding('ruin', x - 5, y - 6, null, 'Yıkık Kışla', { w: 7, h: 4 });
+        this.addBuilding('ruin', x - 5, y - 6, null, Tr('Yıkık Kışla'), { w: 7, h: 4 });
         this.setObj(x + 3, y + 2, O.WAGON); this.addChest(x + 4, y - 4, 'battle');
         break;
       case 'windmill':
@@ -1065,7 +1065,7 @@ class World {
       case 'cave':
         this.clearArea(x, y, 7, T.ROCK);
         this.carveCircle(x, y - 6, 5, (tx, ty, d, i) => { if (ty <= y - 4) { this.tile[i] = T.CLIFF; this.obj[i] = 0; } });
-        this.addBuilding('mineentrance', x - 2, y - 4, null, 'Ayı İni', { w: 5, h: 2, cave: 1 });
+        this.addBuilding('mineentrance', x - 2, y - 4, null, Tr('Ayı İni'), { w: 5, h: 2, cave: 1 });
         this.setObj(x - 2, y + 1, O.BONES); this.setObj(x + 2, y, O.BONES);
         this.addChest(x + 3, y - 1, 'cave');
         break;

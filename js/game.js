@@ -1,10 +1,17 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — oyun çekirdeği: durum, döngü, render, kayıt
+   FRONTIER'S END — oyun çekirdeği: durum, döngü, render, kayıt
    ========================================================== */
 
-const SAVE_KEY = 'dustbound_save_v1';
-const SET_KEY = 'dustbound_settings_v1';
+const SAVE_KEY = 'frontiersend_save_v1';
+const SET_KEY = 'frontiersend_settings_v1';
+/* Eski adla (Dustbound) yapılmış kayıt ve ayarları yeni anahtarlara taşı */
+try {
+  for (const [o, n] of [['dustbound_save_v1', SAVE_KEY], ['dustbound_settings_v1', SET_KEY]]) {
+    const v = localStorage.getItem(o);
+    if (v !== null && localStorage.getItem(n) === null) localStorage.setItem(n, v);
+  }
+} catch (e) {}
 
 const G = {
   state: 'boot',
@@ -14,7 +21,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0 },
+  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, lang: null },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -90,7 +97,7 @@ const G = {
     this.settings.zoom = s === auto ? 0 : s;
     this.applySettings(); this.saveSettings();
     this.prefetch(true);
-    UI.feed(`Piksel Ölçeği: ${s}x${this.settings.zoom ? '' : ' (otomatik)'}`);
+    UI.feed(Tr`Piksel Ölçeği: ${s}x${this.settings.zoom ? '' : Tr(' (otomatik)')}`);
     Audio_.ui('move');
   },
   applySettings() {
@@ -153,8 +160,8 @@ const G = {
     this.unlock('begin');
     this.startPlay();
     setTimeout(() => {
-      UI.help(`<b>${P.name}</b>, 18 yaşındasın ve yıl ${START_YEAR}. Hedefin: <b>80 yaşına kadar hayatta kalmak.</b><br>Aç kalma, susuz kalma, uykusuz kalma. Avlan, çalış, keşfet.`, 12);
-      setTimeout(() => UI.help(`${Input.glyph('map')} Harita &nbsp; ${Input.glyph('satchel')} Çanta &nbsp; ${Input.glyph('journal')} Günlük &nbsp; ${Input.glyph('wheel')} Silah Çarkı &nbsp; ${Input.glyph('pause')} Duraklat`, 10), 13000);
+      UI.help(Tr`<b>${P.name}</b>, 18 yaşındasın ve yıl ${START_YEAR}. Hedefin: <b>80 yaşına kadar hayatta kalmak.</b><br>Aç kalma, susuz kalma, uykusuz kalma. Avlan, çalış, keşfet.`, 12);
+      setTimeout(() => UI.help(Tr`${Input.glyph('map')} Harita &nbsp; ${Input.glyph('satchel')} Çanta &nbsp; ${Input.glyph('journal')} Günlük &nbsp; ${Input.glyph('wheel')} Silah Çarkı &nbsp; ${Input.glyph('pause')} Duraklat`, 10), 13000);
     }, 1200);
     this.saveGame(true);
   },
@@ -176,7 +183,7 @@ const G = {
     w.doorFn = (b) => this.doorOpen(b);
     this.insideB = null;
     this.trains = w.lines.map((l, i) => new Train(l, i));
-    UI.loading('Hazır.', 1);
+    UI.loading(Tr('Hazır.'), 1);
   },
   startPlay() {
     this.state = 'play';
@@ -209,8 +216,8 @@ const G = {
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-      if (!silent) UI.feed('💾 Oyun kaydedildi');
-    } catch (e) { UI.feed('Kayıt başarısız: ' + e.message, 'warn'); }
+      if (!silent) UI.feed(Tr('💾 Oyun kaydedildi'));
+    } catch (e) { UI.feed(Tr('Kayıt başarısız: ') + e.message, 'warn'); }
   },
   hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } },
   saveInfo() {
@@ -251,7 +258,7 @@ const G = {
       if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h); }
     }
     this.startPlay();
-    UI.feed('Kayıt yüklendi. Hoş geldin, ' + P.name + '.');
+    UI.feed(Tr('Kayıt yüklendi. Hoş geldin, ') + P.name + '.');
     return true;
   },
 
@@ -269,7 +276,7 @@ const G = {
       else if (this.state === 'menu') { if (FX.drunkCss) FX.clearCss(); UI.menuBg(dt); }
     } catch (e) {
       console.error(e);
-      if (!this._errShown) { this._errShown = true; UI.feed('Hata: ' + e.message, 'warn'); }
+      if (!this._errShown) { this._errShown = true; UI.feed(Tr('Hata: ') + e.message, 'warn'); }
     }
     Input.endFrame();
     if (this.settings.fps) { this._fc = (this._fc || 0) + 1; this._ft = (this._ft || 0) + dt; if (this._ft > 0.5) { $('#fps').textContent = Math.round(this._fc / this._ft) + ' FPS'; this._fc = 0; this._ft = 0; } }
@@ -312,7 +319,7 @@ const G = {
     if (ib !== this.insideB) {
       if (ib && (!this.insideB || this.insideB !== ib)) {
         UI.feed(`${Icons.glyph('door', '#efe6d2', 'ic inl')} ${ib.name}`); Audio_.tone(180, 0.06, 'triangle', 0.05);
-        this.hintOnce('indoor', `Binaların içinde dolaşabilirsin. Tezgahtaki çalışanla, yataklarla, masalarla ve diğer eşyalarla ${Input.glyph('interact')} ile etkileşime geç. Dükkanlar gece kapanır.`);
+        this.hintOnce('indoor', Tr`Binaların içinde dolaşabilirsin. Tezgahtaki çalışanla, yataklarla, masalarla ve diğer eşyalarla ${Input.glyph('interact')} ile etkileşime geç. Dükkanlar gece kapanır.`);
       }
       this.insideB = ib;
     }
@@ -321,7 +328,7 @@ const G = {
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
     T_.ach -= dt; if (T_.ach <= 0) { T_.ach = 1; this.checkAchievements(); }
     T_.fire -= dt; if (T_.fire <= 0) { T_.fire = 0.5; this.checkFire(); if (this.t > 30) this.hintTick(); }
-    T_.gps -= dt; if (T_.gps <= 0 && this.waypoint) { T_.gps = 5; if (dist(P.x, P.y, this.waypoint.x, this.waypoint.y) < 40) { this.setWaypoint(null); UI.feed('📍 Hedefe ulaştın'); } else this.computeGps(); }
+    T_.gps -= dt; if (T_.gps <= 0 && this.waypoint) { T_.gps = 5; if (dist(P.x, P.y, this.waypoint.x, this.waypoint.y) < 40) { this.setWaypoint(null); UI.feed(Tr('📍 Hedefe ulaştın')); } else this.computeGps(); }
     T_.amb -= dt;
     if (T_.amb <= 0) {
       T_.amb = 0.25;
@@ -372,7 +379,7 @@ const G = {
       if (P.deadeye) { P.deadeye = false; }
       else if (P.aiming && P.isArmed && P.de > 12) { P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60); }
       else if (!P.aiming && I.device === 'pad' && !this.binds_zoom()) this.quickZoom(0);   // kolda nişan almadan R3: piksel ölçeğini değiştir
-      else if (!P.aiming) UI.feed('Dead Eye için önce nişan al.', 'warn');
+      else if (!P.aiming) UI.feed(Tr('Dead Eye için önce nişan al.'), 'warn');
     }
     if (I.pressed('zoomIn')) this.quickZoom(1);
     if (I.pressed('zoomOut')) this.quickZoom(-1);
@@ -400,16 +407,16 @@ const G = {
   },
   hintTick() {
     const P = this.player, g = k => Input.glyph(k);
-    if (P.hunger < 30) this.hintOnce('hunger', `Açıkıyorsun. ${g('satchel')} ile çantanı açıp yemek ye ya da ${g('quick')} ile hızlıca bir şeyler atıştır.`);
-    else if (P.thirst < 30) this.hintOnce('thirst', `Susadın. Mataranı iç (${g('quick')}) ya da bir nehir/kuyu başında ${g('interact')} ile su iç.`);
-    else if (P.energy < 25) this.hintOnce('sleep', `Yorgunsun. Bir otelde, evinde ya da kampta (${g('camp')} basılı tut) uyu.`);
-    else if (this.coldness > 0.05) this.hintOnce('cold', 'Üşüyorsun! Kalın bir palto giy, ateş yak ya da sıcak bir şeyler iç. Terzilerden kürk alabilirsin.');
-    else if (this.hotness > 0.05) this.hintOnce('hot', 'Sıcak çarpıyor! Daha sık su iç, geniş kenarlı şapka ya da keten gömlek giy.');
-    else if (this.isNight) this.hintOnce('night', `Gece çöktü. ${g('lantern')} ile fenerini yak. Kurtlar gece daha tehlikelidir.`);
-    else if (P.riding) this.hintOnce('ride', `${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
-    else if (this.law.level > 0) this.hintOnce('law', 'Aranıyorsun! Radardaki kırmızı arama alanının dışına çık ve görünmeden bekle.');
-    else if (!this.world.townAt(P.x, P.y, 60) && this.hour >= 17) this.hintOnce('camp', P.has('bedroll') ? `Akşam oluyor. Kasabadan uzaktaysan ${g('camp')} tuşunu basılı tutarak kamp kurabilirsin.` : `Vahşi doğada kamp kurmak için bir <b>Uyku Tulumu</b> gerekir (genel mağazada $8). Sonra ${g('camp')} tuşunu basılı tut.`, 10);
-    else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', `Su kenarındasın. ${g('interact')} ile su iç; basılı tutarak matara doldurma, yıkanma ve balık tutma seçeneklerine ulaş.`);
+    if (P.hunger < 30) this.hintOnce('hunger', Tr`Açıkıyorsun. ${g('satchel')} ile çantanı açıp yemek ye ya da ${g('quick')} ile hızlıca bir şeyler atıştır.`);
+    else if (P.thirst < 30) this.hintOnce('thirst', Tr`Susadın. Mataranı iç (${g('quick')}) ya da bir nehir/kuyu başında ${g('interact')} ile su iç.`);
+    else if (P.energy < 25) this.hintOnce('sleep', Tr`Yorgunsun. Bir otelde, evinde ya da kampta (${g('camp')} basılı tut) uyu.`);
+    else if (this.coldness > 0.05) this.hintOnce('cold', Tr('Üşüyorsun! Kalın bir palto giy, ateş yak ya da sıcak bir şeyler iç. Terzilerden kürk alabilirsin.'));
+    else if (this.hotness > 0.05) this.hintOnce('hot', Tr('Sıcak çarpıyor! Daha sık su iç, geniş kenarlı şapka ya da keten gömlek giy.'));
+    else if (this.isNight) this.hintOnce('night', Tr`Gece çöktü. ${g('lantern')} ile fenerini yak. Kurtlar gece daha tehlikelidir.`);
+    else if (P.riding) this.hintOnce('ride', Tr`${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
+    else if (this.law.level > 0) this.hintOnce('law', Tr('Aranıyorsun! Radardaki kırmızı arama alanının dışına çık ve görünmeden bekle.'));
+    else if (!this.world.townAt(P.x, P.y, 60) && this.hour >= 17) this.hintOnce('camp', P.has('bedroll') ? Tr`Akşam oluyor. Kasabadan uzaktaysan ${g('camp')} tuşunu basılı tutarak kamp kurabilirsin.` : Tr`Vahşi doğada kamp kurmak için bir <b>Uyku Tulumu</b> gerekir (genel mağazada $8). Sonra ${g('camp')} tuşunu basılı tut.`, 10);
+    else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', Tr`Su kenarındasın. ${g('interact')} ile su iç; basılı tutarak matara doldurma, yıkanma ve balık tutma seçeneklerine ulaş.`);
   },
   quickUse() {
     const P = this.player;
@@ -419,7 +426,7 @@ const G = {
     if (P.thirst < 70 && P.canteen > 0) { this.drinkCanteen(); return; }
     if (P.hunger < 70) for (const id of ['cooked_game', 'cooked_big', 'beans', 'bread', 'jerky', 'cooked_fish', 'cooked_bird', 'peaches', 'apple', 'corn', 'berries']) if (P.has(id)) { this.consume(id); return; }
     if (P.sta < P.maxSta * 0.4) for (const id of ['stamina_tonic', 'chocolate', 'ginseng']) if (P.has(id)) { this.consume(id); return; }
-    UI.feed('Hızlı kullanılacak bir şey yok.', 'warn');
+    UI.feed(Tr('Hızlı kullanılacak bir şey yok.'), 'warn');
   },
   /* Ortam canlıları: kuş sürüleri, çalı topları, ateşböcekleri */
   ambientLife(dt) {
@@ -828,7 +835,7 @@ const G = {
     this.cam.x = P.x; this.cam.y = P.y;
     this.state = 'play';
     Audio_.playMusic('explore');
-    UI.help(`${t.n} doktoru seni ölümün kıyısından döndürdü. <b>${fmtMoney(lost)}</b> kaybettin ve vücudunda kalıcı izler kaldı (maks. sağlık -3).`, 9);
+    UI.help(Tr`${t.n} doktoru seni ölümün kıyısından döndürdü. <b>${fmtMoney(lost)}</b> kaybettin ve vücudunda kalıcı izler kaldı (maks. sağlık -3).`, 9);
     this.saveGame(true);
   },
 };

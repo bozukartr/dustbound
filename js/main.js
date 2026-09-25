@@ -1,8 +1,9 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — başlatıcı
+   FRONTIER'S END — başlatıcı
    ========================================================== */
 window.addEventListener('load', () => {
+  I18N.setLang(I18N.detect());
   Input.init();
   UI.init();
   G.resetState();

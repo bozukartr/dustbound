@@ -1,8 +1,8 @@
-# DUSTBOUND
+# FRONTIER'S END
 
 **Amerika, 1890.** 18 yaşındasın. Hedefin, 80 yaşına kadar hayatta kalmak.
 
-Dustbound, Red Dead Redemption 2 ve GTA'dan esinlenen, tarayıcıda çalışan 2D açık dünya bir **hayatta kalma ve rol yapma** oyunudur. Görev yok, "oyun sonu" yok; oynadığın şey bir hayat. Avlan, çalış, keşfet, âşık ol, ev al, kanunla başın derde girsin, yaşlan.
+Frontier's End, Red Dead Redemption 2 ve GTA'dan esinlenen, tarayıcıda çalışan 2D açık dünya bir **hayatta kalma ve rol yapma** oyunudur. Görev yok, "oyun sonu" yok; oynadığın şey bir hayat. Avlan, çalış, keşfet, âşık ol, ev al, kanunla başın derde girsin, yaşlan.
 
 ## Çalıştırma
 
@@ -12,6 +12,20 @@ Kurulum ya da derleme adımı yok. İki yol var:
 - klasörde basit bir sunucu başlat: `npx http-server .` (veya `python3 -m http.server`) ve `http://localhost:8080` adresine git.
 
 Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation kolu (DualShock 4 / DualSense) USB ya da Bluetooth ile bağlanıp herhangi bir tuşa basınca algılanır ve ekrandaki tuş simgeleri PS simgelerine döner.
+
+## Diller
+
+Oyun **Türkçe** ve **İngilizce** oynanabilir. İlk açılışta tarayıcının dili Türkçeyse Türkçe, değilse İngilizce seçilir; Ayarlar > **Dil / Language** satırından istediğin an değiştirebilirsin (menüler anında yeni dile geçer). Dünya üretilirken verilen bina adları gibi birkaç metin, oyun yeniden yüklendiğinde yeni dile döner.
+
+Nasıl çalışıyor:
+
+- Kaynak dil Türkçe. Oyuncuya görünen her metin kodda Türkçe yazılır ve `Tr('…')` ya da `` Tr`… ${x} …` `` ile sarılır. Sözlükteki anahtar, bu Türkçe metnin kendisidir (gettext mantığı). Şablonlardaki `${…}` ifadeleri `{0}`, `{1}`… olur ve çeviride yerleri değiştirilebilir. `{0:day|days}` sayıya göre tekil/çoğul seçer.
+- Eşya, silah, hayvan, yer, başarım ve replik gibi veri tabloları `js/data.js` içinde Türkçe kalır; dil seçilince sözlükle yerinde çevrilir.
+- `lang/en.js` İngilizce sözlüktür (≈1.740 metin). Yeni bir dil eklemek için bu dosyayı kopyala (ör. `lang/de.js`), `I18N.add('de', …)` yap, değerleri çevir, dosyayı `index.html`'e ekle ve `js/i18n.js` içindeki `LANGS` listesine `['de', 'Deutsch']` yaz.
+- **Denetleyici:** `node tools/i18n-check.js en` koddaki ve tablolardaki bütün anahtarları toplayıp dil dosyasıyla karşılaştırır: eksik, kullanılmayan, yer tutucusu uyuşmayan ve içinde Türkçe harf kalmış çevirileri listeler. `--skel` eksikleri dosyaya yapıştırılacak biçimde yazdırır. Bağımlılığı yoktur, yalnızca Node gerekir.
+- **Oyun içi kontrol:** `index.html?i18ncheck` ile açınca çalışma sırasında çevirisi bulunamayan anahtarlar `I18N.miss`, ekranda görünen ve Türkçe harf içeren metinler `I18N.seen` kümesinde toplanır.
+
+Eski adla (Dustbound) yapılmış kayıtlar ve ayarlar ilk açılışta yeni ada otomatik taşınır.
 
 ## Kontroller
 
@@ -115,6 +129,9 @@ Oyun, uyuduğunda ve her yeni günde otomatik kaydedilir (tarayıcının `localS
 index.html
 css/style.css
 js/util.js      yardımcılar, RNG, gürültü
+js/i18n.js      çok dil desteği: Tr(), dil seçimi, tablo ve HTML çevirisi
+lang/en.js      İngilizce sözlük
+tools/i18n-check.js  eksik/fazla çeviri denetleyicisi (node)
 js/icons.js     SVG ikon seti (eşya, silah, glif, PS tuşları)
 js/data.js      eşyalar, silahlar, hayvanlar, kasabalar, başarımlar
 js/input.js     klavye, fare ve PlayStation kolu

@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — prosedürel çizimler (üstten 3/4 görünüm)
+   FRONTIER'S END — prosedürel çizimler (üstten 3/4 görünüm)
    ========================================================== */
 
 const NOPF = () => {};

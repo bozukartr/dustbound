@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — varlıklar: oyuncu, at, hayvan, NPC, tren,
+   FRONTIER'S END — varlıklar: oyuncu, at, hayvan, NPC, tren,
    mermiler, parçacıklar
    ========================================================== */
 
@@ -132,7 +132,7 @@ class Horse extends Ent {
   addBond(v) {
     const before = this.bondLv;
     this.bond += v * (G.hasPerk('tamer') ? 2 : 1);
-    if (this.bondLv > before) UI.feed(`🐴 ${this.name} ile bağın gelişti: Seviye ${this.bondLv}`);
+    if (this.bondLv > before) UI.feed(Tr`🐴 ${this.name} ile bağın gelişti: Seviye ${this.bondLv}`);
   }
   update(dt) {
     if (this.dead) return;
@@ -173,7 +173,7 @@ class Horse extends Ent {
     if (this.hp <= 0) {
       this.hp = 0; this.dead = true;
       if (this.rider === G.player) G.player.dismount(true);
-      if (this === G.horse) { UI.help(`${this.name} yaralandı ve yere düştü. Bir <b>At Diriltici</b> kullanabilir ya da ahırdan yeni at alabilirsin.`, 8); Audio_.neigh(); }
+      if (this === G.horse) { UI.help(Tr`${this.name} yaralandı ve yere düştü. Bir <b>At Diriltici</b> kullanabilir ya da ahırdan yeni at alabilirsin.`, 8); Audio_.neigh(); }
     } else if (!this.rider && this.owner !== 'player') { this.state = 'flee'; this.t = 4; }
   }
   draw(ctx) {
@@ -228,7 +228,7 @@ class Player extends Ent {
     if (add > 0) this.inv[id] = cur + add;
     if (!silent) {
       if (add > 0) UI.feed(`${Icons.item(it.id, 'ic inl')} +${add} ${it.n}`);
-      if (add < n) UI.feed(`Çantada yer yok: ${it.n}`, 'warn');
+      if (add < n) UI.feed(Tr`Çantada yer yok: ${it.n}`, 'warn');
     }
     if (add > 0 && it.c === 'collect') G.stat('collectibles', add);
     return add;
@@ -244,7 +244,7 @@ class Player extends Ent {
       this.weapons.add(w);
       const W = WEAPONS[w];
       if (W.clip) this.clip[w] = W.clip;
-      if (!silent) UI.feed(`${Icons.weapon(w, 'ic wpn inl')} Yeni silah: ${W.n}`);
+      if (!silent) UI.feed(Tr`${Icons.weapon(w, 'ic wpn inl')} Yeni silah: ${W.n}`);
     }
   }
   get maxHp() {
@@ -282,7 +282,7 @@ class Player extends Ent {
     const ox = Math.cos(side) * 10, oy = Math.sin(side) * 10;
     if (!G.world.blocked(h.x + ox, h.y + oy, this.r)) { this.x = h.x + ox; this.y = h.y + oy; }
     else if (!G.world.blocked(h.x - ox, h.y - oy, this.r)) { this.x = h.x - ox; this.y = h.y - oy; }
-    if (fall) { this.hurt(12, null, true); UI.feed('Attan düştün!'); }
+    if (fall) { this.hurt(12, null, true); UI.feed(Tr('Attan düştün!')); }
     h.spd *= 0.3;
   }
 
@@ -320,8 +320,8 @@ class Player extends Ent {
     if (!G.uiBlocksMove && !G.wheelOpen) this.updateCombat(dt);
     // fener ışığı
     if (I.pressed('lantern') && !G.wheelOpen) {
-      if (this.has('lantern')) { this.lantern = !this.lantern; Audio_.ui('pick'); UI.feed(this.lantern ? '🏮 Fener yakıldı' : '🏮 Fener söndürüldü'); }
-      else UI.feed('Fenerin yok. Genel mağazadan alabilirsin.', 'warn');
+      if (this.has('lantern')) { this.lantern = !this.lantern; Audio_.ui('pick'); UI.feed(this.lantern ? Tr('🏮 Fener yakıldı') : Tr('🏮 Fener söndürüldü')); }
+      else UI.feed(Tr('Fenerin yok. Genel mağazadan alabilirsin.'), 'warn');
     }
     if (!G.wheelOpen) {
       if (I.pressed('crouch') && !this.riding) { this.crouch = !this.crouch; }
@@ -582,7 +582,7 @@ class Player extends Ent {
   shoot() {
     const Wp = this.W;
     const c = this.clip[this.weapon] || 0;
-    if (c <= 0) { if (this.ammo[Wp.ammo] > 0) this.startReload(); else { Audio_.tone(1200, 0.03, 'square', 0.05); UI.feed('Mermin kalmadı!', 'warn'); } this.fireCd = 0.3; return; }
+    if (c <= 0) { if (this.ammo[Wp.ammo] > 0) this.startReload(); else { Audio_.tone(1200, 0.03, 'square', 0.05); UI.feed(Tr('Mermin kalmadı!'), 'warn'); } this.fireCd = 0.3; return; }
     this.clip[this.weapon] = c - 1;
     this.spent = this.spent || {}; this.spent[this.weapon] = (this.spent[this.weapon] || 0) + 1;
     this.fireCd = Wp.rate;
@@ -625,7 +625,7 @@ class Player extends Ent {
     G.skillXp('shooting', 0.5);
   }
   throwDynamite() {
-    if (!this.has('dynamite')) { UI.feed('Dinamitin yok.', 'warn'); return; }
+    if (!this.has('dynamite')) { UI.feed(Tr('Dinamitin yok.'), 'warn'); return; }
     this.removeItem('dynamite', 1);
     this.fireCd = 1;
     const d = Math.min(this.aimDist, 140), a = this.aimAng;
@@ -756,7 +756,7 @@ class Animal extends Ent {
         if (this.atkCd <= 0) {
           this.atkCd = 1.1;
           P.hurt(d.dmg * (G.difficulty === 'hard' ? 1.2 : 1), this.type);
-          if (d.venom && !G.player.riding) { P.poison = Math.max(P.poison, 90); UI.help('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.', 6); }
+          if (d.venom && !G.player.riding) { P.poison = Math.max(P.poison, 90); UI.help(Tr('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.'), 6); }
           if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar' || this.type === 'gator') Audio_.growl();
         }
       }
@@ -845,7 +845,7 @@ class NPC extends Ent {
     const P = G.player;
     const pd = dist(this.x, this.y, P.x, P.y);
     if (this.isLaw && !this.hostile && G.law.level > 0 && G.suspect() && this.canSee(P.x, P.y, 260)) { this.hostile = true; this.say(pick(LINES.law)); }
-    if (this.isLaw && this.hostile && (G.law.level === 0 || !G.suspect()) && !this.personal) { if (G.law.level > 0 && pd < 300) this.say(pick(['Nereye kayboldu bu maskeli?', 'Onu gördün mü? Maskeli biri!', 'İzini kaybettik!']), 2); this.hostile = false; this.state = 'idle'; }
+    if (this.isLaw && this.hostile && (G.law.level === 0 || !G.suspect()) && !this.personal) { if (G.law.level > 0 && pd < 300) this.say(pick([Tr('Nereye kayboldu bu maskeli?'), Tr('Onu gördün mü? Maskeli biri!'), Tr('İzini kaybettik!')]), 2); this.hostile = false; this.state = 'idle'; }
     if (this.state === 'report') { this.reportUpdate(dt, pd); return; }
     if (this.hostile && P.hp > 0) {
       if (this.role === 'bandit' && pd > 520 && !this.aggro) { this.idleUpdate(dt, pd); return; }
@@ -992,7 +992,7 @@ class NPC extends Ent {
     if (pd > 14) this.walk(dt, 50);
     else if (this.cool <= 0) { this.cool = rnd(0.8, 1.4); this.swing = 1; P.hurt(rndi(5, 9), 'fist'); Audio_.thud(0.4); }
     if (this.swing > 0) this.swing -= dt * 4;
-    if (this.hp < this.maxHp * 0.4) { this.state = 'flee'; this.t = 8; this.say('Tamam, tamam! Yeter!'); G.addHonor(-1); }
+    if (this.hp < this.maxHp * 0.4) { this.state = 'flee'; this.t = 8; this.say(Tr('Tamam, tamam! Yeter!')); G.addHonor(-1); }
     if (pd > 250) this.state = 'idle';
   }
   draw(ctx) {

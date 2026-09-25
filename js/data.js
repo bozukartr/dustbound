@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — oyun verileri: eşyalar, silahlar, hayvanlar,
+   FRONTIER'S END — oyun verileri: eşyalar, silahlar, hayvanlar,
    kasabalar, dükkanlar, başarımlar, geçmişler, isimler
    ========================================================== */
 

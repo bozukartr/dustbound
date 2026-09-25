@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — görsel efektler
+   FRONTIER'S END — görsel efektler
    Rüzgâr, bulut gölgeleri, baca/kamp dumanı, ayak/toynak izleri,
    yüzeye göre isabet efektleri, salınan bitki örtüsü, sonbahar
    yaprakları, su halkaları ve kıyı köpüğü, soğukta nefes buharı,

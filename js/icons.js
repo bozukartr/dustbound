@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — vektör ikon seti (SVG)
+   FRONTIER'S END — vektör ikon seti (SVG)
    - ITEM_ICONS: çok renkli, konturlu eşya/silah ikonları
    - GLYPHS: tek renkli arayüz glifleri (radar, harita, menü, HUD)
    ========================================================== */

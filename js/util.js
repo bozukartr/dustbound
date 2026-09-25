@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — yardımcı fonksiyonlar, RNG, gürültü, heap
+   FRONTIER'S END — yardımcı fonksiyonlar, RNG, gürültü, heap
    ========================================================== */
 
 const TAU = Math.PI * 2;
