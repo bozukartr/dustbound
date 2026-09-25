@@ -38,7 +38,8 @@ const G = {
     this.visited = new Set(); this.discovered = new Set(); this.rumored = new Set();
     this.props = []; this.family = { spouse: null, children: [] }; this.romances = {}; this.stable = [];
     this.campCleared = {}; this.chestsOpened = {}; this.graves = {}; this.dailyTalk = {}; this.robbed = {}; this.lostItems = []; this.events = [];
-    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {};
+    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {};
+    if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.reveal = new Uint8Array(65536);
     this.travelT = 10; this.eventT = 90;
@@ -206,19 +207,28 @@ const G = {
     const h = this.horse;
     this.noteBountyState();
     const data = {
-      v: 1, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
+      v: 2, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
       profile: this.profile,
       player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, canteen: P.canteen, coat: P.coat, mask: P.masked ? P.mask : null, lastMask: P.lastMask || null, lantern: P.lantern, riding: !!P.riding },
       horse: h ? { breed: h.breed, name: h.name, look: h.look, hp: h.hp, bond: h.bond, x: h.x, y: h.y, dead: h.dead } : null,
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), resMem: this.resMem, savedAt: Date.now(),
     };
     try {
       Platform.set(SAVE_KEY, JSON.stringify(data));
       if (!silent) UI.feed(Tr('💾 Oyun kaydedildi'));
     } catch (e) { UI.feed(Tr('Kayıt başarısız: ') + e.message, 'warn'); }
+  },
+  /* 1890 fiyat reformundan önceki kayıtlar: paralar yeni ölçeğe çekilir (alım gücü korunur) */
+  migrateEconomy() {
+    const P = this.player, S = this.stats, L = this.law;
+    P.money *= 0.3; this.bank *= 0.3;
+    L.bounty = Math.round(L.bounty * 0.5 * 100) / 100;
+    S.earned = (S.earned || 0) * 0.3; S.maxCash = (S.maxCash || 0) * 0.3; S.maxBounty = (S.maxBounty || 0) * 0.5;
+    if (this.activeBounty) this.activeBounty.reward = Math.round(this.activeBounty.reward * 0.5);
+    this.bounties = null;
   },
   hasSave() { return !!Platform.get(SAVE_KEY); },
   saveInfo() {
@@ -239,7 +249,7 @@ const G = {
     this.props = d.props || []; this.family = d.family || { spouse: null, children: [] }; this.romances = d.romances || {}; this.stable = d.stable || [];
     this.campCleared = d.campCleared || {}; this.robbed = d.robbed || {}; this.chestsOpened = d.chestsOpened || {}; this.graves = d.graves || {}; this.treasure = d.treasure; this.activeBounty = d.activeBounty; this.stash = d.stash || {};
     if (this.activeBounty) this.activeBounty.spawned = false;
-    this.hints = d.hints || {};
+    this.hints = d.hints || {}; this.resMem = d.resMem || {};
     this.world.harvested = new Map(d.harvested || []);
     for (const b of this.world.buildings) if (b.prop && this.props.includes(b.prop)) b.owned = true;
     const bin = atob(d.reveal);
@@ -259,6 +269,7 @@ const G = {
       if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h); }
     }
     this.loadCarry(d.carry);
+    if ((d.v || 1) < 2) this.migrateEconomy();
     Platform.syncAchievements(this.achieved);
     this.startPlay();
     UI.feed(Tr('Kayıt yüklendi. Hoş geldin, ') + P.name + '.');
@@ -304,6 +315,7 @@ const G = {
     const modal = UI.isModal() || UI.state === 'fade';
     this.uiBlocksMove = modal || this.state !== 'play';
     if (this.state === 'play' && !modal) this.handleGlobalInput(dt);
+    if (modal || this.state !== 'play') Bubbles.clear(); else Bubbles.update(dt);
     if (modal) { this.updateCamera(dt); return; }
     let ts = 1;
     if (this.wheelOpen) ts = 0.2;
@@ -312,7 +324,17 @@ const G = {
     const sdt = dt * ts;
     this.t += dt;
     if (this.state === 'play') P.update(sdt);
-    for (const e of this.ents) if (e !== P) e.update(sdt);
+    for (const e of this.ents) {
+      if (e === P) continue;
+      // uzaktaki kasaba sakinleri seyrek güncellenir (kalabalık kasabalarda performans)
+      if (e.res && !e.hostile && e.state !== 'flee' && e.state !== 'report' && !e.bound && Math.abs(e.x - P.x) + Math.abs(e.y - P.y) > 620) {
+        e.lodT = (e.lodT || 0) + sdt;
+        if (e.lodT < 0.2) continue;
+        e.update(e.lodT); e.lodT = 0;
+        continue;
+      }
+      e.update(sdt);
+    }
     this.updateProjectiles(sdt);
     this.ambientLife(sdt);
     for (const tr of this.trains) tr.update(sdt);
@@ -880,3 +902,4 @@ const G = {
 };
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(GameSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(CarrySystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(TownLifeSystems));

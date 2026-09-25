@@ -158,7 +158,7 @@ const CarrySystems = {
     if (e.kind !== 'npc') return 0;
     const B = this.activeBounty;
     if (B && e.bountyId === B.id) return e.dead ? Math.round(B.reward * 0.5) : B.reward;
-    if (e.role === 'bandit' || e.role === 'target') return e.dead ? 5 : 15;
+    if (e.role === 'bandit' || e.role === 'target') return e.dead ? 2 : 5;
     return 0;
   },
   deliverToSheriff(it) {

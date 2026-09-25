@@ -64,7 +64,7 @@ for (const m of html.matchAll(/<meta name="description" content="([^"]*)"/g)) co
 /* ---- 2) Veri tablolarındaki metinler: tabloları bir vm içinde yükle ---- */
 const noop = () => {}, el = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => '' : el), apply: () => el, construct: () => el });
 const ctx = vm.createContext({ console, window: el, document: el, navigator: { language: 'tr' }, localStorage: { getItem: () => null, setItem: noop }, requestAnimationFrame: noop, performance: { now: () => 0 }, Audio: el, Image: el, AudioContext: el, setTimeout: noop });
-const order = ['util', 'i18n', 'icons', 'data', 'input', 'audio', 'world', 'sprites', 'entities', 'systems', 'ui', 'cinema', 'fx'];
+const order = ['util', 'i18n', 'icons', 'data', 'input', 'audio', 'world', 'sprites', 'entities', 'systems', 'townlife', 'ui', 'cinema', 'fx'];
 vm.runInContext(order.map(f => fs.readFileSync(path.join(ROOT, 'js', f + '.js'), 'utf8').replace(/^'use strict';/, '')).join('\n;\n') + '\n;globalThis.__T = I18N.TABLES();', ctx, { filename: 'game.js' });
 const tableKeys = new Set();
 const human = s => /[A-Za-zÇĞİÖŞÜçğıöşü]{2,}/.test(s) && !/^[a-z][A-Za-z0-9_@]*$/.test(s) && !/^#[0-9a-f]+$/i.test(s) && !/^[A-Z0-9_]+$/.test(s);

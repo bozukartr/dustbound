@@ -875,7 +875,7 @@ class NPC extends Ent {
     this.home = opts.home || null;
     this.cool = rnd(1, 2);
     this.strafe = 1; this.strafeT = 0;
-    this.money = opts.money !== undefined ? opts.money : rnd(0.5, 8);
+    this.money = opts.money !== undefined ? opts.money : rnd(0.05, 1.5);   // 1890'da cepteki para: birkaç kuruş ile bir iki dolar
     this.looted = false;
     this.mounted = opts.mounted ? { col: pick(HORSE_BREEDS.mustang.cols), mane: '#1a1410', blanket: '#5a4a3a' } : null;
     this.path = opts.path || null; this.pi = opts.pi || 0; this.pdir = opts.pdir || 1;
@@ -997,6 +997,7 @@ class NPC extends Ent {
     }
     if (this.state === 'robbed') { this.mv = 0; if (this.t <= 0) { this.state = this.witness ? 'report' : 'flee'; this.t = 8; } return; }
     if (this.state === 'fightFist') { this.fistFight(dt, pd); return; }
+    if (this.res) { G.drive(this, dt); return; }   // kasaba sakini: günlük programını izler
     this.idleUpdate(dt, pd);
   }
   idleUpdate(dt, pd) {
@@ -1139,7 +1140,7 @@ class NPC extends Ent {
     Spr.human(ctx, this.x, this.y, this.ang, this.look, {
       walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held,
       aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing', wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
-      swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon,
+      swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon, hold: this.state === 'flee' || this.state === 'report' ? null : this.carry2,
     });
     if (this.witness && !this.dead) {
       // tanık işareti

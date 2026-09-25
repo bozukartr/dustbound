@@ -315,6 +315,9 @@ const GameSystems = {
     } else {
       m *= 1 + this.skill('trade') * 0.025;
     }
+    // dükkân sahibinin oyuncu hakkındaki fikri: en fazla %10 indirim ya da zam
+    const st = this.insideB && this.insideB.staffNpc;
+    if (st && st.res && !st.dead) { const op = this.opOf(st.res); m *= buying ? 1 - op * 0.001 : 1 + op * 0.0006; }
     return m;
   },
   buyPrice(id) { return ITEMS[id].p * this.priceMul(true); },
@@ -328,19 +331,19 @@ const GameSystems = {
     if (it.c === 'animal' && this.hasPerk('hunt25')) p *= 1.15;
     // dükkanlarda satılan bir eşya, en ucuza alınabileceği fiyatın altında satılır (al-sat döngüsüyle para basılamasın)
     if (PURCHASABLE.has(id)) p = Math.min(p, it.p * 0.6);
-    return Math.max(0.05, p);
+    return Math.max(0.01, p);
   },
 
   /* ================= KANUN ================= */
   crime(type, x, y, victim, opts = {}) {
     const C = {
-      murder: [60, 2, -12, Tr('Cinayet')], murderLaw: [120, 3, -15, Tr('Kanun adamı öldürme')], assault: [12, 1, -3, Tr('Saldırı')], assaultLaw: [25, 2, -4, Tr('Kanun adamına saldırı')],
-      livestock: [10, 0, -3, Tr('Hayvan öldürme'), 1], livestockHurt: [0, 0, -1, ''], horsetheft: [35, 1, -4, Tr('At hırsızlığı')], robbery: [20, 1, -6, Tr('Soygun')],
-      storerob: [70, 2, -8, Tr('Dükkan soygunu')], storeNight: [45, 2, -6, Tr('Gece dükkan soygunu')], trespass: [5, 0, -2, Tr('Haneye tecavüz'), 1], bankrob: [350, 4, -15, Tr('Banka soygunu')], looting: [8, 1, -2, Tr('Ceset soyma')], trample: [15, 1, -3, Tr('Ezme')],
+      murder: [50, 2, -12, Tr('Cinayet')], murderLaw: [100, 3, -15, Tr('Kanun adamı öldürme')], assault: [5, 1, -3, Tr('Saldırı')], assaultLaw: [10, 2, -4, Tr('Kanun adamına saldırı')],
+      livestock: [3, 0, -3, Tr('Hayvan öldürme'), 1], livestockHurt: [0, 0, -1, ''], horsetheft: [25, 1, -4, Tr('At hırsızlığı')], robbery: [8, 1, -6, Tr('Soygun')],
+      storerob: [30, 2, -8, Tr('Dükkan soygunu')], storeNight: [15, 2, -6, Tr('Gece dükkan soygunu')], trespass: [1, 0, -2, Tr('Haneye tecavüz'), 1], bankrob: [200, 4, -15, Tr('Banka soygunu')], looting: [2, 1, -2, Tr('Ceset soyma')], trample: [5, 1, -3, Tr('Ezme')],
     }[type];
     if (!C) return;
     let [bounty, lvl, honor, name, minor] = C;
-    if (type === 'livestock' && victim && victim.type === 'chicken') { bounty = 2; honor = -1; name = Tr('Tavuk öldürme'); }
+    if (type === 'livestock' && victim && victim.type === 'chicken') { bounty = 0.5; honor = -1; name = Tr('Tavuk öldürme'); }
     if (!opts.noHonor) this.addHonor(honor);
     if (lvl === 0 && !minor) return;
     const P = this.player;
@@ -350,10 +353,16 @@ const GameSystems = {
     for (const e of this.ents) {
       if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
       if (e.state === 'hurt' || e.bound) continue;
+      if (e.res && e !== victim && this.opOf(e.res) >= 50 && chance(0.5)) continue;   // oyuncuyu seven sakin bazen görmezden gelir
       const see = e === victim ? dist2(e.x, e.y, x, y) < 60 * 60 : dist2(e.x, e.y, x, y) < 340 * 340 && this.los(e.x, e.y, x, y);
       if (!see) continue;
       if (e.isLaw) instant = true;
       ws.push(e);
+    }
+    // sakinler gördüklerini unutmaz
+    if (!this.anonymous()) {
+      for (const w of ws) if (w.res && w !== victim) this.resOpinion(w, type === 'trespass' || type === 'livestock' ? -3 : -10);
+      if (victim && victim.res && !victim.dead) this.resOpinion(victim, -35, type === 'robbery' ? 'robbed' : 'hurt');
     }
     if (!instant && !ws.length) { UI.feed(Tr('Kimse görmedi...')); return; }
     // küçük kabahat: kovalamaca yok, yalnızca para cezası
@@ -448,6 +457,7 @@ const GameSystems = {
     if (chance(ch)) {
       setTimeout(() => e.say(pick(LINES.silenced), 2.5), 700);
       this.silenceWitness(e);
+      this.resOpinion(e, -20, 'threat');
       this.addHonor(-2); this.skillXp('charisma', 2);
       UI.feed(Tr`${Icons.glyph('witness', '#efe6d2', 'ic inl')} Tanık susturuldu.`);
     } else {
@@ -456,7 +466,7 @@ const GameSystems = {
       UI.feed(Tr('Tanık korkmadı ve kaçıyor!'), 'warn');
     }
   },
-  bribeCost(e) { return Math.round(5 + (e.witness ? e.witness.bounty : 10) * 0.3); },
+  bribeCost(e) { return Math.round((0.5 + (e.witness ? e.witness.bounty : 5) * 0.2) * 4) / 4; },   // çeyrek dolara yuvarlanır
   bribeWitness(e) {
     const P = this.player, r = e.witness;
     if (!r) return;
@@ -563,11 +573,11 @@ const GameSystems = {
     const L = this.law, P = this.player;
     if (L.level <= 0) {
       // tanınma
-      if (L.bounty >= 40 && !P.masked) {
+      if (L.bounty >= 20 && !P.masked) {
         const town = this.world.townAt(P.x, P.y);
         // kıyafet eşkâle ne kadar uyuyor? (şapka + palto)
         const D = L.desc, match = D ? (D.hat === P.look.hat) + (D.coat === (P.coat || null)) : 2;
-        const [need, near] = match === 2 ? [6, 70] : match === 1 ? [14, 45] : L.bounty >= 200 ? [20, 34] : [1e9, 0];
+        const [need, near] = match === 2 ? [6, 70] : match === 1 ? [14, 45] : L.bounty >= 90 ? [20, 34] : [1e9, 0];
         if (town) {
           L.recog = (L.recog || 0) + dt;
           for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && dist(e.x, e.y, P.x, P.y) < near && L.recog > need && e.canSee(P.x, P.y, near)) {
@@ -665,7 +675,7 @@ const GameSystems = {
     this.dropCarry(true);
     if (this.horse && this.horse.load.length) { const n = this.horse.load.length; this.dropHorseLoad(this.horse); if (n) UI.feed(Tr('Eyerindeki yükleri indirdiler.'), 'law'); }
     const fine = Math.round((L.bounty + (L.maskBounty || 0)) * 100) / 100;
-    const days = clamp(Math.ceil(fine / 40), 1, 7);
+    const days = clamp(Math.ceil(fine / 15), 1, 7);
     const sheriff = this.nearestTown(P.x, P.y, t => t.buildings.some(b => b.type === 'sheriff'));
     const office = sheriff && sheriff.buildings.find(b => b.type === 'sheriff');
     cop.say(pick([Tr('Akıllıca bir karar.'), Tr('Eller arkaya. Yavaşça.'), Tr('Hadi bakalım, şerif ofisine.')]), 3);
@@ -784,7 +794,7 @@ const GameSystems = {
     tune.forEach((n, k) => setTimeout(() => { Audio_.pluck(sc[n], 0.12); if (k % 3 === 0) Audio_.pluck(sc[n] / 2, 0.08); }, k * 230));
     UI.feed(Tr('🎵 Piyanoda eski bir türkü çaldın.'));
     const k = 'piano' + b.id;
-    if (!this.dailyTalk[k]) { this.dailyTalk[k] = 1; if (chance(0.5)) { const tip = rnd(0.2, 1.5); setTimeout(() => this.earn(tip, Tr('Bahşiş')), tune.length * 230); } this.skillXp('charisma', 1); }
+    if (!this.dailyTalk[k]) { this.dailyTalk[k] = 1; if (chance(0.5)) { const tip = rnd(0.05, 0.3); setTimeout(() => this.earn(tip, Tr('Bahşiş')), tune.length * 230); } this.skillXp('charisma', 1); }
   },
   isOpen(b) {
     if (['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn'].includes(b.type)) return true;
@@ -859,6 +869,7 @@ const GameSystems = {
     if (hit) {
       if (hit === this.player) hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : 'haydut');
       else hit.hurt(dmg, owner === this.player ? 'player' : 'npc', 'gun');
+      if (hit.kind === 'wagon' && Math.abs(ex - this.player.x) < 700) FX.impact(ex, ey, ang);
       if (owner === this.player && hit.dead && hd > 400) this.stat('longKills', 1);
     } else {
       if (Math.abs(ex - this.player.x) < 700 && Math.abs(ey - this.player.y) < 500) FX.impact(ex, ey, ang);
@@ -908,7 +919,7 @@ const GameSystems = {
   onNpcKill(n, how) {
     this.stat('kills', 1);
     if (n.role === 'bandit' || n.role === 'target') { this.stat('bandits', 1); this.addHonor(1); this.skillXp('shooting', 6); }
-    else if (n.isLaw) { if (!n.hostile || this.law.level === 0) this.crime('murderLaw', n.x, n.y, n); else { if (this.anonymous()) this.law.maskBounty = (this.law.maskBounty || 0) + 40; else this.law.bounty += 40; this.law.level = Math.min(5, this.law.level + (chance(0.4) ? 1 : 0)); this.addHonor(-4); UI.wanted(Tr('Kanun adamı öldürüldü'), 40); } }
+    else if (n.isLaw) { if (!n.hostile || this.law.level === 0) this.crime('murderLaw', n.x, n.y, n); else { if (this.anonymous()) this.law.maskBounty = (this.law.maskBounty || 0) + 30; else this.law.bounty += 30; this.law.level = Math.min(5, this.law.level + (chance(0.4) ? 1 : 0)); this.addHonor(-4); UI.wanted(Tr('Kanun adamı öldürüldü'), 30); } }
     else if (!n.hostile) { if (n.assaulted) { this.law.bounty = Math.max(0, this.law.bounty - 12); this.addHonor(3); } this.crime(how === 'trample' ? 'trample' : 'murder', n.x, n.y, n); }
     // masum birinin cesedi kanıttır: bulunursa ve sen yakındaysan suç sana yazılır
     if (!(n.role === 'bandit' || n.role === 'target')) n.evidence = true;
@@ -990,35 +1001,12 @@ const GameSystems = {
     for (const t of W.towns) {
       const d = dist(t.cx, t.cy, P.x, P.y);
       if (d < 1100 && !t.spawned) this.spawnTown(t);
-      else if (d > 1500 && t.spawned) { t.spawned = false; for (const e of ents) if (e.town === t.id) e.remove = true; }
+      else if (d > 1500 && t.spawned) { t.spawned = false; t._res = null; for (const e of ents) if (e.town === t.id) e.remove = true; }
     }
-    // kasaba günlük nüfus döngüsü
-    const ct = W.townAt(P.x, P.y, 40);
-    for (const t of W.towns) if (t.spawned) this.townStaff(t);
+    // kasaba hayatı: sakinlerin günlük programı, dükkân çalışanları, yol trafiği
+    for (const t of W.towns) if (t.spawned) { this.townTick(t); this.townStaff(t); }
+    this.trafficTick();
     this.nomadTick();
-    if (ct && ct.spawned) {
-      const base = ct.sz === 'l' ? 18 : ct.sz === 'm' ? 13 : 9;
-      const h = this.hour;
-      const want = Math.round(base * (h < 5 || h > 22 ? 0.25 : h < 7 || h > 20 ? 0.55 : 1));
-      const towns = ents.filter(e => e.town === ct.id && e.role === 'town' && !e.dead && !e.remove);
-      if (towns.length < want && chance(0.35)) {
-        const houses = ct.buildings.filter(b => b.type === 'house');
-        const b = (h >= 5 && h < 10 && houses.length && chance(0.7)) ? pick(houses) : pick(ct.buildings.filter(b => b.type !== 'station'));
-        const n = new NPC(b.door.x, b.door.y + 8, 'town', { home: { x: b.door.x, y: b.door.y + 30, r: rnd(60, 150) } });
-        n.town = ct.id; n.ang = Math.PI / 2; this.addEnt(n);
-      } else if (towns.length > want && chance(0.25)) {
-        // akşam: biri evine yürür ve kapıdan içeri girer
-        const e = towns.find(e => !e.goHome && !e.seat && (e.state === 'idle' || e.state === 'walk'));
-        if (e) {
-          const hs = ct.buildings.filter(b => b.type === 'house' || b.type === 'hotel');
-          const b = hs.length ? hs.reduce((a, c) => dist2(c.door.x, c.door.y, e.x, e.y) < dist2(a.door.x, a.door.y, e.x, e.y) ? c : a) : pick(ct.buildings);
-          e.goHome = b; e.home = null; e.state = 'walk'; e.target = { x: b.door.x, y: b.door.y + 2 }; e.t = 45;
-        } else {
-          const far = towns.find(e => dist2(e.x, e.y, P.x, P.y) > 280 * 280 && e.state !== 'flee' && !e.seat);
-          if (far) far.remove = true;
-        }
-      }
-    }
     // çiftlikler & kamplar
     for (const p of W.pois) {
       const d = dist(p.x, p.y, P.x, P.y);
@@ -1078,7 +1066,7 @@ const GameSystems = {
     const bx = B && B.status ? B.bx || B.x : B && B.x, by = B && B.status ? B.by || B.y : B && B.y;
     if (B && !B.done && !B.spawned && dist(P.x, P.y, bx, by) < 650) {
       B.spawned = true;
-      const t = new NPC(bx, by, 'target', { hostile: true, name: B.name, hp: 170, weapon: 'repeater', home: { x: B.x, y: B.y, r: 40 }, money: rnd(10, 30) });
+      const t = new NPC(bx, by, 'target', { hostile: true, name: B.name, hp: 170, weapon: 'repeater', home: { x: B.x, y: B.y, r: 40 }, money: rnd(3, 10) });
       t.bountyId = B.id; t.keep = true; this.addEnt(t);
       // kayıttan dönüş: hedef önceden öldürülmüş ya da bağlanmışsa öyle belirir
       if (B.status === 'dead') { t.dead = true; t.hp = 0; t.state = 'dead'; t.deadT = 0; }
@@ -1123,15 +1111,7 @@ const GameSystems = {
   },
   spawnTown(t) {
     t.spawned = true;
-    const W = this.world;
-    const n = t.sz === 'l' ? 18 : t.sz === 'm' ? 13 : 9;
-    for (let i = 0; i < n; i++) {
-      const sp = pick(t.streetPts);
-      const x = sp.x + rnd(-10, 10), y = sp.y + rnd(-10, 10);
-      if (W.blocked(x, y, 4) || W.indoorPx(x, y)) continue;
-      const npc = new NPC(x, y, 'town', { home: { x, y, r: rnd(60, 160) } });
-      npc.town = t.id; this.addEnt(npc);
-    }
+    t._res = null;
     const sheriff = t.buildings.find(b => b.type === 'sheriff');
     if (sheriff) for (let i = 0; i < 2; i++) {
       const x = sheriff.door.x + rnd(-30, 30), y = sheriff.door.y + 20;
@@ -1156,6 +1136,7 @@ const GameSystems = {
       c.home = { x: b.door.x, y: b.door.y + 16, r: 40 }; c.town = t.id; c.keepTown = true; this.addEnt(c);
     }
     for (const e of this.ents) if (e.town === t.id && e.kind === 'animal') e.keep = false;
+    this.townTick(t);
     this.townStaff(t);
   },
   /* ================= GÖÇEBELER ================= */
@@ -1310,10 +1291,13 @@ const GameSystems = {
       if (b.staff) {
         const open = this.isOpen(b) && !b.def.lock;
         if (b.staffNpc && b.staffNpc.dead) { b.staffDead = day; b.staffNpc = null; }
-        if (open && !alive(b.staffNpc) && b.staffDead !== day) {
+        // tezgâhtaki kişi, kasabanın kalıcı sakinlerinden dükkân sahibidir: işe yürüyerek gelir
+        const kr = b.type === 'sheriff' ? null : this.keeperOf(b);
+        if (open && !alive(b.staffNpc) && b.staffDead !== day && (!kr || kr.inside === b && !kr.ent)) {
           const role = b.type === 'sheriff' ? 'law' : 'clerk';
-          const n = new NPC(b.staff.x, b.staff.y, role, { state: 'static', home: { x: b.staff.x, y: b.staff.y, r: 6 }, money: rnd(3, 12) });
+          const n = new NPC(b.staff.x, b.staff.y, role, { state: 'static', home: { x: b.staff.x, y: b.staff.y, r: 6 }, money: rnd(1, 4), look: kr ? kr.look : undefined, name: kr ? kr.name : undefined });
           n.ang = Math.PI / 2; n.town = t.id; n.work = b.id; n.keepTown = true;
+          if (kr) { n.res = kr; n.staffOf = b; kr.ent = n; kr.inside = null; }
           if (b.type === 'church') { n.look = Object.assign({}, n.look, { coat: '#1a1a1e', hat: 'none', shirt: '#f0ece0' }); n.name = Tr('Peder ') + n.name.split(' ')[1]; }
           this.addEnt(n); b.staffNpc = n;
         } else if (!open && alive(b.staffNpc) && this.insideB !== b) { b.staffNpc.remove = true; b.staffNpc = null; }
@@ -1321,13 +1305,6 @@ const GameSystems = {
       // saloon müşterileri ve piyanist
       if (b.type === 'saloon') {
         b.patrons = (b.patrons || []).filter(alive);
-        const want = Math.min(b.seats.length, h >= 18 || h < 2 ? 5 : h >= 11 ? 2 : 0);
-        if (b.patrons.length < want && chance(this.insideB === b ? 0.05 : 1)) {
-          const P = this.player;
-          const free = b.seats.filter(s => !b.patrons.some(p => p.seat === s) && dist2(s.x, s.y, P.x, P.y) > 30 * 30);
-          const s = pick(free);
-          if (s) { const n = new NPC(s.x, s.y, 'town', { state: 'sit' }); n.seat = s; n.town = t.id; n.ang = s.x < b.x * TS + b.w * 8 ? 0 : Math.PI; n.keepTown = true; this.addEnt(n); b.patrons.push(n); }
-        } else if (b.patrons.length > want && this.insideB !== b) { const n = b.patrons.pop(); n.remove = true; }
         const night = h >= 19 || h < 1;
         if (night && !alive(b.pianist) && b.piano) { const n = new NPC(b.piano.x, b.piano.y + 2, 'clerk', { state: 'sit' }); n.ang = -Math.PI / 2; n.town = t.id; n.name = Tr('Piyanist ') + n.name.split(' ')[0]; this.addEnt(n); b.pianist = n; }
         else if (!night && alive(b.pianist) && this.insideB !== b) { b.pianist.remove = true; b.pianist = null; }
@@ -1377,7 +1354,7 @@ const GameSystems = {
       ev.onDeath = (who) => {
         if (who === b && !v.dead && !ev.done) {
           ev.done = true;
-          setTimeout(() => { if (v.dead) return; v.say(Tr('Hayatımı kurtardın! Al, bu senin.')); this.earn(rndi(4, 12), Tr('Teşekkür')); this.addHonor(6); this.stat('helped', 1); v.state = 'idle'; v.path = null; }, 800);
+          setTimeout(() => { if (v.dead) return; v.say(Tr('Hayatımı kurtardın! Al, bu senin.')); this.earn(rnd(0.5, 2), Tr('Teşekkür')); this.addHonor(6); this.stat('helped', 1); v.state = 'idle'; v.path = null; }, 800);
         }
       };
       setTimeout(() => v.say(Tr('Yardım edin! Soyuluyorum!')), 300);
@@ -1539,7 +1516,7 @@ const GameSystems = {
         if (e.dead) continue;
         if (e.hostile && e.aggro) continue;
         const acts = this.npcActions(e);
-        if (acts.length) add(e.x, e.y, e.name, acts, 3);
+        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)}` : e.name, acts, 3);
       }
     }
     // kayıp eşyalar
@@ -1548,7 +1525,7 @@ const GameSystems = {
       if (dist2(P.x, P.y, L.x, L.y) < 26 * 26) add(L.x, L.y, Tr('Yerde bir şey parlıyor'), [{ n: Tr('Al'), fn: () => { P.addItem(L.item); this.lostItems.splice(i, 1); } }]);
     }
     // olay arabası
-    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < 30 * 30) add(ev.wagon.x, ev.wagon.y, Tr('Kırık Araba'), [{ n: Tr('Tekerleği Tamir Et'), hold: 3, fn: () => { ev.done = true; this.earn(rndi(4, 9), Tr('Tamir')); this.addHonor(4); this.stat('helped', 1); UI.subtitle(Tr('Yolcu'), Tr('Allah razı olsun dostum!'), 3); this.skillXp('strength', 5); } }]);
+    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < 30 * 30) add(ev.wagon.x, ev.wagon.y, Tr('Kırık Araba'), [{ n: Tr('Tekerleği Tamir Et'), hold: 3, fn: () => { ev.done = true; this.earn(rnd(0.25, 1), Tr('Tamir')); this.addHonor(4); this.stat('helped', 1); UI.subtitle(Tr('Yolcu'), Tr('Allah razı olsun dostum!'), 3); this.skillXp('strength', 5); } }]);
     // nesneler
     const tx0 = (P.x >> 4) - 1, ty0 = (P.y >> 4) - 1;
     for (let ty = ty0; ty <= ty0 + 2; ty++) for (let tx = tx0; tx <= tx0 + 2; tx++) {
@@ -1643,7 +1620,7 @@ const GameSystems = {
     if (e.eventType === 'injured' || e.eventType === 'snakebite') {
       if (!ev.done) {
         acts.push({ n: Tr('Yardım Et'), fn: () => this.helpStranger(e) });
-        acts.push({ n: Tr('Üstünü Ara (Soy)'), fn: () => { ev.done = true; this.earn(rnd(2, 8), ''); this.crime('robbery', e.x, e.y, e); this.addHonor(-4); e.say(Tr('Seni... alçak...')); } });
+        acts.push({ n: Tr('Üstünü Ara (Soy)'), fn: () => { ev.done = true; this.earn(rnd(0.25, 1.5), ''); this.crime('robbery', e.x, e.y, e); this.addHonor(-4); e.say(Tr('Seni... alçak...')); } });
       } else acts.push({ n: Tr('Konuş'), fn: () => e.say(Tr('Sağ ol yabancı. Seni unutmayacağım.')) });
       return acts;
     }
@@ -1684,7 +1661,9 @@ const GameSystems = {
     const town = this.world.townAt(P.x, P.y);
     const fmt = (l) => l.replace('{ad}', P.name.split(' ')[0]).replace('{kasaba}', town ? town.n : 'buralar');
     let line;
+    const rl = !P.masked && this.residentGreet(e);
     if (P.masked) line = pick(LINES.maskTown);
+    else if (rl) line = rl;
     else if (P.clean < 20 && chance(0.5)) line = pick(LINES.dirty);
     else if (P.drunk > 50) line = pick(LINES.drunk);
     else if (this.honor < -40 && chance(0.7)) line = pick(LINES.greetLow);
@@ -1720,7 +1699,7 @@ const GameSystems = {
     e.robbed = true;
     if (!e.bound) { e.state = 'robbed'; e.t = 3; }
     e.say(pick(LINES.robbed));
-    const v = Math.max(1, e.money) * mul;
+    const v = Math.max(0.1, e.money) * mul;
     this.earn(v, Tr('Soygun'));
     if (chance(0.3)) this.player.addItem(pick(['pocket_watch', 'gold_ring', 'cig_card', 'tobacco']));
     this.crime('robbery', e.x, e.y, e);
@@ -1826,7 +1805,7 @@ const GameSystems = {
       if (id.startsWith('ammo_')) { const a = id.slice(5); P.ammo[a] = Math.min(AMMO[a].max, P.ammo[a] + n); UI.feed(`+${n} ${AMMO[a].n}`); continue; }
       if (chance(0.85)) P.addItem(id, Math.max(1, Math.round(n * good)));
     }
-    const money = rnd(2, 15) * good * (loot === 'ship' || loot === 'ghost' ? 3 : 1);
+    const money = rnd(0.5, 4) * good * (loot === 'ship' || loot === 'ghost' ? 3 : 1);
     this.earn(money, Tr('Sandık'));
     if (!this.treasure && chance(0.25)) { P.addItem('treasure_map'); this.makeTreasure(); UI.help(Tr('Sandıkta eski bir <b>hazine haritası</b> buldun! Çantandan inceleyebilirsin.'), 6); }
   },
@@ -1849,7 +1828,7 @@ const GameSystems = {
     P.removeItem('treasure_map');
     this.treasure = null;
     this.advanceClock(30);
-    const v = rndi(80, 220);
+    const v = rnd(25, 80);
     this.earn(v, Tr('Hazine'));
     if (chance(0.5)) P.addItem('gold_bar', 1);
     P.addItem(pick(['gold_ring', 'necklace', 'pocket_watch']));
@@ -1887,7 +1866,7 @@ const GameSystems = {
     this.advanceClock(10);
     if (last !== undefined && this.day - last < 7) { UI.feed(Tr('Çekmeceler boş. Burayı yakın zamanda aradın.')); return; }
     this.chestsOpened[k] = this.day;
-    const money = rnd(1, 9) * (this.hasPerk('devil') ? 1.5 : 1);
+    const money = rnd(0.25, 2.5) * (this.hasPerk('devil') ? 1.5 : 1);
     this.earn(money, Tr('Hırsızlık'));
     if (chance(0.45)) P.addItem(pick(['bread', 'beans', 'coffee', 'whiskey', 'bandage', 'tobacco', 'cig_card', 'pocket_watch']));
   },
@@ -1959,7 +1938,7 @@ const GameSystems = {
     ev.done = true;
     e.state = 'idle'; e.home = { x: e.x, y: e.y, r: 30 };
     e.say(Tr('Hayatımı kurtardın! Bu küçük hediyeyi kabul et lütfen.'));
-    this.earn(rndi(5, 15), Tr('Minnet'));
+    this.earn(rnd(1, 3), Tr('Minnet'));
     if (chance(0.4)) P.addItem(pick(['gold_ring', 'pocket_watch', 'chocolate', 'whiskey']));
     this.addHonor(8);
     this.stat('helped', 1);
