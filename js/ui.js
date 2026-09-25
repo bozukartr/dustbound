@@ -1801,7 +1801,7 @@ const UI = {
       </div>
       <div class="cr-left"><div class="cr-sec">${TABS[tab].n}</div><div class="cr-list">${rowsHtml()}</div></div>
       <div class="cr-stage">
-        <div class="cr-frame"><canvas id="cr-portrait" width="300" height="360"></canvas><i class="cr-c tl"></i><i class="cr-c tr"></i><i class="cr-c bl"></i><i class="cr-c br"></i></div>
+        <div class="cr-frame"><canvas id="cr-portrait" width="400" height="480"></canvas><i class="cr-c tl"></i><i class="cr-c tr"></i><i class="cr-c bl"></i><i class="cr-c br"></i></div>
         <div class="cr-plate"><div class="cr-pn" id="cr-pn"></div><div class="cr-ps" id="cr-ps"></div></div>
         <div class="cr-ped"><canvas id="cr-top" width="96" height="96"></canvas></div>
       </div>
@@ -1810,7 +1810,7 @@ const UI = {
         <div class="cr-btns"><div class="p-item nav" id="cr-rand">${Tr`${Icons.glyph('dice', '#e8dcc6')} Rastgele`}</div><div class="p-item nav pref" id="cr-go">${Tr`Hayata Başla ${Input.glyph('confirm')}`}</div></div></div>`;
     let m;
     const refresh = () => {
-      Spr.portrait($('#cr-portrait', el).getContext('2d'), 300, 360, look, 18);
+      Spr.portrait($('#cr-portrait', el).getContext('2d'), 400, 480, look, 18);
       const BG = BACKGROUNDS.find(b => b.id === prof.bg), D = DIFFICULTIES.find(d => d.id === prof.difficulty), L = LIFE_PACES.find(p => p.id === prof.pace);
       const town = TOWNS.find(t => t.id === BG.town);
       $('#cr-pn', el).textContent = prof.name || '—';
