@@ -58,6 +58,10 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - 25 keşfedilecek önemli yer: göktaşı krateri, bin yıllık sekoya, hayalet kasaba, terk edilmiş maden, sıcak kaynaklar, dinozor kemikleri, karaya oturmuş gemi, gözetleme tepeleri. Bunlara haydut kampları, çiftlikler ve satılık mülkler eklenir.
 - Gezdikçe açılan parşömen harita, GPS rotası ve RDR2 tarzı radar.
 - Gece-gündüz döngüsü, yağmur, fırtına, kar, kum fırtınası ve sis.
+- **Canlı görsel efektler**: Ortak bir rüzgâr yönü bulut gölgelerini, baca ve kamp ateşi dumanını, yağmuru, otları ve sazlıkları etkiler. Çalılar, otlar, çiçekler ve ekinler rüzgârda salınır, yanlarından geçince eğilir. Sonbaharda ağaçlardan yaprak düşer. Kasaba bacaları sabah ve akşam, soğukta ise gün boyu tüter. Kum, çöl, çamur ve karda ayak ve toynak izleri kalır; seyrek ve silik tutulur, yarım dakikada solar (kasaba sokaklarında iz kalmaz). Suda yürürken ve yağmurda su yüzeyinde halkalar oluşur, kıyıya ince dalgalar vurur. Soğukta oyuncunun, atların ve NPC'lerin nefesi buhar olur.
+- **Silah efektleri**: Mermi değdiği yüzeye göre tepki verir: suda sıçrama ve halka, ahşapta kıymık, kayada kıvılcım, toprakta, kumda ya da karda o zeminin renginde toz. Iskalanan mermiler nişan noktasının biraz ötesinde yere saplanır; üstüne ateş edilirken etrafında toz kalktığını görürsün. Namlu dumanı havada asılı kalıp rüzgârla dağılır. Kollu tüfekler her atışta kovan fırlatır, tabanca ve av tüfeği dolumda boş kovanları döker.
+- **Renk ve ekran efektleri**: Gün doğumu ve batımında altın saat, alacakaranlıkta mavi saat, çölde sıcak, yağmurda soğuk ve soluk, karda buz mavisi, bataklıkta yeşilimsi tonlar yumuşak geçişlerle uygulanır. Sağlık azaldıkça renkler çekilir ve kalp atışıyla ekran kenarı kızarır (kalp sesi duyulur). Sarhoşken görüntü çift görünür ve sallanır. Ayazda ekran kenarları buz tutar. Dead Eye sepya tonuna, film grenine ve çiziklere bürünür.
+- Ayarlar > **Görsel Efektler**: *Tam* ya da *Sade*. Sade modda bitki salınımı, bulut gölgeleri, yapraklar ve izler kapanır; renk ve durum efektleri kalır.
 - **Mevsimler görünür**: kışın soğuk bölgeler, çatılar ve ağaçlar karla kaplanır, göller donar, yapraklı ağaçlar çıplak kalır; sonbaharda yapraklar sararır; yazın otlar kurur. Harita da mevsime göre değişir.
 
 **Hayatta kalma ve hayat**
@@ -122,6 +126,7 @@ js/entities.js  oyuncu, at, hayvan, NPC, tren, parçacıklar
 js/systems.js   zaman, hava, hayatta kalma, kanun, doğma, etkileşim
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar
 js/cinema.js    kasabaya varış sinematikleri (kütüphanesiz WebGL)
+js/fx.js        görsel efektler: rüzgâr, bulut gölgesi, duman, iz, isabet, salınım, su, renk derecelendirme
 js/game.js      oyun döngüsü, kamera, render, ışık, kayıt
 js/main.js      başlatıcı
 ```

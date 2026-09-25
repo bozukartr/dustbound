@@ -21,9 +21,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 #app { position: fixed; inset: 0; overflow: hidden; }
 #game { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; transition: filter 0.4s; }
 body.deadeye #game { filter: sepia(0.85) saturate(1.8) contrast(1.2) hue-rotate(-12deg) brightness(0.95); }
-body.lowhp #game { filter: saturate(0.35) contrast(1.05); }
-body.drunk #game { animation: wobble 4s ease-in-out infinite; filter: blur(0.7px) saturate(1.2); }
-@keyframes wobble { 0%, 100% { transform: rotate(0deg) scale(1.02); } 25% { transform: rotate(0.8deg) scale(1.03); } 75% { transform: rotate(-0.8deg) scale(1.02); } }
+body.drunk #game { filter: blur(0.5px); }
 #fx-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%); }
 #fx-hurt { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(150, 0, 0, 0.85) 100%); }
 #fx-deadeye { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s; background: radial-gradient(ellipse at center, transparent 30%, rgba(90, 30, 0, 0.5) 100%); }

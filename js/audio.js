@@ -102,6 +102,15 @@ const Audio_ = {
     const n = this.noiseSrc(); const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900;
     const ng = c.createGain(); this.env(ng, t, 0.002, v * 0.4, 0.06); n.connect(f); f.connect(ng); ng.connect(this.sfx); n.start(t); n.stop(t + 0.1);
   },
+  /* Kalp atışı (düşük sağlık): "lub" daha dolgun, "dub" daha kısa ve tiz */
+  heart(v = 0.3, dub) {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime;
+    const o = c.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(dub ? 78 : 64, t); o.frequency.exponentialRampToValueAtTime(dub ? 46 : 36, t + 0.12);
+    const g = c.createGain(); this.env(g, t, 0.006, v, dub ? 0.1 : 0.16);
+    o.connect(g); g.connect(this.sfx); o.start(t); o.stop(t + 0.26);
+  },
   step(v = 0.08, hoof) {
     if (!this.ctx) return;
     const c = this.ctx, t = c.currentTime;

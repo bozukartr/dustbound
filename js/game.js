@@ -14,7 +14,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1 },
+  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0 },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -37,6 +37,7 @@ const G = {
     this.travelT = 10; this.eventT = 90;
     this.amb = { birds: [], tumbles: [], flies: [] };
     this.curTown = null; this.curRegion = null; this.goalReached = false; this.hints = {};
+    FX.reset();
   },
 
   init() {
@@ -62,6 +63,7 @@ const G = {
     g3.addColorStop(0, 'rgba(0,0,0,0.75)'); g3.addColorStop(1, 'rgba(0,0,0,0)');
     hc.fillStyle = g3; hc.fillRect(0, 0, 64, 64);
     this.rain = []; for (let i = 0; i < 220; i++) this.rain.push({ x: Math.random(), y: Math.random(), s: rnd(0.7, 1.3) });
+    FX.init();
     this.loadSettings();
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -96,6 +98,9 @@ const G = {
     Object.assign(Audio_.vol, { master: S.master, music: S.music, sfx: S.sfx, amb: S.amb });
     Audio_.applyVolumes();
     $('#fps') && $('#fps').classList.toggle('hidden', !S.fps);
+    // efekt kalitesi değişince salınan bitkiler chunk'a gömülür / çıkarılır
+    if (this._fxq !== undefined && this._fxq !== S.fxq && this.world) this.world.refreshChunks();
+    this._fxq = S.fxq;
     this.resize();
   },
   resize() {
@@ -261,7 +266,7 @@ const G = {
       if (this.state === 'play' || this.state === 'dead') this.update(dt);
       UI.update(dt);
       if (this.world && this.player && (this.state === 'play' || this.state === 'dead')) this.render(dt);
-      else if (this.state === 'menu') UI.menuBg(dt);
+      else if (this.state === 'menu') { if (FX.drunkCss) FX.clearCss(); UI.menuBg(dt); }
     } catch (e) {
       console.error(e);
       if (!this._errShown) { this._errShown = true; UI.feed('Hata: ' + e.message, 'warn'); }
@@ -288,6 +293,7 @@ const G = {
     this.ambientLife(sdt);
     for (const tr of this.trains) tr.update(sdt);
     this.parts.update(sdt);
+    FX.update(sdt, dt);
     if (this.state !== 'play') { this.updateCamera(dt); return; }
     const dmin = sdt * MIN_PER_SEC;
     this.advanceClock(dmin);
@@ -553,15 +559,21 @@ const G = {
     }
     ctx.save();
     ctx.translate(-x0, -y0);
+    FX.beginFrame();
+    FX.drawGround(ctx);
     // dinamik zemin öğeleri
     const tx0 = Math.max(0, (x0 >> 4) - 1), ty0 = Math.max(0, (y0 >> 4) - 1), tx1 = Math.min(WW - 1, (x1 >> 4) + 1), ty1 = Math.min(WH - 1, (y1 >> 4) + 1);
-    const obj = W.obj, day = this.day, t = this.t;
+    const obj = W.obj, tile = W.tile, flags = W.flags, day = this.day, t = this.t;
+    const fxFull = FX.full, autumn = W.season === 2;
     const fires = [];
     for (let ty = ty0; ty <= ty1; ty++) {
       const row = ty * WW;
       for (let tx = tx0; tx <= tx1; tx++) {
+        if (tile[row + tx] === T.WATER) FX.foam(ctx, tx, ty, t);
         const o = obj[row + tx];
         if (!o) continue;
+        if (fxFull && SWAY_O[o] && !(flags[row + tx] & 16)) { FX.sway(ctx, o, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77)); continue; }
+        if (autumn && fxFull && (o === O.OAK || o === O.APPLE || o === O.BIRCH)) FX.leafTree(tx * TS + 8, ty * TS - 4, hash2(tx, ty, 78));
         if (o >= 20 && o <= 28) {
           if (W.season === 3 && W.snowyTile(tx, ty)) continue;
           const hv = W.harvested.get(row + tx);
@@ -571,7 +583,7 @@ const G = {
         } else if (o === O.ARTIFACT) {
           const hv = W.harvested.get(row + tx);
           if (hv === undefined) Spr.sparkle(ctx, tx * TS + 8, ty * TS + 8, t + tx);
-        } else if (o === O.CAMPFIRE) { Spr.fire(ctx, tx * TS + 8, ty * TS + 8, t); fires.push([tx * TS + 8, ty * TS + 8]); if (Math.random() < 0.1) this.parts.add('ember', tx * TS + 8, ty * TS + 4, 0, -10, 1, 1); if (Math.random() < 0.05) this.parts.add('smoke', tx * TS + 8, ty * TS, rnd(-3, 3), -8, 2, 2); }
+        } else if (o === O.CAMPFIRE) { Spr.fire(ctx, tx * TS + 8, ty * TS + 8, t); fires.push([tx * TS + 8, ty * TS + 8]); if (Math.random() < 0.1) this.parts.add('ember', tx * TS + 8, ty * TS + 4, 0, -10, 1, 1); FX.fireSource(tx * TS + 8, ty * TS + 8); }
         else if (o === O.STEAM) { if (Math.random() < 0.3) this.parts.add('steam', tx * TS + rnd(-40, 56), ty * TS + rnd(-40, 56), rnd(-4, 4), -6, 2.5, 3); }
       }
     }
@@ -616,12 +628,18 @@ const G = {
     // dünya uzayı arayüz öğeleri
     ctx.save();
     ctx.translate(-x0, -y0);
+    FX.drawHigh(ctx);
     this.drawBirds(ctx);
+    ctx.restore();
+    FX.drawClouds(ctx);
+    ctx.save();
+    ctx.translate(-x0, -y0);
     this.drawWorldUI(ctx);
     ctx.restore();
     this.drawWeather(ctx, dt);
     this.drawLighting(ctx, fires);
     if (this.amb.flies.length) this.drawFlies(ctx);
+    FX.post(ctx, dt);
     // flaşlar
     if (this.fx.lightning > 0) { ctx.fillStyle = `rgba(230,235,255,${this.fx.lightning * 0.6})`; ctx.fillRect(0, 0, vw, vh); this.fx.lightning = Math.max(0, this.fx.lightning - dt * 3); }
     if (this.fx.boom > 0) { ctx.fillStyle = `rgba(255,220,160,${this.fx.boom})`; ctx.fillRect(0, 0, vw, vh); this.fx.boom = Math.max(0, this.fx.boom - dt * 2); }
@@ -707,7 +725,7 @@ const G = {
     const vw = this.vw, vh = this.vh;
     if (env.cloud > 0.05) { ctx.fillStyle = `rgba(40,48,60,${env.cloud * 0.22})`; ctx.fillRect(0, 0, vw, vh); }
     if (this.insideB) return;
-    const wind = env.storm ? 0.35 : 0.12;
+    const wind = clamp(FX.wind.x * 0.55, -0.4, 0.4);
     if (env.rain > 0.05) {
       ctx.strokeStyle = `rgba(190,205,225,${0.25 + env.rain * 0.35})`; ctx.lineWidth = 1;
       ctx.beginPath();
@@ -716,7 +734,7 @@ const G = {
         const r = this.rain[i];
         r.y += dt * 1.6 * r.s; r.x += dt * wind * r.s;
         if (r.y > 1) { r.y -= 1; r.x = Math.random(); }
-        if (r.x > 1) r.x -= 1;
+        if (r.x > 1) r.x -= 1; if (r.x < 0) r.x += 1;
         const x = r.x * vw, y = r.y * vh;
         ctx.moveTo(x, y); ctx.lineTo(x - wind * 10, y - 8 * r.s);
       }
@@ -727,7 +745,7 @@ const G = {
       const n = Math.floor(this.rain.length * env.snow * 0.7);
       for (let i = 0; i < n; i++) {
         const r = this.rain[i];
-        r.y += dt * 0.12 * r.s; r.x += dt * (0.03 + Math.sin(this.t + i) * 0.03);
+        r.y += dt * 0.12 * r.s; r.x += dt * (wind * 0.25 + Math.sin(this.t + i) * 0.03);
         if (r.y > 1) { r.y -= 1; r.x = Math.random(); }
         if (r.x > 1) r.x -= 1; if (r.x < 0) r.x += 1;
         ctx.fillRect(r.x * vw, r.y * vh, r.s > 1 ? 2 : 1, r.s > 1 ? 2 : 1);
@@ -749,11 +767,7 @@ const G = {
     const dl = this.daylight;
     const h = this.hour;
     const vw = this.vw, vh = this.vh, x0 = this.cam.ox, y0 = this.cam.oy;
-    // gün doğumu / batımı
-    let warm = 0;
-    if (h > 5 && h < 8) warm = 1 - Math.abs(h - 6.3) / 1.7;
-    if (h > 18 && h < 21.5) warm = 1 - Math.abs(h - 19.6) / 1.9;
-    if (warm > 0) { ctx.fillStyle = `rgba(255,120,40,${warm * 0.16})`; ctx.fillRect(0, 0, vw, vh); }
+    // gün doğumu / batımı renkleri FX.post içindeki derecelendirmede
     const dark = (1 - dl) * 0.84 + (this.envCache ? this.envCache.cloud * 0.08 * dl : 0);
     if (dark < 0.03) return;
     const lc = this.lctx;

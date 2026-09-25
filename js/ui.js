@@ -340,7 +340,7 @@ const UI = {
     document.body.classList.toggle('lowhp', P.hp < P.maxHp * 0.25 && G.state === 'play');
     document.body.classList.toggle('drunk', P.drunk > 45);
     const hurt = $('#fx-hurt');
-    const fv = Math.min(1, G.fx.flash * 1.4 + (P.hp < P.maxHp * 0.25 ? 0.25 + Math.sin(G.t * 5) * 0.1 : 0));
+    const fv = Math.min(1, G.fx.flash * 1.4);   // düşük sağlık nabzı FX.post'ta (kalp atışı)
     hurt.style.opacity = fv.toFixed(2);
   },
 
@@ -1016,9 +1016,9 @@ const UI = {
     const rows = [
       ['master', 'Ana Ses', 'vol'], ['music', 'Müzik', 'vol'], ['sfx', 'Efektler', 'vol'], ['amb', 'Ortam Sesleri', 'vol'],
       ['zoom', 'Piksel Ölçeği', 'zoom'], ['shake', 'Ekran Sarsıntısı', 'bool'], ['fps', 'FPS Göster', 'bool'],
-      ['aimAssist', 'Nişan Yardımı (Kol)', 'opt'], ['aimSens', 'Nişan Hassasiyeti (Kol)', 'opt'],
+      ['aimAssist', 'Nişan Yardımı (Kol)', 'opt'], ['aimSens', 'Nişan Hassasiyeti (Kol)', 'opt'], ['fxq', 'Görsel Efektler', 'opt'],
     ];
-    const OPTL = { aimAssist: ['Kapalı', 'Hafif', 'Standart', 'Tam Kilit'], aimSens: ['Düşük', 'Normal', 'Yüksek'] };
+    const OPTL = { aimAssist: ['Kapalı', 'Hafif', 'Standart', 'Tam Kilit'], aimSens: ['Düşük', 'Normal', 'Yüksek'], fxq: ['Tam', 'Sade'] };
     const val = (k, t) => t === 'vol' ? Math.round(S[k] * 10) * 10 + '%' : t === 'bool' ? (S[k] ? 'Açık' : 'Kapalı') : t === 'opt' ? OPTL[k][S[k]] : (S[k] ? S[k] + 'x' : 'Otomatik');
     el.innerHTML = `<div class="p-head"><div class="p-title">Ayarlar</div></div><div class="p-body"><div class="p-list">${rows.map(([k, n, t]) => `<div class="p-item nav opt" data-k="${k}" data-t="${t}" data-lr><span class="pi-l">${n}</span><span class="pi-r"><b class="arr">◀</b> <span class="v">${val(k, t)}</span> <b class="arr">▶</b></span></div>`).join('')}<div class="p-item nav" id="set-keys"><span class="pi-l">Tuş Atamaları</span><span class="pi-r">›</span></div><div class="p-item nav" id="set-back"><span class="pi-l">Kaydet ve Geri Dön</span></div></div></div><div class="p-foot">◀ ▶ Değiştir &nbsp; ${Input.glyph('back')} Geri</div>`;
     const m = this.makeModal(el, { onBack: () => { G.saveSettings(); this.pop(); } });
