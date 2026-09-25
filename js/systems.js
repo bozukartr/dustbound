@@ -392,6 +392,7 @@ const GameSystems = {
   suspect() { return !this.law.masked || this.player.masked; },
   applyCrime(r, instant) {
     const L = this.law, P = this.player;
+    if (/murder|Law/.test(r.type) || (L.level > 0 && r.type === 'assault')) L.resist = true;   // öldürme ve kanuna saldırı: doğrudan çatışma
     const was = L.level > 0;
     if (r.masked) { L.maskBounty = (L.maskBounty || 0) + r.bounty; if (!was) L.masked = true; }
     else { L.bounty += r.bounty; L.masked = false; L.desc = r.desc; if (L.maskBounty) { L.bounty += L.maskBounty; L.maskBounty = 0; } }
@@ -574,6 +575,7 @@ const GameSystems = {
       }
       return;
     }
+    this.arrestUpdate(dt);
     const lawmen = this.ents.filter(e => e.kind === 'npc' && e.isLaw && !e.dead);
     let seen = false;
     if (this.suspect()) for (const e of lawmen) if (e.hostile && e.canSee(P.x, P.y, 280)) { seen = true; break; }
@@ -585,7 +587,7 @@ const GameSystems = {
       L.level = 0;
       if (L.masked && L.bounty <= 0) UI.feed('Maskeli yabancının izi kayboldu. Kimse kim olduğunu bilmiyor.', 'law');
       else UI.feed(L.masked ? 'Maskeli yabancının izi kayboldu.' : 'Kanundan kaçtın. Ama başındaki ödül hâlâ duruyor.', 'law');
-      L.maskBounty = 0; L.masked = false;
+      L.maskBounty = 0; L.masked = false; L.resist = false; L.arrestT = 0; L.warned = false; L.fleeWarn = false; L.fleeT = 0;
       Audio_.ui('ok');
       for (const e of lawmen) { e.hostile = false; if (!this.world.townAt(e.x, e.y)) e.remove = true; }
       return;
@@ -604,6 +606,94 @@ const GameSystems = {
         }
       }
     }
+  },
+  /* ---- Tutuklama: düşük aranma seviyesinde kanun önce teslim olmanı ister ---- */
+  canArrest() { const L = this.law; return L.level > 0 && L.level <= 2 && !L.resist && this.suspect(); },
+  arrestingCop(r) {
+    if (!this.canArrest()) return null;
+    const P = this.player;
+    let best = null, bd = r;
+    for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && e.hostile && !e.dead) { const d = dist(e.x, e.y, P.x, P.y); if (d < bd && e.canSee(P.x, P.y, r)) { bd = d; best = e; } }
+    return best;
+  },
+  /* Oyuncu ateş etti: kanun tutuklamaya geliyorsa direniş sayılır */
+  onPlayerFire() {
+    const L = this.law, P = this.player;
+    if (L.level <= 0 || L.resist) return;
+    if (this.ents.some(e => e.kind === 'npc' && e.isLaw && e.hostile && !e.dead && dist2(e.x, e.y, P.x, P.y) < 450 * 450)) this.lawResist('Ateş ettin');
+  },
+  lawResist(why) {
+    const L = this.law;
+    if (L.level <= 0 || L.resist) return;
+    L.resist = true; L.arrestT = 0;
+    const P = this.player;
+    const cop = this.ents.find(e => e.kind === 'npc' && e.isLaw && e.hostile && !e.dead && dist(e.x, e.y, P.x, P.y) < 300);
+    if (cop) cop.say(pick(['Ateş serbest!', 'Direniyor! Vurun!', 'Kendin istedin!', 'Canlı ya da ölü!']), 2.5);
+    UI.feed(`${why || 'Tutuklamaya direndin'} — kanun ateş açıyor!`, 'warn');
+    for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && e.hostile) e.cool = Math.min(e.cool, rnd(0.2, 0.8));
+  },
+  arrestUpdate(dt) {
+    const L = this.law, P = this.player;
+    if (!this.canArrest()) { L.arrestT = 0; return; }
+    const cop = this.arrestingCop(260);
+    if (!cop) { L.fleeT = Math.max(0, (L.fleeT || 0) - dt); return; }
+    const d = dist(cop.x, cop.y, P.x, P.y);
+    this.hintOnce('surrender', `Kanun seni tutuklamak istiyor. Kanun adamının yanında ${Input.glyph('interact')} basılı tutarak <b>teslim olabilirsin</b>. Ateş edersen, silah doğrultursan ya da kaçarsan ateş açarlar.`, 9);
+    // kanun adamına silah doğrultmak
+    if (P.aiming && P.isArmed && Math.abs(angDiff(P.aimAng, Math.atan2(cop.y - P.y, cop.x - P.x))) < 0.3) { L.aimT = (L.aimT || 0) + dt; if (L.aimT > 1.1) { this.lawResist('Kanun adamına silah doğrulttun'); return; } } else L.aimT = 0;
+    // kaçmak
+    const away = L.lastD !== undefined && d > L.lastD + 0.05;
+    if (d > 70 && away) { L.fleeT = (L.fleeT || 0) + dt * (P.sprinting || P.riding ? 1.4 : 1); if (L.fleeT > 5) { this.lawResist('Kaçmaya çalıştın'); return; } }
+    else L.fleeT = Math.max(0, (L.fleeT || 0) - dt * 0.4);
+    if (L.fleeT > 2 && !L.fleeWarn) { L.fleeWarn = true; cop.say(pick(['Dur! Kaçarsan ateş ederim!', 'Bir adım daha atarsan vururum!']), 2.5); }
+    L.lastD = d;
+    // yakındayken beklemek
+    if (d < 100) {
+      L.arrestT = (L.arrestT || 0) + dt;
+      if (L.arrestT > 10 && !L.warned) { L.warned = true; cop.say('Son kez söylüyorum: teslim ol!', 3); }
+      if (L.arrestT > 16) this.lawResist('Teslim olmadın');
+    }
+  },
+  surrender(cop) {
+    const L = this.law, P = this.player;
+    if (P.masked) this.identify(cop);
+    if (P.riding) P.dismount();
+    P.aiming = false; P.crouch = false;
+    const fine = Math.round((L.bounty + (L.maskBounty || 0)) * 100) / 100;
+    const days = clamp(Math.ceil(fine / 40), 1, 7);
+    const sheriff = this.nearestTown(P.x, P.y, t => t.buildings.some(b => b.type === 'sheriff'));
+    const office = sheriff && sheriff.buildings.find(b => b.type === 'sheriff');
+    cop.say(pick(['Akıllıca bir karar.', 'Eller arkaya. Yavaşça.', 'Hadi bakalım, şerif ofisine.']), 3);
+    Audio_.ui('back');
+    const finish = (paid) => {
+      L.level = 0; L.bounty = 0; L.maskBounty = 0; L.masked = false; L.resist = false; L.desc = null; L.arrestT = 0; L.fleeT = 0; L.warned = false; L.fleeWarn = false;
+      for (const r of this.reports) r.done = true;
+      for (const e of this.ents) if (e.kind === 'npc' && e.isLaw) { e.hostile = false; e.state = e.work !== undefined ? 'static' : 'idle'; if (!e.town) e.remove = true; }
+      this.stat(paid ? 'finesPaid' : 'jailed', 1);
+    };
+    UI.menu({
+      title: 'Tutuklandın', cls: 'small', sub: `${sheriff ? sheriff.n + ' şerifi' : 'Kanun'} seni bekliyor`,
+      onBack: () => {}, footer: () => `${Input.glyph('confirm')} Seç`,
+      items: [
+        { html: `<p>Başındaki ödül: <b>${fmtMoney(fine)}</b>. Cezanı ödersen serbest kalırsın. Ödeyemezsen ya da ödemek istemezsen <b>${days} gün</b> hapis yatarsın.</p>` },
+        { label: `Cezayı Öde (${fmtMoney(fine)})`, disabled: P.money < fine, why: 'Yeterli paran yok.', fn: () => {
+          P.money -= fine; UI.closeAll(); finish(true); this.addHonor(1);
+          UI.feed(`⚖ ${fmtMoney(fine)} ceza ödendi. Serbestsin.`); Audio_.ui('cash');
+        } },
+        { label: `Hapse Gir (${days} gün)`, fn: () => {
+          UI.closeAll();
+          UI.fade(() => {
+            finish(false);
+            if (office) { P.x = office.door.x; P.y = office.door.y + 10; if (G.horse && !G.horse.dead) { G.horse.x = P.x + 24; G.horse.y = P.y + 14; } }
+            this.advanceClock(days * 1440);
+            P.hunger = Math.max(P.hunger, 45); P.thirst = Math.max(P.thirst, 45); P.energy = 80; P.clean = Math.max(0, P.clean - 25);
+            this.addHonor(2);
+            this.cam.x = P.x; this.cam.y = P.y;
+            UI.toast('Serbest Bırakıldın', `${days} gün hapis yattın. Borcun ödendi.`, 'ok');
+          }, `${days} gün sonra...`);
+        } },
+      ],
+    });
   },
   payBounty() {
     const b = this.law.bounty;
@@ -1382,6 +1472,9 @@ const GameSystems = {
     const P = this.player, W = this.world;
     const cands = [];
     const add = (x, y, label, actions, pri = 0) => { const d = dist(P.x, P.y, x, y) - pri; cands.push({ x, y, label, actions, d }); };
+    // kanun adamı tutuklamaya geliyorsa: teslim ol
+    const cop = this.arrestingCop(130);
+    if (cop) return { x: cop.x, y: cop.y, label: cop.name + ' (Kanun)', actions: [{ n: 'Teslim Ol', hold: 0.7, fn: () => this.surrender(cop) }] };
     if (P.riding) {
       const acts = [{ n: 'İn', fn: () => P.dismount() }];
       // at sırtından kapı/tren vb. yok
@@ -1548,17 +1641,34 @@ const GameSystems = {
     if (P.aiming && P.isArmed && e.state !== 'robbed' && !e.robbed) acts.push({ n: 'Soy', fn: () => this.robNpc(e) });
     return acts;
   },
+  timeOfDay() { const h = this.hour; return h >= 5 && h < 11 ? 'morning' : h < 17 ? 'day' : h < 21 ? 'evening' : 'night'; },
   greet(e) {
-    const P = this.player;
+    const P = this.player, tod = this.timeOfDay();
+    const env = this.envCache || {};
+    const town = this.world.townAt(P.x, P.y);
+    const fmt = (l) => l.replace('{ad}', P.name.split(' ')[0]).replace('{kasaba}', town ? town.n : 'buralar');
     let line;
     if (P.masked) line = pick(LINES.maskTown);
     else if (P.clean < 20 && chance(0.5)) line = pick(LINES.dirty);
     else if (P.drunk > 50) line = pick(LINES.drunk);
-    else if (this.honor < -40) line = pick(LINES.greetLow);
-    else if (this.honor > 40 && chance(0.5)) line = pick(LINES.greetHigh);
-    else line = pick(LINES.greet);
-    e.say(line);
-    UI.subtitle(this.player.name, pick(['Merhaba.', 'Günaydın.', 'Nasıl gidiyor?', 'Selam dostum.']), 1.5, true);
+    else if (this.honor < -40 && chance(0.7)) line = pick(LINES.greetLow);
+    else if (e.greetDay === this.day && chance(0.7)) line = pick(GREETS.again);
+    else if (this.honor > 40 && chance(0.35)) line = pick(LINES.greetHigh);
+    else {
+      let pool = GREETS[tod].slice();
+      const role = e.isLaw ? 'law' : e.role === 'clerk' ? 'clerk' : e.role;
+      if (GREETS[role] && chance(0.45)) pool = GREETS[role];
+      if (P.greeted.has(e.id) && e.greetDay !== this.day && chance(0.6)) pool = GREETS.known;
+      if (env.rain > 0.3 && chance(0.55)) pool = GREETS.rain;
+      else if (this.coldness > 0.2 && chance(0.5)) pool = GREETS.snow;
+      else if (this.hotness > 0.2 && chance(0.5)) pool = GREETS.hot;
+      line = pick(pool);
+    }
+    e.greetDay = this.day;
+    // önce oyuncu selam verir, NPC karşılık verir
+    UI.subtitle(P.name, pick(GREETS.reply[tod]), 1.3, true);
+    e.ang = Math.atan2(P.y - e.y, P.x - e.x);
+    setTimeout(() => { if (!e.dead && !e.remove) e.say(fmt(line), 3); }, 900);
     if (!P.greeted.has(e.id)) { P.greeted.add(e.id); this.addHonor(0.3); this.skillXp('charisma', 1.5); }
   },
   antagonize(e) {

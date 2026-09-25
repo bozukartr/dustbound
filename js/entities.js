@@ -583,6 +583,7 @@ class Player extends Ent {
     Audio_.shot(this.weapon === 'rifle' ? 'rifle' : this.weapon === 'shotgun' ? 'shotgun' : 'pistol', 0.9);
     Input.rumble(Wp.kind === 'long' ? 0.7 : 0.45, 0.3, Wp.kind === 'long' ? 140 : 90);
     G.noise(this.x, this.y, 620, 'gun');
+    G.onPlayerFire();
     G.skillXp('shooting', 0.6);
     if ((this.clip[this.weapon] || 0) <= 0 && this.ammo[Wp.ammo] > 0) this.startReload();
   }
@@ -596,6 +597,7 @@ class Player extends Ent {
     const sp = 260 + 260 * this.draw_;
     G.projs.push({ type: 'arrow', x: this.x + Math.cos(a) * 8, y: this.y + Math.sin(a) * 8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1.4, dmg: WEAPONS.bow.dmg * (0.4 + 0.6 * this.draw_), owner: this, ang: a });
     Audio_.shot('bow', 0.6);
+    G.onPlayerFire();
     G.noise(this.x, this.y, 50, 'bow');
     G.skillXp('shooting', 0.5);
   }
@@ -828,6 +830,7 @@ class NPC extends Ent {
         if (!this.aggro && (pd < 240 || this.hp < this.maxHp)) { this.aggro = true; this.say(pick(LINES.bandit)); }
         if (!this.aggro) { this.idleUpdate(dt, pd); return; }
       }
+      if (this.isLaw && G.canArrest()) { this.arrest(dt, pd); return; }
       this.fight(dt, pd);
       return;
     }
@@ -918,6 +921,15 @@ class NPC extends Ent {
     if (moved < s * dt * 0.3) { this.stuck = (this.stuck || 0) + dt; this.ang += rnd(-1.5, 1.5) * dt * 4; } else this.stuck = 0;
     this.mv = moved / Math.max(0.001, dt) / 50;
     this.phase += dt * sp * 0.2;
+  }
+  /* Tutuklama: silah doğrultup yaklaşır, ateş etmez */
+  arrest(dt, pd) {
+    const P = G.player;
+    const a = Math.atan2(P.y - this.y, P.x - this.x);
+    this.ang = turnTo(this.ang, a, dt * 6);
+    if (pd > 30) { this.walk(dt, this.mounted ? 110 : pd > 80 ? 66 : 46); if (this.stuck > 1) { this.ang += rnd(-1.5, 1.5); this.stuck = 0; } } else { this.mv = 0; }
+    this.arrT = (this.arrT || 0) - dt;
+    if (this.arrT <= 0 && pd < 220) { this.arrT = rnd(4, 7); this.say(pick(LINES.arrest), 2.5); }
   }
   fight(dt, pd) {
     const P = G.player;

@@ -78,6 +78,19 @@ const G = {
     try { localStorage.setItem(SET_KEY, JSON.stringify(this.settings)); } catch (e) {}
     this.applySettings();
   },
+  /* Piksel ölçeğini ayarlara girmeden değiştir: +1 / -1, 0 = döngü (kol R3) */
+  binds_zoom() { return Input.binds.pad.zoomIn != null || Input.binds.pad.zoomOut != null; },
+  quickZoom(d) {
+    const H = window.innerHeight, W = window.innerWidth;
+    const auto = Math.max(2, Math.round(H / 270)), maxS = Math.max(2, Math.min(7, Math.floor(W / 320)));
+    let s = this.scale || auto;
+    if (d === 0) s = s >= maxS ? 2 : s + 1; else s = clamp(s + d, 2, maxS);
+    this.settings.zoom = s === auto ? 0 : s;
+    this.applySettings(); this.saveSettings();
+    this.prefetch(true);
+    UI.feed(`Piksel Ölçeği: ${s}x${this.settings.zoom ? '' : ' (otomatik)'}`);
+    Audio_.ui('move');
+  },
   applySettings() {
     const S = this.settings;
     Object.assign(Audio_.vol, { master: S.master, music: S.music, sfx: S.sfx, amb: S.amb });
@@ -207,7 +220,7 @@ const G = {
     this.seed = d.seed;
     await this.buildWorld(d.seed);
     Object.assign(this, { clock: d.clock, pace: d.pace, difficulty: d.difficulty, background: d.background, profile: d.profile, honor: d.honor, bank: d.bank, scars: d.scars || 0, goalReached: d.goalReached });
-    Object.assign(this.weather, d.weather); Object.assign(this.law, d.law); this.law.level = 0; this.law.maskBounty = 0; this.law.masked = false;
+    Object.assign(this.weather, d.weather); Object.assign(this.law, d.law); this.law.level = 0; this.law.maskBounty = 0; this.law.masked = false; this.law.resist = false; this.law.arrestT = 0; this.law.warned = false;
     Object.assign(this.stats, d.stats); Object.assign(this.skills, d.skills); this.achieved = d.achieved || {};
     this.visited = new Set(d.visited); this.discovered = new Set(d.discovered); this.rumored = new Set(d.rumored || []);
     this.props = d.props || []; this.family = d.family || { spouse: null, children: [] }; this.romances = d.romances || {}; this.stable = d.stable || [];
@@ -352,8 +365,11 @@ const G = {
     if (I.pressed('deadeye')) {
       if (P.deadeye) { P.deadeye = false; }
       else if (P.aiming && P.isArmed && P.de > 12) { P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60); }
+      else if (!P.aiming && I.device === 'pad' && !this.binds_zoom()) this.quickZoom(0);   // kolda nişan almadan R3: piksel ölçeğini değiştir
       else if (!P.aiming) UI.feed('Dead Eye için önce nişan al.', 'warn');
     }
+    if (I.pressed('zoomIn')) this.quickZoom(1);
+    if (I.pressed('zoomOut')) this.quickZoom(-1);
     if (Input.mouse.wheel && Input.device === 'kb') this.cycleWeapon(Input.mouse.wheel > 0 ? 1 : -1);
     if (I.held('camp') > 0.7 && !this._campHeld) { this._campHeld = true; this.setupCamp(); }
     if (!I.down('camp')) this._campHeld = false;
