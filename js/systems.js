@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — oyun sistemleri (G nesnesine eklenir)
+   FRONTIER'S END — oyun sistemleri (G nesnesine eklenir)
    zaman, hava, sıcaklık, hayatta kalma, kanun, doğma,
    etkileşim, rastgele olaylar, başarımlar, yetenekler
    ========================================================== */
@@ -24,7 +24,7 @@ const GameSystems = {
     return 1;
   },
   timeStr() { const h = Math.floor(this.hour), m = Math.floor(this.clock % 60); return pad2(h) + ':' + pad2(m); },
-  dateStr() { return `${SEASONS[this.season]} ${this.year} • Gün ${this.day % this.dpy + 1}`; },
+  dateStr() { return Tr`${SEASONS[this.season]} ${this.year} • Gün ${this.day % this.dpy + 1}`; },
 
   advanceClock(mins) {
     const prevDay = this.day, prevAge = this.age;
@@ -34,13 +34,13 @@ const GameSystems = {
   },
   onNewDay(d) {
     if (this.world && this.world.setSeason(this.season)) {
-      const msg = ['İlkbahar geldi. Karlar eriyor, ovalar yeşeriyor.', 'Yaz geldi. Güneş yakıyor, suyunu eksik etme.', 'Sonbahar geldi. Yapraklar sararıyor, geceler serinliyor.', 'Kış geldi. Kuzey ve ovalar karla örtüldü; sıkı giyin, bitki bulmak zorlaşacak.'][this.season];
+      const msg = [Tr('İlkbahar geldi. Karlar eriyor, ovalar yeşeriyor.'), Tr('Yaz geldi. Güneş yakıyor, suyunu eksik etme.'), Tr('Sonbahar geldi. Yapraklar sararıyor, geceler serinliyor.'), Tr('Kış geldi. Kuzey ve ovalar karla örtüldü; sıkı giyin, bitki bulmak zorlaşacak.')][this.season];
       UI.toast(SEASONS[this.season], msg, 'ok');
     }
     // mülk geliri
     let inc = 0;
     for (const id of this.props) { const P = PROPERTIES.find(p => p.id === id); if (P && P.income) inc += P.income; }
-    if (inc > 0) { inc *= this.hasPerk('tycoon') ? 1.5 : 1; this.bank += inc; UI.feed(`🏠 Mülk geliri bankaya yatırıldı: ${fmtMoney(inc)}`); this.stats.earned += inc; }
+    if (inc > 0) { inc *= this.hasPerk('tycoon') ? 1.5 : 1; this.bank += inc; UI.feed(Tr`🏠 Mülk geliri bankaya yatırıldı: ${fmtMoney(inc)}`); this.stats.earned += inc; }
     this.bounties = null; // ilanlar yenilenir
     const L = this.player.look;
     if (L.sex === 'm' && L.beard > 0) { L.beardLen = Math.min(1, (L.beardLen || 0.3) + 0.08); this.player._lk = null; }
@@ -48,11 +48,11 @@ const GameSystems = {
     this.saveGame(true);
   },
   onBirthday(age) {
-    UI.toast(`${age} Yaşındasın`, age >= GOAL_AGE ? 'Bir efsane oldun.' : pick(['Doğum günün kutlu olsun.', 'Bir yıl daha geride kaldı.', 'Batı seni yaşlandırıyor ama yıkamıyor.', 'Zaman akıp gidiyor.']), 'year');
+    UI.toast(Tr`${age} Yaşındasın`, age >= GOAL_AGE ? Tr('Bir efsane oldun.') : pick([Tr('Doğum günün kutlu olsun.'), Tr('Bir yıl daha geride kaldı.'), Tr('Batı seni yaşlandırıyor ama yıkamıyor.'), Tr('Zaman akıp gidiyor.')]), 'year');
     // yaşlılık hastalıkları
     if (age >= 62 && Math.random() < 0.15 + (age - 62) * 0.012) {
       this.player.sick = Math.max(this.player.sick, 30);
-      UI.help('Yaşın ilerledikçe bünyen zayıflıyor. <b>Hastalandın</b>. Bir doktora görün ya da tonik kullan.', 8);
+      UI.help(Tr('Yaşın ilerledikçe bünyen zayıflıyor. <b>Hastalandın</b>. Bir doktora görün ya da tonik kullan.'), 8);
     }
     // aile
     if (this.family.spouse && this.family.children.length < 4 && Math.random() < 0.4 && age < 58) {
@@ -60,7 +60,7 @@ const GameSystems = {
       const name = pick(NAMES[sex]);
       this.family.children.push({ name, sex, born: this.year });
       this.stats.children = this.family.children.length;
-      UI.toast('Bir Çocuğun Oldu!', `${name} dünyaya geldi.`, 'family');
+      UI.toast(Tr('Bir Çocuğun Oldu!'), Tr`${name} dünyaya geldi.`, 'family');
     }
     if (this.bank > 0) this.bank *= 1.02;
     if (age >= GOAL_AGE && !this.goalReached) { this.goalReached = true; setTimeout(() => UI.showLegacy(true), 2500); }
@@ -161,12 +161,12 @@ const GameSystems = {
       if (this.hasPerk('married')) reg *= 1.25;
     }
     let dmg = 0, cause = null;
-    if (P.hunger <= 0) { dmg += 6; cause = 'açlık'; }
+    if (P.hunger <= 0) { dmg += 6; cause = Tr('açlık'); }
     if (P.thirst <= 0) { dmg += 10; cause = 'susuzluk'; }
-    if (this.coldness > 0.1) { dmg += 14 * this.coldness; cause = 'soğuk'; }
-    if (this.hotness > 0.5) { dmg += 10 * this.hotness; cause = 'sıcak çarpması'; }
+    if (this.coldness > 0.1) { dmg += 14 * this.coldness; cause = Tr('soğuk'); }
+    if (this.hotness > 0.5) { dmg += 10 * this.hotness; cause = Tr('sıcak çarpması'); }
     if (P.energy <= 0) { dmg += 3; cause = cause || 'bitkinlik'; }
-    if (P.sick > 0) { dmg += 2.5; cause = cause || 'hastalık'; }
+    if (P.sick > 0) { dmg += 2.5; cause = cause || Tr('hastalık'); }
     P.hp = Math.min(P.maxHp, P.hp + reg * hours);
     if (dmg > 0) {
       P.hp -= dmg * hours;
@@ -181,7 +181,7 @@ const GameSystems = {
     if (it.c === 'clothing') return this.equipClothing(id);
     if (it.autoUse || id === 'region_map') { this.useRegionMap(); P.removeItem(id); return true; }
     if (id === 'treasure_map') { UI.showTreasureMap(); return true; }
-    if (!it.e) { UI.feed('Bu eşya kullanılamaz.', 'warn'); return false; }
+    if (!it.e) { UI.feed(Tr('Bu eşya kullanılamaz.'), 'warn'); return false; }
     P.removeItem(id, 1);
     const mult = it.c === 'food' && this.hasPerk('eater') ? 1.2 : 1;
     if (e.hunger) P.hunger = clamp(P.hunger + e.hunger * mult, 0, 100);
@@ -192,48 +192,48 @@ const GameSystems = {
     if (e.deadeye) { P.de = clamp(P.de + e.deadeye, 0, 100); P.deCore = clamp(P.deCore + e.deadeye * 0.5, 0, 100); }
     if (e.drunk) P.drunk = clamp(P.drunk + e.drunk, 0, 100);
     if (e.warmth) P.warmBuff = Math.max(P.warmBuff, e.warmth * 4);
-    if (e.cure) { if (P.sick > 0) UI.feed('Kendini daha iyi hissediyorsun.'); P.sick = 0; }
-    if (e.poison) { P.poison = 0; UI.feed('Zehir etkisini yitirdi.'); }
-    if (it.raw && Math.random() < it.raw * (this.hasPerk('eater') ? 0.5 : 1)) { P.sick = Math.max(P.sick, 8); UI.help('Çiğ et yedin ve midenin bozulduğunu hissediyorsun. <b>Hastasın.</b>', 5); }
+    if (e.cure) { if (P.sick > 0) UI.feed(Tr('Kendini daha iyi hissediyorsun.')); P.sick = 0; }
+    if (e.poison) { P.poison = 0; UI.feed(Tr('Zehir etkisini yitirdi.')); }
+    if (it.raw && Math.random() < it.raw * (this.hasPerk('eater') ? 0.5 : 1)) { P.sick = Math.max(P.sick, 8); UI.help(Tr('Çiğ et yedin ve midenin bozulduğunu hissediyorsun. <b>Hastasın.</b>'), 5); }
     if (it.c === 'food') { this.stat('eaten', 1); Audio_.tone(300, 0.08, 'triangle', 0.06); Audio_.tone(240, 0.08, 'triangle', 0.06, null, 0.12); }
     else Audio_.ui('pick');
-    UI.feed(`${Icons.item(id, 'ic inl')} ${it.n} kullanıldı`);
+    UI.feed(Tr`${Icons.item(id, 'ic inl')} ${it.n} kullanıldı`);
     return true;
   },
   drinkCanteen() {
     const P = this.player;
-    if (!P.has('canteen')) { UI.feed('Mataran yok.', 'warn'); return; }
-    if (P.canteen <= 0) { UI.feed('Matara boş. Bir kuyu ya da nehirde doldur.', 'warn'); return; }
+    if (!P.has('canteen')) { UI.feed(Tr('Mataran yok.'), 'warn'); return; }
+    if (P.canteen <= 0) { UI.feed(Tr('Matara boş. Bir kuyu ya da nehirde doldur.'), 'warn'); return; }
     P.canteen--; P.thirst = Math.min(100, P.thirst + 32);
     Audio_.tone(500, 0.1, 'sine', 0.05, null, 0, 300);
-    UI.feed(`🫗 Matara: ${P.canteen}/5`);
+    UI.feed(Tr`🫗 Matara: ${P.canteen}/5`);
   },
   equipClothing(id) {
     const P = this.player, it = ITEMS[id];
     if (it.coat) {
-      if (P.coat === id) { P.coat = null; UI.feed(`${it.n} çıkarıldı`); }
+      if (P.coat === id) { P.coat = null; UI.feed(Tr`${it.n} çıkarıldı`); }
       else { P.coat = id; UI.feed(`${it.n} giyildi`); }
     } else if (it.mask) {
       this.toggleMask(id);
     } else if (it.hat) {
       P.look.hat = P.look.hat === it.hat ? 'none' : it.hat;
-      UI.feed(P.look.hat === 'none' ? 'Şapka çıkarıldı' : `${it.n} takıldı`);
+      UI.feed(P.look.hat === 'none' ? Tr('Şapka çıkarıldı') : Tr`${it.n} takıldı`);
     }
     P._lk = null;
     return true;
   },
   useHorseItem(id) {
     const h = this.horse, P = this.player;
-    if (!h || dist(P.x, P.y, h.x, h.y) > 40) { UI.feed('Atın yakınında olmalısın.', 'warn'); return false; }
+    if (!h || dist(P.x, P.y, h.x, h.y) > 40) { UI.feed(Tr('Atın yakınında olmalısın.'), 'warn'); return false; }
     if (id === 'horse_reviver') {
-      if (!h.dead) { UI.feed('Atın ayakta.', 'warn'); return false; }
-      h.dead = false; h.hp = h.maxHp * 0.5; P.removeItem(id); UI.feed(`${h.name} ayağa kalktı!`); Audio_.neigh(); return true;
+      if (!h.dead) { UI.feed(Tr('Atın ayakta.'), 'warn'); return false; }
+      h.dead = false; h.hp = h.maxHp * 0.5; P.removeItem(id); UI.feed(Tr`${h.name} ayağa kalktı!`); Audio_.neigh(); return true;
     }
     if (h.dead) return false;
     P.removeItem(id);
     if (id === 'hay') { h.hp = Math.min(h.maxHp, h.hp + 40); h.sta = h.maxSta; h.addBond(6); }
     if (id === 'horse_tonic') { h.sta = h.maxSta; h.hp = Math.min(h.maxHp, h.hp + 15); }
-    UI.feed(`🐴 ${h.name} beslendi`);
+    UI.feed(Tr`🐴 ${h.name} beslendi`);
     Audio_.neigh();
     return true;
   },
@@ -241,7 +241,7 @@ const GameSystems = {
     const P = this.player;
     const t = this.nearestTown(P.x, P.y);
     this.revealAt(t.cx, t.cy, 200);
-    UI.feed(`📜 ${t.n} çevresinin haritası açıldı`);
+    UI.feed(Tr`📜 ${t.n} çevresinin haritası açıldı`);
   },
 
   /* ================= YETENEKLER / BAŞARIMLAR ================= */
@@ -253,7 +253,7 @@ const GameSystems = {
     const need = Math.round(40 * Math.pow(s.lv, 1.5));
     if (s.xp >= need) {
       s.xp -= need; s.lv++;
-      UI.toast(`${SKILLS[k].n} Seviye ${s.lv}`, SKILLS[k].d, 'skill');
+      UI.toast(Tr`${SKILLS[k].n} Seviye ${s.lv}`, SKILLS[k].d, 'skill');
       Audio_.chime();
     }
   },
@@ -279,7 +279,8 @@ const GameSystems = {
     if (this.achieved[id]) return;
     const A = ACHIEVEMENTS.find(a => a.id === id);
     this.achieved[id] = this.day + 1;
-    UI.toast(A.n, A.perk ? 'Kazanım: ' + A.perk : A.d, 'ach');
+    Platform.achievement(id);
+    UI.toast(A.n, A.perk ? Tr('Kazanım: ') + A.perk : A.d, 'ach');
     Audio_.chime();
   },
 
@@ -299,7 +300,7 @@ const GameSystems = {
     Audio_.ui('cash');
   },
   spend(v) {
-    if (this.player.money < v - 0.001) { UI.feed('Yeterli paran yok.', 'warn'); Audio_.ui('error'); return false; }
+    if (this.player.money < v - 0.001) { UI.feed(Tr('Yeterli paran yok.'), 'warn'); Audio_.ui('error'); return false; }
     this.player.money -= v;
     return true;
   },
@@ -325,19 +326,21 @@ const GameSystems = {
     if (!r) return 0;
     let p = it.p * r * this.priceMul(false);
     if (it.c === 'animal' && this.hasPerk('hunt25')) p *= 1.15;
+    // dükkanlarda satılan bir eşya, en ucuza alınabileceği fiyatın altında satılır (al-sat döngüsüyle para basılamasın)
+    if (PURCHASABLE.has(id)) p = Math.min(p, it.p * 0.6);
     return Math.max(0.05, p);
   },
 
   /* ================= KANUN ================= */
   crime(type, x, y, victim) {
     const C = {
-      murder: [60, 2, -12, 'Cinayet'], murderLaw: [120, 3, -15, 'Kanun adamı öldürme'], assault: [12, 1, -3, 'Saldırı'], assaultLaw: [25, 2, -4, 'Kanun adamına saldırı'],
-      livestock: [10, 0, -3, 'Hayvan öldürme', 1], livestockHurt: [0, 0, -1, ''], horsetheft: [35, 1, -4, 'At hırsızlığı'], robbery: [20, 1, -6, 'Soygun'],
-      storerob: [70, 2, -8, 'Dükkan soygunu'], storeNight: [45, 2, -6, 'Gece dükkan soygunu'], trespass: [5, 0, -2, 'Haneye tecavüz', 1], bankrob: [350, 4, -15, 'Banka soygunu'], looting: [8, 1, -2, 'Ceset soyma'], trample: [15, 1, -3, 'Ezme'],
+      murder: [60, 2, -12, Tr('Cinayet')], murderLaw: [120, 3, -15, Tr('Kanun adamı öldürme')], assault: [12, 1, -3, Tr('Saldırı')], assaultLaw: [25, 2, -4, Tr('Kanun adamına saldırı')],
+      livestock: [10, 0, -3, Tr('Hayvan öldürme'), 1], livestockHurt: [0, 0, -1, ''], horsetheft: [35, 1, -4, Tr('At hırsızlığı')], robbery: [20, 1, -6, Tr('Soygun')],
+      storerob: [70, 2, -8, Tr('Dükkan soygunu')], storeNight: [45, 2, -6, Tr('Gece dükkan soygunu')], trespass: [5, 0, -2, Tr('Haneye tecavüz'), 1], bankrob: [350, 4, -15, Tr('Banka soygunu')], looting: [8, 1, -2, Tr('Ceset soyma')], trample: [15, 1, -3, Tr('Ezme')],
     }[type];
     if (!C) return;
     let [bounty, lvl, honor, name, minor] = C;
-    if (type === 'livestock' && victim && victim.type === 'chicken') { bounty = 2; honor = -1; name = 'Tavuk öldürme'; }
+    if (type === 'livestock' && victim && victim.type === 'chicken') { bounty = 2; honor = -1; name = Tr('Tavuk öldürme'); }
     this.addHonor(honor);
     if (lvl === 0 && !minor) return;
     const P = this.player;
@@ -352,14 +355,14 @@ const GameSystems = {
       if (e.isLaw) instant = true;
       ws.push(e);
     }
-    if (!instant && !ws.length) { UI.feed('Kimse görmedi...'); return; }
+    if (!instant && !ws.length) { UI.feed(Tr('Kimse görmedi...')); return; }
     // küçük kabahat: kovalamaca yok, yalnızca para cezası
     if (minor) {
-      if (this.anonymous()) { UI.feed('Maskeli olduğun için kimse seni tanımadı.'); return; }
+      if (this.anonymous()) { UI.feed(Tr('Maskeli olduğun için kimse seni tanımadı.')); return; }
       this.law.bounty += bounty;
       const by = ws.find(e => e.isLaw) || ws[0];
-      if (by) by.say(pick(['Hey! O hayvanın bir sahibi var!', 'Bunun cezasını ödeyeceksin!', 'Şerife söyleyeceğim!']), 2.5);
-      UI.feed(`${name}: ${fmtMoney(bounty)} para cezası yazıldı. Şerif ofisinde ödeyebilirsin.`, 'law');
+      if (by) by.say(pick([Tr('Hey! O hayvanın bir sahibi var!'), Tr('Bunun cezasını ödeyeceksin!'), Tr('Şerife söyleyeceğim!')]), 2.5);
+      UI.feed(Tr`${name}: ${fmtMoney(bounty)} para cezası yazıldı. Şerif ofisinde ödeyebilirsin.`, 'law');
       return;
     }
     const r = { type, name, bounty, lvl, masked: this.anonymous(), desc: this.outfit(), x, y, t: 0, victim, ws: [] };
@@ -378,8 +381,8 @@ const GameSystems = {
       if (!R.ws.includes(e)) R.ws.push(e);
       e.witness = R; e.state = 'report'; e.held = false; e.braveT = 0; e.tgtT = 0; e.chatT = rnd(0.2, 1.2);
     }
-    UI.feed(`${Icons.glyph('witness', '#f0b050', 'ic inl')} ${R.ws.length > 1 ? R.ws.length + ' tanık' : 'Bir tanık'} kanuna haber vermeye koşuyor! Onları durdur ya da kaç.`, 'law');
-    this.hintOnce('witness', `Suçunu gören biri şerife koşuyor. Kanuna ulaşmadan önce ona silah doğrultup ${Input.glyph('interact')} ile <b>tehdit edebilir</b> ya da <b>rüşvet</b> verebilirsin. Tanık kalmazsa suç kayda geçmez.`);
+    UI.feed(Tr`${Icons.glyph('witness', '#f0b050', 'ic inl')} ${R.ws.length > 1 ? R.ws.length + Tr(' tanık') : Tr('Bir tanık')} kanuna haber vermeye koşuyor! Onları durdur ya da kaç.`, 'law');
+    this.hintOnce('witness', Tr`Suçunu gören biri şerife koşuyor. Kanuna ulaşmadan önce ona silah doğrultup ${Input.glyph('interact')} ile <b>tehdit edebilir</b> ya da <b>rüşvet</b> verebilirsin. Tanık kalmazsa suç kayda geçmez.`);
     for (const e of this.ents) if (e.kind === 'npc' && !e.dead && !e.hostile && e.role !== 'bandit' && e.state !== 'report' && dist2(e.x, e.y, x, y) < 300 * 300) { e.state = 'flee'; e.t = 10; }
   },
   /* Maskeli ve kimliği bilinmeyen biri mi? */
@@ -400,9 +403,9 @@ const GameSystems = {
     if (r.type === 'murderLaw') L.level = Math.min(5, L.level + 1);
     L.lastX = instant ? P.x : r.x; L.lastY = instant ? P.y : r.y; L.unseen = 0;
     L.spawnT = instant ? 2 : 5;
-    if (r.masked) UI.toast(r.name.toUpperCase(), `Maskeli bir yabancı aranıyor (+${fmtMoney(r.bounty)})`, 'wanted');
+    if (r.masked) UI.toast(r.name.toUpperCase(), Tr`Maskeli bir yabancı aranıyor (+${fmtMoney(r.bounty)})`, 'wanted');
     else UI.wanted(r.name, r.bounty);
-    if (r.masked) this.hintOnce('masked', 'Maskeliyken suç işledin: kanun <b>maskeli bir yabancıyı</b> arıyor, seni değil. Kimse görmeden maskeni çıkarırsan izini kaybederler. Biri görürse kimliğin açığa çıkar.');
+    if (r.masked) this.hintOnce('masked', Tr('Maskeliyken suç işledin: kanun <b>maskeli bir yabancıyı</b> arıyor, seni değil. Kimse görmeden maskeni çıkarırsan izini kaybederler. Biri görürse kimliğin açığa çıkar.'));
     for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && (instant || dist2(e.x, e.y, r.x, r.y) < 900 * 900)) e.hostile = true;
     if (instant) for (const e of this.ents) if (e.kind === 'npc' && !e.dead && !e.hostile && e.role !== 'bandit' && e.state !== 'report' && dist2(e.x, e.y, r.x, r.y) < 300 * 300) { e.state = 'flee'; e.t = 10; }
   },
@@ -421,13 +424,13 @@ const GameSystems = {
     if (tg && tg.kind === 'npc') { tg.say(pick(LINES.law), 2); tg.hostile = true; }
     for (const w of r.ws) if (w.witness === r) { w.witness = null; w.held = false; if (!w.dead) { w.state = 'flee'; w.t = 8; } }
     this.applyCrime(r, false);
-    UI.feed(`${Icons.glyph('witness', '#f0b050', 'ic inl')} Tanık kanuna ulaştı${r.masked ? ' — ama yüzünü görmedi.' : '.'}`, 'law');
+    UI.feed(Tr`${Icons.glyph('witness', '#f0b050', 'ic inl')} Tanık kanuna ulaştı${r.masked ? Tr(' — ama yüzünü görmedi.') : '.'}`, 'law');
   },
   cancelReport(r, why) {
     if (r.done) return;
     r.done = true;
     for (const w of r.ws) if (w.witness === r) w.witness = null;
-    UI.feed(why || 'Tanık kalmadı. Suç kanuna ulaşmayacak.', 'ok');
+    UI.feed(why || Tr('Tanık kalmadı. Suç kanuna ulaşmayacak.'), 'ok');
     Audio_.ui('ok');
   },
   silenceWitness(e) {
@@ -439,18 +442,18 @@ const GameSystems = {
   intimidate(e) {
     const P = this.player, r = e.witness;
     if (!r) return;
-    UI.subtitle(P.name, pick(['Tek kelime edersen geri gelirim.', 'Hiçbir şey görmedin. Anlaşıldı mı?', 'Çeneni kapalı tut, yaşarsın.']), 2, true);
+    UI.subtitle(P.name, pick([Tr('Tek kelime edersen geri gelirim.'), Tr('Hiçbir şey görmedin. Anlaşıldı mı?'), Tr('Çeneni kapalı tut, yaşarsın.')]), 2, true);
     let ch = 0.55 + this.skill('charisma') * 0.03 + (this.honor < -30 ? 0.15 : 0) + (P.masked ? 0.05 : 0) - (r.victim === e ? 0.15 : 0) - (e.intimidated ? 0.3 : 0);
     if (e.isLaw) ch = 0;
     if (chance(ch)) {
       setTimeout(() => e.say(pick(LINES.silenced), 2.5), 700);
       this.silenceWitness(e);
       this.addHonor(-2); this.skillXp('charisma', 2);
-      UI.feed(`${Icons.glyph('witness', '#efe6d2', 'ic inl')} Tanık susturuldu.`);
+      UI.feed(Tr`${Icons.glyph('witness', '#efe6d2', 'ic inl')} Tanık susturuldu.`);
     } else {
       e.intimidated = true; e.held = false; e.braveT = 4; e.fear = 1.35;
-      setTimeout(() => e.say(pick(['Yardım edin! Deli bu!', 'Asla! Şerife gidiyorum!', 'Beni korkutamazsın!']), 2), 600);
-      UI.feed('Tanık korkmadı ve kaçıyor!', 'warn');
+      setTimeout(() => e.say(pick([Tr('Yardım edin! Deli bu!'), Tr('Asla! Şerife gidiyorum!'), Tr('Beni korkutamazsın!')]), 2), 600);
+      UI.feed(Tr('Tanık korkmadı ve kaçıyor!'), 'warn');
     }
   },
   bribeCost(e) { return Math.round(5 + (e.witness ? e.witness.bounty : 10) * 0.3); },
@@ -458,8 +461,8 @@ const GameSystems = {
     const P = this.player, r = e.witness;
     if (!r) return;
     const cost = this.bribeCost(e);
-    if (P.money < cost) { UI.feed('Rüşvet için yeterli paran yok.', 'warn'); Audio_.ui('error'); return; }
-    UI.subtitle(P.name, pick(['Al şunu ve unut.', 'Bu senin sessizliğin için.', 'Kimse bir şey görmedi, değil mi?']), 2, true);
+    if (P.money < cost) { UI.feed(Tr('Rüşvet için yeterli paran yok.'), 'warn'); Audio_.ui('error'); return; }
+    UI.subtitle(P.name, pick([Tr('Al şunu ve unut.'), Tr('Bu senin sessizliğin için.'), Tr('Kimse bir şey görmedi, değil mi?')]), 2, true);
     const ch = 0.7 + this.skill('charisma') * 0.03 - (r.victim === e ? 0.35 : 0) - (r.type === 'murder' || r.type === 'murderLaw' ? 0.15 : 0);
     e.bribeTried = true;
     if (chance(ch)) {
@@ -467,11 +470,11 @@ const GameSystems = {
       setTimeout(() => e.say(pick(LINES.bribed), 2.5), 700);
       this.silenceWitness(e); e.state = 'idle'; e.t = 3;
       this.addHonor(-1); this.skillXp('charisma', 1.5);
-      UI.feed(`💵 -${fmtMoney(cost)} — tanık parayı aldı.`);
+      UI.feed(Tr`💵 -${fmtMoney(cost)} — tanık parayı aldı.`);
     } else {
       e.braveT = 4; e.held = false;
-      setTimeout(() => e.say(pick(['Paranı istemiyorum!', 'Beni satın alamazsın!', 'Kanun seni bulacak!']), 2), 600);
-      UI.feed('Tanık rüşveti reddetti!', 'warn');
+      setTimeout(() => e.say(pick([Tr('Paranı istemiyorum!'), Tr('Beni satın alamazsın!'), Tr('Kanun seni bulacak!')]), 2), 600);
+      UI.feed(Tr('Tanık rüşveti reddetti!'), 'warn');
     }
   },
   witnessUpdate(dt) {
@@ -505,21 +508,21 @@ const GameSystems = {
     P._lk = null;
     if (P.masked && (!id || id === P.mask)) {
       P.mask = null;
-      UI.feed(`${Icons.glyph('mask', '#efe6d2', 'ic inl')} Maske çıkarıldı`);
+      UI.feed(Tr`${Icons.glyph('mask', '#efe6d2', 'ic inl')} Maske çıkarıldı`);
       Audio_.ui('pick');
       this.unmaskCheck(force);
       P.maskBlown = false;
       return;
     }
     id = id || (P.lastMask && P.has(P.lastMask) ? P.lastMask : ['mask_bandana', 'mask_sack'].find(k => P.has(k)));
-    if (!id) { UI.feed('Maskenin yok. Genel mağaza, terzi ya da kaçakçıdan bandana alabilirsin.', 'warn'); Audio_.ui('error'); return; }
+    if (!id) { UI.feed(Tr('Maskenin yok. Genel mağaza, terzi ya da kaçakçıdan bandana alabilirsin.'), 'warn'); Audio_.ui('error'); return; }
     const was = P.masked;
     P.mask = id; P.lastMask = id;
-    UI.feed(`${Icons.item(id, 'ic inl')} ${ITEMS[id].n} takıldı`);
+    UI.feed(Tr`${Icons.item(id, 'ic inl')} ${ITEMS[id].n} takıldı`);
     Audio_.ui('pick');
     if (!was) {
       P.maskBlown = !!this.watcher(90);
-      if (P.maskBlown) UI.feed('Maskeni takarken biri seni gördü. Onun gözünde artık kim olduğun belli.', 'warn');
+      if (P.maskBlown) UI.feed(Tr('Maskeni takarken biri seni gördü. Onun gözünde artık kim olduğun belli.'), 'warn');
     }
   },
   /* Oyuncuyu gören en yakın kişi */
@@ -552,8 +555,8 @@ const GameSystems = {
         for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && dist2(e.x, e.y, P.x, P.y) < 700 * 700) e.hostile = true;
       }
     }
-    if (by && by.say) by.say(pick(['Bu o! Maskeli adam bu!', 'Yüzünü gördüm! Sensin!', 'Seni tanıdım!']), 2.5);
-    UI.toast('KİMLİĞİN AÇIĞA ÇIKTI', mb ? `Maskeli suçlar artık senin adına: +${fmtMoney(mb)}` : 'Tanıklar yüzünü gördü.', 'wanted');
+    if (by && by.say) by.say(pick([Tr('Bu o! Maskeli adam bu!'), Tr('Yüzünü gördüm! Sensin!'), Tr('Seni tanıdım!')]), 2.5);
+    UI.toast(Tr('KİMLİĞİN AÇIĞA ÇIKTI'), mb ? Tr`Maskeli suçlar artık senin adına: +${fmtMoney(mb)}` : Tr('Tanıklar yüzünü gördü.'), 'wanted');
     Audio_.ui('error');
   },
   lawUpdate(dt) {
@@ -569,7 +572,7 @@ const GameSystems = {
           L.recog = (L.recog || 0) + dt;
           for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && dist(e.x, e.y, P.x, P.y) < near && L.recog > need && e.canSee(P.x, P.y, near)) {
             L.level = 1; L.lastX = P.x; L.lastY = P.y; L.unseen = 0; e.hostile = true;
-            UI.wanted('Tanındın! Başında ödül var', 0); e.say('Seni tanıyorum! Başında ödül var!'); L.recog = 0; break;
+            UI.wanted(Tr('Tanındın! Başında ödül var'), 0); e.say(Tr('Seni tanıyorum! Başında ödül var!')); L.recog = 0; break;
           }
         } else L.recog = 0;
       }
@@ -585,8 +588,8 @@ const GameSystems = {
     const need = this.hasPerk('outlaw') ? 7 : 12;
     if (out && L.unseen > need) {
       L.level = 0;
-      if (L.masked && L.bounty <= 0) UI.feed('Maskeli yabancının izi kayboldu. Kimse kim olduğunu bilmiyor.', 'law');
-      else UI.feed(L.masked ? 'Maskeli yabancının izi kayboldu.' : 'Kanundan kaçtın. Ama başındaki ödül hâlâ duruyor.', 'law');
+      if (L.masked && L.bounty <= 0) UI.feed(Tr('Maskeli yabancının izi kayboldu. Kimse kim olduğunu bilmiyor.'), 'law');
+      else UI.feed(L.masked ? Tr('Maskeli yabancının izi kayboldu.') : Tr('Kanundan kaçtın. Ama başındaki ödül hâlâ duruyor.'), 'law');
       L.maskBounty = 0; L.masked = false; L.resist = false; L.arrestT = 0; L.warned = false; L.fleeWarn = false; L.fleeT = 0;
       Audio_.ui('ok');
       for (const e of lawmen) { e.hostile = false; if (!this.world.townAt(e.x, e.y)) e.remove = true; }
@@ -620,7 +623,7 @@ const GameSystems = {
   onPlayerFire() {
     const L = this.law, P = this.player;
     if (L.level <= 0 || L.resist) return;
-    if (this.ents.some(e => e.kind === 'npc' && e.isLaw && e.hostile && !e.dead && dist2(e.x, e.y, P.x, P.y) < 450 * 450)) this.lawResist('Ateş ettin');
+    if (this.ents.some(e => e.kind === 'npc' && e.isLaw && e.hostile && !e.dead && dist2(e.x, e.y, P.x, P.y) < 450 * 450)) this.lawResist(Tr('Ateş ettin'));
   },
   lawResist(why) {
     const L = this.law;
@@ -628,8 +631,8 @@ const GameSystems = {
     L.resist = true; L.arrestT = 0;
     const P = this.player;
     const cop = this.ents.find(e => e.kind === 'npc' && e.isLaw && e.hostile && !e.dead && dist(e.x, e.y, P.x, P.y) < 300);
-    if (cop) cop.say(pick(['Ateş serbest!', 'Direniyor! Vurun!', 'Kendin istedin!', 'Canlı ya da ölü!']), 2.5);
-    UI.feed(`${why || 'Tutuklamaya direndin'} — kanun ateş açıyor!`, 'warn');
+    if (cop) cop.say(pick([Tr('Ateş serbest!'), Tr('Direniyor! Vurun!'), Tr('Kendin istedin!'), Tr('Canlı ya da ölü!')]), 2.5);
+    UI.feed(Tr`${why || Tr('Tutuklamaya direndin')} — kanun ateş açıyor!`, 'warn');
     for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && e.hostile) e.cool = Math.min(e.cool, rnd(0.2, 0.8));
   },
   arrestUpdate(dt) {
@@ -638,20 +641,20 @@ const GameSystems = {
     const cop = this.arrestingCop(260);
     if (!cop) { L.fleeT = Math.max(0, (L.fleeT || 0) - dt); return; }
     const d = dist(cop.x, cop.y, P.x, P.y);
-    this.hintOnce('surrender', `Kanun seni tutuklamak istiyor. Kanun adamının yanında ${Input.glyph('interact')} basılı tutarak <b>teslim olabilirsin</b>. Ateş edersen, silah doğrultursan ya da kaçarsan ateş açarlar.`, 9);
+    this.hintOnce('surrender', Tr`Kanun seni tutuklamak istiyor. Kanun adamının yanında ${Input.glyph('interact')} basılı tutarak <b>teslim olabilirsin</b>. Ateş edersen, silah doğrultursan ya da kaçarsan ateş açarlar.`, 9);
     // kanun adamına silah doğrultmak
-    if (P.aiming && P.isArmed && Math.abs(angDiff(P.aimAng, Math.atan2(cop.y - P.y, cop.x - P.x))) < 0.3) { L.aimT = (L.aimT || 0) + dt; if (L.aimT > 1.1) { this.lawResist('Kanun adamına silah doğrulttun'); return; } } else L.aimT = 0;
+    if (P.aiming && P.isArmed && Math.abs(angDiff(P.aimAng, Math.atan2(cop.y - P.y, cop.x - P.x))) < 0.3) { L.aimT = (L.aimT || 0) + dt; if (L.aimT > 1.1) { this.lawResist(Tr('Kanun adamına silah doğrulttun')); return; } } else L.aimT = 0;
     // kaçmak
     const away = L.lastD !== undefined && d > L.lastD + 0.05;
-    if (d > 70 && away) { L.fleeT = (L.fleeT || 0) + dt * (P.sprinting || P.riding ? 1.4 : 1); if (L.fleeT > 5) { this.lawResist('Kaçmaya çalıştın'); return; } }
+    if (d > 70 && away) { L.fleeT = (L.fleeT || 0) + dt * (P.sprinting || P.riding ? 1.4 : 1); if (L.fleeT > 5) { this.lawResist(Tr('Kaçmaya çalıştın')); return; } }
     else L.fleeT = Math.max(0, (L.fleeT || 0) - dt * 0.4);
-    if (L.fleeT > 2 && !L.fleeWarn) { L.fleeWarn = true; cop.say(pick(['Dur! Kaçarsan ateş ederim!', 'Bir adım daha atarsan vururum!']), 2.5); }
+    if (L.fleeT > 2 && !L.fleeWarn) { L.fleeWarn = true; cop.say(pick([Tr('Dur! Kaçarsan ateş ederim!'), Tr('Bir adım daha atarsan vururum!')]), 2.5); }
     L.lastD = d;
     // yakındayken beklemek
     if (d < 100) {
       L.arrestT = (L.arrestT || 0) + dt;
-      if (L.arrestT > 10 && !L.warned) { L.warned = true; cop.say('Son kez söylüyorum: teslim ol!', 3); }
-      if (L.arrestT > 16) this.lawResist('Teslim olmadın');
+      if (L.arrestT > 10 && !L.warned) { L.warned = true; cop.say(Tr('Son kez söylüyorum: teslim ol!'), 3); }
+      if (L.arrestT > 16) this.lawResist(Tr('Teslim olmadın'));
     }
   },
   surrender(cop) {
@@ -663,7 +666,7 @@ const GameSystems = {
     const days = clamp(Math.ceil(fine / 40), 1, 7);
     const sheriff = this.nearestTown(P.x, P.y, t => t.buildings.some(b => b.type === 'sheriff'));
     const office = sheriff && sheriff.buildings.find(b => b.type === 'sheriff');
-    cop.say(pick(['Akıllıca bir karar.', 'Eller arkaya. Yavaşça.', 'Hadi bakalım, şerif ofisine.']), 3);
+    cop.say(pick([Tr('Akıllıca bir karar.'), Tr('Eller arkaya. Yavaşça.'), Tr('Hadi bakalım, şerif ofisine.')]), 3);
     Audio_.ui('back');
     const finish = (paid) => {
       L.level = 0; L.bounty = 0; L.maskBounty = 0; L.masked = false; L.resist = false; L.desc = null; L.arrestT = 0; L.fleeT = 0; L.warned = false; L.fleeWarn = false;
@@ -672,15 +675,15 @@ const GameSystems = {
       this.stat(paid ? 'finesPaid' : 'jailed', 1);
     };
     UI.menu({
-      title: 'Tutuklandın', cls: 'small', sub: `${sheriff ? sheriff.n + ' şerifi' : 'Kanun'} seni bekliyor`,
-      onBack: () => {}, footer: () => `${Input.glyph('confirm')} Seç`,
+      title: Tr('Tutuklandın'), cls: 'small', sub: Tr`${sheriff ? sheriff.n + Tr(' şerifi') : Tr('Kanun')} seni bekliyor`,
+      onBack: () => {}, footer: () => Tr`${Input.glyph('confirm')} Seç`,
       items: [
-        { html: `<p>Başındaki ödül: <b>${fmtMoney(fine)}</b>. Cezanı ödersen serbest kalırsın. Ödeyemezsen ya da ödemek istemezsen <b>${days} gün</b> hapis yatarsın.</p>` },
-        { label: `Cezayı Öde (${fmtMoney(fine)})`, disabled: P.money < fine, why: 'Yeterli paran yok.', fn: () => {
+        { html: `<p>${Tr`Başındaki ödül: <b>${fmtMoney(fine)}</b>. Cezanı ödersen serbest kalırsın. Ödeyemezsen ya da ödemek istemezsen <b>${days} gün</b> hapis yatarsın.`}</p>` },
+        { label: Tr`Cezayı Öde (${fmtMoney(fine)})`, disabled: P.money < fine, why: Tr('Yeterli paran yok.'), fn: () => {
           P.money -= fine; UI.closeAll(); finish(true); this.addHonor(1);
-          UI.feed(`⚖ ${fmtMoney(fine)} ceza ödendi. Serbestsin.`); Audio_.ui('cash');
+          UI.feed(Tr`⚖ ${fmtMoney(fine)} ceza ödendi. Serbestsin.`); Audio_.ui('cash');
         } },
-        { label: `Hapse Gir (${days} gün)`, fn: () => {
+        { label: Tr`Hapse Gir (${days} gün)`, fn: () => {
           UI.closeAll();
           UI.fade(() => {
             finish(false);
@@ -689,8 +692,8 @@ const GameSystems = {
             P.hunger = Math.max(P.hunger, 45); P.thirst = Math.max(P.thirst, 45); P.energy = 80; P.clean = Math.max(0, P.clean - 25);
             this.addHonor(2);
             this.cam.x = P.x; this.cam.y = P.y;
-            UI.toast('Serbest Bırakıldın', `${days} gün hapis yattın. Borcun ödendi.`, 'ok');
-          }, `${days} gün sonra...`);
+            UI.toast(Tr('Serbest Bırakıldın'), Tr`${days} gün hapis yattın. Borcun ödendi.`, 'ok');
+          }, Tr`${days} gün sonra...`);
         } },
       ],
     });
@@ -698,76 +701,77 @@ const GameSystems = {
   payBounty() {
     const b = this.law.bounty;
     if (b <= 0) return;
-    if (this.law.level > 0) { UI.feed('Aranırken ödül ödeyemezsin!', 'warn'); return; }
+    if (this.law.level > 0) { UI.feed(Tr('Aranırken ödül ödeyemezsin!'), 'warn'); return; }
     if (!this.spend(b)) return;
     this.law.bounty = 0; this.law.desc = null;
     this.addHonor(2);
-    UI.feed(`⚖️ ${fmtMoney(b)} ödül ödendi. Artık temizsin.`);
+    UI.feed(Tr`⚖️ ${fmtMoney(b)} ödül ödendi. Artık temizsin.`);
   },
 
   /* ================= BİNALAR ================= */
   knock(b) {
     Audio_.thud(0.3);
     const t = this.hour;
-    setTimeout(() => UI.subtitle('İçeriden bir ses', t < 6 || t > 21 ? pick(['Gecenin bu saatinde ne istiyorsun?!', 'Git buradan, yoksa şerifi çağırırım!']) : pick(['Kim o? Bir şey almıyoruz!', 'Evde kimse yok... yani, git!', 'Kapıyı çalan kim? Yabancılara açmam.']), 3), 600);
+    setTimeout(() => UI.subtitle(Tr('İçeriden bir ses'), t < 6 || t > 21 ? pick([Tr('Gecenin bu saatinde ne istiyorsun?!'), Tr('Git buradan, yoksa şerifi çağırırım!')]) : pick([Tr('Kim o? Bir şey almıyoruz!'), Tr('Evde kimse yok... yani, git!'), Tr('Kapıyı çalan kim? Yabancılara açmam.')]), 3), 600);
   },
   breakDoor(b) {
     b.forced = this.day;
     Audio_.thud(0.8); this.fx.shake = 3;
     this.noise(b.door.x, b.door.y, 260, 'loud');
     this.crime('trespass', b.door.x, b.door.y);
-    UI.feed('Kapıyı kırdın.', 'warn');
+    UI.feed(Tr('Kapıyı kırdın.'), 'warn');
   },
   /* İç mekân eşyası -> etkileşimler */
   furnActions(b, o) {
     const P = this.player, U = UI;
     const svc = (...ids) => {
       const acts = [];
-      for (const id of ids) if (b.def.svc.includes(id)) for (const it of U.svcItems(b, id)) acts.push({ n: it.label + (it.right ? ` (${it.right})` : ''), fn: () => { if (P.masked && b.type !== 'fence' && !/rob/.test(id)) { UI.feed('"Maskeni çıkar, yoksa sana hizmet etmem."', 'warn'); return; } it.fn(); } });
+      for (const id of ids) if (b.def.svc.includes(id)) for (const it of U.svcItems(b, id)) acts.push({ n: it.label + (it.right ? ` (${it.right})` : ''), fn: () => { if (P.masked && b.type !== 'fence' && !/rob/.test(id)) { UI.feed(Tr('"Maskeni çıkar, yoksa sana hizmet etmem."'), 'warn'); return; } it.fn(); } });
       return acts;
     };
     const staff = b.staffNpc && !b.staffNpc.dead && !b.staffNpc.remove ? b.staffNpc : null;
     const counter = (label) => {
-      if (staff || !b.staff) return { label, acts: [{ n: staff ? `${staff.name} ile Konuş` : 'Hizmet Al', fn: () => U.openBuilding(b) }] };
-      const acts = [{ n: 'Tezgahta kimse yok', fn: () => UI.feed('Tezgahın arkasında kimse yok.') }];
-      if (b.def.svc.includes('rob')) acts.push({ n: 'Kasayı Boşalt', fn: () => U.robStore(b, true) });
+      if (staff || !b.staff) return { label, acts: [{ n: staff ? Tr`${staff.name} ile Konuş` : Tr('Hizmet Al'), fn: () => U.openBuilding(b) }] };
+      const acts = [{ n: Tr('Tezgahta kimse yok'), fn: () => UI.feed(Tr('Tezgahın arkasında kimse yok.')) }];
+      if (b.def.svc.includes('rob')) acts.push({ n: Tr('Kasayı Boşalt'), fn: () => U.robStore(b, true) });
       return { label, acts };
     };
     switch (o) {
-      case O.COUNTER: return counter(b.type === 'bank' ? 'Veznedar' : b.type === 'hotel' ? 'Resepsiyon' : 'Tezgah');
-      case O.BAR: return counter('Bar');
-      case O.TICKET: return staff ? { label: 'Bilet Gişesi', acts: svc('train') } : counter('Bilet Gişesi');
+      case O.COUNTER: return counter(b.type === 'bank' ? Tr('Veznedar') : b.type === 'hotel' ? Tr('Resepsiyon') : Tr('Tezgah'));
+      case O.BAR: return counter(Tr('Bar'));
+      case O.TICKET: return staff ? { label: Tr('Bilet Gişesi'), acts: svc('train') } : counter(Tr('Bilet Gişesi'));
       case O.DESK:
-        if (b.type === 'sheriff') return { label: 'Şerifin Masası', acts: [...svc('bounty', 'board'), { n: 'Konuş', fn: () => U.openBuilding(b) }] };
-        if (b.type === 'land') return { label: 'Tapu Memuru', acts: svc('property') };
-        if (b.type === 'ranch' || b.type === 'lumber') return { label: 'İş Masası', acts: svc('work') };
-        return counter('Masa');
+        if (b.type === 'sheriff') return { label: Tr('Şerifin Masası'), acts: [...svc('bounty', 'board'), { n: Tr('Konuş'), fn: () => U.openBuilding(b) }] };
+        if (b.type === 'land') return { label: Tr('Tapu Memuru'), acts: svc('property') };
+        if (b.type === 'ranch' || b.type === 'lumber') return { label: Tr('İş Masası'), acts: svc('work') };
+        return counter(Tr('Masa'));
       case O.BED:
-        if (b.type === 'hotel') return { label: 'Otel Odası', acts: svc('room') };
-        if (b.type === 'doctor') return { label: 'Muayene Yatağı', acts: svc('heal') };
-        if (b.type === 'property' && this.props.includes(b.prop)) return { label: 'Yatağın', acts: [{ n: 'Uyu', fn: () => U.openSleep('home') }, { n: 'Oyunu Kaydet', fn: () => this.saveGame() }] };
+        if (b.type === 'hotel') return { label: Tr('Otel Odası'), acts: svc('room') };
+        if (b.type === 'doctor') return { label: Tr('Muayene Yatağı'), acts: svc('heal') };
+        if (b.type === 'property' && this.props.includes(b.prop)) return { label: Tr('Yatağın'), acts: [{ n: Tr('Uyu'), fn: () => U.openSleep('home') }, { n: Tr('Oyunu Kaydet'), fn: () => this.saveGame() }] };
         return null;
-      case O.TUB: return b.def.svc.includes('bath') ? { label: 'Küvet', acts: svc('bath') } : null;
-      case O.CARDTABLE: return { label: 'Kart Masası', acts: svc('blackjack') };
+      case O.TUB: return b.def.svc.includes('bath') ? { label: Tr('Küvet'), acts: svc('bath') } : null;
+      case O.CARDTABLE: return { label: Tr('Kart Masası'), acts: svc('blackjack') };
       case O.TABLE:
-        if (b.type === 'saloon') return { label: 'Masa', acts: [...svc('meal'), ...svc('rumor'), ...svc('arm')] };
-        return { label: 'Masa', acts: [{ n: 'Otur ve Bekle', fn: () => U.openWait() }] };
-      case O.PIANO: return { label: 'Piyano', acts: [{ n: 'Piyano Çal', fn: () => this.playPiano(b) }] };
+        if (b.type === 'saloon') return { label: Tr('Masa'), acts: [...svc('meal'), ...svc('rumor'), ...svc('arm')] };
+        if (b.type === 'house') return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }, { n: Tr('Evi Ara'), hold: 1.2, fn: () => this.searchHouse(b) }] };
+        return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
+      case O.PIANO: return { label: Tr('Piyano'), acts: [{ n: Tr('Piyano Çal'), fn: () => this.playPiano(b) }] };
       case O.PEW:
-        if (b.type === 'church') return { label: 'Sıra', acts: svc('pray') };
-        return { label: 'Bank', acts: [{ n: 'Otur ve Bekle', fn: () => U.openWait() }] };
-      case O.ALTAR: return { label: 'Sunak', acts: [...svc('donate'), ...svc('pray')] };
-      case O.SAFE: return b.def.svc.includes('robbank') ? { label: 'Kasa', acts: svc('robbank') } : null;
-      case O.BCHAIR: return { label: 'Berber Koltuğu', acts: svc('barber') };
-      case O.STALL: return b.type === 'stable' ? counter('Ahır Bölmesi') : null;
+        if (b.type === 'church') return { label: Tr('Sıra'), acts: svc('pray') };
+        return { label: 'Bank', acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
+      case O.ALTAR: return { label: Tr('Sunak'), acts: [...svc('donate'), ...svc('pray')] };
+      case O.SAFE: return b.def.svc.includes('robbank') ? { label: Tr('Kasa'), acts: svc('robbank') } : null;
+      case O.BCHAIR: return { label: Tr('Berber Koltuğu'), acts: svc('barber') };
+      case O.STALL: return b.type === 'stable' ? counter(Tr('Ahır Bölmesi')) : null;
       case O.STOVE:
-        if (b.type === 'property' && this.props.includes(b.prop)) return { label: 'Ocak', acts: [{ n: 'Yemek Pişir', fn: () => U.openCook() }] };
-        return { label: 'Soba', acts: [{ n: 'Isın', fn: () => { P.warmBuff = Math.max(P.warmBuff, 90); UI.feed('Sobanın başında ısındın.'); this.advanceClock(10); } }] };
-      case O.HOMECHEST: return this.props.includes(b.prop) ? { label: 'Sandık', acts: [{ n: 'Sandığı Aç', fn: () => U.openStash() }] } : null;
+        if (b.type === 'property' && this.props.includes(b.prop)) return { label: Tr('Ocak'), acts: [{ n: Tr('Yemek Pişir'), fn: () => U.openCook() }] };
+        return { label: Tr('Soba'), acts: [{ n: Tr('Isın'), fn: () => { P.warmBuff = Math.max(P.warmBuff, 90); UI.feed(Tr('Sobanın başında ısındın.')); this.advanceClock(10); } }] };
+      case O.HOMECHEST: return this.props.includes(b.prop) ? { label: Tr('Sandık'), acts: [{ n: Tr('Sandığı Aç'), fn: () => U.openStash() }] } : null;
       case O.SHELF: case O.RACK: case O.MANNEQUIN:
-        return b.def.shop ? { label: 'Raflar', acts: [{ n: 'Mallara Bak', fn: () => (staff || !b.staff ? U.openBuilding(b) : UI.feed('Satıcı yok.')) }] } : null;
-      case O.WORKBENCH: return b.def.work ? { label: 'Tezgah', acts: svc('work') } : null;
-      case O.CELL: return { label: 'Hücre', acts: [{ n: 'Parmaklıklara Bak', fn: () => UI.subtitle('Mahkum', pick(['Bir sigaran var mı, dostum?', 'Masumum, yemin ederim!', 'Beni buradan çıkar, sana altının yerini söylerim...']), 3) }] };
+        return b.def.shop ? { label: Tr('Raflar'), acts: [{ n: Tr('Mallara Bak'), fn: () => (staff || !b.staff ? U.openBuilding(b) : UI.feed(Tr('Satıcı yok.'))) }] } : null;
+      case O.WORKBENCH: return b.def.work ? { label: Tr('Tezgah'), acts: svc('work') } : null;
+      case O.CELL: return { label: Tr('Hücre'), acts: [{ n: Tr('Parmaklıklara Bak'), fn: () => UI.subtitle(Tr('Mahkum'), pick([Tr('Bir sigaran var mı, dostum?'), Tr('Masumum, yemin ederim!'), Tr('Beni buradan çıkar, sana altının yerini söylerim...')]), 3) }] };
     }
     return null;
   },
@@ -776,9 +780,9 @@ const GameSystems = {
     const sc = [262, 294, 330, 349, 392, 440, 494, 523];
     const tune = [0, 2, 4, 4, 5, 4, 2, 0, 1, 2, 4, 2, 0];
     tune.forEach((n, k) => setTimeout(() => { Audio_.pluck(sc[n], 0.12); if (k % 3 === 0) Audio_.pluck(sc[n] / 2, 0.08); }, k * 230));
-    UI.feed('🎵 Piyanoda eski bir türkü çaldın.');
+    UI.feed(Tr('🎵 Piyanoda eski bir türkü çaldın.'));
     const k = 'piano' + b.id;
-    if (!this.dailyTalk[k]) { this.dailyTalk[k] = 1; if (chance(0.5)) { const tip = rnd(0.2, 1.5); setTimeout(() => this.earn(tip, 'Bahşiş'), tune.length * 230); } this.skillXp('charisma', 1); }
+    if (!this.dailyTalk[k]) { this.dailyTalk[k] = 1; if (chance(0.5)) { const tip = rnd(0.2, 1.5); setTimeout(() => this.earn(tip, Tr('Bahşiş')), tune.length * 230); } this.skillXp('charisma', 1); }
   },
   isOpen(b) {
     if (['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn'].includes(b.type)) return true;
@@ -788,8 +792,8 @@ const GameSystems = {
     if (!b) return true;
     if (this.insideB === b) return true;
     if (b.type === 'property') return this.props.includes(b.prop);
+    if (b.forced === this.day) return true;          // kırılan kapı o gün açık kalır (kilitli evler dahil)
     if (b.def.lock) return false;
-    if (b.forced === this.day) return true;
     return this.isOpen(b);
   },
 
@@ -898,20 +902,20 @@ const GameSystems = {
   onNpcKill(n, how) {
     this.stat('kills', 1);
     if (n.role === 'bandit' || n.role === 'target') { this.stat('bandits', 1); this.addHonor(1); this.skillXp('shooting', 6); }
-    else if (n.isLaw) { if (!n.hostile || this.law.level === 0) this.crime('murderLaw', n.x, n.y, n); else { if (this.anonymous()) this.law.maskBounty = (this.law.maskBounty || 0) + 40; else this.law.bounty += 40; this.law.level = Math.min(5, this.law.level + (chance(0.4) ? 1 : 0)); this.addHonor(-4); UI.wanted('Kanun adamı öldürüldü', 40); } }
+    else if (n.isLaw) { if (!n.hostile || this.law.level === 0) this.crime('murderLaw', n.x, n.y, n); else { if (this.anonymous()) this.law.maskBounty = (this.law.maskBounty || 0) + 40; else this.law.bounty += 40; this.law.level = Math.min(5, this.law.level + (chance(0.4) ? 1 : 0)); this.addHonor(-4); UI.wanted(Tr('Kanun adamı öldürüldü'), 40); } }
     else if (!n.hostile) { if (n.assaulted) { this.law.bounty = Math.max(0, this.law.bounty - 12); this.addHonor(3); } this.crime(how === 'trample' ? 'trample' : 'murder', n.x, n.y, n); }
     if (n.event && n.event.onDeath) n.event.onDeath(n);
     if (n.role === 'target' && this.activeBounty && n.bountyId === this.activeBounty.id) {
       this.activeBounty.done = true;
-      UI.toast('Hedef Etkisiz Hale Getirildi', `${n.name} — ödülü bir şerif ofisinden al.`, 'bounty');
+      UI.toast(Tr('Hedef Etkisiz Hale Getirildi'), Tr`${n.name} — ödülü bir şerif ofisinden al.`, 'bounty');
     }
     if (this.player.deadeye) this.stat('deadeyeKills', 1);
   },
   playerDied(cause) {
     if (this.state !== 'play') return;
     this.state = 'dead';
-    const CAUSES = { train: 'tren kazası', fist: 'kavga', fall: 'attan düşme', patlama: 'patlama', haydut: 'haydut kurşunu', kanun: 'kanun adamlarının kurşunu', zehir: 'zehirlenme', test: 'bilinmeyen' };
-    this.deathCause = ANIMALS[cause] ? ANIMALS[cause].n + ' saldırısı' : (CAUSES[cause] || cause || 'bilinmeyen');
+    const CAUSES = { train: Tr('tren kazası'), fist: Tr('kavga'), fall: Tr('attan düşme'), patlama: Tr('patlama'), haydut: Tr('haydut kurşunu'), kanun: Tr('kanun adamlarının kurşunu'), zehir: Tr('zehirlenme'), test: Tr('bilinmeyen') };
+    this.deathCause = ANIMALS[cause] ? ANIMALS[cause].n + Tr(' saldırısı') : (CAUSES[cause] || cause || Tr('bilinmeyen'));
     if (this.difficulty === 'hard') this.deleteSave();
     this.player.deadeye = false;
     if (this.player.riding) this.player.dismount();
@@ -925,8 +929,8 @@ const GameSystems = {
     const P = this.player, h = this.horse;
     Audio_.whistle();
     if (P.riding) return;
-    if (!h) { UI.feed('Bir atın yok. Ahırdan satın alabilir ya da yabani bir atı evcilleştirebilirsin.', 'warn'); return; }
-    if (h.dead) { UI.feed(`${h.name} yaralı yatıyor. At Diriltici gerekli.`, 'warn'); return; }
+    if (!h) { UI.feed(Tr('Bir atın yok. Ahırdan satın alabilir ya da yabani bir atı evcilleştirebilirsin.'), 'warn'); return; }
+    if (h.dead) { UI.feed(Tr`${h.name} yaralı yatıyor. At Diriltici gerekli.`, 'warn'); return; }
     const d = dist(P.x, P.y, h.x, h.y);
     if (d > 1100) {
       const pos = this.findSpawnPos(P.x, P.y, 200, 280, true);
@@ -940,7 +944,7 @@ const GameSystems = {
       this.stable.push({ breed: old.breed, name: old.name, look: old.look, bond: old.bond });
       if (this.stable.length > 3) this.stable.shift();
       old.remove = true;
-      if (!silent) UI.feed(`${old.name} ahıra gönderildi.`);
+      if (!silent) UI.feed(Tr`${old.name} ahıra gönderildi.`);
     } else if (this.horse && this.horse.dead) this.horse.remove = true;
     h.owner = 'player'; h.saddle = true; h.hitch = false;
     this.horse = h;
@@ -1031,7 +1035,7 @@ const GameSystems = {
         } else if (p.spawned && d > 1100) { p.spawned = false; for (const e of ents) if (e.poi === p.pid && !e.dead) e.remove = true; }
         if (p.spawned && !cleared) {
           const alive = ents.some(e => e.camp === p.pid && !e.dead && !e.remove);
-          if (!alive && ents.some(e => e.camp === p.pid)) { this.campCleared[p.pid] = this.day; UI.toast('Kamp Temizlendi', p.n, 'bounty'); this.addHonor(4); for (const e of ents) if (e.camp === p.pid) e.camp = -1; }
+          if (!alive && ents.some(e => e.camp === p.pid)) { this.campCleared[p.pid] = this.day; UI.toast(Tr('Kamp Temizlendi'), p.n, 'bounty'); this.addHonor(4); for (const e of ents) if (e.camp === p.pid) e.camp = -1; }
         } else if (p.spawned && cleared !== undefined && this.day - cleared >= 3) delete this.campCleared[p.pid];
       }
       if (p.kind === 'property' && this.props.includes(p.prop) && this.family.spouse) {
@@ -1177,7 +1181,7 @@ const GameSystems = {
         const pos = this.nomadPlace(c);
         if (!pos) { c.x = c.y = -9999; continue; }
         [c.x, c.y] = pos;
-        if (wasKnown) UI.toast('Göçebeler Taşındı', `${c.n} başka bir yere göç etti. Yeni yerleri bilinmiyor.`, 'ok');
+        if (wasKnown) UI.toast(Tr('Göçebeler Taşındı'), Tr`${c.n} başka bir yere göç etti. Yeni yerleri bilinmiyor.`, 'ok');
       }
       const d = dist(c.x, c.y, P.x, P.y);
       if (!c.spawned && d < 760) this.nomadSpawn(c);
@@ -1185,7 +1189,7 @@ const GameSystems = {
       if (c.spawned) {
         if (d < 230 && !this.discovered.has(this.nomadId(c))) {
           this.discovered.add(this.nomadId(c));
-          UI.toast('Keşfedildi', c.n, 'ok'); Audio_.chime(); this.skillXp('survival', 3);
+          UI.toast(Tr('Keşfedildi'), c.n, 'ok'); Audio_.chime(); this.skillXp('survival', 3);
         }
         this.nomadRoutine(c);
       }
@@ -1219,7 +1223,7 @@ const GameSystems = {
       const s = c.seats[k];
       const e = add(new NPC(s.x, s.y, 'nomad', { home: { x: c.x, y: c.y, r: 70 }, money: rnd(2, 10), weapon: c.kind === 'traders' ? null : (R.chance(0.6) ? 'repeater' : null) }));
       e.seat = s; e.camp = null;
-      if (k === 0) { e.leader = true; e.shop = c.shop; e.name = e.name + (c.kind === 'traders' ? ' (Tüccar)' : c.kind === 'prospectors' ? ' (Arayıcı)' : c.kind === 'trappers' ? ' (Kürkçü)' : ' (Kâhya)'); }
+      if (k === 0) { e.leader = true; e.shop = c.shop; e.name = e.name + (c.kind === 'traders' ? Tr(' (Tüccar)') : c.kind === 'prospectors' ? Tr(' (Arayıcı)') : c.kind === 'trappers' ? Tr(' (Kürkçü)') : Tr(' (Kâhya)')); }
     }
     // atlar ve sığırlar
     for (let k = 0; k < 2; k++) { const h = add(new Horse(c.wagon.x + (k ? 14 : -14), c.wagon.y + 18, R.pick(['mustang', 'nag', 'morgan']), { owner: 'npc' })); h.hitch = true; h.ang = Math.PI / 2; }
@@ -1252,32 +1256,32 @@ const GameSystems = {
     }
   },
   nomadActions(e) {
-    const acts = [{ n: 'Selamla', fn: () => this.greet(e) }];
-    if (e.leader && e.shop) acts.push({ n: 'Takas Et', fn: () => UI.openShop(e.shop, NOMADS.find(n => n.shop === e.shop).n) });
-    if (this.hour >= 17 || this.hour < 2) acts.push({ n: 'Ateş Başında Dinlen', fn: () => this.nomadRest(e) });
-    else acts.push({ n: 'Sohbet Et', fn: () => this.nomadTalk(e) });
+    const acts = [{ n: Tr('Selamla'), fn: () => this.greet(e) }];
+    if (e.leader && e.shop) acts.push({ n: Tr('Takas Et'), fn: () => UI.openShop(e.shop, NOMADS.find(n => n.shop === e.shop).n) });
+    if (this.hour >= 17 || this.hour < 2) acts.push({ n: Tr('Ateş Başında Dinlen'), fn: () => this.nomadRest(e) });
+    else acts.push({ n: Tr('Sohbet Et'), fn: () => this.nomadTalk(e) });
     return acts;
   },
   nomadTalk(e) {
     const c = this.nomads && this.nomads.find(n => n.k === e.nomad);
-    const lines = { traders: ['Doğudan mal getirdik, her şeyden biraz var.', 'Yol uzun, kazanç az ama hayat güzel.', 'Birkaç yıla kalmaz yine göçeriz.'],
-      drovers: ['Sürüyü Kansas\'a götürüyoruz. Kurtlara dikkat.', 'İnek sayısı dün gece iki eksikti. Hırsız mı, kurt mu, bilemedim.', 'Toz, ter ve boğa. Bizim hayatımız bu.'],
-      prospectors: ['Bu derede altın var, hissediyorum.', 'Kazmasız adam, silahsız adam gibidir.', 'Geçen hafta bir parmak kadar külçe buldum!'],
-      trappers: ['Kış erken geliyor bu yıl, postlar kalın.', 'Ayı izleri gördüm doğu sırtında.', 'Kasaba adamları postun değerini bilmez.'] };
+    const lines = { traders: [Tr('Doğudan mal getirdik, her şeyden biraz var.'), Tr('Yol uzun, kazanç az ama hayat güzel.'), Tr('Birkaç yıla kalmaz yine göçeriz.')],
+      drovers: [Tr('Sürüyü Kansas\'a götürüyoruz. Kurtlara dikkat.'), Tr('İnek sayısı dün gece iki eksikti. Hırsız mı, kurt mu, bilemedim.'), Tr('Toz, ter ve boğa. Bizim hayatımız bu.')],
+      prospectors: [Tr('Bu derede altın var, hissediyorum.'), Tr('Kazmasız adam, silahsız adam gibidir.'), Tr('Geçen hafta bir parmak kadar külçe buldum!')],
+      trappers: [Tr('Kış erken geliyor bu yıl, postlar kalın.'), Tr('Ayı izleri gördüm doğu sırtında.'), Tr('Kasaba adamları postun değerini bilmez.')] };
     e.say(pick((c && lines[c.kind]) || lines.traders), 3.5);
     if (!this.dailyTalk['nt' + e.id]) { this.dailyTalk['nt' + e.id] = 1; this.skillXp('charisma', 1); }
   },
   nomadRest(e) {
     const P = this.player;
-    e.say(pick(['Otur, kahve taze.', 'Ateş herkese yeter, yabancı.', 'Gel bakalım, bir hikâye anlat.']), 3);
+    e.say(pick([Tr('Otur, kahve taze.'), Tr('Ateş herkese yeter, yabancı.'), Tr('Gel bakalım, bir hikâye anlat.')]), 3);
     P.energy = Math.min(100, P.energy + 12); P.warmBuff = Math.max(P.warmBuff, 120); P.deCore = Math.min(100, P.deCore + 10);
     this.advanceClock(60);
     const unk = this.world.pois.filter(p => p.kind === 'landmark' && !this.discovered.has(p.id) && !this.rumored.has(p.id));
     if (unk.length && !this.dailyTalk['nr' + e.nomad]) {
       this.dailyTalk['nr' + e.nomad] = 1;
       const p = pick(unk); this.rumored.add(p.id);
-      UI.feed(`Ateş başında ${p.n} hakkında bir hikâye dinledin. Haritanda işaretlendi.`);
-    } else UI.feed('Ateş başında bir saat dinlendin.');
+      UI.feed(Tr`Ateş başında ${p.n} hakkında bir hikâye dinledin. Haritanda işaretlendi.`);
+    } else UI.feed(Tr('Ateş başında bir saat dinlendin.'));
   },
 
   /* Dükkan çalışanları, saloon müşterileri, piyanist: saate göre gelir ve gider */
@@ -1294,7 +1298,7 @@ const GameSystems = {
           const role = b.type === 'sheriff' ? 'law' : 'clerk';
           const n = new NPC(b.staff.x, b.staff.y, role, { state: 'static', home: { x: b.staff.x, y: b.staff.y, r: 6 }, money: rnd(3, 12) });
           n.ang = Math.PI / 2; n.town = t.id; n.work = b.id; n.keepTown = true;
-          if (b.type === 'church') { n.look = Object.assign({}, n.look, { coat: '#1a1a1e', hat: 'none', shirt: '#f0ece0' }); n.name = 'Peder ' + n.name.split(' ')[1]; }
+          if (b.type === 'church') { n.look = Object.assign({}, n.look, { coat: '#1a1a1e', hat: 'none', shirt: '#f0ece0' }); n.name = Tr('Peder ') + n.name.split(' ')[1]; }
           this.addEnt(n); b.staffNpc = n;
         } else if (!open && alive(b.staffNpc) && this.insideB !== b) { b.staffNpc.remove = true; b.staffNpc = null; }
       }
@@ -1309,7 +1313,7 @@ const GameSystems = {
           if (s) { const n = new NPC(s.x, s.y, 'town', { state: 'sit' }); n.seat = s; n.town = t.id; n.ang = s.x < b.x * TS + b.w * 8 ? 0 : Math.PI; n.keepTown = true; this.addEnt(n); b.patrons.push(n); }
         } else if (b.patrons.length > want && this.insideB !== b) { const n = b.patrons.pop(); n.remove = true; }
         const night = h >= 19 || h < 1;
-        if (night && !alive(b.pianist) && b.piano) { const n = new NPC(b.piano.x, b.piano.y + 2, 'clerk', { state: 'sit' }); n.ang = -Math.PI / 2; n.town = t.id; n.name = 'Piyanist ' + n.name.split(' ')[0]; this.addEnt(n); b.pianist = n; }
+        if (night && !alive(b.pianist) && b.piano) { const n = new NPC(b.piano.x, b.piano.y + 2, 'clerk', { state: 'sit' }); n.ang = -Math.PI / 2; n.town = t.id; n.name = Tr('Piyanist ') + n.name.split(' ')[0]; this.addEnt(n); b.pianist = n; }
         else if (!night && alive(b.pianist) && this.insideB !== b) { b.pianist.remove = true; b.pianist = null; }
       }
     }
@@ -1347,7 +1351,7 @@ const GameSystems = {
     if (type === 'injured' || type === 'snakebite') {
       const n = new NPC(x, y, 'stranger', { state: 'hurt', event: ev });
       n.eventType = type; this.addEnt(n);
-      setTimeout(() => n.say(type === 'injured' ? 'Yardım edin... lütfen... vuruldum...' : 'Yılan... yılan soktu beni! Yardım edin!'), 400);
+      setTimeout(() => n.say(type === 'injured' ? Tr('Yardım edin... lütfen... vuruldum...') : Tr('Yılan... yılan soktu beni! Yardım edin!')), 400);
     } else if (type === 'robbery') {
       const v = new NPC(x, y, 'stranger', { state: 'cower', event: ev });
       v.eventType = 'victim'; this.addEnt(v);
@@ -1357,10 +1361,10 @@ const GameSystems = {
       ev.onDeath = (who) => {
         if (who === b && !v.dead && !ev.done) {
           ev.done = true;
-          setTimeout(() => { if (v.dead) return; v.say('Hayatımı kurtardın! Al, bu senin.'); this.earn(rndi(4, 12), 'Teşekkür'); this.addHonor(6); this.stat('helped', 1); v.state = 'idle'; v.path = null; }, 800);
+          setTimeout(() => { if (v.dead) return; v.say(Tr('Hayatımı kurtardın! Al, bu senin.')); this.earn(rndi(4, 12), Tr('Teşekkür')); this.addHonor(6); this.stat('helped', 1); v.state = 'idle'; v.path = null; }, 800);
         }
       };
-      setTimeout(() => v.say('Yardım edin! Soyuluyorum!'), 300);
+      setTimeout(() => v.say(Tr('Yardım edin! Soyuluyorum!')), 300);
     } else if (type === 'ambush') {
       const n = rndi(2, 4);
       for (let k = 0; k < n; k++) { const p = this.findSpawnPos(x, y, 10, 90); if (p) { const b = new NPC(p[0], p[1], 'bandit', { hostile: true, home: { x, y, r: 50 } }); b.aggro = false; this.addEnt(b); } }
@@ -1368,15 +1372,15 @@ const GameSystems = {
       const n = new NPC(x, y, 'stranger', { state: 'static', event: ev });
       n.eventType = 'wagon'; this.addEnt(n);
       ev.wagon = { x: x + 14, y: y - 4 };
-      setTimeout(() => n.say('Hey dostum! Arabamın tekerleği kırıldı, bir el atar mısın?'), 400);
+      setTimeout(() => n.say(Tr('Hey dostum! Arabamın tekerleği kırıldı, bir el atar mısın?')), 400);
     } else if (type === 'peddler') {
       const n = new NPC(x, y, 'stranger', { state: 'static', event: ev, look: Object.assign(randomLook('m'), { hat: 'bowler', coat: '#4a2a3a' }) });
       n.eventType = 'peddler'; this.addEnt(n);
-      setTimeout(() => n.say('Tonikler, iksirler, mücevherler! Gel bak, yabancı!'), 400);
+      setTimeout(() => n.say(Tr('Tonikler, iksirler, mücevherler! Gel bak, yabancı!')), 400);
     } else if (type === 'duel') {
       const n = new NPC(x, y, 'stranger', { state: 'static', event: ev, weapon: 'cattleman', money: rnd(5, 25), look: Object.assign(randomLook('m'), { hat: 'cowboy', coat: '#2a2622', coatLen: 1 }) });
       n.eventType = 'duel'; this.addEnt(n);
-      setTimeout(() => n.say('Hey sen! Bu topraklara ikimiz fazlayız. Düello mu, yoksa korkak mısın?'), 400);
+      setTimeout(() => n.say(Tr('Hey sen! Bu topraklara ikimiz fazlayız. Düello mu, yoksa korkak mısın?')), 400);
     } else if (type === 'wolves') {
       for (let k = 0; k < rndi(3, 4); k++) { const p = this.findSpawnPos(x, y, 0, 60); if (p) { const a = new Animal(p[0], p[1], 'wolf'); a.state = 'attack'; a.t = 30; this.addEnt(a); } }
       Audio_.growl();
@@ -1436,11 +1440,11 @@ const GameSystems = {
       if (dist2(p.x, p.y, P.x, P.y) < 110 * 110) {
         this.discovered.add(p.id);
         if (p.kind === 'landmark' || p.kind === 'camp') {
-          UI.locationTitle(p.n, 'Keşfedildi');
+          UI.locationTitle(p.n, Tr('Keşfedildi'));
           Audio_.discover();
           this.skillXp('survival', 8);
-          if (p.type === 'lookout') { this.revealAt(p.x, p.y, 1400); UI.help('Bu yüksek noktadan etrafı gözlemledin. <b>Haritanın büyük bir kısmı açıldı.</b>', 6); }
-        } else UI.feed(`📍 Keşfedildi: ${p.n}`);
+          if (p.type === 'lookout') { this.revealAt(p.x, p.y, 1400); UI.help(Tr('Bu yüksek noktadan etrafı gözlemledin. <b>Haritanın büyük bir kısmı açıldı.</b>'), 6); }
+        } else UI.feed(Tr`📍 Keşfedildi: ${p.n}`);
       }
     }
   },
@@ -1475,11 +1479,11 @@ const GameSystems = {
     const add = (x, y, label, actions, pri = 0) => { const d = dist(P.x, P.y, x, y) - pri; cands.push({ x, y, label, actions, d }); };
     // kanun adamı tutuklamaya geliyorsa: teslim ol
     const cop = this.arrestingCop(130);
-    if (cop) return { x: cop.x, y: cop.y, label: cop.name + ' (Kanun)', actions: [{ n: 'Teslim Ol', hold: 0.7, fn: () => this.surrender(cop) }] };
+    if (cop) return { x: cop.x, y: cop.y, label: cop.name + Tr(' (Kanun)'), actions: [{ n: Tr('Teslim Ol'), hold: 0.7, fn: () => this.surrender(cop) }] };
     if (P.riding) {
-      const acts = [{ n: 'İn', fn: () => P.dismount() }];
+      const acts = [{ n: Tr('İn'), fn: () => P.dismount() }];
       // at sırtından kapı/tren vb. yok
-      return { x: P.x, y: P.y, label: P.riding.name || 'At', actions: acts, riding: true };
+      return { x: P.x, y: P.y, label: P.riding.name || Tr('At'), actions: acts, riding: true };
     }
     // varlıklar
     for (const e of this.ents) {
@@ -1488,26 +1492,26 @@ const GameSystems = {
       if (d > (e.held ? 50 : 30)) continue;
       if (e.kind === 'horse') {
         if (e === this.horse) {
-          if (e.dead) { add(e.x, e.y, e.name, [{ n: 'At Diriltici Kullan', fn: () => this.consume('horse_reviver') }]); continue; }
-          const acts = [{ n: 'Bin', fn: () => P.mount(e) }, { n: 'Atı Okşa', fn: () => { e.addBond(3); Audio_.neigh(); UI.feed(`${e.name} mutlu görünüyor.`); } }];
-          if (P.has('horse_brush')) acts.push({ n: 'Fırçala', fn: () => { e.addBond(5); e.dirty = 0; UI.feed(`${e.name} tertemiz oldu.`); } });
-          if (P.has('hay')) acts.push({ n: 'Saman Ver', fn: () => this.consume('hay') });
-          if (P.has('horse_tonic')) acts.push({ n: 'At Toniği Ver', fn: () => this.consume('horse_tonic') });
-          acts.push({ n: 'Heybeyi Aç', fn: () => UI.openSatchel() });
+          if (e.dead) { add(e.x, e.y, e.name, [{ n: Tr('At Diriltici Kullan'), fn: () => this.consume('horse_reviver') }]); continue; }
+          const acts = [{ n: Tr('Bin'), fn: () => P.mount(e) }, { n: Tr('Atı Okşa'), fn: () => { e.addBond(3); Audio_.neigh(); UI.feed(Tr`${e.name} mutlu görünüyor.`); } }];
+          if (P.has('horse_brush')) acts.push({ n: Tr('Fırçala'), fn: () => { e.addBond(5); e.dirty = 0; UI.feed(Tr`${e.name} tertemiz oldu.`); } });
+          if (P.has('hay')) acts.push({ n: Tr('Saman Ver'), fn: () => this.consume('hay') });
+          if (P.has('horse_tonic')) acts.push({ n: Tr('At Toniği Ver'), fn: () => this.consume('horse_tonic') });
+          acts.push({ n: Tr('Heybeyi Aç'), fn: () => UI.openSatchel() });
           add(e.x, e.y, e.name, acts, 4);
         } else if (!e.dead && !e.rider && e.owner === 'npc') {
-          add(e.x, e.y, 'Başkasının Atı', [{ n: 'Atı Çal', fn: () => { this.crime('horsetheft', e.x, e.y); this.setHorse(e); P.mount(e); } }]);
+          add(e.x, e.y, Tr('Başkasının Atı'), [{ n: Tr('Atı Çal'), fn: () => { this.crime('horsetheft', e.x, e.y); this.setHorse(e); P.mount(e); } }]);
         }
         continue;
       }
       if (e.kind === 'animal') {
-        if (e.dead && !e.skinned) add(e.x, e.y, e.def.n + ' Leşi', [{ n: 'Derisini Yüz', hold: 1.3, fn: () => this.skin(e) }]);
-        else if (!e.dead && e.def.tame && d < 30) add(e.x, e.y, e.def.n, [{ n: 'Sakinleştir ve Evcilleştir', hold: 2.5, fn: () => this.tameHorse(e), check: () => P.crouch || e.state !== 'flee' }]);
+        if (e.dead && !e.skinned) add(e.x, e.y, e.def.n + Tr(' Leşi'), [{ n: Tr('Derisini Yüz'), hold: 1.3, fn: () => this.skin(e) }]);
+        else if (!e.dead && e.def.tame && d < 30) add(e.x, e.y, e.def.n, [{ n: Tr('Sakinleştir ve Evcilleştir'), hold: 2.5, fn: () => this.tameHorse(e), check: () => P.crouch || e.state !== 'flee' }]);
         continue;
       }
-      if (e.kind === 'camp') { add(e.x, e.y, 'Kamp', [{ n: 'Kamp Menüsü', fn: () => UI.openCamp() }], 4); continue; }
+      if (e.kind === 'camp') { add(e.x, e.y, Tr('Kamp'), [{ n: Tr('Kamp Menüsü'), fn: () => UI.openCamp() }], 4); continue; }
       if (e.kind === 'npc') {
-        if (e.dead) { if (!e.looted) add(e.x, e.y, e.name, [{ n: 'Cesedi Ara', hold: 0.8, fn: () => this.lootBody(e) }]); continue; }
+        if (e.dead) { if (!e.looted) add(e.x, e.y, e.name, [{ n: Tr('Cesedi Ara'), hold: 0.8, fn: () => this.lootBody(e) }]); continue; }
         if (e.hostile && e.aggro) continue;
         const acts = this.npcActions(e);
         if (acts.length) add(e.x, e.y, e.name, acts, 3);
@@ -1516,10 +1520,10 @@ const GameSystems = {
     // kayıp eşyalar
     for (let i = 0; i < this.lostItems.length; i++) {
       const L = this.lostItems[i];
-      if (dist2(P.x, P.y, L.x, L.y) < 26 * 26) add(L.x, L.y, 'Yerde bir şey parlıyor', [{ n: 'Al', fn: () => { P.addItem(L.item); this.lostItems.splice(i, 1); } }]);
+      if (dist2(P.x, P.y, L.x, L.y) < 26 * 26) add(L.x, L.y, Tr('Yerde bir şey parlıyor'), [{ n: Tr('Al'), fn: () => { P.addItem(L.item); this.lostItems.splice(i, 1); } }]);
     }
     // olay arabası
-    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < 30 * 30) add(ev.wagon.x, ev.wagon.y, 'Kırık Araba', [{ n: 'Tekerleği Tamir Et', hold: 3, fn: () => { ev.done = true; this.earn(rndi(4, 9), 'Tamir'); this.addHonor(4); this.stat('helped', 1); UI.subtitle('Yolcu', 'Allah razı olsun dostum!', 3); this.skillXp('strength', 5); } }]);
+    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < 30 * 30) add(ev.wagon.x, ev.wagon.y, Tr('Kırık Araba'), [{ n: Tr('Tekerleği Tamir Et'), hold: 3, fn: () => { ev.done = true; this.earn(rndi(4, 9), Tr('Tamir')); this.addHonor(4); this.stat('helped', 1); UI.subtitle(Tr('Yolcu'), Tr('Allah razı olsun dostum!'), 3); this.skillXp('strength', 5); } }]);
     // nesneler
     const tx0 = (P.x >> 4) - 1, ty0 = (P.y >> 4) - 1;
     for (let ty = ty0; ty <= ty0 + 2; ty++) for (let tx = tx0; tx <= tx0 + 2; tx++) {
@@ -1533,31 +1537,31 @@ const GameSystems = {
       if (H) {
         const hv = W.harvested.get(i);
         if (hv !== undefined && hv > this.day) continue;
-        if (o === O.ARTIFACT) { add(ox, oy, 'Parlayan Bir Şey', [{ n: 'İncele', hold: 0.5, fn: () => this.pickArtifact(i) }]); continue; }
-        if (H.tool && !P.has(H.tool)) { add(ox, oy, 'Cevher Kayası', [{ n: 'Kazma gerekli', fn: () => UI.feed('Cevher kazmak için bir kazmaya ihtiyacın var.', 'warn') }]); continue; }
+        if (o === O.ARTIFACT) { add(ox, oy, Tr('Parlayan Bir Şey'), [{ n: Tr('İncele'), hold: 0.5, fn: () => this.pickArtifact(i) }]); continue; }
+        if (H.tool && !P.has(H.tool)) { add(ox, oy, Tr('Cevher Kayası'), [{ n: Tr('Kazma gerekli'), fn: () => UI.feed(Tr('Cevher kazmak için bir kazmaya ihtiyacın var.'), 'warn') }]); continue; }
         add(ox, oy, H.label.split(' ')[0], [{ n: H.label, hold: H.tool ? 2 : 0.6, fn: () => this.harvest(i, o) }]);
         continue;
       }
       switch (o) {
         case O.WELL: case O.PUMP: case O.TROUGH:
-          add(ox, oy, o === O.TROUGH ? 'Yalak' : 'Kuyu', [{ n: 'Su İç', fn: () => this.drinkWater(true) }, { n: 'Matarayı Doldur', fn: () => this.fillCanteen() }, { n: 'Yüzünü Yıka', fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed('Biraz temizlendin.'); } }]);
+          add(ox, oy, o === O.TROUGH ? Tr('Yalak') : Tr('Kuyu'), [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }]);
           break;
         case O.CHEST: {
           const c = W.chests.get(i);
           const op = this.chestsOpened[i];
           if (op !== undefined && this.day - op < 7) break;
-          add(ox, oy, 'Sandık', [{ n: 'Sandığı Aç', hold: 0.9, fn: () => this.openChest(i, c) }]);
+          add(ox, oy, Tr('Sandık'), [{ n: Tr('Sandığı Aç'), hold: 0.9, fn: () => this.openChest(i, c) }]);
           break;
         }
         case O.GRAVE: case O.CROSS:
-          if (!this.graves[i]) add(ox, oy, 'Mezar', [{ n: 'Saygı Göster', hold: 1, fn: () => { this.graves[i] = 1; this.addHonor(1); UI.feed('Ölüye saygı gösterdin. Huzur içinde yatsın.'); } }]);
+          if (!this.graves[i]) add(ox, oy, Tr('Mezar'), [{ n: Tr('Saygı Göster'), hold: 1, fn: () => { this.graves[i] = 1; this.addHonor(1); UI.feed(Tr('Ölüye saygı gösterdin. Huzur içinde yatsın.')); } }]);
           break;
-        case O.SIGN: add(ox, oy, 'Yol Tabelası', [{ n: 'Tabelayı Oku', fn: () => UI.showSign(ox, oy) }]); break;
-        case O.BENCH: add(ox, oy, 'Bank', [{ n: 'Otur ve Bekle', fn: () => UI.openWait() }]); break;
-        case O.BOARD: add(ox, oy, 'İlan Panosu', [{ n: 'İlanlara Bak', fn: () => UI.openBountyBoard() }]); break;
-        case O.CAMPFIRE: add(ox, oy, 'Kamp Ateşi', [{ n: 'Isın ve Pişir', fn: () => UI.openCook() }]); break;
-        case O.HAY: add(ox, oy, 'Saman', [{ n: 'Saman Al', fn: () => { const k = 'hay' + i; if (this.dailyTalk[k]) { UI.feed('Bugün zaten aldın.'); return; } this.dailyTalk[k] = 1; P.addItem('hay', 2); } }]); break;
-        case O.STEAM: add(ox, oy, 'Sıcak Kaynak', [{ n: 'Kaplıcada Dinlen', fn: () => this.hotSpring() }]); break;
+        case O.SIGN: add(ox, oy, Tr('Yol Tabelası'), [{ n: Tr('Tabelayı Oku'), fn: () => UI.showSign(ox, oy) }]); break;
+        case O.BENCH: add(ox, oy, 'Bank', [{ n: Tr('Otur ve Bekle'), fn: () => UI.openWait() }]); break;
+        case O.BOARD: add(ox, oy, Tr('İlan Panosu'), [{ n: Tr('İlanlara Bak'), fn: () => UI.openBountyBoard() }]); break;
+        case O.CAMPFIRE: add(ox, oy, Tr('Kamp Ateşi'), [{ n: Tr('Isın ve Pişir'), fn: () => UI.openCook() }]); break;
+        case O.HAY: add(ox, oy, Tr('Saman'), [{ n: Tr('Saman Al'), fn: () => { const k = 'hay' + i; if (this.dailyTalk[k]) { UI.feed(Tr('Bugün zaten aldın.')); return; } this.dailyTalk[k] = 1; P.addItem('hay', 2); } }]); break;
+        case O.STEAM: add(ox, oy, Tr('Sıcak Kaynak'), [{ n: Tr('Kaplıcada Dinlen'), fn: () => this.hotSpring() }]); break;
         case O.BIGBONES: case O.BONES: break;
         default:
           if (isFurnO(o) && W.bid[i] >= 0) {
@@ -1570,29 +1574,35 @@ const GameSystems = {
     // su
     const onT = W.tileAtPx(P.x, P.y);
     let wx = null, wy = null;
-    for (const [dx, dy] of [[0, 0], [10, 0], [-10, 0], [0, 10], [0, -10]]) { const t = W.tileAtPx(P.x + dx, P.y + dy); if (t === T.WATER || t === T.DEEP) { wx = P.x + dx; wy = P.y + dy; break; } if (t === T.HOTWATER) { add(P.x + dx, P.y + dy, 'Sıcak Kaynak', [{ n: 'Kaplıcada Dinlen', fn: () => this.hotSpring() }]); break; } }
+    for (const [dx, dy] of [[0, 0], [10, 0], [-10, 0], [0, 10], [0, -10]]) { const t = W.tileAtPx(P.x + dx, P.y + dy); if (t === T.WATER || t === T.DEEP) { wx = P.x + dx; wy = P.y + dy; break; } if (t === T.HOTWATER) { add(P.x + dx, P.y + dy, Tr('Sıcak Kaynak'), [{ n: Tr('Kaplıcada Dinlen'), fn: () => this.hotSpring() }]); break; } }
     if (wx !== null) {
-      const acts = [{ n: 'Su İç', fn: () => this.drinkWater(false) }, { n: 'Matarayı Doldur', fn: () => this.fillCanteen() }, { n: 'Yıkan', hold: 1.5, fn: () => this.wash() }];
-      if (P.has('fishing_rod')) acts.push({ n: 'Balık Tut', fn: () => UI.startFishing() });
-      if (P.has('gold_pan')) acts.push({ n: 'Altın Ele', hold: 3, fn: () => this.panGold() });
-      add(wx, wy, onT === T.WATER ? 'Nehir' : 'Su Kenarı', acts, -6);
+      const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(false) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yıkan'), hold: 1.5, fn: () => this.wash() }];
+      if (P.has('fishing_rod')) acts.push({ n: Tr('Balık Tut'), fn: () => UI.startFishing() });
+      if (P.has('gold_pan')) acts.push({ n: Tr('Altın Ele'), hold: 3, fn: () => this.panGold() });
+      add(wx, wy, onT === T.WATER ? Tr('Nehir') : Tr('Su Kenarı'), acts, -6);
     }
     // binalar: kapılar
     for (const b of W.buildings) {
       if (Math.abs(b.door.x - P.x) > 40 || Math.abs(b.door.y - P.y) > 30) continue;
       if (dist2(P.x, P.y, b.door.x, b.door.y) > 20 * 20) continue;
-      if (b.type === 'property' && !this.props.includes(b.prop)) { add(b.door.x, b.door.y, b.name, [{ n: 'Mülkü İncele', fn: () => UI.openProperty(b) }], 5); continue; }
-      if (!b.enter) { if (b.def.svc && b.def.svc.length) add(b.door.x, b.door.y, b.name, [{ n: 'Gir', fn: () => UI.openBuilding(b) }], 5); continue; }
+      if (b.type === 'property' && !this.props.includes(b.prop)) { add(b.door.x, b.door.y, b.name, [{ n: Tr('Mülkü İncele'), fn: () => UI.openProperty(b) }], 5); continue; }
+      if (!b.enter) {
+        if (b.def.svc && b.def.svc.length) add(b.door.x, b.door.y, b.name, [{ n: Tr('Gir'), fn: () => UI.openBuilding(b) }], 5);
+        else if (b.type === 'ruin') add(b.door.x, b.door.y, b.name, [{ n: Tr('Harabeyi Ara'), hold: 1.2, fn: () => this.searchRuin(b) }], 5);
+        else if (b.type === 'mineentrance') add(b.door.x, b.door.y, b.name, [{ n: Tr('Madene Gir'), hold: 1, fn: () => this.exploreMine(b) }], 5);
+        else if (b.type === 'lighthouse') add(b.door.x, b.door.y, b.name, [{ n: Tr('Fenere Tırman'), hold: 1, fn: () => this.climbLighthouse(b) }], 5);
+        continue;
+      }
       if (this.doorOpen(b)) continue;
-      if (b.def.lock) { add(b.door.x, b.door.y, 'Kilitli Kapı', [{ n: 'Kapıyı Çal', fn: () => this.knock(b) }], 5); continue; }
-      const acts = [{ n: 'Kapalı (06:00\'da açılır)', fn: () => UI.feed(`${b.name} kapalı. Sabah 06:00'da açılır.`) }];
-      if (b.def.svc.includes('rob') || b.def.svc.includes('robbank')) acts.push({ n: 'Kapıyı Kır', hold: 1.6, fn: () => this.breakDoor(b) });
+      if (b.def.lock) { add(b.door.x, b.door.y, Tr('Kilitli Kapı'), [{ n: Tr('Kapıyı Çal'), fn: () => this.knock(b) }, { n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) }], 5); continue; }
+      const acts = [{ n: Tr('Kapalı (06:00\'da açılır)'), fn: () => UI.feed(Tr`${b.name} kapalı. Sabah 06:00'da açılır.`) }];
+      if (b.def.svc.includes('rob') || b.def.svc.includes('robbank')) acts.push({ n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) });
       add(b.door.x, b.door.y, b.name, acts, 5);
     }
     // hazine
     if (P.has('treasure_map') && this.treasure) {
       const tr = this.treasure;
-      if (dist2(P.x, P.y, tr.x, tr.y) < 28 * 28) add(tr.x, tr.y, 'Taze Toprak', [{ n: P.has('shovel') ? 'Kaz' : 'Kürek gerekli', hold: P.has('shovel') ? 3 : 0, fn: () => this.digTreasure() }], 6);
+      if (dist2(P.x, P.y, tr.x, tr.y) < 28 * 28) add(tr.x, tr.y, Tr('Taze Toprak'), [{ n: P.has('shovel') ? Tr('Kaz') : Tr('Kürek gerekli'), hold: P.has('shovel') ? 3 : 0, fn: () => this.digTreasure() }], 6);
     }
     if (!cands.length) return null;
     // yön tercihi
@@ -1607,39 +1617,39 @@ const GameSystems = {
     const ev = e.event;
     if (e.eventType === 'injured' || e.eventType === 'snakebite') {
       if (!ev.done) {
-        acts.push({ n: 'Yardım Et', fn: () => this.helpStranger(e) });
-        acts.push({ n: 'Üstünü Ara (Soy)', fn: () => { ev.done = true; this.earn(rnd(2, 8), ''); this.crime('robbery', e.x, e.y, e); this.addHonor(-4); e.say('Seni... alçak...'); } });
-      } else acts.push({ n: 'Konuş', fn: () => e.say('Sağ ol yabancı. Seni unutmayacağım.') });
+        acts.push({ n: Tr('Yardım Et'), fn: () => this.helpStranger(e) });
+        acts.push({ n: Tr('Üstünü Ara (Soy)'), fn: () => { ev.done = true; this.earn(rnd(2, 8), ''); this.crime('robbery', e.x, e.y, e); this.addHonor(-4); e.say(Tr('Seni... alçak...')); } });
+      } else acts.push({ n: Tr('Konuş'), fn: () => e.say(Tr('Sağ ol yabancı. Seni unutmayacağım.')) });
       return acts;
     }
     if (e.witness && !e.witness.done) {
-      if (P.isArmed && (P.aiming || P.rsAim || e.held)) acts.push({ n: 'Tehdit Et', fn: () => this.intimidate(e) });
-      if (!e.bribeTried) acts.push({ n: `Rüşvet Ver (${fmtMoney(this.bribeCost(e))})`, fn: () => this.bribeWitness(e) });
+      if (P.isArmed && (P.aiming || P.rsAim || e.held)) acts.push({ n: Tr('Tehdit Et'), fn: () => this.intimidate(e) });
+      if (!e.bribeTried) acts.push({ n: Tr`Rüşvet Ver (${fmtMoney(this.bribeCost(e))})`, fn: () => this.bribeWitness(e) });
       if (acts.length) return acts;
     }
-    if (e.eventType === 'wagon' && !ev.done) { acts.push({ n: 'Konuş', fn: () => e.say('Arabanın yanındaki tekerleğe bir bak, tamir edebilir misin?') }); return acts; }
-    if (e.eventType === 'peddler') { acts.push({ n: 'Alışveriş Yap', fn: () => UI.openShop('peddler', 'Seyyar Satıcı') }); }
-    if (e.eventType === 'duel') { acts.push({ n: 'Düelloyu Kabul Et', fn: () => UI.openDuel(e) }); acts.push({ n: 'Reddet', fn: () => { e.say(pick(['Korkak!', 'Tahmin etmiştim, tavuk.', 'Git anana ağla.'])); e.eventType = null; e.state = 'idle'; } }); return acts; }
+    if (e.eventType === 'wagon' && !ev.done) { acts.push({ n: Tr('Konuş'), fn: () => e.say(Tr('Arabanın yanındaki tekerleğe bir bak, tamir edebilir misin?')) }); return acts; }
+    if (e.eventType === 'peddler') { acts.push({ n: Tr('Alışveriş Yap'), fn: () => UI.openShop('peddler', Tr('Seyyar Satıcı')) }); }
+    if (e.eventType === 'duel') { acts.push({ n: Tr('Düelloyu Kabul Et'), fn: () => UI.openDuel(e) }); acts.push({ n: Tr('Reddet'), fn: () => { e.say(pick([Tr('Korkak!'), Tr('Tahmin etmiştim, tavuk.'), Tr('Git anana ağla.')])); e.eventType = null; e.state = 'idle'; } }); return acts; }
     if (e.role === 'farmer') {
-      acts.push({ n: 'İş İste', fn: () => UI.openWork('ranch', 'Çiftlik') });
-      acts.push({ n: 'Selamla', fn: () => this.greet(e) });
+      acts.push({ n: Tr('İş İste'), fn: () => UI.openWork('ranch', Tr('Çiftlik')) });
+      acts.push({ n: Tr('Selamla'), fn: () => this.greet(e) });
       return acts;
     }
     if (e.role === 'spouse') {
-      acts.push({ n: 'Sohbet Et', fn: () => { e.say(pick(['Seni özledim.', 'Bugün nasıldı?', 'Eve erken gel, olur mu?', 'Çocuklar seni soruyordu.'])); P.hp = Math.min(P.maxHp, P.hp + 10); } });
+      acts.push({ n: Tr('Sohbet Et'), fn: () => { e.say(pick([Tr('Seni özledim.'), Tr('Bugün nasıldı?'), Tr('Eve erken gel, olur mu?'), Tr('Çocuklar seni soruyordu.')])); P.hp = Math.min(P.maxHp, P.hp + 10); } });
       return acts;
     }
-    if (e.role === 'nomad') { const a = this.nomadActions(e); if (P.aiming && P.isArmed && !e.robbed) a.push({ n: 'Soy', fn: () => this.robNpc(e) }); return a; }
-    if (e.role === 'child') { acts.push({ n: 'Oyna', fn: () => { e.say(pick(['Baba/Anne bak ne buldum!', 'Hikaye anlatır mısın?', 'Ben de büyüyünce kovboy olacağım!'])); } }); return acts; }
-    acts.push({ n: 'Selamla', fn: () => this.greet(e) });
+    if (e.role === 'nomad') { const a = this.nomadActions(e); if (P.aiming && P.isArmed && !e.robbed) a.push({ n: Tr('Soy'), fn: () => this.robNpc(e) }); return a; }
+    if (e.role === 'child') { acts.push({ n: Tr('Oyna'), fn: () => { e.say(pick([Tr('Baba/Anne bak ne buldum!'), Tr('Hikaye anlatır mısın?'), Tr('Ben de büyüyünce kovboy olacağım!')])); } }); return acts; }
+    acts.push({ n: Tr('Selamla'), fn: () => this.greet(e) });
     if (e.role === 'romance') {
       const R = this.romances[e.town];
-      acts.push({ n: `Sohbet Et (Yakınlık ${Math.round(R.rel)})`, fn: () => this.courtTalk(e, R) });
-      acts.push({ n: 'Hediye Ver', fn: () => UI.openGift(e, R) });
-      if (R.rel >= 80) acts.push({ n: 'Evlenme Teklif Et', fn: () => this.propose(e, R) });
+      acts.push({ n: Tr`Sohbet Et (Yakınlık ${Math.round(R.rel)})`, fn: () => this.courtTalk(e, R) });
+      acts.push({ n: Tr('Hediye Ver'), fn: () => UI.openGift(e, R) });
+      if (R.rel >= 80) acts.push({ n: Tr('Evlenme Teklif Et'), fn: () => this.propose(e, R) });
     }
-    if (e.role !== 'law') acts.push({ n: 'Kışkırt', fn: () => this.antagonize(e) });
-    if (P.aiming && P.isArmed && e.state !== 'robbed' && !e.robbed) acts.push({ n: 'Soy', fn: () => this.robNpc(e) });
+    if (e.role !== 'law') acts.push({ n: Tr('Kışkırt'), fn: () => this.antagonize(e) });
+    if (P.aiming && P.isArmed && e.state !== 'robbed' && !e.robbed) acts.push({ n: Tr('Soy'), fn: () => this.robNpc(e) });
     return acts;
   },
   timeOfDay() { const h = this.hour; return h >= 5 && h < 11 ? 'morning' : h < 17 ? 'day' : h < 21 ? 'evening' : 'night'; },
@@ -1673,11 +1683,11 @@ const GameSystems = {
     if (!P.greeted.has(e.id)) { P.greeted.add(e.id); this.addHonor(0.3); this.skillXp('charisma', 1.5); }
   },
   antagonize(e) {
-    UI.subtitle(this.player.name, pick(['Ne bakıyorsun öyle?', 'Kıyafetlerin çok komik.', 'Yolumdan çekil!', 'Korkak herif.']), 1.5, true);
+    UI.subtitle(this.player.name, pick([Tr('Ne bakıyorsun öyle?'), Tr('Kıyafetlerin çok komik.'), Tr('Yolumdan çekil!'), Tr('Korkak herif.')]), 1.5, true);
     this.addHonor(-0.5);
     if (e.role === 'traveler' || e.role === 'town') {
       if (e.sex === 'm' && chance(0.45)) { e.say(pick(LINES.antag)); e.state = 'fightFist'; e.fistOK = true; e.cool = 1; }
-      else { e.say(pick(['Bırak beni!', 'Delisin sen!', 'Seni şerife şikayet edeceğim!'])); e.state = 'flee'; e.t = 6; }
+      else { e.say(pick([Tr('Bırak beni!'), Tr('Delisin sen!'), Tr('Seni şerife şikayet edeceğim!')])); e.state = 'flee'; e.t = 6; }
     } else e.say(pick(LINES.antag));
   },
   robNpc(e) {
@@ -1685,7 +1695,7 @@ const GameSystems = {
     e.robbed = true; e.state = 'robbed'; e.t = 3;
     e.say(pick(LINES.robbed));
     const v = Math.max(1, e.money) * mul;
-    this.earn(v, 'Soygun');
+    this.earn(v, Tr('Soygun'));
     if (chance(0.3)) this.player.addItem(pick(['pocket_watch', 'gold_ring', 'cig_card', 'tobacco']));
     this.crime('robbery', e.x, e.y, e);
   },
@@ -1693,7 +1703,7 @@ const GameSystems = {
     e.looted = true;
     const P = this.player;
     const innocent = !(e.role === 'bandit' || e.role === 'target' || (e.isLaw && e.hostile));
-    if (e.money > 0.2) this.earn(e.money * (this.hasPerk('devil') ? 1.5 : 1), 'Ceset');
+    if (e.money > 0.2) this.earn(e.money * (this.hasPerk('devil') ? 1.5 : 1), Tr('Ceset'));
     if (e.weapon) { const W = WEAPONS[e.weapon]; if (W.ammo) { const n = rndi(3, 8); P.ammo[W.ammo] = Math.min(AMMO[W.ammo].max, P.ammo[W.ammo] + n); UI.feed(`+${n} ${AMMO[W.ammo].n}`); } if (!P.weapons.has(e.weapon) && chance(0.35)) P.giveWeapon(e.weapon); }
     if (chance(0.4)) P.addItem(pick(['jerky', 'bread', 'beans', 'tobacco', 'whiskey', 'cigarette', 'bandage']));
     if (chance(0.1)) P.addItem(pick(['pocket_watch', 'gold_ring', 'necklace', 'cig_card']));
@@ -1731,11 +1741,11 @@ const GameSystems = {
       P.mount(h);
       this.stat('tamed', 1);
       this.skillXp('riding', 20);
-      UI.toast('At Evcilleştirildi', `Ona bir isim verdin: ${h.name}`, 'horse');
+      UI.toast(Tr('At Evcilleştirildi'), Tr`Ona bir isim verdin: ${h.name}`, 'horse');
       Audio_.neigh();
     } else {
       a.state = 'flee'; a.t = 6; a.fleeFrom(P);
-      UI.feed('At ürktü ve kaçtı! Eğilerek (çömel) yavaşça yaklaş.', 'warn');
+      UI.feed(Tr('At ürktü ve kaçtı! Eğilerek (çömel) yavaşça yaklaş.'), 'warn');
       Audio_.neigh();
     }
   },
@@ -1786,8 +1796,8 @@ const GameSystems = {
       if (chance(0.85)) P.addItem(id, Math.max(1, Math.round(n * good)));
     }
     const money = rnd(2, 15) * good * (loot === 'ship' || loot === 'ghost' ? 3 : 1);
-    this.earn(money, 'Sandık');
-    if (!this.treasure && chance(0.25)) { P.addItem('treasure_map'); this.makeTreasure(); UI.help('Sandıkta eski bir <b>hazine haritası</b> buldun! Çantandan inceleyebilirsin.', 6); }
+    this.earn(money, Tr('Sandık'));
+    if (!this.treasure && chance(0.25)) { P.addItem('treasure_map'); this.makeTreasure(); UI.help(Tr('Sandıkta eski bir <b>hazine haritası</b> buldun! Çantandan inceleyebilirsin.'), 6); }
   },
   makeTreasure() {
     if (this.treasure) return;
@@ -1804,16 +1814,16 @@ const GameSystems = {
   },
   digTreasure() {
     const P = this.player;
-    if (!P.has('shovel')) { UI.feed('Kazmak için bir küreğe ihtiyacın var.', 'warn'); return; }
+    if (!P.has('shovel')) { UI.feed(Tr('Kazmak için bir küreğe ihtiyacın var.'), 'warn'); return; }
     P.removeItem('treasure_map');
     this.treasure = null;
     this.advanceClock(30);
     const v = rndi(80, 220);
-    this.earn(v, 'Hazine');
+    this.earn(v, Tr('Hazine'));
     if (chance(0.5)) P.addItem('gold_bar', 1);
     P.addItem(pick(['gold_ring', 'necklace', 'pocket_watch']));
     this.stat('treasures', 1);
-    UI.toast('Hazine Bulundu!', 'Toprağın altından paslı bir sandık çıktı.', 'ach');
+    UI.toast(Tr('Hazine Bulundu!'), Tr('Toprağın altından paslı bir sandık çıktı.'), 'ach');
   },
   drinkWater(clean) {
     const P = this.player;
@@ -1821,22 +1831,72 @@ const GameSystems = {
     Audio_.tone(400, 0.2, 'sine', 0.05, null, 0, 250);
     if (!clean) {
       const t = this.world.tileAtPx(P.x, P.y);
-      if (chance(0.06) || (t === T.SWAMP && chance(0.2))) { P.sick = Math.max(P.sick, 6); UI.help('Su pek temiz değildi. <b>Midende bir bulantı hissediyorsun.</b>', 5); }
+      if (chance(0.06) || (t === T.SWAMP && chance(0.2))) { P.sick = Math.max(P.sick, 6); UI.help(Tr('Su pek temiz değildi. <b>Midende bir bulantı hissediyorsun.</b>'), 5); }
     }
-    UI.feed('💧 Su içtin');
+    UI.feed(Tr('💧 Su içtin'));
   },
   fillCanteen() {
     const P = this.player;
-    if (!P.has('canteen')) { UI.feed('Mataran yok. Genel mağazadan alabilirsin.', 'warn'); return; }
-    P.canteen = 5; UI.feed('🫗 Matara dolduruldu (5/5)');
+    if (!P.has('canteen')) { UI.feed(Tr('Mataran yok. Genel mağazadan alabilirsin.'), 'warn'); return; }
+    P.canteen = 5; UI.feed(Tr('🫗 Matara dolduruldu (5/5)'));
     Audio_.tone(300, 0.4, 'sine', 0.04, null, 0, 600);
   },
   wash() {
     const P = this.player;
     P.clean = 100;
-    if (this.ambientTemp(P.x, P.y) < 8) { P.warmBuff = 0; UI.feed('Buz gibi suda yıkandın. Brrr!'); }
-    else UI.feed('🧼 Yıkandın. Tertemiz oldun.');
+    if (this.ambientTemp(P.x, P.y) < 8) { P.warmBuff = 0; UI.feed(Tr('Buz gibi suda yıkandın. Brrr!')); }
+    else UI.feed(Tr('🧼 Yıkandın. Tertemiz oldun.'));
     this.advanceClock(15);
+  },
+  /* Başkasının evini aramak: suçtur (görülürse), her ev haftada bir kez bir şey verir */
+  searchHouse(b) {
+    const P = this.player, k = 'house' + b.id, last = this.chestsOpened[k];
+    this.crime('trespass', P.x, P.y);
+    this.addHonor(-2);
+    this.advanceClock(10);
+    if (last !== undefined && this.day - last < 7) { UI.feed(Tr('Çekmeceler boş. Burayı yakın zamanda aradın.')); return; }
+    this.chestsOpened[k] = this.day;
+    const money = rnd(1, 9) * (this.hasPerk('devil') ? 1.5 : 1);
+    this.earn(money, Tr('Hırsızlık'));
+    if (chance(0.45)) P.addItem(pick(['bread', 'beans', 'coffee', 'whiskey', 'bandage', 'tobacco', 'cig_card', 'pocket_watch']));
+  },
+  /* ---- İç mekânı olmayan yapılar ---- */
+  searchRuin(b) {
+    const k = 'ruin' + b.id, last = this.chestsOpened[k];
+    this.advanceClock(20);
+    if (last !== undefined && this.day - last < 7) { UI.feed(Tr('Burayı yakın zamanda aradın. Kayda değer bir şey kalmamış.')); return; }
+    this.chestsOpened[k] = this.day;
+    const P = this.player, found = [];
+    if (chance(0.6)) { const id = pick(['old_coin', 'arrowhead', 'old_coin', 'cig_card']); P.addItem(id, 1, true); found.push(ITEMS[id].n); }
+    if (chance(0.35)) { const id = pick(['whiskey', 'bandage', 'beans', 'tobacco']); P.addItem(id, 1, true); found.push(ITEMS[id].n); }
+    if (chance(0.15)) { const id = pick(['pocket_watch', 'necklace', 'gold_ring']); P.addItem(id, 1, true); found.push(ITEMS[id].n); }
+    if (found.length) { UI.feed(Tr('Molozların arasında buldukların: {0}', found.join(', '))); Audio_.ui('pick'); }
+    else UI.feed(Tr('Harabede örümcek ağından başka bir şey yok.'));
+    this.skillXp('survival', 2);
+  },
+  exploreMine(b) {
+    const P = this.player, k = 'mine' + b.id, last = this.chestsOpened[k];
+    if (last !== undefined && this.day - last < 3) { UI.feed(Tr('Galeriler hâlâ tozlu. Birkaç gün sonra yeniden dene.')); return; }
+    if (!P.has('lantern')) { UI.feed(Tr('İçerisi zifiri karanlık. Fenersiz girmek intihar olur.'), 'warn'); return; }
+    this.chestsOpened[k] = this.day;
+    UI.fade(() => {
+      this.advanceClock(120);
+      P.energy = Math.max(0, P.energy - 12); P.clean = Math.max(0, P.clean - 25);
+      if (chance(0.12)) { P.hurt(25, Tr('göçük'), true); UI.help(Tr('Tavan çöktü! Molozların altından yaralı ama canlı çıktın.'), 6); return; }
+      const got = [];
+      const n = rndi(1, 3); P.addItem('silver_ore', n, true); got.push(`${ITEMS.silver_ore.n} x${n}`);
+      if (chance(0.5)) { P.addItem('iron_ore', 2, true); got.push(`${ITEMS.iron_ore.n} x2`); }
+      if (chance(0.25)) { P.addItem('gold_nugget', 1, true); got.push(ITEMS.gold_nugget.n); this.stat('nuggets', 1); }
+      UI.help(Tr('Terk edilmiş galerilerde iki saat geçirdin. Bulduklarını çantana doldurdun: {0}', got.join(', ')), 6);
+      this.skillXp('strength', 6);
+    }, Tr('Galerilerde...'));
+  },
+  climbLighthouse(b) {
+    const k = 'light' + b.id;
+    this.advanceClock(15);
+    this.revealAt(b.door.x, b.door.y, 1600);
+    if (this.chestsOpened[k] === undefined) { this.chestsOpened[k] = this.day; this.addHonor(0.5); }
+    UI.help(Tr('Fenerin tepesinden kıyı boyunca uzanan her şeyi görebiliyorsun. <b>Haritanın büyük bir kısmı açıldı.</b>'), 6);
   },
   panGold() {
     const P = this.player, W = this.world;
@@ -1850,25 +1910,25 @@ const GameSystems = {
       P.addItem('gold_nugget', n);
       this.stat('nuggets', n);
       Audio_.ui('cash');
-    } else UI.feed('Elekte sadece çamur ve çakıl var...');
+    } else UI.feed(Tr('Elekte sadece çamur ve çakıl var...'));
     this.skillXp('survival', 2);
   },
   hotSpring() {
     const P = this.player;
     this.advanceClock(60);
     P.hp = P.maxHp; P.clean = 100; P.warmBuff = 240; P.sick = 0; P.energy = Math.min(100, P.energy + 15);
-    UI.toast('Sıcak Kaynak', 'Kemiklerin ısındı, yaraların iyileşti.', 'ok');
+    UI.toast(Tr('Sıcak Kaynak'), Tr('Kemiklerin ısındı, yaraların iyileşti.'), 'ok');
   },
   helpStranger(e) {
     const P = this.player, ev = e.event;
     const need = e.eventType === 'snakebite' ? ['antidote', 'snake_oil', 'herbal_tonic'] : ['bandage', 'health_cure', 'herbal_tonic'];
     const have = need.find(id => P.has(id));
-    if (!have) { UI.feed(`Yardım için ${need.map(n => ITEMS[n].n).join(' / ')} gerekli.`, 'warn'); e.say('Lütfen... bir şeyler bul...'); return; }
+    if (!have) { UI.feed(Tr`Yardım için ${need.map(n => ITEMS[n].n).join(' / ')} gerekli.`, 'warn'); e.say(Tr('Lütfen... bir şeyler bul...')); return; }
     P.removeItem(have);
     ev.done = true;
     e.state = 'idle'; e.home = { x: e.x, y: e.y, r: 30 };
-    e.say('Hayatımı kurtardın! Bu küçük hediyeyi kabul et lütfen.');
-    this.earn(rndi(5, 15), 'Minnet');
+    e.say(Tr('Hayatımı kurtardın! Bu küçük hediyeyi kabul et lütfen.'));
+    this.earn(rndi(5, 15), Tr('Minnet'));
     if (chance(0.4)) P.addItem(pick(['gold_ring', 'pocket_watch', 'chocolate', 'whiskey']));
     this.addHonor(8);
     this.stat('helped', 1);
@@ -1876,43 +1936,43 @@ const GameSystems = {
   },
   courtTalk(e, R) {
     const k = 'talk' + R.id;
-    if (this.dailyTalk[k]) { e.say(pick(['Bugün yeterince konuştuk, yarın gel.', 'Hep burada mısın sen?', 'Yarın yine uğra.'])); return; }
+    if (this.dailyTalk[k]) { e.say(pick([Tr('Bugün yeterince konuştuk, yarın gel.'), Tr('Hep burada mısın sen?'), Tr('Yarın yine uğra.')])); return; }
     this.dailyTalk[k] = 1;
     let g = 4 + this.skill('charisma') * 0.8;
     if (this.player.clean < 30) { g -= 3; e.say(pick(LINES.dirty)); }
-    else if (this.honor < -30) { g -= 1; e.say('Hakkında kötü şeyler duyuyorum...'); }
-    else e.say(pick(['Seni görmek güzel.', 'Bugün çok şıksın.', 'Anlat bakalım, nerelerdeydin?', 'Kasabada senden bahsediyorlar.', 'Bir gün beni de at gezintisine çıkarır mısın?']));
+    else if (this.honor < -30) { g -= 1; e.say(Tr('Hakkında kötü şeyler duyuyorum...')); }
+    else e.say(pick([Tr('Seni görmek güzel.'), Tr('Bugün çok şıksın.'), Tr('Anlat bakalım, nerelerdeydin?'), Tr('Kasabada senden bahsediyorlar.'), Tr('Bir gün beni de at gezintisine çıkarır mısın?')]));
     R.rel = clamp(R.rel + g, 0, 100);
     this.skillXp('charisma', 3);
-    UI.feed(`❤ ${R.name}: Yakınlık ${Math.round(R.rel)}`);
+    UI.feed(Tr`❤ ${R.name}: Yakınlık ${Math.round(R.rel)}`);
   },
   giveGift(e, R, id) {
     const P = this.player, it = ITEMS[id];
     P.removeItem(id);
     const g = (it.gift || 2) * (1 + this.skill('charisma') * 0.05);
     R.rel = clamp(R.rel + g, 0, 100);
-    e.say(g > 15 ? 'Aman Tanrım, çok güzel! Teşekkür ederim!' : 'Ne kadar düşüncelisin, teşekkürler.');
-    UI.feed(`❤ ${R.name}: Yakınlık ${Math.round(R.rel)}`);
+    e.say(g > 15 ? Tr('Aman Tanrım, çok güzel! Teşekkür ederim!') : Tr('Ne kadar düşüncelisin, teşekkürler.'));
+    UI.feed(Tr`❤ ${R.name}: Yakınlık ${Math.round(R.rel)}`);
   },
   propose(e, R) {
-    if (!this.props.length) { e.say('Seni seviyorum ama... başımızı sokacak bir evimiz bile yok.'); return; }
-    if (this.family.spouse) { e.say('Sen zaten evlisin!'); return; }
+    if (!this.props.length) { e.say(Tr('Seni seviyorum ama... başımızı sokacak bir evimiz bile yok.')); return; }
+    if (this.family.spouse) { e.say(Tr('Sen zaten evlisin!')); return; }
     const ring = this.player.has('gold_ring');
     if (ring || R.rel >= 95 || chance(0.6)) {
       if (ring) this.player.removeItem('gold_ring');
       this.family.spouse = { name: R.name, sex: R.sex, look: R.look, id: R.id, since: this.year };
       e.remove = true;
       this.stats.married = 1;
-      UI.toast('Evlendin!', `${R.name} artık hayat arkadaşın. Seni evinizde bekleyecek.`, 'family');
+      UI.toast(Tr('Evlendin!'), Tr`${R.name} artık hayat arkadaşın. Seni evinizde bekleyecek.`, 'family');
       Audio_.chime();
       for (const p of this.world.pois) if (p.kind === 'property') p.spawned = false;
-    } else e.say('Bu... çok ani oldu. Biraz daha zamana ihtiyacım var.');
+    } else e.say(Tr('Bu... çok ani oldu. Biraz daha zamana ihtiyacım var.'));
   },
   work(jobId, place) {
     const J = JOBS[jobId], P = this.player;
     const h = this.hour;
-    if (h < 6 || h > 18) { UI.feed('İş saatleri 06:00 - 18:00 arası.', 'warn'); return false; }
-    if (P.energy < J.energy * 0.6) { UI.feed('Çalışamayacak kadar yorgunsun.', 'warn'); return false; }
+    if (h < 6 || h > 18) { UI.feed(Tr('İş saatleri 06:00 - 18:00 arası.'), 'warn'); return false; }
+    if (P.energy < J.energy * 0.6) { UI.feed(Tr('Çalışamayacak kadar yorgunsun.'), 'warn'); return false; }
     UI.fade(() => {
       this.advanceClock(J.hours * 60);
       P.energy = Math.max(0, P.energy - J.energy);
@@ -1925,12 +1985,12 @@ const GameSystems = {
       if (J.bonus) for (const [id, c] of J.bonus) if (chance(c)) P.addItem(id, 1);
       this.stat('shifts', 1);
       this.skillXp(J.skill, J.xp);
-    }, `${J.hours} saat çalıştın...`);
+    }, Tr`${J.hours} saat çalıştın...`);
     return true;
   },
   sleep(hours, where) {
     const P = this.player;
-    if (this.law.level > 0) { UI.feed('Aranırken uyuyamazsın!', 'warn'); return; }
+    if (this.law.level > 0) { UI.feed(Tr('Aranırken uyuyamazsın!'), 'warn'); return; }
     UI.fade(() => {
       const steps = Math.round(hours * 6);
       for (let k = 0; k < steps; k++) {
@@ -1942,27 +2002,27 @@ const GameSystems = {
       }
       P.sta = P.maxSta; P.de = Math.max(P.de, 50);
       if (where === 'home' && this.hasPerk('home')) { P.hp = P.maxHp; P.deCore = 100; }
-      if (where === 'home' && this.family.spouse) { P.hp = P.maxHp; UI.feed(`❤ ${this.family.spouse.name} ile huzurlu bir uyku.`); }
+      if (where === 'home' && this.family.spouse) { P.hp = P.maxHp; UI.feed(Tr`❤ ${this.family.spouse.name} ile huzurlu bir uyku.`); }
       if (where === 'hotel') P.clean = Math.max(P.clean, 60);
       this.saveGame(true);
-      UI.feed('💾 Oyun kaydedildi');
+      UI.feed(Tr('💾 Oyun kaydedildi'));
       // uyurken saldırı
-      if (where === 'camp' && this.isNight && chance(0.1)) { this.eventT = 0; UI.help('Bir ses seni uyandırdı...', 4); }
-    }, `${hours} saat uyudun...`);
+      if (where === 'camp' && this.isNight && chance(0.1)) { this.eventT = 0; UI.help(Tr('Bir ses seni uyandırdı...'), 4); }
+    }, Tr`${hours} saat uyudun...`);
   },
   passTime(hours) {
     UI.fade(() => {
       const steps = Math.round(hours * 6);
       for (let k = 0; k < steps; k++) { this.advanceClock(10); this.weatherUpdate(10); this.survivalUpdate(10, false); if (this.state !== 'play') return; }
-    }, `${hours} saat geçti...`);
+    }, Tr`${hours} saat geçti...`);
   },
   setupCamp() {
     const P = this.player, W = this.world;
-    if (!P.has('bedroll')) { UI.feed('Kamp kurmak için bir Uyku Tulumu gerekir. Genel mağazalarda satılır.', 'warn'); return; }
-    if (W.townAt(P.x, P.y, 30)) { UI.feed('Kasabaya bu kadar yakın kamp kuramazsın.', 'warn'); return; }
-    if (this.law.level > 0) { UI.feed('Aranırken kamp kuramazsın.', 'warn'); return; }
-    for (const e of this.ents) if (!e.dead && ((e.kind === 'npc' && e.hostile) || (e.kind === 'animal' && e.state === 'attack')) && dist2(e.x, e.y, P.x, P.y) < 400 * 400) { UI.feed('Yakında tehlike var!', 'warn'); return; }
-    if (W.blocked(P.x, P.y + 14, 6)) { UI.feed('Burası kamp için uygun değil.', 'warn'); return; }
+    if (!P.has('bedroll')) { UI.feed(Tr('Kamp kurmak için bir Uyku Tulumu gerekir. Genel mağazalarda satılır.'), 'warn'); return; }
+    if (W.townAt(P.x, P.y, 30)) { UI.feed(Tr('Kasabaya bu kadar yakın kamp kuramazsın.'), 'warn'); return; }
+    if (this.law.level > 0) { UI.feed(Tr('Aranırken kamp kuramazsın.'), 'warn'); return; }
+    for (const e of this.ents) if (!e.dead && ((e.kind === 'npc' && e.hostile) || (e.kind === 'animal' && e.state === 'attack')) && dist2(e.x, e.y, P.x, P.y) < 400 * 400) { UI.feed(Tr('Yakında tehlike var!'), 'warn'); return; }
+    if (W.blocked(P.x, P.y + 14, 6)) { UI.feed(Tr('Burası kamp için uygun değil.'), 'warn'); return; }
     if (this.camp) this.camp.remove = true;
     this.camp = new Camp(P.x, P.y + 14);
     this.addEnt(this.camp);

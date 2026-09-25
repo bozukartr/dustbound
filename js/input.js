@@ -1,7 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — giriş: klavye, fare ve PlayStation kolu
-   (RDR2 / GTA V tarzı tuş yerleşimi)
+   FRONTIER'S END — giriş: klavye, fare ve PlayStation kolu
    ========================================================== */
 
 /* PS standart eşleme indeksleri */
@@ -11,7 +10,7 @@ const PS = { X: 0, O: 1, SQ: 2, TRI: 3, L1: 4, R1: 5, L2: 6, R2: 7, SHARE: 8, OP
 const GAME_ACTIONS = [
   { id: 'moveUp', n: 'İleri', kbOnly: 1 }, { id: 'moveDown', n: 'Geri', kbOnly: 1 }, { id: 'moveLeft', n: 'Sol', kbOnly: 1 }, { id: 'moveRight', n: 'Sağ', kbOnly: 1 },
   { id: 'sprint', n: 'Koş / Dörtnala' }, { id: 'interact', n: 'Etkileşim / Ata Bin' }, { id: 'aim', n: 'Nişan Al' }, { id: 'fire', n: 'Ateş Et' },
-  { id: 'reload', n: 'Şarjör Değiştir' }, { id: 'melee', n: 'Yakın Dövüş' }, { id: 'crouch', n: 'Çömel / Gizlen' }, { id: 'deadeye', n: 'Dead Eye' },
+  { id: 'reload', n: 'Şarjör Değiştir' }, { id: 'melee', n: 'Yakın Dövüş' }, { id: 'crouch', n: 'Çömel / Gizlen' }, { id: 'deadeye', n: 'Odak' },
   { id: 'wheel', n: 'Silah Çarkı' }, { id: 'quick', n: 'Hızlı İyileş / Ye' }, { id: 'whistle', n: 'Atı Çağır' }, { id: 'lantern', n: 'Fener' },
   { id: 'mask', n: 'Maske Tak / Çıkar' }, { id: 'satchel', n: 'Çanta' }, { id: 'camp', n: 'Kamp Kur (basılı)' }, { id: 'map', n: 'Harita' },
   { id: 'journal', n: 'Günlük' }, { id: 'pause', n: 'Duraklat' }, { id: 'zoomIn', n: 'Yakınlaştır (Piksel Ölçeği +)' }, { id: 'zoomOut', n: 'Uzaklaştır (Piksel Ölçeği −)' },
@@ -49,6 +48,12 @@ const GLYPH_PS = {
 const KEY_LABEL = { ShiftLeft: 'Sol Shift', ShiftRight: 'Sağ Shift', ControlLeft: 'Sol Ctrl', ControlRight: 'Sağ Ctrl', AltLeft: 'Alt', AltRight: 'AltGr', Escape: 'Esc', Space: 'Boşluk', Enter: 'Enter', Tab: 'Tab', Backspace: '⌫', CapsLock: 'Caps', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', PageUp: 'PgUp', PageDown: 'PgDn', Mouse0: 'Sol Tık', Mouse1: 'Orta Tık', Mouse2: 'Sağ Tık', Mouse3: 'Fare 4', Mouse4: 'Fare 5', Backquote: '"', Minus: '-', Equal: '=', BracketLeft: 'Ğ', BracketRight: 'Ü', Semicolon: 'Ş', Quote: 'İ', Comma: 'Ö', Period: 'Ç', Slash: '.', Backslash: ',' };
 const PAD_NAME = { [PS.X]: '✕', [PS.O]: '○', [PS.SQ]: '□', [PS.TRI]: '△', [PS.L1]: 'L1', [PS.R1]: 'R1', [PS.L2]: 'L2', [PS.R2]: 'R2', [PS.SHARE]: 'Share', [PS.OPT]: 'Options', [PS.L3]: 'L3', [PS.R3]: 'R3', [PS.UP]: 'D-Pad ↑', [PS.DOWN]: 'D-Pad ↓', [PS.LEFT]: 'D-Pad ←', [PS.RIGHT]: 'D-Pad →', [PS.PSB]: 'PS', [PS.TP]: 'Touchpad' };
 const MOUSE_LABEL = ['Sol Tık', 'Orta Tık', 'Sağ Tık'];
+/* Xbox ve Steam Deck düzeni: standart eşlemedeki indeksler aynı, yalnızca adlar ve renkler farklı */
+const GLYPH_XB = {
+  xbox: { [PS.X]: 'A', [PS.O]: 'B', [PS.SQ]: 'X', [PS.TRI]: 'Y', [PS.L1]: 'LB', [PS.R1]: 'RB', [PS.L2]: 'LT', [PS.R2]: 'RT', [PS.SHARE]: '⧉', [PS.OPT]: '☰', [PS.L3]: 'LS', [PS.R3]: 'RS', [PS.TP]: '⧉' },
+  deck: { [PS.X]: 'A', [PS.O]: 'B', [PS.SQ]: 'X', [PS.TRI]: 'Y', [PS.L1]: 'L1', [PS.R1]: 'R1', [PS.L2]: 'L2', [PS.R2]: 'R2', [PS.SHARE]: '⧉', [PS.OPT]: '☰', [PS.L3]: 'L3', [PS.R3]: 'R3', [PS.TP]: '⧉' },
+};
+const XB_FACE = { [PS.X]: 'a', [PS.O]: 'b', [PS.SQ]: 'xx', [PS.TRI]: 'y' };
 
 const Input = {
   keys: new Set(),
@@ -102,8 +107,8 @@ const Input = {
     window.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('wheel', e => { this.mouse.wheel += Math.sign(e.deltaY); }, { passive: true });
     window.addEventListener('gamepadconnected', e => {
-      this.padIndex = e.gamepad.index; this.device = 'pad';
-      if (typeof UI !== 'undefined' && UI.toast) UI.feed('🎮 Kol bağlandı: ' + e.gamepad.id.slice(0, 32));
+      this.padIndex = e.gamepad.index; this.device = 'pad'; this.padId = e.gamepad.id;
+      if (typeof UI !== 'undefined' && UI.toast) UI.feed(Tr('🎮 Kol bağlandı: ') + e.gamepad.id.slice(0, 32));
     });
     window.addEventListener('gamepaddisconnected', e => { if (e.gamepad.index === this.padIndex) this.padIndex = -1; });
   },
@@ -117,7 +122,7 @@ const Input = {
       let p = this.padIndex >= 0 ? pads[this.padIndex] : null;
       if (!p) for (const q of pads) if (q && q.connected) { p = q; this.padIndex = q.index; break; }
       if (p && p.connected) {
-        this.pad = p;
+        this.pad = p; this.padId = p.id;
         let active = false;
         for (let i = 0; i < 18; i++) {
           const b = p.buttons[i];
@@ -221,8 +226,29 @@ const Input = {
       else if (p.hapticActuators && p.hapticActuators[0]) p.hapticActuators[0].pulse(strong, ms);
     } catch (e) {}
   },
+  /* Kol simge seti: ayar (0 otomatik, 1 PlayStation, 2 Xbox, 3 Steam Deck) ya da bağlı kolun adı */
+  padStyle() {
+    const s = typeof G !== 'undefined' && G.settings ? G.settings.padGlyphs | 0 : 0;
+    if (s) return ['auto', 'ps', 'xbox', 'deck'][s];
+    if (typeof Platform !== 'undefined' && Platform.deck) return 'deck';
+    const id = (this.padId || '').toLowerCase();
+    if (/xbox|xinput|045e/.test(id)) return 'xbox';
+    if (/054c|playstation|dualshock|dualsense|wireless controller/.test(id)) return 'ps';
+    return id ? 'xbox' : 'ps';
+  },
+  /* Metin olarak tuş adı (tuş atama listesi) */
+  padName(i) {
+    const st = this.padStyle();
+    if (st !== 'ps' && GLYPH_XB[st][i]) return GLYPH_XB[st][i];
+    return PAD_NAME[i] || '?';
+  },
   padGlyph(i) {
     if (i === null || i === undefined) return '<span class="btn kb none">—</span>';
+    const st = this.padStyle();
+    if (st !== 'ps' && GLYPH_XB[st][i]) {
+      const face = XB_FACE[i];
+      return `<span class="btn pad ${st} ${face ? 'face ' + face : 'sh'}">${GLYPH_XB[st][i]}</span>`;
+    }
     const [g, c] = GLYPH_PS[i] || [PAD_NAME[i] || '?', 'sh'];
     const svgKey = { x: 'x', o: 'o', sq: 'sq', tri: 'tri', tp: 'tp' }[c] || (c === 'dp' ? { [PS.UP]: 'up', [PS.DOWN]: 'down', [PS.LEFT]: 'left', [PS.RIGHT]: 'right' }[i] : null);
     if (svgKey && typeof PS_SVG !== 'undefined') return `<span class="btn ps ${c}">${PS_SVG[svgKey]}</span>`;
@@ -230,7 +256,7 @@ const Input = {
   },
   keyLabel(code) {
     if (!code) return '—';
-    return KEY_LABEL[code] || code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'Num ');
+    return KEY_LABEL[code] || code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, Tr('Num '));
   },
   kbGlyph(code) { return `<span class="btn kb ${code ? '' : 'none'}">${this.keyLabel(code)}</span>`; },
   glyph(action) {

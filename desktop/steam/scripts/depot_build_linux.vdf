@@ -1,0 +1,10 @@
+"DepotBuild"
+{
+	"DepotID"	"0000002"		// Linux / Steam Deck deposu
+	"FileMapping"
+	{
+		"LocalPath"	"linux-unpacked/*"
+		"DepotPath"	"."
+		"Recursive"	"1"
+	}
+}

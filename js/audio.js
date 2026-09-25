@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — prosedürel ses (WebAudio): efektler, ortam, müzik
+   FRONTIER'S END — prosedürel ses (WebAudio): efektler, ortam, müzik
    ========================================================== */
 
 const Audio_ = {

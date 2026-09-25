@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — kasabaya varış sinematikleri (yalnızca yeni hayatın başında)
+   FRONTIER'S END — kasabaya varış sinematikleri (yalnızca yeni hayatın başında)
    Kütüphanesiz küçük bir WebGL çizici: düz gölgeli alçak poligon sahneler,
    düşük çözünürlük + renk kademesi + Bayer dither ile oyunun piksel sanat görünümü.
    ========================================================== */
@@ -354,7 +354,7 @@ const Cinema = (() => {
       return S;
     },
 
-    /* Demiryolu işçisi: tren Fort Mercy istasyonuna girer */
+    /* Demiryolu işçisi: tren Fort Redstone istasyonuna girer */
     rail(R, look) {
       const L = { dir: V.norm([-0.6, 0.55, -0.4]), amb: 0.55, dif: 0.75, ambC: C('#b0c0d8'), sunC: C('#fff0d0') };
       const m = new Mesh(L);
@@ -433,8 +433,8 @@ const Cinema = (() => {
     f.style.width = Math.round(RW * sc) + 'px'; f.style.height = Math.round(RH * sc) + 'px';
   }
   const CAPS = {
-    farm: ['Harlow Ovaları', 'Bir araba dolusu umutla...'], immigrant: ['Saint Clement Limanı', 'Yeni bir dünya, yeni bir hayat.'],
-    outlaw: ['Dust Creek', 'Geçmişinden kaçılmaz. Ama denenebilir.'], rail: ['Fort Mercy', 'Rayların sonu, hikâyenin başı.'], trapper: ['Cedar Falls', 'Ormanın sesi arkada kaldı.'],
+    farm: [Tr('Harlow Ovaları'), Tr('Bir araba dolusu umutla...')], immigrant: [Tr('Saint Clement Limanı'), Tr('Yeni bir dünya, yeni bir hayat.')],
+    outlaw: [Tr('Dust Creek'), Tr('Geçmişinden kaçılmaz. Ama denenebilir.')], rail: [Tr('Fort Redstone'), Tr('Rayların sonu, hikâyenin başı.')], trapper: [Tr('Cedar Falls'), Tr('Ormanın sesi arkada kaldı.')],
   };
 
   function play(bgId, opts = {}) {
@@ -448,10 +448,10 @@ const Cinema = (() => {
       try { S = mk(new RNG(opts.seed || 1890), opts.look || randomLook('m')); } catch (e) { console.warn(e); resolve(); return; }
       const town = TOWNS.find(t => t.id === (BACKGROUNDS.find(b => b.id === bgId) || {}).town);
       const cap = CAPS[bgId] || ['', ''];
-      el.querySelector('.cn-k').textContent = `Amerika, ${START_YEAR}`;
+      el.querySelector('.cn-k').textContent = Tr`Amerika, ${START_YEAR}`;
       el.querySelector('.cn-n').textContent = town ? town.n : cap[0];
       el.querySelector('.cn-s').textContent = cap[1];
-      el.querySelector('.cn-skip').innerHTML = `${Input.glyph('confirm')} Geç`;
+      el.querySelector('.cn-skip').innerHTML = Tr`${Input.glyph('confirm')} Geç`;
       el.classList.remove('out'); el.classList.add('on');
       const fd = el.querySelector('.cn-fade'); fd.style.animation = 'none'; void fd.offsetWidth; fd.style.animation = '';
       const parts = [];

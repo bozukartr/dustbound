@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Frontier's End — Steam görselleri</title>
+<link rel="stylesheet" href="../../fonts/fonts.css">
+<style>
+  body { background: #15110d; color: #efe6d2; font-family: 'IM Fell English', serif; margin: 24px; }
+  h1 { font-family: 'Rye', serif; font-weight: normal; }
+  .grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  .it { text-align: center; font-size: 11px; width: 150px; }
+  canvas { background: #000; display: block; margin: 0 auto 4px; }
+  button { font: inherit; padding: 6px 14px; margin: 0 8px 16px 0; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Frontier's End — Steam görselleri</h1>
+<p>Uygulama simgesi ve başarım simgeleri (kazanılmış + kilitli) oyunun kendi glif setinden üretilir.
+Steamworks başarım simgeleri 64×64 JPG ister; simge boyutu aşağıdan değiştirilebilir.</p>
+<button id="dl">Hepsini indir</button> <label>Başarım boyutu <input id="sz" type="number" value="64" min="32" max="512" step="32"></label>
+<div class="grid" id="grid"></div>
+<script src="../../js/util.js"></script>
+<script src="../../js/icons.js"></script>
+<script src="../../js/data.js"></script>
+<script>
+'use strict';
+/* Başarım → glif */
+const ACH_GLYPH = {
+  begin: 'star', hunt1: 'paw', hunt25: 'fox', hunt100: 'trophy', bear: 'paw', explore5: 'map', explore20: 'waypoint', towns: 'train',
+  rider: 'horseshoe', walker: 'feet', eater: 'meat', herbs: 'wheat', fisher: 'anchor', longshot: 'eye', gunslinger: 'gun', rich: 'bag',
+  tycoon: 'bank', worker: 'pick', samaritan: 'heart', outlaw: 'mask', saint: 'church', devil: 'skull', home: 'house', married: 'heartp',
+  parent: 'candle', gambler: 'cards', arm: 'fist', desert: 'sun', cold: 'snow', gold: 'coin', collector: 'chest', tamer: 'horse',
+  camper: 'fire', treasure: 'map', train: 'train', deadeye: 'deadeye', age30: 'hourglass', age50: 'hourglass', age65: 'hourglass', age80: 'trophy',
+};
+const svgImg = (name, col) => new Promise(res => {
+  const src = Icons.glyph(name, col).replace(/<span[^>]*>|<\/span>/g, '');
+  const svg = src.includes('xmlns') ? src : src.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+  const im = new Image(); im.onload = () => res(im); im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+});
+/* Rozet: koyu deri zemin, pirinç çerçeve, ortada glif. Kilitli: gri tonlu ve soluk. */
+async function badge(size, glyph, locked) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'), r = size / 2;
+  const bg = g.createRadialGradient(r, r * 0.8, size * 0.1, r, r, r);
+  bg.addColorStop(0, locked ? '#3a3a3a' : '#5a2a14'); bg.addColorStop(1, locked ? '#161616' : '#1e0f08');
+  g.fillStyle = bg; g.fillRect(0, 0, size, size);
+  g.lineWidth = size * 0.06; g.strokeStyle = locked ? '#6a6a6a' : '#c9a45c';
+  g.beginPath(); g.arc(r, r, r - size * 0.09, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = size * 0.02; g.strokeStyle = locked ? '#444' : '#7a5a2a';
+  g.beginPath(); g.arc(r, r, r - size * 0.17, 0, Math.PI * 2); g.stroke();
+  const im = await svgImg(glyph, locked ? '#8a8a8a' : '#f0d9a0');
+  const s = size * 0.5; g.globalAlpha = locked ? 0.8 : 1; g.drawImage(im, r - s / 2, r - s / 2, s, s);
+  return c;
+}
+async function appIcon(size) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'), r = size / 2;
+  const bg = g.createLinearGradient(0, 0, 0, size);
+  bg.addColorStop(0, '#3a1a10'); bg.addColorStop(0.55, '#b3471f'); bg.addColorStop(1, '#2a120a');
+  g.fillStyle = bg; g.beginPath(); g.roundRect(size * 0.04, size * 0.04, size * 0.92, size * 0.92, size * 0.18); g.fill();
+  g.fillStyle = 'rgba(255,214,140,0.9)'; g.beginPath(); g.arc(r, size * 0.62, size * 0.2, Math.PI, 0); g.fill();
+  g.fillStyle = '#1a0c06'; g.fillRect(size * 0.04, size * 0.62, size * 0.92, size * 0.34);
+  g.beginPath(); g.roundRect(size * 0.04, size * 0.62, size * 0.92, size * 0.34, [0, 0, size * 0.18, size * 0.18]); g.fill();
+  g.fillStyle = '#f0e2c4'; g.font = `${Math.round(size * 0.34)}px Rye`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('FE', r, size * 0.8);
+  g.lineWidth = size * 0.03; g.strokeStyle = '#c9a45c'; g.beginPath(); g.roundRect(size * 0.04, size * 0.04, size * 0.92, size * 0.92, size * 0.18); g.stroke();
+  return c;
+}
+const files = [];
+const add = (name, canvas, type = 'image/png', q) => {
+  files.push({ name, canvas, type, q });
+  const d = document.createElement('div'); d.className = 'it';
+  const v = document.createElement('canvas'); v.width = Math.min(128, canvas.width); v.height = v.width;
+  v.getContext('2d').drawImage(canvas, 0, 0, v.width, v.height);
+  d.append(v, name); document.getElementById('grid').append(d);
+};
+async function build() {
+  files.length = 0; document.getElementById('grid').innerHTML = '';
+  await document.fonts.load('40px Rye');
+  add('icon.png', await appIcon(512));
+  const sz = +document.getElementById('sz').value || 64;
+  for (const A of ACHIEVEMENTS) {
+    const api = 'ACH_' + A.id.toUpperCase(), gl = ACH_GLYPH[A.id] || 'star';
+    add(api + '.jpg', await badge(sz, gl, false), 'image/jpeg', 0.92);
+    add(api + '_locked.jpg', await badge(sz, gl, true), 'image/jpeg', 0.92);
+  }
+  window.__ready = true;
+}
+window.exportAll = () => files.map(f => ({ name: f.name, data: f.canvas.toDataURL(f.type, f.q) }));
+document.getElementById('dl').onclick = () => { for (const f of exportAll()) { const a = document.createElement('a'); a.href = f.data; a.download = f.name; a.click(); } };
+document.getElementById('sz').onchange = build;
+build();
+</script>
+</body>
+</html>

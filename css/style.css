@@ -1,5 +1,5 @@
 /* ==========================================================
-   DUSTBOUND — stil
+   FRONTIER'S END — stil
    ========================================================== */
 :root {
   --red: #a8140f;
@@ -34,6 +34,12 @@ body.deadeye #fx-deadeye { opacity: 1; }
 .btn.ps.x { color: #86a8ff; } .btn.ps.o { color: #ff6e6e; } .btn.ps.sq { color: #f08ad8; } .btn.ps.tri { color: #62dca9; }
 .btn.ps.sh { border-radius: 6px; width: auto; min-width: 30px; font-size: 11px; color: #ddd; padding: 0 4px; }
 .btn.ps.sh.sm { font-size: 9px; }
+.btn.pad { background: #1c1c1e; border: 1.5px solid #bdbdbd; color: #eee; font-family: Arial, sans-serif; font-weight: bold; }
+.btn.pad.face { border-radius: 50%; width: 24px; min-width: 24px; height: 24px; padding: 0; font-size: 13px; }
+.btn.pad.sh { border-radius: 6px; min-width: 30px; font-size: 11px; padding: 0 4px; }
+.btn.pad.xbox.face.a { color: #7fd35f; border-color: #7fd35f; } .btn.pad.xbox.face.b { color: #ef6a55; border-color: #ef6a55; }
+.btn.pad.xbox.face.xx { color: #5aa2f0; border-color: #5aa2f0; } .btn.pad.xbox.face.y { color: #f0cf4a; border-color: #f0cf4a; }
+.btn.pad.deck { background: #2a2c30; border-color: #8c9098; color: #e8eaee; }
 .btn.ps.dp { border-radius: 5px; font-size: 11px; color: #ddd; }
 .btn.ps.tp { border-radius: 5px; width: 34px; color: #ddd; }
 
@@ -337,7 +343,7 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 #mainmenu { background: #000; }
 #menubg { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
 .mm-inner { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 7vh 7vw; background: linear-gradient(90deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.15) 60%, transparent); }
-.mm-title h1 { font-family: var(--west); font-size: clamp(54px, 10vw, 130px); margin: 0; letter-spacing: 6px; color: #f0e2c4; text-shadow: 0 4px 0 #3a1a0e, 0 8px 30px rgba(0, 0, 0, 0.8); line-height: 1; }
+.mm-title h1 { font-family: var(--west); font-size: clamp(40px, 6.6vw, 104px); margin: 0; letter-spacing: 4px; white-space: nowrap; color: #f0e2c4; text-shadow: 0 4px 0 #3a1a0e, 0 8px 30px rgba(0, 0, 0, 0.8); line-height: 1; }
 .mm-pre { font-family: var(--sc); font-size: 20px; letter-spacing: 6px; color: #e8c890; }
 .mm-sub { font-family: var(--serif); font-style: italic; font-size: 24px; color: #e0cfae; margin-top: 8px; }
 .mm-items { display: flex; flex-direction: column; gap: 2px; width: min(420px, 90vw); }

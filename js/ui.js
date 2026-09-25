@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   DUSTBOUND — arayüz: HUD, menüler, harita, çanta, günlük,
+   FRONTIER'S END — arayüz: HUD, menüler, harita, çanta, günlük,
    dükkanlar, mini oyunlar, karakter yaratma
    ========================================================== */
 
@@ -138,7 +138,7 @@ const UI = {
         if (it.html) { h += `<div class="p-html">${it.html}</div>`; return; }
         h += `<div class="p-item nav ${it.disabled ? 'dis' : ''} ${it.cls || ''}" data-i="${i}">${it.icon ? `<span class="pi-ic">${Icons.iconize(it.icon)}</span>` : ''}<span class="pi-l">${Icons.iconize(it.label)}</span>${it.right !== undefined ? `<span class="pi-r">${Icons.iconize(String(it.right))}</span>` : ''}</div>`;
       });
-      if (!items.some(it => !it.header && !it.html)) h += `<div class="p-empty">${spec.empty || 'Burada bir şey yok.'}</div>`;
+      if (!items.some(it => !it.header && !it.html)) h += `<div class="p-empty">${spec.empty || Tr('Burada bir şey yok.')}</div>`;
       h += `</div>`;
       if (spec.side) h += `<div class="p-side"></div>`;
       h += `</div><div class="p-foot">${spec.footer ? spec.footer(m) : this.footer(spec)}</div>`;
@@ -175,15 +175,15 @@ const UI = {
     return m;
   },
   footer(spec) {
-    let s = `${Input.glyph('confirm')} ${spec.okLabel || 'Seç'} &nbsp; ${Input.glyph('back')} Geri`;
+    let s = Tr`${Input.glyph('confirm')} ${spec.okLabel || Tr('Seç')} &nbsp; ${Input.glyph('back')} Geri`;
     if (spec.altLabel) s += ` &nbsp; ${Input.glyph('alt')} ${spec.altLabel}`;
-    if (spec.tabs) s += ` &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme`;
+    if (spec.tabs) s += Tr` &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme`;
     return s;
   },
-  confirm(title, text, yes, noLabel = 'Vazgeç', yesLabel = 'Evet') {
+  confirm(title, text, yes, noLabel = Tr('Vazgeç'), yesLabel = Tr('Evet')) {
     return this.menu({ title, sub: text, cls: 'small', items: [{ label: yesLabel, fn: () => { this.pop(); yes(); } }, { label: noLabel, fn: () => this.pop() }] });
   },
-  info(title, html, btn = 'Tamam') {
+  info(title, html, btn = Tr('Tamam')) {
     return this.menu({ title, cls: 'small', items: [{ html }, { label: btn, fn: () => this.pop() }] });
   },
 
@@ -204,7 +204,7 @@ const UI = {
     }
   },
   toast(title, sub, kind) {
-    const e = el_('div', 'toast tk-' + (kind || 'none'), `<div class="t-k">${{ ach: 'BAŞARIM', skill: 'YETENEK', year: 'YAŞ', family: 'AİLE', bounty: 'ÖDÜL', horse: 'AT', ok: '' }[kind] || ''}</div><div class="t-t">${Icons.iconize(title)}</div><div class="t-s">${Icons.iconize(sub || '')}</div>`);
+    const e = el_('div', 'toast tk-' + (kind || 'none'), `<div class="t-k">${{ ach: Tr('BAŞARIM'), skill: Tr('YETENEK'), year: Tr('YAŞ'), family: Tr('AİLE'), bounty: Tr('ÖDÜL'), horse: Tr('AT'), ok: '' }[kind] || ''}</div><div class="t-t">${Icons.iconize(title)}</div><div class="t-s">${Icons.iconize(sub || '')}</div>`);
     this.el.toasts.appendChild(e);
     setTimeout(() => e.classList.add('out'), 5200);
     setTimeout(() => e.remove(), 6000);
@@ -230,7 +230,7 @@ const UI = {
     this._locT = setTimeout(() => l.classList.remove('show'), 4200);
   },
   wanted(reason, bounty) {
-    this.toast(reason ? reason.toUpperCase() : 'SUÇ', bounty ? `Başına +${fmtMoney(bounty)} ödül kondu` : 'Kanun peşinde!', 'wanted');
+    this.toast(reason ? reason.toUpperCase() : Tr('SUÇ'), bounty ? Tr`Başına +${fmtMoney(bounty)} ödül kondu` : Tr('Kanun peşinde!'), 'wanted');
     Audio_.tone(220, 0.4, 'sawtooth', 0.05); Audio_.tone(196, 0.5, 'sawtooth', 0.05, null, 0.3);
   },
   honorFlash(good) {
@@ -275,7 +275,7 @@ const UI = {
     this.setText('hud-money', fmtMoney(P.money));
     this.setText('hud-time', G.timeStr());
     this.setText('hud-date', G.dateStr());
-    this.setText('hud-age', `${P.name} • ${G.age} yaşında`);
+    this.setText('hud-age', Tr`${P.name} • ${G.age} yaşında`);
     // sıcaklık
     const ft = Math.round(G.feltTemp);
     const tg = this.cache.tg || (this.cache.tg = $('#temp-gauge'));
@@ -293,10 +293,10 @@ const UI = {
       wz._k = wk;
       wz.classList.toggle('hidden', L.level <= 0);
       $('.wanted-stars', wz).innerHTML = '★'.repeat(L.level) + '<span>' + '★'.repeat(5 - L.level) + '</span>';
-      $('.wanted-bounty', wz).innerHTML = L.masked ? 'Maskeli yabancı aranıyor' + (L.maskBounty ? ` <span class="mb">Ödül: ${fmtMoney(L.maskBounty)}</span>` : '') : 'Ödül: ' + fmtMoney(L.bounty) + (L.maskBounty ? ` <span class="mb">+ maskeli: ${fmtMoney(L.maskBounty)}</span>` : '');
+      $('.wanted-bounty', wz).innerHTML = L.masked ? Tr('Maskeli yabancı aranıyor') + (L.maskBounty ? ` <span class="mb">${Tr`Ödül: ${fmtMoney(L.maskBounty)}`}</span>` : '') : Tr('Ödül: ') + fmtMoney(L.bounty) + (L.maskBounty ? ` <span class="mb">${Tr`+ maskeli: ${fmtMoney(L.maskBounty)}`}</span>` : '');
       const hb = $('#hud-bounty');
       hb.classList.toggle('hidden', L.level > 0 || L.bounty <= 0);
-      hb.textContent = 'Başındaki ödül: ' + fmtMoney(L.bounty);
+      hb.textContent = Tr('Başındaki ödül: ') + fmtMoney(L.bounty);
     }
     // tanıklar
     const wt = this.cache.wt || (this.cache.wt = $('#hud-witness'));
@@ -306,7 +306,7 @@ const UI = {
     if (wt._k !== wtk) {
       wt._k = wtk;
       wt.classList.toggle('hidden', !wn);
-      if (wn) { $('.wt-t', wt).innerHTML = `${Icons.glyph('witness', '#f0b050')}${wn > 1 ? wn + ' TANIK' : 'TANIK'} KANUNA KOŞUYOR`; $('.wt-bar i', wt).style.width = Math.round((1 - wp) * 100) + '%'; }
+      if (wn) { $('.wt-t', wt).innerHTML = Icons.glyph('witness', '#f0b050') + (wn > 1 ? Tr('{0} TANIK KANUNA KOŞUYOR', wn) : Tr('TANIK KANUNA KOŞUYOR')); $('.wt-bar i', wt).style.width = Math.round((1 - wp) * 100) + '%'; }
     }
     // at
     const h = G.horse;
@@ -317,16 +317,16 @@ const UI = {
     // durum simgeleri
     const st = [];
     const gi = (g, t, col, blink) => st.push(`<span title="${t}" class="${blink ? 'blink' : ''}">${Icons.glyph(g, col)}</span>`);
-    if (P.masked) gi('mask', P.maskBlown ? 'Maskeli (görüldün)' : 'Maskeli', P.maskBlown ? '#e0a080' : '#efe6d2');
-    if (P.sick > 0) gi('sick', 'Hasta', '#b8d890');
-    if (P.poison > 0) gi('skull', 'Zehirlendin', '#b8e070', 1);
-    if (P.drunk > 30) gi('mug', 'Sarhoş', '#e8c060');
-    if (G.coldness > 0) gi('snow', 'Üşüyorsun', '#9cc8ff', 1);
-    if (G.hotness > 0) gi('sun', 'Sıcak çarpıyor', '#ffb060', 1);
-    if (P.warmBuff > 0) gi('steam', 'Isınmış', '#f0d8b0');
-    if (G.nearFire) gi('fire', 'Ateş başında', '#ff9a40');
-    if (P.clean < 20) gi('flies', 'Kirlisin', '#c8b890');
-    if (P.crouch) gi('feet', 'Gizlilik', '#e8e0d0');
+    if (P.masked) gi('mask', P.maskBlown ? Tr('Maskeli (görüldün)') : Tr('Maskeli'), P.maskBlown ? '#e0a080' : '#efe6d2');
+    if (P.sick > 0) gi('sick', Tr('Hasta'), '#b8d890');
+    if (P.poison > 0) gi('skull', Tr('Zehirlendin'), '#b8e070', 1);
+    if (P.drunk > 30) gi('mug', Tr('Sarhoş'), '#e8c060');
+    if (G.coldness > 0) gi('snow', Tr('Üşüyorsun'), '#9cc8ff', 1);
+    if (G.hotness > 0) gi('sun', Tr('Sıcak çarpıyor'), '#ffb060', 1);
+    if (P.warmBuff > 0) gi('steam', Tr('Isınmış'), '#f0d8b0');
+    if (G.nearFire) gi('fire', Tr('Ateş başında'), '#ff9a40');
+    if (P.clean < 20) gi('flies', Tr('Kirlisin'), '#c8b890');
+    if (P.crouch) gi('feet', Tr('Gizlilik'), '#e8e0d0');
     this.setText('status-icons', st.join(''));
     // silah
     const W = P.W;
@@ -334,7 +334,7 @@ const UI = {
     if (W.clip) ammo = `${P.clip[P.weapon] || 0}<small>/${P.ammo[W.ammo]}</small>`;
     else if (W.throw) ammo = `${P.count('dynamite')}`;
     else if (P.weapon === 'bow') ammo = `${P.ammo.arrow}`;
-    this.setText('w-icon', Icons.weapon(P.weapon)); this.setText('w-name', W.n + (P.reloadT > 0 ? ' <em>dolduruluyor…</em>' : '')); this.setText('w-ammo', ammo);
+    this.setText('w-icon', Icons.weapon(P.weapon)); this.setText('w-name', W.n + (P.reloadT > 0 ? Tr(' <em>dolduruluyor…</em>') : '')); this.setText('w-ammo', ammo);
     // efektler
     document.body.classList.toggle('deadeye', !!P.deadeye);
     document.body.classList.toggle('lowhp', P.hp < P.maxHp * 0.25 && G.state === 'play');
@@ -363,7 +363,7 @@ const UI = {
         this.holdT += dt;
         if (a0.hold) {
           holdPct = Math.min(1, this.holdT / a0.hold);
-          if (this.holdT >= a0.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a0.check || a0.check()) a0.fn(); else this.feed('Önce çömelerek (L3 / C) sakince yaklaş.', 'warn'); }
+          if (this.holdT >= a0.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a0.check || a0.check()) a0.fn(); else this.feed(Tr`Önce çömelerek (${I.glyph('crouch')}) sakince yaklaş.`, 'warn'); }
         } else if (hasMenu && this.holdT > 0.35 && !this.menuOpened) {
           this.menuOpened = true; this.holdTarget = null;
           this.contextMenu(tgt);
@@ -379,11 +379,11 @@ const UI = {
       const a0 = shown.actions[0];
       const hasMenu = shown.actions.length > 1 && !a0.hold;
       lines.push(`<div class="prompt-title">${shown.label}</div>`);
-      lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? ' <em>(basılı tut)</em>' : ''}</span></div>`);
-      if (hasMenu) lines.push(`<div class="prompt dim">${I.glyph('interact')}<span>Seçenekler <em>(basılı tut)</em></span></div>`);
+      lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
+      if (hasMenu) lines.push(`<div class="prompt dim">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`}</span></div>`);
     }
-    if (P.aiming && P.isArmed && !P.deadeye && P.de > 12) lines.push(`<div class="prompt dim">${I.glyph('deadeye')}<span>Dead Eye</span></div>`);
-    if (P.riding) lines.push(`<div class="prompt dim">${I.glyph('sprint')}<span>Dörtnala</span></div>`);
+    if (P.aiming && P.isArmed && !P.deadeye && P.de > 12) lines.push(`<div class="prompt dim">${I.glyph('deadeye')}<span>${Tr('Odak')}</span></div>`);
+    if (P.riding) lines.push(`<div class="prompt dim">${I.glyph('sprint')}<span>${Tr`Dörtnala`}</span></div>`);
     const key = lines.join('');
     if (this._pk !== key) { this._pk = key; this.el.prompts.innerHTML = key; }
   },
@@ -496,7 +496,7 @@ const UI = {
     this.updatePauseState();
     this.mapResize();
     this.mapDirty = true;
-    $('#map-legend').innerHTML = `<div class="ml-t">Açıklamalar</div>` + [['store', 'Mağaza'], ['glass', 'Saloon'], ['star', 'Şerif'], ['cross', 'Doktor'], ['gun', 'Silahçı'], ['horseshoe', 'Ahır'], ['bed', 'Otel'], ['train', 'İstasyon'], ['bank', 'Banka'], ['house', 'Mülk'], ['pick', 'İş'], ['tent', 'Haydut Kampı'], ['eye', 'Önemli Yer'], ['question', 'Söylenti'], ['waypoint', 'Hedef']].map(([a, b]) => `<div><span>${Icons.glyph(a, '#2a1a0e')}</span>${b}</div>`).join('');
+    $('#map-legend').innerHTML = `<div class="ml-t">${Tr`Açıklamalar`}</div>` + [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]].map(([a, b]) => `<div><span>${Icons.glyph(a, '#2a1a0e')}</span>${b}</div>`).join('');
   },
   mapResize() {
     const c = this.mapCanvas, d = window.devicePixelRatio || 1;
@@ -535,7 +535,7 @@ const UI = {
     for (const p of G.world.pois) if (G.discovered.has(p.id) || G.rumored.has(p.id)) { const d = dist2(p.x, p.y, wx, wy); if (d < bd) { bd = d; best = p; } }
     if (best) { wx = best.x; wy = best.y; }
     G.setWaypoint(wx, wy);
-    this.feed('📍 Hedef işaretlendi');
+    this.feed(Tr('📍 Hedef işaretlendi'));
   },
   mapUpdate(dt, m) {
     const I = Input, M = this.map;
@@ -548,7 +548,7 @@ const UI = {
     if (I.down('aim') && I.device === 'pad') { M.zoom = clamp(M.zoom * (1 - dt * 2), 0.5, 8); this.mapDirty = true; }
     M.cx = clamp(M.cx, 0, WW); M.cy = clamp(M.cy, 0, WH);
     if (I.pressed('confirm') && I.device === 'pad') { const [wx, wy] = this.mapToWorld(innerWidth / 2, innerHeight / 2); this.mapSetWaypoint(wx, wy); this.mapDirty = true; }
-    if (I.pressed('alt')) { G.setWaypoint(null); this.mapDirty = true; this.feed('Hedef kaldırıldı'); }
+    if (I.pressed('alt')) { G.setWaypoint(null); this.mapDirty = true; this.feed(Tr('Hedef kaldırıldı')); }
     if (I.pressed('alt2') && I.device === 'pad') { M.cx = G.player.x / TS; M.cy = G.player.y / TS; this.mapDirty = true; }
     if (I.pressed('back') || I.pressed('map')) { this.pop(m); return; }
     $('#map-cursor').style.display = I.device === 'pad' ? 'block' : 'none';
@@ -561,12 +561,12 @@ const UI = {
     const [wx, wy] = this.mapToWorld(sx, sy);
     let best = null, bd = (26 / this.map.zoom * TS) ** 2;
     for (const p of G.world.pois) if (G.discovered.has(p.id) || G.rumored.has(p.id)) { const d = dist2(p.x, p.y, wx, wy); if (d < bd) { bd = d; best = p; } }
-    for (const t of G.world.towns) if (G.visited.has(t.id) || G.reveal[((t.cy / TS / 4) | 0) * 256 + ((t.cx / TS / 4) | 0)]) { const d = dist2(t.cx, t.cy, wx, wy); if (d < bd * 4) { bd = d / 4; best = { n: t.n, desc: t.desc + (G.visited.has(t.id) ? '' : ' (Henüz ziyaret edilmedi)') }; } }
+    for (const t of G.world.towns) if (G.visited.has(t.id) || G.reveal[((t.cy / TS / 4) | 0) * 256 + ((t.cx / TS / 4) | 0)]) { const d = dist2(t.cx, t.cy, wx, wy); if (d < bd * 4) { bd = d / 4; best = { n: t.n, desc: t.desc + (G.visited.has(t.id) ? '' : Tr(' (Henüz ziyaret edilmedi)')) }; } }
     let html = '';
-    if (best) html = `<div class="mi-n">${best.n}</div><div class="mi-d">${best.desc || ''}${G.rumored.has(best.id) && !G.discovered.has(best.id) ? ' <i>(söylenti)</i>' : ''}</div>`;
+    if (best) html = `<div class="mi-n">${best.n}</div><div class="mi-d">${best.desc || ''}${G.rumored.has(best.id) && !G.discovered.has(best.id) ? Tr(' <i>(söylenti)</i>') : ''}</div>`;
     else html = `<div class="mi-n">${G.world.regionAt(wx, wy)}</div>`;
     if (this._mh !== html) { this._mh = html; $('#map-info').innerHTML = html; }
-    const hint = `${Input.device === 'pad' ? Input.glyph('confirm') + ' Hedef Koy &nbsp; ' + Input.glyph('alt') + ' Hedefi Kaldır &nbsp; R2/L2 Yakınlaştır &nbsp; ' + Input.glyph('alt2') + ' Konumum' : 'Sol Tık: Hedef Koy &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır'} &nbsp; ${Input.glyph('back')} Kapat`;
+    const hint = Tr`${Input.device === 'pad' ? Input.glyph('confirm') + Tr(' Hedef Koy &nbsp; ') + Input.glyph('alt') + Tr(' Hedefi Kaldır &nbsp; ') + Input.padGlyph(PS.R2) + Input.padGlyph(PS.L2) + Tr(' Yakınlaştır &nbsp; ') + Input.glyph('alt2') + Tr(' Konumum') : Tr('Sol Tık: Hedef Koy &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır')} &nbsp; ${Input.glyph('back')} Kapat`;
     if (this._mhint !== hint) { this._mhint = hint; $('#map-hint').innerHTML = hint; }
   },
   drawMap() {
@@ -650,7 +650,7 @@ const UI = {
     c.fillStyle = g; c.fillRect(0, 0, w, h);
   },
 
-  /* ================= SİLAH / EŞYA ÇARKI (RDR2 tarzı iki sayfa) ================= */
+  /* ================= SİLAH / EŞYA ÇARKI (iki sayfa) ================= */
   wheelSlots(page) { return page === 0 ? WHEEL_SLOTS : ITEM_SLOTS; },
   /* Bir yuvadaki seçilebilir girdiler */
   wheelEntries(page, i) {
@@ -681,14 +681,14 @@ const UI = {
       const W = WEAPONS[e.id];
       return { n: W.n, ic: Icons.weapon(e.id, 'ic wpn'), am: W.clip ? `${P.clip[e.id] || 0}<span>|</span>${P.ammo[W.ammo]}` : W.throw ? `x${P.count('dynamite')}` : '' };
     }
-    if (e.id === '@canteen') return { n: 'Matara', ic: Icons.item('canteen'), am: `${P.canteen}/5`, d: P.canteen > 0 ? 'Bir yudum su iç. (Susuzluk +32)' : 'Matara boş. Bir kuyu ya da nehirde doldur.' };
-    if (e.id === '@lantern') return { n: P.lantern ? 'Feneri Söndür' : 'Feneri Yak', ic: Icons.item('lantern'), am: P.lantern ? 'Açık' : 'Kapalı', d: 'Karanlıkta yolunu aydınlatır.' };
-    if (e.id === '@harmonica') return { n: 'Mızıka Çal', ic: Icons.item('harmonica'), am: '', d: 'Kısa bir ezgi çal. Ruhunu dinlendirir.' };
+    if (e.id === '@canteen') return { n: Tr('Matara'), ic: Icons.item('canteen'), am: `${P.canteen}/5`, d: P.canteen > 0 ? Tr('Bir yudum su iç. (Susuzluk +32)') : Tr('Matara boş. Bir kuyu ya da nehirde doldur.') };
+    if (e.id === '@lantern') return { n: P.lantern ? Tr('Feneri Söndür') : Tr('Feneri Yak'), ic: Icons.item('lantern'), am: P.lantern ? Tr('Açık') : Tr('Kapalı'), d: Tr('Karanlıkta yolunu aydınlatır.') };
+    if (e.id === '@harmonica') return { n: Tr('Mızıka Çal'), ic: Icons.item('harmonica'), am: '', d: Tr('Kısa bir ezgi çal. Ruhunu dinlendirir.') };
     const it = ITEMS[e.id];
     const worn = (P.coat === e.id) || (it.hat && P.look.hat === it.hat) || (it.mask && P.masked && P.mask === e.id);
-    const EN = { hunger: 'Açlık', thirst: 'Susuzluk', health: 'Sağlık', stamina: 'Dayanıklılık', energy: 'Uyku', deadeye: 'Dead Eye', warmth: 'Sıcaklık', drunk: 'Sarhoşluk' };
+    const EN = { hunger: Tr('Açlık'), thirst: Tr('Susuzluk'), health: Tr('Sağlık'), stamina: Tr('Dayanıklılık'), energy: Tr('Uyku'), deadeye: Tr('Odak'), warmth: Tr('Sıcaklık'), drunk: Tr('Sarhoşluk') };
     const fx = it.e ? Object.keys(it.e).filter(k => EN[k]).map(k => `${EN[k]} ${it.e[k] > 0 ? '+' : ''}${it.e[k]}`).join(' • ') : '';
-    return { n: it.n, ic: Icons.item(e.id), am: it.c === 'clothing' ? (worn ? 'Giyili' : '') : `x${P.count(e.id)}`, d: fx || it.d || '', worn, raw: !!it.raw };
+    return { n: it.n, ic: Icons.item(e.id), am: it.c === 'clothing' ? (worn ? Tr('Giyili') : '') : `x${P.count(e.id)}`, d: fx || it.d || '', worn, raw: !!it.raw };
   },
   openWheel() {
     const w = $('#wheel');
@@ -728,7 +728,7 @@ const UI = {
         <circle r="84" fill="none" stroke="rgba(201,164,92,0.15)" stroke-width="1"/>
         <path id="wh-ptr" d="M0 -100 L-9 -112 L9 -112Z" fill="#e6c27a"/>
       </svg>${slots}<div id="wheel-center" class="wh-center"></div>
-      <div class="wh-tabs"><span class="${page === 0 ? 'on' : ''}">Silahlar</span><i></i><span class="${page === 1 ? 'on' : ''}">Eşyalar</span></div>`;
+      <div class="wh-tabs"><span class="${page === 0 ? 'on' : ''}">${Tr('Silahlar')}</span><i></i><span class="${page === 1 ? 'on' : ''}">${Tr('Eşyalar')}</span></div>`;
     const sc = Math.min(1.25, Math.min(innerWidth, innerHeight) * 0.86 / 540);
     $('#wheel-ring').style.transform = `scale(${sc.toFixed(3)})`;
     $('#wheel-hint').innerHTML = I_WHEEL_HINT(page);
@@ -788,10 +788,10 @@ const UI = {
     const c = $('#wheel-center');
     const E = this.wheelEntries(page, sel);
     const nav = E.length > 1 ? `<div class="whc-nav">${Input.device === 'pad' ? Input.padGlyph(PS.LEFT) : '◀'} ${E.findIndex(x => x.id === e.id) + 1} / ${E.length} ${Input.device === 'pad' ? Input.padGlyph(PS.RIGHT) : '▶'}</div>` : '';
-    if (!e) { c.innerHTML = `<div class="whc-cat">${sl ? sl.n : ''}</div><div class="whc-n dim">Boş</div><div class="whc-hint">${page ? 'Bu türde eşyan yok' : 'Bu yuvada silahın yok'}</div>`; return; }
+    if (!e) { c.innerHTML = `<div class="whc-cat">${sl ? sl.n : ''}</div><div class="whc-n dim">${Tr`Boş`}</div><div class="whc-hint">${page ? Tr('Bu türde eşyan yok') : Tr('Bu yuvada silahın yok')}</div>`; return; }
     if (page === 1) {
       const inf = this.wheelEntryInfo(e);
-      c.innerHTML = `<div class="whc-cat">${sl.n}</div><div class="whc-big">${inf.ic}</div><div class="whc-n">${inf.n}</div>${inf.am ? `<div class="whc-at">${inf.am}</div>` : ''}<div class="whc-d">${inf.d || ''}</div>${nav}<div class="whc-use">${Input.device === 'pad' ? Input.padGlyph(PS.X) : Input.kbGlyph('Mouse0')} ${ITEMS[e.id] && ITEMS[e.id].c === 'clothing' ? (inf.worn ? 'Çıkar' : 'Giy') : 'Kullan'}</div>`;
+      c.innerHTML = `<div class="whc-cat">${sl.n}</div><div class="whc-big">${inf.ic}</div><div class="whc-n">${inf.n}</div>${inf.am ? `<div class="whc-at">${inf.am}</div>` : ''}<div class="whc-d">${inf.d || ''}</div>${nav}<div class="whc-use">${Input.device === 'pad' ? Input.padGlyph(PS.X) : Input.kbGlyph('Mouse0')} ${ITEMS[e.id] && ITEMS[e.id].c === 'clothing' ? (inf.worn ? Tr('Çıkar') : Tr('Giy')) : Tr('Kullan')}</div>`;
       return;
     }
     const W = WEAPONS[e.id];
@@ -801,13 +801,13 @@ const UI = {
     if (W.clip) ammo = `<div class="whc-am">${P.clip[e.id] || 0}<small> / ${P.ammo[W.ammo]}</small></div><div class="whc-at">${AMMO[W.ammo].n}</div>`;
     else if (W.throw) ammo = `<div class="whc-am">x${P.count('dynamite')}</div>`;
     c.innerHTML = `<div class="whc-cat">${sl.n}</div><div class="whc-n">${W.n}</div>${ammo}
-      <div class="whc-stats">${bar('Hasar', dmg)}${W.melee ? '' : bar('Menzil', rng)}${bar('Hız', rate)}</div>${nav}`;
+      <div class="whc-stats">${bar(Tr('Hasar'), dmg)}${W.melee ? '' : bar(Tr('Menzil'), rng)}${bar(Tr('Hız'), rate)}</div>${nav}`;
   },
   wheelUse(e) {
     const P = G.player;
     if (e.id === '@canteen') { G.drinkCanteen(); return; }
-    if (e.id === '@lantern') { P.lantern = !P.lantern; Audio_.ui('pick'); this.feed(P.lantern ? '🏮 Fener yakıldı' : '🏮 Fener söndürüldü'); return; }
-    if (e.id === '@harmonica') { Audio_.harmonica(); P.deCore = Math.min(100, P.deCore + 8); this.feed('🎵 Mızıkayla kısa bir ezgi çaldın.'); return; }
+    if (e.id === '@lantern') { P.lantern = !P.lantern; Audio_.ui('pick'); this.feed(P.lantern ? Tr('🏮 Fener yakıldı') : Tr('🏮 Fener söndürüldü')); return; }
+    if (e.id === '@harmonica') { Audio_.harmonica(); P.deCore = Math.min(100, P.deCore + 8); this.feed(Tr('🎵 Mızıkayla kısa bir ezgi çaldın.')); return; }
     G.consume(e.id);
   },
   closeWheel() {
@@ -822,21 +822,21 @@ const UI = {
   /* ================= ÇANTA ================= */
   openSatchel() {
     const P = G.player;
-    const tabs = ['Yiyecek', 'İlaç & Bitki', 'Av & Değerli', 'Alet & Giysi', 'Silahlar'];
+    const tabs = [Tr('Yiyecek'), Tr('İlaç & Bitki'), Tr('Av & Değerli'), Tr('Alet & Giysi'), Tr('Silahlar')];
     const cats = [['food'], ['med', 'herb'], ['animal', 'valuable', 'collect'], ['tool', 'horse', 'doc', 'clothing', 'ammo'], []];
     const m = this.menu({
-      title: 'Çanta', cls: 'satchel', tabs, side: (it) => it.sideHtml || '', altLabel: 'Bir Tane At', okLabel: 'Kullan',
-      sub: () => `${fmtMoney(P.money)} • Matara: ${P.canteen}/5 • ${G.age} yaş`,
+      title: Tr('Çanta'), cls: 'satchel', tabs, side: (it) => it.sideHtml || '', altLabel: Tr('Bir Tane At'), okLabel: Tr('Kullan'),
+      sub: () => Tr`${fmtMoney(P.money)} • Matara: ${P.canteen}/5 • ${G.age} yaş`,
       build: (m) => {
         const items = [];
-        if (m.tab === 0 && P.has('canteen')) items.push({ icon: Icons.item('canteen'), label: 'Matara', right: `${P.canteen}/5`, fn: () => G.drinkCanteen(), sideHtml: this.itemSide(ITEMS.canteen, `Susuzluk +32`) });
+        if (m.tab === 0 && P.has('canteen')) items.push({ icon: Icons.item('canteen'), label: Tr('Matara'), right: `${P.canteen}/5`, fn: () => G.drinkCanteen(), sideHtml: this.itemSide(ITEMS.canteen, Tr`Susuzluk +32`) });
         if (m.tab === 4) {
           for (const w of P.weapons) {
             const W = WEAPONS[w];
             if (w === 'dynamite') continue;
-            items.push({ icon: Icons.weapon(w), label: W.n + (P.weapon === w ? ' <em>(elinde)</em>' : ''), right: W.clip ? `${P.clip[w] || 0} / ${P.ammo[W.ammo]}` : '', fn: () => { P.weapon = w; this.feed(`${W.n} kuşanıldı`); }, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.melee ? 'Yakın dövüş' : 'Hasar ' + W.dmg + (W.pellets ? 'x' + W.pellets : '') + ' • Menzil ' + W.range + ' • Şarjör ' + (W.clip || '-')}</div>` });
+            items.push({ icon: Icons.weapon(w), label: W.n + (P.weapon === w ? Tr(' <em>(elinde)</em>') : ''), right: W.clip ? `${P.clip[w] || 0} / ${P.ammo[W.ammo]}` : '', fn: () => { P.weapon = w; this.feed(Tr`${W.n} kuşanıldı`); }, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.melee ? Tr('Yakın dövüş') : Tr('Hasar ') + W.dmg + (W.pellets ? 'x' + W.pellets : '') + Tr(' • Menzil ') + W.range + Tr(' • Şarjör ') + (W.clip || '-')}</div>` });
           }
-          items.push({ header: 'Mühimmat' });
+          items.push({ header: Tr('Mühimmat') });
           for (const a in AMMO) items.push({ icon: Icons.glyph('ammo', '#d9c8a4'), label: AMMO[a].n, right: `${P.ammo[a]} / ${AMMO[a].max}`, disabled: true });
           return items;
         }
@@ -844,35 +844,35 @@ const UI = {
         for (const id of ids) {
           const it = ITEMS[id];
           const worn = (P.coat === id) || (it.hat && P.look.hat === it.hat) || (it.mask && P.masked && P.mask === id);
-          items.push({ id, icon: Icons.item(id), label: it.n + (worn ? ' <em>(giyili)</em>' : ''), right: 'x' + P.inv[id], fn: () => { G.consume(id); }, sideHtml: this.itemSide(it) });
+          items.push({ id, icon: Icons.item(id), label: it.n + (worn ? Tr(' <em>(giyili)</em>') : ''), right: 'x' + P.inv[id], fn: () => { G.consume(id); }, sideHtml: this.itemSide(it) });
         }
         return items;
       },
-      onAlt: (it) => { if (!it || !it.id) return; this.confirm('Eşyayı At', `Bir adet ${ITEMS[it.id].n} atılsın mı?`, () => { P.removeItem(it.id, 1); if (P.coat === it.id && !P.has(it.id)) P.coat = null; }); },
-      empty: 'Bu bölmede eşyan yok.',
+      onAlt: (it) => { if (!it || !it.id) return; this.confirm(Tr('Eşyayı At'), Tr`Bir adet ${ITEMS[it.id].n} atılsın mı?`, () => { P.removeItem(it.id, 1); if (P.coat === it.id && !P.has(it.id)) P.coat = null; }); },
+      empty: Tr('Bu bölmede eşyan yok.'),
     });
     return m;
   },
   itemSide(it, extra) {
     const e = it.e || {};
     const eff = [];
-    const map = { hunger: 'Açlık', thirst: 'Susuzluk', health: 'Sağlık', stamina: 'Dayanıklılık', energy: 'Uyku', deadeye: 'Dead Eye', drunk: 'Sarhoşluk', warmth: 'Isınma' };
+    const map = { hunger: Tr('Açlık'), thirst: Tr('Susuzluk'), health: Tr('Sağlık'), stamina: Tr('Dayanıklılık'), energy: Tr('Uyku'), deadeye: Tr('Odak'), drunk: Tr('Sarhoşluk'), warmth: Tr('Isınma') };
     for (const k in map) if (e[k]) eff.push(`${map[k]} ${e[k] > 0 ? '+' : ''}${e[k]}`);
-    if (e.cure) eff.push('Hastalığı iyileştirir');
-    if (e.poison) eff.push('Zehri yok eder');
-    if (it.raw) eff.push('<span class="bad">Çiğ: hastalık riski</span>');
-    if (it.coat) eff.push(`Sıcaklık ${it.coat.warm > 0 ? '+' : ''}${it.coat.warm}°C`);
-    return `<div class="ps-big">${Icons.item(it.id, 'ic big')}</div><div class="ps-t">${it.n}</div><div class="ps-d">${it.d || ''}</div>${eff.length || extra ? `<div class="ps-e">${extra || eff.join('<br>')}</div>` : ''}<div class="ps-p">Değeri: ${fmtMoney(it.p)}</div>`;
+    if (e.cure) eff.push(Tr('Hastalığı iyileştirir'));
+    if (e.poison) eff.push(Tr('Zehri yok eder'));
+    if (it.raw) eff.push(`<span class="bad">${Tr`Çiğ: hastalık riski`}</span>`);
+    if (it.coat) eff.push(Tr`Sıcaklık ${it.coat.warm > 0 ? '+' : ''}${it.coat.warm}°C`);
+    return `<div class="ps-big">${Icons.item(it.id, 'ic big')}</div><div class="ps-t">${it.n}</div><div class="ps-d">${it.d || ''}</div>${eff.length || extra ? `<div class="ps-e">${extra || eff.join('<br>')}</div>` : ''}<div class="ps-p">${Tr`Değeri: ${fmtMoney(it.p)}`}</div>`;
   },
 
   /* ================= GÜNLÜK ================= */
   openJournal(tab = 0) {
-    const tabs = ['Karakter', 'Yetenekler', 'Başarımlar', 'İstatistikler', 'İlişkiler', 'Rehber'];
+    const tabs = [Tr('Karakter'), Tr('Yetenekler'), Tr('Başarımlar'), Tr('İstatistikler'), Tr('İlişkiler'), Tr('Rehber')];
     const el = el_('div', 'modal panel journal');
     const m = this.makeModal(el, { scroll: true, noFocus: true, onTab: (d) => { m.tab = (m.tab + d + tabs.length) % tabs.length; render(); Audio_.ui('move'); } });
     m.tab = tab;
     const render = () => {
-      el.innerHTML = `<div class="p-head"><div class="p-title">Günlük</div></div><div class="p-tabs">${Input.glyph('tabL')}${tabs.map((t, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${t}</span>`).join('')}${Input.glyph('tabR')}</div><div class="p-body"><div class="scroll jr">${Icons.iconize(this.journalTab(m.tab))}</div></div><div class="p-foot">${Input.glyph('back')} Kapat &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme</div>`;
+      el.innerHTML = `<div class="p-head"><div class="p-title">${Tr`Günlük`}</div></div><div class="p-tabs">${Input.glyph('tabL')}${tabs.map((t, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${t}</span>`).join('')}${Input.glyph('tabR')}</div><div class="p-body"><div class="scroll jr">${Icons.iconize(this.journalTab(m.tab))}</div></div><div class="p-foot">${Tr`${Input.glyph('back')} Kapat &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme`}</div>`;
       $$('.tab', el).forEach(n => (n.onclick = () => { m.tab = +n.dataset.tab; render(); }));
       const pc = $('#jr-portrait', el);
       if (pc) Spr.portrait(pc.getContext('2d'), pc.width, pc.height, G.player.look, G.age);
@@ -884,39 +884,39 @@ const UI = {
     const P = G.player, S = G.stats;
     if (t === 0) {
       const BG = BACKGROUNDS.find(b => b.id === G.background);
-      const honorTxt = G.honor > 60 ? 'Saygın' : G.honor > 20 ? 'Dürüst' : G.honor > -20 ? 'Nötr' : G.honor > -60 ? 'Şüpheli' : 'Kötü Şöhretli';
+      const honorTxt = G.honor > 60 ? Tr('Saygın') : G.honor > 20 ? Tr('Dürüst') : G.honor > -20 ? Tr('Nötr') : G.honor > -60 ? Tr('Şüpheli') : Tr('Kötü Şöhretli');
       const born = START_YEAR - START_AGE;
       return `<div class="jr-char"><canvas id="jr-portrait" width="220" height="264"></canvas><div class="jr-info">
         <h2>${escapeHtml(P.name)}</h2>
-        <div class="jr-row"><b>Doğum:</b> ${born} &nbsp; <b>Yaş:</b> ${G.age} &nbsp; <b>Yıl:</b> ${G.year}</div>
-        <div class="jr-row"><b>Geçmiş:</b> ${BG ? BG.n : ''}</div>
-        <div class="jr-row"><b>Onur:</b> ${honorTxt} (${Math.round(G.honor)})<div class="honorbar"><i style="left:${50 + G.honor / 2}%"></i></div></div>
-        <div class="jr-row"><b>Nakit:</b> ${fmtMoney(P.money)} &nbsp; <b>Banka:</b> ${fmtMoney(G.bank)}</div>
-        <div class="jr-row"><b>Başındaki Ödül:</b> ${fmtMoney(G.law.bounty)}</div>
-        <div class="jr-row"><b>At:</b> ${G.horse ? `${G.horse.name} (${G.horse.def.n}) — Bağ ${G.horse.bondLv}/4` : 'Yok'}</div>
-        <div class="jr-row"><b>Mülkler:</b> ${G.props.length ? G.props.map(id => PROPERTIES.find(p => p.id === id).n).join(', ') : 'Yok'}</div>
-        <div class="jr-row"><b>Aile:</b> ${G.family.spouse ? `Eşi: ${G.family.spouse.name}` : 'Bekar'}${G.family.children.length ? ' • Çocuklar: ' + G.family.children.map(c => c.name).join(', ') : ''}</div>
-        <div class="jr-row"><b>Hayat Hedefi:</b> 80 yaş — kalan ${Math.max(0, GOAL_AGE - G.age)} yıl</div>
+        <div class="jr-row">${Tr`<b>Doğum:</b> ${born} &nbsp; <b>Yaş:</b> ${G.age} &nbsp; <b>Yıl:</b> ${G.year}`}</div>
+        <div class="jr-row">${Tr`<b>Geçmiş:</b> ${BG ? BG.n : ''}`}</div>
+        <div class="jr-row">${Tr`<b>Onur:</b> ${honorTxt} (${Math.round(G.honor)})`}<div class="honorbar"><i style="left:${50 + G.honor / 2}%"></i></div></div>
+        <div class="jr-row">${Tr`<b>Nakit:</b> ${fmtMoney(P.money)} &nbsp; <b>Banka:</b> ${fmtMoney(G.bank)}`}</div>
+        <div class="jr-row">${Tr`<b>Başındaki Ödül:</b> ${fmtMoney(G.law.bounty)}`}</div>
+        <div class="jr-row">${Tr`<b>At:</b> ${G.horse ? Tr`${G.horse.name} (${G.horse.def.n}) — Bağ ${G.horse.bondLv}/4` : Tr('Yok')}`}</div>
+        <div class="jr-row">${Tr`<b>Mülkler:</b> ${G.props.length ? G.props.map(id => PROPERTIES.find(p => p.id === id).n).join(', ') : Tr('Yok')}`}</div>
+        <div class="jr-row">${Tr`<b>Aile:</b> ${G.family.spouse ? Tr`Eşi: ${G.family.spouse.name}` : Tr('Bekar')}${G.family.children.length ? Tr(' • Çocuklar: ') + G.family.children.map(c => c.name).join(', ') : ''}`}</div>
+        <div class="jr-row">${Tr`<b>Hayat Hedefi:</b> 80 yaş — kalan ${Math.max(0, GOAL_AGE - G.age)} yıl`}</div>
         <div class="lifebar"><i style="width:${clamp((G.age - START_AGE) / (GOAL_AGE - START_AGE), 0, 1) * 100}%"></i></div>
-        ${G.activeBounty ? `<div class="jr-row"><b>Aktif Ödül Avı:</b> ${G.activeBounty.name} — ${fmtMoney(G.activeBounty.reward)} ${G.activeBounty.done ? '(Tamamlandı, ödülü al)' : ''}</div>` : ''}
+        ${G.activeBounty ? `<div class="jr-row">${Tr`<b>Aktif Ödül Avı:</b> ${G.activeBounty.name} — ${fmtMoney(G.activeBounty.reward)} ${G.activeBounty.done ? Tr('(Tamamlandı, ödülü al)') : ''}`}</div>` : ''}
       </div></div>`;
     }
     if (t === 1) {
       return `<div class="skills">` + Object.keys(SKILLS).map(k => {
         const s = G.skills[k], need = Math.round(40 * Math.pow(s.lv, 1.5));
-        return `<div class="skill"><div class="sk-n">${SKILLS[k].n} <span>Sv. ${s.lv}/10</span></div><div class="sk-d">${SKILLS[k].d}</div><div class="sk-bar"><i style="width:${s.lv >= 10 ? 100 : s.xp / need * 100}%"></i></div></div>`;
-      }).join('') + `</div><p class="jr-note">Yetenekler, ilgili işleri yaptıkça gelişir: avlanmak, ateş etmek, at sürmek, ticaret yapmak, insanlarla konuşmak ve çalışmak.</p>`;
+        return `<div class="skill"><div class="sk-n">${SKILLS[k].n} <span>${Tr`Sv. ${s.lv}/10`}</span></div><div class="sk-d">${SKILLS[k].d}</div><div class="sk-bar"><i style="width:${s.lv >= 10 ? 100 : s.xp / need * 100}%"></i></div></div>`;
+      }).join('') + `</div><p class="jr-note">${Tr`Yetenekler, ilgili işleri yaptıkça gelişir: avlanmak, ateş etmek, at sürmek, ticaret yapmak, insanlarla konuşmak ve çalışmak.`}</p>`;
     }
     if (t === 2) {
       const n = Object.keys(G.achieved).length;
-      return `<div class="ach-sum">${n} / ${ACHIEVEMENTS.length} başarım</div><div class="achs">` + ACHIEVEMENTS.map(A => {
+      return `<div class="ach-sum">${Tr`${n} / ${ACHIEVEMENTS.length} başarım`}</div><div class="achs">` + ACHIEVEMENTS.map(A => {
         const got = G.achieved[A.id];
         const prog = A.s ? Math.min(A.v, Math.floor(S[A.s] || (A.s === 'age' ? G.age : 0))) : 0;
         return `<div class="ach ${got ? 'got' : ''}"><div class="a-i">${Icons.glyph('trophy', got ? '#e2b64a' : 'rgba(239,230,210,0.18)')}</div><div><div class="a-n">${A.n}</div><div class="a-d">${A.d}${!got && A.s ? ` <span class="a-p">(${prog}/${A.v})</span>` : ''}</div>${A.perk ? `<div class="a-perk">${A.perk}</div>` : ''}</div></div>`;
       }).join('') + '</div>';
     }
     if (t === 3) {
-      const rows = [['Hayatta kalınan gün', G.day], ['Avlanan hayvan', S.animals], ['Öldürülen haydut', S.bandits], ['Toplam öldürülen insan', S.kills], ['Yürünen mesafe', S.walkMiles.toFixed(1) + ' mil'], ['At sırtında', S.rideMiles.toFixed(1) + ' mil'], ['Toplanan bitki', S.herbs], ['Tutulan balık', S.fish], ['Yenen yemek', S.eaten], ['Kazanılan toplam para', fmtMoney(S.earned)], ['Çalışılan vardiya', S.shifts], ['Yardım edilen yabancı', S.helped], ['Keşfedilen yer', G.discovered.size], ['Ziyaret edilen kasaba', G.visited.size + ' / 8'], ['Kurulan kamp', S.camps], ['Tren yolculuğu', S.trainRides], ['Bulunan altın', S.nuggets], ['Kazanılan Yirmi Bir eli', S.bjWins], ['Bilek güreşi zaferi', S.armWins]];
+      const rows = [[Tr('Hayatta kalınan gün'), G.day], [Tr('Avlanan hayvan'), S.animals], [Tr('Öldürülen haydut'), S.bandits], [Tr('Toplam öldürülen insan'), S.kills], [Tr('Yürünen mesafe'), S.walkMiles.toFixed(1) + Tr(' mil')], [Tr('At sırtında'), S.rideMiles.toFixed(1) + Tr(' mil')], [Tr('Toplanan bitki'), S.herbs], [Tr('Tutulan balık'), S.fish], [Tr('Yenen yemek'), S.eaten], [Tr('Kazanılan toplam para'), fmtMoney(S.earned)], [Tr('Çalışılan vardiya'), S.shifts], [Tr('Yardım edilen yabancı'), S.helped], [Tr('Keşfedilen yer'), G.discovered.size], [Tr('Ziyaret edilen kasaba'), G.visited.size + ' / 8'], [Tr('Kurulan kamp'), S.camps], [Tr('Tren yolculuğu'), S.trainRides], [Tr('Bulunan altın'), S.nuggets], [Tr('Kazanılan Yirmi Bir eli'), S.bjWins], [Tr('Bilek güreşi zaferi'), S.armWins]];
       return `<table class="stats">${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>`;
     }
     if (t === 4) {
@@ -926,34 +926,34 @@ const UI = {
         if (!R) continue;
         const married = G.family.spouse && G.family.spouse.id === R.id;
         const met = G.visited.has(t.id);
-        h += `<div class="rel"><div class="r-n">${met ? R.name : '???'}</div><div class="r-t">${t.n}</div><div class="r-bar"><i style="width:${married ? 100 : R.rel}%"></i></div><div class="r-s">${married ? '❤ Eşin' : R.rel >= 80 ? 'Evlenmeye hazır' : R.rel >= 50 ? 'Yakın' : R.rel >= 20 ? 'Tanıdık' : 'Yabancı'}</div></div>`;
+        h += `<div class="rel"><div class="r-n">${met ? R.name : '???'}</div><div class="r-t">${t.n}</div><div class="r-bar"><i style="width:${married ? 100 : R.rel}%"></i></div><div class="r-s">${married ? Tr('❤ Eşin') : R.rel >= 80 ? Tr('Evlenmeye hazır') : R.rel >= 50 ? Tr('Yakın') : R.rel >= 20 ? Tr('Tanıdık') : Tr('Yabancı')}</div></div>`;
       }
-      return h + '</div><p class="jr-note">Her kasabada tanışabileceğin biri yaşıyor (haritada ♥). Onlarla her gün sohbet et, hediye ver. Yakınlık 80\'e ulaştığında ve bir mülkün olduğunda evlenme teklif edebilirsin.</p>';
+      return h + `</div><p class="jr-note">${Tr`Her kasabada tanışabileceğin biri yaşıyor (haritada ♥). Onlarla her gün sohbet et, hediye ver. Yakınlık 80'e ulaştığında ve bir mülkün olduğunda evlenme teklif edebilirsin.`}</p>`;
     }
     return this.guideHtml();
   },
   guideHtml() {
     return `<div class="guide">
-      <h3>Hayatta Kalma</h3><p><b>Açlık</b>, <b>susuzluk</b> ve <b>uyku</b> sürekli azalır. Sıfırlanırlarsa sağlığın düşer. Sağlık çekirdeği (♥ içi) açlık ve susuzluktan beslenir. Sıcak çöllerde daha çok su içmen, karlı dağlarda ise kalın giysiler giymen gerekir. Kamp ateşleri ve sıcak yemekler seni ısıtır.</p>
-      <h3>Yaşlanma</h3><p>18 yaşında başlarsın. Zaman geçtikçe yaşlanırsın; 30'lardan sonra dayanıklılığın, 50'lerden sonra sağlığın azalır. Hedefin <b>80 yaşına kadar hayatta kalmak.</b></p>
-      <h3>Para Kazanma</h3><p>Avlan ve postları kasapta sat. Bitki topla. Madende, kerestecide, limanda ya da çiftliklerde <b>çalış</b>. Nehirde altın ele. Ödül ilanlarını takip et. Ya da… kanunun yanlış tarafında yaşa.</p>
-      <h3>Kanun</h3><p>Görülürsen suçların başına ödül koydurur. Kanun adamlarının arama alanından (haritadaki kırmızı daire) kaç ve görünmeden bekle. Ödülünü şerif ofisinde ödeyebilirsin.</p>
-      <h3>Başarımlar</h3><p>Başarımlar sana kalıcı kazanımlar (perk) sağlar. Günlüğün Başarımlar sekmesine bak.</p>
-      <h3>Kontroller</h3>${this.controlsTable()}
+      <h3>${Tr`Hayatta Kalma`}</h3><p>${Tr`<b>Açlık</b>, <b>susuzluk</b> ve <b>uyku</b> sürekli azalır. Sıfırlanırlarsa sağlığın düşer. Sağlık çekirdeği (♥ içi) açlık ve susuzluktan beslenir. Sıcak çöllerde daha çok su içmen, karlı dağlarda ise kalın giysiler giymen gerekir. Kamp ateşleri ve sıcak yemekler seni ısıtır.`}</p>
+      <h3>${Tr`Yaşlanma`}</h3><p>${Tr`18 yaşında başlarsın. Zaman geçtikçe yaşlanırsın; 30'lardan sonra dayanıklılığın, 50'lerden sonra sağlığın azalır. Hedefin <b>80 yaşına kadar hayatta kalmak.</b>`}</p>
+      <h3>${Tr`Para Kazanma`}</h3><p>${Tr`Avlan ve postları kasapta sat. Bitki topla. Madende, kerestecide, limanda ya da çiftliklerde <b>çalış</b>. Nehirde altın ele. Ödül ilanlarını takip et. Ya da… kanunun yanlış tarafında yaşa.`}</p>
+      <h3>${Tr`Kanun`}</h3><p>${Tr`Görülürsen suçların başına ödül koydurur. Kanun adamlarının arama alanından (haritadaki kırmızı daire) kaç ve görünmeden bekle. Ödülünü şerif ofisinde ödeyebilirsin.`}</p>
+      <h3>${Tr`Başarımlar`}</h3><p>${Tr`Başarımlar sana kalıcı kazanımlar (perk) sağlar. Günlüğün Başarımlar sekmesine bak.`}</p>
+      <h3>${Tr`Kontroller`}</h3>${this.controlsTable()}
     </div>`;
   },
   controlsTable() {
     const B = Input.binds;
-    const rows = GAME_ACTIONS.map(g => [g.n, g.kbOnly ? 'Sol Analog' : Input.padGlyph(B.pad[g.id]), (B.kb[g.id] || []).filter(Boolean).map(c => Input.kbGlyph(c)).join(' ') || '—']);
-    rows.unshift(['Hareket', 'Sol Analog', `${Input.kbGlyph(B.kb.moveUp[0])}${Input.kbGlyph(B.kb.moveLeft[0])}${Input.kbGlyph(B.kb.moveDown[0])}${Input.kbGlyph(B.kb.moveRight[0])}`], ['Nişan Yönü', 'Sağ Analog', 'Fare']);
-    return `<table class="ctrl"><tr><th>Eylem</th><th>PlayStation</th><th>Klavye / Fare</th></tr>${rows.filter(r => !['İleri', 'Geri', 'Sol', 'Sağ'].includes(r[0])).map(r => `<tr><td>${r[0]}</td><td class="c-ps">${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</table><p class="dim">Tuşları Ayarlar → Tuş Atamaları'ndan değiştirebilirsin.</p>`;
+    const rows = GAME_ACTIONS.map(g => [g.n, g.kbOnly ? Tr('Sol Analog') : Input.padGlyph(B.pad[g.id]), (B.kb[g.id] || []).filter(Boolean).map(c => Input.kbGlyph(c)).join(' ') || '—']);
+    rows.unshift([Tr('Hareket'), Tr('Sol Analog'), `${Input.kbGlyph(B.kb.moveUp[0])}${Input.kbGlyph(B.kb.moveLeft[0])}${Input.kbGlyph(B.kb.moveDown[0])}${Input.kbGlyph(B.kb.moveRight[0])}`], [Tr('Nişan Yönü'), Tr('Sağ Analog'), Tr('Fare')]);
+    return `<table class="ctrl"><tr><th>${Tr`Eylem`}</th><th>${Tr`Oyun Kolu`}</th><th>${Tr`Klavye / Fare`}</th></tr>${rows.filter(r => ![Tr('İleri'), Tr('Geri'), Tr('Sol'), Tr('Sağ')].includes(r[0])).map(r => `<tr><td>${r[0]}</td><td class="c-ps">${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</table><p class="dim">${Tr`Tuşları Ayarlar → Tuş Atamaları'ndan değiştirebilirsin.`}</p>`;
   },
   openControls(tab = Input.device === 'pad' ? 1 : 0) {
     let capturing = null;
     const m = this.menu({
-      title: 'Tuş Atamaları', cls: 'shop controls', tabs: ['Klavye / Fare', 'PS Kolu'], tab,
-      sub: (mm) => mm.tab === 0 ? 'Bir eyleme bas, ardından yeni tuşa ya da fare düğmesine bas. Esc iptal eder.' : 'Bir eyleme bas, ardından koldaki yeni tuşa bas. 6 saniye beklersen iptal olur. Menülerde ✕ seç, ○ geri sabittir.',
-      altLabel: 'Varsayılana Dön', okLabel: 'Değiştir',
+      title: Tr('Tuş Atamaları'), cls: 'shop controls', tabs: [Tr('Klavye / Fare'), Tr('Oyun Kolu')], tab,
+      sub: (mm) => mm.tab === 0 ? Tr('Bir eyleme bas, ardından yeni tuşa ya da fare düğmesine bas. Esc iptal eder.') : Tr`Bir eyleme bas, ardından koldaki yeni tuşa bas. 6 saniye beklersen iptal olur. Menülerde ${Input.padGlyph(PS.X)} seç, ${Input.padGlyph(PS.O)} geri sabittir.`,
+      altLabel: Tr('Varsayılana Dön'), okLabel: Tr('Değiştir'),
       side: (it) => it.sideHtml || '',
       build: (mm) => {
         const dev = mm.tab === 0 ? 'kb' : 'pad';
@@ -963,8 +963,8 @@ const UI = {
           const cur = dev === 'kb' ? (Input.binds.kb[g.id] || []).filter(Boolean).map(c => Input.kbGlyph(c)).join(' ') || Input.kbGlyph(null) : Input.padGlyph(Input.binds.pad[g.id]);
           const wait = capturing === g.id;
           items.push({
-            label: g.n, right: wait ? '<em class="cap">Bir tuşa bas…</em>' : cur, cls: wait ? 'capturing' : '',
-            sideHtml: `<div class="ps-t">${g.n}</div><div class="ps-d">Şu an: ${cur}</div><div class="ps-e">${dev === 'kb' ? 'Enter ya da tık ile değiştir.' : '✕ ile değiştir.'}</div>`,
+            label: g.n, right: wait ? Tr('<em class="cap">Bir tuşa bas…</em>') : cur, cls: wait ? 'capturing' : '',
+            sideHtml: `<div class="ps-t">${g.n}</div><div class="ps-d">${Tr`Şu an: ${cur}`}</div><div class="ps-e">${dev === 'kb' ? Tr('Enter ya da tık ile değiştir.') : Tr`${Input.padGlyph(PS.X)} ile değiştir.`}</div>`,
             fn: () => {
               if (capturing) return;
               capturing = g.id;
@@ -973,7 +973,7 @@ const UI = {
                 capturing = null;
                 if (v !== undefined && v !== null) {
                   const sw = Input.bind(dev, g.id, v);
-                  if (sw) this.feed(`"${GAME_ACTIONS.find(x => x.id === sw).n}" ile tuşlar takas edildi.`);
+                  if (sw) this.feed(Tr`"${GAME_ACTIONS.find(x => x.id === sw).n}" ile tuşlar takas edildi.`);
                   G.saveSettings();
                   Audio_.ui('ok');
                 } else Audio_.ui('back');
@@ -983,10 +983,10 @@ const UI = {
           });
         }
         items.push({ header: ' ' });
-        items.push({ label: 'Bu Sekmeyi Varsayılana Döndür', cls: 'danger', fn: () => { Input.resetBinds(dev); G.saveSettings(); } });
+        items.push({ label: Tr('Bu Sekmeyi Varsayılana Döndür'), cls: 'danger', fn: () => { Input.resetBinds(dev); G.saveSettings(); } });
         return items;
       },
-      onAlt: () => { const dev = m.tab === 0 ? 'kb' : 'pad'; Input.resetBinds(dev); G.saveSettings(); this.feed('Tuşlar varsayılana döndü.'); },
+      onAlt: () => { const dev = m.tab === 0 ? 'kb' : 'pad'; Input.resetBinds(dev); G.saveSettings(); this.feed(Tr('Tuşlar varsayılana döndü.')); },
       onClose: () => { if (Input.capture) Input.finishCapture(undefined); G.saveSettings(); },
     });
     return m;
@@ -997,16 +997,17 @@ const UI = {
   openPause() {
     Audio_.ui('ok');
     this.menu({
-      title: 'Duraklatıldı', cls: 'pause', sub: () => `${G.player.name} • ${G.age} yaşında • ${G.dateStr()}`,
+      title: Tr('Duraklatıldı'), cls: 'pause', sub: () => Tr`${G.player.name} • ${G.age} yaşında • ${G.dateStr()}`,
       items: [
-        { label: 'Devam Et', fn: () => this.pop() },
-        { label: 'Harita', fn: () => { this.pop(); this.openMap(); } },
-        { label: 'Çanta', fn: () => { this.pop(); this.openSatchel(); } },
-        { label: 'Günlük', fn: () => { this.pop(); this.openJournal(); } },
-        { label: 'Oyunu Kaydet', fn: () => G.saveGame() },
-        { label: 'Ayarlar', fn: () => this.openSettings() },
-        { label: 'Tuş Atamaları', fn: () => this.openControls() },
-        { label: 'Ana Menüye Dön', fn: () => this.confirm('Ana Menü', 'Kaydedilmemiş ilerleme kaybolabilir. Kaydedip çıkılsın mı?', () => { G.saveGame(true); this.closeAll(); this.showMainMenu(); }, 'Vazgeç', 'Kaydet ve Çık') },
+        { label: Tr('Devam Et'), fn: () => this.pop() },
+        { label: Tr('Harita'), fn: () => { this.pop(); this.openMap(); } },
+        { label: Tr('Çanta'), fn: () => { this.pop(); this.openSatchel(); } },
+        { label: Tr('Günlük'), fn: () => { this.pop(); this.openJournal(); } },
+        { label: Tr('Oyunu Kaydet'), fn: () => G.saveGame() },
+        { label: Tr('Ayarlar'), fn: () => this.openSettings() },
+        { label: Tr('Tuş Atamaları'), fn: () => this.openControls() },
+        ...(Platform.canQuit ? [{ label: Tr('Oyundan Çık'), fn: () => this.confirm(Tr('Oyundan Çık'), Tr('Oyun kaydedilip kapatılsın mı?'), () => { G.saveGame(true); Platform.quit(); }, Tr('Vazgeç'), Tr('Kaydet ve Çık')) }] : []),
+        { label: Tr('Ana Menüye Dön'), fn: () => this.confirm(Tr('Ana Menü'), Tr('Kaydedilmemiş ilerleme kaybolabilir. Kaydedip çıkılsın mı?'), () => { G.saveGame(true); this.closeAll(); this.showMainMenu(); }, Tr('Vazgeç'), Tr('Kaydet ve Çık')) },
       ],
     });
   },
@@ -1014,17 +1015,27 @@ const UI = {
     const S = G.settings;
     const el = el_('div', 'modal panel settings');
     const rows = [
-      ['master', 'Ana Ses', 'vol'], ['music', 'Müzik', 'vol'], ['sfx', 'Efektler', 'vol'], ['amb', 'Ortam Sesleri', 'vol'],
-      ['zoom', 'Piksel Ölçeği', 'zoom'], ['shake', 'Ekran Sarsıntısı', 'bool'], ['fps', 'FPS Göster', 'bool'],
-      ['aimAssist', 'Nişan Yardımı (Kol)', 'opt'], ['aimSens', 'Nişan Hassasiyeti (Kol)', 'opt'], ['fxq', 'Görsel Efektler', 'opt'],
+      ['lang', 'Dil / Language', 'lang'],
+      ['master', Tr('Ana Ses'), 'vol'], ['music', Tr('Müzik'), 'vol'], ['sfx', Tr('Efektler'), 'vol'], ['amb', Tr('Ortam Sesleri'), 'vol'],
+      ['fullscreen', Tr('Tam Ekran'), 'fs'],
+      ['zoom', Tr('Piksel Ölçeği'), 'zoom'], ['shake', Tr('Ekran Sarsıntısı'), 'bool'], ['fps', Tr('FPS Göster'), 'bool'],
+      ['padGlyphs', Tr('Kol Simgeleri'), 'opt'], ['aimAssist', Tr('Nişan Yardımı (Kol)'), 'opt'], ['aimSens', Tr('Nişan Hassasiyeti (Kol)'), 'opt'], ['fxq', Tr('Görsel Efektler'), 'opt'],
     ];
-    const OPTL = { aimAssist: ['Kapalı', 'Hafif', 'Standart', 'Tam Kilit'], aimSens: ['Düşük', 'Normal', 'Yüksek'], fxq: ['Tam', 'Sade'] };
-    const val = (k, t) => t === 'vol' ? Math.round(S[k] * 10) * 10 + '%' : t === 'bool' ? (S[k] ? 'Açık' : 'Kapalı') : t === 'opt' ? OPTL[k][S[k]] : (S[k] ? S[k] + 'x' : 'Otomatik');
-    el.innerHTML = `<div class="p-head"><div class="p-title">Ayarlar</div></div><div class="p-body"><div class="p-list">${rows.map(([k, n, t]) => `<div class="p-item nav opt" data-k="${k}" data-t="${t}" data-lr><span class="pi-l">${n}</span><span class="pi-r"><b class="arr">◀</b> <span class="v">${val(k, t)}</span> <b class="arr">▶</b></span></div>`).join('')}<div class="p-item nav" id="set-keys"><span class="pi-l">Tuş Atamaları</span><span class="pi-r">›</span></div><div class="p-item nav" id="set-back"><span class="pi-l">Kaydet ve Geri Dön</span></div></div></div><div class="p-foot">◀ ▶ Değiştir &nbsp; ${Input.glyph('back')} Geri</div>`;
+    const OPTL = { aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')], padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')] };
+    const val = (k, t) => t === 'fs' ? (Platform.isFullscreen() ? Tr('Açık') : Tr('Kapalı')) : t === 'lang' ? (I18N.LANGS.find(l => l[0] === I18N.lang) || I18N.LANGS[0])[1] : t === 'vol' ? Math.round(S[k] * 10) * 10 + '%' : t === 'bool' ? (S[k] ? Tr('Açık') : Tr('Kapalı')) : t === 'opt' ? OPTL[k][S[k]] : (S[k] ? S[k] + 'x' : Tr('Otomatik'));
+    el.innerHTML = `<div class="p-head"><div class="p-title">${Tr`Ayarlar`}</div></div><div class="p-body"><div class="p-list">${rows.map(([k, n, t]) => `<div class="p-item nav opt" data-k="${k}" data-t="${t}" data-lr><span class="pi-l">${n}</span><span class="pi-r"><b class="arr">◀</b> <span class="v">${val(k, t)}</span> <b class="arr">▶</b></span></div>`).join('')}<div class="p-item nav" id="set-keys"><span class="pi-l">${Tr`Tuş Atamaları`}</span><span class="pi-r">›</span></div><div class="p-item nav" id="set-back"><span class="pi-l">${Tr`Kaydet ve Geri Dön`}</span></div></div></div><div class="p-foot">${Tr`◀ ▶ Değiştir &nbsp; ${Input.glyph('back')} Geri`}</div>`;
     const m = this.makeModal(el, { onBack: () => { G.saveSettings(); this.pop(); } });
     $$('.opt', el).forEach(n => {
       const k = n.dataset.k, t = n.dataset.t;
       n._lr = (d) => {
+        if (t === 'lang') {
+          const L = I18N.LANGS, i = L.findIndex(l => l[0] === I18N.lang);
+          S.lang = L[(i + d + L.length) % L.length][0];
+          I18N.setLang(S.lang); G.saveSettings(); Audio_.ui('move');
+          this.relocalize();
+          return;
+        }
+        if (t === 'fs') { Platform.toggleFullscreen(); setTimeout(() => { $('.v', n).textContent = val(k, t); }, 250); return; }
         if (t === 'vol') S[k] = clamp(Math.round((S[k] + d * 0.1) * 10) / 10, 0, 1);
         else if (t === 'bool') S[k] = !S[k];
         else if (t === 'opt') { const n = OPTL[k].length; S[k] = ((S[k] === undefined ? 1 : S[k]) + d + n) % n; }
@@ -1039,6 +1050,15 @@ const UI = {
     $('#set-keys', el).onclick = () => { G.saveSettings(); this.openControls(); };
     $('#set-back', el).onclick = () => { G.saveSettings(); this.pop(); };
     this.push(m);
+    return m;
+  },
+  /* Dil değişince açık menüleri yeni dilde yeniden kur (ayarlar dil satırında açık kalır) */
+  relocalize() {
+    if (G.state === 'menu') this.showMainMenu();
+    else { this.closeAll(); this.openPause(); }
+    const m = this.openSettings();
+    const row = $('.opt[data-k="lang"]', m.el);
+    if (row) m.setFocus(row, true);
   },
 
   /* ================= BİNALAR ================= */
@@ -1047,20 +1067,20 @@ const UI = {
     const svc = d.svc;
     const sub = TOWNS.find(t => t.id === b.town);
     this.menu({
-      title: b.name, sub: () => `${sub ? sub.n + ' • ' : ''}${G.timeStr()} • Cüzdan: ${fmtMoney(P.money)}`, cls: 'building',
+      title: b.name, sub: () => Tr`${sub ? sub.n + ' • ' : ''}${G.timeStr()} • Cüzdan: ${fmtMoney(P.money)}`, cls: 'building',
       build: () => {
         const it = [];
         const closed = (G.hour < 6 || G.hour > 22) && !['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable'].includes(b.type);
-        if (closed) { it.push({ html: '<p class="closed">Dükkan kapalı. Açılış saati 06:00.</p>' }); if (svc.includes('rob')) it.push({ label: 'Kapıyı Kır ve Soy', icon: '🔫', fn: () => this.robStore(b, true) }); return it; }
+        if (closed) { it.push({ html: `<p class="closed">${Tr`Dükkan kapalı. Açılış saati 06:00.`}</p>` }); if (svc.includes('rob')) it.push({ label: Tr('Kapıyı Kır ve Soy'), icon: '🔫', fn: () => this.robStore(b, true) }); return it; }
         if (P.masked && b.type !== 'fence') {
-          it.push({ html: `<p class="closed">${b.type === 'sheriff' ? '"Maskeyle şerif ofisine mi giriyorsun? Çıkar onu, hemen!"' : b.type === 'bank' ? '"Maskeli müşteriye hizmet yok. Çıkar onu ya da defol."' : '"Maskeni çıkar, yoksa sana hizmet etmem."'}</p>` });
-          it.push({ icon: '🎭', label: 'Maskeyi Çıkar', fn: () => G.toggleMask(null, true) });
-          if (svc.includes('rob')) it.push({ icon: '🔫', label: 'Dükkanı Soy', cls: 'danger', fn: () => this.robStore(b) });
-          if (svc.includes('robbank')) it.push({ icon: '💣', label: 'Bankayı Soy', cls: 'danger', fn: () => this.robBank(b) });
+          it.push({ html: `<p class="closed">${b.type === 'sheriff' ? Tr('"Maskeyle şerif ofisine mi giriyorsun? Çıkar onu, hemen!"') : b.type === 'bank' ? Tr('"Maskeli müşteriye hizmet yok. Çıkar onu ya da defol."') : Tr('"Maskeni çıkar, yoksa sana hizmet etmem."')}</p>` });
+          it.push({ icon: '🎭', label: Tr('Maskeyi Çıkar'), fn: () => G.toggleMask(null, true) });
+          if (svc.includes('rob')) it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) });
+          if (svc.includes('robbank')) it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) });
           return it;
         }
         for (const s of svc) it.push(...this.svcItems(b, s));
-        it.push({ icon: '🚪', label: 'Çık', fn: () => this.pop() });
+        it.push({ icon: '🚪', label: Tr('Çık'), fn: () => this.pop() });
         return it;
       },
     });
@@ -1069,31 +1089,31 @@ const UI = {
   svcItems(b, s) {
     const d = b.def, P = G.player, it = [];
     switch (s) {
-      case 'shop': it.push({ icon: '🛒', label: 'Alışveriş', fn: () => this.openShop(d.shop, b.name) }); break;
-      case 'meal': it.push({ icon: '🍲', label: 'Sıcak Yemek Ye', right: fmtMoney(2.5 * G.priceMul(true)), fn: () => { if (G.spend(2.5 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed('🍲 Doyasıya yedin.'); G.advanceClock(20); } } });
-        it.push({ icon: '🥃', label: 'Bir Viski İç', right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); } } }); break;
-      case 'blackjack': it.push({ icon: '🃏', label: 'Yirmi Bir Oyna', fn: () => this.openBlackjack() }); break;
-      case 'arm': it.push({ icon: '💪', label: 'Bilek Güreşi ($5 bahis)', fn: () => this.openArmWrestle() }); break;
-      case 'rumor': it.push({ icon: '👂', label: 'Söylenti Dinle', right: fmtMoney(0.5), fn: () => this.rumor() }); break;
-      case 'rob': it.push({ icon: '🔫', label: 'Dükkanı Soy', cls: 'danger', fn: () => this.robStore(b) }); break;
-      case 'news': it.push({ icon: '📰', label: 'Gazete Oku', right: '$0.10', fn: () => this.readNews() }); break;
-      case 'room': it.push({ icon: '🛏', label: 'Oda Tut ve Uyu', right: fmtMoney(2 * G.priceMul(true)), fn: () => this.openSleep('hotel', 2 * G.priceMul(true)) }); break;
-      case 'bath': it.push({ icon: '🛁', label: 'Sıcak Banyo', right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.clean = 100; P.warmBuff = 60; this.feed('🛁 Tertemiz oldun. Kokun bile değişti.'); G.advanceClock(30); } } }); break;
-      case 'heal': { const c = 5 * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: 'Tedavi Ol (Sağlık, hastalık, zehir)', right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed('✚ Doktor seni muayene edip tedavi etti.'); G.advanceClock(30); } } }); break; }
+      case 'shop': it.push({ icon: '🛒', label: Tr('Alışveriş'), fn: () => this.openShop(d.shop, b.name) }); break;
+      case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(2.5 * G.priceMul(true)), fn: () => { if (G.spend(2.5 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); } } });
+        it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); } } }); break;
+      case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
+      case 'arm': it.push({ icon: '💪', label: Tr('Bilek Güreşi ($5 bahis)'), fn: () => this.openArmWrestle() }); break;
+      case 'rumor': it.push({ icon: '👂', label: Tr('Söylenti Dinle'), right: fmtMoney(0.5), fn: () => this.rumor() }); break;
+      case 'rob': it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) }); break;
+      case 'news': it.push({ icon: '📰', label: Tr('Gazete Oku'), right: '$0.10', fn: () => this.readNews() }); break;
+      case 'room': it.push({ icon: '🛏', label: Tr('Oda Tut ve Uyu'), right: fmtMoney(2 * G.priceMul(true)), fn: () => this.openSleep('hotel', 2 * G.priceMul(true)) }); break;
+      case 'bath': it.push({ icon: '🛁', label: Tr('Sıcak Banyo'), right: fmtMoney(1), fn: () => { if (G.spend(1)) { P.clean = 100; P.warmBuff = 60; this.feed(Tr('🛁 Tertemiz oldun. Kokun bile değişti.')); G.advanceClock(30); } } }); break;
+      case 'heal': { const c = 5 * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: Tr('Tedavi Ol (Sağlık, hastalık, zehir)'), right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed(Tr('✚ Doktor seni muayene edip tedavi etti.')); G.advanceClock(30); } } }); break; }
       case 'bounty':
-        if (G.law.bounty > 0) it.push({ icon: '⚖', label: 'Başındaki Ödülü Öde', right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
-        if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: 'Ödül Avı Ödülünü Al', right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, 'Ödül avı'); G.addHonor(3); G.activeBounty = null; } });
+        if (G.law.bounty > 0) it.push({ icon: '⚖', label: Tr('Başındaki Ödülü Öde'), right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
+        if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: Tr('Ödül Avı Ödülünü Al'), right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, Tr('Ödül avı')); G.addHonor(3); G.activeBounty = null; } });
         break;
-      case 'board': it.push({ icon: '📜', label: 'Ödül İlanları', fn: () => this.openBountyBoard() }); break;
-      case 'horses': it.push({ icon: '🐴', label: 'At Satın Al', fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: 'Ahırdaki Atların', fn: () => this.openStable(b) }); break;
-      case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: `${G.horse.name}'i Tımar Ettir`, right: fmtMoney(2), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed('Atın burada değil.', 'warn'); return; } if (G.spend(2)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
-      case 'bank': it.push({ icon: '🏦', label: 'Banka İşlemleri', right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
-      case 'robbank': it.push({ icon: '💣', label: 'Bankayı Soy', cls: 'danger', fn: () => this.robBank(b) }); break;
-      case 'train': it.push({ icon: '🚂', label: 'Tren Bileti Al', fn: () => this.openTrain(b) }); break;
-      case 'donate': it.push({ icon: '🙏', label: 'Kiliseye Bağış Yap', right: '$5.00', fn: () => { if (G.spend(5)) { G.addHonor(3); this.feed('Rahip sana teşekkür etti.'); } } }); break;
-      case 'pray': it.push({ icon: '✝', label: 'Dua Et', fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed('Bugün zaten dua ettin.'); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed('İçin huzurla doldu.'); G.advanceClock(20); } }); break;
-      case 'property': it.push({ icon: '📜', label: 'Satılık Mülkler', fn: () => this.openLand() }); break;
-      case 'barber': it.push({ icon: '💈', label: 'Tıraş Ol / Saç Kestir', right: '$1.50', fn: () => this.openBarber() }); break;
+      case 'board': it.push({ icon: '📜', label: Tr('Ödül İlanları'), fn: () => this.openBountyBoard() }); break;
+      case 'horses': it.push({ icon: '🐴', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) }); break;
+      case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: Tr`${G.horse.name}'i Tımar Ettir`, right: fmtMoney(2), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed(Tr('Atın burada değil.'), 'warn'); return; } if (G.spend(2)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(Tr`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
+      case 'bank': it.push({ icon: '🏦', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
+      case 'robbank': it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
+      case 'train': it.push({ icon: '🚂', label: Tr('Tren Bileti Al'), fn: () => this.openTrain(b) }); break;
+      case 'donate': it.push({ icon: '🙏', label: Tr('Kiliseye Bağış Yap'), right: '$5.00', fn: () => { if (G.spend(5)) { G.addHonor(3); this.feed(Tr('Rahip sana teşekkür etti.')); } } }); break;
+      case 'pray': it.push({ icon: '✝', label: Tr('Dua Et'), fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed(Tr('Bugün zaten dua ettin.')); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed(Tr('İçin huzurla doldu.')); G.advanceClock(20); } }); break;
+      case 'property': it.push({ icon: '📜', label: Tr('Satılık Mülkler'), fn: () => this.openLand() }); break;
+      case 'barber': it.push({ icon: '💈', label: Tr('Tıraş Ol / Saç Kestir'), right: '$1.50', fn: () => this.openBarber() }); break;
       case 'work': it.push({ icon: '⚒', label: JOBS[d.work].n, fn: () => this.openWork(d.work, b.name) }); break;
     }
     return it;
@@ -1102,74 +1122,82 @@ const UI = {
     const S = SHOPS[shopId], P = G.player;
     const regional = 1;
     this.menu({
-      title: title || S.n, cls: 'shop', tabs: ['Satın Al', 'Sat'], side: (it) => it.sideHtml || '',
-      sub: () => `Cüzdan: <b>${fmtMoney(P.money)}</b>`, okLabel: 'Al / Sat',
+      title: title || S.n, cls: 'shop', tabs: [Tr('Satın Al'), Tr('Sat')], side: (it) => it.sideHtml || '',
+      sub: () => Tr`Cüzdan: <b>${fmtMoney(P.money)}</b>`, okLabel: Tr('Al / Sat'),
       build: (m) => {
         const items = [];
         if (m.tab === 0) {
           if (S.weapons) {
-            items.push({ header: 'Silahlar' });
+            items.push({ header: Tr('Silahlar') });
             for (const w of S.weapons) {
               const W = WEAPONS[w], pr = W.p * G.priceMul(true) * regional;
               const own = P.weapons.has(w);
-              items.push({ icon: Icons.weapon(w), label: W.n, right: own ? 'Sahipsin' : fmtMoney(pr), disabled: own, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.melee ? 'Yakın dövüş silahı.' : `Hasar: ${W.dmg}${W.pellets ? ' x' + W.pellets : ''}<br>Menzil: ${W.range}<br>Şarjör: ${W.clip}<br>Mühimmat: ${AMMO[W.ammo].n}`}</div>`, fn: () => { if (G.spend(pr)) { P.giveWeapon(w); if (W.ammo) P.ammo[W.ammo] = Math.min(AMMO[W.ammo].max, P.ammo[W.ammo] + AMMO[W.ammo].box); Audio_.ui('cash'); } } });
+              items.push({ icon: Icons.weapon(w), label: W.n, right: own ? Tr('Sahipsin') : fmtMoney(pr), disabled: own, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.melee ? Tr('Yakın dövüş silahı.') : Tr`Hasar: ${W.dmg}${W.pellets ? ' x' + W.pellets : ''}<br>Menzil: ${W.range}<br>Şarjör: ${W.clip}<br>Mühimmat: ${AMMO[W.ammo].n}`}</div>`, fn: () => { if (G.spend(pr)) { P.giveWeapon(w); if (W.ammo) P.ammo[W.ammo] = Math.min(AMMO[W.ammo].max, P.ammo[W.ammo] + AMMO[W.ammo].box); Audio_.ui('cash'); } } });
             }
           }
           if (S.ammo) {
-            items.push({ header: 'Mühimmat' });
+            items.push({ header: Tr('Mühimmat') });
             for (const a of S.ammo) {
               const A = AMMO[a], pr = A.p * G.priceMul(true);
-              items.push({ icon: Icons.glyph('ammo', '#d9c8a4'), label: `${A.n} (x${A.box})`, right: `${fmtMoney(pr)} <small>[${P.ammo[a]}]</small>`, disabled: P.ammo[a] >= A.max, why: 'Taşıyabileceğin en fazla mühimmat bu.', sideHtml: `<div class="ps-t">${A.n}</div><div class="ps-d">Kutu başına ${A.box} adet. Taşıma sınırı: ${A.max}</div>`, fn: () => { if (G.spend(pr)) { P.ammo[a] = Math.min(A.max, P.ammo[a] + A.box); Audio_.ui('cash'); } } });
+              items.push({ icon: Icons.glyph('ammo', '#d9c8a4'), label: `${A.n} (x${A.box})`, right: `${fmtMoney(pr)} <small>[${P.ammo[a]}]</small>`, disabled: P.ammo[a] >= A.max, why: Tr('Taşıyabileceğin en fazla mühimmat bu.'), sideHtml: `<div class="ps-t">${A.n}</div><div class="ps-d">${Tr`Kutu başına ${A.box} adet. Taşıma sınırı: ${A.max}`}</div>`, fn: () => { if (G.spend(pr)) { P.ammo[a] = Math.min(A.max, P.ammo[a] + A.box); Audio_.ui('cash'); } } });
             }
           }
           if (S.sell && S.sell.length) {
-            items.push({ header: 'Eşyalar' });
+            items.push({ header: Tr('Eşyalar') });
             for (const id of S.sell) {
               const it = ITEMS[id];
               if (!it) continue;
               if (id === 'treasure_map' && (G.treasure || P.has('treasure_map'))) continue;
               const pr = (id === 'treasure_map' ? 25 : it.p) * G.priceMul(true) * regional;
               const full = P.count(id) >= it.max;
-              items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, disabled: full, why: 'Daha fazla taşıyamazsın.', sideHtml: this.itemSide(it), fn: () => { if (G.spend(pr)) { P.addItem(id, 1, true); if (id === 'treasure_map') G.makeTreasure(); if (it.autoUse) G.consume(id); Audio_.ui('cash'); } } });
+              items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, disabled: full, why: Tr('Daha fazla taşıyamazsın.'), sideHtml: this.itemSide(it), fn: () => { if (G.spend(pr)) { P.addItem(id, 1, true); if (id === 'treasure_map') G.makeTreasure(); if (it.autoUse) G.consume(id); Audio_.ui('cash'); } } });
             }
           }
         } else {
           const ids = Object.keys(P.inv).filter(id => G.sellPrice(id, shopId) > 0 && id !== 'canteen').sort((a, b) => ITEMS[a].c.localeCompare(ITEMS[b].c));
-          if (!ids.length) items.push({ html: '<p class="p-empty">Bu dükkanın satın alacağı bir eşyan yok.</p>' });
+          if (!ids.length) items.push({ html: `<p class="p-empty">${Tr`Bu dükkanın satın alacağı bir eşyan yok.`}</p>` });
           if (ids.length > 1) {
             const tot = ids.reduce((s, id) => s + G.sellPrice(id, shopId) * P.count(id), 0);
             const cats = new Set(ids.map(id => ITEMS[id].c));
             if (cats.has('animal')) {
               const tA = ids.filter(id => ITEMS[id].c === 'animal').reduce((s, id) => s + G.sellPrice(id, shopId) * P.count(id), 0);
-              items.push({ icon: '💰', label: 'Tüm Av Ürünlerini Sat', right: fmtMoney(tA), fn: () => { for (const id of ids) if (ITEMS[id].c === 'animal') { const n = P.count(id); P.removeItem(id, n); } G.earn(tA, 'Satış'); } });
+              items.push({ icon: '💰', label: Tr('Tüm Av Ürünlerini Sat'), right: fmtMoney(tA), fn: () => { for (const id of ids) if (ITEMS[id].c === 'animal') { const n = P.count(id); P.removeItem(id, n); } G.earn(tA, Tr('Satış')); } });
             }
             void tot;
           }
           for (const id of ids) {
             const it = ITEMS[id], pr = G.sellPrice(id, shopId);
             const worn = P.coat === id || (P.masked && P.mask === id);
-            items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, sideHtml: this.itemSide(it), disabled: worn, why: 'Üzerindeki giysiyi satamazsın.', fn: () => { P.removeItem(id, 1); G.earn(pr, ''); G.skillXp('trade', 1 + pr * 0.1); } });
+            items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, sideHtml: this.itemSide(it), disabled: worn, why: Tr('Üzerindeki giysiyi satamazsın.'), fn: () => { P.removeItem(id, 1); G.earn(pr, ''); G.skillXp('trade', 1 + pr * 0.1); } });
           }
         }
         return items;
       },
     });
   },
+  /* Dükkan ve banka kasaları soyulunca boşalır; dükkan 3, banka 7 gün sonra yeniden dolar */
+  robbedRecently(b, days) { const d = G.robbed[b.id]; return d !== undefined && G.day - d < days; },
   robStore(b, closed) {
-    this.confirm(closed ? 'Kasayı Boşalt' : 'Dükkanı Soy', 'Bu bir suçtur. Kanun peşine düşecek. Emin misin?', () => {
+    if (this.robbedRecently(b, 3)) { this.feed(Tr('Kasa boş. Bu dükkân yakın zamanda soyuldu.'), 'warn'); return; }
+    this.confirm(closed ? Tr('Kasayı Boşalt') : Tr('Dükkanı Soy'), Tr('Bu bir suçtur. Kanun peşine düşecek. Emin misin?'), () => {
+      if (this.robbedRecently(b, 3)) return;
+      G.robbed[b.id] = G.day;
       const v = rnd(25, 70) * (G.hasPerk('devil') ? 2 : 1) * (closed ? 0.7 : 1);
       this.closeAll();
-      G.earn(v, 'Soygun');
+      G.earn(v, Tr('Soygun'));
       G.crime(closed ? 'storeNight' : 'storerob', G.player.x, G.player.y);
       Audio_.shot('pistol', 0.6);
     });
   },
   robBank(b) {
-    if (!G.player.has('dynamite') && !G.player.isArmed) { this.feed('Banka soymak için silah ya da dinamit gerekli.', 'warn'); return; }
-    this.confirm('Bankayı Soy', 'Büyük bir suç. Bütün kanun peşine düşecek (4 yıldız). Emin misin?', () => {
+    if (!G.player.has('dynamite') && !G.player.isArmed) { this.feed(Tr('Banka soymak için silah ya da dinamit gerekli.'), 'warn'); return; }
+    if (this.robbedRecently(b, 7)) { this.feed(Tr('Kasa boş. Banka yeni para getirtene kadar soyulacak bir şey yok.'), 'warn'); return; }
+    this.confirm(Tr('Bankayı Soy'), Tr('Büyük bir suç. Bütün kanun peşine düşecek (4 yıldız). Emin misin?'), () => {
+      if (this.robbedRecently(b, 7)) return;
+      G.robbed[b.id] = G.day;
       const v = rnd(250, 700) * (G.hasPerk('devil') ? 1.5 : 1);
       this.closeAll();
-      G.earn(v, 'Banka soygunu');
+      G.earn(v, Tr('Banka soygunu'));
       G.crime('bankrob', G.player.x, G.player.y);
       Audio_.boom(0.6);
     });
@@ -1179,17 +1207,17 @@ const UI = {
     const [h, t] = pick(HEADLINES);
     const unk = G.world.pois.filter(p => p.kind === 'landmark' && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     let extra = '';
-    if (unk.length && chance(0.5)) { const p = pick(unk); G.rumored.add(p.id); extra = `<p class="dim">Gazetenin arka sayfasında <b>${p.n}</b> hakkında bir okur mektubu var. Haritanda işaretlendi.</p>`; }
-    this.info('The Dustbound Gazette', `<div class="news"><div class="nw-h">${h}</div><p>${t}</p></div>${extra}`);
+    if (unk.length && chance(0.5)) { const p = pick(unk); G.rumored.add(p.id); extra = `<p class="dim">${Tr`Gazetenin arka sayfasında <b>${p.n}</b> hakkında bir okur mektubu var. Haritanda işaretlendi.`}</p>`; }
+    this.info('The Frontier Gazette', `<div class="news"><div class="nw-h">${h}</div><p>${t}</p></div>${extra}`);
   },
   openDuel(e) {
     const P = G.player;
-    if (!P.weapons.has('cattleman') && !P.weapons.has('schofield')) { e.say('Tabancan bile yok. Git başımdan!'); return; }
+    if (!P.weapons.has('cattleman') && !P.weapons.has('schofield')) { e.say(Tr('Tabancan bile yok. Git başımdan!')); return; }
     const bet = Math.round(e.money + 10);
     const el = el_('div', 'modal duel');
     const st = { phase: 'ready', t: rnd(2, 4.5), react: 0, opp: rnd(0.3, 0.55) * (1 - G.skill('shooting') * 0.02) + (P.drunk > 40 ? -0.1 : 0) };
-    const draw = (msg, big) => { el.innerHTML = `<div class="du-inner"><div class="du-t">${big || ''}</div><div class="du-m">${msg}</div><div class="du-h">${Input.glyph('fire')} ya da ${Input.glyph('confirm')} ile çek</div></div>`; };
-    draw(`${escapeHtml(e.name)} ile düello. Ödül: ${fmtMoney(bet)}`, 'HAZIR OL');
+    const draw = (msg, big) => { el.innerHTML = `<div class="du-inner"><div class="du-t">${big || ''}</div><div class="du-m">${msg}</div><div class="du-h">${Tr`${Input.glyph('fire')} ya da ${Input.glyph('confirm')} ile çek`}</div></div>`; };
+    draw(Tr`${escapeHtml(e.name)} ile düello. Ödül: ${fmtMoney(bet)}`, Tr('HAZIR OL'));
     P.weapon = P.weapons.has('schofield') ? 'schofield' : 'cattleman';
     P.ang = Math.atan2(e.y - P.y, e.x - P.x); e.ang = P.ang + Math.PI;
     const m = this.makeModal(el, { customInput: true, transparent: true });
@@ -1197,8 +1225,8 @@ const UI = {
       st.phase = 'end';
       Audio_.shot('pistol', 1);
       G.parts.add('flash', P.x + Math.cos(P.ang) * 8, P.y + Math.sin(P.ang) * 8, 0, 0, 0.08, 5);
-      if (win) { e.hurt(999, 'duel'); G.earn(bet, 'Düello'); G.addHonor(1); G.skillXp('shooting', 15); G.stat('duels', 1); draw(msg, 'KAZANDIN'); }
-      else { P.hurt(55, 'haydut'); if (G.state === 'play') { e.state = 'idle'; e.eventType = null; e.path = null; e.home = { x: e.x + 200, y: e.y, r: 50 }; } draw(msg, 'VURULDUN'); }
+      if (win) { e.hurt(999, 'duel'); G.earn(bet, Tr('Düello')); G.addHonor(1); G.skillXp('shooting', 15); G.stat('duels', 1); draw(msg, Tr('KAZANDIN')); }
+      else { P.hurt(55, 'haydut'); if (G.state === 'play') { e.state = 'idle'; e.eventType = null; e.path = null; e.home = { x: e.x + 200, y: e.y, r: 50 }; } draw(msg, Tr('VURULDUN')); }
       setTimeout(() => { if (m.alive) this.pop(m); }, 2200);
     };
     m.update = (dt) => {
@@ -1207,12 +1235,12 @@ const UI = {
       const pulled = I.pressed('fire') || I.pressed('confirm');
       if (st.phase === 'ready') {
         st.t -= dt;
-        if (pulled) { finish(false, 'Erken davrandın! Rakibin seni fark etti.'); return; }
-        if (st.t <= 0) { st.phase = 'draw'; draw('', 'ÇEK!'); Audio_.tone(880, 0.15, 'square', 0.08); }
+        if (pulled) { finish(false, Tr('Erken davrandın! Rakibin seni fark etti.')); return; }
+        if (st.t <= 0) { st.phase = 'draw'; draw('', Tr('ÇEK!')); Audio_.tone(880, 0.15, 'square', 0.08); }
       } else if (st.phase === 'draw') {
         st.react += dt;
-        if (pulled) finish(st.react < st.opp, `Tepki süren: ${(st.react * 1000) | 0} ms • Rakip: ${(st.opp * 1000) | 0} ms`);
-        else if (st.react > st.opp) finish(false, `Çok yavaştın. Rakip: ${(st.opp * 1000) | 0} ms`);
+        if (pulled) finish(st.react < st.opp, Tr`Tepki süren: ${(st.react * 1000) | 0} ms • Rakip: ${(st.opp * 1000) | 0} ms`);
+        else if (st.react > st.opp) finish(false, Tr`Çok yavaştın. Rakip: ${(st.opp * 1000) | 0} ms`);
       }
     };
     this.push(m);
@@ -1224,20 +1252,20 @@ const UI = {
     if (unk.length) {
       const p = pick(unk);
       G.rumored.add(p.id);
-      this.info('Barmen Fısıldıyor', `<p class="quote">"${line}"</p><p>Ayrıca <b>${p.n}</b> hakkında bir şeyler duydun. Haritanda <b>?</b> olarak işaretlendi.</p>`);
-    } else this.info('Barmen Fısıldıyor', `<p class="quote">"${line}"</p>`);
+      this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p><p>${Tr`Ayrıca <b>${p.n}</b> hakkında bir şeyler duydun. Haritanda <b>?</b> olarak işaretlendi.`}</p>`);
+    } else this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p>`);
   },
   openSleep(where, cost) {
     const P = G.player;
     const untilMorning = ((7 - G.hour) + 24) % 24 || 24;
-    const opts = [[2, '2 Saat Kestir'], [4, '4 Saat Uyu'], [8, '8 Saat Uyu'], [Math.round(untilMorning), `Sabaha Kadar (${Math.round(untilMorning)} saat)`]];
+    const opts = [[2, Tr('2 Saat Kestir')], [4, Tr('4 Saat Uyu')], [8, Tr('8 Saat Uyu')], [Math.round(untilMorning), Tr`Sabaha Kadar (${Math.round(untilMorning)} saat)`]];
     this.menu({
-      title: where === 'hotel' ? 'Otel Odası' : where === 'home' ? 'Evin' : 'Kamp', cls: 'small', sub: `Uyku: ${Math.round(P.energy)}/100 • ${G.timeStr()}`,
-      items: opts.map(([h, n]) => ({ label: n, fn: () => { if (cost && !G.spend(cost)) return; this.closeAll(); G.sleep(h, where); } })).concat([{ label: 'Vazgeç', fn: () => this.pop() }]),
+      title: where === 'hotel' ? Tr('Otel Odası') : where === 'home' ? Tr('Evin') : Tr('Kamp'), cls: 'small', sub: Tr`Uyku: ${Math.round(P.energy)}/100 • ${G.timeStr()}`,
+      items: opts.map(([h, n]) => ({ label: n, fn: () => { if (cost && !G.spend(cost)) return; this.closeAll(); G.sleep(h, where); } })).concat([{ label: Tr('Vazgeç'), fn: () => this.pop() }]),
     });
   },
   openWait() {
-    this.menu({ title: 'Zaman Geçir', cls: 'small', items: [[1, '1 Saat Bekle'], [3, '3 Saat Bekle'], [6, '6 Saat Bekle']].map(([h, n]) => ({ label: n, fn: () => { this.closeAll(); G.passTime(h); } })).concat([{ label: 'Kalk', fn: () => this.pop() }]) });
+    this.menu({ title: Tr('Zaman Geçir'), cls: 'small', items: [[1, Tr('1 Saat Bekle')], [3, Tr('3 Saat Bekle')], [6, Tr('6 Saat Bekle')]].map(([h, n]) => ({ label: n, fn: () => { this.closeAll(); G.passTime(h); } })).concat([{ label: Tr('Kalk'), fn: () => this.pop() }]) });
   },
   openWork(jobId, place) {
     const J = JOBS[jobId];
@@ -1245,24 +1273,24 @@ const UI = {
     this.menu({
       title: J.n, sub: place, cls: 'small',
       items: [
-        { html: `<p>${J.desc}</p><p><b>Süre:</b> ${J.hours} saat<br><b>Ücret:</b> ${fmtMoney(J.pay[0] * mul)} – ${fmtMoney(J.pay[1] * mul)}<br><b>Yorgunluk:</b> -${J.energy} uyku, -${J.hunger} açlık, -${J.thirst} susuzluk</p><p class="dim">Çalışma saatleri 06:00 – 18:00</p>` },
-        { label: 'Çalış', fn: () => { if (G.work(jobId, place)) this.closeAll(); } },
-        { label: 'Vazgeç', fn: () => this.pop() },
+        { html: `<p>${J.desc}</p><p>${Tr`<b>Süre:</b> ${J.hours} saat<br><b>Ücret:</b> ${fmtMoney(J.pay[0] * mul)} – ${fmtMoney(J.pay[1] * mul)}<br><b>Yorgunluk:</b> -${J.energy} uyku, -${J.hunger} açlık, -${J.thirst} susuzluk`}</p><p class="dim">${Tr`Çalışma saatleri 06:00 – 18:00`}</p>` },
+        { label: Tr('Çalış'), fn: () => { if (G.work(jobId, place)) this.closeAll(); } },
+        { label: Tr('Vazgeç'), fn: () => this.pop() },
       ],
     });
   },
   openCamp() {
     const P = G.player;
     this.menu({
-      title: 'Kamp', cls: 'small', sub: () => `Ateşin başında ısınıyorsun • ${G.timeStr()}`,
+      title: Tr('Kamp'), cls: 'small', sub: () => Tr`Ateşin başında ısınıyorsun • ${G.timeStr()}`,
       items: [
-        { icon: '🛏', label: 'Uyu', fn: () => this.openSleep('camp') },
-        { icon: '🍖', label: 'Pişir ve Üret', fn: () => this.openCook() },
-        { icon: '⏳', label: 'Ateş Başında Bekle', fn: () => this.openWait() },
-        ...(P.has('harmonica') ? [{ icon: '🎵', label: 'Mızıka Çal', fn: () => { const d = Audio_.harmonica(); P.deCore = Math.min(100, P.deCore + 15); P.energy = Math.min(100, P.energy + 3); G.advanceClock(15); this.feed('🎵 Ateşin başında hüzünlü bir ezgi çaldın.'); } }] : []),
-        { icon: '💾', label: 'Oyunu Kaydet', fn: () => G.saveGame() },
-        { icon: '⛺', label: 'Kampı Topla', fn: () => { if (G.camp) { G.camp.remove = true; G.ents = G.ents.filter(e => e !== G.camp); G.camp = null; } this.pop(); } },
-        { icon: '←', label: 'Kapat', fn: () => this.pop() },
+        { icon: '🛏', label: Tr('Uyu'), fn: () => this.openSleep('camp') },
+        { icon: '🍖', label: Tr('Pişir ve Üret'), fn: () => this.openCook() },
+        { icon: '⏳', label: Tr('Ateş Başında Bekle'), fn: () => this.openWait() },
+        ...(P.has('harmonica') ? [{ icon: '🎵', label: Tr('Mızıka Çal'), fn: () => { const d = Audio_.harmonica(); P.deCore = Math.min(100, P.deCore + 15); P.energy = Math.min(100, P.energy + 3); G.advanceClock(15); this.feed(Tr('🎵 Ateşin başında hüzünlü bir ezgi çaldın.')); } }] : []),
+        { icon: '💾', label: Tr('Oyunu Kaydet'), fn: () => G.saveGame() },
+        { icon: '⛺', label: Tr('Kampı Topla'), fn: () => { if (G.camp) { G.camp.remove = true; G.ents = G.ents.filter(e => e !== G.camp); G.camp = null; } this.pop(); } },
+        { icon: '←', label: Tr('Kapat'), fn: () => this.pop() },
       ],
     });
   },
@@ -1277,10 +1305,10 @@ const UI = {
       return true;
     };
     this.menu({
-      title: 'Pişir ve Üret', cls: 'shop', side: (it) => it.sideHtml || '',
+      title: Tr('Pişir ve Üret'), cls: 'shop', side: (it) => it.sideHtml || '',
       build: () => RECIPES.map(R => ({
-        icon: R.out ? Icons.item(Object.keys(R.out)[0]) : Icons.weapon('bow'), label: R.n, right: can(R) ? '✔' : '', disabled: !can(R), why: 'Gerekli malzemeler eksik.',
-        sideHtml: `<div class="ps-t">${R.n}</div><div class="ps-d">Gerekenler:<br>${Object.keys(R.need).map(k => `${Icons.item(k, 'ic inl')} ${R.anyFish && k === 'raw_fish' ? 'Herhangi bir balık' : ITEMS[k].n} x${R.need[k]} <small>[${R.anyFish && k === 'raw_fish' ? fishIds.reduce((s, f) => s + P.count(f), 0) + P.count('raw_fish') : P.count(k)}]</small>`).join('<br>')}</div>`,
+        icon: R.out ? Icons.item(Object.keys(R.out)[0]) : Icons.weapon('bow'), label: R.n, right: can(R) ? '✔' : '', disabled: !can(R), why: Tr('Gerekli malzemeler eksik.'),
+        sideHtml: `<div class="ps-t">${R.n}</div><div class="ps-d">${Tr`Gerekenler:<br>${Object.keys(R.need).map(k => `${Icons.item(k, 'ic inl')} ${R.anyFish && k === 'raw_fish' ? Tr('Herhangi bir balık') : ITEMS[k].n} x${R.need[k]} <small>[${R.anyFish && k === 'raw_fish' ? fishIds.reduce((s, f) => s + P.count(f), 0) + P.count('raw_fish') : P.count(k)}]</small>`).join('<br>')}`}</div>`,
         fn: () => {
           for (const k in R.need) {
             if (R.anyFish && k === 'raw_fish') { let n = R.need[k]; for (const f of ['raw_fish', ...fishIds]) { const r = P.removeItem(f, n); n -= r; if (n <= 0) break; } continue; }
@@ -1300,44 +1328,44 @@ const UI = {
     const PR = PROPERTIES.find(p => p.id === b.prop);
     if (!G.props.includes(b.prop)) {
       this.menu({
-        title: PR.n, sub: 'Satılık', cls: 'small',
+        title: PR.n, sub: Tr('Satılık'), cls: 'small',
         items: [
-          { html: `<p>${PR.perks}</p><p><b>Fiyat:</b> ${fmtMoney(PR.p)}</p><p class="dim">Mülk sahibi olmak; güvenli uyku, kayıt, eşya sandığı ve evlilik imkânı sağlar.</p>` },
-          { label: `Satın Al (${fmtMoney(PR.p)})`, disabled: P.money < PR.p, why: 'Paran yetmiyor. Bankadaki parayı çekmeyi unutma.', fn: () => this.buyProperty(PR) },
-          { label: 'Vazgeç', fn: () => this.pop() },
+          { html: `<p>${PR.perks}</p><p>${Tr`<b>Fiyat:</b> ${fmtMoney(PR.p)}`}</p><p class="dim">${Tr`Mülk sahibi olmak; güvenli uyku, kayıt, eşya sandığı ve evlilik imkânı sağlar.`}</p>` },
+          { label: Tr`Satın Al (${fmtMoney(PR.p)})`, disabled: P.money < PR.p, why: Tr('Paran yetmiyor. Bankadaki parayı çekmeyi unutma.'), fn: () => this.buyProperty(PR) },
+          { label: Tr('Vazgeç'), fn: () => this.pop() },
         ],
       });
       return;
     }
     this.menu({
-      title: PR.n, sub: G.family.spouse ? `${G.family.spouse.name} ile evin` : 'Evin', cls: 'small',
+      title: PR.n, sub: G.family.spouse ? Tr`${G.family.spouse.name} ile evin` : Tr('Evin'), cls: 'small',
       items: [
-        { icon: '🛏', label: 'Uyu', fn: () => this.openSleep('home') },
-        { icon: '📦', label: 'Sandık', fn: () => this.openStash() },
-        { icon: '🍖', label: 'Mutfak (Pişir)', fn: () => this.openCook() },
-        { icon: '💾', label: 'Oyunu Kaydet', fn: () => G.saveGame() },
-        { icon: '🚪', label: 'Çık', fn: () => this.pop() },
+        { icon: '🛏', label: Tr('Uyu'), fn: () => this.openSleep('home') },
+        { icon: '📦', label: Tr('Sandık'), fn: () => this.openStash() },
+        { icon: '🍖', label: Tr('Mutfak (Pişir)'), fn: () => this.openCook() },
+        { icon: '💾', label: Tr('Oyunu Kaydet'), fn: () => G.saveGame() },
+        { icon: '🚪', label: Tr('Çık'), fn: () => this.pop() },
       ],
     });
   },
   buyProperty(PR) {
     if (!G.spend(PR.p)) return;
     G.props.push(PR.id);
-    for (const b of G.world.buildings) if (b.prop === PR.id) { b.owned = true; b.name = PR.n + ' (Evin)'; b.cover = null; G.world.invalidateChunkAt(b.door.x, b.door.y); }
+    for (const b of G.world.buildings) if (b.prop === PR.id) { b.owned = true; b.name = PR.n + Tr(' (Evin)'); b.cover = null; G.world.invalidateChunkAt(b.door.x, b.door.y); }
     this.closeAll();
-    this.toast('Mülk Satın Alındı', PR.n, 'ach');
+    this.toast(Tr('Mülk Satın Alındı'), PR.n, 'ach');
     Audio_.chime();
   },
   openLand() {
     this.menu({
-      title: 'Tapu Dairesi', sub: 'Satılık mülkler', cls: 'shop', side: (it) => it.sideHtml || '',
+      title: Tr('Tapu Dairesi'), sub: Tr('Satılık mülkler'), cls: 'shop', side: (it) => it.sideHtml || '',
       build: () => PROPERTIES.map(PR => {
         const own = G.props.includes(PR.id);
         const poi = G.world.pois.find(p => p.prop === PR.id);
         return {
-          icon: '🏠', label: PR.n, right: own ? 'Sahipsin' : fmtMoney(PR.p), disabled: own,
-          sideHtml: `<div class="ps-t">${PR.n}</div><div class="ps-d">${PR.perks}<br><br>Konum: ${G.world.regionAt(poi.x, poi.y)}</div>`,
-          fn: () => { G.rumored.add(poi.id); this.confirm(PR.n, `${fmtMoney(PR.p)} karşılığında satın alınsın mı? (Konum haritada işaretlendi.)`, () => this.buyProperty(PR)); G.setWaypoint(poi.x, poi.y); },
+          icon: '🏠', label: PR.n, right: own ? Tr('Sahipsin') : fmtMoney(PR.p), disabled: own,
+          sideHtml: `<div class="ps-t">${PR.n}</div><div class="ps-d">${Tr`${PR.perks}<br><br>Konum: ${G.world.regionAt(poi.x, poi.y)}`}</div>`,
+          fn: () => { G.rumored.add(poi.id); this.confirm(PR.n, Tr`${fmtMoney(PR.p)} karşılığında satın alınsın mı? (Konum haritada işaretlendi.)`, () => this.buyProperty(PR)); G.setWaypoint(poi.x, poi.y); },
         };
       }),
     });
@@ -1345,45 +1373,45 @@ const UI = {
   openStash() {
     const P = G.player;
     this.menu({
-      title: 'Sandık', cls: 'shop', tabs: ['Çantadan Koy', 'Sandıktan Al'],
+      title: Tr('Sandık'), cls: 'shop', tabs: [Tr('Çantadan Koy'), Tr('Sandıktan Al')],
       build: (m) => {
-        if (m.tab === 0) return Object.keys(P.inv).filter(id => id !== 'canteen').map(id => ({ icon: Icons.item(id), label: ITEMS[id].n, right: `x${P.inv[id]} <small>[sandık ${G.stash[id] || 0}]</small>`, fn: () => { P.removeItem(id, 1); G.stash[id] = (G.stash[id] || 0) + 1; } }));
-        return Object.keys(G.stash).filter(id => G.stash[id] > 0).map(id => ({ icon: Icons.item(id), label: ITEMS[id].n, right: `x${G.stash[id]}`, fn: () => { if (P.addItem(id, 1, true)) { G.stash[id]--; if (!G.stash[id]) delete G.stash[id]; } else this.feed('Çantada yer yok.', 'warn'); } }));
+        if (m.tab === 0) return Object.keys(P.inv).filter(id => id !== 'canteen').map(id => ({ icon: Icons.item(id), label: ITEMS[id].n, right: Tr`x${P.inv[id]} <small>[sandık ${G.stash[id] || 0}]</small>`, fn: () => { P.removeItem(id, 1); G.stash[id] = (G.stash[id] || 0) + 1; } }));
+        return Object.keys(G.stash).filter(id => G.stash[id] > 0).map(id => ({ icon: Icons.item(id), label: ITEMS[id].n, right: `x${G.stash[id]}`, fn: () => { if (P.addItem(id, 1, true)) { G.stash[id]--; if (!G.stash[id]) delete G.stash[id]; } else this.feed(Tr('Çantada yer yok.'), 'warn'); } }));
       },
-      empty: 'Boş.',
+      empty: Tr('Boş.'),
     });
   },
   openHorseShop(b) {
     const P = G.player;
     this.menu({
-      title: 'At Satın Al', cls: 'shop', side: (it) => it.sideHtml || '', sub: () => `Cüzdan: ${fmtMoney(P.money)}`,
+      title: Tr('At Satın Al'), cls: 'shop', side: (it) => it.sideHtml || '', sub: () => Tr`Cüzdan: ${fmtMoney(P.money)}`,
       build: () => Object.keys(HORSE_BREEDS).filter(k => HORSE_BREEDS[k].p > 0).map(k => {
         const B = HORSE_BREEDS[k], pr = B.p * G.priceMul(true);
         const bar = (v, mx) => `<div class="statbar"><i style="width:${v / mx * 100}%"></i></div>`;
         return {
           icon: '🐴', label: B.n, right: fmtMoney(pr),
-          sideHtml: `<div class="ps-t">${B.n}</div><div class="ps-d">Hız${bar(B.spd, 1.3)}Dayanıklılık${bar(B.sta, 170)}Sağlık${bar(B.hp, 190)}</div>`,
-          fn: () => { if (G.spend(pr)) { const h = new Horse(b.door.x + 20, b.door.y + 20, k, { owner: 'player' }); h.ang = Math.PI / 2; G.setHorse(h); this.toast('Yeni At', `${h.name} (${B.n}) artık senin.`, 'horse'); Audio_.neigh(); } },
+          sideHtml: `<div class="ps-t">${B.n}</div><div class="ps-d">${Tr`Hız${bar(B.spd, 1.3)}Dayanıklılık${bar(B.sta, 170)}Sağlık${bar(B.hp, 190)}`}</div>`,
+          fn: () => { if (G.spend(pr)) { const h = new Horse(b.door.x + 20, b.door.y + 20, k, { owner: 'player' }); h.ang = Math.PI / 2; G.setHorse(h); this.toast(Tr('Yeni At'), Tr`${h.name} (${B.n}) artık senin.`, 'horse'); Audio_.neigh(); } },
         };
       }),
     });
   },
   openStable(b) {
     this.menu({
-      title: 'Ahırdaki Atların', cls: 'small',
-      build: () => G.stable.map((s, i) => ({ icon: '🐴', label: `${s.name} (${HORSE_BREEDS[s.breed].n})`, fn: () => { G.stable.splice(i, 1); const h = new Horse(b.door.x + 20, b.door.y + 20, s.breed, { owner: 'player', name: s.name, look: s.look, bond: s.bond }); G.setHorse(h); this.feed(`🐴 ${h.name} ahırdan çıkarıldı.`); this.pop(); } })),
+      title: Tr('Ahırdaki Atların'), cls: 'small',
+      build: () => G.stable.map((s, i) => ({ icon: '🐴', label: `${s.name} (${HORSE_BREEDS[s.breed].n})`, fn: () => { G.stable.splice(i, 1); const h = new Horse(b.door.x + 20, b.door.y + 20, s.breed, { owner: 'player', name: s.name, look: s.look, bond: s.bond }); G.setHorse(h); this.feed(Tr`🐴 ${h.name} ahırdan çıkarıldı.`); this.pop(); } })),
     });
   },
   openBank() {
     const P = G.player;
     this.menu({
-      title: 'Banka', sub: () => `Hesap: <b>${fmtMoney(G.bank)}</b> • Cüzdan: <b>${fmtMoney(P.money)}</b><br><small>Bankadaki para ölünce kaybolmaz ve yıllık %2 faiz kazanır.</small>`, cls: 'small',
+      title: Tr('Banka'), sub: () => Tr`Hesap: <b>${fmtMoney(G.bank)}</b> • Cüzdan: <b>${fmtMoney(P.money)}</b><br><small>Bankadaki para ölünce kaybolmaz ve yıllık %2 faiz kazanır.</small>`, cls: 'small',
       build: () => {
         const it = [];
-        for (const v of [10, 50, 100]) it.push({ label: `${fmtMoney(v)} Yatır`, disabled: P.money < v, fn: () => { P.money -= v; G.bank += v; } });
-        it.push({ label: 'Tümünü Yatır', disabled: P.money < 0.01, fn: () => { G.bank += P.money; P.money = 0; } });
-        for (const v of [10, 50, 100]) it.push({ label: `${fmtMoney(v)} Çek`, disabled: G.bank < v, fn: () => { G.bank -= v; P.money += v; } });
-        it.push({ label: 'Tümünü Çek', disabled: G.bank < 0.01, fn: () => { P.money += G.bank; G.bank = 0; } });
+        for (const v of [10, 50, 100]) it.push({ label: Tr`${fmtMoney(v)} Yatır`, disabled: P.money < v, fn: () => { P.money -= v; G.bank += v; } });
+        it.push({ label: Tr('Tümünü Yatır'), disabled: P.money < 0.01, fn: () => { G.bank += P.money; P.money = 0; } });
+        for (const v of [10, 50, 100]) it.push({ label: Tr`${fmtMoney(v)} Çek`, disabled: G.bank < v, fn: () => { G.bank -= v; P.money += v; } });
+        it.push({ label: Tr('Tümünü Çek'), disabled: G.bank < 0.01, fn: () => { P.money += G.bank; G.bank = 0; } });
         return it;
       },
     });
@@ -1393,13 +1421,13 @@ const UI = {
     const here = G.world.towns.find(t => t.id === b.town);
     const stations = G.world.towns.filter(t => t.station && t !== here);
     this.menu({
-      title: 'Tren Bileti', sub: `${here.n} İstasyonu`, cls: 'small',
+      title: Tr('Tren Bileti'), sub: Tr`${here.n} İstasyonu`, cls: 'small',
       build: () => stations.map(t => {
         const d = dist(here.cx, here.cy, t.cx, t.cy);
         const pr = Math.max(1, d / 1400) * (G.hasPerk('towns') ? 0.5 : 1);
         const hrs = Math.max(1, Math.round(d / 2200));
-        return { icon: '🚂', label: t.n, right: `${fmtMoney(pr)} • ${hrs} sa`, fn: () => {
-          if (G.law.level > 0) { this.feed('Aranırken trene binemezsin!', 'warn'); return; }
+        return { icon: '🚂', label: t.n, right: Tr`${fmtMoney(pr)} • ${hrs} sa`, fn: () => {
+          if (G.law.level > 0) { this.feed(Tr('Aranırken trene binemezsin!'), 'warn'); return; }
           if (!G.spend(pr)) return;
           this.closeAll();
           this.fade(() => {
@@ -1412,7 +1440,7 @@ const UI = {
             G.cam.x = P.x; G.cam.y = P.y;
             G.stat('trainRides', 1);
             G.prefetch(true);
-          }, `${t.n} yolunda...`);
+          }, Tr`${t.n} yolunda...`);
         } };
       }),
     });
@@ -1420,12 +1448,12 @@ const UI = {
   openBarber() {
     const P = G.player, L = P.look;
     this.menu({
-      title: 'Berber', cls: 'small', sub: 'Her işlem $1.50',
+      title: Tr('Berber'), cls: 'small', sub: Tr('Her işlem $1.50'),
       build: () => {
-        const it = [{ header: 'Saç' }];
+        const it = [{ header: Tr('Saç') }];
         LOOKS.hairStyle.forEach((n, i) => it.push({ label: n + (L.hairStyle === i ? ' ✔' : ''), fn: () => { if (G.spend(1.5)) { L.hairStyle = i; P._lk = null; P.clean = Math.min(100, P.clean + 10); } } }));
         if (L.sex === 'm') {
-          it.push({ header: 'Sakal' });
+          it.push({ header: Tr('Sakal') });
           LOOKS.beard.forEach((n, i) => it.push({ label: n + (L.beard === i ? ' ✔' : ''), fn: () => { if (G.spend(1.5)) { L.beard = i; L.beardLen = 0.2; P._lk = null; } } }));
         }
         return it;
@@ -1435,36 +1463,36 @@ const UI = {
   openGift(e, R) {
     const P = G.player;
     this.menu({
-      title: 'Hediye Ver', sub: R.name, cls: 'small',
+      title: Tr('Hediye Ver'), sub: R.name, cls: 'small',
       build: () => {
         const ids = Object.keys(P.inv).filter(id => ITEMS[id].gift);
         return ids.map(id => ({ icon: Icons.item(id), label: ITEMS[id].n, right: 'x' + P.inv[id], fn: () => { G.giveGift(e, R, id); this.pop(); } }));
       },
-      empty: 'Hediye edebileceğin bir şey yok. (Çiçek, çikolata, mücevher…)',
+      empty: Tr('Hediye edebileceğin bir şey yok. (Çiçek, çikolata, mücevher…)'),
     });
   },
   openBountyBoard() {
     if (!G.bounties) {
       const W = G.world;
-      const crimes = ['Tren soygunu', 'Cinayet', 'At hırsızlığı', 'Banka soygunu', 'Posta arabası soygunu', 'Firar', 'Sığır hırsızlığı'];
+      const crimes = [Tr('Tren soygunu'), Tr('Cinayet'), Tr('At hırsızlığı'), Tr('Banka soygunu'), Tr('Posta arabası soygunu'), Tr('Firar'), Tr('Sığır hırsızlığı')];
       G.bounties = [];
       for (let k = 0; k < 3; k++) {
         const cands = W.pois.filter(p => p.kind === 'landmark' || p.kind === 'camp');
         const p = pick(cands);
         const sex = chance(0.85) ? 'm' : 'f';
-        G.bounties.push({ id: 'b' + G.day + k, name: pick(NAMES[sex]) + ' "' + pick(['Kara', 'Deli', 'Sessiz', 'Kör', 'Kızıl', 'Tilki', 'Çakal', 'Topal']) + '" ' + pick(NAMES.last), crime: pick(crimes), reward: rndi(4, 16) * 10, x: p.x + rnd(-60, 60), y: p.y + rnd(-60, 60), where: p.n, hench: rndi(1, 3) });
+        G.bounties.push({ id: 'b' + G.day + k, name: pick(NAMES[sex]) + ' "' + pick([Tr('Kara'), Tr('Deli'), Tr('Sessiz'), Tr('Kör'), Tr('Kızıl'), Tr('Tilki'), Tr('Çakal'), Tr('Topal')]) + '" ' + pick(NAMES.last), crime: pick(crimes), reward: rndi(4, 16) * 10, x: p.x + rnd(-60, 60), y: p.y + rnd(-60, 60), where: p.n, hench: rndi(1, 3) });
       }
     }
     this.menu({
-      title: 'Ödül İlanları', cls: 'shop board', side: (it) => it.sideHtml || '',
+      title: Tr('Ödül İlanları'), cls: 'shop board', side: (it) => it.sideHtml || '',
       build: () => {
         const it = [];
         const A = G.activeBounty;
-        if (A) it.push({ html: `<p class="active-b">Aktif: <b>${A.name}</b> — ${A.done ? 'Etkisiz hale getirildi. Ödülü bir şerif ofisinden al.' : A.where + ' civarında.'}</p>` });
+        if (A) it.push({ html: `<p class="active-b">${Tr`Aktif: <b>${A.name}</b> — ${A.done ? Tr('Etkisiz hale getirildi. Ödülü bir şerif ofisinden al.') : Tr('{0} civarında.', A.where)}`}</p>` });
         for (const b of G.bounties) {
-          it.push({ icon: '📜', label: b.name, right: fmtMoney(b.reward), disabled: !!A, why: 'Önce aktif ödül avını tamamla.',
-            sideHtml: `<div class="poster"><div class="po-w">ARANIYOR</div><div class="po-n">${b.name}</div><div class="po-c">${b.crime}</div><div class="po-r">${fmtMoney(b.reward)}</div><div class="po-l">Son görüldüğü yer:<br>${b.where}</div></div>`,
-            fn: () => { G.activeBounty = Object.assign({}, b, { done: false, spawned: false }); G.bounties = G.bounties.filter(x => x !== b); G.setWaypoint(b.x, b.y); this.feed('📜 Ödül avı kabul edildi. Hedef haritada işaretlendi.'); } });
+          it.push({ icon: '📜', label: b.name, right: fmtMoney(b.reward), disabled: !!A, why: Tr('Önce aktif ödül avını tamamla.'),
+            sideHtml: `<div class="poster"><div class="po-w">ARANIYOR</div><div class="po-n">${b.name}</div><div class="po-c">${b.crime}</div><div class="po-r">${fmtMoney(b.reward)}</div><div class="po-l">${Tr`Son görüldüğü yer:<br>${b.where}`}</div></div>`,
+            fn: () => { G.activeBounty = Object.assign({}, b, { done: false, spawned: false }); G.bounties = G.bounties.filter(x => x !== b); G.setWaypoint(b.x, b.y); this.feed(Tr('📜 Ödül avı kabul edildi. Hedef haritada işaretlendi.')); } });
         }
         return it;
       },
@@ -1479,17 +1507,17 @@ const UI = {
       const miles = dist(x, y, t.cx, t.cy) / 1609 * 3.2;
       return `<div class="sign-row"><span class="sa">${arrows[i]}</span><span class="sn">${t.n}</span><span class="sm">${miles.toFixed(1)} mil</span></div>`;
     }).join('');
-    this.info('Yol Tabelası', `<div class="signboard">${rows}</div>`);
+    this.info(Tr('Yol Tabelası'), `<div class="signboard">${rows}</div>`);
   },
   showTreasureMap() {
     const T_ = G.treasure;
-    if (!T_) { this.info('Hazine Haritası', '<p>Harita çok eski ve okunmuyor.</p>'); return; }
+    if (!T_) { this.info(Tr('Hazine Haritası'), `<p>${Tr`Harita çok eski ve okunmuyor.`}</p>`); return; }
     this.menu({
-      title: 'Hazine Haritası', cls: 'small',
+      title: Tr('Hazine Haritası'), cls: 'small',
       items: [
-        { html: `<div class="tmap"><p>Kurşun kalemle çizilmiş eski bir harita. Kenarında şöyle yazıyor:</p><p class="quote">"${T_.region} bölgesinde, <b>${T_.hint}</b> yakınlarında. Taze toprağı ara, kürekle kaz."</p></div>` },
-        { label: 'Bölgeyi Haritada İşaretle', fn: () => { G.setWaypoint(T_.x + rnd(-200, 200), T_.y + rnd(-200, 200)); this.pop(); this.feed('Yaklaşık bölge işaretlendi. Yakınlarda taze toprak ara.'); } },
-        { label: 'Kapat', fn: () => this.pop() },
+        { html: `<div class="tmap"><p>${Tr`Kurşun kalemle çizilmiş eski bir harita. Kenarında şöyle yazıyor:`}</p><p class="quote">${Tr`"${T_.region} bölgesinde, <b>${T_.hint}</b> yakınlarında. Taze toprağı ara, kürekle kaz."`}</p></div>` },
+        { label: Tr('Bölgeyi Haritada İşaretle'), fn: () => { G.setWaypoint(T_.x + rnd(-200, 200), T_.y + rnd(-200, 200)); this.pop(); this.feed(Tr('Yaklaşık bölge işaretlendi. Yakınlarda taze toprak ara.')); } },
+        { label: Tr('Kapat'), fn: () => this.pop() },
       ],
     });
   },
@@ -1504,21 +1532,21 @@ const UI = {
     const card = (c, hide) => hide ? '<div class="card back"></div>' : `<div class="card ${c.s % 2 ? 'red' : ''}"><span>${['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'][c.r]}</span><span>${'♠♥♣♦'[c.s]}</span></div>`;
     const draw = () => {
       const pv = val(st.ph), dv = val(st.dh);
-      el.innerHTML = `<div class="p-head"><div class="p-title">Yirmi Bir</div><div class="p-sub">Cüzdan: ${fmtMoney(P.money)} • Bahis: ${fmtMoney(st.bet)}</div></div>
-        <div class="bj-table"><div class="bj-h"><div class="bj-l">Krupiye ${st.phase === 'play' ? '' : '(' + dv + ')'}</div><div class="bj-c">${st.dh.map((c, i) => card(c, st.phase === 'play' && i === 1)).join('')}</div></div>
+      el.innerHTML = `<div class="p-head"><div class="p-title">${Tr`Yirmi Bir`}</div><div class="p-sub">${Tr`Cüzdan: ${fmtMoney(P.money)} • Bahis: ${fmtMoney(st.bet)}`}</div></div>
+        <div class="bj-table"><div class="bj-h"><div class="bj-l">${Tr`Krupiye ${st.phase === 'play' ? '' : '(' + dv + ')'}`}</div><div class="bj-c">${st.dh.map((c, i) => card(c, st.phase === 'play' && i === 1)).join('')}</div></div>
         <div class="bj-msg">${st.msg}</div>
-        <div class="bj-h"><div class="bj-l">Sen (${pv})</div><div class="bj-c">${st.ph.map(c => card(c)).join('')}</div></div></div>
-        <div class="p-foot">${st.phase === 'play' ? `${Input.glyph('confirm')} Kart Çek &nbsp; ${Input.glyph('alt')} Dur &nbsp; ${Input.glyph('alt2')} İkiye Katla` : `◀ ▶ Bahis &nbsp; ${Input.glyph('confirm')} Dağıt`} &nbsp; ${Input.glyph('back')} Kalk</div>`;
+        <div class="bj-h"><div class="bj-l">${Tr`Sen (${pv})`}</div><div class="bj-c">${st.ph.map(c => card(c)).join('')}</div></div></div>
+        <div class="p-foot">${Tr`${st.phase === 'play' ? Tr`${Input.glyph('confirm')} Kart Çek &nbsp; ${Input.glyph('alt')} Dur &nbsp; ${Input.glyph('alt2')} İkiye Katla` : Tr`◀ ▶ Bahis &nbsp; ${Input.glyph('confirm')} Dağıt`} &nbsp; ${Input.glyph('back')} Kalk`}</div>`;
     };
     const finish = () => {
       while (val(st.dh) < 17) st.dh.push(st.deck.pop());
       const pv = val(st.ph), dv = val(st.dh);
       let win = 0;
-      if (pv > 21) { st.msg = 'Battın!'; win = -1; }
-      else if (dv > 21 || pv > dv) { st.msg = 'Kazandın!'; win = 1; }
-      else if (pv === dv) { st.msg = 'Berabere.'; win = 0; }
-      else { st.msg = 'Kasa kazandı.'; win = -1; }
-      if (win > 0) { const bj = pv === 21 && st.ph.length === 2; P.money += st.bet * (bj ? 2.5 : 2); G.stat('bjWins', 1); Audio_.ui('cash'); if (bj) st.msg = 'Blackjack!'; }
+      if (pv > 21) { st.msg = Tr('Battın!'); win = -1; }
+      else if (dv > 21 || pv > dv) { st.msg = Tr('Kazandın!'); win = 1; }
+      else if (pv === dv) { st.msg = Tr('Berabere.'); win = 0; }
+      else { st.msg = Tr('Kasa kazandı.'); win = -1; }
+      if (win > 0) { const bj = pv === 21 && st.ph.length === 2; P.money += st.bet * (bj ? 2.5 : 2); G.stat('bjWins', 1); Audio_.ui('cash'); if (bj) st.msg = Tr('Blackjack!'); }
       else if (win === 0) P.money += st.bet;
       st.phase = 'bet';
       draw();
@@ -1533,7 +1561,7 @@ const UI = {
         if (I.nav('left', dt)) { st.bet = bets[Math.max(0, bets.indexOf(st.bet) - 1)]; draw(); }
         if (I.nav('right', dt)) { st.bet = bets[Math.min(3, bets.indexOf(st.bet) + 1)]; draw(); }
         if (I.pressed('confirm')) {
-          if (P.money < st.bet) { this.feed('Yeterli paran yok.', 'warn'); return; }
+          if (P.money < st.bet) { this.feed(Tr('Yeterli paran yok.'), 'warn'); return; }
           P.money -= st.bet;
           if (st.deck.length < 15) st.deck = newDeck();
           st.ph = [st.deck.pop(), st.deck.pop()]; st.dh = [st.deck.pop(), st.deck.pop()];
@@ -1554,16 +1582,18 @@ const UI = {
   },
   openArmWrestle() {
     const P = G.player;
-    if (P.money < 5) { this.feed('Bahis için $5 gerekli.', 'warn'); return; }
+    if (P.money < 5) { this.feed(Tr('Bahis için $5 gerekli.'), 'warn'); return; }
+    if ((G.dailyTalk.arm || 0) >= 3) { this.feed(Tr('Bugün kimse seninle bilek güreşi yapmak istemiyor. Yarın gel.'), 'warn'); return; }
+    G.dailyTalk.arm = (G.dailyTalk.arm || 0) + 1;
     P.money -= 5;
     const el = el_('div', 'modal panel arm');
     const opp = { n: randomName('m'), str: rnd(0.8, 1.35) };
     const st = { pos: 0.5, t: 0, done: false, start: 1.5 };
     const draw = () => {
-      el.innerHTML = `<div class="p-head"><div class="p-title">Bilek Güreşi</div><div class="p-sub">Rakip: ${opp.n}</div></div>
+      el.innerHTML = `<div class="p-head"><div class="p-title">${Tr`Bilek Güreşi`}</div><div class="p-sub">${Tr`Rakip: ${opp.n}`}</div></div>
         <div class="arm-bar"><div class="arm-zone l"></div><div class="arm-zone r"></div><i style="left:${st.pos * 100}%"></i></div>
-        <div class="arm-msg">${st.done ? st.msg : st.start > 0 ? 'Hazır ol... ' + Math.ceil(st.start) : 'Hızlıca bas!'}</div>
-        <div class="p-foot">${Input.glyph('confirm')} Tekrar tekrar bas &nbsp; ${st.done ? Input.glyph('back') + ' Kapat' : ''}</div>`;
+        <div class="arm-msg">${st.done ? st.msg : st.start > 0 ? Tr('Hazır ol... ') + Math.ceil(st.start) : Tr('Hızlıca bas!')}</div>
+        <div class="p-foot">${Tr`${Input.glyph('confirm')} Tekrar tekrar bas &nbsp; ${st.done ? Input.glyph('back') + Tr(' Kapat') : ''}`}</div>`;
     };
     const m = this.makeModal(el, { customInput: true });
     m.update = (dt) => {
@@ -1574,8 +1604,8 @@ const UI = {
       const str = (1 + G.skill('strength') * 0.08) * (G.hasPerk('arm') ? 1.2 : 1) * (P.drunk > 40 ? 0.85 : 1);
       if (I.pressed('confirm') || I.pressed('sprint')) st.pos -= 0.028 * str;
       st.pos += dt * 0.19 * opp.str * (1 + Math.sin(G.t * 3) * 0.3);
-      if (st.pos <= 0.05) { st.done = true; st.msg = 'KAZANDIN! +$10'; P.money += 10; G.stat('armWins', 1); G.skillXp('strength', 10); Audio_.ui('cash'); }
-      if (st.pos >= 0.95) { st.done = true; st.msg = 'Kaybettin.'; Audio_.ui('error'); }
+      if (st.pos <= 0.05) { st.done = true; st.msg = Tr('KAZANDIN! +$10'); P.money += 10; G.stat('armWins', 1); G.skillXp('strength', 10); Audio_.ui('cash'); }
+      if (st.pos >= 0.95) { st.done = true; st.msg = Tr('Kaybettin.'); Audio_.ui('error'); }
       draw();
     };
     draw();
@@ -1591,12 +1621,12 @@ const UI = {
     const pool = heat < 0.3 ? ['fish_trout', 'fish_salmon', 'fish_pike', 'fish_perch'] : tile === 'SWAMP' || tile === 'MUD' || heat > 0.7 ? ['fish_catfish', 'fish_bass', 'fish_perch'] : ['fish_perch', 'fish_bass', 'fish_trout', 'fish_pike', 'fish_catfish'];
     const draw = () => {
       let body = '';
-      if (st.phase === 'cast') body = `<div class="f-msg">Oltanı atmak için ${Input.glyph('confirm')} basılı tut ve bırak</div><div class="f-bar"><i style="width:${st.power * 100}%"></i></div>`;
-      else if (st.phase === 'wait') body = `<div class="f-msg">Bekle... <span class="bob">〰</span></div>`;
-      else if (st.phase === 'bite') body = `<div class="f-msg big">VURDU! ${Input.glyph('confirm')}</div>`;
-      else if (st.phase === 'reel') body = `<div class="f-msg">Makarayı sar: ${Input.glyph('confirm')} basılı tut — gerginliğe dikkat!</div><div class="f-lab">Gerginlik</div><div class="f-bar tension"><i style="width:${st.tension * 100}%" class="${st.tension > 0.8 ? 'hot' : ''}"></i></div><div class="f-lab">Mesafe</div><div class="f-bar"><i style="width:${st.dist * 100}%"></i></div>`;
-      else body = `<div class="f-msg big">${st.msg}</div><div class="f-msg">${Input.glyph('confirm')} Tekrar &nbsp; ${Input.glyph('back')} Bitir</div>`;
-      el.innerHTML = `<div class="f-inner"><div class="p-title">Balık Tutma</div>${body}<div class="p-foot">${Input.glyph('back')} Bırak</div></div>`;
+      if (st.phase === 'cast') body = `<div class="f-msg">${Tr`Oltanı atmak için ${Input.glyph('confirm')} basılı tut ve bırak`}</div><div class="f-bar"><i style="width:${st.power * 100}%"></i></div>`;
+      else if (st.phase === 'wait') body = `<div class="f-msg">${Tr`Bekle...`} <span class="bob">〰</span></div>`;
+      else if (st.phase === 'bite') body = `<div class="f-msg big">${Tr`VURDU! ${Input.glyph('confirm')}`}</div>`;
+      else if (st.phase === 'reel') body = `<div class="f-msg">${Tr`Makarayı sar: ${Input.glyph('confirm')} basılı tut — gerginliğe dikkat!`}</div><div class="f-lab">${Tr`Gerginlik`}</div><div class="f-bar tension"><i style="width:${st.tension * 100}%" class="${st.tension > 0.8 ? 'hot' : ''}"></i></div><div class="f-lab">${Tr`Mesafe`}</div><div class="f-bar"><i style="width:${st.dist * 100}%"></i></div>`;
+      else body = `<div class="f-msg big">${st.msg}</div><div class="f-msg">${Tr`${Input.glyph('confirm')} Tekrar &nbsp; ${Input.glyph('back')} Bitir`}</div>`;
+      el.innerHTML = `<div class="f-inner"><div class="p-title">${Tr`Balık Tutma`}</div>${body}<div class="p-foot">${Tr`${Input.glyph('back')} Bırak`}</div></div>`;
     };
     const m = this.makeModal(el, { customInput: true, transparent: true });
     m.update = (dt) => {
@@ -1610,21 +1640,21 @@ const UI = {
         st.t += dt;
         G.advanceClock(dt * MIN_PER_SEC * 3);
         if (st.t > st.wait) { st.phase = 'bite'; st.t = 0; Audio_.tone(1200, 0.08, 'square', 0.06); Audio_.tone(1200, 0.08, 'square', 0.06, null, 0.12); }
-        if (I.pressed('confirm')) { st.msg = 'Çok erken çektin!'; st.phase = 'end'; }
+        if (I.pressed('confirm')) { st.msg = Tr('Çok erken çektin!'); st.phase = 'end'; }
       } else if (st.phase === 'bite') {
         st.t += dt;
         if (I.pressed('confirm')) { st.phase = 'reel'; st.fish = pick(pool); st.str = rnd(0.6, 1.4) * (ITEMS[st.fish].p / 4); }
-        else if (st.t > 1.1) { st.msg = 'Balık kaçtı...'; st.phase = 'end'; }
+        else if (st.t > 1.1) { st.msg = Tr('Balık kaçtı...'); st.phase = 'end'; }
       } else if (st.phase === 'reel') {
         const pull = (0.5 + Math.sin(G.t * 4 + Math.sin(G.t * 1.3) * 3) * 0.5) * st.str;
         if (I.down('confirm')) { st.tension += dt * (0.35 + pull * 0.5); st.dist -= dt * 0.18; }
         else { st.tension -= dt * 0.55; st.dist += dt * 0.04 * pull; }
         st.tension = clamp(st.tension, 0, 1.01); st.dist = clamp(st.dist, 0, 1.2);
-        if (st.tension >= 1) { st.msg = 'Misina koptu!'; st.phase = 'end'; Audio_.ui('error'); }
-        if (st.dist >= 1.2) { st.msg = 'Balık kaçtı...'; st.phase = 'end'; }
+        if (st.tension >= 1) { st.msg = Tr('Misina koptu!'); st.phase = 'end'; Audio_.ui('error'); }
+        if (st.dist >= 1.2) { st.msg = Tr('Balık kaçtı...'); st.phase = 'end'; }
         if (st.dist <= 0) {
           st.phase = 'end'; const it = ITEMS[st.fish];
-          st.msg = `${Icons.item(st.fish, 'ic inl')} ${it.n} tuttun!`; P.addItem(st.fish, 1); G.stat('fish', 1); G.skillXp('survival', 4); Audio_.ui('cash');
+          st.msg = Tr`${Icons.item(st.fish, 'ic inl')} ${it.n} tuttun!`; P.addItem(st.fish, 1); G.stat('fish', 1); G.skillXp('survival', 4); Audio_.ui('cash');
           if (bait && chance(0.5)) P.removeItem('bait', 1);
         }
       } else if (st.phase === 'end') {
@@ -1640,8 +1670,8 @@ const UI = {
   showDeath() {
     const el = el_('div', 'modal deathscreen');
     const hard = G.difficulty === 'hard';
-    el.innerHTML = `<div class="ds-inner"><div class="ds-t">ÖLDÜN</div><div class="ds-c">Ölüm sebebi: ${G.deathCause}</div><div class="ds-a">${G.player.name}, ${G.age} yaşında</div>
-      <div class="ds-items"><div class="p-item nav pref" id="ds-cont">${hard ? 'Hayatının Özeti' : 'Devam Et (Doktor)'}</div>${!hard ? '<div class="p-item nav" id="ds-legacy">Bu Hayatı Bitir</div>' : ''}<div class="p-item nav" id="ds-menu">Ana Menü</div></div></div>`;
+    el.innerHTML = `<div class="ds-inner"><div class="ds-t">${Tr`ÖLDÜN`}</div><div class="ds-c">${Tr`Ölüm sebebi: ${G.deathCause}`}</div><div class="ds-a">${Tr`${G.player.name}, ${G.age} yaşında`}</div>
+      <div class="ds-items"><div class="p-item nav pref" id="ds-cont">${hard ? Tr('Hayatının Özeti') : Tr('Devam Et (Doktor)')}</div>${!hard ? `<div class="p-item nav" id="ds-legacy">${Tr`Bu Hayatı Bitir`}</div>` : ''}<div class="p-item nav" id="ds-menu">${Tr`Ana Menü`}</div></div></div>`;
     const m = this.makeModal(el, { onBack: () => {} });
     this.push(m);
     $('#ds-cont', el).onclick = () => { this.pop(m); if (hard) { G.deleteSave(); this.showLegacy(false); } else G.respawn(); };
@@ -1653,16 +1683,16 @@ const UI = {
     const P = G.player, S = G.stats;
     const born = START_YEAR - START_AGE;
     const ach = Object.keys(G.achieved).length;
-    const epit = alive ? 'Seksen yılı devirdi. Batı onu yıpratamadı.' : G.honor > 50 ? 'Dürüst bir adamdı; iyi yaşadı, iyi öldü.' : G.honor < -50 ? 'Kanunun kovaladığı, halkın korktuğu biriydi.' : 'Batının tozunda iz bırakan sıradan bir hayat.';
+    const epit = alive ? Tr('Seksen yılı devirdi. Batı onu yıpratamadı.') : G.honor > 50 ? Tr('Dürüst bir adamdı; iyi yaşadı, iyi öldü.') : G.honor < -50 ? Tr('Kanunun kovaladığı, halkın korktuğu biriydi.') : Tr('Batının tozunda iz bırakan sıradan bir hayat.');
     const el = el_('div', 'modal legacy');
-    el.innerHTML = `<div class="paper"><div class="np-h">THE DUSTBOUND GAZETTE</div><div class="np-d">${G.dateStr()} • Fiyatı 5 sent</div>
-      <div class="np-t">${alive ? 'BİR EFSANE 80 YAŞINDA' : 'ACI KAYIP'}</div>
+    el.innerHTML = `<div class="paper"><div class="np-h">${'THE FRONTIER GAZETTE'}</div><div class="np-d">${Tr`${G.dateStr()} • Fiyatı 5 sent`}</div>
+      <div class="np-t">${alive ? Tr('BİR EFSANE 80 YAŞINDA') : Tr('ACI KAYIP')}</div>
       <div class="np-body"><canvas id="lg-portrait" width="160" height="192"></canvas>
       <div><h2>${escapeHtml(P.name)}</h2><div class="np-y">${born} – ${alive ? '' : G.year}</div>
-      <p>${alive ? `${escapeHtml(P.name)}, dün ${G.age}. yaşını kutladı.` : `${escapeHtml(P.name)}, ${G.age} yaşında ${G.deathCause} sebebiyle hayatını kaybetti.`} ${G.family.spouse ? `Geride eşi ${G.family.spouse.name}` + (G.family.children.length ? ` ve ${G.family.children.length} çocuğunu (${G.family.children.map(c => c.name).join(', ')})` : '') + ' bıraktı.' : 'Arkasında bir aile bırakmadı.'}</p>
+      <p>${alive ? Tr`${escapeHtml(P.name)}, dün ${G.age}. yaşını kutladı.` : Tr`${escapeHtml(P.name)}, ${G.age} yaşında ${G.deathCause} sebebiyle hayatını kaybetti.`} ${G.family.spouse ? Tr`Geride eşi ${G.family.spouse.name}` + (G.family.children.length ? Tr` ve ${G.family.children.length} çocuğunu (${G.family.children.map(c => c.name).join(', ')})` : '') + Tr(' bıraktı.') : Tr('Arkasında bir aile bırakmadı.')}</p>
       <p><i>"${epit}"</i></p>
-      <table class="stats"><tr><td>Yaşanan gün</td><td>${G.day}</td></tr><tr><td>Avlanan hayvan</td><td>${S.animals}</td></tr><tr><td>Kazanılan para</td><td>${fmtMoney(S.earned)}</td></tr><tr><td>Keşfedilen yer</td><td>${G.discovered.size}</td></tr><tr><td>Başarımlar</td><td>${ach}/${ACHIEVEMENTS.length}</td></tr><tr><td>Onur</td><td>${Math.round(G.honor)}</td></tr></table></div></div>
-      <div class="ds-items">${alive ? '<div class="p-item nav pref" id="lg-cont">Yaşamaya Devam Et</div>' : ''}<div class="p-item nav ${alive ? '' : 'pref'}" id="lg-menu">Ana Menü</div></div></div>`;
+      <table class="stats"><tr><td>${Tr`Yaşanan gün`}</td><td>${G.day}</td></tr><tr><td>${Tr`Avlanan hayvan`}</td><td>${S.animals}</td></tr><tr><td>${Tr`Kazanılan para`}</td><td>${fmtMoney(S.earned)}</td></tr><tr><td>${Tr`Keşfedilen yer`}</td><td>${G.discovered.size}</td></tr><tr><td>${Tr`Başarımlar`}</td><td>${ach}/${ACHIEVEMENTS.length}</td></tr><tr><td>${Tr`Onur`}</td><td>${Math.round(G.honor)}</td></tr></table></div></div>
+      <div class="ds-items">${alive ? `<div class="p-item nav pref" id="lg-cont">${Tr`Yaşamaya Devam Et`}</div>` : ''}<div class="p-item nav ${alive ? '' : 'pref'}" id="lg-menu">${Tr('Ana Menü')}</div></div></div>`;
     const m = this.makeModal(el, { onBack: () => {} });
     this.push(m);
     Spr.portrait($('#lg-portrait', el).getContext('2d'), 160, 192, P.look, G.age);
@@ -1686,11 +1716,12 @@ const UI = {
     mm.classList.remove('hidden');
     const info = G.saveInfo();
     const items = [];
-    if (info) items.push(['cont', 'Devam Et', `${info.name} • ${info.age} yaşında • ${fmtMoney(info.money)}`]);
-    items.push(['new', 'Yeni Hayat', 'Bir karakter yarat ve 18 yaşında başla']);
-    items.push(['set', 'Ayarlar', ''], ['ctrl', 'Kontroller', ''], ['about', 'Hakkında', '']);
+    if (info) items.push(['cont', Tr('Devam Et'), Tr`${info.name} • ${info.age} yaşında • ${fmtMoney(info.money)}`]);
+    items.push(['new', Tr('Yeni Hayat'), Tr('Bir karakter yarat ve 18 yaşında başla')]);
+    items.push(['set', Tr('Ayarlar'), ''], ['ctrl', Tr('Kontroller'), ''], ['about', Tr('Hakkında'), '']);
+    if (Platform.canQuit) items.push(['quit', Tr('Masaüstüne Çık'), '']);
     $('#mm-items').innerHTML = items.map(([id, n, s]) => `<div class="mm-item nav" data-id="${id}"><div class="mm-n">${n}</div>${s ? `<div class="mm-s">${s}</div>` : ''}</div>`).join('');
-    $('#mm-foot').innerHTML = `${Input.glyph('confirm')} Seç &nbsp;&nbsp; PlayStation kolu desteklenir`;
+    $('#mm-foot').innerHTML = Tr`${Input.glyph('confirm')} Seç &nbsp;&nbsp; Oyun kolu desteklenir`;
     const m = this.makeModal(mm, { keepEl: true, transparent: true, onBack: () => {} });
     $$('.mm-item', mm).forEach(n => {
       n.onmouseenter = () => m.setFocus(n, true);
@@ -1699,10 +1730,11 @@ const UI = {
         Audio_.ui('ok');
         const id = n.dataset.id;
         if (id === 'cont') { this.pop(m); mm.classList.add('hidden'); G.loadGame(); }
-        else if (id === 'new') { if (info) this.confirm('Yeni Hayat', 'Mevcut kaydın silinecek. Emin misin?', () => { this.pop(m); this.showCreate(); }); else { this.pop(m); this.showCreate(); } }
+        else if (id === 'new') { if (info) this.confirm(Tr('Yeni Hayat'), Tr('Mevcut kaydın silinecek. Emin misin?'), () => { this.pop(m); this.showCreate(); }); else { this.pop(m); this.showCreate(); } }
         else if (id === 'set') this.openSettings();
         else if (id === 'ctrl') this.openControls();
-        else if (id === 'about') this.info('Dustbound', '<p><b>Dustbound</b>, 1890\'lar Amerika\'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunudur.</p><p>Görev yok; sadece hayat var. 18 yaşında başla, avlan, çalış, sev, keşfet ve 80 yaşına kadar hayatta kalmaya çalış.</p><p class="dim">HTML5 Canvas • Prosedürel dünya, grafik ve ses</p>');
+        else if (id === 'quit') Platform.quit();
+        else if (id === 'about') this.info("Frontier's End", `<p>${Tr`<b>Frontier's End</b>, 1890'lar Amerika'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunudur.`}</p><p>${Tr`Görev yok; sadece hayat var. 18 yaşında başla, avlan, çalış, sev, keşfet ve 80 yaşına kadar hayatta kalmaya çalış.`}</p><p class="dim">${Tr`HTML5 Canvas • Prosedürel dünya, grafik ve ses`}</p>`);
       };
     });
     this.stack.push(m);
@@ -1716,22 +1748,22 @@ const UI = {
     look.coatLen = 0;
     const prof = { name: pick(NAMES[look.sex]) + ' ' + pick(NAMES.last), look, bg: 'farm', difficulty: 'story', pace: 'normal' };
     const el = el_('div', 'modal create');
-    const TABS = [{ n: 'Kimlik', g: 'quill' }, { n: 'Görünüm', g: 'barber' }, { n: 'Kıyafet', g: 'scissors' }, { n: 'Hikâye', g: 'book' }];
+    const TABS = [{ n: Tr('Kimlik'), g: 'quill' }, { n: Tr('Görünüm'), g: 'barber' }, { n: Tr('Kıyafet'), g: 'scissors' }, { n: Tr('Hikâye'), g: 'book' }];
     const rows = [
-      { t: 0, k: 'sex', n: 'Cinsiyet', opts: ['m', 'f'], lab: v => (v === 'm' ? 'Erkek' : 'Kadın') },
-      { t: 0, k: 'skin', n: 'Ten Rengi', opts: LOOKS.skin, sw: 1 },
-      { t: 0, k: 'eyes', n: 'Göz Rengi', opts: LOOKS.eyes, sw: 1 },
-      { t: 1, k: 'hair', n: 'Saç Rengi', opts: LOOKS.hair, sw: 1 },
-      { t: 1, k: 'hairStyle', n: 'Saç Stili', opts: [0, 1, 2, 3, 4], lab: v => LOOKS.hairStyle[v] },
-      { t: 1, k: 'beard', n: 'Sakal', opts: [0, 1, 2, 3, 4], lab: v => LOOKS.beard[v], male: 1 },
-      { t: 2, k: 'hat', n: 'Şapka', opts: LOOKS.hat, lab: v => LOOKS.hatN[v] },
-      { t: 2, k: 'hatCol', n: 'Şapka Rengi', opts: LOOKS.hatCol, sw: 1 },
-      { t: 2, k: 'coat', n: 'Ceket', opts: LOOKS.coat, sw: 1 },
-      { t: 2, k: 'shirt', n: 'Gömlek', opts: LOOKS.shirt, sw: 1 },
-      { t: 2, k: 'pants', n: 'Pantolon', opts: LOOKS.pants, sw: 1 },
-      { t: 3, k: 'bg', n: 'Geçmiş', opts: BACKGROUNDS.map(b => b.id), lab: v => BACKGROUNDS.find(b => b.id === v).n, prof: 1 },
-      { t: 3, k: 'difficulty', n: 'Zorluk', opts: DIFFICULTIES.map(b => b.id), lab: v => DIFFICULTIES.find(b => b.id === v).n, prof: 1 },
-      { t: 3, k: 'pace', n: 'Yaşlanma Hızı', opts: LIFE_PACES.map(b => b.id), lab: v => LIFE_PACES.find(b => b.id === v).n, prof: 1 },
+      { t: 0, k: 'sex', n: Tr('Cinsiyet'), opts: ['m', 'f'], lab: v => (v === 'm' ? Tr('Erkek') : Tr('Kadın')) },
+      { t: 0, k: 'skin', n: Tr('Ten Rengi'), opts: LOOKS.skin, sw: 1 },
+      { t: 0, k: 'eyes', n: Tr('Göz Rengi'), opts: LOOKS.eyes, sw: 1 },
+      { t: 1, k: 'hair', n: Tr('Saç Rengi'), opts: LOOKS.hair, sw: 1 },
+      { t: 1, k: 'hairStyle', n: Tr('Saç Stili'), opts: [0, 1, 2, 3, 4], lab: v => LOOKS.hairStyle[v] },
+      { t: 1, k: 'beard', n: Tr('Sakal'), opts: [0, 1, 2, 3, 4], lab: v => LOOKS.beard[v], male: 1 },
+      { t: 2, k: 'hat', n: Tr('Şapka'), opts: LOOKS.hat, lab: v => LOOKS.hatN[v] },
+      { t: 2, k: 'hatCol', n: Tr('Şapka Rengi'), opts: LOOKS.hatCol, sw: 1 },
+      { t: 2, k: 'coat', n: Tr('Ceket'), opts: LOOKS.coat, sw: 1 },
+      { t: 2, k: 'shirt', n: Tr('Gömlek'), opts: LOOKS.shirt, sw: 1 },
+      { t: 2, k: 'pants', n: Tr('Pantolon'), opts: LOOKS.pants, sw: 1 },
+      { t: 3, k: 'bg', n: Tr('Geçmiş'), opts: BACKGROUNDS.map(b => b.id), lab: v => BACKGROUNDS.find(b => b.id === v).n, prof: 1 },
+      { t: 3, k: 'difficulty', n: Tr('Zorluk'), opts: DIFFICULTIES.map(b => b.id), lab: v => DIFFICULTIES.find(b => b.id === v).n, prof: 1 },
+      { t: 3, k: 'pace', n: Tr('Yaşlanma Hızı'), opts: LIFE_PACES.map(b => b.id), lab: v => LIFE_PACES.find(b => b.id === v).n, prof: 1 },
     ];
     const BGI = { farm: 'wheat', immigrant: 'anchor', outlaw: 'skull', rail: 'train', trapper: 'fox' };
     let tab = 0;
@@ -1743,7 +1775,7 @@ const UI = {
     };
     const rowsHtml = () => {
       let h = '';
-      if (tab === 0) h += `<div class="cr-row nav" id="cr-name-row"><span class="cr-l">İsim</span><span class="cr-name-w"><input id="cr-name" maxlength="28" value="${escapeHtml(prof.name)}"><span class="cr-rand" id="cr-rn" title="Rastgele isim">${Icons.glyph('dice', '#c9a45c')}</span></span></div>`;
+      if (tab === 0) h += `<div class="cr-row nav" id="cr-name-row"><span class="cr-l">${Tr`İsim`}</span><span class="cr-name-w"><input id="cr-name" maxlength="28" value="${escapeHtml(prof.name)}"><span class="cr-rand" id="cr-rn" title="Rastgele isim">${Icons.glyph('dice', '#c9a45c')}</span></span></div>`;
       rows.forEach((r, i) => {
         if (r.t !== tab || (r.male && look.sex !== 'm')) return;
         h += `<div class="cr-row nav opt ${r.sw ? 'sw' : ''}" data-i="${i}" data-lr><span class="cr-l">${r.n}</span><span class="cr-v"><b class="arr">◀</b>${valHtml(r)}<b class="arr">▶</b></span></div>`;
@@ -1753,7 +1785,7 @@ const UI = {
     };
     const html = () => `
       <div class="cr-head">
-        <div class="cr-title"><div class="p-title">Yeni Bir Hayat</div><div class="cr-sub">Amerika, ${START_YEAR} • 18 yaşındasın</div></div>
+        <div class="cr-title"><div class="p-title">${Tr`Yeni Bir Hayat`}</div><div class="cr-sub">${Tr`Amerika, ${START_YEAR} • 18 yaşındasın`}</div></div>
         <div class="cr-tabs">${Input.glyph('tabL')}${TABS.map((t, i) => `<span class="cr-tab ${i === tab ? 'on' : ''}" data-t="${i}">${Icons.glyph(t.g, i === tab ? '#fff' : '#a89c88')}${t.n}</span>`).join('')}${Input.glyph('tabR')}</div>
       </div>
       <div class="cr-left"><div class="cr-sec">${TABS[tab].n}</div><div class="cr-list">${rowsHtml()}</div></div>
@@ -1763,23 +1795,23 @@ const UI = {
         <div class="cr-ped"><canvas id="cr-top" width="96" height="96"></canvas></div>
       </div>
       <div class="cr-right" id="cr-desc"></div>
-      <div class="cr-foot"><div class="cr-keys">${Input.glyph('up')}${Input.glyph('down')} Seç &nbsp; ◀ ▶ Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Bölüm &nbsp; ${Input.glyph('back')} Geri</div>
-        <div class="cr-btns"><div class="p-item nav" id="cr-rand">${Icons.glyph('dice', '#e8dcc6')} Rastgele</div><div class="p-item nav pref" id="cr-go">Hayata Başla ${Input.glyph('confirm')}</div></div></div>`;
+      <div class="cr-foot"><div class="cr-keys">${Tr`${Input.glyph('up')}${Input.glyph('down')} Seç &nbsp; ◀ ▶ Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Bölüm &nbsp; ${Input.glyph('back')} Geri`}</div>
+        <div class="cr-btns"><div class="p-item nav" id="cr-rand">${Tr`${Icons.glyph('dice', '#e8dcc6')} Rastgele`}</div><div class="p-item nav pref" id="cr-go">${Tr`Hayata Başla ${Input.glyph('confirm')}`}</div></div></div>`;
     let m;
     const refresh = () => {
       Spr.portrait($('#cr-portrait', el).getContext('2d'), 300, 360, look, 18);
       const BG = BACKGROUNDS.find(b => b.id === prof.bg), D = DIFFICULTIES.find(d => d.id === prof.difficulty), L = LIFE_PACES.find(p => p.id === prof.pace);
       const town = TOWNS.find(t => t.id === BG.town);
       $('#cr-pn', el).textContent = prof.name || '—';
-      $('#cr-ps', el).textContent = `${look.sex === 'm' ? 'Erkek' : 'Kadın'} • 18 yaşında • ${BG.n}`;
+      $('#cr-ps', el).textContent = Tr`${look.sex === 'm' ? Tr('Erkek') : Tr('Kadın')} • 18 yaşında • ${BG.n}`;
       const sk = Object.keys(BG.skills).map(k => `<span class="cr-tag">${SKILLS[k].n} +${BG.skills[k]}</span>`).join('');
       const items = Object.keys(BG.items).map(id => `<span class="cr-it" title="${ITEMS[id].n}">${Icons.item(id)}</span>`).join('') + BG.weapons.filter(w => w !== 'knife').map(w => `<span class="cr-it wpn" title="${WEAPONS[w].n}">${Icons.weapon(w, 'ic wpn')}</span>`).join('');
       $('#cr-desc', el).innerHTML = `
-        <div class="cr-card-big"><div class="cr-cb-h">${Icons.glyph(BGI[BG.id] || 'star', '#c9a45c')}<div><div class="cr-cb-k">Geçmiş</div><div class="cr-cb-n">${BG.n}</div></div></div>
+        <div class="cr-card-big"><div class="cr-cb-h">${Icons.glyph(BGI[BG.id] || 'star', '#c9a45c')}<div><div class="cr-cb-k">${Tr`Geçmiş`}</div><div class="cr-cb-n">${BG.n}</div></div></div>
           <p>${BG.d}</p>
-          <div class="cr-facts"><div><span>Başlangıç</span><b>${town.n}</b></div><div><span>Cüzdan</span><b>${fmtMoney(BG.money)}</b></div><div><span>At</span><b>${BG.horse ? HORSE_BREEDS[BG.horse].n : 'Yok'}</b></div>${BG.bounty ? `<div><span>Ödül</span><b class="red">$${BG.bounty}</b></div>` : ''}</div>
+          <div class="cr-facts"><div><span>${Tr`Başlangıç`}</span><b>${town.n}</b></div><div><span>${Tr`Cüzdan`}</span><b>${fmtMoney(BG.money)}</b></div><div><span>${Tr`At`}</span><b>${BG.horse ? HORSE_BREEDS[BG.horse].n : Tr('Yok')}</b></div>${BG.bounty ? `<div><span>${Tr`Ödül`}</span><b class="red">$${BG.bounty}</b></div>` : ''}</div>
           <div class="cr-tags">${sk}</div><div class="cr-items">${items}</div></div>
-        <div class="cr-mini"><div><span>Zorluk</span><b>${D.n}</b><p>${D.d}</p></div><div><span>Yaşlanma</span><b>${L.n}</b><p>${L.d}</p></div></div>`;
+        <div class="cr-mini"><div><span>${Tr`Zorluk`}</span><b>${D.n}</b><p>${D.d}</p></div><div><span>${Tr`Yaşlanma`}</span><b>${L.n}</b><p>${L.d}</p></div></div>`;
     };
     const drawTop = () => {
       const c = $('#cr-top', el); if (!c) return;
@@ -1970,15 +2002,15 @@ const el_ = el;
 const I_WHEEL_HINT = (page) => {
   const pad = Input.device === 'pad';
   const sw = pad ? Input.padGlyph(PS.R1) : `${Input.kbGlyph('KeyQ')}${Input.kbGlyph('KeyE')}`;
-  const cyc = pad ? `${Input.padGlyph(PS.LEFT)}${Input.padGlyph(PS.RIGHT)}` : 'Tekerlek';
-  const sel = pad ? 'Sağ analog' : 'Fare';
-  return page ? `${sel}: seç • ${cyc}: aynı türde değiştir • ${pad ? Input.padGlyph(PS.X) : Input.kbGlyph('Mouse0')} kullan • ${sw} Silahlar` : `${sel}: seç • ${cyc}: aynı türde değiştir • ${Input.glyph('wheel')} bırak: kuşan • ${sw} Eşyalar`;
+  const cyc = pad ? `${Input.padGlyph(PS.LEFT)}${Input.padGlyph(PS.RIGHT)}` : Tr('Tekerlek');
+  const sel = pad ? Tr('Sağ analog') : Tr('Fare');
+  return page ? Tr`${sel}: seç • ${cyc}: aynı türde değiştir • ${pad ? Input.padGlyph(PS.X) : Input.kbGlyph('Mouse0')} kullan • ${sw} Silahlar` : Tr`${sel}: seç • ${cyc}: aynı türde değiştir • ${Input.glyph('wheel')} bırak: kuşan • ${sw} Eşyalar`;
 };
 const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence']);
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house' };
 const PICON = { camp: 'tent', farm: 'wheat', property: 'house', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
 const TIPS = [
-  'İpucu: Çömelerek (L3 / C) hayvanlara daha kolay yaklaşabilirsin.',
+  'İpucu: Çömelerek hayvanlara daha kolay yaklaşabilirsin.',
   'İpucu: Çiğ et yemek hastalık yapabilir. Kamp ateşinde pişir.',
   'İpucu: Çölde matarani her zaman dolu tut.',
   'İpucu: Karlı dağlarda kürk manto hayat kurtarır.',
@@ -1988,5 +2020,5 @@ const TIPS = [
   'İpucu: Atınla bağın geliştikçe silah seslerinden daha az ürker.',
   'İpucu: Başarımlar kalıcı yetenekler (perk) kazandırır.',
   'İpucu: Evlenmek için önce bir mülk sahibi olmalısın.',
-  'İpucu: R1 / T tuşu en uygun yiyeceği ya da ilacı hızlıca kullanır.',
+  'İpucu: Hızlı kullanım tuşu en uygun yiyeceği ya da ilacı kendiliğinden seçer.',
 ];

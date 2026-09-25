@@ -1,0 +1,10 @@
+"lang"
+{
+	"Language"	"turkish"
+	"Tokens"
+	{
+		"#StatusMenu"		"Ana menüde"
+		"#StatusPlaying"	"%age% yaşında · %place%"
+		"#StatusDead"		"Bir hayatı anıyor"
+	}
+}
