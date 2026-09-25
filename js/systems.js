@@ -130,12 +130,15 @@ const GameSystems = {
     let felt = amb;
     if (P.coat) felt += ITEMS[P.coat].coat.warm;
     if (P.warmBuff > 0) felt += 8;
-    if (this.nearFire) felt += 18;
+    felt += this.fireHeat || 0;   // ateşe yakınlığa göre (checkFire)
     if (P.look.hat === 'wide' && amb > 28) felt -= 2;
     if (this.envCache && this.envCache.rain > 0.3 && !(P.coat && ITEMS[P.coat].coat.rain) && !this.insideB) felt -= 3;
     if (this.insideB) felt = lerp(felt, 21, 0.6); // iç mekân: rüzgâr ve güneşten korunur
     if (sleeping) felt = Math.max(felt, 18);
-    this.feltTemp = felt;
+    // hissedilen sıcaklık yavaşça değişir: ateşe yaklaşınca ısınmak, uzaklaşınca soğumak zaman alır (~20 oyun dakikası)
+    if (!this._feltOk || dtMin > 30) { this.feltTemp = felt; this._feltOk = true; }
+    else this.feltTemp += (felt - this.feltTemp) * (1 - Math.exp(-dtMin / 20));
+    felt = this.feltTemp;
     const coldT = 3 - (this.hasPerk('cold') ? 6 : 0) - this.skill('survival') * 0.4;
     const hotT = 33 + (this.hasPerk('desert') ? 6 : 0) + this.skill('survival') * 0.4;
     this.coldness = clamp((coldT - felt) / 14, 0, 1);
@@ -1055,7 +1058,7 @@ const GameSystems = {
     // yolcular
     this.travelT -= 1;
     if (this.travelT <= 0 && !inTown) {
-      this.travelT = rndi(12, 30);
+      this.travelT = rndi(8, 20);
       const cnt = ents.filter(e => e.role === 'traveler' && !e.dead).length;
       if (cnt < 4) this.spawnTraveler();
     }
@@ -1325,7 +1328,7 @@ const GameSystems = {
     }
     if (!best) return;
     const dir = chance(0.5) ? 1 : -1;
-    const npc = new NPC(best.x, best.y, 'traveler', { path: best.r.pts, pi: best.i, pdir: dir, mounted: chance(0.45), weapon: chance(0.3) ? 'cattleman' : null });
+    const npc = new NPC(best.x, best.y, 'traveler', { path: best.r.pts, pi: best.i, pdir: dir, mounted: chance(0.55), weapon: chance(0.3) ? 'cattleman' : null });
     this.addEnt(npc);
   },
 
@@ -1477,6 +1480,7 @@ const GameSystems = {
     if (P.carry && !P.riding) return this.carryInteraction();
     if (P.riding) {
       const acts = [{ n: Tr('İn'), fn: () => P.dismount() }];
+      if (P.riding.kind === 'wagon' && P.riding.cargo) acts.push({ n: P.riding.stage ? Tr('Posta Çantasını Ara') : Tr('Yükü Ara'), hold: 1.2, fn: () => this.lootWagon(P.riding) });
       // at sırtında şerif ofisinin kapısına gelince eyerdeki suçluyu teslim et
       const h = P.riding;
       if (h === this.horse && h.load.length) {
@@ -1512,6 +1516,7 @@ const GameSystems = {
         continue;
       }
       if (e.kind === 'camp') { add(e.x, e.y, Tr('Kamp'), [{ n: Tr('Kamp Menüsü'), fn: () => UI.openCamp() }], 4); continue; }
+      if (e.kind === 'wagon') { this.wagonActions(e, add); continue; }
       if (e.kind === 'npc') {
         if (e.dead) continue;
         if (e.hostile && e.aggro) continue;
@@ -1629,6 +1634,8 @@ const GameSystems = {
       if (!e.bribeTried) acts.push({ n: Tr`Rüşvet Ver (${fmtMoney(this.bribeCost(e))})`, fn: () => this.bribeWitness(e) });
       if (acts.length) return acts;
     }
+    // atlı birini eyerden çekip atını çalabilirsin
+    if (e.mounted && !e.bound && !e.dead) acts.push({ n: Tr('Attan İndir'), hold: 0.4, fn: () => this.pullOffHorse(e) });
     if (e.eventType === 'wagon' && !ev.done) { acts.push({ n: Tr('Konuş'), fn: () => e.say(Tr('Arabanın yanındaki tekerleğe bir bak, tamir edebilir misin?')) }); return acts; }
     if (e.eventType === 'peddler') { acts.push({ n: Tr('Alışveriş Yap'), fn: () => UI.openShop('peddler', Tr('Seyyar Satıcı')) }); }
     if (e.eventType === 'duel') { acts.push({ n: Tr('Düelloyu Kabul Et'), fn: () => UI.openDuel(e) }); acts.push({ n: Tr('Reddet'), fn: () => { e.say(pick([Tr('Korkak!'), Tr('Tahmin etmiştim, tavuk.'), Tr('Git anana ağla.')])); e.eventType = null; e.state = 'idle'; } }); return acts; }
@@ -1740,9 +1747,10 @@ const GameSystems = {
     Audio_.tone(200, 0.2, 'sawtooth', 0.03);
     this.parts.burst('blood', a.x, a.y, 6, 20, 0.6, 1.2);
   },
-  tameHorse(a) {
+  tameHorse(a, lassoed) {
     const P = this.player;
-    if (chance(0.65 + this.skill('riding') * 0.04)) {
+    if (P.rope === a) P.rope = null;
+    if (chance(0.65 + this.skill('riding') * 0.04 + (lassoed ? 0.25 : 0))) {
       const h = new Horse(a.x, a.y, 'mustang', { look: { col: a.look.col, mane: shadeHex(a.look.col, -0.5), blaze: chance(0.3), blanket: '#6a4a2a' } });
       h.ang = a.ang;
       a.remove = true;

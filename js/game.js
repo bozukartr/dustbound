@@ -38,7 +38,7 @@ const G = {
     this.visited = new Set(); this.discovered = new Set(); this.rumored = new Set();
     this.props = []; this.family = { spouse: null, children: [] }; this.romances = {}; this.stable = [];
     this.campCleared = {}; this.chestsOpened = {}; this.graves = {}; this.dailyTalk = {}; this.robbed = {}; this.lostItems = []; this.events = [];
-    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {};
+    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.reveal = new Uint8Array(65536);
@@ -531,14 +531,15 @@ const G = {
   },
   checkFire() {
     const P = this.player, W = this.world;
-    let near = false;
-    if (this.camp && dist2(this.camp.x, this.camp.y, P.x, P.y) < 70 * 70) near = true;
-    if (!near && this.nomads) for (const c of this.nomads) if (c.spawned && dist2(c.x, c.y, P.x, P.y) < 60 * 60) near = true;
-    if (!near) {
-      const tx = P.x >> 4, ty = P.y >> 4;
-      for (let y = ty - 4; y <= ty + 4 && !near; y++) for (let x = tx - 4; x <= tx + 4; x++) if (W.inb(x, y) && W.obj[y * WW + x] === O.CAMPFIRE) { near = true; break; }
-    }
-    this.nearFire = near;
+    // ateşin ısısı mesafeyle azalır: dibinde +18°, kenarda birkaç derece
+    let heat = 0;
+    const src = (x, y, R) => { const d = dist(x, y, P.x, P.y); if (d < R) heat = Math.max(heat, 18 * clamp((R - d) / (R * 0.6), 0, 1)); };
+    if (this.camp) src(this.camp.x, this.camp.y, 90);
+    if (this.nomads) for (const c of this.nomads) if (c.spawned) src(c.x, c.y, 80);
+    const tx = P.x >> 4, ty = P.y >> 4;
+    for (let y = ty - 5; y <= ty + 5; y++) for (let x = tx - 5; x <= tx + 5; x++) if (W.inb(x, y) && W.obj[y * WW + x] === O.CAMPFIRE) src(x * TS + 8, y * TS + 8, 80);
+    this.fireHeat = heat;
+    this.nearFire = heat > 6;
   },
   updateProjectiles(dt) {
     const L = this.projs;
@@ -566,11 +567,20 @@ const G = {
         let hit = null;
         if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { L.splice(i, 1); continue; }
         for (const e of this.ents) {
-          if (e.kind !== 'npc' || e.dead || e.remove || e.bound || e.role === 'spouse' || e.role === 'child') continue;
-          const r = e.r + (e.mounted ? 7 : 4);
+          if (e.dead || e.remove || e.bound) continue;
+          let r;
+          if (e.kind === 'npc') { if (e.role === 'spouse' || e.role === 'child') continue; r = e.r + (e.mounted ? 7 : 4); }
+          else if (e.kind === 'animal') { if (e.def.shape === 'snake' || e.def.shape === 'gator') continue; r = e.r + 4; }
+          else if (e.kind === 'wagon') { if (!e.driver) continue; r = 12; }   // sürücüyü arabadan çeker
+          else continue;
           if (dist2(e.x, e.y, p.x, p.y) < r * r) { hit = e; break; }
         }
-        if (hit) { this.lassoHit(hit); L.splice(i, 1); }
+        if (hit) {
+          if (hit.kind === 'animal') this.lassoAnimal(hit);
+          else if (hit.kind === 'wagon') this.lassoHit(hit.throwDriver());
+          else this.lassoHit(hit);
+          L.splice(i, 1);
+        }
         else if (p.life <= 0) L.splice(i, 1);
       } else if (p.type === 'dynamite') {
         p.t += dt; p.fuse -= dt;
@@ -659,14 +669,14 @@ const G = {
     this.drawTumbles(ctx);
     // varlıklar
     const vis = [];
-    for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.kind === 'horse' && e.rider === P)) vis.push(e);
+    for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P)) vis.push(e);
     if (P.riding) vis.push(P.riding);
     vis.push(P);
     const flat = (e) => e.dead || e.bound || e.kind === 'pelt' ? -20 : 0;   // yerde yatanlar altta çizilir
     vis.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     for (const e of vis) {
       if (e === P && P.riding) continue;
-      if (e.kind === 'horse' && e.rider === P) { e.draw(ctx); P.draw(ctx); continue; }
+      if (e.rider === P) { e.draw(ctx); if (e.kind === 'horse') P.draw(ctx); continue; }   // araba sürücüyü kendisi çizer
       if (e.child) { ctx.save(); ctx.translate(e.x, e.y); ctx.scale(0.7, 0.7); ctx.translate(-e.x, -e.y); e.draw(ctx); ctx.restore(); continue; }
       e.draw(ctx);
     }

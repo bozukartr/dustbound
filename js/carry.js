@@ -18,7 +18,7 @@ const CarrySystems = {
   loadWeight(list) { let w = 0; for (const e of list) w += this.carryWeight(e); return w; },
   carryName(e) {
     if (e.kind === 'npc') return e.dead ? Tr`${e.name} (ceset)` : e.state === 'tied' ? Tr`${e.name} (bağlı)` : Tr`${e.name} (baygın)`;
-    if (e.kind === 'animal') return Tr`${e.def.n} Leşi`;
+    if (e.kind === 'animal') return e.dead ? Tr`${e.def.n} Leşi` : Tr`${e.def.n} (bağlı)`;
     return e.name;
   },
   /* Bu büyüklükteki bir hayvan omuza alınamaz; önce derisi yüzülür */
@@ -114,8 +114,9 @@ const CarrySystems = {
   lassoHit(e) {
     const P = this.player;
     if (e.mounted) {
+      // at binicisiz kalır ve olduğu yerde durur: çalınabilir
       const h = new Horse(e.x + 6, e.y, 'mustang', { look: e.mounted, owner: 'npc' });
-      h.state = 'flee'; h.t = 6; h.ang = Math.random() * TAU;
+      h.ang = e.ang; h.spd = 30;
       this.addEnt(h);
       e.mounted = null;
     }
@@ -128,6 +129,40 @@ const CarrySystems = {
     if (!e.hostile && !outlaw && !e.assaulted) { e.assaulted = true; this.crime(e.isLaw ? 'assaultLaw' : 'assault', e.x, e.y, e); }
     this.hintOnce('lasso', Tr`Kementle yakaladın! Yaklaş ve ${Input.glyph('interact')} basılı tutarak <b>bağla</b>. Uzaklaşırsan onu peşinden sürüklersin. Ateş tuşu ipi bırakır.`, 9);
     this.skillXp('riding', 2);
+  },
+  /* Hayvanı kementle yakala: küçük ve orta boy hayvanlar bağlanabilir, yabani at evcilleştirilebilir */
+  lassoAnimal(a) {
+    const P = this.player, d = a.def;
+    a.state = 'lassoed'; a.wrig = 0; a.spd = 0;
+    a.lasT = a.type === 'whorse' ? rnd(7, 10) : a.type === 'bear' ? rnd(1, 1.6) : d.beh === 'hostile' ? rnd(2.2, 3.2) : clamp(11 - d.len * 0.45, 2, 9);
+    a.lasT *= 1 + this.skill('riding') * 0.04;
+    P.rope = a;
+    Audio_.thud(0.3);
+    if (a.type === 'whorse') Audio_.neigh();
+    this.hintOnce('lassoAnimal', Tr`Kementle bir hayvan yakaladın. Küçük ve orta boy hayvanlara yaklaşıp ${Input.glyph('interact')} basılı tutarak <b>bağlayabilirsin</b>. Yabani at kementteyken çok daha kolay evcilleşir. Bağlı hayvan suda boğulur.`, 9);
+    this.skillXp('riding', 1);
+  },
+  canTieAnimal(a) { return a.def.len <= 13 && a.def.shape !== 'snake'; },
+  hogtieAnimal(a) {
+    const P = this.player;
+    if (P.rope === a) P.rope = null;
+    a.state = 'tied'; a.tieT = rnd(150, 220) + this.skill('hunting') * 10;
+    Audio_.tone(260, 0.1, 'triangle', 0.05);
+    this.skillXp('hunting', 2);
+  },
+  /* Atlı birini eyerden çek: yere düşer, atı olduğu yerde kalır */
+  pullOffHorse(e) {
+    if (!e.mounted) return;
+    const h = new Horse(e.x + 7, e.y, 'mustang', { look: e.mounted, owner: 'npc' });
+    h.ang = e.ang;
+    this.addEnt(h);
+    e.mounted = null; e.path = null;
+    Audio_.thud(0.4);
+    const outlaw = e.role === 'bandit' || e.role === 'target';
+    if (e.isLaw) e.hostile = true;
+    if (!e.hostile && !outlaw && !e.assaulted) { e.assaulted = true; this.crime(e.isLaw ? 'assaultLaw' : 'assault', e.x, e.y, e); }
+    e.down(rnd(3, 5), true);
+    this.skillXp('strength', 2);
   },
   hogtie(e) {
     const P = this.player;
@@ -235,6 +270,18 @@ const CarrySystems = {
     const P = this.player;
     const take = { n: Tr('Omzuna Al'), fn: () => this.pickUp(e) };
     if (e.kind === 'pelt') { add(e.x, e.y, e.name, [take]); return true; }
+    if (e.kind === 'animal' && !e.dead && e.state === 'lassoed') {
+      const acts = [];
+      if (this.canTieAnimal(e)) acts.push({ n: Tr('Bağla'), hold: 1, fn: () => this.hogtieAnimal(e) });
+      if (e.def.tame) acts.push({ n: Tr('Sakinleştir ve Evcilleştir'), hold: 2, fn: () => this.tameHorse(e, true) });
+      if (!acts.length) return false;
+      add(e.x, e.y, e.def.n, acts, 2);
+      return true;
+    }
+    if (e.kind === 'animal' && !e.dead && e.state === 'tied') {
+      add(e.x, e.y, Tr`${e.def.n} (bağlı)`, [{ n: Tr('Kes'), hold: 0.8, fn: () => e.hurt(9999, 'player', 'knife') }, { n: Tr('Serbest Bırak'), hold: 0.6, fn: () => e.freeUp() }], 2, take);
+      return true;
+    }
     if (e.kind === 'animal' && e.dead && !e.skinned) {
       const acts = [{ n: Tr('Derisini Yüz'), hold: 1.3, fn: () => this.skin(e) }];
       add(e.x, e.y, e.def.n + Tr(' Leşi'), acts, 0, this.heavyCarcass(e) ? null : take);
