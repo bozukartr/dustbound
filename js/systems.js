@@ -793,6 +793,10 @@ const GameSystems = {
   doorOpen(b) {
     if (!b) return true;
     if (this.insideB === b) return true;
+    // içeriden çıkan oyuncu kapıda sıkışmasın: kapanış saati geçmiş ya da kilitli olsa da çıkış hep açık
+    if (this.exitB === b) return true;
+    const P = this.player;
+    if (P) { const W = this.world, i = (P.y >> 4) * WW + (P.x >> 4); if (W.solid[i] === 3 && W.buildings[W.bid[i]] === b) return true; }   // tam kapı eşiğindeyken kapanırsa
     if (b.type === 'property') return this.props.includes(b.prop);
     if (b.forced === this.day) return true;          // kırılan kapı o gün açık kalır (kilitli evler dahil)
     if (b.def.lock) return false;

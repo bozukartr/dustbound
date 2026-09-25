@@ -181,7 +181,7 @@ const G = {
     World.initTables(seed);
     this.world = w;
     w.doorFn = (b) => this.doorOpen(b);
-    this.insideB = null;
+    this.insideB = null; this.exitB = null;
     this.trains = w.lines.map((l, i) => new Train(l, i));
     UI.loading(Tr('Hazır.'), 1);
   },
@@ -338,8 +338,11 @@ const G = {
         UI.feed(`${Icons.glyph('door', '#efe6d2', 'ic inl')} ${ib.name}`); Audio_.tone(180, 0.06, 'triangle', 0.05);
         this.hintOnce('indoor', Tr`Binaların içinde dolaşabilirsin. Tezgahtaki çalışanla, yataklarla, masalarla ve diğer eşyalarla ${Input.glyph('interact')} ile etkileşime geç. Dükkanlar gece kapanır.`);
       }
+      if (this.insideB && !ib) this.exitB = this.insideB;
       this.insideB = ib;
     }
+    // çıkılan binanın kapısı, oyuncu kapıdan uzaklaşana kadar açık kalır
+    if (this.exitB && (ib || dist2(P.x, P.y, this.exitB.door.x, this.exitB.door.y) > 30 * 30)) this.exitB = null;
     const T_ = this.timers;
     T_.spawn -= dt; if (T_.spawn <= 0) { T_.spawn = 1; this.spawnTick(); }
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
