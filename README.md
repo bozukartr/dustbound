@@ -89,8 +89,9 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - Her kasabada tanışabileceğin biri yaşar. Onunla ilişki kurup evlenebilir, çocuk sahibi olabilirsin.
 
 **Başlangıç**
-- Karakter oluşturma ekranı dört bölümden oluşur: Kimlik, Görünüm, Kıyafet, Hikâye. Ortada çerçeveli portre, sağda seçilen geçmişin kartı (başlangıç kasabası, para, at, yetenekler, eşyalar) görünür.
-- Yeni bir hayat, seçilen geçmişe özel kısa bir **3D varış sinematiğiyle** başlar: Harlow'a at arabasıyla, Saint Clement'e buharlı gemiyle, Dust Creek'e gün batımında dörtnala, Fort Redstone'a trenle, Cedar Falls'a sisli ormandan. Sinematikler aynı piksel sanat görünümünü korur (düşük çözünürlük, renk kademesi, dither) ve bir tuşla geçilebilir.
+- Karakter oluşturma ekranı dört bölümden oluşur: Kimlik, Görünüm, Kıyafet, Hikâye. Ortada çerçeveli portre, sağda seçilen geçmişin kartı (başlangıç kasabası, para, at, yetenekler, eşyalar) görünür. Ekran çözünürlüğe göre ölçeklenir; 1080p ve üstünde yazılar ve portre büyür.
+- **Portre**: sade vektör illüstrasyon (düz renkler, yumuşak gölgeler). Saç modelleri (kısa, uzun, toplu, kazınmış, dalgalı), burma bıyık, keçi sakalı, kirli ve gür sakal (dişli kenarlı), dört şapka türü, palto yakası, yelek, düğümlü bandana ya da ince kravat, kadınlarda yüksek yakalı bluz ve broş. Yaşlandıkça saç ağarır, yüzde çizgiler belirir.
+- Yeni bir hayat, seçilen geçmişe özel kısa bir **3D varış sinematiğiyle** başlar: Harlow'a at arabasıyla, Saint Clement'e buharlı gemiyle, Dust Creek'e gün batımında dörtnala, Fort Redstone'a trenle, Cedar Falls'a sisli ormandan. Her sinematik iki çekimden oluşur (yakın plan, ardından kasabayı gösteren geniş açı). Gökyüzünde akan bulutlar, güneş huzmeleri ve parlaması, yumuşak zemin gölgeleri, sahneye özel renk tonu, vinyet ve film greni vardır; oyunun piksel sanat görünümü (renk kademesi, dither) korunur. Bir tuşla geçilebilir.
 
 **Etkileşim ve eşyalar**
 - İki sayfalı çark: **Silahlar** ve **Eşyalar** (yiyecek, içecek, ilaç, tütün, bitkiler, at eşyaları, kit, giysi). Aynı yuvadaki silah ya da eşyalar arasında geçilebilir; eşyalar çarktan doğrudan kullanılır.
