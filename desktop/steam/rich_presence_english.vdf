@@ -1,0 +1,10 @@
+"lang"
+{
+	"Language"	"english"
+	"Tokens"
+	{
+		"#StatusMenu"		"In the main menu"
+		"#StatusPlaying"	"Age %age% · %place%"
+		"#StatusDead"		"Remembering a life lived"
+	}
+}

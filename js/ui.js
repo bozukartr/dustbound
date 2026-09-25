@@ -363,7 +363,7 @@ const UI = {
         this.holdT += dt;
         if (a0.hold) {
           holdPct = Math.min(1, this.holdT / a0.hold);
-          if (this.holdT >= a0.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a0.check || a0.check()) a0.fn(); else this.feed(Tr('Önce çömelerek (L3 / C) sakince yaklaş.'), 'warn'); }
+          if (this.holdT >= a0.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a0.check || a0.check()) a0.fn(); else this.feed(Tr`Önce çömelerek (${I.glyph('crouch')}) sakince yaklaş.`, 'warn'); }
         } else if (hasMenu && this.holdT > 0.35 && !this.menuOpened) {
           this.menuOpened = true; this.holdTarget = null;
           this.contextMenu(tgt);
@@ -382,7 +382,7 @@ const UI = {
       lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
       if (hasMenu) lines.push(`<div class="prompt dim">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`}</span></div>`);
     }
-    if (P.aiming && P.isArmed && !P.deadeye && P.de > 12) lines.push(`<div class="prompt dim">${I.glyph('deadeye')}<span>${Tr`Dead Eye`}</span></div>`);
+    if (P.aiming && P.isArmed && !P.deadeye && P.de > 12) lines.push(`<div class="prompt dim">${I.glyph('deadeye')}<span>${Tr('Odak')}</span></div>`);
     if (P.riding) lines.push(`<div class="prompt dim">${I.glyph('sprint')}<span>${Tr`Dörtnala`}</span></div>`);
     const key = lines.join('');
     if (this._pk !== key) { this._pk = key; this.el.prompts.innerHTML = key; }
@@ -566,7 +566,7 @@ const UI = {
     if (best) html = `<div class="mi-n">${best.n}</div><div class="mi-d">${best.desc || ''}${G.rumored.has(best.id) && !G.discovered.has(best.id) ? Tr(' <i>(söylenti)</i>') : ''}</div>`;
     else html = `<div class="mi-n">${G.world.regionAt(wx, wy)}</div>`;
     if (this._mh !== html) { this._mh = html; $('#map-info').innerHTML = html; }
-    const hint = Tr`${Input.device === 'pad' ? Input.glyph('confirm') + Tr(' Hedef Koy &nbsp; ') + Input.glyph('alt') + Tr(' Hedefi Kaldır &nbsp; R2/L2 Yakınlaştır &nbsp; ') + Input.glyph('alt2') + Tr(' Konumum') : Tr('Sol Tık: Hedef Koy &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır')} &nbsp; ${Input.glyph('back')} Kapat`;
+    const hint = Tr`${Input.device === 'pad' ? Input.glyph('confirm') + Tr(' Hedef Koy &nbsp; ') + Input.glyph('alt') + Tr(' Hedefi Kaldır &nbsp; ') + Input.padGlyph(PS.R2) + Input.padGlyph(PS.L2) + Tr(' Yakınlaştır &nbsp; ') + Input.glyph('alt2') + Tr(' Konumum') : Tr('Sol Tık: Hedef Koy &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır')} &nbsp; ${Input.glyph('back')} Kapat`;
     if (this._mhint !== hint) { this._mhint = hint; $('#map-hint').innerHTML = hint; }
   },
   drawMap() {
@@ -650,7 +650,7 @@ const UI = {
     c.fillStyle = g; c.fillRect(0, 0, w, h);
   },
 
-  /* ================= SİLAH / EŞYA ÇARKI (RDR2 tarzı iki sayfa) ================= */
+  /* ================= SİLAH / EŞYA ÇARKI (iki sayfa) ================= */
   wheelSlots(page) { return page === 0 ? WHEEL_SLOTS : ITEM_SLOTS; },
   /* Bir yuvadaki seçilebilir girdiler */
   wheelEntries(page, i) {
@@ -686,7 +686,7 @@ const UI = {
     if (e.id === '@harmonica') return { n: Tr('Mızıka Çal'), ic: Icons.item('harmonica'), am: '', d: Tr('Kısa bir ezgi çal. Ruhunu dinlendirir.') };
     const it = ITEMS[e.id];
     const worn = (P.coat === e.id) || (it.hat && P.look.hat === it.hat) || (it.mask && P.masked && P.mask === e.id);
-    const EN = { hunger: Tr('Açlık'), thirst: Tr('Susuzluk'), health: Tr('Sağlık'), stamina: Tr('Dayanıklılık'), energy: Tr('Uyku'), deadeye: Tr('Dead Eye'), warmth: Tr('Sıcaklık'), drunk: Tr('Sarhoşluk') };
+    const EN = { hunger: Tr('Açlık'), thirst: Tr('Susuzluk'), health: Tr('Sağlık'), stamina: Tr('Dayanıklılık'), energy: Tr('Uyku'), deadeye: Tr('Odak'), warmth: Tr('Sıcaklık'), drunk: Tr('Sarhoşluk') };
     const fx = it.e ? Object.keys(it.e).filter(k => EN[k]).map(k => `${EN[k]} ${it.e[k] > 0 ? '+' : ''}${it.e[k]}`).join(' • ') : '';
     return { n: it.n, ic: Icons.item(e.id), am: it.c === 'clothing' ? (worn ? Tr('Giyili') : '') : `x${P.count(e.id)}`, d: fx || it.d || '', worn, raw: !!it.raw };
   },
@@ -856,7 +856,7 @@ const UI = {
   itemSide(it, extra) {
     const e = it.e || {};
     const eff = [];
-    const map = { hunger: Tr('Açlık'), thirst: Tr('Susuzluk'), health: Tr('Sağlık'), stamina: Tr('Dayanıklılık'), energy: Tr('Uyku'), deadeye: Tr('Dead Eye'), drunk: Tr('Sarhoşluk'), warmth: Tr('Isınma') };
+    const map = { hunger: Tr('Açlık'), thirst: Tr('Susuzluk'), health: Tr('Sağlık'), stamina: Tr('Dayanıklılık'), energy: Tr('Uyku'), deadeye: Tr('Odak'), drunk: Tr('Sarhoşluk'), warmth: Tr('Isınma') };
     for (const k in map) if (e[k]) eff.push(`${map[k]} ${e[k] > 0 ? '+' : ''}${e[k]}`);
     if (e.cure) eff.push(Tr('Hastalığı iyileştirir'));
     if (e.poison) eff.push(Tr('Zehri yok eder'));
@@ -946,13 +946,13 @@ const UI = {
     const B = Input.binds;
     const rows = GAME_ACTIONS.map(g => [g.n, g.kbOnly ? Tr('Sol Analog') : Input.padGlyph(B.pad[g.id]), (B.kb[g.id] || []).filter(Boolean).map(c => Input.kbGlyph(c)).join(' ') || '—']);
     rows.unshift([Tr('Hareket'), Tr('Sol Analog'), `${Input.kbGlyph(B.kb.moveUp[0])}${Input.kbGlyph(B.kb.moveLeft[0])}${Input.kbGlyph(B.kb.moveDown[0])}${Input.kbGlyph(B.kb.moveRight[0])}`], [Tr('Nişan Yönü'), Tr('Sağ Analog'), Tr('Fare')]);
-    return `<table class="ctrl"><tr><th>${Tr`Eylem`}</th><th>PlayStation</th><th>${Tr`Klavye / Fare`}</th></tr>${rows.filter(r => ![Tr('İleri'), Tr('Geri'), Tr('Sol'), Tr('Sağ')].includes(r[0])).map(r => `<tr><td>${r[0]}</td><td class="c-ps">${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</table><p class="dim">${Tr`Tuşları Ayarlar → Tuş Atamaları'ndan değiştirebilirsin.`}</p>`;
+    return `<table class="ctrl"><tr><th>${Tr`Eylem`}</th><th>${Tr`Oyun Kolu`}</th><th>${Tr`Klavye / Fare`}</th></tr>${rows.filter(r => ![Tr('İleri'), Tr('Geri'), Tr('Sol'), Tr('Sağ')].includes(r[0])).map(r => `<tr><td>${r[0]}</td><td class="c-ps">${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</table><p class="dim">${Tr`Tuşları Ayarlar → Tuş Atamaları'ndan değiştirebilirsin.`}</p>`;
   },
   openControls(tab = Input.device === 'pad' ? 1 : 0) {
     let capturing = null;
     const m = this.menu({
-      title: Tr('Tuş Atamaları'), cls: 'shop controls', tabs: [Tr('Klavye / Fare'), Tr('PS Kolu')], tab,
-      sub: (mm) => mm.tab === 0 ? Tr('Bir eyleme bas, ardından yeni tuşa ya da fare düğmesine bas. Esc iptal eder.') : Tr('Bir eyleme bas, ardından koldaki yeni tuşa bas. 6 saniye beklersen iptal olur. Menülerde ✕ seç, ○ geri sabittir.'),
+      title: Tr('Tuş Atamaları'), cls: 'shop controls', tabs: [Tr('Klavye / Fare'), Tr('Oyun Kolu')], tab,
+      sub: (mm) => mm.tab === 0 ? Tr('Bir eyleme bas, ardından yeni tuşa ya da fare düğmesine bas. Esc iptal eder.') : Tr`Bir eyleme bas, ardından koldaki yeni tuşa bas. 6 saniye beklersen iptal olur. Menülerde ${Input.padGlyph(PS.X)} seç, ${Input.padGlyph(PS.O)} geri sabittir.`,
       altLabel: Tr('Varsayılana Dön'), okLabel: Tr('Değiştir'),
       side: (it) => it.sideHtml || '',
       build: (mm) => {
@@ -964,7 +964,7 @@ const UI = {
           const wait = capturing === g.id;
           items.push({
             label: g.n, right: wait ? Tr('<em class="cap">Bir tuşa bas…</em>') : cur, cls: wait ? 'capturing' : '',
-            sideHtml: `<div class="ps-t">${g.n}</div><div class="ps-d">${Tr`Şu an: ${cur}`}</div><div class="ps-e">${dev === 'kb' ? Tr('Enter ya da tık ile değiştir.') : Tr('✕ ile değiştir.')}</div>`,
+            sideHtml: `<div class="ps-t">${g.n}</div><div class="ps-d">${Tr`Şu an: ${cur}`}</div><div class="ps-e">${dev === 'kb' ? Tr('Enter ya da tık ile değiştir.') : Tr`${Input.padGlyph(PS.X)} ile değiştir.`}</div>`,
             fn: () => {
               if (capturing) return;
               capturing = g.id;
@@ -1006,6 +1006,7 @@ const UI = {
         { label: Tr('Oyunu Kaydet'), fn: () => G.saveGame() },
         { label: Tr('Ayarlar'), fn: () => this.openSettings() },
         { label: Tr('Tuş Atamaları'), fn: () => this.openControls() },
+        ...(Platform.canQuit ? [{ label: Tr('Oyundan Çık'), fn: () => this.confirm(Tr('Oyundan Çık'), Tr('Oyun kaydedilip kapatılsın mı?'), () => { G.saveGame(true); Platform.quit(); }, Tr('Vazgeç'), Tr('Kaydet ve Çık')) }] : []),
         { label: Tr('Ana Menüye Dön'), fn: () => this.confirm(Tr('Ana Menü'), Tr('Kaydedilmemiş ilerleme kaybolabilir. Kaydedip çıkılsın mı?'), () => { G.saveGame(true); this.closeAll(); this.showMainMenu(); }, Tr('Vazgeç'), Tr('Kaydet ve Çık')) },
       ],
     });
@@ -1016,11 +1017,12 @@ const UI = {
     const rows = [
       ['lang', 'Dil / Language', 'lang'],
       ['master', Tr('Ana Ses'), 'vol'], ['music', Tr('Müzik'), 'vol'], ['sfx', Tr('Efektler'), 'vol'], ['amb', Tr('Ortam Sesleri'), 'vol'],
+      ['fullscreen', Tr('Tam Ekran'), 'fs'],
       ['zoom', Tr('Piksel Ölçeği'), 'zoom'], ['shake', Tr('Ekran Sarsıntısı'), 'bool'], ['fps', Tr('FPS Göster'), 'bool'],
-      ['aimAssist', Tr('Nişan Yardımı (Kol)'), 'opt'], ['aimSens', Tr('Nişan Hassasiyeti (Kol)'), 'opt'], ['fxq', Tr('Görsel Efektler'), 'opt'],
+      ['padGlyphs', Tr('Kol Simgeleri'), 'opt'], ['aimAssist', Tr('Nişan Yardımı (Kol)'), 'opt'], ['aimSens', Tr('Nişan Hassasiyeti (Kol)'), 'opt'], ['fxq', Tr('Görsel Efektler'), 'opt'],
     ];
-    const OPTL = { aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')], fxq: [Tr('Tam'), Tr('Sade')] };
-    const val = (k, t) => t === 'lang' ? (I18N.LANGS.find(l => l[0] === I18N.lang) || I18N.LANGS[0])[1] : t === 'vol' ? Math.round(S[k] * 10) * 10 + '%' : t === 'bool' ? (S[k] ? Tr('Açık') : Tr('Kapalı')) : t === 'opt' ? OPTL[k][S[k]] : (S[k] ? S[k] + 'x' : Tr('Otomatik'));
+    const OPTL = { aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')], padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')] };
+    const val = (k, t) => t === 'fs' ? (Platform.isFullscreen() ? Tr('Açık') : Tr('Kapalı')) : t === 'lang' ? (I18N.LANGS.find(l => l[0] === I18N.lang) || I18N.LANGS[0])[1] : t === 'vol' ? Math.round(S[k] * 10) * 10 + '%' : t === 'bool' ? (S[k] ? Tr('Açık') : Tr('Kapalı')) : t === 'opt' ? OPTL[k][S[k]] : (S[k] ? S[k] + 'x' : Tr('Otomatik'));
     el.innerHTML = `<div class="p-head"><div class="p-title">${Tr`Ayarlar`}</div></div><div class="p-body"><div class="p-list">${rows.map(([k, n, t]) => `<div class="p-item nav opt" data-k="${k}" data-t="${t}" data-lr><span class="pi-l">${n}</span><span class="pi-r"><b class="arr">◀</b> <span class="v">${val(k, t)}</span> <b class="arr">▶</b></span></div>`).join('')}<div class="p-item nav" id="set-keys"><span class="pi-l">${Tr`Tuş Atamaları`}</span><span class="pi-r">›</span></div><div class="p-item nav" id="set-back"><span class="pi-l">${Tr`Kaydet ve Geri Dön`}</span></div></div></div><div class="p-foot">${Tr`◀ ▶ Değiştir &nbsp; ${Input.glyph('back')} Geri`}</div>`;
     const m = this.makeModal(el, { onBack: () => { G.saveSettings(); this.pop(); } });
     $$('.opt', el).forEach(n => {
@@ -1033,6 +1035,7 @@ const UI = {
           this.relocalize();
           return;
         }
+        if (t === 'fs') { Platform.toggleFullscreen(); setTimeout(() => { $('.v', n).textContent = val(k, t); }, 250); return; }
         if (t === 'vol') S[k] = clamp(Math.round((S[k] + d * 0.1) * 10) / 10, 0, 1);
         else if (t === 'bool') S[k] = !S[k];
         else if (t === 'opt') { const n = OPTL[k].length; S[k] = ((S[k] === undefined ? 1 : S[k]) + d + n) % n; }
@@ -1706,8 +1709,9 @@ const UI = {
     if (info) items.push(['cont', Tr('Devam Et'), Tr`${info.name} • ${info.age} yaşında • ${fmtMoney(info.money)}`]);
     items.push(['new', Tr('Yeni Hayat'), Tr('Bir karakter yarat ve 18 yaşında başla')]);
     items.push(['set', Tr('Ayarlar'), ''], ['ctrl', Tr('Kontroller'), ''], ['about', Tr('Hakkında'), '']);
+    if (Platform.canQuit) items.push(['quit', Tr('Masaüstüne Çık'), '']);
     $('#mm-items').innerHTML = items.map(([id, n, s]) => `<div class="mm-item nav" data-id="${id}"><div class="mm-n">${n}</div>${s ? `<div class="mm-s">${s}</div>` : ''}</div>`).join('');
-    $('#mm-foot').innerHTML = Tr`${Input.glyph('confirm')} Seç &nbsp;&nbsp; PlayStation kolu desteklenir`;
+    $('#mm-foot').innerHTML = Tr`${Input.glyph('confirm')} Seç &nbsp;&nbsp; Oyun kolu desteklenir`;
     const m = this.makeModal(mm, { keepEl: true, transparent: true, onBack: () => {} });
     $$('.mm-item', mm).forEach(n => {
       n.onmouseenter = () => m.setFocus(n, true);
@@ -1719,6 +1723,7 @@ const UI = {
         else if (id === 'new') { if (info) this.confirm(Tr('Yeni Hayat'), Tr('Mevcut kaydın silinecek. Emin misin?'), () => { this.pop(m); this.showCreate(); }); else { this.pop(m); this.showCreate(); } }
         else if (id === 'set') this.openSettings();
         else if (id === 'ctrl') this.openControls();
+        else if (id === 'quit') Platform.quit();
         else if (id === 'about') this.info("Frontier's End", `<p>${Tr`<b>Frontier's End</b>, 1890'lar Amerika'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunudur.`}</p><p>${Tr`Görev yok; sadece hayat var. 18 yaşında başla, avlan, çalış, sev, keşfet ve 80 yaşına kadar hayatta kalmaya çalış.`}</p><p class="dim">${Tr`HTML5 Canvas • Prosedürel dünya, grafik ve ses`}</p>`);
       };
     });
@@ -1995,7 +2000,7 @@ const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', '
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house' };
 const PICON = { camp: 'tent', farm: 'wheat', property: 'house', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
 const TIPS = [
-  'İpucu: Çömelerek (L3 / C) hayvanlara daha kolay yaklaşabilirsin.',
+  'İpucu: Çömelerek hayvanlara daha kolay yaklaşabilirsin.',
   'İpucu: Çiğ et yemek hastalık yapabilir. Kamp ateşinde pişir.',
   'İpucu: Çölde matarani her zaman dolu tut.',
   'İpucu: Karlı dağlarda kürk manto hayat kurtarır.',
@@ -2005,5 +2010,5 @@ const TIPS = [
   'İpucu: Atınla bağın geliştikçe silah seslerinden daha az ürker.',
   'İpucu: Başarımlar kalıcı yetenekler (perk) kazandırır.',
   'İpucu: Evlenmek için önce bir mülk sahibi olmalısın.',
-  'İpucu: R1 / T tuşu en uygun yiyeceği ya da ilacı hızlıca kullanır.',
+  'İpucu: Hızlı kullanım tuşu en uygun yiyeceği ya da ilacı kendiliğinden seçer.',
 ];

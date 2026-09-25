@@ -139,10 +139,10 @@ const AMMO = {
 const WEAPONS = {
   fists:     { n: 'Yumruk', slot: 0, melee: true, dmg: 10, rate: 0.45, range: 14, i: '✊' },
   knife:     { n: 'Av Bıçağı', slot: 1, melee: true, dmg: 32, rate: 0.5, range: 16, i: '🔪', p: 5 },
-  cattleman: { n: 'Cattleman Tabanca', slot: 2, ammo: 'pistol', dmg: 34, rate: 0.38, clip: 6, reload: 1.9, spread: 0.05, range: 260, i: '🔫', p: 55, kind: 'pistol' },
+  cattleman: { n: 'Drover Tabanca', slot: 2, ammo: 'pistol', dmg: 34, rate: 0.38, clip: 6, reload: 1.9, spread: 0.05, range: 260, i: '🔫', p: 55, kind: 'pistol' },
   schofield: { n: 'Schofield Tabanca', slot: 2, ammo: 'pistol', dmg: 42, rate: 0.3, clip: 6, reload: 1.5, spread: 0.04, range: 280, i: '🔫', p: 170, kind: 'pistol' },
   repeater:  { n: 'Karabina Tüfeği', slot: 3, ammo: 'repeater', dmg: 46, rate: 0.55, clip: 12, reload: 2.4, spread: 0.03, range: 340, i: '🔫', p: 120, kind: 'long' },
-  winchester:{ n: 'Lancaster Tüfeği', slot: 3, ammo: 'repeater', dmg: 52, rate: 0.45, clip: 14, reload: 2.2, spread: 0.025, range: 360, i: '🔫', p: 260, kind: 'long' },
+  winchester:{ n: 'Plainsman Tüfeği', slot: 3, ammo: 'repeater', dmg: 52, rate: 0.45, clip: 14, reload: 2.2, spread: 0.025, range: 360, i: '🔫', p: 260, kind: 'long' },
   rifle:     { n: 'Rolling Block Tüfek', slot: 4, ammo: 'rifle', dmg: 120, rate: 1.3, clip: 1, reload: 1.6, spread: 0.008, range: 560, i: '🎯', p: 240, kind: 'long', scope: true },
   shotgun:   { n: 'Çift Namlulu Av Tüfeği', slot: 5, ammo: 'shotgun', dmg: 22, pellets: 7, rate: 0.5, clip: 2, reload: 2.2, spread: 0.2, range: 150, i: '💥', p: 150, kind: 'long' },
   bow:       { n: 'Av Yayı', slot: 6, ammo: 'arrow', dmg: 75, rate: 0.9, clip: 1, reload: 0.5, spread: 0.02, range: 320, i: '🏹', p: 45, kind: 'bow', silent: true, projectile: true },
@@ -158,7 +158,7 @@ const WHEEL_SLOTS = [
   { n: 'Yay', w: ['bow'] },
   { n: 'Atılabilir', w: ['dynamite'] },
 ];
-/* Eşya çarkı (RDR2 tarzı ikinci sayfa): her yuva bir kategori; yuvadaki eşyalar arasında ←/→ ile geçilir.
+/* Eşya çarkı (ikinci sayfa): her yuva bir kategori; yuvadaki eşyalar arasında ←/→ ile geçilir.
    '@' ile başlayanlar sanal eşyalardır (matara, fener, mızıka). */
 const DRINKS = ['coffee', 'beer', 'whiskey'];
 const ITEM_SLOTS = [
@@ -216,9 +216,9 @@ const TOWNS = [
     b: ['general', 'saloon', 'mine', 'doctor', 'hotel', 'sheriff', 'gunsmith', 'house', 'house'] },
   { id: 'cedarfalls', n: 'Cedar Falls',    px: 0.64, py: 0.15, sz: 's', desc: 'Kuzey ormanlarında keresteci kasabası.',
     b: ['general', 'saloon', 'lumber', 'butcher', 'doctor', 'hotel', 'stable', 'sheriff', 'tailor', 'house'] },
-  { id: 'bayounoir',  n: 'Bayou Noir',     px: 0.72, py: 0.84, sz: 's', desc: 'Sisli bataklığın kıyısında nemli ve gizemli bir yer.',
+  { id: 'bayounoir',  n: 'Cypress Bend',     px: 0.72, py: 0.84, sz: 's', desc: 'Sisli bataklığın kıyısında nemli ve gizemli bir yer.',
     b: ['general', 'saloon', 'butcher', 'fence', 'doctor', 'hotel', 'stable', 'docks', 'house'] },
-  { id: 'fortmercy',  n: 'Fort Mercy',     px: 0.38, py: 0.56, sz: 's', desc: 'Ordu karakolu ve etrafında büyüyen küçük yerleşim.',
+  { id: 'fortmercy',  n: 'Fort Redstone',     px: 0.38, py: 0.56, sz: 's', desc: 'Ordu karakolu ve etrafında büyüyen küçük yerleşim.',
     b: ['general', 'gunsmith', 'doctor', 'sheriff', 'stable', 'saloon', 'ranch', 'house'] },
   { id: 'coyote',     n: 'Coyote Springs', px: 0.53, py: 0.71, sz: 's', desc: 'Kaynak suyunun etrafında kurulmuş bir mola yeri.',
     b: ['general', 'saloon', 'stable', 'butcher', 'sheriff', 'hotel', 'land', 'house'] },
@@ -231,9 +231,9 @@ const RAIL_LINES = [
 
 const REGIONS = [
   { n: 'Frostcrown', x: 0.35, y: 0.04 },
-  { n: 'Grizzly Heights', x: 0.14, y: 0.26 },
+  { n: 'Ironpeak Range', x: 0.14, y: 0.26 },
   { n: 'Pinewood', x: 0.66, y: 0.18 },
-  { n: 'Heartland Plains', x: 0.52, y: 0.44 },
+  { n: 'Big Sky Plains', x: 0.52, y: 0.44 },
   { n: 'Sundown Desert', x: 0.2, y: 0.78 },
   { n: 'Red Canyon', x: 0.42, y: 0.88 },
   { n: 'Lowland Bayou', x: 0.74, y: 0.84 },
@@ -317,7 +317,7 @@ const LANDMARKS = [
   { id: 'hermit',   n: 'Münzevinin Kulübesi',      type: 'hermit',     near: [0.5, 0.12],  bio: ['FOREST', 'SNOW'], desc: 'Tuhaf bir yaşlı adam burada tek başına yaşıyor.' },
   { id: 'trapper',  n: 'Tuzakçı Kulübesi',         type: 'trapper',    near: [0.8, 0.2],   bio: ['FOREST', 'GRASS'], desc: 'Kürk ticareti yapan bir tuzakçı.' },
   { id: 'battle',   n: 'Eski Savaş Alanı',         type: 'battlefield',near: [0.66, 0.63], bio: ['GRASS', 'DRY', 'FOREST'], desc: 'İç Savaş\'ın unutulmuş mezarları.' },
-  { id: 'fortruin', n: 'Yıkık Wallace Kalesi',     type: 'fortruin',   near: [0.07, 0.46], bio: ['DRY', 'ROCK', 'GRASS', 'DESERT'], desc: 'Terk edilmiş eski bir süvari kalesi.' },
+  { id: 'fortruin', n: 'Yıkık Sterling Kalesi',     type: 'fortruin',   near: [0.07, 0.46], bio: ['DRY', 'ROCK', 'GRASS', 'DESERT'], desc: 'Terk edilmiş eski bir süvari kalesi.' },
   { id: 'windmill', n: 'Yalnız Değirmen',          type: 'windmill',   near: [0.58, 0.3],  bio: ['GRASS', 'DRY'], desc: 'Rüzgarla gıcırdayan terk edilmiş değirmen.' },
   { id: 'oasis',    n: 'Serap Vahası',             type: 'oasis',      near: [0.17, 0.6],  bio: ['DESERT', 'DRY'], desc: 'Çölün ortasında berrak bir su gözü.' },
   { id: 'look1',    n: 'Kartal Tepesi',            type: 'lookout',    near: [0.3, 0.28],  bio: ['ROCK', 'GRASS', 'DRY', 'FOREST'], desc: 'Buradan bütün ova görünüyor.' },
@@ -377,7 +377,7 @@ const ACHIEVEMENTS = [
   { id: 'eater',     n: 'Demir Mide',            d: '60 kez yemek ye.', perk: 'Yiyecekler %20 daha fazla doyurur, çiğ et daha az hasta eder', s: 'eaten', v: 60 },
   { id: 'herbs',     n: 'Şifacı',                d: '50 bitki topla.', perk: 'Bitki toplarken 2 kat verim şansı', s: 'herbs', v: 50 },
   { id: 'fisher',    n: 'Oltanın Ustası',        d: '20 balık tut.', perk: 'Balıklar daha çabuk vurur', s: 'fish', v: 20 },
-  { id: 'longshot',  n: 'Keskin Nişancı',        d: '10 hedefi 25 metreden uzaktan vur.', perk: 'Dead Eye %25 daha yavaş tükenir', s: 'longKills', v: 10 },
+  { id: 'longshot',  n: 'Keskin Nişancı',        d: '10 hedefi 25 metreden uzaktan vur.', perk: 'Odak %25 daha yavaş tükenir', s: 'longKills', v: 10 },
   { id: 'gunslinger',n: 'Silahşör',              d: '25 haydut öldür.', perk: 'Şarjör değiştirme %25 hızlı', s: 'bandits', v: 25 },
   { id: 'rich',      n: 'Cebi Dolu',             d: 'Cebinde $1000 biriktir.', perk: 'Dükkanlarda %10 indirim', s: 'maxCash', v: 1000 },
   { id: 'tycoon',    n: 'Baron',                 d: 'Toplam $10.000 kazan.', perk: 'Mülk gelirleri %50 artar', s: 'earned', v: 10000 },
@@ -399,7 +399,7 @@ const ACHIEVEMENTS = [
   { id: 'camper',    n: 'Kamp Ateşi',            d: '10 kez kamp kur.', perk: 'Kamp ateşinde pişen yemekler +%30 besleyici', s: 'camps', v: 10 },
   { id: 'treasure',  n: 'Hazine Avcısı',         d: 'Gömülü bir hazine bul.', perk: '', s: 'treasures', v: 1 },
   { id: 'train',     n: 'Demir At',              d: 'Trenle 5 kez seyahat et.', perk: '', s: 'trainRides', v: 5 },
-  { id: 'deadeye',   n: 'Kartal Gözü',           d: 'Dead Eye\'ı 20 kez kullan.', perk: 'Dead Eye çekirdeği daha yavaş azalır', s: 'deadeyes', v: 20 },
+  { id: 'deadeye',   n: 'Keskin Göz',           d: 'Odak modunu 20 kez kullan.', perk: 'Odak çekirdeği daha yavaş azalır', s: 'deadeyes', v: 20 },
   { id: 'age30',     n: 'Olgunluk',              d: '30 yaşına gir.', perk: 'Tüm yetenek deneyimleri +%10', s: 'age', v: 30 },
   { id: 'age50',     n: 'Yarım Asır',            d: '50 yaşına gir.', perk: 'Tecrübe: dükkanlarda ek %5 indirim', s: 'age', v: 50 },
   { id: 'age65',     n: 'Ak Sakallı',            d: '65 yaşına gir.', perk: 'Yaşlılığın getirdiği halsizlik yavaşlar', s: 'age', v: 65 },
@@ -407,7 +407,7 @@ const ACHIEVEMENTS = [
 ];
 
 const SKILLS = {
-  shooting: { n: 'Nişancılık', d: 'İsabet ve Dead Eye süresi' },
+  shooting: { n: 'Nişancılık', d: 'İsabet ve odak süresi' },
   hunting:  { n: 'Avcılık', d: 'Post kalitesi ve gizlilik' },
   survival: { n: 'Hayatta Kalma', d: 'Açlık, susuzluk ve ısıya dayanım' },
   riding:   { n: 'Binicilik', d: 'At hızı ve dayanıklılığı' },
@@ -457,7 +457,7 @@ const LOOKS = {
 const NAMES = {
   m: ['John', 'Arthur', 'William', 'Samuel', 'Thomas', 'Jesse', 'Wyatt', 'Levi', 'Eli', 'Jacob', 'Henry', 'Charles', 'Amos', 'Silas', 'Caleb', 'Virgil', 'Clay', 'Hosea', 'Otis', 'Walter', 'Isaac', 'Frank', 'Hank', 'Buck', 'Jeb', 'Luther', 'Ezra', 'Morgan'],
   f: ['Sadie', 'Abigail', 'Mary', 'Clara', 'Martha', 'Annie', 'Eliza', 'Grace', 'Rose', 'Hattie', 'Lillian', 'Molly', 'Josephine', 'Tilly', 'Emma', 'Ruth', 'Belle', 'Cora', 'Ida', 'Nellie', 'Olive', 'Pearl', 'Etta', 'Ada'],
-  last: ['Marston', 'Callahan', 'Morgan', 'Hayes', 'Whitmore', 'Adler', 'Dutton', 'Grimshaw', 'Harper', 'Bennett', 'Carver', 'Dawson', 'Holloway', 'McCoy', 'Pritchard', 'Quinn', 'Reyes', 'Sawyer', 'Tanner', 'Walsh', 'Barlow', 'Colter', 'Ramsey', 'Boone', 'Cassidy', 'Fletcher', 'Garrett', 'Lockhart'],
+  last: ['Hollister', 'Callahan', 'Pruitt', 'Hayes', 'Whitmore', 'Brandt', 'Tolliver', 'Kincaid', 'Harper', 'Bennett', 'Carver', 'Dawson', 'Holloway', 'McCoy', 'Pritchard', 'Quinn', 'Reyes', 'Sawyer', 'Tanner', 'Walsh', 'Barlow', 'Colter', 'Ramsey', 'Boone', 'Cassidy', 'Fletcher', 'Garrett', 'Lockhart'],
 };
 
 /* NPC konuşmaları */
@@ -526,10 +526,10 @@ const HEADLINES = [
   ['DEMİRYOLU BATIYA UZANIYOR', 'Yeni hat Silver Ridge dağlarını aşarak madencilere umut oldu. Yatırımcılar Saint Clement borsasında bayram ediyor.'],
   ['KANYONDA TREN SOYGUNU', 'Maskeli haydutlar posta vagonunu boşalttı. Şerif, ele başının Kızıl Çakallar çetesinden olduğunu düşünüyor.'],
   ['ALTIN BULUNDU!', 'Dağ derelerinde altın eleyen bir göçmen, bir haftada bir yıllık kazancı kadar altın buldu. Nehirlere akın başladı.'],
-  ['KURAKLIK SIĞIRCILARI VURDU', 'Heartland ovalarında otlaklar kurudu. Sığır fiyatları düşerken kasaplar et fiyatlarını artırdı.'],
+  ['KURAKLIK SIĞIRCILARI VURDU', 'Big Sky ovalarında otlaklar kurudu. Sığır fiyatları düşerken kasaplar et fiyatlarını artırdı.'],
   ['GÖKTEN ATEŞ DÜŞTÜ', 'Sundown çölünde çobanlar gece yarısı gökyüzünü yaran bir ateş topu gördüklerini anlatıyor.'],
   ['ELEKTRİK SAINT CLEMENT\'TE', 'Şehrin ana caddesi ilk kez elektrik lambalarıyla aydınlatıldı. Kasabalılar bu mucizeyi görmek için saatlerce yürüdü.'],
-  ['BATAKLIKTA KAYIP AVCI', 'Bayou Noir yakınlarında kaybolan tuzakçıdan hâlâ haber yok. Yerliler timsahlardan şüpheleniyor.'],
+  ['BATAKLIKTA KAYIP AVCI', 'Cypress Bend yakınlarında kaybolan tuzakçıdan hâlâ haber yok. Yerliler timsahlardan şüpheleniyor.'],
   ['KURT SÜRÜLERİ ÇOĞALDI', 'Cedar Falls keresteciler birliği, gece ormana girilmemesi konusunda uyardı.'],
   ['SİRK KASABAYA GELİYOR', 'Profesör Harriet\'in gezici gösterisi bu yaz Harlow\'a uğrayacak. Fil ve ateş yutan adam bekleniyor!'],
   ['YENİ ŞERİF ATANDI', 'Dust Creek\'e atanan yeni şerif, kasabayı kanunsuzlardan temizleyeceğine yemin etti.'],

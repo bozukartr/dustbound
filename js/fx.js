@@ -5,7 +5,7 @@
    yüzeye göre isabet efektleri, salınan bitki örtüsü, sonbahar
    yaprakları, su halkaları ve kıyı köpüğü, soğukta nefes buharı,
    renk derecelendirme ve durum efektleri (düşük sağlık, sarhoşluk,
-   ayaz, Dead Eye).
+   ayaz, odak).
    Ayarlar > Efektler: 0 = Tam, 1 = Sade (salınım/bulut/yaprak kapalı)
    ========================================================== */
 
@@ -146,7 +146,7 @@ const FX = {
       } else q.life -= dt;
       if (q.life <= 0 || q.x < x0 - 200 || q.x > x1 + 200 || q.y < y0 - 200 || q.y > y1 + 200) L.splice(i, 1);
     }
-    // ekran kaydırma çizikleri (Dead Eye)
+    // ekran kaydırma çizikleri (odak)
     for (let i = this.scratches.length - 1; i >= 0; i--) { this.scratches[i].t -= rdt; if (this.scratches[i].t <= 0) this.scratches.splice(i, 1); }
   },
   /* Bir varlığın adımları: iz bırak, suda halka, soğukta nefes */
@@ -476,7 +476,7 @@ const FX = {
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = Math.min(1, k * (0.4 + pulse * 0.45));
       ctx.drawImage(this.vigRed, 0, 0, vw, vh);
     } else this.hb = 0;
-    // --- Dead Eye: sepya (CSS) + koyu kenar + film greni + çizikler
+    // --- Odak: sepya (CSS) + koyu kenar + film greni + çizikler
     if (g.de > 0.02) {
       const k = g.de;
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = k * 0.55;

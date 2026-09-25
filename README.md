@@ -2,7 +2,7 @@
 
 **Amerika, 1890.** 18 yaşındasın. Hedefin, 80 yaşına kadar hayatta kalmak.
 
-Frontier's End, Red Dead Redemption 2 ve GTA'dan esinlenen, tarayıcıda çalışan 2D açık dünya bir **hayatta kalma ve rol yapma** oyunudur. Görev yok, "oyun sonu" yok; oynadığın şey bir hayat. Avlan, çalış, keşfet, âşık ol, ev al, kanunla başın derde girsin, yaşlan.
+Frontier's End, 2D açık dünya bir **hayatta kalma ve rol yapma** oyunudur. Görev yok, "oyun sonu" yok; oynadığın şey bir hayat. Avlan, çalış, keşfet, âşık ol, ev al, kanunla başın derde girsin, yaşlan.
 
 ## Çalıştırma
 
@@ -11,7 +11,9 @@ Kurulum ya da derleme adımı yok. İki yol var:
 - `index.html` dosyasını tarayıcıda doğrudan aç, **ya da**
 - klasörde basit bir sunucu başlat: `npx http-server .` (veya `python3 -m http.server`) ve `http://localhost:8080` adresine git.
 
-Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation kolu (DualShock 4 / DualSense) USB ya da Bluetooth ile bağlanıp herhangi bir tuşa basınca algılanır ve ekrandaki tuş simgeleri PS simgelerine döner.
+**Masaüstü ve Steam:** `desktop/` klasöründe Electron + steamworks.js paketi var: `cd desktop && npm install && npm start`. Steam başarımları, bulut kayıt, Rich Presence, overlay, tam ekran ve kol simgeleri için bkz. [desktop/README.md](desktop/README.md).
+
+Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation, Xbox ve Steam Deck kolları USB ya da Bluetooth ile bağlanıp herhangi bir tuşa basınca algılanır; ekrandaki tuş simgeleri bağlı kola göre değişir (Ayarlar > Kol Simgeleri ile elle de seçilebilir).
 
 ## Diller
 
@@ -29,7 +31,7 @@ Eski adla (Dustbound) yapılmış kayıtlar ve ayarlar ilk açılışta yeni ada
 
 ## Kontroller
 
-| Eylem | PlayStation | Klavye / Fare |
+| Eylem | Kol (PlayStation) | Klavye / Fare |
 |---|---|---|
 | Hareket | Sol analog | W A S D |
 | Nişan yönü | Sağ analog (L2 olmadan: kalçadan nişan, karakter o yöne döner) | Fare |
@@ -40,7 +42,7 @@ Eski adla (Dustbound) yapılmış kayıtlar ve ayarlar ilk açılışta yeni ada
 | Şarjör değiştir | □ | R |
 | Yakın dövüş | ○ | F |
 | Çömel / Gizlen | L3 | C |
-| Dead Eye (nişan alırken) | R3 | Q |
+| Odak (nişan alırken) | R3 | Q |
 | Silah / eşya çarkı | L1 (basılı) + sağ analog ile seç; R1 sayfa (Silahlar / Eşyalar); D-Pad ←/→ aynı türde değiştir; ✕ eşya kullan | Tab (basılı) + fare ile seç; Q/E sayfa; tekerlek ya da ←/→ aynı türde değiştir; sol tık eşya kullan |
 | Hızlı iyileş / ye | R1 | T |
 | Atı çağır (ıslık) | D-Pad ↑ | H |
@@ -63,18 +65,18 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 
 **Dünya**
 - 1024×1024 karelik prosedürel dünya: karlı zirveler, çam ormanları, geniş ovalar, kızıl kanyonlar, çöl, bataklık ve okyanus kıyısı.
-- 8 kasaba (Harlow, Saint Clement, Dust Creek, Silver Ridge, Cedar Falls, Bayou Noir, Fort Mercy, Coyote Springs); mağaza, saloon, şerif, doktor, silahçı, kasap, ahır, otel, banka, kilise, berber, terzi ve daha fazlası.
+- 8 kasaba (Harlow, Saint Clement, Dust Creek, Silver Ridge, Cedar Falls, Cypress Bend, Fort Redstone, Coyote Springs); mağaza, saloon, şerif, doktor, silahçı, kasap, ahır, otel, banka, kilise, berber, terzi ve daha fazlası.
 - Kasabalar ızgara değil: kavisli bir ana cadde, farklı açılarla ayrılan yan sokaklar, caddeden farklı uzaklıkta duran binalar, kapılardan caddeye uzanan patikalar, meydan, bahçeli evler ve sokak lambaları. Her dünyada farklı bir düzen çıkar.
 - **Binaların içi var.** Kapıdan yürüyerek girersin; çatı ve cephe soluklaşır, içerisi görünür. Tezgahın arkasında çalışan, saloonda bar, piyano, kart ve yemek masaları, şerif ofisinde nezarethane, kilisede sıralar ve sunak, otelde yataklar ve küvet, bankada vezne ve kasa var. Hizmetler bu eşyaların başında alınır.
 - Dükkanlar gece kapanır ve kapıları kilitlenir (kapı kırılabilir). Evler kilitlidir. Atlar ve hayvanlar binalara giremez. Kasabalılar akşam evlerine girer, sabah çıkar; saloon akşamları kalabalıklaşır, piyanist çalar.
 - **Göçebe kampları**: tüccar kervanları, sığırtmaçlar, altın arayıcıları, kürkçüler ve seyyar bir kumpanya kasabaların dışında kamp kurar. Takas yapabilir, ateş başında dinlenip hikâye dinleyebilirsin. Her kamp 5–10 yılda bir başka bir yere göç eder.
 - Kasabaları bağlayan yollar, köprüler ve istasyonlar arasında gidip gelen **trenler** (bilet alıp seyahat edebilirsin).
 - 25 keşfedilecek önemli yer: göktaşı krateri, bin yıllık sekoya, hayalet kasaba, terk edilmiş maden, sıcak kaynaklar, dinozor kemikleri, karaya oturmuş gemi, gözetleme tepeleri. Bunlara haydut kampları, çiftlikler ve satılık mülkler eklenir.
-- Gezdikçe açılan parşömen harita, GPS rotası ve RDR2 tarzı radar.
+- Gezdikçe açılan parşömen harita, GPS rotası ve radar.
 - Gece-gündüz döngüsü, yağmur, fırtına, kar, kum fırtınası ve sis.
 - **Canlı görsel efektler**: Ortak bir rüzgâr yönü bulut gölgelerini, baca ve kamp ateşi dumanını, yağmuru, otları ve sazlıkları etkiler. Çalılar, otlar, çiçekler ve ekinler rüzgârda salınır, yanlarından geçince eğilir. Sonbaharda ağaçlardan yaprak düşer. Kasaba bacaları sabah ve akşam, soğukta ise gün boyu tüter. Kum, çöl, çamur ve karda ayak ve toynak izleri kalır; seyrek ve silik tutulur, yarım dakikada solar (kasaba sokaklarında iz kalmaz). Suda yürürken ve yağmurda su yüzeyinde halkalar oluşur, kıyıya ince dalgalar vurur. Soğukta oyuncunun, atların ve NPC'lerin nefesi buhar olur.
 - **Silah efektleri**: Mermi değdiği yüzeye göre tepki verir: suda sıçrama ve halka, ahşapta kıymık, kayada kıvılcım, toprakta, kumda ya da karda o zeminin renginde toz. Iskalanan mermiler nişan noktasının biraz ötesinde yere saplanır; üstüne ateş edilirken etrafında toz kalktığını görürsün. Namlu dumanı havada asılı kalıp rüzgârla dağılır. Kollu tüfekler her atışta kovan fırlatır, tabanca ve av tüfeği dolumda boş kovanları döker.
-- **Renk ve ekran efektleri**: Gün doğumu ve batımında altın saat, alacakaranlıkta mavi saat, çölde sıcak, yağmurda soğuk ve soluk, karda buz mavisi, bataklıkta yeşilimsi tonlar yumuşak geçişlerle uygulanır. Sağlık azaldıkça renkler çekilir ve kalp atışıyla ekran kenarı kızarır (kalp sesi duyulur). Sarhoşken görüntü çift görünür ve sallanır. Ayazda ekran kenarları buz tutar. Dead Eye sepya tonuna, film grenine ve çiziklere bürünür.
+- **Renk ve ekran efektleri**: Gün doğumu ve batımında altın saat, alacakaranlıkta mavi saat, çölde sıcak, yağmurda soğuk ve soluk, karda buz mavisi, bataklıkta yeşilimsi tonlar yumuşak geçişlerle uygulanır. Sağlık azaldıkça renkler çekilir ve kalp atışıyla ekran kenarı kızarır (kalp sesi duyulur). Sarhoşken görüntü çift görünür ve sallanır. Ayazda ekran kenarları buz tutar. Odak modu sepya tonuna, film grenine ve çiziklere bürünür.
 - Ayarlar > **Görsel Efektler**: *Tam* ya da *Sade*. Sade modda bitki salınımı, bulut gölgeleri, yapraklar ve izler kapanır; renk ve durum efektleri kalır.
 - **Mevsimler görünür**: kışın soğuk bölgeler, çatılar ve ağaçlar karla kaplanır, göller donar, yapraklı ağaçlar çıplak kalır; sonbaharda yapraklar sararır; yazın otlar kurur. Harita da mevsime göre değişir.
 
@@ -87,13 +89,13 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 
 **Başlangıç**
 - Karakter oluşturma ekranı dört bölümden oluşur: Kimlik, Görünüm, Kıyafet, Hikâye. Ortada çerçeveli portre, sağda seçilen geçmişin kartı (başlangıç kasabası, para, at, yetenekler, eşyalar) görünür.
-- Yeni bir hayat, seçilen geçmişe özel kısa bir **3D varış sinematiğiyle** başlar: Harlow'a at arabasıyla, Saint Clement'e buharlı gemiyle, Dust Creek'e gün batımında dörtnala, Fort Mercy'ye trenle, Cedar Falls'a sisli ormandan. Sinematikler aynı piksel sanat görünümünü korur (düşük çözünürlük, renk kademesi, dither) ve bir tuşla geçilebilir.
+- Yeni bir hayat, seçilen geçmişe özel kısa bir **3D varış sinematiğiyle** başlar: Harlow'a at arabasıyla, Saint Clement'e buharlı gemiyle, Dust Creek'e gün batımında dörtnala, Fort Redstone'a trenle, Cedar Falls'a sisli ormandan. Sinematikler aynı piksel sanat görünümünü korur (düşük çözünürlük, renk kademesi, dither) ve bir tuşla geçilebilir.
 
 **Etkileşim ve eşyalar**
-- RDR2 tarzı iki sayfalı çark: **Silahlar** ve **Eşyalar** (yiyecek, içecek, ilaç, tütün, bitkiler, at eşyaları, kit, giysi). Aynı yuvadaki silah ya da eşyalar arasında geçilebilir; eşyalar çarktan doğrudan kullanılır.
+- İki sayfalı çark: **Silahlar** ve **Eşyalar** (yiyecek, içecek, ilaç, tütün, bitkiler, at eşyaları, kit, giysi). Aynı yuvadaki silah ya da eşyalar arasında geçilebilir; eşyalar çarktan doğrudan kullanılır.
 - 90'dan fazla eşya: yiyecekler, ilaçlar, bitkiler, postlar, balıklar, değerli eşyalar, koleksiyonlar, aletler ve giysiler.
 - Avcılık ve deri yüzme, bitki toplama, balık tutma (mini oyun), altın eleme, cevher kazma, hazine haritaları.
-- Silahlar: bıçak, iki tabanca, iki karabina, uzun tüfek, av tüfeği, yay ve dinamit. Bir de Dead Eye.
+- Silahlar: bıçak, iki tabanca, iki karabina, uzun tüfek, av tüfeği, yay ve dinamit. Bir de zamanı yavaşlatan **Odak** modu.
 - NPC'lerle selamlaşma (günün saatine, havaya, role ve tanışıklığa göre değişen 100'ü aşkın replik), kışkırtma, soygun; yol olayları (yaralı yolcular, soygunlar, pusu, kırık arabalar, seyyar satıcılar); ödül ilanları.
 - Yirmi Bir (blackjack), bilek güreşi, hızlı çekiş düellosu, söylenti dinleme, gazete okuma, kamp ateşinde mızıka çalma.
 - Atlar: satın alma, yabani at evcilleştirme, bağ seviyesi, ıslıkla çağırma.
@@ -108,7 +110,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 
 **Gelişim**
 - 7 yetenek (nişancılık, avcılık, hayatta kalma, binicilik, ticaret, karizma, güç). Yaptıkça gelişirler.
-- 40 başarım. Çoğu kalıcı bir **kazanım (perk)** verir: daha iyi post fiyatları, soğuğa dayanıklılık, daha yavaş tükenen Dead Eye gibi.
+- 40 başarım. Çoğu kalıcı bir **kazanım (perk)** verir: daha iyi post fiyatları, soğuğa dayanıklılık, daha yavaş tükenen odak gibi.
 
 **Oyun modları**
 - *Hikaye*: ölürsen doktor seni kurtarır; biraz para ve kalıcı sağlık kaybedersin.
@@ -129,12 +131,15 @@ Oyun, uyuduğunda ve her yeni günde otomatik kaydedilir (tarayıcının `localS
 index.html
 css/style.css
 js/util.js      yardımcılar, RNG, gürültü
+js/platform.js  platform katmanı: kayıt, Steam başarımları, rich presence, tam ekran, çıkış
+fonts/          yerel fontlar ve lisansları
+desktop/        Electron + Steam masaüstü paketi
 js/i18n.js      çok dil desteği: Tr(), dil seçimi, tablo ve HTML çevirisi
 lang/en.js      İngilizce sözlük
 tools/i18n-check.js  eksik/fazla çeviri denetleyicisi (node)
 js/icons.js     SVG ikon seti (eşya, silah, glif, PS tuşları)
 js/data.js      eşyalar, silahlar, hayvanlar, kasabalar, başarımlar
-js/input.js     klavye, fare ve PlayStation kolu
+js/input.js     klavye, fare ve oyun kolu (PlayStation, Xbox, Steam Deck simgeleri)
 js/audio.js     prosedürel ses, müzik ve mp3 akışı
 audio/          ana tema ve saloon piyanosu (mp3)
 js/world.js     dünya üretimi, chunk render, harita

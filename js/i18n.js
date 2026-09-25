@@ -29,12 +29,14 @@ const I18N = {
   _orig: [],           // tablo çevirisinde değiştirilen [nesne, anahtar, özgün değer]
 
   add(code, pack) { this.packs[code] = pack; },
-  /* Kayıtlı ayar → tarayıcı dili → İngilizce */
+  /* Kayıtlı ayar → Steam dili → tarayıcı dili → İngilizce */
   detect() {
     try {
-      const s = JSON.parse(localStorage.getItem('frontiersend_settings_v1') || 'null');
+      const s = JSON.parse(Platform.get('frontiersend_settings_v1') || 'null');
       if (s && s.lang && (s.lang === 'tr' || this.packs[s.lang])) return s.lang;
     } catch (e) {}
+    const st = Platform.language();          // Steam istemcisinin oyun dili
+    if (st && (st === 'tr' || this.packs[st])) return st;
     const nav = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
     return /^tr\b/i.test(nav) ? 'tr' : 'en';
   },

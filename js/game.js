@@ -5,8 +5,8 @@
 
 const SAVE_KEY = 'frontiersend_save_v1';
 const SET_KEY = 'frontiersend_settings_v1';
-/* Eski adla (Dustbound) yapılmış kayıt ve ayarları yeni anahtarlara taşı */
-try {
+/* Eski adla (Dustbound) tarayıcıda yapılmış kayıt ve ayarları yeni anahtarlara taşı */
+if (!Platform.desktop) try {
   for (const [o, n] of [['dustbound_save_v1', SAVE_KEY], ['dustbound_settings_v1', SET_KEY]]) {
     const v = localStorage.getItem(o);
     if (v !== null && localStorage.getItem(n) === null) localStorage.setItem(n, v);
@@ -21,7 +21,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, lang: null },
+  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, lang: null, padGlyphs: 0 },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -78,13 +78,13 @@ const G = {
     requestAnimationFrame(t => this.frame(t));
   },
   loadSettings() {
-    try { const s = JSON.parse(localStorage.getItem(SET_KEY)); if (s) Object.assign(this.settings, s); } catch (e) {}
+    try { const s = JSON.parse(Platform.get(SET_KEY)); if (s) Object.assign(this.settings, s); } catch (e) {}
     Input.setBinds(this.settings.binds);
     this.applySettings();
   },
   saveSettings() {
     this.settings.binds = JSON.parse(JSON.stringify(Input.binds));
-    try { localStorage.setItem(SET_KEY, JSON.stringify(this.settings)); } catch (e) {}
+    try { Platform.set(SET_KEY, JSON.stringify(this.settings)); } catch (e) {}
     this.applySettings();
   },
   /* Piksel ölçeğini ayarlara girmeden değiştir: +1 / -1, 0 = döngü (kol R3) */
@@ -215,18 +215,18 @@ const G = {
       reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, savedAt: Date.now(),
     };
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      Platform.set(SAVE_KEY, JSON.stringify(data));
       if (!silent) UI.feed(Tr('💾 Oyun kaydedildi'));
     } catch (e) { UI.feed(Tr('Kayıt başarısız: ') + e.message, 'warn'); }
   },
-  hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } },
+  hasSave() { return !!Platform.get(SAVE_KEY); },
   saveInfo() {
-    try { const d = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!d) return null; const dpy = (LIFE_PACES.find(p => p.id === d.pace) || LIFE_PACES[1]).dpy; return { name: d.player.name, age: START_AGE + Math.floor(Math.floor(d.clock / 1440) / dpy), money: d.player.money, bg: d.background }; } catch (e) { return null; }
+    try { const d = JSON.parse(Platform.get(SAVE_KEY)); if (!d) return null; const dpy = (LIFE_PACES.find(p => p.id === d.pace) || LIFE_PACES[1]).dpy; return { name: d.player.name, age: START_AGE + Math.floor(Math.floor(d.clock / 1440) / dpy), money: d.player.money, bg: d.background }; } catch (e) { return null; }
   },
-  deleteSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} },
+  deleteSave() { Platform.remove(SAVE_KEY); },
   async loadGame() {
     let d;
-    try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { d = null; }
+    try { d = JSON.parse(Platform.get(SAVE_KEY)); } catch (e) { d = null; }
     if (!d) return false;
     this.resetState();
     this.seed = d.seed;
@@ -257,6 +257,7 @@ const G = {
       this.setHorse(h, true);
       if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h); }
     }
+    Platform.syncAchievements(this.achieved);
     this.startPlay();
     UI.feed(Tr('Kayıt yüklendi. Hoş geldin, ') + P.name + '.');
     return true;
@@ -279,8 +280,22 @@ const G = {
       if (!this._errShown) { this._errShown = true; UI.feed(Tr('Hata: ') + e.message, 'warn'); }
     }
     Input.endFrame();
+    this.presenceTick(dt);
     if (this.settings.fps) { this._fc = (this._fc || 0) + 1; this._ft = (this._ft || 0) + dt; if (this._ft > 0.5) { $('#fps').textContent = Math.round(this._fc / this._ft) + ' FPS'; this._fc = 0; this._ft = 0; } }
     requestAnimationFrame(t => this.frame(t));
+  },
+  /* Steam arkadaş listesinde görünen durum (rich presence) */
+  presenceTick(dt) {
+    if (!Platform.steam) return;
+    this._presT = (this._presT || 0) - dt;
+    if (this._presT > 0) return;
+    this._presT = 5;
+    if ((this.state === 'play' || this.state === 'dead') && this.player && this.world) {
+      const P = this.player, t = this.world.townAt(P.x, P.y, 60);
+      Platform.presence('age', this.age);
+      Platform.presence('place', t ? t.n : this.world.regionAt(P.x, P.y));
+      Platform.presence('steam_display', this.state === 'dead' ? '#StatusDead' : '#StatusPlaying');
+    } else Platform.presence('steam_display', '#StatusMenu');
   },
   update(dt) {
     const P = this.player, I = Input;
@@ -379,7 +394,7 @@ const G = {
       if (P.deadeye) { P.deadeye = false; }
       else if (P.aiming && P.isArmed && P.de > 12) { P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60); }
       else if (!P.aiming && I.device === 'pad' && !this.binds_zoom()) this.quickZoom(0);   // kolda nişan almadan R3: piksel ölçeğini değiştir
-      else if (!P.aiming) UI.feed(Tr('Dead Eye için önce nişan al.'), 'warn');
+      else if (!P.aiming) UI.feed(Tr('Odak için önce nişan al.'), 'warn');
     }
     if (I.pressed('zoomIn')) this.quickZoom(1);
     if (I.pressed('zoomOut')) this.quickZoom(-1);

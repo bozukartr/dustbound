@@ -348,7 +348,7 @@ class Player extends Ent {
       this.aimDist = clamp(Math.hypot(mx - sx, my - sy), 14, this.W && this.W.range ? this.W.range : 200);
     } else this.padAim(dt);
   }
-  /* ---- Kol ile nişan (RDR2 tarzı): ölü bölge + yumuşatma, L2 ile kilitlenme,
+  /* ---- Kol ile nişan: ölü bölge + yumuşatma, L2 ile kilitlenme,
      sağ analogu savurarak hedef değiştirme, hedef üzerinde sürtünme ---- */
   angTo(e) { return Math.atan2(e.y - this.y, e.x - this.x); }
   targetClass(e) {

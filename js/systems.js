@@ -279,6 +279,7 @@ const GameSystems = {
     if (this.achieved[id]) return;
     const A = ACHIEVEMENTS.find(a => a.id === id);
     this.achieved[id] = this.day + 1;
+    Platform.achievement(id);
     UI.toast(A.n, A.perk ? Tr('Kazanım: ') + A.perk : A.d, 'ach');
     Audio_.chime();
   },

@@ -354,7 +354,7 @@ const Cinema = (() => {
       return S;
     },
 
-    /* Demiryolu işçisi: tren Fort Mercy istasyonuna girer */
+    /* Demiryolu işçisi: tren Fort Redstone istasyonuna girer */
     rail(R, look) {
       const L = { dir: V.norm([-0.6, 0.55, -0.4]), amb: 0.55, dif: 0.75, ambC: C('#b0c0d8'), sunC: C('#fff0d0') };
       const m = new Mesh(L);
@@ -434,7 +434,7 @@ const Cinema = (() => {
   }
   const CAPS = {
     farm: [Tr('Harlow Ovaları'), Tr('Bir araba dolusu umutla...')], immigrant: [Tr('Saint Clement Limanı'), Tr('Yeni bir dünya, yeni bir hayat.')],
-    outlaw: [Tr('Dust Creek'), Tr('Geçmişinden kaçılmaz. Ama denenebilir.')], rail: [Tr('Fort Mercy'), Tr('Rayların sonu, hikâyenin başı.')], trapper: [Tr('Cedar Falls'), Tr('Ormanın sesi arkada kaldı.')],
+    outlaw: [Tr('Dust Creek'), Tr('Geçmişinden kaçılmaz. Ama denenebilir.')], rail: [Tr('Fort Redstone'), Tr('Rayların sonu, hikâyenin başı.')], trapper: [Tr('Cedar Falls'), Tr('Ormanın sesi arkada kaldı.')],
   };
 
   function play(bgId, opts = {}) {

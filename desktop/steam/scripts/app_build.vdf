@@ -1,0 +1,13 @@
+"AppBuild"
+{
+	"AppID"	"0000000"		// Steamworks'teki gerçek AppID
+	"Desc"	"Frontier's End build"
+	"ContentRoot"	"../../dist/"	// electron-builder çıktısı (desktop/dist)
+	"BuildOutput"	"../output/"
+	"SetLive"	""			// test için boş bırak; "beta" gibi bir dal adı yazılabilir
+	"Depots"
+	{
+		"0000001"	"depot_build_windows.vdf"
+		"0000002"	"depot_build_linux.vdf"
+	}
+}
