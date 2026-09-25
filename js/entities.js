@@ -94,10 +94,31 @@ class Ent {
   }
   move(dx, dy) {
     const W = G.world;
-    let moved = false;
     const ok = (x, y) => !W.blocked(x, y, this.r) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)));
+    if (ok(this.x + dx, this.y + dy)) { this.x += dx; this.y += dy; this._slide = 0; return true; }
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) return false;
+    // Engelin etrafından akıcı kay: yönü giderek artan açılarla saptır. Bir kez seçilen taraf
+    // kısa süre korunur (_slide), böylece gövdelerin çevresinde titremeden dönülür.
+    const a = Math.atan2(dy, dx);
+    const px = -Math.sin(a), py = Math.cos(a), f = this.r + 6;
+    const l = ok(this.x + Math.cos(a) * f * 0.5 - px * f, this.y + Math.sin(a) * f * 0.5 - py * f);
+    const r = ok(this.x + Math.cos(a) * f * 0.5 + px * f, this.y + Math.sin(a) * f * 0.5 + py * f);
+    let side = this._slide || (l && !r ? -1 : r && !l ? 1 : (this.id & 1 ? 1 : -1));
+    // iki yan da kapalıysa düz bir duvar: dik itişte yana sürüklenme olmasın (en fazla 80°)
+    const offs = l || r ? [0.35, 0.7, 1.05, 1.4, 1.57] : [0.35, 0.7, 1.05, 1.4];
+    for (const off of offs) {
+      for (const s of [side, -side]) {
+        const k = Math.cos(off) * 0.25 + 0.75;           // sapınca hız hafifçe düşer
+        const nx = Math.cos(a + s * off) * len * k, ny = Math.sin(a + s * off) * len * k;
+        if (ok(this.x + nx, this.y + ny)) { this.x += nx; this.y += ny; this._slide = s; return true; }
+      }
+    }
+    // son çare: eksen boyunca kay (duvar kenarı)
+    let moved = false;
     if (ok(this.x + dx, this.y)) { this.x += dx; moved = true; }
-    if (ok(this.x, this.y + dy)) { this.y += dy; moved = true; }
+    else if (ok(this.x, this.y + dy)) { this.y += dy; moved = true; }
+    this._slide = 0;
     return moved;
   }
   slow() { return TINFO[G.world.tileAtPx(this.x, this.y)].slow || 1; }

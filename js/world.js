@@ -64,6 +64,10 @@ const SOLID_O = new Uint8Array(128);
   O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP,
   O.COUNTER, O.BAR, O.TABLE, O.PIANO, O.CARDTABLE, O.BED, O.STOVE, O.DESK, O.CELL, O.PEW, O.ALTAR, O.SAFE, O.TUB, O.BCHAIR, O.RACK, O.WORKBENCH, O.STALL, O.TICKET,
   O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN].forEach(o => (SOLID_O[o] = 1));
+/* Gövdesi ince olan nesneler: tam kare yerine gövde boyutunda yuvarlak çarpışır (solid = 5) */
+const TRUNK_O = new Uint8Array(128);
+[O.PINE, O.OAK, O.DEAD, O.CACTUS, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.LAMP, O.POLE, O.SIGN, O.SAGUARO].forEach(o => (TRUNK_O[o] = 1));
+const TRUNK_R = 3.6, TRUNK_DY = 9;   // gövde yarıçapı ve karo içindeki dikey konumu
 /* Toplanabilirler: eşya, adet aralığı, yenilenme (gün), alet */
 const HARVEST = {
   [O.BERRY]: { item: 'berries', n: [2, 4], re: 2, label: 'Yaban Mersini Topla' },
@@ -137,13 +141,14 @@ class World {
   inb(x, y) { return x >= 0 && y >= 0 && x < WW && y < WH; }
   t(x, y) { return (x < 0 || y < 0 || x >= WW || y >= WH) ? T.DEEP : this.tile[y * WW + x]; }
   tileAtPx(px, py) { return this.t(px >> 4, py >> 4); }
-  /* solid: 0 boş, 1 dolu, 3 kapı, 16+maske kısmi duvar (1 üst, 2 alt, 4 sol, 8 sağ bant) */
+  /* solid: 0 boş, 1 dolu, 3 kapı, 5 ağaç gövdesi (yuvarlak), 16+maske kısmi duvar (1 üst, 2 alt, 4 sol, 8 sağ bant) */
   isSolidPx(px, py) {
     const x = px >> 4, y = py >> 4;
     if (x < 0 || y < 0 || x >= WW || y >= WH) return true;
     const i = y * WW + x, s = this.solid[i];
     if (s < 2) return s === 1;
     if (s === 3) return !this.doorOpen(i);
+    if (s === 5) { const dx = (px & 15) - 8, dy = (py & 15) - TRUNK_DY; return dx * dx + dy * dy < TRUNK_R * TRUNK_R; }
     const lx = px & 15, ly = py & 15;
     return ((s & 1) && ly < 6) || ((s & 2) && ly >= 12) || ((s & 4) && lx < 5) || ((s & 8) && lx >= 11);
   }
@@ -158,7 +163,18 @@ class World {
   blocked(px, py, r) {
     const D = this.dyn;
     if (D.length) for (let k = 0; k < D.length; k++) { const d = D[k]; if (px + r > d.x0 && px - r < d.x1 && py + r > d.y0 && py - r < d.y1) return true; }
-    return this.isSolidPx(px - r, py - r) || this.isSolidPx(px + r, py - r) || this.isSolidPx(px - r, py + r) || this.isSolidPx(px + r, py + r);
+    // köşe örneklemesi (gövde karoları hariç: onlar aşağıda daire–daire testiyle)
+    const sp = (x, y) => { const s = this.solid[(y >> 4) * WW + (x >> 4)]; return s !== 5 && this.isSolidPx(x, y); };
+    if (sp(px - r, py - r) || sp(px + r, py - r) || sp(px - r, py + r) || sp(px + r, py + r)) return true;
+    // ağaç gövdeleri: köşe örneklemesi ince gövdeyi kaçırabilir, daire–daire testi yap
+    const tx0 = (px - r - 4) >> 4, tx1 = (px + r + 4) >> 4, ty0 = (py - r - 12) >> 4, ty1 = (py + r) >> 4;
+    const rr = (r + TRUNK_R) * (r + TRUNK_R);
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      if (tx < 0 || ty < 0 || tx >= WW || ty >= WH || this.solid[ty * WW + tx] !== 5) continue;
+      const dx = px - (tx * TS + 8), dy = py - (ty * TS + TRUNK_DY);
+      if (dx * dx + dy * dy < rr) return true;
+    }
+    return false;
   }
   isWaterPx(px, py) { return isWaterT(this.tileAtPx(px, py)); }
   biomeAt(px, py) { return TNAME[this.tileAtPx(px, py)]; }
@@ -203,6 +219,7 @@ class World {
     this.genPOIs();
     await step(Tr('Ormanlar büyüyor...'), 0.72);
     this.genObjects();
+    this.clearDoorways();
     this.computeSolid();
     await step(Tr('Harita çiziliyor...'), 0.85);
     this.buildMapImage();
@@ -1187,10 +1204,27 @@ class World {
     }
     function pick6(h, arr) { return arr[Math.floor(h * arr.length) % arr.length]; }
   }
+  /* Her binanın kapı önündeki iki karoyu engellerden (direk, çit, ağaç, kaya, fıçı…) temizle:
+     kapıya her zaman dışarıdan yürünerek ulaşılabilsin. Çitte kapıya bakan bir geçit açılır. */
+  clearDoorways() {
+    for (const b of this.buildings) {
+      const dx = b.x + Math.floor(b.w / 2);
+      for (let k = 0; k < 2; k++) for (let ox = -1; ox <= 1; ox++) {
+        const x = dx + ox, y = b.y + b.h + k;
+        if (!this.inb(x, y)) continue;
+        const i = y * WW + x;
+        if (this.flags[i] & 8) continue;                       // başka bir binanın içi
+        const o = this.obj[i];
+        if (o && SOLID_O[o] && (ox === 0 || !(o === O.FENCEH || o === O.FENCEV))) this.obj[i] = 0;
+        if (isCliffT(this.tile[i]) || this.tile[i] === T.DEEP) this.tile[i] = T.DRY;
+      }
+    }
+  }
   computeSolid() {
     const N = WW * WH;
     for (let i = 0; i < N; i++) {
       this.solid[i] = (TINFO[this.tile[i]].solid || SOLID_O[this.obj[i]] || (this.flags[i] & 8)) ? 1 : 0;
+      if (this.solid[i] && TRUNK_O[this.obj[i]] && !TINFO[this.tile[i]].solid && !(this.flags[i] & 8)) this.solid[i] = 5;
     }
     // sekoya ve kemer daha büyük
     for (let i = 0; i < N; i++) {

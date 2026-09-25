@@ -1175,8 +1175,13 @@ const UI = {
       },
     });
   },
+  /* Dükkan ve banka kasaları soyulunca boşalır; dükkan 3, banka 7 gün sonra yeniden dolar */
+  robbedRecently(b, days) { const d = G.robbed[b.id]; return d !== undefined && G.day - d < days; },
   robStore(b, closed) {
+    if (this.robbedRecently(b, 3)) { this.feed(Tr('Kasa boş. Bu dükkân yakın zamanda soyuldu.'), 'warn'); return; }
     this.confirm(closed ? Tr('Kasayı Boşalt') : Tr('Dükkanı Soy'), Tr('Bu bir suçtur. Kanun peşine düşecek. Emin misin?'), () => {
+      if (this.robbedRecently(b, 3)) return;
+      G.robbed[b.id] = G.day;
       const v = rnd(25, 70) * (G.hasPerk('devil') ? 2 : 1) * (closed ? 0.7 : 1);
       this.closeAll();
       G.earn(v, Tr('Soygun'));
@@ -1186,7 +1191,10 @@ const UI = {
   },
   robBank(b) {
     if (!G.player.has('dynamite') && !G.player.isArmed) { this.feed(Tr('Banka soymak için silah ya da dinamit gerekli.'), 'warn'); return; }
+    if (this.robbedRecently(b, 7)) { this.feed(Tr('Kasa boş. Banka yeni para getirtene kadar soyulacak bir şey yok.'), 'warn'); return; }
     this.confirm(Tr('Bankayı Soy'), Tr('Büyük bir suç. Bütün kanun peşine düşecek (4 yıldız). Emin misin?'), () => {
+      if (this.robbedRecently(b, 7)) return;
+      G.robbed[b.id] = G.day;
       const v = rnd(250, 700) * (G.hasPerk('devil') ? 1.5 : 1);
       this.closeAll();
       G.earn(v, Tr('Banka soygunu'));
@@ -1575,6 +1583,8 @@ const UI = {
   openArmWrestle() {
     const P = G.player;
     if (P.money < 5) { this.feed(Tr('Bahis için $5 gerekli.'), 'warn'); return; }
+    if ((G.dailyTalk.arm || 0) >= 3) { this.feed(Tr('Bugün kimse seninle bilek güreşi yapmak istemiyor. Yarın gel.'), 'warn'); return; }
+    G.dailyTalk.arm = (G.dailyTalk.arm || 0) + 1;
     P.money -= 5;
     const el = el_('div', 'modal panel arm');
     const opp = { n: randomName('m'), str: rnd(0.8, 1.35) };

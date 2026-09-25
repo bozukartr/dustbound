@@ -326,6 +326,8 @@ const GameSystems = {
     if (!r) return 0;
     let p = it.p * r * this.priceMul(false);
     if (it.c === 'animal' && this.hasPerk('hunt25')) p *= 1.15;
+    // dükkanlarda satılan bir eşya, en ucuza alınabileceği fiyatın altında satılır (al-sat döngüsüyle para basılamasın)
+    if (PURCHASABLE.has(id)) p = Math.min(p, it.p * 0.6);
     return Math.max(0.05, p);
   },
 
@@ -752,6 +754,7 @@ const GameSystems = {
       case O.CARDTABLE: return { label: Tr('Kart Masası'), acts: svc('blackjack') };
       case O.TABLE:
         if (b.type === 'saloon') return { label: Tr('Masa'), acts: [...svc('meal'), ...svc('rumor'), ...svc('arm')] };
+        if (b.type === 'house') return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }, { n: Tr('Evi Ara'), hold: 1.2, fn: () => this.searchHouse(b) }] };
         return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
       case O.PIANO: return { label: Tr('Piyano'), acts: [{ n: Tr('Piyano Çal'), fn: () => this.playPiano(b) }] };
       case O.PEW:
@@ -789,8 +792,8 @@ const GameSystems = {
     if (!b) return true;
     if (this.insideB === b) return true;
     if (b.type === 'property') return this.props.includes(b.prop);
+    if (b.forced === this.day) return true;          // kırılan kapı o gün açık kalır (kilitli evler dahil)
     if (b.def.lock) return false;
-    if (b.forced === this.day) return true;
     return this.isOpen(b);
   },
 
@@ -1583,9 +1586,15 @@ const GameSystems = {
       if (Math.abs(b.door.x - P.x) > 40 || Math.abs(b.door.y - P.y) > 30) continue;
       if (dist2(P.x, P.y, b.door.x, b.door.y) > 20 * 20) continue;
       if (b.type === 'property' && !this.props.includes(b.prop)) { add(b.door.x, b.door.y, b.name, [{ n: Tr('Mülkü İncele'), fn: () => UI.openProperty(b) }], 5); continue; }
-      if (!b.enter) { if (b.def.svc && b.def.svc.length) add(b.door.x, b.door.y, b.name, [{ n: Tr('Gir'), fn: () => UI.openBuilding(b) }], 5); continue; }
+      if (!b.enter) {
+        if (b.def.svc && b.def.svc.length) add(b.door.x, b.door.y, b.name, [{ n: Tr('Gir'), fn: () => UI.openBuilding(b) }], 5);
+        else if (b.type === 'ruin') add(b.door.x, b.door.y, b.name, [{ n: Tr('Harabeyi Ara'), hold: 1.2, fn: () => this.searchRuin(b) }], 5);
+        else if (b.type === 'mineentrance') add(b.door.x, b.door.y, b.name, [{ n: Tr('Madene Gir'), hold: 1, fn: () => this.exploreMine(b) }], 5);
+        else if (b.type === 'lighthouse') add(b.door.x, b.door.y, b.name, [{ n: Tr('Fenere Tırman'), hold: 1, fn: () => this.climbLighthouse(b) }], 5);
+        continue;
+      }
       if (this.doorOpen(b)) continue;
-      if (b.def.lock) { add(b.door.x, b.door.y, Tr('Kilitli Kapı'), [{ n: Tr('Kapıyı Çal'), fn: () => this.knock(b) }], 5); continue; }
+      if (b.def.lock) { add(b.door.x, b.door.y, Tr('Kilitli Kapı'), [{ n: Tr('Kapıyı Çal'), fn: () => this.knock(b) }, { n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) }], 5); continue; }
       const acts = [{ n: Tr('Kapalı (06:00\'da açılır)'), fn: () => UI.feed(Tr`${b.name} kapalı. Sabah 06:00'da açılır.`) }];
       if (b.def.svc.includes('rob') || b.def.svc.includes('robbank')) acts.push({ n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) });
       add(b.door.x, b.door.y, b.name, acts, 5);
@@ -1838,6 +1847,56 @@ const GameSystems = {
     if (this.ambientTemp(P.x, P.y) < 8) { P.warmBuff = 0; UI.feed(Tr('Buz gibi suda yıkandın. Brrr!')); }
     else UI.feed(Tr('🧼 Yıkandın. Tertemiz oldun.'));
     this.advanceClock(15);
+  },
+  /* Başkasının evini aramak: suçtur (görülürse), her ev haftada bir kez bir şey verir */
+  searchHouse(b) {
+    const P = this.player, k = 'house' + b.id, last = this.chestsOpened[k];
+    this.crime('trespass', P.x, P.y);
+    this.addHonor(-2);
+    this.advanceClock(10);
+    if (last !== undefined && this.day - last < 7) { UI.feed(Tr('Çekmeceler boş. Burayı yakın zamanda aradın.')); return; }
+    this.chestsOpened[k] = this.day;
+    const money = rnd(1, 9) * (this.hasPerk('devil') ? 1.5 : 1);
+    this.earn(money, Tr('Hırsızlık'));
+    if (chance(0.45)) P.addItem(pick(['bread', 'beans', 'coffee', 'whiskey', 'bandage', 'tobacco', 'cig_card', 'pocket_watch']));
+  },
+  /* ---- İç mekânı olmayan yapılar ---- */
+  searchRuin(b) {
+    const k = 'ruin' + b.id, last = this.chestsOpened[k];
+    this.advanceClock(20);
+    if (last !== undefined && this.day - last < 7) { UI.feed(Tr('Burayı yakın zamanda aradın. Kayda değer bir şey kalmamış.')); return; }
+    this.chestsOpened[k] = this.day;
+    const P = this.player, found = [];
+    if (chance(0.6)) { const id = pick(['old_coin', 'arrowhead', 'old_coin', 'cig_card']); P.addItem(id, 1, true); found.push(ITEMS[id].n); }
+    if (chance(0.35)) { const id = pick(['whiskey', 'bandage', 'beans', 'tobacco']); P.addItem(id, 1, true); found.push(ITEMS[id].n); }
+    if (chance(0.15)) { const id = pick(['pocket_watch', 'necklace', 'gold_ring']); P.addItem(id, 1, true); found.push(ITEMS[id].n); }
+    if (found.length) { UI.feed(Tr('Molozların arasında buldukların: {0}', found.join(', '))); Audio_.ui('pick'); }
+    else UI.feed(Tr('Harabede örümcek ağından başka bir şey yok.'));
+    this.skillXp('survival', 2);
+  },
+  exploreMine(b) {
+    const P = this.player, k = 'mine' + b.id, last = this.chestsOpened[k];
+    if (last !== undefined && this.day - last < 3) { UI.feed(Tr('Galeriler hâlâ tozlu. Birkaç gün sonra yeniden dene.')); return; }
+    if (!P.has('lantern')) { UI.feed(Tr('İçerisi zifiri karanlık. Fenersiz girmek intihar olur.'), 'warn'); return; }
+    this.chestsOpened[k] = this.day;
+    UI.fade(() => {
+      this.advanceClock(120);
+      P.energy = Math.max(0, P.energy - 12); P.clean = Math.max(0, P.clean - 25);
+      if (chance(0.12)) { P.hurt(25, Tr('göçük'), true); UI.help(Tr('Tavan çöktü! Molozların altından yaralı ama canlı çıktın.'), 6); return; }
+      const got = [];
+      const n = rndi(1, 3); P.addItem('silver_ore', n, true); got.push(`${ITEMS.silver_ore.n} x${n}`);
+      if (chance(0.5)) { P.addItem('iron_ore', 2, true); got.push(`${ITEMS.iron_ore.n} x2`); }
+      if (chance(0.25)) { P.addItem('gold_nugget', 1, true); got.push(ITEMS.gold_nugget.n); this.stat('nuggets', 1); }
+      UI.help(Tr('Terk edilmiş galerilerde iki saat geçirdin. Bulduklarını çantana doldurdun: {0}', got.join(', ')), 6);
+      this.skillXp('strength', 6);
+    }, Tr('Galerilerde...'));
+  },
+  climbLighthouse(b) {
+    const k = 'light' + b.id;
+    this.advanceClock(15);
+    this.revealAt(b.door.x, b.door.y, 1600);
+    if (this.chestsOpened[k] === undefined) { this.chestsOpened[k] = this.day; this.addHonor(0.5); }
+    UI.help(Tr('Fenerin tepesinden kıyı boyunca uzanan her şeyi görebiliyorsun. <b>Haritanın büyük bir kısmı açıldı.</b>'), 6);
   },
   panGold() {
     const P = this.player, W = this.world;

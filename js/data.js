@@ -301,6 +301,8 @@ const SHOPS = {
   hermit:  { n: 'Münzevi', sell: ['herbal_tonic', 'snake_oil', 'antidote', 'mushroom', 'treasure_map'], buy: { herb: 1.2, collect: 1.0 } },
   peddler: { n: 'Seyyar Satıcı', sell: ['snake_oil', 'chocolate', 'whiskey', 'bandage', 'gold_ring', 'necklace', 'cig_card'], ammo: ['pistol'], buy: { valuable: 0.7, collect: 0.8, animal: 0.5 } },
 };
+/* Herhangi bir dükkanda satılan eşyalar (satış fiyatı sınırı için) */
+const PURCHASABLE = new Set(Object.values(SHOPS).flatMap(S => S.sell || []));
 
 /* ---- Önemli yerler ---- */
 const LANDMARKS = [
