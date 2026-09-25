@@ -174,19 +174,44 @@ const Bubbles = {
   clear() { for (const b of this.list) b.el.remove(); this.list = []; },
 };
 
-/* ---------------- Yol trafiği: yük arabası ve posta arabası ---------------- */
+/* ---------------- Yol trafiği: yük arabası ve posta arabası ----------------
+   Sürücü vurulabilir, kementle ya da zorla indirilebilir; sürücüsüz araba
+   oyuncu tarafından sürülür (binicilik kontrolleriyle) ve yükü aranabilir. */
 class Wagon extends Ent {
   constructor(road, i, dir, stage) {
     super(road.pts[i][0], road.pts[i][1]);
     this.kind = 'wagon'; this.path = road.pts; this.pi = i; this.dir = dir; this.stage = !!stage;
-    this.r = 6; this.spd = 0; this.max = stage ? 66 : 38; this.look = randomLook('m');
+    this.r = 6; this.spd = 0; this.max = stage ? 66 : 38;
+    this.driver = { look: randomLook('m'), name: randomName('m') };
     this.hc = [pick(HORSE_BREEDS.morgan.cols), pick(HORSE_BREEDS.tennessee.cols)];
     this.body = stage ? pick(['#6a1e18', '#1e3a2a', '#2a2a3a']) : pick(['#7a5436', '#6a4a2e']);
     this.name = stage ? Tr('Posta Arabası') : Tr('Yük Arabası');
-    this.honkT = 0; this.ang = 0;
+    this.honkT = 0; this.ang = 0; this.cargo = true;
+    // oyuncu sürerken binicilik sistemi bunları kullanır
+    this.def = { spd: stage ? 0.8 : 0.62 }; this.sta = this.maxSta = 220; this.load = []; this.rider = null;
+    this.hp = this.maxHp = 400;
+    if (road.pts[i + dir]) this.ang = Math.atan2(road.pts[i + dir][1] - this.y, road.pts[i + dir][0] - this.x);
   }
-  hurt() {}
-  /* Yolun sonu bir kasabaysa içeri girer: istasyonun ya da dükkânın önünde durur, sonra geri döner */
+  get seat() { return { x: this.x + Math.cos(this.ang) * 7, y: this.y + Math.sin(this.ang) * 7 }; }
+  /* Oyuncunun ateşi: sürücü isabet alabilir, almazsa atları kamçılayıp kaçar */
+  hurt(dmg, by) {
+    if (by !== 'player' || this.rider === G.player || !this.driver) return;
+    if (chance(0.45)) { const n = this.throwDriver(); n.hurt(dmg, 'player', 'gun'); return; }
+    if (!(this.panicT > 0)) Bubbles.add(this, pick([Tr('Haydut var!'), Tr('Deh! Deh!'), Tr('Vurmayın!')]), 2);
+    this.panicT = 14;
+  }
+  /* Sürücü arabadan iner (düşer); NPC olarak dünyaya eklenir */
+  throwDriver() {
+    const d = this.driver, st = this.seat, side = this.ang + Math.PI / 2;
+    this.driver = null; this.route = null; this.parkT = 0;
+    let x = st.x + Math.cos(side) * 12, y = st.y + Math.sin(side) * 12;
+    if (G.world.blocked(x, y, 4)) { x = st.x - Math.cos(side) * 12; y = st.y - Math.sin(side) * 12; }
+    const n = new NPC(x, y, 'traveler', { look: d.look, name: d.name, money: this.stage ? rnd(1, 4) : rnd(0.3, 2) });
+    n.ang = this.ang;
+    G.addEnt(n);
+    return n;
+  }
+  /* Yolun sonu bir kasabaysa içeri girer: dükkânın önünde durur, sonra geri döner */
   enterTown() {
     const t = G.world.townAt(this.x, this.y, 10);
     if (!t || this.stopT) return false;
@@ -198,6 +223,18 @@ class Wagon extends Ent {
     return true;
   }
   update(dt) {
+    if (this.rider) {
+      // oyuncu sürüyor: hareketi binicilik sistemi yapar
+      if (this.spd > 40 && Math.random() < 0.15) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.x - Math.cos(this.ang) * 12, this.y - Math.sin(this.ang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
+      return;
+    }
+    if (!this.driver) {
+      // sürücüsüz: atlar yavaşlayıp durur
+      this.spd = Math.max(0, this.spd - 40 * dt);
+      if (this.spd > 0.5) this.move(Math.cos(this.ang) * this.spd * dt, Math.sin(this.ang) * this.spd * dt);
+      this.mv = this.spd / 60; this.phase += dt * this.spd * 0.15;
+      return;
+    }
     if (this.parkT > 0) {
       this.spd = 0; this.mv = 0; this.parkT -= dt;
       this.ang = turnTo(this.ang, Math.abs(angDiff(this.ang, 0)) < Math.PI / 2 ? 0 : Math.PI, dt * 0.8);   // kapının önünde düzgün hizalanır
@@ -215,18 +252,26 @@ class Wagon extends Ent {
       }
     } else pt = this.path[this.pi + this.dir];
     if (!pt) { if (!this.enterTown()) this.remove = true; return; }
-    const a = Math.atan2(pt[1] - this.y, pt[0] - this.x);
-    this.ang = turnTo(this.ang, a, dt * 3);
-    // önünde oyuncu ya da biri varsa yavaşla, dur, seslen
+    const a = Math.atan2(pt[1] - this.y, pt[0] - this.x), da = Math.abs(angDiff(this.ang, a));
+    this.ang = turnTo(this.ang, a, dt * 2.6);
+    // önünde oyuncu varsa dur ve seslen
     const P = G.player, fx = this.x + Math.cos(this.ang) * 20, fy = this.y + Math.sin(this.ang) * 20;
-    let block = dist2(fx, fy, P.x, P.y) < 16 * 16;
-    this.honkT -= dt;
+    const block = dist2(fx, fy, P.x, P.y) < 16 * 16;
+    this.honkT -= dt; this.panicT = (this.panicT || 0) - dt;
     if (block && this.honkT <= 0) { this.honkT = 5; Bubbles.add(this, pick([Tr('Yoldan çekil!'), Tr('Hey! Çekil önümden!'), Tr('Açılın!')]), 2); }
-    const target = block ? 0 : this.max;
-    this.spd += clamp(target - this.spd, -80 * dt, 30 * dt);
+    // keskin dönüşte yavaşla: dönüş yarıçapı küçülür, hedef noktanın çevresinde dönüp durmaz
+    const turnK = da > 1.2 ? 0.15 : da > 0.5 ? 0.5 : 1;
+    const target = block ? 0 : this.max * (this.panicT > 0 ? 1.7 : 1) * turnK;
+    this.spd += clamp(target - this.spd, -90 * dt, 30 * dt);
     this.x += Math.cos(this.ang) * this.spd * dt; this.y += Math.sin(this.ang) * this.spd * dt;
     this.phase += dt * this.spd * 0.15; this.mv = this.spd / 60;
-    if (dist2(this.x, this.y, pt[0], pt[1]) < 64) { if (this.route) this.ri++; else this.pi += this.dir; }
+    // hedef noktaya varınca ya da onu geçince (arkada kalınca) bir sonrakine geç
+    const d2 = dist2(this.x, this.y, pt[0], pt[1]);
+    const behind = (pt[0] - this.x) * Math.cos(this.ang) + (pt[1] - this.y) * Math.sin(this.ang) < 0;
+    // hedefe 4 sn boyunca hiç yaklaşamıyorsa (etrafında dönüyorsa) o noktayı atla
+    if (!(d2 < (this.bestD2 === undefined ? Infinity : this.bestD2) - 9)) this.wpT = (this.wpT || 0) + dt; else { this.bestD2 = d2; this.wpT = 0; }
+    if (block) this.wpT = 0;
+    if (d2 < 14 * 14 || (behind && d2 < 40 * 40) || this.wpT > 4) { this.wpT = 0; this.bestD2 = undefined; if (this.route) this.ri++; else this.pi += this.dir; }
     if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.x - Math.cos(this.ang) * 12, this.y - Math.sin(this.ang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
   }
   draw(ctx) {
@@ -241,15 +286,18 @@ class Wagon extends Ent {
       ctx.fillStyle = this.body; ctx.fillRect(-10, -5.5, 19, 11);
       ctx.fillStyle = shadeHex(this.body, 0.2); ctx.fillRect(-10, -5.5, 19, 2);
       ctx.fillStyle = '#c8a040'; ctx.fillRect(-9, -5.5, 1, 11); ctx.fillRect(7, -5.5, 1, 11);
-      ctx.fillStyle = '#5a3a20'; ctx.fillRect(-7, -3, 9, 6); ctx.fillStyle = '#8a6a44'; ctx.fillRect(-6, -2, 3, 4); ctx.fillStyle = '#6a2a1a'; ctx.fillRect(-2, -2.4, 3, 4.8);   // tavandaki bagaj
+      if (this.cargo) { ctx.fillStyle = '#5a3a20'; ctx.fillRect(-7, -3, 9, 6); ctx.fillStyle = '#8a6a44'; ctx.fillRect(-6, -2, 3, 4); ctx.fillStyle = '#6a2a1a'; ctx.fillRect(-2, -2.4, 3, 4.8); }   // tavandaki bagaj
     } else {
       ctx.fillStyle = this.body; ctx.fillRect(-10, -5, 18, 10);
       ctx.fillStyle = '#e8e0cc'; ctx.beginPath(); ctx.ellipse(-3, 0, 7.5, 5.6, 0, 0, TAU); ctx.fill();   // branda
       ctx.fillStyle = '#c8bca4'; for (let k = -8; k <= 2; k += 3.5) ctx.fillRect(k, -5.4, 0.8, 10.8);
+      if (!this.cargo) { ctx.fillStyle = 'rgba(40,26,14,0.55)'; ctx.fillRect(-9.5, -1.2, 3, 2.4); }   // açılmış branda
     }
     ctx.restore();
-    // sürücü önde oturur
-    Spr.human(ctx, this.x + c * 7, this.y + s * 7, this.ang, this.look, { riding: true });
+    // sürücü önde oturur (oyuncu sürüyorsa oyuncu)
+    const st = this.seat, P = G.player;
+    if (this.rider === P) Spr.human(ctx, st.x, st.y, P.ang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ });
+    else if (this.driver) Spr.human(ctx, st.x, st.y, this.ang, this.driver.look, { riding: true });
   }
 }
 
@@ -611,11 +659,56 @@ const TownLifeSystems = {
     return null;
   },
 
+  /* ---------------- at arabası: gasp, sürme, yük arama ---------------- */
+  wagonActions(w, add) {
+    const P = this.player, acts = [];
+    if (w.rider) return;
+    if (w.driver) {
+      if (w.spd > 30) return;
+      acts.push({ n: Tr('Sürücüyü İndir'), hold: 0.5, fn: () => this.hijackWagon(w) });
+    } else {
+      acts.push({ n: Tr('Arabayı Sür'), fn: () => this.driveWagon(w) });
+      if (w.cargo) acts.push({ n: w.stage ? Tr('Posta Çantasını Ara') : Tr('Yükü Ara'), hold: 1.2, fn: () => this.lootWagon(w) });
+    }
+    add(w.x, w.y, w.name, acts, 3);
+  },
+  hijackWagon(w) {
+    const n = w.throwDriver();
+    n.assaulted = true; n.state = 'flee'; n.t = 10;
+    n.say(pick([Tr('Al arabayı, yeter ki vurma!'), Tr('Haydut! Yardım edin!'), Tr('Bunu yanına bırakmam!')]), 2.5);
+    this.crime('horsetheft', w.x, w.y, n);
+    w.owner = 'player';
+    this.player.mount(w);
+  },
+  driveWagon(w) {
+    if (w.owner !== 'player') { this.crime('horsetheft', w.x, w.y); w.owner = 'player'; }
+    this.player.mount(w);
+    this.hintOnce('wagon', Tr`At arabasını at gibi sürersin: ${Input.glyph('sprint')} ile hızlan, ${Input.glyph('interact')} ile in. Çalıntı arabayı uzakta bırakırsan kaybolur.`, 8);
+  },
+  lootWagon(w) {
+    const P = this.player;
+    w.cargo = false;
+    if (w.owner !== 'player') this.crime('robbery', w.x, w.y);
+    let money;
+    if (w.stage) {
+      money = rnd(4, 18);
+      if (chance(0.5)) P.addItem(pick(['pocket_watch', 'gold_ring', 'necklace']));
+      if (chance(0.3)) P.addItem('cig_card');
+    } else {
+      money = rnd(0.2, 1.5);
+      const goods = ['beans', 'bread', 'coffee', 'whiskey', 'tobacco', 'peaches', 'jerky', 'corn', 'bandage', 'hay'];
+      for (let k = rndi(2, 4); k > 0; k--) P.addItem(pick(goods), rndi(1, 3));
+    }
+    this.earn(money, w.stage ? Tr('Posta çantası') : Tr('Araba yükü'));
+    this.addHonor(-2);
+    Audio_.ui('pick');
+  },
+
   /* ---------------- yol trafiği ---------------- */
   trafficTick() {
     const P = this.player, W = this.world;
-    const wagons = this.ents.filter(e => e.kind === 'wagon');
-    for (const w of wagons) if (dist2(w.x, w.y, P.x, P.y) > 1500 * 1500) w.remove = true;
+    const wagons = this.ents.filter(e => e.kind === 'wagon' && e.owner !== 'player');
+    for (const w of this.ents) if (w.kind === 'wagon' && w.rider !== P && dist2(w.x, w.y, P.x, P.y) > (w.owner === 'player' ? 3000 : 1500) ** 2) w.remove = true;
     if (wagons.length >= 3 || !chance(0.07)) return;
     // oyuncunun görüş alanının hemen dışındaki yol noktalarından biri
     const cands = [];
