@@ -124,7 +124,7 @@ class World {
     this.season = season;
     this.chunks.clear(); this.jobs.clear();
     for (const b of this.buildings) b.cover = null;
-    this.buildMapImage();
+    this.buildMapImage(true);
     return true;
   }
   /* Kış karı: sıcaklık haritasına göre (0 = yok, >0 = karlı), kenarlar gürültüyle yumuşak */
@@ -1249,30 +1249,86 @@ class World {
     }
   }
 
-  /* ---- Parşömen harita görüntüsü ---- */
-  buildMapImage() {
-    const c = makeCanvas(WW, WH), ctx = c.getContext('2d');
-    const img = ctx.createImageData(WW, WH), d = img.data;
+  /* ---- Parşömen harita görüntüsü ----
+     Karo başına 2x2 piksel. Eski bir arazi haritası gibi: kuzeybatıdan ışıkla tepe
+     gölgelendirmesi, eş yükselti çizgileri, kıyı boyunca taranmış su çizgileri, orman
+     noktalamaları, kum ve çöl beneklenmesi, kâğıt dokusu. Yollar, demiryolu ve yazılar
+     haritada vektörel olarak ayrıca çizilir. */
+  buildMapImage(async) {
+    const S = 2, MW = WW * S, MH = WH * S, N = WW * WH;
+    const c = makeCanvas(MW, MH), ctx = c.getContext('2d');
+    const img = ctx.createImageData(MW, MH), d = img.data;
     const MC = TINFO.map(t => hexToRgb(t.map));
-    for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
-      const i = y * WW + x, t = this.tile[i];
-      let [r, g, b] = MC[t];
-      if (this.season === 3 && SNOWABLE[t] && this.snowAmt(i, (hash2(x, y, 71) - 0.5) * 0.8) > 0.25) { r = 238; g = 236; b = 230; }
-      else if (this.season === 2 && LEAFY[t]) { r += 14; g -= 4; b -= 16; }
-      const e0 = this.elev[i], e1 = this.elev[Math.min(WW * WH - 1, i + WW + 1)];
-      let sh = (e0 - e1) * 1.6;
-      if (isCliffT(t) && ((x + y) % 3 === 0)) sh -= 34;
-      if (t === T.ROCK && ((x - y) % 4 === 0)) sh -= 16;
-      const o = this.obj[i];
-      if (o && SOLID_O[o] && o < 20) sh -= 22;
-      if (this.flags[i] & 2) { r = 40; g = 30; b = 22; sh = ((x + y) & 1) ? 0 : 50; }
-      if (this.flags[i] & 8) { r = 70; g = 46; b = 30; sh = 0; }
-      const n = (hash2(x, y, 3) - 0.5) * 10;
-      const k = i * 4;
-      d[k] = clamp(r + sh + n, 0, 255); d[k + 1] = clamp(g + sh + n, 0, 255); d[k + 2] = clamp(b + sh * 0.8 + n, 0, 255); d[k + 3] = 255;
+    const E = this.elev, tile = this.tile, flags = this.flags, obj = this.obj;
+    // su karelerinin kıyıya uzaklığı (0: kıyı, en fazla 6) — iki geçişli yaklaşık mesafe
+    const sd = new Uint8Array(N);
+    for (let i = 0; i < N; i++) sd[i] = isWaterT(tile[i]) ? 6 : 0;
+    for (let y = 1; y < WH - 1; y++) for (let x = 1; x < WW - 1; x++) { const i = y * WW + x; if (sd[i]) sd[i] = Math.min(sd[i], sd[i - 1] + 1, sd[i - WW] + 1); }
+    for (let y = WH - 2; y > 0; y--) for (let x = WW - 2; x > 0; x--) { const i = y * WW + x; if (sd[i]) sd[i] = Math.min(sd[i], sd[i + 1] + 1, sd[i + WW] + 1); }
+    // kâğıt lekeleri (düşük frekanslı), bir kez hesaplanır
+    if (!this._paper) {
+      const nz = new Noise(this.seed + 901), P = this._paper = new Int8Array(N);
+      for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) P[y * WW + x] = ((nz.v(x / 46, y / 46) - 0.5) * 22 + (nz.v(x / 9 + 50, y / 9) - 0.5) * 6) | 0;
     }
-    ctx.putImageData(img, 0, 0);
-    this.mapCanvas = c;
+    const PA = this._paper, CT = 9;   // eş yükselti aralığı
+    const ev = (x, y) => E[(y < 0 ? 0 : y >= WH ? WH - 1 : y) * WW + (x < 0 ? 0 : x >= WW ? WW - 1 : x)];
+    // karo başına bir kez: gölge ve eş yükselti geçişleri (1: sağa, 2: aşağı)
+    const SH = new Int8Array(N), CF = new Uint8Array(N);
+    for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
+      const i = y * WW + x, gx = ev(x + 1, y) - ev(x - 1, y), gy = ev(x, y + 1) - ev(x, y - 1);
+      SH[i] = clamp(-(gx + gy) * 2.2, -46, 30);
+      const e0 = (E[i] / CT) | 0;
+      CF[i] = (e0 !== ((ev(x + 1, y) / CT) | 0) ? 1 : 0) | (e0 !== ((ev(x, y + 1) / CT) | 0) ? 2 : 0);
+    }
+    const winter = this.season === 3, SN = winter ? new Uint8Array(N) : null;
+    const hsh = (a, b, k) => { let h = (a * 374761393 + b * 668265263 + k * 1442695041) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    const rows = (Y0, Y1) => { for (let Y = Y0; Y < Y1; Y++) {
+      const y = Y >> 1, sy = Y & 1;
+      for (let X = 0; X < MW; X++) {
+        const x = X >> 1, sx = X & 1, i = y * WW + x, t = tile[i];
+        const mc = MC[t]; let r = mc[0], g = mc[1], b = mc[2];
+        if (t === T.TOWN || t === T.ROAD || t === T.BRIDGE || t === T.PLANK) { r = 196; g = 172; b = 132; }   // yollar vektörel çizilir
+        if (winter && SNOWABLE[t] && (sx | sy) === 0 ? (SN[i] = this.snowAmt(i, (hash2(x, y, 71) - 0.5) * 0.8) > 0.25 ? 1 : 0) : winter && SN[i]) { r = 238; g = 236; b = 230; }
+        else if (this.season === 2 && LEAFY[t]) { r += 14; g -= 4; b -= 16; }
+        const water = sd[i] > 0;
+        let sh = 0;
+        if (!water) {
+          // tepe gölgelendirmesi: kuzeybatıdan ışık
+          sh = SH[i];
+          // eş yükselti çizgisi (1 piksel)
+          if ((sx && (CF[i] & 1)) || (sy && (CF[i] & 2))) { r = r * 0.8 + 16; g = g * 0.78 + 8; b = b * 0.76; sh -= 6; }
+          if (isCliffT(t) && ((X + Y) % 3 === 0)) sh -= 34;                 // yamaç taraması
+          if ((t === T.ROCK || t === T.REDROCK) && ((X - Y) % 5 === 0)) sh -= 14;
+          if ((t === T.DESERT || t === T.SAND || t === T.DRY) && hsh(X, Y, 17) < 0.05) sh -= 26;   // kum beneği
+          if ((t === T.FOREST || t === T.SWAMP) && !sx && !sy && hsh(x, y, 5) < 0.34) { r -= 46; g -= 38; b -= 40; }   // ağaç noktası
+          else if ((t === T.FOREST || t === T.SWAMP) && sx && sy && hsh(x, y, 5) < 0.34) sh -= 18;               // gölgesi
+          const o = obj[i];
+          if (o && SOLID_O[o] && o < 20 && t !== T.FOREST) sh -= 16;
+          // kıyı çizgisi: suya bakan kara kenarı mürekkeple
+          if ((sd[i - 1] === 1 && !sx) || (sd[i + 1] === 1 && sx) || (sd[i - WW] === 1 && !sy) || (sd[i + WW] === 1 && sy)) { r = 70; g = 84; b = 88; sh = 0; }
+        } else {
+          // su: derine gittikçe koyulaşır, kıyıya paralel tarama çizgileri
+          const k = sd[i];
+          r -= k * 5; g -= k * 3; b -= k * 1;
+          if (k <= 3 && ((Y + k * 3) % 5 === 0)) { r -= 18; g -= 12; b -= 6; }
+          if (t === T.DEEP) { r -= 8; g -= 4; }
+        }
+        if (flags[i] & 2) { r = 40; g = 30; b = 22; sh = ((x + y) & 1) ? 0 : 50; }
+        if (flags[i] & 8) { r = 82; g = 56; b = 36; sh = (sx || sy) ? 0 : 14; }   // binalar
+        const n = PA[i] + (hsh(X, Y, 3) - 0.5) * 7;
+        const k4 = (Y * MW + X) * 4;
+        // hafif sepya kâğıt tonu
+        r = r + sh + n; g = g + sh + n; b = b + sh * 0.8 + n;
+        d[k4] = clamp(r * 0.94 + 18, 0, 255); d[k4 + 1] = clamp(g * 0.92 + 12, 0, 255); d[k4 + 2] = clamp(b * 0.86 + 4, 0, 255); d[k4 + 3] = 255;
+      }
+    } };
+    const done = () => { ctx.putImageData(img, 0, 0); this.mapCanvas = c; this.mapScale = S; };
+    if (!async || !this.mapCanvas) { rows(0, MH); done(); return; }
+    // oyun sırasında (mevsim değişimi): parça parça çiz, bitene kadar eski harita görünür
+    const tok = this._mapTok = {};
+    let Y = 0;
+    const step = () => { if (this._mapTok !== tok) return; rows(Y, Math.min(MH, Y + 128)); Y += 128; if (Y < MH) setTimeout(step, 0); else done(); };
+    setTimeout(step, 0);
   }
 
   /* ======================================================

@@ -38,7 +38,7 @@ const G = {
     this.visited = new Set(); this.discovered = new Set(); this.rumored = new Set();
     this.props = []; this.family = { spouse: null, children: [] }; this.romances = {}; this.stable = [];
     this.campCleared = {}; this.chestsOpened = {}; this.graves = {}; this.dailyTalk = {}; this.robbed = {}; this.lostItems = []; this.events = [];
-    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0;
+    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.reveal = new Uint8Array(65536);
@@ -214,7 +214,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), resMem: this.resMem, savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(SAVE_KEY, JSON.stringify(data));
@@ -249,7 +249,7 @@ const G = {
     this.props = d.props || []; this.family = d.family || { spouse: null, children: [] }; this.romances = d.romances || {}; this.stable = d.stable || [];
     this.campCleared = d.campCleared || {}; this.robbed = d.robbed || {}; this.chestsOpened = d.chestsOpened || {}; this.graves = d.graves || {}; this.treasure = d.treasure; this.activeBounty = d.activeBounty; this.stash = d.stash || {};
     if (this.activeBounty) this.activeBounty.spawned = false;
-    this.hints = d.hints || {}; this.resMem = d.resMem || {};
+    this.hints = d.hints || {}; this.resMem = d.resMem || {}; this.debugUsed = !!d.debugUsed;
     this.world.harvested = new Map(d.harvested || []);
     for (const b of this.world.buildings) if (b.prop && this.props.includes(b.prop)) b.owned = true;
     const bin = atob(d.reveal);
@@ -266,7 +266,7 @@ const G = {
       const h = new Horse(d.horse.x, d.horse.y, d.horse.breed, { owner: 'player', name: d.horse.name, look: d.horse.look, bond: d.horse.bond, hp: d.horse.hp });
       h.dead = d.horse.dead;
       this.setHorse(h, true);
-      if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h); }
+      if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h, true); }
     }
     this.loadCarry(d.carry);
     if ((d.v || 1) < 2) this.migrateEconomy();
@@ -426,8 +426,10 @@ const G = {
     if (I.pressed('zoomIn')) this.quickZoom(1);
     if (I.pressed('zoomOut')) this.quickZoom(-1);
     if (Input.mouse.wheel && Input.device === 'kb') this.cycleWeapon(Input.mouse.wheel > 0 ? 1 : -1);
+    // kamp tuşu (kolda D-pad ↓): basılı tut = kamp kur, kısa bas = genişletilmiş radar/HUD
     if (I.held('camp') > 0.7 && !this._campHeld) { this._campHeld = true; this.setupCamp(); }
-    if (!I.down('camp')) this._campHeld = false;
+    if (I.down('camp')) this._campT = (this._campT || 0) + dt;
+    else { if (this._campT > 0 && this._campT < 0.35 && !this._campHeld) UI.expandHud(); this._campT = 0; this._campHeld = false; }
     if (I.pressed('quick')) this.quickUse();
     UI.interactUpdate(dt);
   },
@@ -573,7 +575,8 @@ const G = {
           else if (e.kind === 'animal') { if (e.def.shape === 'snake' || e.def.shape === 'gator') continue; r = e.r + 4; }
           else if (e.kind === 'wagon') { if (!e.driver) continue; r = 12; }   // sürücüyü arabadan çeker
           else continue;
-          if (dist2(e.x, e.y, p.x, p.y) < r * r) { hit = e; break; }
+          const hc = e.kind === 'wagon' ? e.seat : e;
+          if (dist2(hc.x, hc.y, p.x, p.y) < r * r) { hit = e; break; }
         }
         if (hit) {
           if (hit.kind === 'animal') this.lassoAnimal(hit);
@@ -676,7 +679,7 @@ const G = {
     vis.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     for (const e of vis) {
       if (e === P && P.riding) continue;
-      if (e.rider === P) { e.draw(ctx); if (e.kind === 'horse') P.draw(ctx); continue; }   // araba sürücüyü kendisi çizer
+      if (e.rider === P) { e.draw(ctx); if (e.kind === 'horse' || P.mountAnim) P.draw(ctx); continue; }   // araba sürücüyü kendisi çizer (binme animasyonu hariç)
       if (e.child) { ctx.save(); ctx.translate(e.x, e.y); ctx.scale(0.7, 0.7); ctx.translate(-e.x, -e.y); e.draw(ctx); ctx.restore(); continue; }
       e.draw(ctx);
     }

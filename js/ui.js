@@ -114,6 +114,13 @@ const UI = {
       }
     }
     if (G.state === 'play' || G.state === 'dead') {
+      // genişletilmiş HUD: radar uzaklaşır, değerler ve konum bilgisi görünür
+      if (this.hudX > 0) this.hudX -= dt;
+      const xt = this.hudX > 0 && G.state === 'play' ? 1 : 0;
+      this.hudXk = (this.hudXk || 0) + (xt - (this.hudXk || 0)) * Math.min(1, dt * 7);
+      if (Math.abs(this.hudXk - xt) < 0.01) this.hudXk = xt;
+      const hudEl = this.cache.hudEl || (this.cache.hudEl = $('#hud'));
+      if (hudEl._x !== !!xt) { hudEl._x = !!xt; hudEl.classList.toggle('hud-x', !!xt); this.timers && (this.timers.hud = 0); }
       this.timers = this.timers || { hud: 0, radar: 0 };
       this.timers.hud -= dt; this.timers.radar -= dt;
       if (this.timers.hud <= 0) { this.timers.hud = 0.1; this.hudUpdate(); }
@@ -264,9 +271,29 @@ const UI = {
     const e = this.cache[id] || (this.cache[id] = $('#' + id));
     if (e._t !== t) { e._t = t; e.innerHTML = t; }
   },
+  /* D-pad ↓ (ya da kamp tuşu) kısa basış: birkaç saniyelik genişletilmiş HUD; tekrar basınca kapanır */
+  expandHud() {
+    this.hudX = this.hudX > 0 ? 0 : 7;
+    Audio_.ui('move');
+  },
+  hudXInfo() {
+    const P = G.player, W = G.world, env = G.envCache || {};
+    const t = W.townAt(P.x, P.y, 20);
+    const place = t ? t.n : W.regionAt(P.x, P.y);
+    const wt = G.weather.type, sn = (env.snow || 0) > 0.3, du = (env.dust || 0) > 0.3;
+    const wn = du ? Tr('Kum fırtınası') : sn ? Tr('Karlı') : ({ clear: Tr('Açık hava'), cloudy: Tr('Bulutlu'), rain: Tr('Yağmurlu'), storm: Tr('Fırtınalı'), fog: Tr('Sisli') })[wt] || '';
+    const h = G.honor, hn = h > 50 ? Tr('Saygın') : h > 15 ? Tr('İyi') : h < -50 ? Tr('Kötü Şöhretli') : h < -15 ? Tr('Şüpheli') : Tr('Nötr');
+    const pct = v => Math.round(clamp(v, 0, 100));
+    return `<div class="xi-place">${place}</div>
+      <div class="xi-row">${Icons.glyph('sun', '#efe6d2')}${wn} • ${Math.round(G.feltTemp)}°</div>
+      <div class="xi-row">${Icons.glyph('star', '#efe6d2')}${Tr`Onur: ${hn}`}</div>
+      <div class="xi-grid"><span>${Tr`Sağlık`}</span><b>${pct(P.hp / P.maxHp * 100)}</b><span>${Tr`Dayanıklılık`}</span><b>${pct(P.sta / Math.max(1, P.maxSta) * 100)}</b><span>${Tr`Odak`}</span><b>${pct(P.de)}</b>
+      <span>${Tr`Açlık`}</span><b>${pct(P.hunger)}</b><span>${Tr`Susuzluk`}</span><b>${pct(P.thirst)}</b><span>${Tr`Uyku`}</span><b>${pct(P.energy)}</b></div>`;
+  },
   hudUpdate() {
     const P = G.player;
     if (!P) return;
+    if (this.hudX > 0) this.setText('hud-xinfo', this.hudXInfo());
     this.setCore('core-hp', P.hp / P.maxHp, Math.min(P.hunger, P.thirst) / 100);
     this.setCore('core-sta', P.sta / Math.max(1, P.maxSta), P.energy / 100);
     this.setCore('core-de', P.de / 100, P.deCore / 100);
@@ -407,18 +434,26 @@ const UI = {
     const c = this.rctx, W = G.world, P = G.player;
     if (!W || !P) return;
     const S = 200, R = 100;
-    const z = P.riding ? 1.35 : 1.8; // px / karo
+    const xk = this.hudXk || 0;                                   // genişletilmiş radar (D-pad ↓): daha geniş alan
+    const z = (P.riding ? 1.35 : 1.8) * lerp(1, 0.42, xk); // px / karo
     const tx = P.x / TS, ty = P.y / TS;
     c.save();
     c.clearRect(0, 0, S, S);
     c.beginPath(); c.arc(R, R, R - 2, 0, TAU); c.clip();
     c.fillStyle = '#c9b48a'; c.fillRect(0, 0, S, S);
-    c.imageSmoothingEnabled = false;
-    const span = S / z;
-    c.drawImage(W.mapCanvas, tx - span / 2, ty - span / 2, span, span, 0, 0, S, S);
+    c.imageSmoothingEnabled = z < 1.6;
+    const span = S / z, ms = W.mapScale || 1;
+    c.drawImage(W.mapCanvas, (tx - span / 2) * ms, (ty - span / 2) * ms, span * ms, span * ms, 0, 0, S, S);
     c.imageSmoothingEnabled = true;
-    c.drawImage(G.fogCanvas, (tx - span / 2) / 4, (ty - span / 2) / 4, span / 4, span / 4, 0, 0, S, S);
     const toR = (wx, wy) => [R + (wx / TS - tx) * z, R + (wy / TS - ty) * z];
+    // yollar ve demiryolu (vektörel)
+    const lim = span * TS * 0.75;
+    const poly = (pts, step) => { c.beginPath(); let on = false; for (let k = 0; k < pts.length; k += step) { const q = pts[k]; if (Math.abs(q[0] - P.x) > lim || Math.abs(q[1] - P.y) > lim) { on = false; continue; } const [x, y] = toR(q[0], q[1]); if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; } } c.stroke(); };
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    for (const r of W.roads) { c.strokeStyle = 'rgba(92,62,36,0.85)'; c.lineWidth = r.spur ? 1.6 : 2.6; poly(r.pts, 2); c.strokeStyle = 'rgba(214,190,140,0.9)'; c.lineWidth = r.spur ? 0.6 : 1.1; poly(r.pts, 2); }
+    c.strokeStyle = 'rgba(30,24,20,0.8)'; c.lineWidth = 1.2;
+    for (const l of W.lines) poly(l.pts, 2);
+    c.drawImage(G.fogCanvas, (tx - span / 2) / 4, (ty - span / 2) / 4, span / 4, span / 4, 0, 0, S, S);
     // aranma alanı
     if (G.law.level > 0) {
       const [lx, ly] = toR(G.law.lastX, G.law.lastY);
@@ -448,7 +483,7 @@ const UI = {
     };
     c.font = '10px serif';
     for (const b of W.buildings) {
-      if (Math.abs(b.door.x - P.x) > 900 || Math.abs(b.door.y - P.y) > 900) continue;
+      if (Math.abs(b.door.x - P.x) > 900 || Math.abs(b.door.y - P.y) > 900 || (xk > 0.5 && b.town)) continue;   // genişken kasaba adı yeterli
       const ic = BICON[b.type];
       if (ic && RADAR_B.has(b.type) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', null, 12);
     }
@@ -477,6 +512,18 @@ const UI = {
       else if (e === G.horse) { icon(e.x, e.y, 'horse', '#f0d8a8', 'rgba(60,36,20,0.9)', 13); }
     }
     for (const tr of G.trains) if (tr.pos[0]) { const [x, y] = toR(tr.pos[0][0], tr.pos[0][1]); if (Math.hypot(x - R, y - R) < R - 4) { c.fillStyle = '#222'; c.fillRect(x - 3, y - 3, 6, 6); } }
+    // genişletilmiş radarda kasaba adları
+    if (xk > 0.3) {
+      c.globalAlpha = Math.min(1, (xk - 0.3) * 2);
+      c.font = '12px "IM Fell English SC", serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      for (const t of W.towns) {
+        if (!G.visited.has(t.id) && !G.reveal[((t.cy / TS / 4) | 0) * 256 + ((t.cx / TS / 4) | 0)]) continue;
+        const [x, y] = toR(t.cx, t.cy);
+        if (Math.hypot(x - R, y - R) > R - 16) continue;
+        c.lineWidth = 3; c.strokeStyle = 'rgba(236,224,196,0.9)'; c.strokeText(t.n, x, y - 10); c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, y - 10);
+      }
+      c.globalAlpha = 1;
+    }
     // oyuncu oku
     c.translate(R, R); c.rotate(P.riding ? P.riding.ang : P.ang);
     c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 1.5;
@@ -577,20 +624,43 @@ const UI = {
     const c = this.mctx, W = G.world, M = this.map, d = this.mapDPR;
     const w = innerWidth, h = innerHeight;
     c.setTransform(d, 0, 0, d, 0, 0);
-    c.fillStyle = '#b8a078'; c.fillRect(0, 0, w, h);
-    const ox = w / 2 - M.cx * M.zoom, oy = h / 2 - M.cy * M.zoom;
-    c.imageSmoothingEnabled = M.zoom < 2;
-    c.drawImage(W.mapCanvas, ox, oy, WW * M.zoom, WH * M.zoom);
-    c.imageSmoothingEnabled = true;
-    c.drawImage(G.fogCanvas, ox, oy, WW * M.zoom, WH * M.zoom);
+    // masa: koyu deri, haritanın çevresinde yanık kenarlı kâğıt
+    c.fillStyle = '#3a2a1c'; c.fillRect(0, 0, w, h);
+    const ox = w / 2 - M.cx * M.zoom, oy = h / 2 - M.cy * M.zoom, mw = WW * M.zoom, mh = WH * M.zoom;
+    c.save(); c.shadowColor = 'rgba(0,0,0,0.7)'; c.shadowBlur = 30; c.fillStyle = '#d8c49c'; c.fillRect(ox - 14, oy - 14, mw + 28, mh + 28); c.restore();
+    c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+    c.drawImage(W.mapCanvas, ox, oy, mw, mh);
     const toS = (wx, wy) => [ox + wx / TS * M.zoom, oy + wy / TS * M.zoom];
     const revealed = (wx, wy) => G.reveal[((wy / TS / 4) | 0) * 256 + ((wx / TS / 4) | 0)];
-    // bölge isimleri
+    // yollar: çift çizgi (mürekkep kenar, kâğıt içi); patikalar kesikli
+    const x0 = -40, y0 = -40, x1 = w + 40, y1 = h + 40;
+    const poly = (pts, step) => { c.beginPath(); let on = false; for (let k = 0; k < pts.length; k += step) { const [x, y] = toS(pts[k][0], pts[k][1]); if (x < x0 || y < y0 || x > x1 || y > y1) { if (on) c.lineTo(x, y); on = false; continue; } if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; } } c.stroke(); };
+    const st = M.zoom < 1 ? 4 : M.zoom < 2.5 ? 2 : 1;
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    const rw = clamp(M.zoom * 1.5, 1.8, 7);
+    for (const r of W.roads) {
+      if (r.spur) { c.strokeStyle = 'rgba(92,62,36,0.8)'; c.lineWidth = rw * 0.45; c.setLineDash([rw * 1.2, rw]); poly(r.pts, st); c.setLineDash([]); continue; }
+      c.strokeStyle = 'rgba(80,52,30,0.9)'; c.lineWidth = rw; poly(r.pts, st);
+      c.strokeStyle = 'rgba(226,204,160,0.95)'; c.lineWidth = rw * 0.45; poly(r.pts, st);
+    }
+    // demiryolu: siyah hat ve traversler
+    for (const l of W.lines) {
+      c.strokeStyle = 'rgba(28,22,18,0.9)'; c.lineWidth = Math.max(1.2, M.zoom * 0.5); poly(l.pts, st);
+      c.lineWidth = Math.max(4, M.zoom * 2); c.setLineDash([1.2, Math.max(4, M.zoom * 3)]); poly(l.pts, st); c.setLineDash([]);
+    }
+    c.imageSmoothingEnabled = true;
+    c.drawImage(G.fogCanvas, ox, oy, mw, mh);
+    // kenar gölgesi ve çift çerçeve
+    c.strokeStyle = 'rgba(60,36,18,0.85)'; c.lineWidth = 2; c.strokeRect(ox - 6, oy - 6, mw + 12, mh + 12);
+    c.strokeStyle = 'rgba(60,36,18,0.5)'; c.lineWidth = 1; c.strokeRect(ox - 10, oy - 10, mw + 20, mh + 20);
+    // bölge isimleri: aralıklı italik, kâğıt rengi kenarla okunur
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.font = `italic ${Math.round(16 + M.zoom * 4)}px "IM Fell English", serif`;
     for (const r of REGIONS) {
       const [x, y] = toS(r.x * WW * TS, r.y * WH * TS);
-      c.fillStyle = 'rgba(60,40,20,0.35)'; c.fillText(r.n.toUpperCase().split('').join(' '), x, y);
+      const txt = r.n.toUpperCase().split('').join(' ');
+      c.lineWidth = 3; c.strokeStyle = 'rgba(232,218,184,0.45)'; c.strokeText(txt, x, y);
+      c.fillStyle = 'rgba(60,40,20,0.5)'; c.fillText(txt, x, y);
     }
     // GPS
     if (G.gps) {
@@ -603,9 +673,13 @@ const UI = {
     for (const t of W.towns) {
       if (!revealed(t.cx, t.cy) && !G.visited.has(t.id)) continue;
       const [x, y] = toS(t.cx, t.cy);
-      c.font = `${Math.round(13 + M.zoom * 2.5)}px "IM Fell English SC", serif`;
-      c.fillStyle = 'rgba(232,220,192,0.8)'; c.fillText(t.n, x + 1, y - 18 - M.zoom * 4 + 1);
-      c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, y - 18 - M.zoom * 4);
+      // kasaba adı küçük bir kâğıt etiket üzerinde
+      const fs = Math.round(13 + M.zoom * 2.5), ly = y - 18 - M.zoom * 4;
+      c.font = `${fs}px "IM Fell English SC", serif`;
+      const tw = c.measureText(t.n).width + fs * 0.9;
+      c.fillStyle = 'rgba(236,224,196,0.88)'; c.fillRect(x - tw / 2, ly - fs * 0.62, tw, fs * 1.24);
+      c.strokeStyle = 'rgba(70,44,22,0.7)'; c.lineWidth = 1; c.strokeRect(x - tw / 2 + 2.5, ly - fs * 0.62 + 2.5, tw - 5, fs * 1.24 - 5);
+      c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, ly + 1);
       if (M.zoom > 1.8) {
         for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 9, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (im.complete) c.drawImage(im, bx - 6.5, by - 6.5, 13, 13); }
       }
@@ -652,6 +726,36 @@ const UI = {
     const g = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(40,20,5,0.55)');
     c.fillStyle = g; c.fillRect(0, 0, w, h);
+    this.drawCompass(c, w - 96, h - 150, 58);
+    // ölçek çubuğu: 1 mil ≈ 31 karo (yürüme istatistiğiyle aynı ölçek)
+    const mile = 1609 / 3.2 / TS * M.zoom, miles = mile < 40 ? 5 : mile < 90 ? 2 : 1, bw = mile * miles;
+    const sx = 40, sy = h - 88;
+    c.fillStyle = 'rgba(236,224,196,0.85)'; c.fillRect(sx - 10, sy - 24, bw + 20, 36);
+    c.strokeStyle = '#2a1a0e'; c.lineWidth = 1; c.strokeRect(sx - 10, sy - 24, bw + 20, 36);
+    for (let k = 0; k < 4; k++) { c.fillStyle = k % 2 ? '#efe2c0' : '#2a1a0e'; c.fillRect(sx + bw / 4 * k, sy, bw / 4, 5); }
+    c.strokeRect(sx, sy, bw, 5);
+    c.fillStyle = '#2a1a0e'; c.font = 'italic 13px "IM Fell English", serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+    c.fillText(Tr`${miles} mil`, sx + bw / 2, sy - 7);
+  },
+  /* Süslü pusula gülü (harita köşesi) */
+  drawCompass(c, x, y, r) {
+    c.save(); c.translate(x, y);
+    c.fillStyle = 'rgba(236,224,196,0.8)'; c.beginPath(); c.arc(0, 0, r * 0.62, 0, TAU); c.fill();
+    c.strokeStyle = 'rgba(60,36,18,0.8)'; c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, r * 0.62, 0, TAU); c.stroke(); c.beginPath(); c.arc(0, 0, r * 0.55, 0, TAU); c.stroke();
+    for (let k = 0; k < 16; k++) { const a = k / 16 * TAU; c.beginPath(); c.moveTo(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55); c.lineTo(Math.cos(a) * r * (k % 2 ? 0.5 : 0.46), Math.sin(a) * r * (k % 2 ? 0.5 : 0.46)); c.stroke(); }
+    const star = (len, wid, rot, dark, light) => {
+      for (let k = 0; k < 4; k++) {
+        const a = rot + k * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a), cp = Math.cos(a + Math.PI / 2), sp = Math.sin(a + Math.PI / 2);
+        c.fillStyle = dark; c.beginPath(); c.moveTo(0, 0); c.lineTo(ca * len, sa * len); c.lineTo(cp * wid, sp * wid); c.closePath(); c.fill();
+        c.fillStyle = light; c.beginPath(); c.moveTo(0, 0); c.lineTo(ca * len, sa * len); c.lineTo(-cp * wid, -sp * wid); c.closePath(); c.fill();
+      }
+    };
+    star(r * 0.62, r * 0.09, Math.PI / 4, '#5a3c20', '#c8aa78');
+    star(r, r * 0.13, -Math.PI / 2, '#2a1a0e', '#e8d8b0');
+    c.fillStyle = '#8a1a10'; c.beginPath(); c.arc(0, 0, r * 0.05, 0, TAU); c.fill();
+    c.fillStyle = '#2a1a0e'; c.font = `bold ${Math.round(r * 0.32)}px "IM Fell English SC", serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(Tr('@pusula|K'), 0, -r * 1.2);
+    c.restore();
   },
 
   /* ================= SİLAH / EŞYA ÇARKI (iki sayfa) ================= */
@@ -1802,8 +1906,8 @@ const UI = {
       <div class="cr-left"><div class="cr-sec">${TABS[tab].n}</div><div class="cr-list">${rowsHtml()}</div></div>
       <div class="cr-stage">
         <div class="cr-frame"><canvas id="cr-portrait" width="400" height="480"></canvas><i class="cr-c tl"></i><i class="cr-c tr"></i><i class="cr-c bl"></i><i class="cr-c br"></i></div>
-        <div class="cr-plate"><div class="cr-pn" id="cr-pn"></div><div class="cr-ps" id="cr-ps"></div></div>
-        <div class="cr-ped"><canvas id="cr-top" width="96" height="96"></canvas></div>
+        <div class="cr-under"><div class="cr-plate"><div class="cr-pn" id="cr-pn"></div><div class="cr-ps" id="cr-ps"></div></div>
+        <div class="cr-ped"><canvas id="cr-top" width="96" height="96"></canvas></div></div>
       </div>
       <div class="cr-right" id="cr-desc"></div>
       <div class="cr-foot"><div class="cr-keys">${Tr`${Input.glyph('up')}${Input.glyph('down')} Seç &nbsp; ◀ ▶ Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Bölüm &nbsp; ${Input.glyph('back')} Geri`}</div>

@@ -12,7 +12,7 @@ const GAME_ACTIONS = [
   { id: 'sprint', n: 'Koş / Dörtnala' }, { id: 'interact', n: 'Etkileşim / Ata Bin' }, { id: 'aim', n: 'Nişan Al' }, { id: 'fire', n: 'Ateş Et' },
   { id: 'reload', n: 'Şarjör Değiştir' }, { id: 'melee', n: 'Yakın Dövüş' }, { id: 'crouch', n: 'Çömel / Gizlen' }, { id: 'deadeye', n: 'Odak' },
   { id: 'wheel', n: 'Silah Çarkı' }, { id: 'quick', n: 'Hızlı İyileş / Ye' }, { id: 'whistle', n: 'Atı Çağır' }, { id: 'lantern', n: 'Fener' },
-  { id: 'mask', n: 'Maske Tak / Çıkar' }, { id: 'satchel', n: 'Çanta' }, { id: 'camp', n: 'Kamp Kur (basılı)' }, { id: 'map', n: 'Harita' },
+  { id: 'mask', n: 'Maske Tak / Çıkar' }, { id: 'satchel', n: 'Çanta' }, { id: 'camp', n: 'Kamp Kur (basılı) / Geniş Radar' }, { id: 'map', n: 'Harita' },
   { id: 'journal', n: 'Günlük' }, { id: 'pause', n: 'Duraklat' }, { id: 'zoomIn', n: 'Yakınlaştır (Piksel Ölçeği +)' }, { id: 'zoomOut', n: 'Uzaklaştır (Piksel Ölçeği −)' },
 ];
 const DEFAULT_KB = {

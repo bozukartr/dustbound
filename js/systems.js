@@ -860,9 +860,10 @@ const GameSystems = {
       if (e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || (e === this.horse && owner === this.player)) continue;
       if (e === this.player.riding && owner === this.player) continue;
       if (opts.npc && e.kind === 'npc' && owner.role === e.role) continue;
-      const r = (e.r || 4) + (e.kind === 'horse' ? 3 : 1.5);
+      const r = e.kind === 'wagon' ? 9 : (e.r || 4) + (e.kind === 'horse' ? 3 : 1.5);
       if (Math.abs(e.x - ox) > range + 20 || Math.abs(e.y - oy) > range + 20) continue;
-      const t = rayCircle(ox, oy, dx, dy, e.x, e.y, r);
+      const hc = e.kind === 'wagon' ? e.seat : e;   // arabada isabet: sürücü koltuğu çevresi
+      const t = rayCircle(ox, oy, dx, dy, hc.x, hc.y, r);
       if (t >= 0 && t < hd) { hd = t; hit = e; }
     }
     // ıskalayan mermi nişan noktasının biraz ötesinde yere saplanır (opts.gd): toz görünür yerde kalkar
@@ -1479,7 +1480,7 @@ const GameSystems = {
     // omuzda yük varken etkileşim yalnızca yükle ilgilidir
     if (P.carry && !P.riding) return this.carryInteraction();
     if (P.riding) {
-      const acts = [{ n: Tr('İn'), fn: () => P.dismount() }];
+      const acts = [{ n: Tr('İn'), fn: () => P.dismount(false, true) }];
       if (P.riding.kind === 'wagon' && P.riding.cargo) acts.push({ n: P.riding.stage ? Tr('Posta Çantasını Ara') : Tr('Yükü Ara'), hold: 1.2, fn: () => this.lootWagon(P.riding) });
       // at sırtında şerif ofisinin kapısına gelince eyerdeki suçluyu teslim et
       const h = P.riding;
@@ -1493,7 +1494,7 @@ const GameSystems = {
     // varlıklar
     for (const e of this.ents) {
       if (e.remove) continue;
-      const d = dist(P.x, P.y, e.x, e.y);
+      const d = e.kind === 'wagon' ? Math.min(dist(P.x, P.y, e.x, e.y), dist(P.x, P.y, e.bx, e.by)) : dist(P.x, P.y, e.x, e.y);   // arabanın gövdesi atların arkasında
       if (d > (e.held ? 50 : 30)) continue;
       if (e.kind === 'horse') {
         if (e === this.horse) {

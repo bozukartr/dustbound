@@ -71,11 +71,12 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - Dükkanlar gece kapanır ve kapıları kilitlenir (kapı kırılabilir). İçerideyken kapanış saati gelirse kapıdan rahatça çıkabilirsin; kapı yalnızca dışarıdan girişe kapanır. Evler kilitlidir; kapıyı çalabilir ya da kırıp içeri girebilirsin (haneye tecavüz sayılır, evi aramak haftada bir şey kazandırır). Harabeler aranabilir, terk edilmiş maden galerilerine fenerle girilebilir, deniz fenerine tırmanınca kıyı haritası açılır. Her binanın kapı önü dünya üretilirken engellerden temizlenir. Atlar ve hayvanlar binalara giremez. Saloon akşamları kalabalıklaşır, piyanist çalar.
 - **Kasaba hayatı**: Her kasabanın kalıcı sakinleri vardır (büyük kasabada 56, ortada 38, küçükte 22 kişi); adları, yüzleri, meslekleri, evleri ve iş yerleri dünya tohumundan hep aynı üretilir. Dükkân sahibi sabah evinden çıkıp dükkânına yürür ve tezgâhın arkasına geçer, kapanışta evine döner. Hamallar sandık taşır, lambacı sabah sokak süpürür ve akşam lambaları dolaşır, gazeteci çocuk manşet bağırır, ev hanımları dükkân dükkân alışveriş yapar, çocuklar sabah okula (kiliseye) gider ve öğleden sonra oynar, emekliler banklarda oturur, madenci ve oduncular gün boyu kasaba dışında çalışır, akşam saloona uğrar. Pazar sabahı kasaba kiliseye gider; yağmurda, fırtınada ve kum fırtınasında insanlar kapalı yerlere sığınır. Sakinler kasaba içinde yol bularak (A*) binaların etrafından dolaşır; binaya giren kişi görünmez olur ve programı değişince kapıdan çıkar. Oyuncudan uzaktakiler seyrek güncellenir, böylece kalabalık kasabalar akıcı kalır.
 - **Hafıza ve sohbet**: Sakinler seni hatırlar. Selamlaştıkça ısınırlar; soyduğun, saldırdığın, tehdit ettiğin ya da gözü önünde suç işlediğin kişiler sana soğur. Seni seven dükkân sahibi %10'a kadar indirim yapar, nefret eden zam yapar; seni seven komşu bazen suçunu görmezden gelir, nefret eden seni görünce uzaklaşır. Sokakta karşılaşan sakinler havaya, mevsime ve senin ününe göre sohbet eder (konuşma baloncukları). Ölen bir sakinin yerine birkaç gün sonra kasabaya yeni biri gelir. Yaklaşınca adı ve mesleği görünür.
-- **Yol trafiği**: Kasabalar arası yollarda yük arabaları ve posta arabaları gider. Kasabaya varan araba mağazanın ya da otelin önünde bir süre durur, sonra geri döner. Önüne çıkarsan durup bağırırlar. Sürücüyü vurabilir, kementle çekebilir ya da araba dururken zorla indirebilirsin; sürücüsüz arabayı at gibi sürer, yükünü ya da posta çantasını arayabilirsin (at hırsızlığı ve soygun sayılır).
+- **Yol trafiği**: Kasabalar arası yollarda yük arabaları ve posta arabaları gider. Kasabaya varan araba mağazanın ya da otelin önünde bir süre durur, sonra geri döner. Önüne çıkarsan durup bağırırlar. Sürücüyü vurabilir, kementle çekebilir ya da araba dururken zorla indirebilirsin; sürücüsüz arabayı at gibi sürer, yükünü ya da posta çantasını arayabilirsin (at hırsızlığı ve soygun sayılır). Araba bir tır dorsesi gibi hareket eder: önce atlar döner, gövde çeki okundan arkadan izler; ön tekerlekler dönüşe göre kırılır.
 - **Göçebe kampları**: tüccar kervanları, sığırtmaçlar, altın arayıcıları, kürkçüler ve seyyar bir kumpanya kasabaların dışında kamp kurar. Takas yapabilir, ateş başında dinlenip hikâye dinleyebilirsin. Her kamp 5–10 yılda bir başka bir yere göç eder.
 - Kasabaları bağlayan yollar, köprüler ve istasyonlar arasında gidip gelen **trenler** (bilet alıp seyahat edebilirsin).
 - 25 keşfedilecek önemli yer: göktaşı krateri, bin yıllık sekoya, hayalet kasaba, terk edilmiş maden, sıcak kaynaklar, dinozor kemikleri, karaya oturmuş gemi, gözetleme tepeleri. Bunlara haydut kampları, çiftlikler ve satılık mülkler eklenir.
-- Gezdikçe açılan parşömen harita, GPS rotası ve radar.
+- Gezdikçe açılan harita, GPS rotası ve radar. Harita eski bir arazi haritası gibi çizilir: tepe gölgelendirmesi, eş yükselti çizgileri, kıyı boyunca taranmış su, orman ve kum dokusu, çift çizgili yollar, traversli demiryolu, kâğıt etiketli kasaba adları, pusula gülü ve mil ölçeği.
+- **Genişletilmiş radar**: Kamp tuşuna (kolda D-pad ↓) kısa bas: radar birkaç saniyeliğine büyür ve çok daha geniş bir alanı kasaba adlarıyla gösterir; yanında konum, hava durumu, sıcaklık, onur ve bütün göstergelerin sayısal değerleri açılır. Tekrar basınca kapanır, basılı tutmak kamp kurar.
 - Ağaçlar, kaktüsler ve direkler yalnızca gövdeleriyle çarpışır; bir engele çarpınca karakter, at ve NPC'ler durmak yerine etrafından akıcı biçimde kayarak devam eder.
 - Gece-gündüz döngüsü, yağmur, fırtına, kar, kum fırtınası ve sis.
 - **Canlı görsel efektler**: Ortak bir rüzgâr yönü bulut gölgelerini, baca ve kamp ateşi dumanını, yağmuru, otları ve sazlıkları etkiler. Çalılar, otlar, çiçekler ve ekinler rüzgârda salınır, yanlarından geçince eğilir. Sonbaharda ağaçlardan yaprak düşer. Kasaba bacaları sabah ve akşam, soğukta ise gün boyu tüter. Kum, çöl, çamur ve karda ayak ve toynak izleri kalır; seyrek ve silik tutulur, yarım dakikada solar (kasaba sokaklarında iz kalmaz). Suda yürürken ve yağmurda su yüzeyinde halkalar oluşur, kıyıya ince dalgalar vurur. Soğukta oyuncunun, atların ve NPC'lerin nefesi buhar olur.
@@ -107,7 +108,8 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - **Postlar**: Geyik, kızıl geyik, antilop, bizon, ayı, puma, yaban domuzu ve timsah postları çantaya sığmaz; yüzdükten sonra omzunda ya da eyerde taşınır. Ayı, bizon ve timsah gibi iri hayvanların leşi taşınamaz, önce derisi yüzülür. Postları ve leşleri kasap, tuzakçı ya da genel mağazanın içinde sat; atın kapıdaysa eyerdekiler de satılır. Bütün leş, parça parça satmaktan biraz daha iyi fiyat getirir.
 - NPC'lerle selamlaşma (günün saatine, havaya, role ve tanışıklığa göre değişen 100'ü aşkın replik), kışkırtma, soygun; yol olayları (yaralı yolcular, soygunlar, pusu, kırık arabalar, seyyar satıcılar); ödül ilanları.
 - Yirmi Bir (blackjack), bilek güreşi, hızlı çekiş düellosu, söylenti dinleme, gazete okuma, kamp ateşinde mızıka çalma.
-- Atlar: satın alma, yabani at evcilleştirme, bağ seviyesi, ıslıkla çağırma.
+- Atlar: satın alma, yabani at evcilleştirme, bağ seviyesi, ıslıkla çağırma. Ata ve arabaya binerken ve inerken kısa bir sıçrama animasyonu oynar. Atlı NPC'lerin (kanun adamları dahil) atları yan yan kaymaz: at hep burnunun yönüne gider, sınırlı hızla döner; binici çatışmada oyuncunun çevresinde geniş daireler çizerken silahını ayrıca çevirir.
+- **Kolla nişan**: L2'ye basınca en uygun hedefe kilitlenir (basış anında görünmüyorsa kısa bir süre aramaya devam eder). Kilit hareketli hedefi birebir izler, atış tam hedefe gider ve hedefi takip etmek nişan oturmasını bozmaz. Sağ analogu hafifçe oynatmak kilidi bozmaz; savurmak yandaki hedefe geçirir, bilerek başka yöne itmek kısa bir süre sonra kilidi bırakır. Hedef ölürse ya da düşerse L2 basılıyken sıradaki düşmana geçer.
 
 **Kanun ve onur**
 - **Tanıklar**: Suçunu gören biri önce en yakın kanun adamına ya da şerif ofisine koşar. Ulaşamadan onu durdurursan (silah doğrultup tehdit ederek, rüşvet vererek ya da daha kötüsüyle) suç kayda geçmez. Kanun adamlarının gözü önünde işlenen suçlar ve dükkan/banka soygunları anında bildirilir.
@@ -133,6 +135,20 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - *Tek Hayat*: ölüm kalıcıdır, kayıt silinir.
 
 Oyun, uyuduğunda ve her yeni günde otomatik kaydedilir (tarayıcının `localStorage` alanına).
+
+## Hata ayıklama modu
+
+Oyun içindeyken **Ctrl + Alt + C** sağda sürüklenebilir bir hata ayıklama paneli açar (tekrar basınca kapanır). Panel 4 haneli bir şifre ister; şifre oturum başına bir kez sorulur, klavyeyle ya da ekrandaki tuş takımıyla girilir. Üç hatalı denemeden sonra 30 saniye beklemek gerekir. Şifre kaynak kodda düz yazılmaz, yalnızca özeti tutulur. Üstte FPS, kare, güncelleme ve çizim süreleri ile son 180 karenin grafiği görünür. Sekmeler:
+
+- **Genel**: konum (piksel, karo, chunk, zemin, yükselti, bölge, bina), saat, tarih, hava, sıcaklık, varlık sayıları, parçacıklar, chunk önbelleği, aranma, tanıklar, onur, dünya tohumu, bellek; kaydet/yükle.
+- **Oyuncu**: ölümsüzlük, sınırsız mermi, sınırsız dayanıklılık ve odak, duvarlardan geçme, kanunun görmemesi, hareket hızı çarpanı; can ve ihtiyaçları doldurma, para, onur, bütün silahlar, yetenekler, istenen eşyayı verme, at ve aranma işlemleri.
+- **Dünya**: saat kaydırıcısı, saat/gün/mevsim atlama, oyun hızı (×0,25–×8), saati dondurma, hava seçimi, haritayı açma, bütün yerleri keşfetme, kasabalara/yerlere/hedefe ışınlanma, Alt + tık ile ışınlanma.
+- **Oluştur**: kasabalı, gezgin, haydut, kanun adamı (atlı ya da yaya), her tür hayvan, yük ve posta arabası, sahipsiz at; düşmanları öldürme, ceset ve hayvan temizleme.
+- **Katmanlar**: çarpışma çemberleri, engel karoları, chunk ve karo ızgarası, NPC etiketleri (durum, plan, can), sakinlerin A* rotaları, araba rotaları, kanun arama alanı ve tanık hedefleri, nişan konisi ve etkileşim hedefi, arayüzü gizleme. Katmanlar ekranın tam çözünürlüğünde çizilir.
+- **Kasaba**: seçilen kasabanın sakinleri; meslek, plan, nerede oldukları ve oyuncu hakkındaki fikirleri. Satıra tıklayınca o kişiye ışınlanırsın.
+- **Günlük**: yakalanan hatalar, uyarılar ve oyun bildirimleri; süzme, temizleme, kopyalama.
+
+Bilgi ve katman araçları kaydı etkilemez. Hile sayılan bir şey kullanılırsa kayıt işaretlenir ve o kayıtta başarımlar kapanır.
 
 ## Teknik
 
@@ -163,6 +179,7 @@ js/sprites.js   karakter, hayvan, at, bina ve nesne çizimleri
 js/entities.js  oyuncu, at, hayvan, NPC, tren, parçacıklar
 js/systems.js   zaman, hava, hayatta kalma, kanun, doğma, etkileşim
 js/carry.js     taşıma, kement, ödül teslimi, kanıt
+js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar
 js/cinema.js    kasabaya varış sinematikleri (kütüphanesiz WebGL)
