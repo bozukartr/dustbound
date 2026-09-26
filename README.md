@@ -138,7 +138,7 @@ Oyun, uyuduğunda ve her yeni günde otomatik kaydedilir (tarayıcının `localS
 
 ## Hata ayıklama modu
 
-Oyun içindeyken **Ctrl + Alt + C** sağda sürüklenebilir bir hata ayıklama paneli açar (tekrar basınca kapanır). Üstte FPS, kare, güncelleme ve çizim süreleri ile son 180 karenin grafiği görünür. Sekmeler:
+Oyun içindeyken **Ctrl + Alt + C** sağda sürüklenebilir bir hata ayıklama paneli açar (tekrar basınca kapanır). Panel 4 haneli bir şifre ister; şifre oturum başına bir kez sorulur, klavyeyle ya da ekrandaki tuş takımıyla girilir. Üç hatalı denemeden sonra 30 saniye beklemek gerekir. Şifre kaynak kodda düz yazılmaz, yalnızca özeti tutulur. Üstte FPS, kare, güncelleme ve çizim süreleri ile son 180 karenin grafiği görünür. Sekmeler:
 
 - **Genel**: konum (piksel, karo, chunk, zemin, yükselti, bölge, bina), saat, tarih, hava, sıcaklık, varlık sayıları, parçacıklar, chunk önbelleği, aranma, tanıklar, onur, dünya tohumu, bellek; kaydet/yükle.
 - **Oyuncu**: ölümsüzlük, sınırsız mermi, sınırsız dayanıklılık ve odak, duvarlardan geçme, kanunun görmemesi, hareket hızı çarpanı; can ve ihtiyaçları doldurma, para, onur, bütün silahlar, yetenekler, istenen eşyayı verme, at ve aranma işlemleri.

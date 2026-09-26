@@ -2140,5 +2140,11 @@ I18N.add('en', {
     "Kayıt yok": "No entries",
     "Haritada hedef işaretli değil.": "No waypoint set on the map.",
     "Günlük panoya kopyalandı.": "Log copied to clipboard.",
+    "Çok fazla hatalı deneme. {0} sn bekle.": "Too many wrong attempts. Wait {0} s.",
+    "Hata ayıklama modu": "Debug mode",
+    "4 haneli şifreyi gir": "Enter the 4-digit code",
+    "İptal": "Cancel",
+    "Çok fazla hatalı deneme. 30 sn bekle.": "Too many wrong attempts. Wait 30 s.",
+    "Yanlış şifre": "Wrong code",
   },
 });

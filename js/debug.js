@@ -24,6 +24,7 @@ const Debug = {
   install() {
     // kısayol: pencerenin yakalama aşamasında, oyunun çömelme tuşundan (C) önce
     window.addEventListener('keydown', e => {
+      if (this.pin) { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) this.pinKey(e); return; }
       if (e.code === 'KeyC' && e.ctrlKey && e.altKey) {
         e.preventDefault(); e.stopImmediatePropagation();
         if (!e.repeat) this.toggle();
@@ -84,11 +85,89 @@ const Debug = {
 
   toggle() {
     if (!G.world || !G.player || (G.state !== 'play' && G.state !== 'dead')) return;
+    if (!this.open && !this.unlocked) { this.askPin(); return; }
     this.open = !this.open;
     this.el.classList.toggle('hidden', !this.open);
     if (this.open) { this.renderTab(); this.refresh(true); }
     else { Input.textFocus = false; }
     Audio_.ui('move');
+  },
+  /* ---------------- şifre ----------------
+     Panel 4 haneli bir şifreyle açılır (oturum boyunca bir kez sorulur).
+     Şifre kaynakta düz yazılmaz; yalnızca özeti tutulur. */
+  PIN_HASH: '144crf48',
+  pinHash(p) {
+    const f = s => { let h = 0x811c9dc5; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h; };
+    let h = 'fe-dbg:' + p;
+    for (let i = 0; i < 5000; i++) h = f(h).toString(36) + h.length;
+    return h;
+  },
+  askPin() {
+    if (this.lockUntil && performance.now() < this.lockUntil) { UI.feed(Tr`Çok fazla hatalı deneme. ${Math.ceil((this.lockUntil - performance.now()) / 1000)} sn bekle.`, 'warn'); return; }
+    if (!this.pinEl) {
+      const el = this.pinEl = document.createElement('div');
+      el.id = 'dbg-pin'; el.className = 'dbg-pinwrap hidden';
+      el.innerHTML = `<div class="dbg dbg-pinbox">
+        <div class="dbg-pinic"><svg viewBox="0 0 24 24" class="dbg-ic"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><circle cx="12" cy="15.5" r="1.3"/></svg></div>
+        <div class="dbg-pint">${Tr('Hata ayıklama modu')}</div>
+        <div class="dbg-pins" id="dbg-pinmsg">${Tr('4 haneli şifreyi gir')}</div>
+        <div class="dbg-pinbox4" id="dbg-pinbox4"><i></i><i></i><i></i><i></i></div>
+        <div class="dbg-keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="esc" class="fn">${Tr('İptal')}</button><button data-k="0">0</button><button data-k="del" class="fn">⌫</button></div>
+      </div>`;
+      document.body.appendChild(el);
+      for (const ev of ['mousedown', 'mouseup', 'wheel', 'contextmenu']) el.addEventListener(ev, e => e.stopPropagation());
+      el.addEventListener('click', e => {
+        e.stopPropagation();
+        const b = e.target.closest('button');
+        if (b) { b.blur(); this.pinKey({ code: b.dataset.k === 'esc' ? 'Escape' : b.dataset.k === 'del' ? 'Backspace' : 'Digit' + b.dataset.k }); }
+        else if (e.target === el) this.closePin();
+      });
+    }
+    this.pin = { v: '' };
+    this.pinEl.classList.remove('hidden');
+    this.pinDraw();
+    Audio_.ui('move');
+  },
+  pinDraw(state) {
+    const boxes = this.pinEl.querySelectorAll('#dbg-pinbox4 i'), v = this.pin ? this.pin.v : '';
+    boxes.forEach((b, i) => { b.className = (i < v.length ? 'on' : '') + (i === v.length ? ' cur' : '') + (state ? ' ' + state : ''); });
+  },
+  pinKey(e) {
+    const P = this.pin;
+    if (!P || P.busy) return;
+    const m = /^(?:Digit|Numpad)(\d)$/.exec(e.code);
+    if (e.code === 'Escape') { this.closePin(); return; }
+    if (e.code === 'Backspace') { P.v = P.v.slice(0, -1); this.pinDraw(); return; }
+    if (!m || P.v.length >= 4) return;
+    P.v += m[1];
+    this.pinDraw();
+    if (P.v.length < 4) return;
+    P.busy = true;
+    if (this.pinHash(P.v) === this.PIN_HASH) {
+      this.pinDraw('ok');
+      this.unlocked = true; this.fails = 0;
+      Audio_.ui('ok');
+      setTimeout(() => { this.closePin(); this.toggle(); }, 260);
+    } else {
+      this.fails = (this.fails || 0) + 1;
+      this.pinDraw('bad');
+      const box = this.pinEl.querySelector('.dbg-pinbox');
+      box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+      Audio_.ui('error');
+      const msg = this.pinEl.querySelector('#dbg-pinmsg');
+      if (this.fails >= 3) {
+        this.lockUntil = performance.now() + 30000; this.fails = 0;
+        msg.textContent = Tr('Çok fazla hatalı deneme. 30 sn bekle.');
+        setTimeout(() => this.closePin(), 1100);
+      } else {
+        msg.textContent = Tr('Yanlış şifre');
+        setTimeout(() => { if (this.pin) { P.v = ''; P.busy = false; this.pinDraw(); } }, 650);
+      }
+    }
+  },
+  closePin() {
+    this.pin = null;
+    if (this.pinEl) { this.pinEl.classList.add('hidden'); this.pinEl.querySelector('#dbg-pinmsg').textContent = Tr('4 haneli şifreyi gir'); }
   },
   /* bir hile kullanıldı: kayıt işaretlenir */
   mark() {
