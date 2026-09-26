@@ -38,7 +38,7 @@ const G = {
     this.visited = new Set(); this.discovered = new Set(); this.rumored = new Set();
     this.props = []; this.family = { spouse: null, children: [] }; this.romances = {}; this.stable = [];
     this.campCleared = {}; this.chestsOpened = {}; this.graves = {}; this.dailyTalk = {}; this.robbed = {}; this.lostItems = []; this.events = [];
-    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0;
+    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.reveal = new Uint8Array(65536);
@@ -214,7 +214,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), resMem: this.resMem, savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(SAVE_KEY, JSON.stringify(data));
@@ -249,7 +249,7 @@ const G = {
     this.props = d.props || []; this.family = d.family || { spouse: null, children: [] }; this.romances = d.romances || {}; this.stable = d.stable || [];
     this.campCleared = d.campCleared || {}; this.robbed = d.robbed || {}; this.chestsOpened = d.chestsOpened || {}; this.graves = d.graves || {}; this.treasure = d.treasure; this.activeBounty = d.activeBounty; this.stash = d.stash || {};
     if (this.activeBounty) this.activeBounty.spawned = false;
-    this.hints = d.hints || {}; this.resMem = d.resMem || {};
+    this.hints = d.hints || {}; this.resMem = d.resMem || {}; this.debugUsed = !!d.debugUsed;
     this.world.harvested = new Map(d.harvested || []);
     for (const b of this.world.buildings) if (b.prop && this.props.includes(b.prop)) b.owned = true;
     const bin = atob(d.reveal);

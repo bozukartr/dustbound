@@ -136,6 +136,20 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 
 Oyun, uyuduğunda ve her yeni günde otomatik kaydedilir (tarayıcının `localStorage` alanına).
 
+## Hata ayıklama modu
+
+Oyun içindeyken **Ctrl + Alt + C** sağda sürüklenebilir bir hata ayıklama paneli açar (tekrar basınca kapanır). Üstte FPS, kare, güncelleme ve çizim süreleri ile son 180 karenin grafiği görünür. Sekmeler:
+
+- **Genel**: konum (piksel, karo, chunk, zemin, yükselti, bölge, bina), saat, tarih, hava, sıcaklık, varlık sayıları, parçacıklar, chunk önbelleği, aranma, tanıklar, onur, dünya tohumu, bellek; kaydet/yükle.
+- **Oyuncu**: ölümsüzlük, sınırsız mermi, sınırsız dayanıklılık ve odak, duvarlardan geçme, kanunun görmemesi, hareket hızı çarpanı; can ve ihtiyaçları doldurma, para, onur, bütün silahlar, yetenekler, istenen eşyayı verme, at ve aranma işlemleri.
+- **Dünya**: saat kaydırıcısı, saat/gün/mevsim atlama, oyun hızı (×0,25–×8), saati dondurma, hava seçimi, haritayı açma, bütün yerleri keşfetme, kasabalara/yerlere/hedefe ışınlanma, Alt + tık ile ışınlanma.
+- **Oluştur**: kasabalı, gezgin, haydut, kanun adamı (atlı ya da yaya), her tür hayvan, yük ve posta arabası, sahipsiz at; düşmanları öldürme, ceset ve hayvan temizleme.
+- **Katmanlar**: çarpışma çemberleri, engel karoları, chunk ve karo ızgarası, NPC etiketleri (durum, plan, can), sakinlerin A* rotaları, araba rotaları, kanun arama alanı ve tanık hedefleri, nişan konisi ve etkileşim hedefi, arayüzü gizleme. Katmanlar ekranın tam çözünürlüğünde çizilir.
+- **Kasaba**: seçilen kasabanın sakinleri; meslek, plan, nerede oldukları ve oyuncu hakkındaki fikirleri. Satıra tıklayınca o kişiye ışınlanırsın.
+- **Günlük**: yakalanan hatalar, uyarılar ve oyun bildirimleri; süzme, temizleme, kopyalama.
+
+Bilgi ve katman araçları kaydı etkilemez. Hile sayılan bir şey kullanılırsa kayıt işaretlenir ve o kayıtta başarımlar kapanır.
+
 ## Teknik
 
 - Saf HTML, CSS ve JavaScript. Hiçbir kütüphane ve varlık dosyası yok; bütün grafik ve sesler kodla üretiliyor.
@@ -165,6 +179,7 @@ js/sprites.js   karakter, hayvan, at, bina ve nesne çizimleri
 js/entities.js  oyuncu, at, hayvan, NPC, tren, parçacıklar
 js/systems.js   zaman, hava, hayatta kalma, kanun, doğma, etkileşim
 js/carry.js     taşıma, kement, ödül teslimi, kanıt
+js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar
 js/cinema.js    kasabaya varış sinematikleri (kütüphanesiz WebGL)
