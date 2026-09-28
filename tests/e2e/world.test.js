@@ -39,7 +39,10 @@ module.exports = {
         window.W0 = w; window.WX0 = [w.x, w.y];
         return { stopped, riding };
       });
-      await p.keyboard.down('KeyD'); await t.sleep(1500); await p.keyboard.up('KeyD');
+      // yük altında kare hızı düşebilir: araba yeterince ilerleyene kadar (en çok 5 sn) sür
+      await p.keyboard.down('KeyD');
+      for (let n = 0; n < 50 && await p.evaluate(() => dist(W0.x, W0.y, WX0[0], WX0[1]) < 30); n++) await t.sleep(100);
+      await p.keyboard.up('KeyD');
       Object.assign(r, await p.evaluate(() => {
         const P = G.player, w = W0, moved = dist(w.x, w.y, WX0[0], WX0[1]);
         const m0 = P.money; G.lootWagon(w); const gain = P.money - m0; P.dismount();

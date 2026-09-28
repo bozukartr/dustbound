@@ -95,7 +95,7 @@ module.exports = {
     });
     await t.step('kanıt: yakında masum ceset bulunursa suç yazılır, uzaktaysan yazılmaz', async () => {
       const r = await p.evaluate(() => {
-        const P = G.player, s = TH.openSpot(P.x - 700, P.y - 300); TH.goto(s[0], s[1]);
+        const P = G.player, s = TH.openSpot(P.x - 700, P.y - 300); TH.goto(s[0], s[1]); TH.clearNpcs();   // yakındaki bir kanun adamı suçu doğrudan yazmasın
         G.law.level = 0; G.law.bounty = 0; G.reports = [];
         const v = new NPC(s[0] + 40, s[1], 'traveler', {}); G.addEnt(v); v.hurt(999, 'player', 'gun');
         const f = new NPC(s[0] + 90, s[1] + 10, 'traveler', {}); G.addEnt(f); G.evidenceTick();

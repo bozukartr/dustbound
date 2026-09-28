@@ -1032,7 +1032,7 @@ const UI = {
       }).join('') + '</div>';
     }
     if (t === 3) {
-      const rows = [[Tr('Hayatta kalınan gün'), G.day], [Tr('Avlanan hayvan'), S.animals], [Tr('Öldürülen haydut'), S.bandits], [Tr('Toplam öldürülen insan'), S.kills], [Tr('Yürünen mesafe'), S.walkMiles.toFixed(1) + Tr(' mil')], [Tr('At sırtında'), S.rideMiles.toFixed(1) + Tr(' mil')], [Tr('Toplanan bitki'), S.herbs], [Tr('Tutulan balık'), S.fish], [Tr('Yenen yemek'), S.eaten], [Tr('Kazanılan toplam para'), fmtMoney(S.earned)], [Tr('Çalışılan vardiya'), S.shifts], [Tr('Yardım edilen yabancı'), S.helped], [Tr('Keşfedilen yer'), G.discovered.size], [Tr('Ziyaret edilen kasaba'), G.visited.size + ' / ' + G.world.towns.length], [Tr('Kurulan kamp'), S.camps], [Tr('Tren yolculuğu'), S.trainRides], [Tr('Bulunan altın'), S.nuggets], [Tr('Kazanılan Yirmi Bir eli'), S.bjWins], [Tr('Bilek güreşi zaferi'), S.armWins]];
+      const rows = [[Tr('Hayatta kalınan gün'), G.day], [Tr('Avlanan hayvan'), S.animals], [Tr('Öldürülen haydut'), S.bandits], [Tr('Toplam öldürülen insan'), S.kills], [Tr('Yürünen mesafe'), S.walkMiles.toFixed(1) + Tr(' mil')], [Tr('At sırtında'), S.rideMiles.toFixed(1) + Tr(' mil')], [Tr('Toplanan bitki'), S.herbs], [Tr('Tutulan balık'), S.fish], [Tr('Yenen yemek'), S.eaten], [Tr('Kazanılan toplam para'), fmtMoney(S.earned)], [Tr('Çalışılan vardiya'), S.shifts], [Tr('Yardım edilen yabancı'), S.helped], [Tr('Keşfedilen yer'), G.discovered.size], [Tr('Ziyaret edilen kasaba'), G.visited.size + ' / ' + G.world.towns.length], [Tr('Kurulan kamp'), S.camps], [Tr('Tren yolculuğu'), S.trainRides], [Tr('Bulunan altın'), S.nuggets], [Tr('Kazanılan Yirmi Bir eli'), S.bjWins], [Tr('Kazanılan poker eli'), S.pokerWins || 0], [Tr('Bilek güreşi zaferi'), S.armWins]];
       return `<table class="stats">${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>`;
     }
     if (t === 4) {
@@ -1323,6 +1323,7 @@ const UI = {
       }
       case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(0.25 * G.priceMul(true)), fn: () => { if (G.spend(0.25 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); } } });
         it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(0.1), fn: () => { if (G.spend(0.1)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); } } }); break;
+      case 'poker': it.push({ icon: '♠', label: Tr('Poker Oyna'), fn: () => this.openPoker(b) }); break;
       case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
       case 'arm': it.push({ icon: '💪', label: Tr('Bilek Güreşi (25¢ bahis)'), fn: () => this.openArmWrestle() }); break;
       case 'rumor': it.push({ icon: '👂', label: Tr('Söylenti Dinle'), right: fmtMoney(0.05), fn: () => this.rumor() }); break;

@@ -769,7 +769,7 @@ const GameSystems = {
         if (b.type === 'property' && this.props.includes(b.prop)) return { label: Tr('Yatağın'), acts: [{ n: Tr('Uyu'), fn: () => U.openSleep('home') }, { n: Tr('Oyunu Kaydet'), fn: () => this.saveGame() }] };
         return null;
       case O.TUB: return b.def.svc.includes('bath') ? { label: Tr('Küvet'), acts: svc('bath') } : null;
-      case O.CARDTABLE: return { label: Tr('Kart Masası'), acts: svc('blackjack') };
+      case O.CARDTABLE: return { label: Tr('Kart Masası'), acts: svc('poker', 'blackjack') };
       case O.TABLE:
         if (b.type === 'saloon' || b.type === 'cantina' || b.type === 'gambling') return { label: Tr('Masa'), acts: [...svc('meal'), ...svc('rumor'), ...svc('arm')] };
         if (b.type === 'bakery') return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };

@@ -115,6 +115,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - **Taşıma**: Cesetleri, bağlı ya da baygın kişileri, leşleri ve büyük postları **omzuna alabilir** (leş ve cesette ikincil eylem: şarjör tuşu), atının yanındayken **eyere yükleyebilirsin**. Eyer 4 birim taşır (kişi ve iri leş 2, post ve küçük leş 1). Omuzda yükle koşamaz, silah kullanamazsın; yüklü at biraz yavaşlar. Yükler kayda geçer.
 - **Postlar**: Geyik, kızıl geyik, antilop, bizon, ayı, puma, yaban domuzu ve timsah postları çantaya sığmaz; yüzdükten sonra omzunda ya da eyerde taşınır. Ayı, bizon ve timsah gibi iri hayvanların leşi taşınamaz, önce derisi yüzülür. Postları ve leşleri kasap, tuzakçı ya da genel mağazanın içinde sat; atın kapıdaysa eyerdekiler de satılır. Bütün leş, parça parça satmaktan biraz daha iyi fiyat getirir.
 - NPC'lerle selamlaşma (günün saatine, havaya, role ve tanışıklığa göre değişen 100'ü aşkın replik), kışkırtma, soygun; yol olayları (yaralı yolcular, soygunlar, pusu, kırık arabalar, seyyar satıcılar); ödül ilanları.
+- **Poker** (beş kart çekmeli): Saloon, kumarhane ve cantinadaki kart masasında üç rakiple oynanır. Herkes giriş parası koyar (5¢, 10¢ ya da 25¢), bir bahis turu, en fazla 3 kart değiştirme, ikinci bahis turu ve el gösterme. Sabit limitlidir (bahis ilk turda 2, ikinci turda 4 giriş parası; turda en fazla 3 bahis). Rakiplerin her birinin kendi oyun tarzı vardır (temkinli, gevşek, blöfçü); paraları günlüktür, masayı boşaltırsan ertesi gün yeni oyuncular gelir. Kumarbaz yeteneği rakiplerin yüzünü okumanı sağlar.
 - Yirmi Bir (blackjack), bilek güreşi, hızlı çekiş düellosu, söylenti dinleme, gazete okuma, kamp ateşinde mızıka çalma.
 - Atlar: satın alma, yabani at evcilleştirme, bağ seviyesi, ıslıkla çağırma. Ata ve arabaya binerken ve inerken kısa bir sıçrama animasyonu oynar. Atlı NPC'lerin (kanun adamları dahil) atları yan yan kaymaz: at hep burnunun yönüne gider, sınırlı hızla döner; binici çatışmada oyuncunun çevresinde geniş daireler çizerken silahını ayrıca çevirir.
 - **Kolla nişan**: L2'ye basınca en uygun hedefe kilitlenir (basış anında görünmüyorsa kısa bir süre aramaya devam eder). Kilit hareketli hedefi birebir izler, atış tam hedefe gider ve hedefi takip etmek nişan oturmasını bozmaz. Sağ analogu hafifçe oynatmak kilidi bozmaz; savurmak yandaki hedefe geçirir, bilerek başka yöne itmek kısa bir süre sonra kilidi bırakır. Hedef ölürse ya da düşerse L2 basılıyken sıradaki düşmana geçer.
@@ -185,6 +186,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `economy` | para biçimi, fiyatlar, soygun tekrarları, al-sat açığı, günlük sınırlar |
 | `business` | işletme satın alma, yük arabası, toptan mal, teslimat, gelir, arsaya inşaat, kayıt |
 | `haulers` | nakliyeci, sefer, yoldaki araba, baskın, maaş, kayıt |
+| `poker` | el değerlendirme, masadaki yerler, klavye ve fareyle bir el, çekilme, masadan kalkma, günlük rakipler, kayıt, yüz okuma |
 | `hunters` | ödül avcısı grubu: çıkma koşulları, yaklaşma, parayla kurtulma, teslim olma, çatışma |
 | `world` | kasaba sakinleri, ölüm ve yerine gelen, at arabası, hayvan kementleme, boğulma, göçebeler, mevsimler |
 | `controls` | oyun kolu ile menü, yürüme, nişan ve ateş, silah çarkı, binme animasyonu, genişletilmiş radar |
@@ -226,6 +228,7 @@ js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
 js/business.js  işletmeler: satın alma, işletmeci, stok ve kasa, toptan mal sandıkları, yük arabası, arsaya inşaat
 js/haulers.js   nakliyeciler: işe alma, rota ve sefer, yolda görünen araba, haydut baskını ve kurtarma
+js/poker.js     poker: el değerlendirme, rakip yapay zekâsı, sabit limitli bahis, masa arayüzü
 js/hunters.js   ödül avcıları: kasaba dışında çıkan grup, bekleyiş, teslim olma, parayla kurtulma, çatışma
 tests/run.js    test çalıştırıcı (npm test); tests/lib.js yardımcılar; tests/e2e/*.test.js testler
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar

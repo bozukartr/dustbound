@@ -16,8 +16,10 @@ module.exports = {
     });
     await t.step('tanık kanun adamına koşup haber verir, aranma başlar', async () => {
       await setup();
-      await p.evaluate(() => { window.w = mk(40, 0, 'traveler'); window.law = mk(420, 0, 'law'); law.state = 'static'; G.crime('robbery', G.player.x, G.player.y, null); });
-      t.ok(await p.evaluate(() => G.reports.length > 0 && G.law.level === 0), 'suç anında önce tanık raporu olmalı, aranma sonra');
+      // arada yakına biri doğmuş olabilir: suçtan hemen önce yeniden temizle
+      await p.evaluate(() => { TH.clearNpcs(); window.w = mk(40, 0, 'traveler'); window.law = mk(420, 0, 'law'); law.state = 'static'; G.crime('robbery', G.player.x, G.player.y, null); });
+      const r0 = await p.evaluate(() => ({ reports: G.reports.length, level: G.law.level, near: G.ents.filter(e => e.kind === 'npc' && e !== w && e !== law && dist(e.x, e.y, G.player.x, G.player.y) < 400).map(e => e.role) }));
+      t.ok(r0.reports > 0 && r0.level === 0, 'suç anında önce tanık raporu olmalı, aranma sonra', r0);
       await p.waitForFunction(() => G.law.level > 0, null, { timeout: 40000 });
       t.ok(await p.evaluate(() => G.law.bounty > 0), 'başa ödül yazılmalı');
     });

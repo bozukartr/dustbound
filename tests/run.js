@@ -65,6 +65,9 @@ async function runFile(file, browser, url) {
       contexts.push(ctx);
       const p = await ctx.newPage();
       p.on('pageerror', (e) => { const k = e.message; if (!pageErrors.has(k)) pageErrors.set(k, (e.stack || '').split('\n').slice(0, 3).join(' | ')); });
+      // Paralel sayfalar birbirinin odağını çalar; oyun odak kaybında duraklatma menüsünü
+      // açtığı için testlerde pencere "blur" olayı yok sayılır.
+      await p.addInitScript(() => { window.addEventListener('blur', (e) => { if (e.target === window) e.stopImmediatePropagation(); }, true); });
       if (o.init) await p.addInitScript(o.init);
       await p.goto(url + 'index.html');
       await p.waitForFunction(() => typeof G !== 'undefined' && G.state === 'menu', null, { timeout: 30000 });
