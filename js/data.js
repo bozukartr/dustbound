@@ -412,6 +412,45 @@ const PROPERTIES = [
   { id: 'estate', n: 'Clement Konağı', p: 1800, near: [0.82, 0.52], perks: 'Lüks konak. Günlük $4 kira geliri.', income: 4 },
 ];
 
+/* ---- İşletmeler ----
+   GOODS: toptan mal türleri. src: [bina tipi, fiyat çarpanı]; ilki asıl üretici (kendi zincirin olursa ucuz).
+   BIZ: sahip olunabilen işletmeler. p fiyat, inc brüt günlük gelir, goods tükettiği mal, cap sandık kapasitesi, use günlük tüketim. */
+const GOODS = {
+  dry:   { n: 'Erzak Sandığı', p: 2.2, look: 'crate', src: [['warehouse', 1], ['docks', 1.05], ['general', 1.5]] },
+  drink: { n: 'İçki Fıçısı', p: 2.6, look: 'barrel', src: [['brewery', 1], ['warehouse', 1.15], ['saloon', 1.5]] },
+  flour: { n: 'Un Çuvalı', p: 1.2, look: 'sack', src: [['mill', 1], ['warehouse', 1.2]] },
+  grain: { n: 'Arpa Çuvalı', p: 1.4, look: 'sack', src: [['mill', 1], ['ranch', 1.1], ['warehouse', 1.2]] },
+  feed:  { n: 'Yem Çuvalı', p: 1.0, look: 'sack', src: [['mill', 1], ['ranch', 1.1], ['warehouse', 1.2], ['stable', 1.5]] },
+  meat:  { n: 'Et Sandığı', p: 1.8, look: 'crate', src: [['ranch', 1], ['butcher', 1.4]] },
+  cloth: { n: 'Kumaş Balyası', p: 2.0, look: 'bale', src: [['warehouse', 1], ['docks', 1.05], ['general', 1.5]] },
+  iron:  { n: 'Demir Sandığı', p: 2.4, look: 'crate', src: [['mine', 1], ['warehouse', 1.15], ['smith', 1.5]] },
+  meds:  { n: 'İlaç Sandığı', p: 3.0, look: 'crate', src: [['warehouse', 1], ['doctor', 1.5]] },
+};
+const BIZ = {
+  barber:   { tier: 1, p: 85, inc: 0.9 },
+  laundry:  { tier: 1, p: 80, inc: 0.8 },
+  bakery:   { tier: 1, p: 95, inc: 1.3, goods: 'flour', cap: 4, use: 0.5 },
+  butcher:  { tier: 1, p: 130, inc: 1.7, goods: 'meat', cap: 4, use: 0.5 },
+  tailor:   { tier: 1, p: 140, inc: 1.6, goods: 'cloth', cap: 4, use: 0.4 },
+  mill:     { tier: 2, p: 260, inc: 2.6 },
+  smith:    { tier: 2, p: 280, inc: 3.0, goods: 'iron', cap: 5, use: 0.5 },
+  pharmacy: { tier: 2, p: 300, inc: 3.3, goods: 'meds', cap: 5, use: 0.4 },
+  cantina:  { tier: 2, p: 320, inc: 3.4, goods: 'drink', cap: 6, use: 0.6 },
+  stable:   { tier: 2, p: 350, inc: 3.4, goods: 'feed', cap: 6, use: 0.7 },
+  general:  { tier: 2, p: 380, inc: 4.2, goods: 'dry', cap: 6, use: 0.6 },
+  saloon:   { tier: 2, p: 420, inc: 4.6, goods: 'drink', cap: 6, use: 0.7 },
+  hotel:    { tier: 3, p: 850, inc: 7.5, goods: 'dry', cap: 8, use: 0.8 },
+  brewery:  { tier: 3, p: 900, inc: 8.0, goods: 'grain', cap: 8, use: 0.9 },
+  gambling: { tier: 3, p: 1100, inc: 9.5, goods: 'drink', cap: 6, use: 0.6 },
+};
+const BIZ_TIERS = ['', 'Küçük', 'Orta', 'Büyük'];
+const MGR_TRAITS = {
+  honest: { n: 'Dürüst', d: 'Kasadan kuruş eksik olmaz.', inc: 1 },
+  hard:   { n: 'Çalışkan', d: 'Müşteriyi kaçırmaz, gelir %15 fazla.', inc: 1.15 },
+  shady:  { n: 'Şüpheli', d: 'İyi satar ama bazı günler kasadan para eksilir.', inc: 1.1, skim: 0.25 },
+};
+const WAGON_PRICE = 65, WAGON_CAP = 8, BUILD_DAYS = 3;
+
 /* ---- Başarımlar (perk içerir) ---- */
 const ACHIEVEMENTS = [
   { id: 'begin',     n: 'Yeni Bir Hayat',        d: 'Batıda yeni bir hayata başla.', perk: '' },

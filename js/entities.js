@@ -300,7 +300,7 @@ class Player extends Ent {
   /* Ata ya da arabaya bin: kısa bir sıçrama animasyonuyla eyere/koltuğa geçer (instant: yükleme vb.) */
   mount(h, instant) {
     if (h.dead || this.mountAnim) return;
-    if (this.carry && !G.stowOnHorse(h)) return;
+    if (this.carry && !(h.mine ? G.stowOnWagon(h) : G.stowOnHorse(h))) return;
     this.riding = h; h.rider = this; h.state = 'idle';
     this.crouch = false; h.spd *= 0.3;
     const d = dist(this.x, this.y, h.x, h.y);
@@ -531,7 +531,7 @@ class Player extends Ent {
       this.sta = Math.min(this.maxSta, this.sta + dt * regen);
     }
     if (this.aiming) speed = Math.min(speed, 32);
-    if (this.carry) speed = Math.min(speed, this.carry.kind === 'pelt' ? 46 : 38);   // yük taşırken koşulamaz
+    if (this.carry) speed = Math.min(speed, this.carry.kind === 'pelt' ? 46 : this.carry.kind === 'crate' ? 42 : 38);   // yük taşırken koşulamaz
     if (age > 60) speed *= 1 - Math.min(0.25, (age - 60) * 0.012);
     if (this.hp < this.maxHp * 0.2) speed *= 0.85;
     speed *= this.slow();

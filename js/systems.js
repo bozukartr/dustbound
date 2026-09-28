@@ -41,6 +41,7 @@ const GameSystems = {
     let inc = 0;
     for (const id of this.props) { const P = PROPERTIES.find(p => p.id === id); if (P && P.income) inc += P.income; }
     if (inc > 0) { inc *= this.hasPerk('tycoon') ? 1.5 : 1; this.bank += inc; UI.feed(Tr`🏠 Mülk geliri bankaya yatırıldı: ${fmtMoney(inc)}`); this.stats.earned += inc; }
+    this.bizDaily(); this.bizBuildTick();
     this.bounties = null; // ilanlar yenilenir
     const L = this.player.look;
     if (L.sex === 'm' && L.beard > 0) { L.beardLen = Math.min(1, (L.beardLen || 0.3) + 0.08); this.player._lk = null; }
@@ -748,7 +749,7 @@ const GameSystems = {
     const counter = (label) => {
       if (staff || !b.staff) return { label, acts: [{ n: staff ? Tr`${staff.name} ile Konuş` : Tr('Hizmet Al'), fn: () => U.openBuilding(b) }] };
       const acts = [{ n: Tr('Tezgahta kimse yok'), fn: () => UI.feed(Tr('Tezgahın arkasında kimse yok.')) }];
-      if (b.def.svc.includes('rob')) acts.push({ n: Tr('Kasayı Boşalt'), fn: () => U.robStore(b, true) });
+      if (b.def.svc.includes('rob') && !this.bizOf(b)) acts.push({ n: Tr('Kasayı Boşalt'), fn: () => U.robStore(b, true) });
       return { label, acts };
     };
     switch (o) {
@@ -859,7 +860,7 @@ const GameSystems = {
     for (const e of cands) {
       if (e === owner || e.dead || e.remove) continue;
       if (e === this.player && !opts.npc) continue;
-      if (e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || (e === this.horse && owner === this.player)) continue;
+      if (e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || (e === this.horse && owner === this.player)) continue;
       if (e === this.player.riding && owner === this.player) continue;
       if (opts.npc && e.kind === 'npc' && owner.role === e.role) continue;
       const r = e.kind === 'wagon' ? 9 : (e.r || 4) + (e.kind === 'horse' ? 3 : 1.5);
@@ -1298,10 +1299,14 @@ const GameSystems = {
         const open = this.isOpen(b) && !b.def.lock;
         if (b.staffNpc && b.staffNpc.dead) { b.staffDead = day; b.staffNpc = null; }
         // tezgâhtaki kişi, kasabanın kalıcı sakinlerinden dükkân sahibidir: işe yürüyerek gelir
-        const kr = b.type === 'sheriff' ? null : this.keeperOf(b);
+        // oyuncunun işletmesi: tezgâhta işletmecisi durur (dükkânı satan eski sahip ya da sonradan tutulan biri)
+        const z = this.bizOf(b);
+        let kr = b.type === 'sheriff' ? null : this.keeperOf(b);
+        if (z && (!kr || kr.name !== z.mgr.name)) kr = null;
+        const mg = z && !kr ? z.mgr : null;
         if (open && !alive(b.staffNpc) && b.staffDead !== day && (!kr || kr.inside === b && !kr.ent)) {
           const role = b.type === 'sheriff' ? 'law' : 'clerk';
-          const n = new NPC(b.staff.x, b.staff.y, role, { state: 'static', home: { x: b.staff.x, y: b.staff.y, r: 6 }, money: rnd(1, 4), look: kr ? kr.look : undefined, name: kr ? kr.name : undefined });
+          const n = new NPC(b.staff.x, b.staff.y, role, { state: 'static', home: { x: b.staff.x, y: b.staff.y, r: 6 }, money: rnd(1, 4), look: kr ? kr.look : mg ? mg.look : undefined, name: kr ? kr.name : mg ? mg.name : undefined });
           n.ang = Math.PI / 2; n.town = t.id; n.work = b.id; n.keepTown = true;
           if (kr) { n.res = kr; n.staffOf = b; kr.ent = n; kr.inside = null; }
           if (b.type === 'church') { n.look = Object.assign({}, n.look, { coat: '#1a1a1e', hat: 'none', shirt: '#f0ece0' }); n.name = Tr('Peder ') + n.name.split(' ')[1]; }
@@ -1490,6 +1495,7 @@ const GameSystems = {
         const off = W.buildings.find(b => b.type === 'sheriff' && dist2(b.door.x, b.door.y, P.x, P.y) < 60 * 60);
         if (off) for (const e of h.load) if (e.kind === 'npc') acts.push({ n: Tr`Şerife Teslim Et: ${e.name}`, fn: () => this.deliverToSheriff({ e, h }) });
       }
+      this.bizRidingActions(acts);
       // at sırtından kapı/tren vb. yok
       return { x: P.x, y: P.y, label: P.riding.name || Tr('At'), actions: acts, riding: true };
     }
@@ -1513,7 +1519,7 @@ const GameSystems = {
         }
         continue;
       }
-      if ((e.kind === 'animal' || e.kind === 'npc' || e.kind === 'pelt') && this.carryableActions(e, add, d)) continue;
+      if ((e.kind === 'animal' || e.kind === 'npc' || e.kind === 'pelt' || e.kind === 'crate') && this.carryableActions(e, add, d)) continue;
       if (e.kind === 'animal') {
         if (!e.dead && e.def.tame && d < 30) add(e.x, e.y, e.def.n, [{ n: Tr('Sakinleştir ve Evcilleştir'), hold: 2.5, fn: () => this.tameHorse(e), check: () => P.crouch || e.state !== 'flee' }]);
         continue;
@@ -1568,7 +1574,7 @@ const GameSystems = {
           break;
         case O.SIGN: add(ox, oy, Tr('Yol Tabelası'), [{ n: Tr('Tabelayı Oku'), fn: () => UI.showSign(ox, oy) }]); break;
         case O.BENCH: add(ox, oy, 'Bank', [{ n: Tr('Otur ve Bekle'), fn: () => UI.openWait() }]); break;
-        case O.LOTSIGN: { const lot = W.lots.find(l => l.sign === i); if (lot) add(ox, oy, Tr('Satılık Arsa'), [{ n: Tr('İlanı Oku'), fn: () => UI.showLot(lot) }]); break; }
+        case O.LOTSIGN: { const lot = W.lots.find(l => l.sign === i); if (lot) add(ox, oy, this.lotOwned(lot) ? Tr('Arsan') : Tr('Satılık Arsa'), [{ n: this.lotOwned(lot) ? Tr('Arsaya Bak') : Tr('İlanı Oku'), fn: () => UI.showLot(lot) }]); break; }
         case O.BOARD: add(ox, oy, Tr('İlan Panosu'), [{ n: Tr('İlanlara Bak'), fn: () => UI.openBountyBoard() }]); break;
         case O.CAMPFIRE: add(ox, oy, Tr('Kamp Ateşi'), [{ n: Tr('Isın ve Pişir'), fn: () => UI.openCook() }]); break;
         case O.HAY: add(ox, oy, Tr('Saman'), [{ n: Tr('Saman Al'), fn: () => { const k = 'hay' + i; if (this.dailyTalk[k]) { UI.feed(Tr('Bugün zaten aldın.')); return; } this.dailyTalk[k] = 1; P.addItem('hay', 2); } }]); break;
@@ -1597,6 +1603,7 @@ const GameSystems = {
       if (Math.abs(b.door.x - P.x) > 40 || Math.abs(b.door.y - P.y) > 30) continue;
       if (dist2(P.x, P.y, b.door.x, b.door.y) > 20 * 20) continue;
       if (b.type === 'property' && !this.props.includes(b.prop)) { add(b.door.x, b.door.y, b.name, [{ n: Tr('Mülkü İncele'), fn: () => UI.openProperty(b) }], 5); continue; }
+      if (this.bizOf(b) && this.deliverables(b).some(it => it.from !== 'p')) add(b.door.x, b.door.y, b.name, [{ n: Tr`Malı Boşalt (${this.deliverables(b).length})`, fn: () => this.deliverGoods(b) }], 6);
       if (!b.enter) {
         if (b.def.svc && b.def.svc.length) add(b.door.x, b.door.y, b.name, [{ n: Tr('Gir'), fn: () => UI.openBuilding(b) }], 5);
         else if (b.type === 'ruin') add(b.door.x, b.door.y, b.name, [{ n: Tr('Harabeyi Ara'), hold: 1.2, fn: () => this.searchRuin(b) }], 5);

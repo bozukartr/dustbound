@@ -180,9 +180,9 @@ const Bubbles = {
    Sürücü vurulabilir, kementle ya da zorla indirilebilir; sürücüsüz araba
    oyuncu tarafından sürülür (binicilik kontrolleriyle) ve yükü aranabilir. */
 class Wagon extends Ent {
-  constructor(road, i, dir, stage) {
-    super(road.pts[i][0], road.pts[i][1]);
-    this.kind = 'wagon'; this.path = road.pts; this.pi = i; this.dir = dir; this.stage = !!stage;
+  constructor(road, i, dir, stage, at) {
+    super(road ? road.pts[i][0] : at.x, road ? road.pts[i][1] : at.y);
+    this.kind = 'wagon'; this.path = road ? road.pts : null; this.pi = i; this.dir = dir; this.stage = !!stage;
     this.r = 6; this.spd = 0; this.max = stage ? 66 : 38;
     this.driver = { look: randomLook('m'), name: randomName('m') };
     this.hc = [pick(HORSE_BREEDS.morgan.cols), pick(HORSE_BREEDS.tennessee.cols)];
@@ -192,8 +192,16 @@ class Wagon extends Ent {
     // oyuncu sürerken binicilik sistemi bunları kullanır
     this.def = { spd: stage ? 0.8 : 0.62 }; this.sta = this.maxSta = 220; this.load = []; this.rider = null;
     this.hp = this.maxHp = 400;
-    if (road.pts[i + dir]) this.ang = Math.atan2(road.pts[i + dir][1] - this.y, road.pts[i + dir][0] - this.x);
+    if (road && road.pts[i + dir]) this.ang = Math.atan2(road.pts[i + dir][1] - this.y, road.pts[i + dir][0] - this.x);
+    else if (at) this.ang = at.ang || 0;
     this.trail(true);
+  }
+  /* Oyuncunun kendi yük arabası: sürücüsüz, açık kasalı, sandık taşır */
+  static owned(x, y, ang) {
+    const w = new Wagon(null, 0, 1, false, { x, y, ang });
+    w.driver = null; w.owner = 'player'; w.mine = true; w.keep = true; w.cargo = false; w.crates = [];
+    w.name = Tr('Yük Araban'); w.body = '#7a5436';
+    return w;
   }
   /* x, y ve ang atların (çekici) konumu ve yönüdür. Araba gövdesi (bx, by, bang) atların
      arkasındaki çeki demirine bağlıdır ve tır dorsesi gibi arkadan sürüklenir: atlar döner, araba izler. */
@@ -303,6 +311,11 @@ class Wagon extends Ent {
       ctx.fillStyle = shadeHex(this.body, 0.2); ctx.fillRect(-10, -5.5, 19, 2);
       ctx.fillStyle = '#c8a040'; ctx.fillRect(-9, -5.5, 1, 11); ctx.fillRect(7, -5.5, 1, 11);
       if (this.cargo) { ctx.fillStyle = '#5a3a20'; ctx.fillRect(-7, -3, 9, 6); ctx.fillStyle = '#8a6a44'; ctx.fillRect(-6, -2, 3, 4); ctx.fillStyle = '#6a2a1a'; ctx.fillRect(-2, -2.4, 3, 4.8); }   // tavandaki bagaj
+    } else if (this.mine) {
+      ctx.fillStyle = this.body; ctx.fillRect(-10, -5, 18, 10);
+      ctx.fillStyle = shadeHex(this.body, -0.25); ctx.fillRect(-9, -4, 16, 8);
+      ctx.fillStyle = shadeHex(this.body, 0.2); ctx.fillRect(-10, -5, 18, 1.2); ctx.fillRect(-10, 3.8, 18, 1.2);
+      this.crates.forEach((g, k) => { const cx = -7.5 + (k >> 1) * 3.8, cy = (k & 1) ? 1.8 : -1.8; Spr.goods(ctx, cx, cy, g, 0.55); });
     } else {
       ctx.fillStyle = this.body; ctx.fillRect(-10, -5, 18, 10);
       ctx.fillStyle = '#e8e0cc'; ctx.beginPath(); ctx.ellipse(-3, 0, 7.5, 5.6, 0, 0, TAU); ctx.fill();   // branda
@@ -681,6 +694,7 @@ const TownLifeSystems = {
   wagonActions(w, add) {
     const P = this.player, acts = [];
     if (w.rider) return;
+    if (w.mine) { add(w.x, w.y, w.name, this.myWagonActions(w), 3); return; }
     if (w.driver) {
       if (w.spd > 30) return;
       acts.push({ n: Tr('Sürücüyü İndir'), hold: 0.5, fn: () => this.hijackWagon(w) });
@@ -726,7 +740,7 @@ const TownLifeSystems = {
   trafficTick() {
     const P = this.player, W = this.world;
     const wagons = this.ents.filter(e => e.kind === 'wagon' && e.owner !== 'player');
-    for (const w of this.ents) if (w.kind === 'wagon' && w.rider !== P && dist2(w.x, w.y, P.x, P.y) > (w.owner === 'player' ? 3000 : 1500) ** 2) w.remove = true;
+    for (const w of this.ents) if (w.kind === 'wagon' && !w.mine && w.rider !== P && dist2(w.x, w.y, P.x, P.y) > (w.owner === 'player' ? 3000 : 1500) ** 2) w.remove = true;
     if (wagons.length >= 3 || !chance(0.07)) return;
     // oyuncunun görüş alanının hemen dışındaki yol noktalarından biri
     const cands = [];

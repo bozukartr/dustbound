@@ -390,6 +390,46 @@ class World {
     }
     return b;
   }
+  /* ---- Arsalar: oyun sırasında şantiye ve bina ---- */
+  lotClear(lot) {
+    for (let yy = lot.y; yy < lot.y + lot.h; yy++) for (let xx = lot.x; xx < lot.x + lot.w; xx++) {
+      const i = yy * WW + xx;
+      if (this.obj[i] !== O.LOTSIGN || !lot.keepSign) this.obj[i] = 0;
+      if (this.tile[i] === T.DRY) this.tile[i] = T.TOWN;
+    }
+  }
+  /* Satın alınmış, üzerinde inşaat süren arsa: tabela kalır, içeride kereste ve malzeme */
+  lotSite(lot) {
+    lot.keepSign = true; this.lotClear(lot); lot.keepSign = false;
+    const put = (lx, ly, o) => { const i = (lot.y + ly) * WW + lot.x + lx; if (!this.obj[i]) this.obj[i] = o; };
+    for (let lx = 0; lx < lot.w; lx++) put(lx, 0, O.FENCEH);
+    put(1, 2, O.CRATE); put(2, 2, O.CRATE); put(lot.w - 3, 2, O.HAY); put(lot.w - 2, 3, O.BARREL); put(3, lot.h - 3, O.RUINWALL); put(lot.w - 4, lot.h - 3, O.RUINWALL);
+    this.lotRefresh(lot);
+  }
+  /* Arsaya bina kur: bina arsanın ön kenarına oturur, ortalanır */
+  buildOnLot(lot, type) {
+    const def = BUILDINGS[type], town = this.towns.find(t => t.id === lot.town);
+    this.lotClear(lot);
+    const bx = lot.x + ((lot.w - def.w) >> 1), by = lot.y + lot.h - def.h;
+    const b = this.addBuilding(type, bx, by, town, undefined, { lot: lot.id });
+    town.buildings.push(b);
+    lot.built = b;
+    this.lotRefresh(lot);
+    return b;
+  }
+  lotRefresh(lot) {
+    const x0 = lot.x - 2, y0 = lot.y - 2, x1 = lot.x + lot.w + 2, y1 = lot.y + lot.h + 3;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      if (!this.inb(x, y)) continue;
+      const i = y * WW + x;
+      this.solid[i] = (TINFO[this.tile[i]].solid || SOLID_O[this.obj[i]] || (this.flags[i] & 8)) ? 1 : 0;
+      if (this.solid[i] && TRUNK_O[this.obj[i]] && !TINFO[this.tile[i]].solid && !(this.flags[i] & 8)) this.solid[i] = 5;
+    }
+    if (lot.built && lot.built.enter) this.buildingSolid(lot.built);
+    const t = this.towns.find(tw => tw.id === lot.town);
+    if (t) t._grid = null;
+    this.refreshChunks();
+  }
   /* İç mekân yerleşimi: yerel karo koordinatları (0,0 sol üst; üst sıra arka duvar) */
   furnish(b) {
     const W = b.w, H = b.h, D = W >> 1, F = H - 2;
