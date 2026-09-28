@@ -208,27 +208,41 @@ const HORSE_NAMES = ['Boz', 'Rüzgar', 'Kömür', 'Duman', 'Yıldız', 'Tarçın
 
 /* ---- Kasabalar ---- */
 const TOWNS = [
-  { id: 'harlow',     n: 'Harlow',         px: 0.52, py: 0.40, sz: 'm', desc: 'Ovanın kalbi. Sığırcılar ve demiryolu işçileriyle dolu.',
+  { id: 'harlow',     n: 'Harlow',         px: 0.52, py: 0.40, sz: 'm', xb: ['bakery', 'smith', 'post', 'laundry'], desc: 'Ovanın kalbi. Sığırcılar ve demiryolu işçileriyle dolu.',
     b: ['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'church', 'land', 'barber', 'tailor', 'house', 'house', 'house'] },
-  { id: 'stclement',  n: 'Saint Clement',  px: 0.86, py: 0.55, sz: 'l', desc: 'Doğu kıyısının parıldayan şehri. Bankalar, tiyatrolar ve fırsatlar.',
+  { id: 'stclement',  n: 'Saint Clement',  px: 0.86, py: 0.55, sz: 'l', xb: ['bakery', 'pharmacy', 'gambling', 'post', 'county', 'laundry', 'warehouse', 'brewery'], desc: 'Doğu kıyısının parıldayan şehri. Bankalar, tiyatrolar ve fırsatlar.',
     b: ['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'bank', 'church', 'land', 'barber', 'tailor', 'docks', 'saloon', 'house', 'house', 'house', 'house', 'house', 'house'] },
-  { id: 'dustcreek',  n: 'Dust Creek',     px: 0.24, py: 0.80, sz: 's', desc: 'Çölün ortasında kavrulmuş bir kasaba. Kanun burada zayıf.',
+  { id: 'dustcreek',  n: 'Dust Creek',     px: 0.24, py: 0.80, sz: 's', xb: ['smith', 'cantina'], desc: 'Çölün ortasında kavrulmuş bir kasaba. Kanun burada zayıf.',
     b: ['general', 'saloon', 'sheriff', 'stable', 'butcher', 'fence', 'doctor', 'house', 'house'] },
-  { id: 'silverridge',n: 'Silver Ridge',   px: 0.24, py: 0.24, sz: 's', desc: 'Dağların arasında bir maden kasabası. Gümüş ve toz.',
+  { id: 'silverridge',n: 'Silver Ridge',   px: 0.24, py: 0.24, sz: 's', xb: ['smith', 'pharmacy', 'laundry', 'post'], desc: 'Dağların arasında bir maden kasabası. Gümüş ve toz.',
     b: ['general', 'saloon', 'mine', 'doctor', 'hotel', 'sheriff', 'gunsmith', 'house', 'house'] },
-  { id: 'cedarfalls', n: 'Cedar Falls',    px: 0.64, py: 0.15, sz: 's', desc: 'Kuzey ormanlarında keresteci kasabası.',
+  { id: 'cedarfalls', n: 'Cedar Falls',    px: 0.64, py: 0.15, sz: 's', xb: ['bakery', 'smith', 'post'], desc: 'Kuzey ormanlarında keresteci kasabası.',
     b: ['general', 'saloon', 'lumber', 'butcher', 'doctor', 'hotel', 'stable', 'sheriff', 'tailor', 'house'] },
-  { id: 'bayounoir',  n: 'Cypress Bend',     px: 0.72, py: 0.84, sz: 's', desc: 'Sisli bataklığın kıyısında nemli ve gizemli bir yer.',
+  { id: 'bayounoir',  n: 'Cypress Bend',     px: 0.72, py: 0.84, sz: 's', xb: ['pharmacy', 'post'], desc: 'Sisli bataklığın kıyısında nemli ve gizemli bir yer.',
     b: ['general', 'saloon', 'butcher', 'fence', 'doctor', 'hotel', 'stable', 'docks', 'house'] },
-  { id: 'fortmercy',  n: 'Fort Redstone',     px: 0.38, py: 0.56, sz: 's', desc: 'Ordu karakolu ve etrafında büyüyen küçük yerleşim.',
+  { id: 'fortmercy',  n: 'Fort Redstone',     px: 0.38, py: 0.56, sz: 's', xb: ['smith', 'post'], desc: 'Ordu karakolu ve etrafında büyüyen küçük yerleşim.',
     b: ['general', 'gunsmith', 'doctor', 'sheriff', 'stable', 'saloon', 'ranch', 'house'] },
-  { id: 'coyote',     n: 'Coyote Springs', px: 0.53, py: 0.71, sz: 's', desc: 'Kaynak suyunun etrafında kurulmuş bir mola yeri.',
+  { id: 'coyote',     n: 'Coyote Springs', px: 0.53, py: 0.71, sz: 's', xb: ['bakery', 'laundry'], desc: 'Kaynak suyunun etrafında kurulmuş bir mola yeri.',
     b: ['general', 'saloon', 'stable', 'butcher', 'sheriff', 'hotel', 'land', 'house'] },
+  // yalnızca büyük dünyada (1536 karo) kurulan kasabalar
+  { id: 'carverjct',  n: 'Carver Junction', px: 0.70, py: 0.30, sz: 'm', big: 1, desc: 'Demiryollarının kesiştiği kalabalık bir kavşak. Toptancılar ve yolcular burada buluşur.',
+    b: ['warehouse', 'general', 'saloon', 'hotel', 'sheriff', 'post', 'county', 'bank', 'smith', 'bakery', 'stable', 'doctor', 'barber', 'house', 'house', 'house', 'house'] },
+  { id: 'brinecove',  n: 'Brine Cove',     px: 0.885, py: 0.21, sz: 's', big: 1, desc: 'Kayalık kıyıda bir balıkçı limanı. Tuz, katran ve martılar.',
+    b: ['docks', 'general', 'saloon', 'butcher', 'post', 'warehouse', 'doctor', 'stable', 'house', 'house', 'house'] },
+  { id: 'longhorn',   n: 'Longhorn',       px: 0.62, py: 0.585, sz: 'm', big: 1, desc: 'Sığır sürülerinin toplandığı tozlu bir kasaba. Ağıllar, kasaplar ve bol para.',
+    b: ['stable', 'butcher', 'saloon', 'general', 'sheriff', 'smith', 'hotel', 'bank', 'bakery', 'doctor', 'ranch', 'barber', 'gambling', 'house', 'house', 'house', 'house'] },
+  { id: 'sanrafael',  n: 'San Rafael',     px: 0.10, py: 0.84, sz: 's', big: 1, desc: 'Sınırın dibinde kerpiç evlerden bir kasaba. Kanun uzakta, kaçakçılar yakın.',
+    b: ['cantina', 'general', 'fence', 'stable', 'church', 'doctor', 'smith', 'house', 'house', 'house'] },
+  { id: 'millbrook',  n: 'Millbrook',      px: 0.40, py: 0.20, sz: 's', big: 1, desc: 'Buğday tarlaları arasında sakin bir çiftçi köyü. Değirmeni uzaktan görünür.',
+    b: ['mill', 'general', 'bakery', 'church', 'saloon', 'stable', 'smith', 'ranch', 'house', 'house', 'house'] },
 ];
 /* Demiryolu hatları (istasyon sırası) */
 const RAIL_LINES = [
   ['stclement', 'harlow', 'fortmercy', 'silverridge'],
   ['harlow', 'coyote', 'dustcreek'],
+  // büyük dünya hatları
+  Object.assign(['brinecove', 'carverjct', 'cedarfalls'], { big: 1 }),
+  Object.assign(['stclement', 'longhorn', 'coyote'], { big: 1 }),
 ];
 
 const REGIONS = [
@@ -241,6 +255,11 @@ const REGIONS = [
   { n: 'Lowland Bayou', x: 0.74, y: 0.84 },
   { n: 'Eastmoor Coast', x: 0.86, y: 0.45 },
   { n: 'Dry Mesa', x: 0.3, y: 0.58 },
+  { n: 'Gull Coast', x: 0.88, y: 0.2, big: 1 },
+  { n: 'Longhorn Range', x: 0.62, y: 0.62, big: 1 },
+  { n: 'Border Country', x: 0.1, y: 0.73, big: 1 },
+  { n: 'Millbrook Fields', x: 0.42, y: 0.22, big: 1 },
+  { n: 'Junction Valley', x: 0.72, y: 0.34, big: 1 },
 ];
 
 /* ---- Binalar ---- */
@@ -251,7 +270,7 @@ const BUILDINGS = {
   doctor:   { n: 'Doktor', w: 8, h: 7, wall: '#d8d0c0', roof: '#5a4a40', sign: '#e8e8e8', svc: ['heal', 'shop'], shop: 'doctor' },
   gunsmith: { n: 'Silahçı', w: 8, h: 6, wall: '#6a5a4a', roof: '#3a2e24', sign: '#909090', svc: ['shop', 'rob'], shop: 'gunsmith' },
   butcher:  { n: 'Kasap & Tuzakçı', w: 8, h: 6, wall: '#8a5040', roof: '#4a2a20', sign: '#a04030', svc: ['shop'], shop: 'butcher' },
-  stable:   { n: 'Ahır', w: 11, h: 7, wall: '#9a6a3a', roof: '#6a3a22', sign: '#c08040', svc: ['horses', 'shop', 'horsecare'], shop: 'stable', stable: 1 },
+  stable:   { n: 'Ahır', w: 11, h: 7, wall: '#9a6a3a', roof: '#6a3a22', sign: '#c08040', svc: ['horses', 'shop', 'horsecare', 'stage'], shop: 'stable', stable: 1 },
   hotel:    { n: 'Otel', w: 10, h: 8, wall: '#a07a5a', roof: '#5a3a2a', sign: '#e0c080', svc: ['room', 'bath'], tall: 1 },
   bank:     { n: 'Banka', w: 10, h: 8, wall: '#8a4a3a', roof: '#3a2a24', sign: '#d8b040', svc: ['bank', 'robbank'], brick: 1, tall: 1 },
   station:  { n: 'Tren İstasyonu', w: 11, h: 6, wall: '#7a6a50', roof: '#3a4a5a', sign: '#e0e0d0', svc: ['train'] },
@@ -272,6 +291,18 @@ const BUILDINGS = {
   hermit:   { n: 'Münzevi Kulübesi', noInt: 1, w: 5, h: 4, wall: '#5a4a32', roof: '#3a3022', svc: ['shop', 'rumor'], shop: 'hermit' },
   lighthouse:{ n: 'Deniz Feneri', w: 4, h: 4, wall: '#e8e0d8', roof: '#a02a20', svc: [], light: 1, noInt: 1 },
   mineentrance:{ n: 'Maden Girişi', w: 5, h: 3, wall: '#3a3028', roof: '#2a2420', svc: [], mine: 1, noInt: 1 },
+  // büyük dünya binaları (işletme sistemiyle birlikte gelecek dükkânlar)
+  bakery:   { n: 'Fırın', w: 8, h: 6, wall: '#c8a878', roof: '#7a4a30', sign: '#e8c890', svc: ['shop', 'rob'], shop: 'bakery' },
+  smith:    { n: 'Demirci', w: 9, h: 6, wall: '#5a5048', roof: '#2e2824', sign: '#b0a090', svc: ['shop', 'horsecare'], shop: 'smith' },
+  pharmacy: { n: 'Eczane', w: 7, h: 6, wall: '#d8d8c8', roof: '#3a5a4a', sign: '#80c0a0', svc: ['shop', 'rob'], shop: 'pharmacy' },
+  laundry:  { n: 'Çamaşırhane', w: 8, h: 6, wall: '#b8b0a0', roof: '#5a6a7a', sign: '#a0c0e0', svc: ['bath'] },
+  gambling: { n: 'Kumarhane', w: 11, h: 8, wall: '#5a2a2a', roof: '#2a1414', sign: '#e0b040', svc: ['blackjack', 'shop', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
+  brewery:  { n: 'Bira İmalathanesi', w: 11, h: 8, wall: '#7a5030', roof: '#3a2818', sign: '#d8a040', svc: ['work', 'shop'], shop: 'brewery', work: 'brewery', brick: 1 },
+  mill:     { n: 'Değirmen', w: 8, h: 7, wall: '#a88a60', roof: '#5a4030', sign: '#e0d0a0', svc: ['work', 'shop'], shop: 'mill', work: 'mill' },
+  county:   { n: 'İlçe Binası', w: 10, h: 8, wall: '#b8a888', roof: '#3a3a44', sign: '#e8e0c0', svc: ['property'], brick: 1, tall: 1 },
+  post:     { n: 'Posta ve Telgraf', w: 8, h: 6, wall: '#8a9aa0', roof: '#3a4450', sign: '#e0e0e0', svc: ['stage', 'news', 'rumor'] },
+  warehouse:{ n: 'Toptancı Ambarı', w: 12, h: 8, wall: '#7a6a58', roof: '#40382e', sign: '#c8b080', svc: ['shop'], shop: 'warehouse' },
+  cantina:  { n: 'Cantina', w: 10, h: 8, wall: '#c89a68', roof: '#8a5a38', sign: '#e06040', svc: ['meal', 'shop', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon' },
 };
 
 /* İş türleri */
@@ -279,6 +310,8 @@ const JOBS = {
   mine:   { n: 'Madende Çalış', hours: 5, pay: [1.6, 2.8], energy: 28, hunger: 18, thirst: 20, skill: 'strength', xp: 20, bonus: [['iron_ore', 0.5], ['silver_ore', 0.25]], desc: 'Kazma sallayarak cevher çıkar.' },
   lumber: { n: 'Kereste Kes', hours: 4, pay: [1.3, 2.2], energy: 24, hunger: 15, thirst: 15, skill: 'strength', xp: 18, desc: 'Tomrukları testere ile biç.' },
   docks:  { n: 'Limanda Yük Taşı', hours: 4, pay: [1.3, 2.4], energy: 22, hunger: 14, thirst: 16, skill: 'strength', xp: 16, desc: 'Gemilerden sandık indir.' },
+  brewery:{ n: 'İmalathanede Çalış', hours: 4, pay: [1.2, 2.0], energy: 18, hunger: 12, thirst: 18, skill: 'strength', xp: 14, bonus: [['beer', 0.5]], desc: 'Arpa çuvalları taşı, fıçıları doldur.' },
+  mill:   { n: 'Değirmende Çalış', hours: 4, pay: [1.0, 1.7], energy: 18, hunger: 14, thirst: 14, skill: 'strength', xp: 14, bonus: [['bread', 0.5]], desc: 'Tahıl çuvallarını taşı, taşları çevir.' },
   ranch:  { n: 'Çiftlikte Çalış', hours: 4, pay: [1.0, 1.8], energy: 18, hunger: 14, thirst: 16, skill: 'survival', xp: 16, bonus: [['corn', 0.6], ['apple', 0.4]], desc: 'Saman balyala, hayvanları besle.' },
 };
 
@@ -301,6 +334,12 @@ const SHOPS = {
   docks:   { n: 'Liman Tüccarı', sell: ['fishing_rod', 'bait', 'whiskey', 'peaches', 'beans'], buy: { food: 0.8, animal: 0.6 } },
   trapper: { n: 'Tuzakçı', sell: ['coat_fur', 'coat_sheep', 'jerky', 'bait'], ammo: ['arrow'], buy: { animal: 1.15, food: 0.6 } },
   hermit:  { n: 'Münzevi', sell: ['herbal_tonic', 'snake_oil', 'antidote', 'mushroom', 'treasure_map'], buy: { herb: 1.2, collect: 1.0 } },
+  bakery:  { n: 'Fırın', sell: ['bread', 'chocolate', 'coffee', 'corn'], buy: { food: 0.5 } },
+  smith:   { n: 'Demirci', sell: ['pickaxe', 'shovel', 'lantern', 'gold_pan', 'horse_brush'], weapons: ['knife'], buy: { valuable: 0.6, tool: 0.6 } },
+  pharmacy:{ n: 'Eczane', sell: ['health_cure', 'bandage', 'antidote', 'stamina_tonic', 'herbal_tonic', 'snake_oil', 'tobacco'], buy: { herb: 1.1, med: 0.55 } },
+  brewery: { n: 'İmalathane', sell: ['beer', 'whiskey'], buy: { food: 0.5 } },
+  mill:    { n: 'Değirmen', sell: ['bread', 'corn', 'hay'], buy: { food: 0.6 } },
+  warehouse:{ n: 'Toptancı', sell: ['beans', 'coffee', 'corn', 'tobacco', 'hay', 'whiskey', 'lantern', 'canteen'], ammo: ['pistol', 'repeater', 'rifle'], buy: { food: 0.45, animal: 0.45, valuable: 0.6, tool: 0.45 } },
   peddler: { n: 'Seyyar Satıcı', sell: ['snake_oil', 'chocolate', 'whiskey', 'bandage', 'gold_ring', 'necklace', 'cig_card'], ammo: ['pistol'], buy: { valuable: 0.7, collect: 0.8, animal: 0.5 } },
 };
 /* Herhangi bir dükkanda satılan eşyalar (satış fiyatı sınırı için) */
@@ -349,6 +388,9 @@ const CAMPS = [
   { n: 'Kanyon Haydutları', near: [0.18, 0.86] },
   { n: 'Dağ Adamları', near: [0.16, 0.36] },
   { n: 'Lemon Çetesi', near: [0.46, 0.5] },
+  { n: 'Sınır Kurtları', near: [0.14, 0.76], big: 1 },
+  { n: 'Demiryolu Soyguncuları', near: [0.78, 0.36], big: 1 },
+  { n: 'Tuz Kaçakçıları', near: [0.84, 0.12], big: 1 },
 ];
 const FARMS = [
   { n: 'Miller Çiftliği', near: [0.47, 0.44] },
@@ -358,6 +400,10 @@ const FARMS = [
   { n: 'Dawson Çiftliği', near: [0.62, 0.62] },
   { n: 'Ölü Adam Çiftliği', near: [0.33, 0.48] },
   { n: 'Whitaker Ranch', near: [0.7, 0.3] },
+  { n: 'Longhorn Otlakları', near: [0.66, 0.54], big: 1 },
+  { n: 'Buğday Çiftliği', near: [0.36, 0.24], big: 1 },
+  { n: 'Sınır Ranch\'ı', near: [0.16, 0.8], big: 1 },
+  { n: 'Kıyı Çiftliği', near: [0.8, 0.26], big: 1 },
 ];
 const PROPERTIES = [
   { id: 'shack',  n: 'Bataklık Barakası', p: 45, near: [0.68, 0.78], perks: 'Ucuz bir sığınak. Uyku ve kayıt.', income: 0 },
@@ -375,7 +421,7 @@ const ACHIEVEMENTS = [
   { id: 'bear',      n: 'Ayı Boğuşan',           d: 'Bir boz ayı avla.', perk: 'Maksimum sağlık +15', s: 'bears', v: 1 },
   { id: 'explore5',  n: 'Meraklı Gezgin',        d: '5 yer keşfet.', perk: 'Harita açılma yarıçapı +%35', s: 'discoveries', v: 5 },
   { id: 'explore20', n: 'Kaşif',                 d: '20 yer keşfet.', perk: 'Yakındaki keşfedilmemiş yerler haritada "?" olarak görünür', s: 'discoveries', v: 20 },
-  { id: 'towns',     n: 'Bütün Kasabalar',       d: '8 kasabanın hepsini ziyaret et.', perk: 'Tren biletleri %50 indirimli', s: 'towns', v: 8 },
+  { id: 'towns',     n: 'Bütün Kasabalar',       d: 'En az 8 kasabayı ziyaret et.', perk: 'Tren biletleri %50 indirimli', s: 'towns', v: 8 },
   { id: 'rider',     n: 'Eyer Yarası',           d: 'At sırtında 15 mil yol git.', perk: 'Atın dörtnalda %25 daha az yorulur', s: 'rideMiles', v: 15 },
   { id: 'walker',    n: 'Tabanvay',              d: 'Yaya olarak 8 mil yürü.', perk: 'Maksimum dayanıklılık +%15', s: 'walkMiles', v: 8 },
   { id: 'eater',     n: 'Demir Mide',            d: '60 kez yemek ye.', perk: 'Yiyecekler %20 daha fazla doyurur, çiğ et daha az hasta eder', s: 'eaten', v: 60 },

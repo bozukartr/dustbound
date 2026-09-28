@@ -4,11 +4,17 @@
    ========================================================== */
 
 const TS = 16;            // bir karonun piksel boyutu
-const WW = 1024, WH = 1024; // dünya boyutu (karo)
+// dünya boyutu (karo): yeni hayatlar büyük dünyada, eski kayıtlar kendi boyutlarında açılır
+const WORLD_NEW = 1536, WORLD_OLD = 1024;
+let WW = WORLD_OLD, WH = WORLD_OLD;
 const CHUNK = 32;         // chunk başına karo
 const CPX = CHUNK * TS;   // chunk piksel boyutu
 const CG = 4;             // kaba ızgara hücresi (karo)
-const CW = WW / CG, CHH = WH / CG;
+let CW = WW / CG, CHH = WH / CG;
+let FW = WW / 4;          // keşif (sis) ızgarası: 4x4 karo başına bir hücre
+function setWorldSize(n) { WW = WH = n; CW = n / CG; CHH = n / CG; FW = n / 4; }
+/* big: 1 işaretli veriler (yeni kasabalar, hatlar, kamplar...) yalnızca büyük dünyada; eski dünyalar birebir aynı kalır */
+const inWorld = d => !d.big || WW > WORLD_OLD;
 
 const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20 };
 const TNAME = Object.keys(T);
@@ -57,11 +63,12 @@ const O = {
   // iç mekân eşyaları
   COUNTER: 70, BAR: 71, TABLE: 72, PIANO: 73, CARDTABLE: 74, BED: 75, STOVE: 76, DESK: 77, CELL: 78, PEW: 79, ALTAR: 80, SAFE: 81, TUB: 82, BCHAIR: 83,
   RACK: 84, WORKBENCH: 85, STALL: 86, TICKET: 87, SHELF: 88, CHAIR: 89, PLANT: 90, HOMECHEST: 91, IBLOCK: 92, MANNEQUIN: 93,
+  LOTSIGN: 69,
 };
 const isFurnO = o => o >= 70 && o <= 93;
 const SOLID_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.SAGUARO, O.BOULDER, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.FENCEH, O.FENCEV, O.CRATE, O.BARREL, O.LAMP, O.WELL, O.TROUGH, O.TENT, O.HAY,
-  O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP,
+  O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP, O.LOTSIGN,
   O.COUNTER, O.BAR, O.TABLE, O.PIANO, O.CARDTABLE, O.BED, O.STOVE, O.DESK, O.CELL, O.PEW, O.ALTAR, O.SAFE, O.TUB, O.BCHAIR, O.RACK, O.WORKBENCH, O.STALL, O.TICKET,
   O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN].forEach(o => (SOLID_O[o] = 1));
 /* Gövdesi ince olan nesneler: tam kare yerine gövde boyutunda yuvarlak çarpışır (solid = 5) */
@@ -108,6 +115,7 @@ class World {
     this.lights = [];     // statik ışıklar {x,y,r,type}
     this.chests = new Map(); // idx -> {loot}
     this.signs = [];
+    this.lots = [];
     this.cost = null;
     this.chunks = new Map();
     this.jobs = new Map();
@@ -186,7 +194,7 @@ class World {
   regionAt(px, py) {
     const nx = px / (WW * TS), ny = py / (WH * TS);
     let best = null, bd = 1e9;
-    for (const r of REGIONS) { const d = dist2(nx, ny, r.x, r.y); if (d < bd) { bd = d; best = r; } }
+    for (const r of REGIONS) { if (!inWorld(r)) continue; const d = dist2(nx, ny, r.x, r.y); if (d < bd) { bd = d; best = r; } }
     return best.n;
   }
   townAt(px, py, margin = 0) {
@@ -230,24 +238,27 @@ class World {
     const s = this.seed;
     const n1 = new Noise(s + 1), n2 = new Noise(s + 2), n3 = new Noise(s + 3), n4 = new Noise(s + 4), n5 = new Noise(s + 5);
     const tile = this.tile, heatA = this.heat, elevA = this.elev;
+    // büyük coğrafya (kıyı, sıradağ, iklim) dünyaya oranlı; göl, tepe, orman gibi ayrıntılar karo ölçeğinde:
+    // dünya büyüdükçe aynı boyda ama daha çok ayrıntı sığar
+    const k = WW / WORLD_OLD;
     for (let y = 0; y < WH; y++) {
       const ny = y / WH;
-      const coastX = 0.915 + (n4.fbm(ny * 5, 0.5, 3) - 0.5) * 0.09;
+      const coastX = 0.915 + (n4.fbm(ny * 5 * k, 0.5, 3) - 0.5) * 0.09 / Math.sqrt(k);
       const ridgeX = 0.15 + (n4.fbm(ny * 2.2, 7.7, 3) - 0.5) * 0.16;
       for (let x = 0; x < WW; x++) {
         const nx = x / WW;
         const i = y * WW + x;
-        const e = n1.fbm(nx * 7, ny * 7, 5);
-        const m = n2.fbm(nx * 5 + 3, ny * 5, 4);
-        const tt = n3.fbm(nx * 4, ny * 4 + 9, 3);
+        const e = n1.fbm(nx * 7 * k, ny * 7 * k, 5);
+        const m = n2.fbm(nx * 5 * k + 3, ny * 5 * k, 4);
+        const tt = n3.fbm(nx * 4 * k, ny * 4 * k + 9, 3);
         // okyanus / körfez
-        const gulfY = 0.94 + (n4.v(nx * 7, 3.3) - 0.5) * 0.06;
+        const gulfY = 0.94 + (n4.v(nx * 7 * k, 3.3) - 0.5) * 0.06 / Math.sqrt(k);
         const coastD = Math.max(nx - coastX, (nx > 0.58 ? ny - gulfY : -1) * 1.0);
         // dağlar
         let ridge = Math.max(0, 1 - Math.abs(nx - ridgeX) * 7.5) * clamp((0.92 - ny) * 4, 0, 1);
         ridge = ridge * ridge * (3 - 2 * ridge);
         const north = Math.max(0, 1 - ny * 7);
-        const hills = Math.max(0, n5.fbm(nx * 3 + 11, ny * 3, 3) - 0.6) * 2.2;
+        const hills = Math.max(0, n5.fbm(nx * 3 * k + 11, ny * 3 * k, 3) - 0.6) * 2.2;
         const mount = ridge * (0.55 + 1.2 * (e - 0.5)) + north * (0.2 + 0.9 * (e - 0.3)) + hills * (e - 0.2);
         const h = e * 0.55 + mount * 0.85;
         let heat = ny * 1.05 + (tt - 0.5) * 0.35 - mount * 0.2 + 0.02;
@@ -265,12 +276,12 @@ class World {
         else if (h > 0.72) t = heat < 0.22 ? T.SNOW : T.ROCK;
         else if (heat < 0.16) t = T.SNOW;
         else if (heat > 0.6 && moist < 0.42) {
-          const mesa = n5.fbm(nx * 22, ny * 22, 3);
+          const mesa = n5.fbm(nx * 22 * k, ny * 22 * k, 3);
           if (heat > 0.7 && mesa > 0.68) t = T.MESA;
           else if (mesa > 0.58 || (heat > 0.78 && mesa > 0.5)) t = T.REDROCK;
           else t = T.DESERT;
         }
-        else if (heat > 0.64 && moist > 0.72) t = (n2.v(nx * 90, ny * 90) > 0.72) ? T.WATER : (n3.v(nx * 60, ny * 60) > 0.75 ? T.MUD : T.SWAMP);
+        else if (heat > 0.64 && moist > 0.72) t = (n2.v(nx * 90 * k, ny * 90 * k) > 0.72) ? T.WATER : (n3.v(nx * 60 * k, ny * 60 * k) > 0.75 ? T.MUD : T.SWAMP);
         else if (moist > 0.6) t = T.FOREST;
         else if (moist > 0.4) t = T.GRASS;
         else t = T.DRY;
@@ -415,12 +426,28 @@ class World {
       case 'house': bed(1, 1); put(W - 2, 1, O.STOVE); put(W - 2, 3, O.TABLE); break;
       case 'property': bed(1, 1); put(D, 1, O.HOMECHEST); put(W - 2, 1, O.STOVE); put(W - 2, 3, O.TABLE); break;
       case 'cabin': row(2, 1, 2, O.COUNTER); b.staff = at(1, 1); put(W - 2, 1, O.STOVE); break;
+      // büyük dünya binaları
+      case 'bakery': row(2, 2, W - 3, O.COUNTER); b.staff = at(D, 1); put(1, 1, O.STOVE); put(W - 2, 1, O.STOVE); put(1, 4, O.SHELF); put(W - 2, F, O.BARREL); put(W - 3, F - 1, O.TABLE); break;
+      case 'smith': put(1, 1, O.WORKBENCH); put(2, 1, O.WORKBENCH); put(W - 2, 1, O.STOVE); row(3, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, 2); put(1, F, O.RACK); put(2, F, O.CRATE); put(W - 2, F, O.BARREL); break;
+      case 'pharmacy': row(2, 1, W - 4, O.COUNTER); b.staff = at(2, 1); put(W - 2, 1, O.SHELF); put(W - 2, 3, O.SHELF); put(1, F, O.PLANT); break;
+      case 'laundry': row(2, 1, 2, O.COUNTER); b.staff = at(1, 1); put(W - 2, 1, O.TUB); put(W - 3, 3, O.TUB); put(W - 2, F, O.BARREL); put(1, F, O.CRATE); break;
+      case 'gambling': row(2, 1, 3, O.BAR); b.staff = at(2, 1); put(W - 2, 1, O.PIANO); b.piano = at(W - 2, 2);
+        put(D - 2, 4, O.CARDTABLE); seat(D - 2, 4); put(W - 3, 4, O.CARDTABLE); seat(W - 3, 4); put(2, 6, O.CARDTABLE); seat(2, 6); put(W - 3, 6, O.CARDTABLE); seat(W - 3, 6); put(1, F, O.PLANT); break;
+      case 'brewery': desk(1, 1); b.staff = at(1.5, 2.2); for (let lx = D + 1; lx <= W - 2; lx++) { put(lx, 1, O.BARREL); put(lx, 3, O.BARREL); } put(1, F, O.CRATE); put(2, F, O.CRATE); put(W - 2, F, O.WORKBENCH); break;
+      case 'mill': put(1, 1, O.CRATE); put(2, 1, O.CRATE); put(1, 2, O.HAY); row(2, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, 1); put(1, F, O.BARREL); put(W - 2, F, O.CRATE); break;
+      case 'county': desk(1, 2); b.staff = at(1.5, 1); desk(W - 4, 2); put(W - 2, 1, O.SAFE); row(F - 1, 1, 3, O.PEW); put(1, 1, O.SHELF); put(W - 2, F, O.PLANT); break;
+      case 'post': row(2, 1, W - 4, O.COUNTER); b.staff = at(2, 1); put(W - 2, 1, O.SHELF); put(W - 2, F, O.CRATE); put(1, F, O.CHAIR); break;
+      case 'warehouse': for (const [lx, ly] of [[1, 1], [2, 1], [3, 1], [1, 2], [2, 2], [W - 2, 1], [W - 3, 1], [W - 4, 1], [W - 2, 2], [W - 3, 2], [1, 4], [2, 4], [W - 2, 4]]) put(lx, ly, ly === 2 ? O.BARREL : O.CRATE);
+        row(F - 1, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, F - 2); put(1, F, O.CRATE); break;
+      case 'cantina': row(2, 1, 3, O.BAR); b.staff = at(2, 1);
+        put(W - 3, 4, O.TABLE); seat(W - 3, 4); put(3, 5, O.TABLE); seat(3, 5); put(W - 3, 6, O.CARDTABLE); seat(W - 3, 6); put(W - 2, 1, O.PLANT); break;
     }
     // kapı ve kapı önü açık kalsın
     for (let ly = 2; ly <= H - 1; ly++) { const i = (b.y + ly) * WW + b.x + D; if (ly >= F - 1 && this.obj[i] !== O.COUNTER) this.obj[i] = 0; }
   }
   genTowns() {
-    const RAD = { s: 32, m: 42, l: 54 };
+    const big = WW > WORLD_OLD;
+    const RAD = big ? { s: 36, m: 48, l: 62 } : { s: 32, m: 42, l: 54 };   // büyük dünyada kasabalar daha çok bina taşır
     const nz = new Noise(this.seed + 911), nz2 = new Noise(this.seed + 912);
     const R = this.rng;
     // polyline üzerinde t (0..1) konumundaki nokta ve yön
@@ -433,7 +460,7 @@ class World {
       const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
       return { x: lerp(ax, bx, f), y: lerp(ay, by, f), ang: Math.atan2(by - ay, bx - ax) };
     };
-    for (const td of TOWNS) {
+    for (const td of TOWNS.filter(inWorld)) {
       const rx = RAD[td.sz], ry = Math.round(rx * 0.74);
       const cx = Math.round(td.px * WW), cy = Math.round(td.py * WH);
       const x0 = cx - rx - 3, y0 = cy - ry - 3, w = (rx + 3) * 2, h = (ry + 3) * 2;
@@ -540,8 +567,8 @@ class World {
         }
         return true;
       };
-      const place = (type, pull) => {
-        const def = BUILDINGS[type], bw = def.w, bh = def.h;
+      const place = (type, pull, def = BUILDINGS[type]) => {
+        const bw = def.w, bh = def.h;
         let best = null, bs = 1e9;
         for (let k = 0; k < 320; k++) {
           const relax = k > 220 ? 3 : 0;
@@ -590,7 +617,7 @@ class World {
           if (occ[c] !== 3) { ground(x, y); if (occ[c] !== 2) occ[c] = 5; }
         }
       };
-      const queue = td.b.slice();
+      const queue = [...td.b, ...(big && td.xb ? td.xb : [])];
       queue.sort((a, b) => (a === 'house') - (b === 'house'));
       queue.forEach((type, qi) => {
         const pull = type === 'house' ? 0.25 : type === 'church' ? 0.5 : 1.6 - qi * 0.08;
@@ -606,11 +633,13 @@ class World {
         pathFrom(bx + (def.w >> 1), by + def.h + 1);
         // bina yanı dekor
         const put = (x, y, o) => { if (this.inb(x, y) && !this.obj[y * WW + x] && !(this.flags[y * WW + x] & 8) && oget(x, y) !== 3) { this.obj[y * WW + x] = o; return true; } return false; };
-        if (type === 'saloon' || type === 'general' || type === 'sheriff' || type === 'hotel') {
+        if (type === 'saloon' || type === 'general' || type === 'sheriff' || type === 'hotel' || type === 'cantina' || type === 'gambling' || type === 'warehouse') {
           const hx = R.chance(0.5) ? bx - 1 : bx + def.w, hy = by + def.h;
           if (put(hx, hy, O.HITCH)) town.hitch.push({ x: hx * TS + 8, y: hy * TS + 14 });
         }
         if (type === 'sheriff') put(bx + def.w, by + def.h - 1, O.BOARD);
+        if (type === 'mill') { for (const [dx, dy] of [[def.w + 2, 1], [-3, 1], [def.w + 2, 4]]) if (put(bx + dx, by + dy, O.WINDMILL)) break; }
+        if (type === 'warehouse' || type === 'brewery') { put(bx - 1, by + def.h - 1, O.CRATE); put(bx + def.w, by + def.h - 1, O.BARREL); }
         if (R.chance(0.55)) put(R.chance(0.5) ? bx - 1 : bx + def.w, by + def.h - 2, R.pick([O.BARREL, O.CRATE, O.BARREL]));
         // evlerin arkasında bahçe
         if (type === 'house' && R.chance(0.55)) {
@@ -627,6 +656,36 @@ class World {
           }
         }
       });
+      // ---- satılık arsalar (yalnız büyük dünya): ileride işletme kurulacak boş parseller ----
+      town.lots = [];
+      if (big) {
+        const nLots = { s: 1, m: 2, l: 3 }[td.sz];
+        for (let k = 0; k < nLots; k++) {
+          const def = k === 0 && td.sz !== 's' ? { w: 12, h: 9 } : { w: 10, h: 7 };
+          const spot = place('lot', 1.2, def);
+          if (!spot) continue;
+          const { bx, by } = spot;
+          for (let yy = by - 1; yy <= by + def.h + 1; yy++) for (let xx = bx - 1; xx <= bx + def.w; xx++) {
+            if (oget(xx, yy) === 3) continue;
+            if (yy <= by + def.h) { oset(xx, yy, 2); ground(xx, yy); } else if (oget(xx, yy) !== 5) oset(xx, yy, 5);
+          }
+          // arka ve yanlar çitli, ön (sokak) açık; içi kuru toprak ve ot
+          for (let yy = by; yy < by + def.h; yy++) for (let xx = bx; xx < bx + def.w; xx++) {
+            const i = yy * WW + xx;
+            this.flags[i] |= 1 | 4;
+            if (yy === by) { this.obj[i] = O.FENCEH; continue; }
+            if (xx === bx || xx === bx + def.w - 1) { this.obj[i] = yy < by + def.h - 1 ? O.FENCEV : 0; continue; }
+            this.tile[i] = R.chance(0.6) ? T.DRY : T.TOWN;
+            this.obj[i] = R.chance(0.1) ? (R.chance(0.5) ? O.TUFT : O.DRYBUSH) : 0;
+          }
+          const sx = bx + 2, sy = by + def.h - 1;
+          this.obj[sy * WW + sx] = O.LOTSIGN;
+          const price = Math.round({ s: 110, m: 190, l: 300 }[td.sz] * (def.w * def.h) / 70 / 5) * 5;
+          const lot = { id: town.id + ':' + k, town: town.id, x: bx, y: by, w: def.w, h: def.h, price, sign: sy * WW + sx };
+          town.lots.push(lot); this.lots.push(lot);
+          pathFrom(bx + (def.w >> 1), by + def.h + 1);
+        }
+      }
       // ---- meydan ve sokak lambaları ----
       const putFree = (x, y, o) => {
         const v = oget(x, y);
@@ -665,7 +724,7 @@ class World {
         this.obj[i] = o; oset(x, y, 5); trees++;
       }
       // ---- istasyon ----
-      if (RAIL_LINES.some(l => l.includes(td.id))) {
+      if (RAIL_LINES.filter(inWorld).some(l => l.includes(td.id))) {
         const def = BUILDINGS.station;
         const sx = cx - (def.w >> 1) + R.int(-6, 6), sy = y0 + h + 2;
         this.flatten(sx - 4, sy - 2, def.w + 8, def.h + 6, T.TOWN, 4);
@@ -829,7 +888,7 @@ class World {
   }
   genRails() {
     const C = this.cost;
-    for (const line of RAIL_LINES) {
+    for (const line of RAIL_LINES.filter(inWorld)) {
       const all = [];
       const stops = [];
       for (let k = 0; k < line.length - 1; k++) {
@@ -915,7 +974,7 @@ class World {
       const p = this.addPOI({ id: L.id, n: L.n, type: L.type, desc: L.desc, tx: x, ty: y, kind: 'landmark' });
       this.stampLandmark(p, R);
     }
-    for (const C of CAMPS) {
+    for (const C of CAMPS.filter(inWorld)) {
       const [x, y] = this.findSpot(C.near, null, { minD: 25 });
       const p = this.addPOI({ id: 'camp_' + this.pois.length, n: C.n, type: 'camp', tx: x, ty: y, kind: 'camp', desc: Tr('Haydut kampı. Dikkatli ol.') });
       this.clearArea(x, y, 7, T.MUD);
@@ -924,7 +983,7 @@ class World {
       this.setObj(x + 2, y - 5, O.CRATE); this.setObj(x - 5, y + 2, O.BARREL);
       this.addChest(x + 1, y + 3, 'camp');
     }
-    for (const F of FARMS) {
+    for (const F of FARMS.filter(inWorld)) {
       const [x, y] = this.findSpot(F.near, ['GRASS', 'DRY', 'FOREST'], { minD: 22 });
       const p = this.addPOI({ id: 'farm_' + this.pois.length, n: F.n, type: 'farm', tx: x, ty: y, kind: 'farm', desc: Tr('Burada iş bulabilirsin.') });
       this.clearArea(x, y, 12, T.DRY);

@@ -41,7 +41,8 @@ const G = {
     this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
-    this.reveal = new Uint8Array(65536);
+    this.reveal = new Uint8Array(FW * FW);
+    if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
     this.travelT = 10; this.eventT = 90;
     this.amb = { birds: [], tumbles: [], flies: [] };
     this.curTown = null; this.curRegion = null; this.goalReached = false; this.hints = {};
@@ -53,7 +54,6 @@ const G = {
     this.ctx = this.canvas.getContext('2d', { alpha: false });
     this.light = makeCanvas(16, 16); this.lctx = this.light.getContext('2d');
     this.over = makeCanvas(16, 16); this.octx = this.over.getContext('2d');
-    this.fogCanvas = makeCanvas(256, 256); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true });
     // ışık sprite'ı
     this.lightSpr = makeCanvas(64, 64);
     const lc = this.lightSpr.getContext('2d');
@@ -127,6 +127,7 @@ const G = {
 
   /* ---------------- Yeni oyun ---------------- */
   async newGame(profile) {
+    setWorldSize(WORLD_NEW);
     this.resetState();
     const seed = (Math.random() * 1e9) | 0;
     this.seed = seed;
@@ -207,7 +208,7 @@ const G = {
     const h = this.horse;
     this.noteBountyState();
     const data = {
-      v: 2, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
+      v: 3, ww: WW, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
       profile: this.profile,
       player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, canteen: P.canteen, coat: P.coat, mask: P.masked ? P.mask : null, lastMask: P.lastMask || null, lantern: P.lantern, riding: !!P.riding },
       horse: h ? { breed: h.breed, name: h.name, look: h.look, hp: h.hp, bond: h.bond, x: h.x, y: h.y, dead: h.dead } : null,
@@ -239,6 +240,7 @@ const G = {
     let d;
     try { d = JSON.parse(Platform.get(SAVE_KEY)); } catch (e) { d = null; }
     if (!d) return false;
+    setWorldSize(d.ww || WORLD_OLD);   // v3 öncesi kayıtlar küçük dünyada kalır
     this.resetState();
     this.seed = d.seed;
     await this.buildWorld(d.seed);
@@ -393,7 +395,7 @@ const G = {
     const P = this.player, W = this.world;
     let lvl = 0, muf = 1;
     for (const b of W.buildings) {
-      if (b.type !== 'saloon' || !this.isOpen(b)) continue;
+      if ((b.type !== 'saloon' && b.type !== 'gambling') || !this.isOpen(b)) continue;
       if (Math.abs(b.door.x - P.x) > 420 || Math.abs(b.door.y - P.y) > 420) continue;
       if (this.insideB === b) { lvl = 1; muf = 0; break; }
       const dd = dist(P.x, P.y, b.door.x, b.door.y);
