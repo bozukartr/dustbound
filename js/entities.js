@@ -741,11 +741,14 @@ class Player extends Ent {
     if (e.dead || e.remove || e.state !== 'lassoed') { this.rope = null; return; }
     const L = 44, d = dist(this.x, this.y, e.x, e.y);
     if (d > 150) { this.rope = null; UI.feed(Tr('Kement koptu!'), 'warn'); return; }
+    // oyuncu (ya da atı) bu karede ne kadar hareket etti: yalnız gerçekten sürüklerken kurtulma süresi dolmaz
+    const pulled = this._ropeX !== undefined && dist(this.x, this.y, this._ropeX, this._ropeY) > 12 * dt;
+    this._ropeX = this.x; this._ropeY = this.y;
     if (d > L) {
       const k = (d - L) / d;
       e.move((this.x - e.x) * k, (this.y - e.y) * k);
       e.ang = Math.atan2(e.y - this.y, e.x - this.x);
-      e.lasT = Math.max(e.lasT, 2);                       // sürüklenirken kurtulamaz
+      if (pulled) e.lasT = Math.max(e.lasT, 2);           // sürüklenirken kurtulamaz (ipi kendisi germesi sayılmaz)
       if (this.riding && this.riding.spd > 90) { e.dragT = (e.dragT || 0) + dt; if (e.dragT > 0.5) { e.dragT = 0; e.hurt(4, 'player', 'drag'); } }
     }
   }

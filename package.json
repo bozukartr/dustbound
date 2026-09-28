@@ -1,0 +1,12 @@
+{
+  "name": "frontiers-end",
+  "private": true,
+  "description": "Frontier's End: 1890'lar Amerika'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunu",
+  "scripts": {
+    "test": "node tests/run.js",
+    "test:i18n": "node tools/i18n-check.js en"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}

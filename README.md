@@ -158,6 +158,39 @@ Oyun içindeyken **Ctrl + Alt + C** sağda sürüklenebilir bir hata ayıklama p
 
 Bilgi ve katman araçları kaydı etkilemez. Hile sayılan bir şey kullanılırsa kayıt işaretlenir ve o kayıtta başarımlar kapanır.
 
+## Testler
+
+Oyunun ana sistemleri gerçek tarayıcıda uçtan uca sınanır (Playwright, başsız Chromium):
+
+```
+npm install                      # ilk seferde: Playwright
+npx playwright install chromium  # ilk seferde: tarayıcı
+npm test                         # bütün testler (~3 dk)
+npm test -- carry law            # adında "carry" ya da "law" geçen test dosyaları
+npm test -- --jobs 1 --headed    # tek tek, tarayıcı görünür
+npm test -- --list               # test dosyalarını listele
+```
+
+Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir sunucudan açar, her dosyayı temiz bir tarayıcı bağlamında (boş kayıt, Türkçe) çalıştırır ve her adımı doğrular; sayfada yakalanmamış bir JavaScript hatası olursa dosya başarısız sayılır. Başarısız adımların ekran görüntüleri `tests/output/` altına yazılır.
+
+| Dosya | Kapsam |
+|---|---|
+| `boot` | ana menü, karakter ekranı, 13 kasabalık dünya, yeni binaların iç mekânları, yürüme, duraklatma, harita |
+| `saves` | kayıt yuvaları, otomatik/manuel kayıt, Tek Hayat, eski kayıt taşıma, eski 1024 dünya, 1890 fiyat dönüşümü |
+| `i18n` | çeviri anahtarları (tools/i18n-check.js), oyun içinde dil değiştirme |
+| `settings` | ayarlar ekranı, klavye tuş atama, takas, iptal, kalıcılık |
+| `carry` | kement, bağlama, omuzda/eyerde taşıma, şerife teslim, ödül hedefi, leş ve post, kanıt, suya atma |
+| `law` | tanıklar, tehdit, rüşvet, maske, dükkân reddi, teslim olma, ceza, hapis |
+| `economy` | para biçimi, fiyatlar, soygun tekrarları, al-sat açığı, günlük sınırlar |
+| `business` | işletme satın alma, yük arabası, toptan mal, teslimat, gelir, arsaya inşaat, kayıt |
+| `haulers` | nakliyeci, sefer, yoldaki araba, baskın, maaş, kayıt |
+| `world` | kasaba sakinleri, ölüm ve yerine gelen, at arabası, hayvan kementleme, boğulma, göçebeler, mevsimler |
+| `controls` | oyun kolu ile menü, yürüme, nişan ve ateş, silah çarkı, binme animasyonu, genişletilmiş radar |
+| `debug` | hata ayıklama paneli şifresi ve kilidi |
+| `stress` | 45 sn rastgele tuş ve fare girdisi |
+
+Yeni bir test için `tests/e2e/` altına `ad.test.js` ekle: `module.exports = { name, async run(t) { const p = await t.newGame(); await t.step('…', async () => { t.ok(…); }); } }`. Sayfa içinde `TH` yardımcıları (boş yer bulma, ışınlanma, binaya girme, menü öğesine tıklama) hazır gelir.
+
 ## Teknik
 
 - Saf HTML, CSS ve JavaScript. Hiçbir kütüphane ve varlık dosyası yok; bütün grafik ve sesler kodla üretiliyor.
@@ -191,6 +224,7 @@ js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
 js/business.js  işletmeler: satın alma, işletmeci, stok ve kasa, toptan mal sandıkları, yük arabası, arsaya inşaat
 js/haulers.js   nakliyeciler: işe alma, rota ve sefer, yolda görünen araba, haydut baskını ve kurtarma
+tests/run.js    test çalıştırıcı (npm test); tests/lib.js yardımcılar; tests/e2e/*.test.js testler
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar
 js/cinema.js    kasabaya varış sinematikleri (kütüphanesiz WebGL)
 js/fx.js        görsel efektler: rüzgâr, bulut gölgesi, duman, iz, isabet, salınım, su, renk derecelendirme
