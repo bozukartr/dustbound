@@ -758,7 +758,8 @@ const GameSystems = {
       case O.DESK:
         if (b.type === 'sheriff') return { label: Tr('Şerifin Masası'), acts: [...svc('bounty', 'board'), { n: Tr('Konuş'), fn: () => U.openBuilding(b) }] };
         if (b.type === 'land') return { label: Tr('Tapu Memuru'), acts: svc('property') };
-        if (b.type === 'ranch' || b.type === 'lumber') return { label: Tr('İş Masası'), acts: svc('work') };
+        if (b.type === 'ranch' || b.type === 'lumber' || b.type === 'brewery') return { label: Tr('İş Masası'), acts: svc('work') };
+        if (b.type === 'county') return { label: Tr('İlçe Memuru'), acts: [...svc('property'), { n: Tr('Konuş'), fn: () => U.openBuilding(b) }] };
         return counter(Tr('Masa'));
       case O.BED:
         if (b.type === 'hotel') return { label: Tr('Otel Odası'), acts: svc('room') };
@@ -768,7 +769,8 @@ const GameSystems = {
       case O.TUB: return b.def.svc.includes('bath') ? { label: Tr('Küvet'), acts: svc('bath') } : null;
       case O.CARDTABLE: return { label: Tr('Kart Masası'), acts: svc('blackjack') };
       case O.TABLE:
-        if (b.type === 'saloon') return { label: Tr('Masa'), acts: [...svc('meal'), ...svc('rumor'), ...svc('arm')] };
+        if (b.type === 'saloon' || b.type === 'cantina' || b.type === 'gambling') return { label: Tr('Masa'), acts: [...svc('meal'), ...svc('rumor'), ...svc('arm')] };
+        if (b.type === 'bakery') return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
         if (b.type === 'house') return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }, { n: Tr('Evi Ara'), hold: 1.2, fn: () => this.searchHouse(b) }] };
         return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
       case O.PIANO: return { label: Tr('Piyano'), acts: [{ n: Tr('Piyano Çal'), fn: () => this.playPiano(b) }] };
@@ -800,7 +802,7 @@ const GameSystems = {
     if (!this.dailyTalk[k]) { this.dailyTalk[k] = 1; if (chance(0.5)) { const tip = rnd(0.05, 0.3); setTimeout(() => this.earn(tip, Tr('Bahşiş')), tune.length * 230); } this.skillXp('charisma', 1); }
   },
   isOpen(b) {
-    if (['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn'].includes(b.type)) return true;
+    if (['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn', 'cantina', 'gambling', 'warehouse'].includes(b.type)) return true;
     return !(this.hour < 6 || this.hour > 22);
   },
   doorOpen(b) {
@@ -1307,7 +1309,7 @@ const GameSystems = {
         } else if (!open && alive(b.staffNpc) && this.insideB !== b) { b.staffNpc.remove = true; b.staffNpc = null; }
       }
       // saloon müşterileri ve piyanist
-      if (b.type === 'saloon') {
+      if (b.type === 'saloon' || b.type === 'gambling' || b.type === 'cantina') {
         b.patrons = (b.patrons || []).filter(alive);
         const night = h >= 19 || h < 1;
         if (night && !alive(b.pianist) && b.piano) { const n = new NPC(b.piano.x, b.piano.y + 2, 'clerk', { state: 'sit' }); n.ang = -Math.PI / 2; n.town = t.id; n.name = Tr('Piyanist ') + n.name.split(' ')[0]; this.addEnt(n); b.pianist = n; }
@@ -1395,10 +1397,10 @@ const GameSystems = {
     let changed = false;
     const fc = this.fogCtx;
     for (let y = Math.floor(cy - cr); y <= Math.ceil(cy + cr); y++) {
-      if (y < 0 || y >= 256) continue;
+      if (y < 0 || y >= FW) continue;
       for (let x = Math.floor(cx - cr); x <= Math.ceil(cx + cr); x++) {
-        if (x < 0 || x >= 256) continue;
-        const i = y * 256 + x;
+        if (x < 0 || x >= FW) continue;
+        const i = y * FW + x;
         if (M[i]) continue;
         if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > cr * cr) continue;
         M[i] = 1; changed = true;
@@ -1410,11 +1412,11 @@ const GameSystems = {
   rebuildFog() {
     const c = this.fogCanvas, fc = this.fogCtx;
     fc.globalCompositeOperation = 'source-over';
-    fc.fillStyle = '#c9b48a'; fc.fillRect(0, 0, 256, 256);
-    const img = fc.getImageData(0, 0, 256, 256), d = img.data;
-    for (let i = 0; i < 65536; i++) {
+    fc.fillStyle = '#c9b48a'; fc.fillRect(0, 0, FW, FW);
+    const img = fc.getImageData(0, 0, FW, FW), d = img.data;
+    for (let i = 0; i < FW * FW; i++) {
       if (this.reveal[i]) d[i * 4 + 3] = 0;
-      else { const n = (hash2(i & 255, i >> 8, 42) - 0.5) * 18; d[i * 4] += n; d[i * 4 + 1] += n; d[i * 4 + 2] += n; }
+      else { const n = (hash2(i % FW, (i / FW) | 0, 42) - 0.5) * 18; d[i * 4] += n; d[i * 4 + 1] += n; d[i * 4 + 2] += n; }
     }
     fc.putImageData(img, 0, 0);
   },
@@ -1566,6 +1568,7 @@ const GameSystems = {
           break;
         case O.SIGN: add(ox, oy, Tr('Yol Tabelası'), [{ n: Tr('Tabelayı Oku'), fn: () => UI.showSign(ox, oy) }]); break;
         case O.BENCH: add(ox, oy, 'Bank', [{ n: Tr('Otur ve Bekle'), fn: () => UI.openWait() }]); break;
+        case O.LOTSIGN: { const lot = W.lots.find(l => l.sign === i); if (lot) add(ox, oy, Tr('Satılık Arsa'), [{ n: Tr('İlanı Oku'), fn: () => UI.showLot(lot) }]); break; }
         case O.BOARD: add(ox, oy, Tr('İlan Panosu'), [{ n: Tr('İlanlara Bak'), fn: () => UI.openBountyBoard() }]); break;
         case O.CAMPFIRE: add(ox, oy, Tr('Kamp Ateşi'), [{ n: Tr('Isın ve Pişir'), fn: () => UI.openCook() }]); break;
         case O.HAY: add(ox, oy, Tr('Saman'), [{ n: Tr('Saman Al'), fn: () => { const k = 'hay' + i; if (this.dailyTalk[k]) { UI.feed(Tr('Bugün zaten aldın.')); return; } this.dailyTalk[k] = 1; P.addItem('hay', 2); } }]); break;

@@ -9,6 +9,8 @@ const SIGN_TEXT = {
   general: 'GENERAL', saloon: 'SALOON', sheriff: 'SHERIFF', doctor: 'DOCTOR', gunsmith: 'GUNS', butcher: 'BUTCHER', stable: 'STABLE',
   hotel: 'HOTEL', bank: 'BANK', station: 'STATION', land: 'LAND', barber: 'BARBER', tailor: 'TAILOR', fence: 'TRADER', mine: 'MINING CO',
   lumber: 'LUMBER', docks: 'DOCKS', ranch: 'RANCH', property: 'FOR SALE', cabin: 'FURS', hermit: '', church: '',
+  bakery: 'BAKERY', smith: 'BLACKSMITH', pharmacy: 'DRUGS', laundry: 'LAUNDRY', gambling: 'GAMBLING HALL', brewery: 'BREWERY',
+  mill: 'MILL', county: 'COUNTY', post: 'POST & TELEGRAPH', warehouse: 'WHOLESALE', cantina: 'CANTINA',
 };
 
 const AUTUMN_PAL = [['#7a3416', '#a84e1c', '#d07a2a'], ['#8a5a14', '#b88024', '#e0aa3a'], ['#6a3a1a', '#94501e', '#c07030'], ['#8a6a1a', '#b89424', '#e8c040']];
@@ -361,6 +363,15 @@ const Spr = {
         o.fillStyle = '#4a3422'; o.fillRect(x - 8, y - 26, 2, 22); o.fillRect(x - 8, y - 26, 16, 2);
         o.strokeStyle = '#a89060'; o.lineWidth = 0.8; o.beginPath(); o.moveTo(x + 5, y - 24); o.lineTo(x + 5, y - 14); o.stroke();
         o.beginPath(); o.arc(x + 5, y - 12.5, 1.6, 0, TAU); o.stroke();
+        break;
+      }
+      case O.LOTSIGN: {
+        this.shadow(g, x + 2, y + 2, 5, 1.5, 0.25);
+        g.fillStyle = '#4a3422'; g.fillRect(x - 0.8, y - 8, 1.6, 10);
+        o.fillStyle = '#3a2818'; o.fillRect(x - 7, y - 17, 14, 10);
+        o.fillStyle = '#e8dcc0'; o.fillRect(x - 6, y - 16, 12, 8);
+        o.fillStyle = '#b3261e'; o.fillRect(x - 6, y - 16, 12, 2.4);
+        o.fillStyle = '#2a6a2a'; o.font = 'bold 6px serif'; o.textAlign = 'center'; o.textBaseline = 'middle'; o.fillText('$', x, y - 10.5);
         break;
       }
       case O.BOARD: {

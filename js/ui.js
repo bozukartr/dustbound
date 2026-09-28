@@ -517,7 +517,7 @@ const UI = {
       c.globalAlpha = Math.min(1, (xk - 0.3) * 2);
       c.font = '12px "IM Fell English SC", serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
       for (const t of W.towns) {
-        if (!G.visited.has(t.id) && !G.reveal[((t.cy / TS / 4) | 0) * 256 + ((t.cx / TS / 4) | 0)]) continue;
+        if (!G.visited.has(t.id) && !G.reveal[((t.cy / TS / 4) | 0) * FW + ((t.cx / TS / 4) | 0)]) continue;
         const [x, y] = toR(t.cx, t.cy);
         if (Math.hypot(x - R, y - R) > R - 16) continue;
         c.lineWidth = 3; c.strokeStyle = 'rgba(236,224,196,0.9)'; c.strokeText(t.n, x, y - 10); c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, y - 10);
@@ -612,7 +612,7 @@ const UI = {
     const [wx, wy] = this.mapToWorld(sx, sy);
     let best = null, bd = (26 / this.map.zoom * TS) ** 2;
     for (const p of G.world.pois) if (G.discovered.has(p.id) || G.rumored.has(p.id)) { const d = dist2(p.x, p.y, wx, wy); if (d < bd) { bd = d; best = p; } }
-    for (const t of G.world.towns) if (G.visited.has(t.id) || G.reveal[((t.cy / TS / 4) | 0) * 256 + ((t.cx / TS / 4) | 0)]) { const d = dist2(t.cx, t.cy, wx, wy); if (d < bd * 4) { bd = d / 4; best = { n: t.n, desc: t.desc + (G.visited.has(t.id) ? '' : Tr(' (Henüz ziyaret edilmedi)')) }; } }
+    for (const t of G.world.towns) if (G.visited.has(t.id) || G.reveal[((t.cy / TS / 4) | 0) * FW + ((t.cx / TS / 4) | 0)]) { const d = dist2(t.cx, t.cy, wx, wy); if (d < bd * 4) { bd = d / 4; best = { n: t.n, desc: t.desc + (G.visited.has(t.id) ? '' : Tr(' (Henüz ziyaret edilmedi)')) }; } }
     let html = '';
     if (best) html = `<div class="mi-n">${best.n}</div><div class="mi-d">${best.desc || ''}${G.rumored.has(best.id) && !G.discovered.has(best.id) ? Tr(' <i>(söylenti)</i>') : ''}</div>`;
     else html = `<div class="mi-n">${G.world.regionAt(wx, wy)}</div>`;
@@ -631,7 +631,7 @@ const UI = {
     c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
     c.drawImage(W.mapCanvas, ox, oy, mw, mh);
     const toS = (wx, wy) => [ox + wx / TS * M.zoom, oy + wy / TS * M.zoom];
-    const revealed = (wx, wy) => G.reveal[((wy / TS / 4) | 0) * 256 + ((wx / TS / 4) | 0)];
+    const revealed = (wx, wy) => G.reveal[((wy / TS / 4) | 0) * FW + ((wx / TS / 4) | 0)];
     // yollar: çift çizgi (mürekkep kenar, kâğıt içi); patikalar kesikli
     const x0 = -40, y0 = -40, x1 = w + 40, y1 = h + 40;
     const poly = (pts, step) => { c.beginPath(); let on = false; for (let k = 0; k < pts.length; k += step) { const [x, y] = toS(pts[k][0], pts[k][1]); if (x < x0 || y < y0 || x > x1 || y > y1) { if (on) c.lineTo(x, y); on = false; continue; } if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; } } c.stroke(); };
@@ -657,6 +657,7 @@ const UI = {
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.font = `italic ${Math.round(16 + M.zoom * 4)}px "IM Fell English", serif`;
     for (const r of REGIONS) {
+      if (!inWorld(r)) continue;
       const [x, y] = toS(r.x * WW * TS, r.y * WH * TS);
       const txt = r.n.toUpperCase().split('').join(' ');
       c.lineWidth = 3; c.strokeStyle = 'rgba(232,218,184,0.45)'; c.strokeText(txt, x, y);
@@ -681,6 +682,7 @@ const UI = {
       c.strokeStyle = 'rgba(70,44,22,0.7)'; c.lineWidth = 1; c.strokeRect(x - tw / 2 + 2.5, ly - fs * 0.62 + 2.5, tw - 5, fs * 1.24 - 5);
       c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, ly + 1);
       if (M.zoom > 1.8) {
+        for (const l of t.lots || []) { const [lx, ly2] = toS((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS); c.fillStyle = 'rgba(40,90,40,0.85)'; c.beginPath(); c.arc(lx, ly2, 8, 0, TAU); c.fill(); c.fillStyle = '#efe6d2'; c.font = 'bold 11px serif'; c.fillText('$', lx, ly2 + 1); c.font = `${fs}px "IM Fell English SC", serif`; }
         for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 9, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (im.complete) c.drawImage(im, bx - 6.5, by - 6.5, 13, 13); }
       }
     }
@@ -1178,7 +1180,7 @@ const UI = {
       title: b.name, sub: () => Tr`${sub ? sub.n + ' • ' : ''}${G.timeStr()} • Cüzdan: ${fmtMoney(P.money)}`, cls: 'building',
       build: () => {
         const it = [];
-        const closed = (G.hour < 6 || G.hour > 22) && !['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable'].includes(b.type);
+        const closed = (G.hour < 6 || G.hour > 22) && !['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'cantina', 'gambling', 'warehouse'].includes(b.type);
         if (closed) { it.push({ html: `<p class="closed">${Tr`Dükkan kapalı. Açılış saati 06:00.`}</p>` }); if (svc.includes('rob')) it.push({ label: Tr('Kapıyı Kır ve Soy'), icon: '🔫', fn: () => this.robStore(b, true) }); return it; }
         if (P.masked && b.type !== 'fence') {
           it.push({ html: `<p class="closed">${b.type === 'sheriff' ? Tr('"Maskeyle şerif ofisine mi giriyorsun? Çıkar onu, hemen!"') : b.type === 'bank' ? Tr('"Maskeli müşteriye hizmet yok. Çıkar onu ya da defol."') : Tr('"Maskeni çıkar, yoksa sana hizmet etmem."')}</p>` });
@@ -1225,6 +1227,7 @@ const UI = {
       case 'bank': it.push({ icon: '🏦', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
       case 'robbank': it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
       case 'train': it.push({ icon: '🚂', label: Tr('Tren Bileti Al'), fn: () => this.openTrain(b) }); break;
+      case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); break;
       case 'donate': it.push({ icon: '🙏', label: Tr('Kiliseye Bağış Yap'), right: fmtMoney(0.5), fn: () => { if (G.spend(0.5)) { G.addHonor(3); this.feed(Tr('Rahip sana teşekkür etti.')); } } }); break;
       case 'pray': it.push({ icon: '✝', label: Tr('Dua Et'), fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed(Tr('Bugün zaten dua ettin.')); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed(Tr('İçin huzurla doldu.')); G.advanceClock(20); } }); break;
       case 'property': it.push({ icon: '📜', label: Tr('Satılık Mülkler'), fn: () => this.openLand() }); break;
@@ -1560,6 +1563,41 @@ const UI = {
       }),
     });
   },
+  /* Yolcu posta arabası: tren olmayan kasabalara da gider; daha yavaş ve pahalı, yolda gecikme olabilir */
+  openStage(b) {
+    const P = G.player, Wd = G.world;
+    const here = Wd.towns.find(t => t.id === b.town);
+    // gidilebilecek yerler: ziyaret edilmiş kasabalar ve buraya yakın (komşu) kasabalar
+    const dests = Wd.towns.filter(t => t !== here && (G.visited.has(t.id) || dist(here.cx, here.cy, t.cx, t.cy) < 7000))
+      .sort((a, c) => dist(here.cx, here.cy, a.cx, a.cy) - dist(here.cx, here.cy, c.cx, c.cy));
+    this.menu({
+      title: Tr('Posta Arabası'), sub: Tr`${here.n} Durağı`, cls: 'small',
+      build: () => dests.map(t => {
+        const d = dist(here.cx, here.cy, t.cx, t.cy);
+        const pr = Math.max(0.4, d / 3600) * (G.hasPerk('towns') ? 0.75 : 1);
+        const hrs = Math.max(2, Math.round(d / 1300));
+        return { icon: '🐴', label: t.n + (G.visited.has(t.id) ? '' : Tr(' (yeni)')), right: Tr`${fmtMoney(pr)} • ${hrs} sa`, fn: () => {
+          if (G.law.level > 0) { this.feed(Tr('Aranırken arabacı seni almaz!'), 'warn'); return; }
+          if (!G.spend(pr)) return;
+          this.closeAll();
+          const late = chance(0.15) ? rndi(1, 3) : 0;
+          this.fade(() => {
+            G.advanceClock((hrs + late) * 60);
+            G.survivalUpdate((hrs + late) * 60, false);
+            if (P.riding) P.dismount();
+            const st = t.buildings.find(x => x.type === 'post') || t.buildings.find(x => x.type === 'stable');
+            if (st) { P.x = st.door.x; P.y = st.door.y + 14; } else { P.x = t.spawn.x; P.y = t.spawn.y; }
+            if (G.horse && !G.horse.dead) { G.horse.x = P.x + 24; G.horse.y = P.y + 8; G.horse.state = 'idle'; }
+            G.cam.x = P.x; G.cam.y = P.y;
+            G.stat('stageRides', 1);
+            G.prefetch(true);
+            if (late) this.feed(Tr`Yolda bir tekerlek kırıldı; ${late} saat gecikmeyle vardın.`);
+          }, Tr`${t.n} yolunda...`);
+        } };
+      }),
+      empty: Tr('Buradan kalkan bir sefer yok.'),
+    });
+  },
   openBarber() {
     const P = G.player, L = P.look;
     this.menu({
@@ -1623,6 +1661,11 @@ const UI = {
       return `<div class="sign-row"><span class="sa">${arrows[i]}</span><span class="sn">${t.n}</span><span class="sm">${miles.toFixed(1)} mil</span></div>`;
     }).join('');
     this.info(Tr('Yol Tabelası'), `<div class="signboard">${rows}</div>`);
+  },
+  showLot(lot) {
+    const t = G.world.towns.find(tw => tw.id === lot.town);
+    const hasCounty = t && t.buildings.some(b => b.type === 'county');
+    this.info(Tr('Satılık Arsa'), `<div class="signboard"><div class="sign-row"><span class="sn">${t ? t.n : ''}</span><span class="sm">${lot.w}×${lot.h}</span></div><div class="sign-row"><span class="sn">${Tr('Fiyat')}</span><span class="sm">$${lot.price}</span></div></div><p>${hasCounty ? Tr('Tapu işlemleri İlçe Binası\'nda yapılır. Bu arsaya ileride kendi işletmeni kurabilirsin.') : Tr('Tapu işlemleri bölgenin İlçe Binası\'nda yapılır. Bu arsaya ileride kendi işletmeni kurabilirsin.')}</p>`);
   },
   showTreasureMap() {
     const T_ = G.treasure;
@@ -2121,8 +2164,8 @@ const I_WHEEL_HINT = (page) => {
   const sel = pad ? Tr('Sağ analog') : Tr('Fare');
   return page ? Tr`${sel}: seç • ${cyc}: aynı türde değiştir • ${pad ? Input.padGlyph(PS.X) : Input.kbGlyph('Mouse0')} kullan • ${sw} Silahlar` : Tr`${sel}: seç • ${cyc}: aynı türde değiştir • ${Input.glyph('wheel')} bırak: kuşan • ${sw} Eşyalar`;
 };
-const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence']);
-const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house' };
+const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence', 'bakery', 'smith', 'pharmacy', 'gambling', 'brewery', 'mill', 'county', 'post', 'warehouse', 'cantina']);
+const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass' };
 const PICON = { camp: 'tent', farm: 'wheat', property: 'house', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
 const TIPS = [
   'İpucu: Çömelerek hayvanlara daha kolay yaklaşabilirsin.',

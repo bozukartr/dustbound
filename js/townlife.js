@@ -35,9 +35,11 @@ const OCCS = {
 const KEEPER_N = {
   general: 'Bakkal', saloon: 'Barmen', doctor: 'Doktor', gunsmith: 'Silahçı', butcher: 'Kasap', stable: 'Seyis', hotel: 'Otelci', bank: 'Bankacı',
   station: 'İstasyon Memuru', church: 'Peder', barber: 'Berber', tailor: 'Terzi', fence: 'Kaçakçı', mine: 'Maden Kâtibi', docks: 'Liman Kâtibi', lumber: 'Kereste Ustası',
+  bakery: 'Fırıncı', smith: 'Demirci', pharmacy: 'Eczacı', laundry: 'Çamaşırcı', gambling: 'Krupiye', brewery: 'Bira Ustası', mill: 'Değirmenci',
+  county: 'İlçe Memuru', post: 'Telgrafçı', warehouse: 'Ambar Kâtibi', cantina: 'Cantinero',
 };
 const TOWN_POP = { l: 56, m: 38, s: 22 };
-const PUBLIC_B = ['saloon', 'hotel', 'general', 'station', 'church', 'barber'];
+const PUBLIC_B = ['saloon', 'hotel', 'general', 'station', 'church', 'barber', 'cantina', 'gambling', 'post'];
 
 /* Sakinlerin kendi aralarındaki konuşmaları: [soru, cevap] */
 const CHAT = {
@@ -400,7 +402,7 @@ const TownLifeSystems = {
     // pazar sabahı kilise
     const church = b('church');
     if (church && day % 7 === 0 && h >= 9 && h < 11 && r.occ !== 'keeper' && roll(3) < 0.65) return { act: 'church', b: church };
-    const saloon = b('saloon');
+    const saloon = b('saloon') || b('cantina') || b('gambling');
     const evening = h >= 18 && h < 21.5;
     switch (r.occ) {
       case 'keeper':
@@ -448,7 +450,7 @@ const TownLifeSystems = {
   },
   nearPublic(t, from) {
     let best = null, bd = 1e12;
-    for (const b of t.buildings) if (PUBLIC_B.includes(b.type) && (b.type === 'saloon' || b.type === 'hotel' || b.type === 'station' || this.isOpen(b))) { const d = dist2(b.door.x, b.door.y, from.door.x, from.door.y); if (d < bd) { bd = d; best = b; } }
+    for (const b of t.buildings) if (PUBLIC_B.includes(b.type) && (b.type === 'saloon' || b.type === 'cantina' || b.type === 'hotel' || b.type === 'station' || this.isOpen(b))) { const d = dist2(b.door.x, b.door.y, from.door.x, from.door.y); if (d < bd) { bd = d; best = b; } }
     return best;
   },
   indoorAct(p) { return p.b && ['home', 'in', 'saloon', 'shelter', 'church', 'school'].includes(p.act); },
@@ -502,7 +504,7 @@ const TownLifeSystems = {
     const t = r.t, d = this.day + (this.hour >= 14 ? 0.5 : 0);
     if (r.errDay !== d) {
       r.errDay = d; r.ei = 0;
-      const shops = t.buildings.filter(b => ['general', 'butcher', 'tailor', 'doctor', 'barber', 'bank'].includes(b.type) && this.isOpen(b));
+      const shops = t.buildings.filter(b => ['general', 'butcher', 'tailor', 'doctor', 'barber', 'bank', 'bakery', 'pharmacy', 'laundry', 'post', 'smith'].includes(b.type) && this.isOpen(b));
       r.errands = shops.length ? [pick(shops), pick(shops)].filter((b, i, a) => a.indexOf(b) === i) : [];
     }
     if (r.ei >= r.errands.length) return null;
@@ -622,7 +624,7 @@ const TownLifeSystems = {
       t._seats = [];
       for (let y = t.y; y < t.y + t.h; y++) for (let x = t.x; x < t.x + t.w; x++) if (W.inb(x, y) && W.obj[y * WW + x] === O.BENCH) t._seats.push({ x: x * TS + 8, y: y * TS + 12, ang: Math.PI / 2 });
       // bina önü sundurmalar
-      for (const b of t.buildings) if (['general', 'saloon', 'hotel', 'barber', 'station'].includes(b.type)) for (const k of [-1, 1]) t._seats.push({ x: b.door.x + k * 14, y: b.door.y + 5, ang: Math.PI / 2 });
+      for (const b of t.buildings) if (['general', 'saloon', 'hotel', 'barber', 'station', 'cantina', 'bakery', 'post'].includes(b.type)) for (const k of [-1, 1]) t._seats.push({ x: b.door.x + k * 14, y: b.door.y + 5, ang: Math.PI / 2 });
     }
     const taken = (s) => this.ents.some(o => o !== e && o.res && o.state === 'sit' && dist2(o.x, o.y, s.x, s.y) < 36);
     const free = t._seats.filter(s => !taken(s) && !W.blocked(s.x, s.y, 3));
