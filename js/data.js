@@ -450,6 +450,13 @@ const MGR_TRAITS = {
   shady:  { n: 'Şüpheli', d: 'İyi satar ama bazı günler kasadan para eksilir.', inc: 1.1, skim: 0.25 },
 };
 const WAGON_PRICE = 65, WAGON_CAP = 8, BUILD_DAYS = 3;
+/* Nakliyeciler: işe alınır, kendi arabasıyla toptancıdan işletmelere mal taşır */
+const HAUL_TRAITS = {
+  reliable: { n: 'Güvenilir', d: 'Fırtınada bile yola çıkar, oyalanmaz; haydutlara direnir.', spd: 1, wage: 0.9, risk: 0.7 },
+  fast:     { n: 'Hızlı', d: 'Arabayı hızlı sürer, daha sık sefer yapar; ama arada bir mola verir.', spd: 1.35, wage: 0.85, risk: 1 },
+  coward:   { n: 'Korkak', d: 'Ucuzdur; ama haydut görünce yükü bırakıp kaçar.', spd: 1, wage: 0.55, risk: 1 },
+};
+const HAUL_HIRE = 10, HAUL_CAP = 6, HAUL_MAX = 4;
 
 /* ---- Başarımlar (perk içerir) ---- */
 const ACHIEVEMENTS = [

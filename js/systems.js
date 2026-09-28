@@ -29,6 +29,7 @@ const GameSystems = {
   advanceClock(mins) {
     const prevDay = this.day, prevAge = this.age;
     this.clock += mins;
+    this.haulTick(mins);
     if (this.day !== prevDay) for (let d = prevDay + 1; d <= this.day; d++) this.onNewDay(d);
     if (this.age !== prevAge) for (let a = prevAge + 1; a <= this.age; a++) this.onBirthday(a);
   },
@@ -41,7 +42,7 @@ const GameSystems = {
     let inc = 0;
     for (const id of this.props) { const P = PROPERTIES.find(p => p.id === id); if (P && P.income) inc += P.income; }
     if (inc > 0) { inc *= this.hasPerk('tycoon') ? 1.5 : 1; this.bank += inc; UI.feed(Tr`🏠 Mülk geliri bankaya yatırıldı: ${fmtMoney(inc)}`); this.stats.earned += inc; }
-    this.bizDaily(); this.bizBuildTick();
+    this.bizDaily(); this.bizBuildTick(); this.haulDaily();
     this.bounties = null; // ilanlar yenilenir
     const L = this.player.look;
     if (L.sex === 'm' && L.beard > 0) { L.beardLen = Math.min(1, (L.beardLen || 0.3) + 0.08); this.player._lk = null; }
