@@ -1159,54 +1159,126 @@ const UI = {
       ],
     });
   },
-  openSettings() {
+  /* Ayarlar: sekmeli (Genel / Ses / Görüntü / Kontroller). Her satırın kendi denetimi var:
+     ses için dilimli kaydırıcı, açık/kapalı için anahtar, seçenekler için düğme dizisi.
+     Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
+  openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const el = el_('div', 'modal panel settings');
-    const rows = [
-      ['lang', 'Dil / Language', 'lang'],
-      ['master', Tr('Ana Ses'), 'vol'], ['music', Tr('Müzik'), 'vol'], ['sfx', Tr('Efektler'), 'vol'], ['amb', Tr('Ortam Sesleri'), 'vol'],
-      ['fullscreen', Tr('Tam Ekran'), 'fs'],
-      ['zoom', Tr('Piksel Ölçeği'), 'zoom'], ['shake', Tr('Ekran Sarsıntısı'), 'bool'], ['fps', Tr('FPS Göster'), 'bool'],
-      ['padGlyphs', Tr('Kol Simgeleri'), 'opt'], ['aimAssist', Tr('Nişan Yardımı (Kol)'), 'opt'], ['aimSens', Tr('Nişan Hassasiyeti (Kol)'), 'opt'], ['fxq', Tr('Görsel Efektler'), 'opt'],
+    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, padGlyphs: 0 };
+    const OPTL = {
+      aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
+      padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')],
+      zoom: [Tr('Otomatik'), '1x', '2x', '3x', '4x', '5x'],
+    };
+    const TABS = [
+      { n: Tr('@ayar|Genel'), g: 'gear', rows: [
+        ['lang', 'Dil / Language', 'lang', Tr('Oyunun dili. Menüler, diyaloglar ve bütün metinler hemen değişir.')],
+        ['shake', Tr('Ekran Sarsıntısı'), 'bool', Tr('Silah sesi, patlama ve darbelerde kameranın sarsılması. Baş dönmesi yapıyorsa kapat.')],
+        ['fps', Tr('FPS Göster'), 'bool', Tr('Ekranın köşesinde saniyedeki kare sayısını gösterir.')],
+      ] },
+      { n: Tr('Ses'), g: 'note', rows: [
+        ['master', Tr('Ana Ses'), 'vol', Tr('Bütün seslerin genel seviyesi.')],
+        ['music', Tr('Müzik'), 'vol', Tr('Saloon piyanosu, menü ve sahne müzikleri.')],
+        ['sfx', Tr('Efektler'), 'vol', Tr('Silahlar, adımlar, atlar ve arayüz sesleri.')],
+        ['amb', Tr('Ortam Sesleri'), 'vol', Tr('Rüzgâr, yağmur, kuşlar, böcekler ve kasaba uğultusu.')],
+      ] },
+      { n: Tr('Görüntü'), g: 'eye', rows: [
+        ...(Platform.canFullscreen === false ? [] : [['fullscreen', Tr('Tam Ekran'), 'fs', Tr('Oyunu tam ekranda ya da pencerede çalıştırır.')]]),
+        ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
+        ['fxq', Tr('Görsel Efektler'), 'opt', Tr('Tam: bulut gölgeleri, duman, izler, su halkaları ve renk tonlaması. Sade: zayıf bilgisayarlar için azaltılmış efektler.')],
+      ] },
+      { n: Tr('Kontroller'), g: 'pad', rows: [
+        ['padGlyphs', Tr('Kol Simgeleri'), 'opt', Tr('Ekranda gösterilecek oyun kolu tuş simgeleri. Otomatik, bağlı kolu tanır.')],
+        ['aimAssist', Tr('Nişan Yardımı (Kol)'), 'opt', Tr('Kolla nişan alırken hedefe kilitlenme gücü. Tam Kilit, nişan tuşuna basınca en yakın hedefe kilitlenir.')],
+        ['aimSens', Tr('Nişan Hassasiyeti (Kol)'), 'opt', Tr('Sağ analogla nişan alırken dönüş hızı.')],
+        ['keys', Tr('Tuş Atamaları'), 'link', Tr('Klavye, fare ve oyun kolu tuşlarını değiştir.')],
+      ] },
     ];
-    const OPTL = { aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')], padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')] };
-    const val = (k, t) => t === 'fs' ? (Platform.isFullscreen() ? Tr('Açık') : Tr('Kapalı')) : t === 'lang' ? (I18N.LANGS.find(l => l[0] === I18N.lang) || I18N.LANGS[0])[1] : t === 'vol' ? Math.round(S[k] * 10) * 10 + '%' : t === 'bool' ? (S[k] ? Tr('Açık') : Tr('Kapalı')) : t === 'opt' ? OPTL[k][S[k]] : (S[k] ? S[k] + 'x' : Tr('Otomatik'));
-    el.innerHTML = `<div class="p-head"><div class="p-title">${Tr`Ayarlar`}</div></div><div class="p-body"><div class="p-list">${rows.map(([k, n, t]) => `<div class="p-item nav opt" data-k="${k}" data-t="${t}" data-lr><span class="pi-l">${n}</span><span class="pi-r"><b class="arr">◀</b> <span class="v">${val(k, t)}</span> <b class="arr">▶</b></span></div>`).join('')}<div class="p-item nav" id="set-keys"><span class="pi-l">${Tr`Tuş Atamaları`}</span><span class="pi-r">›</span></div><div class="p-item nav" id="set-back"><span class="pi-l">${Tr`Kaydet ve Geri Dön`}</span></div></div></div><div class="p-foot">${Tr`◀ ▶ Değiştir &nbsp; ${Input.glyph('back')} Geri`}</div>`;
-    const m = this.makeModal(el, { onBack: () => { G.saveSettings(); this.pop(); } });
-    $$('.opt', el).forEach(n => {
-      const k = n.dataset.k, t = n.dataset.t;
-      n._lr = (d) => {
-        if (t === 'lang') {
-          const L = I18N.LANGS, i = L.findIndex(l => l[0] === I18N.lang);
-          S.lang = L[(i + d + L.length) % L.length][0];
-          I18N.setLang(S.lang); G.saveSettings(); Audio_.ui('move');
-          this.relocalize();
-          return;
-        }
-        if (t === 'fs') { Platform.toggleFullscreen(); setTimeout(() => { $('.v', n).textContent = val(k, t); }, 250); return; }
-        if (t === 'vol') S[k] = clamp(Math.round((S[k] + d * 0.1) * 10) / 10, 0, 1);
-        else if (t === 'bool') S[k] = !S[k];
-        else if (t === 'opt') { const n = OPTL[k].length; S[k] = ((S[k] === undefined ? 1 : S[k]) + d + n) % n; }
-        else { const opts = [0, 1, 2, 3, 4, 5]; S[k] = opts[(opts.indexOf(S[k]) + d + opts.length) % opts.length]; }
-        $('.v', n).textContent = val(k, t);
-        G.applySettings();
-      };
-      n.onclick = () => n._lr(1);
-      $$('.arr', n).forEach((a, i) => (a.onclick = (e) => { e.stopPropagation(); n._lr(i ? 1 : -1); }));
-      n.onmouseenter = () => m.setFocus(n, true);
+    const el = el_('div', 'modal panel settings');
+    let m;
+    const cur = (k, t) => t === 'fs' ? Platform.isFullscreen() : t === 'lang' ? I18N.lang : k === 'zoom' ? (S.zoom || 0) : S[k];
+    const valTxt = (k, t) => {
+      const v = cur(k, t);
+      if (t === 'vol') return Math.round(v * 100) + '%';
+      if (t === 'bool' || t === 'fs') return v ? Tr('Açık') : Tr('Kapalı');
+      if (t === 'lang') return (I18N.LANGS.find(l => l[0] === v) || I18N.LANGS[0])[1];
+      if (t === 'opt') return OPTL[k][v === undefined ? 1 : v];
+      return '';
+    };
+    const control = (k, t) => {
+      const v = cur(k, t);
+      if (t === 'vol') { const n = Math.round(v * 10); return `<div class="st-vol" data-vol>${Array.from({ length: 10 }, (_, i) => `<i class="${i < n ? 'on' : ''}" data-i="${i}"></i>`).join('')}</div><span class="st-num">${Math.round(v * 100)}</span>`; }
+      if (t === 'bool' || t === 'fs') return `<div class="st-tog ${v ? 'on' : ''}"><span>${Tr('Kapalı')}</span><span>${Tr('Açık')}</span><b></b></div>`;
+      if (t === 'lang') return `<div class="st-seg">${I18N.LANGS.map(l => `<span class="${l[0] === v ? 'on' : ''}" data-v="${l[0]}">${l[1]}</span>`).join('')}</div>`;
+      if (t === 'opt') return `<div class="st-seg">${OPTL[k].map((o, i) => `<span class="${i === (v === undefined ? 1 : v) ? 'on' : ''}" data-v="${i}">${o}</span>`).join('')}</div>`;
+      return `<span class="st-link">${Icons.glyph('pad', 'currentColor')} ›</span>`;
+    };
+    const side = (row) => {
+      const [k, n, t, d] = row;
+      const T = TABS[m.tab];
+      return `<div class="st-side-ic">${Icons.glyph(T.g, '#c9a45c')}</div><div class="ps-t">${n}</div>${t !== 'link' ? `<div class="st-side-v">${valTxt(k, t)}</div>` : ''}<div class="ps-d st-desc">${d}</div>${k in DEF ? `<div class="st-def">${Tr`Varsayılan:`} ${t === 'vol' ? Math.round(DEF[k] * 100) + '%' : t === 'bool' ? (DEF[k] ? Tr('Açık') : Tr('Kapalı')) : OPTL[k][DEF[k]]}</div>` : ''}`;
+    };
+    const change = (k, t, d, direct) => {
+      if (t === 'lang') {
+        const L = I18N.LANGS, i = L.findIndex(l => l[0] === I18N.lang);
+        S.lang = direct !== undefined ? direct : L[(i + d + L.length) % L.length][0];
+        if (S.lang === I18N.lang) return;
+        I18N.setLang(S.lang); G.saveSettings(); Audio_.ui('move');
+        this.relocalize(m.tab, 'lang');
+        return;
+      }
+      if (t === 'fs') { Platform.toggleFullscreen(); setTimeout(() => { if (m.alive) render(); }, 250); return; }
+      if (t === 'link') { G.saveSettings(); this.openControls(); return; }
+      if (t === 'vol') S[k] = clamp(direct !== undefined ? direct : Math.round((S[k] + d * 0.1) * 10) / 10, 0, 1);
+      else if (t === 'bool') S[k] = direct !== undefined ? direct : !S[k];
+      else if (t === 'opt') { const n = OPTL[k].length; S[k] = direct !== undefined ? direct : ((S[k] === undefined ? 1 : S[k]) + d + n) % n; }
+      G.applySettings();
+      if (t === 'vol') Audio_.ui('move');
+      render();
+    };
+    const render = () => {
+      const T = TABS[m.tab];
+      const fk = m.focusEl ? m.focusEl.dataset.k : focusKey;
+      el.innerHTML = `<div class="p-head st-head"><div class="p-title">${Tr`Ayarlar`}</div></div>
+        <div class="p-tabs st-tabs">${Input.glyph('tabL')}${TABS.map((x, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${Icons.glyph(x.g, 'currentColor')}${x.n}</span>`).join('')}${Input.glyph('tabR')}</div>
+        <div class="p-body st-body"><div class="p-list scroll st-list">${T.rows.map(r => `<div class="p-item nav st-row" data-k="${r[0]}" data-t="${r[2]}" ${r[2] !== 'link' ? 'data-lr' : ''}><span class="pi-l">${r[1]}</span><span class="st-ctl">${control(r[0], r[2])}</span></div>`).join('')}</div><div class="p-side st-side"></div></div>
+        <div class="p-foot">${Tr`${Input.glyph('left')}${Input.glyph('right')} Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme &nbsp; ${Input.glyph('alt')} Sekmeyi Varsayılana Döndür &nbsp; ${Input.glyph('back')} Kaydet ve Çık`}</div>`;
+      $$('.tab', el).forEach(n => (n.onclick = () => { m.tab = +n.dataset.tab; m.focusEl = null; focusKey = null; render(); }));
+      $$('.st-row', el).forEach(n => {
+        const k = n.dataset.k, t = n.dataset.t, row = T.rows.find(r => r[0] === k);
+        n._lr = (d) => change(k, t, d);
+        n._row = row;
+        n.onclick = (e) => {
+          const seg = e.target.closest('[data-v]'), vi = e.target.closest('[data-i]');
+          if (seg) change(k, t, 0, t === 'lang' ? seg.dataset.v : +seg.dataset.v);
+          else if (vi) { const i = +vi.dataset.i, nv = (i + 1) / 10; change(k, t, 0, Math.abs(nv - S[k]) < 0.01 && i === 0 ? 0 : nv); }
+          else change(k, t, 1);
+        };
+        n.onmouseenter = () => { if (m.focusEl !== n) m.setFocus(n, true); };
+      });
+      const target = $$('.st-row', el).find(n => n.dataset.k === fk) || $('.st-row', el);
+      m.focusEl = null;
+      m.setFocus(target, true);
+    };
+    m = this.makeModal(el, {
+      onBack: () => { G.saveSettings(); this.pop(); },
+      onTab: (d) => { m.tab = (m.tab + d + TABS.length) % TABS.length; m.focusEl = null; focusKey = null; render(); Audio_.ui('move'); },
+      onAlt: () => {
+        for (const r of TABS[m.tab].rows) if (r[0] in DEF) S[r[0]] = DEF[r[0]];
+        G.applySettings(); G.saveSettings(); render(); this.feed(Tr('Bu sekmedeki ayarlar varsayılana döndü.'));
+      },
+      onFocus: (n) => { const sd = $('.st-side', el); if (sd && n._row) sd.innerHTML = side(n._row); },
     });
-    $('#set-keys', el).onclick = () => { G.saveSettings(); this.openControls(); };
-    $('#set-back', el).onclick = () => { G.saveSettings(); this.pop(); };
+    m.tab = tab;
+    render();
     this.push(m);
     return m;
   },
   /* Dil değişince açık menüleri yeni dilde yeniden kur (ayarlar dil satırında açık kalır) */
-  relocalize() {
+  relocalize(tab = 0, key = 'lang') {
     if (G.state === 'menu') this.showMainMenu();
     else { this.closeAll(); this.openPause(); }
-    const m = this.openSettings();
-    const row = $('.opt[data-k="lang"]', m.el);
-    if (row) m.setFocus(row, true);
+    this.openSettings(tab, key);
   },
 
   /* ================= BİNALAR ================= */
