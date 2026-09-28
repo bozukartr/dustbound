@@ -41,7 +41,7 @@ const G = {
     this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
-    this.biz = []; this.lotsOwned = []; this.myWagon = null;
+    this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
     this.travelT = 10; this.eventT = 90;
@@ -216,7 +216,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(SAVE_KEY, JSON.stringify(data));
@@ -273,6 +273,7 @@ const G = {
     }
     this.loadCarry(d.carry);
     this.loadBiz(d.biz);
+    this.loadHaul(d.haul);
     if ((d.v || 1) < 2) this.migrateEconomy();
     Platform.syncAchievements(this.achieved);
     this.startPlay();
@@ -577,7 +578,7 @@ const G = {
           let r;
           if (e.kind === 'npc') { if (e.role === 'spouse' || e.role === 'child') continue; r = e.r + (e.mounted ? 7 : 4); }
           else if (e.kind === 'animal') { if (e.def.shape === 'snake' || e.def.shape === 'gator') continue; r = e.r + 4; }
-          else if (e.kind === 'wagon') { if (!e.driver) continue; r = 12; }   // sürücüyü arabadan çeker
+          else if (e.kind === 'wagon') { if (!e.driver || e.hauler) continue; r = 12; }   // sürücüyü arabadan çeker
           else continue;
           const hc = e.kind === 'wagon' ? e.seat : e;
           if (dist2(hc.x, hc.y, p.x, p.y) < r * r) { hit = e; break; }
@@ -921,3 +922,4 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(GameSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(CarrySystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(TownLifeSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));

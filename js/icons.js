@@ -155,6 +155,7 @@ const GLYPHS = {
   horseshoe: k => _s('M9 26 L8 14 Q8 5 16 5 Q24 5 24 14 L23 26', k, 5) + [[8.5, 20], [8.3, 14], [23.5, 20], [23.7, 14]].map(([x, y]) => _c(x, y, 0.9, 'rgba(0,0,0,0.7)')).join(''),
   bed: k => _r(3, 17, 26, 6, k, 1) + _r(3, 10, 4, 18, k, 1) + _r(6, 13, 7, 4, k, 2) + _r(25, 15, 4, 13, k, 1) + _r(13, 14, 13, 3, k, 1.5),
   bag: k => _p('M11 9 L9 5 H23 L21 9 Q29 14 28 22 Q27 29 16 29 Q5 29 4 22 Q3 14 11 9Z', k) + _s('M18.5 14.5 Q16 13 13.5 14.5 Q12.5 17 16 18 Q19.5 19 18.5 21.5 Q16 23 13.5 21.5 M16 12 V24', 'rgba(0,0,0,0.65)', 1.6),
+  wagon: k => _p('M4 9 Q14 2 24 9 V18 H4Z', k) + _r(3, 17, 23, 4, k, 1) + _c(9, 24, 4, k) + _c(22, 24, 4, k) + _c(9, 24, 1.4, 'rgba(0,0,0,0.6)') + _c(22, 24, 1.4, 'rgba(0,0,0,0.6)') + _s('M26 19 H30', k, 2),
   train: k => _r(4, 12, 16, 11, k, 1) + _r(18, 7, 10, 16, k, 1) + _r(6, 7, 4, 5, k) + _p('M2 23 H6 L3 27Z', k) + _c(10, 25, 3.2, k) + _c(22, 25, 3.2, k) + _r(20, 9, 6, 5, 'rgba(0,0,0,0.5)'),
   church: k => _r(14, 2, 4, 26, k, 1) + _r(8, 8, 16, 4, k, 1) + _p('M9 28 Q16 23 23 28Z', k),
   scroll: k => _r(7, 7, 18, 18, k, 1) + _e(7, 16, 2.4, 9.5, k) + _e(25, 16, 2.4, 9.5, k) + _s('M11 12 H21 M11 16 H21 M11 20 H18', 'rgba(0,0,0,0.55)', 1.4),
@@ -242,7 +243,7 @@ const PS_SVG = {
 
 /* Emoji → glif eşlemesi (bildirim ve menü metinleri için) */
 const EMOJI_GLYPH = {
-  '🐴': 'horse', '🏇': 'horse', '⛺': 'tent', '🛏': 'bed', '📜': 'scroll', '♥': 'heart', '❤': 'heart', '✚': 'cross', '🔫': 'gun', '🚂': 'train', '🏠': 'house', '⛏': 'pick', '⚒': 'pick',
+  '🐴': 'horse', '🏇': 'horse', '⛺': 'tent', '🛏': 'bed', '📜': 'scroll', '♥': 'heart', '❤': 'heart', '✚': 'cross', '🔫': 'gun', '🚂': 'train', '🚚': 'wagon', '🏠': 'house', '⛏': 'pick', '⚒': 'pick',
   '★': 'star', '⭐': 'star', '🍺': 'glass', '🥃': 'glass', '✦': 'waypoint', '🏦': 'bank', '←': 'back', '💰': 'bag', '✝': 'church', '✔': 'check', '☠': 'skull', '🏪': 'store', '🛒': 'cart',
   '❖': 'eye', '🍲': 'bowl', '🍖': 'meat', '🛁': 'tub', '💈': 'barber', '🚪': 'door', '🎵': 'note', '💾': 'quill', '⚓': 'anchor', '🦊': 'fox', '🤢': 'sick', '❄': 'snow', '☀': 'sun', '♨': 'steam',
   '🔥': 'fire', '🪰': 'flies', '👣': 'feet', '📍': 'pin', '🫗': 'drop', '💧': 'drop', '🧼': 'soap', '🃏': 'cards', '💪': 'fist', '👂': 'talk', '📰': 'newspaper', '⚖': 'scales', '🧽': 'brush',

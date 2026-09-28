@@ -313,6 +313,7 @@ body.modal-open #modals { background: rgba(0, 0, 0, 0.45); }
 .sk-d { font-size: 14px; color: var(--dim); }
 .sk-bar { height: 6px; background: rgba(255, 255, 255, 0.1); margin-top: 8px; }
 .sk-bar i { display: block; height: 100%; background: var(--gold); }
+.jr-h { font-family: var(--sc); font-weight: normal; margin: 18px 0 6px; font-size: 19px; }
 .jr-note { color: var(--dim); font-style: italic; font-size: 15px; margin-top: 16px; }
 .ach-sum { font-family: var(--sc); font-size: 18px; color: var(--gold); margin-bottom: 10px; }
 .achs { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 8px; }

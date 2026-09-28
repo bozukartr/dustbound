@@ -719,6 +719,8 @@ const UI = {
     // işletmelerin (altın) ve yük araban
     for (const z of G.biz) { if (z.site) { const l = W.lots.find(x => x.id === z.lot); if (l) badge((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS, 'pick', 'rgba(170,130,30,0.95)', '#fff', 9); continue; } const b = G.bizBuilding(z); if (b) badge(b.door.x, b.door.y, BICON[b.type] || 'store', 'rgba(170,130,30,0.95)', '#fff', 9); }
     if (G.myWagon && G.player.riding !== G.myWagon) badge(G.myWagon.x, G.myWagon.y, 'bag', 'rgba(60,36,20,0.9)', '#f0d8a8', 9);
+    for (const h of G.haulers) badge(h.x, h.y, 'wagon', h.state === 'raid' ? 'rgba(160,20,14,0.95)' : 'rgba(40,70,90,0.9)', '#f0e4c8', 9);
+    for (const R of G.raids) badge(R.x, R.y, 'skull', 'rgba(160,20,14,0.95)', '#fff', 11);
     if (G.horse && !G.horse.dead) badge(G.horse.x, G.horse.y, 'horse', 'rgba(60,36,20,0.9)', '#f0d8a8');
     if (G.waypoint) badge(G.waypoint.x, G.waypoint.y, 'waypoint', 'rgba(140,40,140,0.95)');
     // oyuncu
@@ -1067,6 +1069,12 @@ const UI = {
       const need = G.goodsNeeded(), nk = Object.keys(need).filter(g => need[g] > 0);
       if (nk.length) h += `<p class="jr-note">${Tr`Getirilmesi gereken mallar:`} ${nk.map(g => `${GOODS[g].n} ×${need[g]}`).join(', ')}</p>`;
     }
+    if (G.haulers.length) {
+      h += `<h3 class="jr-h">${Tr`Nakliyeciler`}</h3><table class="jr-biz">`;
+      for (const x of G.haulers) h += `<tr><td>${escapeHtml(x.name)} <span class="dim">(${HAUL_TRAITS[x.trait].n})</span></td><td class="${x.state === 'raid' ? 'st-low' : ''}">${escapeHtml(G.haulStatus(x))}</td><td>${fmtMoney(HAUL_TRAITS[x.trait].wage)}${Tr`/gün`}</td></tr>`;
+      h += `</table>`;
+    }
+    for (const R of G.raids) h += `<p class="jr-note st-low">${Tr`Baskın: ${G.nearestTown(R.x, R.y).n} yakınlarında, haritada kırmızı işaret.`}</p>`;
     const w = G.myWagon;
     h += `<p class="jr-note">${w ? Tr`Yük araban: ${w.crates.length}/${WAGON_CAP} sandık.` : Tr`Yük araban yok. Ahırdan ${fmtMoney(WAGON_PRICE)} karşılığında alabilirsin; ${WAGON_CAP} sandık taşır.`}</p>`;
     return h;
@@ -1076,7 +1084,7 @@ const UI = {
       <h3>${Tr`Hayatta Kalma`}</h3><p>${Tr`<b>Açlık</b>, <b>susuzluk</b> ve <b>uyku</b> sürekli azalır. Sıfırlanırlarsa sağlığın düşer. Sağlık çekirdeği (♥ içi) açlık ve susuzluktan beslenir. Sıcak çöllerde daha çok su içmen, karlı dağlarda ise kalın giysiler giymen gerekir. Kamp ateşleri ve sıcak yemekler seni ısıtır.`}</p>
       <h3>${Tr`Yaşlanma`}</h3><p>${Tr`18 yaşında başlarsın. Zaman geçtikçe yaşlanırsın; 30'lardan sonra dayanıklılığın, 50'lerden sonra sağlığın azalır. Hedefin <b>80 yaşına kadar hayatta kalmak.</b>`}</p>
       <h3>${Tr`Para Kazanma`}</h3><p>${Tr`Avlan ve postları kasapta sat. Bitki topla. Madende, kerestecide, limanda ya da çiftliklerde <b>çalış</b>. Nehirde altın ele. Ödül ilanlarını takip et. Ya da… kanunun yanlış tarafında yaşa.`}</p>
-      <h3>${Tr`İşletmeler`}</h3><p>${Tr`Dükkân sahiplerinin bir kısmı dükkânını satar: tezgâhta ya da ilçe binasında satın al. İşletmeci işi yürütür, gelir kasada birikir. Çoğu işletme mal tüketir: toptancıdan, değirmenden ya da imalathaneden sandık alıp omzunda, atınla ya da ahırdan alacağın yük arabasıyla getir. Boş arsalara yeni işletme kurabilirsin. Günlüğün İşlerim sekmesi hepsini gösterir.`}</p>
+      <h3>${Tr`İşletmeler`}</h3><p>${Tr`Dükkân sahiplerinin bir kısmı dükkânını satar: tezgâhta ya da ilçe binasında satın al. İşletmeci işi yürütür, gelir kasada birikir. Çoğu işletme mal tüketir: toptancıdan, değirmenden ya da imalathaneden sandık alıp omzunda, atınla ya da ahırdan alacağın yük arabasıyla getir; ya da ahırdan bir nakliyeci tut, bu işi o yapsın. Boş arsalara yeni işletme kurabilirsin. Günlüğün İşlerim sekmesi hepsini gösterir.`}</p>
       <h3>${Tr`Kanun`}</h3><p>${Tr`Görülürsen suçların başına ödül koydurur. Kanun adamlarının arama alanından (haritadaki kırmızı daire) kaç ve görünmeden bekle. Ödülünü şerif ofisinde ödeyebilirsin.`}</p>
       <h3>${Tr`Başarımlar`}</h3><p>${Tr`Başarımlar sana kalıcı kazanımlar (perk) sağlar. Günlüğün Başarımlar sekmesine bak.`}</p>
       <h3>${Tr`Kontroller`}</h3>${this.controlsTable()}
@@ -1265,7 +1273,7 @@ const UI = {
       case 'bank': it.push({ icon: '🏦', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
       case 'robbank': it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
       case 'train': it.push({ icon: '🚂', label: Tr('Tren Bileti Al'), fn: () => this.openTrain(b) }); break;
-      case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); break;
+      case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); it.push({ icon: '📦', label: G.haulers.length ? Tr`Nakliyeciler (${G.haulers.length}/${HAUL_MAX})` : Tr('Nakliyeci Tut'), fn: () => this.openHaulers(b) }); break;
       case 'donate': it.push({ icon: '🙏', label: Tr('Kiliseye Bağış Yap'), right: fmtMoney(0.5), fn: () => { if (G.spend(0.5)) { G.addHonor(3); this.feed(Tr('Rahip sana teşekkür etti.')); } } }); break;
       case 'pray': it.push({ icon: '✝', label: Tr('Dua Et'), fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed(Tr('Bugün zaten dua ettin.')); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed(Tr('İçin huzurla doldu.')); G.advanceClock(20); } }); break;
       case 'property': it.push({ icon: '📜', label: Tr('Satılık Mülkler'), fn: () => this.openLand() }); it.push({ icon: '🏪', label: Tr('Satılık İşletmeler ve Arsalar'), fn: () => this.openBizMarket(b) }); break;
@@ -1760,6 +1768,25 @@ const UI = {
           for (const k of [1, 2, 4, 8]) it.push({ icon: '📦', label: Tr`${k} sandık`, right: fmtMoney(p * k), disabled: G.player.money < p * k, why: Tr('Yeterli paran yok.'), fn: () => { G.buyGoods(b, g, p, k); this.closeAll(); } });
         }
         if (!G.biz.length) it.unshift({ html: `<p class="dim">${Tr('Henüz bir işletmen yok. Toptan mal yalnızca işletme sahiplerinin işine yarar.')}</p>` });
+        return it;
+      },
+    });
+  },
+  /* Nakliyeciler: iş arayanlar ve çalışanların */
+  openHaulers(b) {
+    const t = G.world.towns.find(x => x.id === b.town) || G.nearestTown(b.door.x, b.door.y);
+    const traitSide = (k, name) => `<div class="ps-t">${escapeHtml(name)}</div><div class="ps-d">${HAUL_TRAITS[k].n}</div><div class="ps-e">${HAUL_TRAITS[k].d}<br>${Tr`Peşin ${fmtMoney(HAUL_HIRE)}, günlük maaş ${fmtMoney(HAUL_TRAITS[k].wage)}. Arabası ${HAUL_CAP} sandık taşır.`}</div>`;
+    this.menu({
+      title: Tr('Nakliyeciler'), sub: () => Tr`${t.n} • Cüzdan: ${fmtMoney(G.player.money)}`, cls: 'small', side: (it) => it.side || '',
+      build: () => {
+        const it = [];
+        if (G.haulers.length) {
+          it.push({ header: Tr('Nakliyecilerin') });
+          for (const h of G.haulers) it.push({ icon: '🚚', label: `${escapeHtml(h.name)} <span class="dim">(${HAUL_TRAITS[h.trait].n})</span>`, right: Tr('İşten Çıkar'), side: traitSide(h.trait, h.name) + `<div class="ps-p">${escapeHtml(G.haulStatus(h))}</div>`, fn: () => this.confirm(Tr('İşten Çıkar'), Tr`${h.name} ile yollarını ayırmak istiyor musun?`, () => G.fireHauler(h)) });
+        }
+        const C = G.haulCandidates(t);
+        it.push({ header: Tr('İş Arayanlar') });
+        for (const c of C) it.push({ icon: '🚚', label: `${escapeHtml(c.name)} <span class="dim">(${HAUL_TRAITS[c.trait].n})</span>`, right: Tr`${fmtMoney(HAUL_HIRE)} + ${fmtMoney(HAUL_TRAITS[c.trait].wage)}/gün`, side: traitSide(c.trait, c.name), disabled: G.haulers.length >= HAUL_MAX || G.player.money < HAUL_HIRE, why: G.haulers.length >= HAUL_MAX ? Tr`En fazla ${HAUL_MAX} nakliyeci tutabilirsin.` : Tr('Yeterli paran yok.'), fn: () => { G.hireHauler(c, b); } });
         return it;
       },
     });

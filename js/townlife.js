@@ -214,7 +214,7 @@ class Wagon extends Ent {
   get seat() { return { x: this.bx + Math.cos(this.bang) * 8, y: this.by + Math.sin(this.bang) * 8 }; }
   /* Oyuncunun ateşi: sürücü isabet alabilir, almazsa atları kamçılayıp kaçar */
   hurt(dmg, by) {
-    if (by !== 'player' || this.rider === G.player || !this.driver) return;
+    if (by !== 'player' || this.rider === G.player || !this.driver || this.hauler) return;
     if (chance(0.45)) { const n = this.throwDriver(); n.hurt(dmg, 'player', 'gun'); return; }
     if (!(this.panicT > 0)) Bubbles.add(this, pick([Tr('Haydut var!'), Tr('Deh! Deh!'), Tr('Vurmayın!')]), 2);
     this.panicT = 14;
@@ -242,6 +242,7 @@ class Wagon extends Ent {
     return true;
   }
   update(dt) {
+    if (this.hauler) { G.haulSync(this, dt); return; }
     if (this.rider) {
       // oyuncu sürüyor: hareketi binicilik sistemi yapar, gövde arkadan izler
       this.trail();
@@ -311,7 +312,7 @@ class Wagon extends Ent {
       ctx.fillStyle = shadeHex(this.body, 0.2); ctx.fillRect(-10, -5.5, 19, 2);
       ctx.fillStyle = '#c8a040'; ctx.fillRect(-9, -5.5, 1, 11); ctx.fillRect(7, -5.5, 1, 11);
       if (this.cargo) { ctx.fillStyle = '#5a3a20'; ctx.fillRect(-7, -3, 9, 6); ctx.fillStyle = '#8a6a44'; ctx.fillRect(-6, -2, 3, 4); ctx.fillStyle = '#6a2a1a'; ctx.fillRect(-2, -2.4, 3, 4.8); }   // tavandaki bagaj
-    } else if (this.mine) {
+    } else if (this.mine || this.hauler) {
       ctx.fillStyle = this.body; ctx.fillRect(-10, -5, 18, 10);
       ctx.fillStyle = shadeHex(this.body, -0.25); ctx.fillRect(-9, -4, 16, 8);
       ctx.fillStyle = shadeHex(this.body, 0.2); ctx.fillRect(-10, -5, 18, 1.2); ctx.fillRect(-10, 3.8, 18, 1.2);
@@ -695,6 +696,7 @@ const TownLifeSystems = {
     const P = this.player, acts = [];
     if (w.rider) return;
     if (w.mine) { add(w.x, w.y, w.name, this.myWagonActions(w), 3); return; }
+    if (w.hauler) { this.haulerActions(w, add); return; }
     if (w.driver) {
       if (w.spd > 30) return;
       acts.push({ n: Tr('Sürücüyü İndir'), hold: 0.5, fn: () => this.hijackWagon(w) });
