@@ -1085,7 +1085,7 @@ const UI = {
       <h3>${Tr`Yaşlanma`}</h3><p>${Tr`18 yaşında başlarsın. Zaman geçtikçe yaşlanırsın; 30'lardan sonra dayanıklılığın, 50'lerden sonra sağlığın azalır. Hedefin <b>80 yaşına kadar hayatta kalmak.</b>`}</p>
       <h3>${Tr`Para Kazanma`}</h3><p>${Tr`Avlan ve postları kasapta sat. Bitki topla. Madende, kerestecide, limanda ya da çiftliklerde <b>çalış</b>. Nehirde altın ele. Ödül ilanlarını takip et. Ya da… kanunun yanlış tarafında yaşa.`}</p>
       <h3>${Tr`İşletmeler`}</h3><p>${Tr`Dükkân sahiplerinin bir kısmı dükkânını satar: tezgâhta ya da ilçe binasında satın al. İşletmeci işi yürütür, gelir kasada birikir. Çoğu işletme mal tüketir: toptancıdan, değirmenden ya da imalathaneden sandık alıp omzunda, atınla ya da ahırdan alacağın yük arabasıyla getir; ya da ahırdan bir nakliyeci tut, bu işi o yapsın. Boş arsalara yeni işletme kurabilirsin. Günlüğün İşlerim sekmesi hepsini gösterir.`}</p>
-      <h3>${Tr`Kanun`}</h3><p>${Tr`Görülürsen suçların başına ödül koydurur. Kanun adamlarının arama alanından (haritadaki kırmızı daire) kaç ve görünmeden bekle. Ödülünü şerif ofisinde ödeyebilirsin.`}</p>
+      <h3>${Tr`Kanun`}</h3><p>${Tr`Görülürsen suçların başına ödül koydurur. Kanun adamlarının arama alanından (haritadaki kırmızı daire) kaç ve görünmeden bekle. Ödülünü şerif ofisinde ödeyebilirsin. Ödülün kalırsa kasaba dışında ödül avcıları peşine düşer: teslim olabilir, parayla kurtulabilir ya da çatışabilirsin.`}</p>
       <h3>${Tr`Başarımlar`}</h3><p>${Tr`Başarımlar sana kalıcı kazanımlar (perk) sağlar. Günlüğün Başarımlar sekmesine bak.`}</p>
       <h3>${Tr`Kontroller`}</h3>${this.controlsTable()}
     </div>`;

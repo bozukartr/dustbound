@@ -127,6 +127,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - **Teslim olma ve tutuklanma**: Düşük aranma seviyesinde (1–2 yıldız) kanun adamları önce silah doğrultup yaklaşır ve teslim olmanı ister; ateş etmezler. Yanlarında etkileşim tuşunu basılı tutarak teslim olursun: ya ödülü ceza olarak ödersin ya da ödüle göre 1–7 gün hapis yatarsın. Ateş edersen, kanun adamına silah doğrultursan, kaçarsan ya da uyarılara rağmen teslim olmazsan ateş açarlar. Cinayet ve kanun adamına saldırı ise doğrudan çatışma başlatır.
 - Aranma seviyesi, arama alanı ve peşine düşen kanun adamları. Ödülünü şerif ofisinde ödeyebilirsin.
 - **Ödül avı ve teslim**: İlan panosundan alınan hedef ölünce ödül kendiliğinden verilmez; kişiyi şerif ofisine getirmen gerekir. Canlı teslim tam ödülü, ceset yarısını getirir. Haydutları da teslim edebilirsin (canlı $5, ceset $2). Omzundakini ofisin içinde, eyerdekini ofis kapısında at sırtında ya da şerifin masasında teslim edersin.
+- **Ödül avcıları**: Başında $20 ya da daha fazla ödül varken, kanun peşini bıraksa bile kasaba dışında zaman zaman 2–4 kişilik ödül avcısı grupları çıkar; ödül büyüdükçe daha sık ve daha kalabalık gelirler. Önce yaklaşıp seslenir ve bir süre beklerler: yanlarına gidip teslim olabilir (tutuklanma menüsü açılır) ya da ödülün yaklaşık %60'ını verip kurtulabilirsin (ödül başında kalır). Kaçarsan, onlara nişan alırsan ya da süre dolarsa ateş açarlar. Onları vurmak suç değildir.
 - **Kanıt**: Öldürdüğün masum birinin cesedi kanıttır. Biri cesedi bulduğunda sen yakındaysan suç sana yazılır ve tanık şerife koşar; uzaktaysan iz kalmaz. Ceset ya da bağlı biriyle görülmek de suçtur. Cesedi ıssız bir yere taşıyabilir, suya atabilir ya da kürekle gömebilirsin. Bağlanan tanık haber veremez.
 - Onur sistemi fiyatları ve insanların sana nasıl davrandığını etkiler.
 
@@ -184,6 +185,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `economy` | para biçimi, fiyatlar, soygun tekrarları, al-sat açığı, günlük sınırlar |
 | `business` | işletme satın alma, yük arabası, toptan mal, teslimat, gelir, arsaya inşaat, kayıt |
 | `haulers` | nakliyeci, sefer, yoldaki araba, baskın, maaş, kayıt |
+| `hunters` | ödül avcısı grubu: çıkma koşulları, yaklaşma, parayla kurtulma, teslim olma, çatışma |
 | `world` | kasaba sakinleri, ölüm ve yerine gelen, at arabası, hayvan kementleme, boğulma, göçebeler, mevsimler |
 | `controls` | oyun kolu ile menü, yürüme, nişan ve ateş, silah çarkı, binme animasyonu, genişletilmiş radar |
 | `debug` | hata ayıklama paneli şifresi ve kilidi |
@@ -224,6 +226,7 @@ js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
 js/business.js  işletmeler: satın alma, işletmeci, stok ve kasa, toptan mal sandıkları, yük arabası, arsaya inşaat
 js/haulers.js   nakliyeciler: işe alma, rota ve sefer, yolda görünen araba, haydut baskını ve kurtarma
+js/hunters.js   ödül avcıları: kasaba dışında çıkan grup, bekleyiş, teslim olma, parayla kurtulma, çatışma
 tests/run.js    test çalıştırıcı (npm test); tests/lib.js yardımcılar; tests/e2e/*.test.js testler
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar
 js/cinema.js    kasabaya varış sinematikleri (kütüphanesiz WebGL)

@@ -356,7 +356,7 @@ const GameSystems = {
     let instant = type === 'storerob' || type === 'bankrob';
     const ws = [];
     for (const e of this.ents) {
-      if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
+      if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'hunter' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
       if (e.state === 'hurt' || e.bound) continue;
       if (e.res && e !== victim && this.opOf(e.res) >= 50 && chance(0.5)) continue;   // oyuncuyu seven sakin bazen görmezden gelir
       const see = e === victim ? dist2(e.x, e.y, x, y) < 60 * 60 : dist2(e.x, e.y, x, y) < 340 * 340 && this.los(e.x, e.y, x, y);
@@ -1531,7 +1531,7 @@ const GameSystems = {
         if (e.dead) continue;
         if (e.hostile && e.aggro) continue;
         const acts = this.npcActions(e);
-        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)}` : e.name, acts, 3);
+        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)}` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.name, acts, 3);
       }
     }
     // kayıp eşyalar
@@ -1631,6 +1631,7 @@ const GameSystems = {
     return cands[0];
   },
   npcActions(e) {
+    if (e.role === 'hunter') return this.hunterActions(e);
     const P = this.player;
     const acts = [];
     const ev = e.event;

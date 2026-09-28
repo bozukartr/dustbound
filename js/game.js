@@ -47,7 +47,7 @@ const G = {
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
-    this.playtime = 0; this.autoT = 0;
+    this.playtime = 0; this.autoT = 0; this.posse = null;
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
     this.travelT = 10; this.eventT = 90;
@@ -446,6 +446,7 @@ const G = {
     if (P.poison > 0) { P.poison -= dt; P.hurt(dt * 1.6, 'zehir', true); }
     P.hp = Math.min(P.hp, P.maxHp);
     this.lawUpdate(dt);
+    this.hunterTick(dt);
     this.witnessUpdate(dt);
     const ib = this.world.buildingAtPx(P.x, P.y);
     if (ib !== this.insideB) {
@@ -1011,3 +1012,4 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(CarrySystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(TownLifeSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));

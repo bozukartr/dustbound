@@ -320,7 +320,7 @@ const CarrySystems = {
     const P = this.player;
     const seer = (x, y, r) => {
       for (const n of this.ents) {
-        if (n.kind !== 'npc' || n.dead || n.remove || n.hostile || n.bound || n.role === 'bandit' || n.role === 'spouse' || n.role === 'child' || n.state === 'report') continue;
+        if (n.kind !== 'npc' || n.dead || n.remove || n.hostile || n.bound || n.role === 'bandit' || n.role === 'hunter' || n.role === 'spouse' || n.role === 'child' || n.state === 'report') continue;
         if (Math.abs(n.x - x) > r || Math.abs(n.y - y) > r) continue;
         if (dist2(n.x, n.y, x, y) < r * r && this.los(n.x, n.y, x, y)) return n;
       }
