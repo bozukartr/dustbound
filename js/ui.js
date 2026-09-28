@@ -1151,7 +1151,8 @@ const UI = {
         { label: Tr('Harita'), fn: () => { this.pop(); this.openMap(); } },
         { label: Tr('Çanta'), fn: () => { this.pop(); this.openSatchel(); } },
         { label: Tr('Günlük'), fn: () => { this.pop(); this.openJournal(); } },
-        { label: Tr('Oyunu Kaydet'), fn: () => G.saveGame() },
+        { label: G.difficulty === 'hard' ? Tr('Oyunu Kaydet') : Tr`Oyunu Kaydet (${G.slot}. yuva)`, fn: () => G.saveGame() },
+        { label: Tr('Kayıt Yükle'), fn: () => this.openSlots('load') },
         { label: Tr('Ayarlar'), fn: () => this.openSettings() },
         { label: Tr('Tuş Atamaları'), fn: () => this.openControls() },
         ...(Platform.canQuit ? [{ label: Tr('Oyundan Çık'), fn: () => this.confirm(Tr('Oyundan Çık'), Tr('Oyun kaydedilip kapatılsın mı?'), () => { G.saveGame(true); Platform.quit(); }, Tr('Vazgeç'), Tr('Kaydet ve Çık')) }] : []),
@@ -2101,6 +2102,7 @@ const UI = {
     const info = G.saveInfo();
     const items = [];
     if (info) items.push(['cont', Tr('Devam Et'), Tr`${info.name} • ${info.age} yaşında • ${fmtMoney(info.money)}`]);
+    if (info) items.push(['load', Tr('Kayıt Yükle'), Tr`${SLOTS} kayıt yuvası`]);
     items.push(['new', Tr('Yeni Hayat'), Tr('Bir karakter yarat ve 18 yaşında başla')]);
     items.push(['set', Tr('Ayarlar'), ''], ['ctrl', Tr('Kontroller'), ''], ['about', Tr('Hakkında'), '']);
     if (Platform.canQuit) items.push(['quit', Tr('Masaüstüne Çık'), '']);
@@ -2114,7 +2116,8 @@ const UI = {
         Audio_.ui('ok');
         const id = n.dataset.id;
         if (id === 'cont') { this.pop(m); mm.classList.add('hidden'); G.loadGame(); }
-        else if (id === 'new') { if (info) this.confirm(Tr('Yeni Hayat'), Tr('Mevcut kaydın silinecek. Emin misin?'), () => { this.pop(m); this.showCreate(); }); else { this.pop(m); this.showCreate(); } }
+        else if (id === 'load') this.openSlots('load');
+        else if (id === 'new') { if (info) this.openSlots('new'); else { this.pop(m); this.showCreate(1); } }
         else if (id === 'set') this.openSettings();
         else if (id === 'ctrl') this.openControls();
         else if (id === 'quit') Platform.quit();
@@ -2127,10 +2130,65 @@ const UI = {
     Audio_.playMusic('menu');
     this.initMenuBg();
   },
-  showCreate() {
+  /* Kayıt yuvaları. mode: 'load' (yükle) ya da 'new' (yeni hayat için yuva seç) */
+  openSlots(mode) {
+    const el = el_('div', 'modal panel slots');
+    let m;
+    const when = (t) => { const d = new Date(t); return d.toLocaleDateString(I18N.lang === 'en' ? 'en-US' : 'tr-TR', { day: 'numeric', month: 'short' }) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
+    const hm = (s) => { const h = Math.floor(s / 3600), mi = Math.floor(s / 60) % 60; return h ? Tr`${h} sa ${mi} dk` : Tr`${mi} dk`; };
+    const inGame = G.state === 'play' || G.state === 'dead';
+    const render = () => {
+      const L = G.slotList();
+      el.innerHTML = `<div class="p-head"><div class="p-title">${mode === 'new' ? Tr('Yeni Hayat: Yuva Seç') : Tr('Kayıt Yükle')}</div><div class="p-sub">${mode === 'new' ? Tr('Yeni hayatın hangi yuvada saklansın? Dolu bir yuva seçersen içindeki hayat silinir.') : Tr('Her yuva ayrı bir hayattır. Otomatik kayıt gün dönümünde, uykuda ve birkaç dakikada bir; manuel kayıt senin istediğin anda alınır.')}</div></div>
+        <div class="p-body"><div class="p-list scroll sl-list">${L.map(sl => {
+          const meta = sl.auto && sl.manual ? (sl.auto.savedAt > sl.manual.savedAt ? sl.auto : sl.manual) : sl.auto || sl.manual;
+          const cur = inGame && G.slot === sl.n;
+          if (!meta) return `<div class="sl-card empty ${mode === 'new' ? 'nav' + (sl.n === G.freeSlot() ? ' pref' : '') : ''}" data-act="new" data-n="${sl.n}"><div class="sl-num">${sl.n}</div><div class="sl-thumb none">${Icons.glyph('quill', 'rgba(201,164,92,0.5)')}</div><div class="sl-info"><div class="sl-name">${Tr('Boş Yuva')}</div><div class="sl-row dim">${mode === 'new' ? Tr('Yeni bir hayata burada başla.') : Tr('Burada henüz bir hayat yok.')}</div></div></div>`;
+          const bg = BACKGROUNDS.find(b => b.id === meta.bg), df = DIFFICULTIES.find(d => d.id === meta.diff);
+          const btn = (kind) => sl[kind] ? `<div class="sl-btn nav" data-act="load" data-kind="${kind}" data-n="${sl.n}"><b>${kind === 'auto' ? Tr('Otomatik Kayıt') : Tr('Manuel Kayıt')}</b><span>${when(sl[kind].savedAt)} • ${Tr`${sl[kind].age} yaş`}</span></div>` : `<div class="sl-btn off"><b>${kind === 'auto' ? Tr('Otomatik Kayıt') : Tr('Manuel Kayıt')}</b><span>${Tr('yok')}</span></div>`;
+          return `<div class="sl-card ${cur ? 'cur' : ''} ${mode === 'new' ? 'nav' : ''}" data-act="new" data-n="${sl.n}"><div class="sl-num">${sl.n}</div>
+            <div class="sl-thumb">${meta.thumb ? `<img src="${meta.thumb}" alt="">` : Icons.glyph('horse', 'rgba(201,164,92,0.5)')}</div>
+            <div class="sl-info"><div class="sl-name">${escapeHtml(meta.name)}${cur ? ` <em>${Tr('şu an oynanan')}</em>` : ''}</div>
+              <div class="sl-row">${Tr`${meta.age} yaşında`} • ${bg ? bg.n : ''} • ${df ? df.n : ''}</div>
+              <div class="sl-row dim">${meta.place ? escapeHtml(meta.place) + ' • ' : ''}${Tr`Yıl ${meta.year || ''}`} • ${fmtMoney(meta.money)} • ${Tr`Oynama: ${hm(meta.playtime || 0)}`}</div></div>
+            ${mode === 'load' ? `<div class="sl-acts">${btn('auto')}${btn('manual')}<div class="sl-btn nav del" data-act="del" data-n="${sl.n}"><b>${Tr('Sil')}</b></div></div>` : ''}</div>`;
+        }).join('')}</div></div>
+        <div class="p-foot">${Tr`${Input.glyph('confirm')} Seç &nbsp; ${Input.glyph('back')} Geri`}</div>`;
+      $$('.nav', el).forEach(n => {
+        n.onmouseenter = () => { if (m.focusEl !== n) m.setFocus(n, true); };
+        n.onclick = (e) => { e.stopPropagation(); act(n); };
+      });
+      m.focusFirst();
+    };
+    const act = (n) => {
+      const k = +n.dataset.n, a = n.dataset.act;
+      if (a === 'new') {
+        const used = G.slotList().find(x => x.n === k);
+        const go = () => { this.closeAll(); $('#mainmenu').classList.add('hidden'); this.showCreate(k); };
+        if (used.auto || used.manual) this.confirm(Tr('Yuvanın Üzerine Yaz'), Tr`${k}. yuvadaki hayat silinecek ve yerine yenisi başlayacak. Emin misin?`, go, Tr('Vazgeç'), Tr('Sil ve Başla'));
+        else go();
+      } else if (a === 'load') {
+        const go = () => { this.closeAll(); $('#mainmenu').classList.add('hidden'); G.loadGame(k, n.dataset.kind); };
+        if (G.state === 'play') this.confirm(Tr('Kayıt Yükle'), Tr('Son kayıttan sonraki ilerleme kaybolacak. Yüklensin mi?'), go, Tr('Vazgeç'), Tr('Yükle'));
+        else go();
+      } else if (a === 'del') {
+        if (inGame && G.slot === k) { this.feed(Tr('Şu an oynadığın hayatın yuvası silinemez.'), 'warn'); return; }
+        this.confirm(Tr('Yuvayı Sil'), Tr`${k}. yuvadaki hayat kalıcı olarak silinecek.`, () => {
+          G.deleteSlot(k);
+          if (m.alive) render();
+          if (G.state === 'menu' && !G.hasSave()) { this.closeAll(); this.showMainMenu(); }
+        }, Tr('Vazgeç'), Tr('Sil'));
+      }
+    };
+    m = this.makeModal(el, {});
+    render();
+    this.push(m);
+    return m;
+  },
+  showCreate(slot) {
     const look = randomLook(chance(0.5) ? 'm' : 'f');
     look.coatLen = 0;
-    const prof = { name: pick(NAMES[look.sex]) + ' ' + pick(NAMES.last), look, bg: 'farm', difficulty: 'story', pace: 'normal' };
+    const prof = { name: pick(NAMES[look.sex]) + ' ' + pick(NAMES.last), look, bg: 'farm', difficulty: 'story', pace: 'normal', slot: slot || G.freeSlot() || 1 };
     const el = el_('div', 'modal create');
     const TABS = [{ n: Tr('Kimlik'), g: 'quill' }, { n: Tr('Görünüm'), g: 'barber' }, { n: Tr('Kıyafet'), g: 'scissors' }, { n: Tr('Hikâye'), g: 'book' }];
     const rows = [
@@ -2240,8 +2298,8 @@ const UI = {
         prof.name = (prof.name || '').trim() || pick(NAMES[look.sex]) + ' ' + pick(NAMES.last);
         look.beardLen = 0.4;
         this.pop(m);
-        G.deleteSave();
-        G.newGame({ name: prof.name, look, bg: prof.bg, difficulty: prof.difficulty, pace: prof.pace });
+        G.deleteSlot(prof.slot);
+        G.newGame({ name: prof.name, look, bg: prof.bg, difficulty: prof.difficulty, pace: prof.pace, slot: prof.slot });
       };
       refresh(); drawTop();
     };

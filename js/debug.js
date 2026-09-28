@@ -520,7 +520,7 @@ const Debug = {
     if (money) { P.money += money; this.mark(); return; }
     switch (a) {
       case 'save': G.saveGame(); break;
-      case 'load': G.loadGame(); this.toggle(); break;
+      case 'load': G.loadGame(G.slot); this.toggle(); break;
       case 'heal': P.hp = P.maxHp; P.poison = 0; this.mark(); break;
       case 'needs': P.hunger = P.thirst = P.energy = 100; P.sick = 0; P.poison = 0; this.mark(); break;
       case 'clean': P.clean = 100; break;

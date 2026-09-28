@@ -142,7 +142,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - *Hikaye*: ölürsen doktor seni kurtarır; biraz para ve kalıcı sağlık kaybedersin.
 - *Tek Hayat*: ölüm kalıcıdır, kayıt silinir.
 
-Oyun, uyuduğunda ve her yeni günde otomatik kaydedilir (tarayıcının `localStorage` alanına).
+**Kayıt yuvaları**: 3 yuva vardır; her yuva ayrı bir hayattır. Her yuvada bir otomatik, bir manuel kayıt tutulur. Otomatik kayıt her yeni günde, uyuyunca ve oyun sırasında 4 dakikada bir (aranmıyorsan) alınır; manuel kaydı duraklatma menüsünden, çantadan ya da evindeki yataktan alırsın. "Kayıt Yükle" ekranı her yuvanın küçük ekran görüntüsünü, karakterin adını, yaşını, geçmişini, zorluğunu, bulunduğu yeri, yılı, parasını ve oynama süresini gösterir; iki kayıttan istediğini yükleyebilir ya da yuvayı silebilirsin. "Devam Et" en yeni kaydı açar. Yeni hayat başlarken yuva seçilir; dolu bir yuva seçilirse onay istenir. *Tek Hayat* zorluğunda yalnız otomatik kayıt tutulur ve ölünce o yuva silinir. Eski tek kayıt ilk açılışta 1. yuvaya taşınır. Kayıtlar tarayıcıda `localStorage`'a, masaüstü sürümünde kayıt klasörüne yazılır.
 
 ## Hata ayıklama modu
 

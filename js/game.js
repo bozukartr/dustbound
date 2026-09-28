@@ -3,8 +3,13 @@
    FRONTIER'S END — oyun çekirdeği: durum, döngü, render, kayıt
    ========================================================== */
 
-const SAVE_KEY = 'frontiersend_save_v1';
+const SAVE_KEY = 'frontiersend_save_v1';   // eski tek kayıt: açılışta 1. yuvaya taşınır
 const SET_KEY = 'frontiersend_settings_v1';
+/* Kayıt yuvaları: her yuva ayrı bir hayat; içinde bir otomatik, bir manuel kayıt.
+   Yuva bilgileri (ad, yaş, yer, küçük ekran görüntüsü) ayrı bir anahtarda tutulur ki menü büyük kayıtları okumadan listelesin. */
+const SLOTS = 3;
+const SLOT_META = 'frontiersend_slots_v1';
+const slotKey = (n, kind) => `frontiersend_slot${n}_${kind}`;
 /* Eski adla (Dustbound) tarayıcıda yapılmış kayıt ve ayarları yeni anahtarlara taşı */
 if (!Platform.desktop) try {
   for (const [o, n] of [['dustbound_save_v1', SAVE_KEY], ['dustbound_settings_v1', SET_KEY]]) {
@@ -42,6 +47,7 @@ const G = {
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
+    this.playtime = 0; this.autoT = 0;
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
     this.travelT = 10; this.eventT = 90;
@@ -133,6 +139,7 @@ const G = {
     const seed = (Math.random() * 1e9) | 0;
     this.seed = seed;
     this.pace = profile.pace; this.difficulty = profile.difficulty; this.background = profile.bg;
+    this.slot = profile.slot || this.freeSlot() || 1;
     this.profile = profile;
     await this.buildWorld(seed);
     const BG = BACKGROUNDS.find(b => b.id === profile.bg);
@@ -202,8 +209,12 @@ const G = {
   },
 
   /* ---------------- Kayıt ---------------- */
-  saveGame(silent) {
+  /* silent: otomatik kayıt (gün dönümü, uyku, birkaç dakikada bir); aksi hâlde oyuncunun istediği manuel kayıt.
+     Tek Hayat zorluğunda yalnızca otomatik kayıt tutulur (eski bir kayda dönülemez). */
+  saveGame(silent, kind) {
     if (!this.player || this.state === 'dead') return;
+    kind = kind || (silent || this.difficulty === 'hard' ? 'auto' : 'manual');
+    if (!this.slot) this.slot = this.freeSlot() || 1;
     const P = this.player;
     const enc = (arr) => { let s = ''; for (let i = 0; i < arr.length; i += 8) { let b = 0; for (let k = 0; k < 8; k++) if (arr[i + k]) b |= 1 << k; s += String.fromCharCode(b); } return btoa(s); };
     const h = this.horse;
@@ -216,11 +227,12 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
-      Platform.set(SAVE_KEY, JSON.stringify(data));
-      if (!silent) UI.feed(Tr('💾 Oyun kaydedildi'));
+      Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
+      this.writeSlotMeta(this.slot, kind, this.slotMetaNow());
+      if (!silent) UI.feed(Tr`💾 ${this.slot}. yuvaya kaydedildi.`);
     } catch (e) { UI.feed(Tr('Kayıt başarısız: ') + e.message, 'warn'); }
   },
   /* 1890 fiyat reformundan önceki kayıtlar: paralar yeni ölçeğe çekilir (alım gücü korunur) */
@@ -232,17 +244,88 @@ const G = {
     if (this.activeBounty) this.activeBounty.reward = Math.round(this.activeBounty.reward * 0.5);
     this.bounties = null;
   },
-  hasSave() { return !!Platform.get(SAVE_KEY); },
-  saveInfo() {
-    try { const d = JSON.parse(Platform.get(SAVE_KEY)); if (!d) return null; const dpy = (LIFE_PACES.find(p => p.id === d.pace) || LIFE_PACES[1]).dpy; return { name: d.player.name, age: START_AGE + Math.floor(Math.floor(d.clock / 1440) / dpy), money: d.player.money, bg: d.background }; } catch (e) { return null; }
+  /* ---------------- Kayıt yuvaları ---------------- */
+  slotMetaAll() {
+    let M = null;
+    try { M = JSON.parse(Platform.get(SLOT_META) || 'null'); } catch (e) { M = null; }
+    if (!M || typeof M !== 'object') M = {};
+    // eski tek kayıt: 1. yuvanın otomatik kaydı olur
+    if (!M.migrated) {
+      M.migrated = 1;
+      try {
+        const old = Platform.get(SAVE_KEY);
+        if (old && !M[1]) {
+          const d = JSON.parse(old);
+          Platform.set(slotKey(1, 'auto'), old);
+          M[1] = { auto: this.metaFromData(d) };
+          Platform.remove(SAVE_KEY);
+        }
+      } catch (e) {}
+      try { Platform.set(SLOT_META, JSON.stringify(M)); } catch (e) {}
+    }
+    return M;
   },
-  deleteSave() { Platform.remove(SAVE_KEY); },
-  async loadGame() {
+  writeSlotMeta(n, kind, meta) {
+    const M = this.slotMetaAll();
+    M[n] = M[n] || {};
+    if (meta) M[n][kind] = meta; else delete M[n][kind];
+    if (!M[n].auto && !M[n].manual) delete M[n];
+    Platform.set(SLOT_META, JSON.stringify(M));
+  },
+  metaFromData(d) {
+    const dpy = (LIFE_PACES.find(p => p.id === d.pace) || LIFE_PACES[1]).dpy;
+    const day = Math.floor(d.clock / 1440);
+    return { name: d.player.name, age: START_AGE + Math.floor(day / dpy), money: d.player.money, bg: d.background, diff: d.difficulty, day, year: START_YEAR + Math.floor(day / dpy), place: '', savedAt: d.savedAt || Date.now(), playtime: d.playtime || 0, thumb: null };
+  },
+  /* Şu anki oyunun yuva özeti: yer adı ve küçük bir ekran görüntüsü */
+  slotMetaNow() {
+    const P = this.player, t = this.curTown ? this.world.towns.find(x => x.id === this.curTown) : null;
+    const reg = this.world.regionAt ? this.world.regionAt(P.x, P.y) : null;
+    let thumb = null;
+    try {
+      if (this.canvas && this.canvas.width) {
+        const c = makeCanvas(224, 126), g = c.getContext('2d');
+        g.drawImage(this.canvas, 0, 0, c.width, c.height);
+        thumb = c.toDataURL('image/jpeg', 0.72);
+      }
+    } catch (e) { thumb = null; }
+    return { name: P.name, age: this.age, money: P.money, bg: this.background, diff: this.difficulty, day: this.day, year: this.year, place: t ? t.n : (reg ? (reg.n || reg) : ''), savedAt: Date.now(), playtime: Math.round(this.playtime), thumb };
+  },
+  slotList() {
+    const M = this.slotMetaAll(), out = [];
+    for (let n = 1; n <= SLOTS; n++) out.push({ n, auto: (M[n] && M[n].auto) || null, manual: (M[n] && M[n].manual) || null });
+    return out;
+  },
+  freeSlot() { const L = this.slotList().find(s => !s.auto && !s.manual); return L ? L.n : null; },
+  /* En yeni kayıt: { n, kind, meta } */
+  latestSave(n) {
+    let best = null;
+    for (const s of this.slotList()) {
+      if (n && s.n !== n) continue;
+      for (const kind of ['auto', 'manual']) if (s[kind] && (!best || s[kind].savedAt > best.meta.savedAt)) best = { n: s.n, kind, meta: s[kind] };
+    }
+    return best;
+  },
+  hasSave() { return !!this.latestSave(); },
+  saveInfo() { const L = this.latestSave(); return L ? Object.assign({ slot: L.n, kind: L.kind }, L.meta) : null; },
+  deleteSlot(n) {
+    if (!n) return;
+    for (const kind of ['auto', 'manual']) Platform.remove(slotKey(n, kind));
+    const M = this.slotMetaAll(); delete M[n];
+    try { Platform.set(SLOT_META, JSON.stringify(M)); } catch (e) {}
+  },
+  /* Tek Hayat'ta ölüm: bu hayatın yuvası silinir */
+  deleteSave() { this.deleteSlot(this.slot); },
+  /* n, kind verilmezse en yeni kayıt yüklenir; kind verilmezse o yuvanın en yeni kaydı */
+  async loadGame(n, kind) {
+    const L = n && kind ? { n, kind } : this.latestSave(n);
+    if (!L) return false;
     let d;
-    try { d = JSON.parse(Platform.get(SAVE_KEY)); } catch (e) { d = null; }
+    try { d = JSON.parse(Platform.get(slotKey(L.n, L.kind))); } catch (e) { d = null; }
     if (!d) return false;
     setWorldSize(d.ww || WORLD_OLD);   // v3 öncesi kayıtlar küçük dünyada kalır
     this.resetState();
+    this.slot = L.n;
     this.seed = d.seed;
     await this.buildWorld(d.seed);
     Object.assign(this, { clock: d.clock, pace: d.pace, difficulty: d.difficulty, background: d.background, profile: d.profile, honor: d.honor, bank: d.bank, scars: d.scars || 0, goalReached: d.goalReached });
@@ -252,7 +335,7 @@ const G = {
     this.props = d.props || []; this.family = d.family || { spouse: null, children: [] }; this.romances = d.romances || {}; this.stable = d.stable || [];
     this.campCleared = d.campCleared || {}; this.robbed = d.robbed || {}; this.chestsOpened = d.chestsOpened || {}; this.graves = d.graves || {}; this.treasure = d.treasure; this.activeBounty = d.activeBounty; this.stash = d.stash || {};
     if (this.activeBounty) this.activeBounty.spawned = false;
-    this.hints = d.hints || {}; this.resMem = d.resMem || {}; this.debugUsed = !!d.debugUsed;
+    this.hints = d.hints || {}; this.resMem = d.resMem || {}; this.debugUsed = !!d.debugUsed; this.playtime = d.playtime || 0;
     this.world.harvested = new Map(d.harvested || []);
     for (const b of this.world.buildings) if (b.prop && this.props.includes(b.prop)) b.owned = true;
     const bin = atob(d.reveal);
@@ -328,6 +411,11 @@ const G = {
     this.timeScale = ts;
     const sdt = dt * ts;
     this.t += dt;
+    if (this.state === 'play') {
+      this.playtime += dt;
+      // birkaç dakikada bir sessiz otomatik kayıt (kovalamaca ya da baskın sırasında değil)
+      if ((this.autoT += dt) > 240 && this.law.level === 0) { this.autoT = 0; this.saveGame(true); }
+    }
     if (this.state === 'play') P.update(sdt);
     for (const e of this.ents) {
       if (e === P) continue;
