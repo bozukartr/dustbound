@@ -14,9 +14,10 @@ const HORSE_CAP = 4;   // eyer kapasitesi (ceset/leş 2, küçük leş ve post 1
 
 const CarrySystems = {
   /* ---------------- yük ---------------- */
-  carryWeight(e) { return e.kind === 'pelt' || (e.kind === 'animal' && e.def.len < 9) ? 1 : 2; },
+  carryWeight(e) { if (e.kind === 'crate') return 2; return e.kind === 'pelt' || (e.kind === 'animal' && e.def.len < 9) ? 1 : 2; },
   loadWeight(list) { let w = 0; for (const e of list) w += this.carryWeight(e); return w; },
   carryName(e) {
+    if (e.kind === 'crate') return GOODS[e.g].n;
     if (e.kind === 'npc') return e.dead ? Tr`${e.name} (ceset)` : e.state === 'tied' ? Tr`${e.name} (bağlı)` : Tr`${e.name} (baygın)`;
     if (e.kind === 'animal') return e.dead ? Tr`${e.def.n} Leşi` : Tr`${e.def.n} (bağlı)`;
     return e.name;
@@ -254,6 +255,7 @@ const CarrySystems = {
     }
     const shop = this.shopHere('shop');
     if (shop && e.kind !== 'npc') { const v = this.loadValue(e, shop.def.shop); if (v > 0) acts.push({ n: Tr`Sat (${fmtMoney(v)})`, fn: () => this.sellCarried(shop.def.shop, { e, h: null }) }); }
+    if (e.kind === 'crate') this.bizCarryActions(e, acts);
     const h = this.horse;
     if (h && !h.dead && dist(h.x, h.y, P.x, P.y) < 34) acts.push({ n: Tr`${h.name} Atına Yükle`, fn: () => this.stowOnHorse(h) });
     if (e.dead || e.kind === 'animal') {
@@ -269,7 +271,7 @@ const CarrySystems = {
   carryableActions(e, add, d) {
     const P = this.player;
     const take = { n: Tr('Omzuna Al'), fn: () => this.pickUp(e) };
-    if (e.kind === 'pelt') { add(e.x, e.y, e.name, [take]); return true; }
+    if (e.kind === 'pelt' || e.kind === 'crate') { add(e.x, e.y, e.kind === 'crate' ? GOODS[e.g].n : e.name, [take]); return true; }
     if (e.kind === 'animal' && !e.dead && e.state === 'lassoed') {
       const acts = [];
       if (this.canTieAnimal(e)) acts.push({ n: Tr('Bağla'), hold: 1, fn: () => this.hogtieAnimal(e) });
@@ -351,11 +353,13 @@ const CarrySystems = {
 
   /* ---------------- kayıt ---------------- */
   serCarry(e) {
+    if (e.kind === 'crate') return { k: 'crate', g: e.g };
     if (e.kind === 'pelt') return { k: 'pelt', id: e.id, q: e.q };
     if (e.kind === 'animal') return { k: 'animal', type: e.type, male: e.male, look: e.look };
     return { k: 'npc', role: e.role, name: e.name, look: e.look, dead: e.dead, state: e.state, tieT: e.tieT, money: e.money, weapon: e.weapon, looted: e.looted, bountyId: e.bountyId || null, evidence: !!e.evidence, hostile: e.hostile, assaulted: !!e.assaulted };
   },
   deserCarry(d) {
+    if (d.k === 'crate') return new Crate(0, 0, d.g);
     if (d.k === 'pelt') return new Pelt(0, 0, d.id, d.q || 1);
     if (d.k === 'animal') { const a = new Animal(0, 0, d.type); a.dead = true; a.state = 'dead'; a.hp = 0; a.male = d.male; if (d.look) a.look = d.look; return a; }
     const n = new NPC(0, 0, d.role, { name: d.name, look: d.look, hostile: d.hostile, weapon: d.weapon, money: d.money });

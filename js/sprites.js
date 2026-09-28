@@ -970,7 +970,30 @@ const Spr = {
     ctx.restore();
   },
   /* Omuzda ya da eyerde taşınan varlık. (x, y) çizim merkezi, rot uzun eksenin açısı */
+  /* Toptan mal: sandık, fıçı, çuval ya da balya (x, y merkez; üstten görünüş) */
+  goods(ctx, x, y, g, sc = 1) {
+    const G_ = GOODS[g], look = G_ ? G_.look : 'crate';
+    ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(-4, -2, 10, 7);
+    if (look === 'barrel') {
+      this.circ(ctx, 0, 0, 4.6, '#6a4424'); this.circ(ctx, 0, 0, 3.6, '#8a5a30');
+      ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(0, 0, 4.6, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, TAU); ctx.stroke();
+    } else if (look === 'sack') {
+      ctx.fillStyle = '#c8b48a'; ctx.beginPath(); ctx.ellipse(0, 0.5, 4.6, 3.6, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#a8946a'; ctx.fillRect(-1, -4, 2, 2);
+      ctx.fillStyle = '#e0cfa4'; ctx.beginPath(); ctx.ellipse(-1.2, -0.5, 2.2, 1.4, 0, 0, TAU); ctx.fill();
+    } else if (look === 'bale') {
+      ctx.fillStyle = '#8a6a8a'; ctx.fillRect(-4.5, -3, 9, 6); ctx.fillStyle = '#a888a8'; ctx.fillRect(-4.5, -3, 9, 1.6);
+      ctx.fillStyle = '#4a3a2a'; ctx.fillRect(-2, -3, 0.8, 6); ctx.fillRect(1.6, -3, 0.8, 6);
+    } else {
+      ctx.fillStyle = '#7a5434'; ctx.fillRect(-4.5, -4, 9, 8); ctx.fillStyle = '#9a7048'; ctx.fillRect(-4.5, -4, 9, 1.8);
+      ctx.strokeStyle = '#4a3020'; ctx.lineWidth = 0.7; ctx.strokeRect(-4.5, -4, 9, 8); ctx.beginPath(); ctx.moveTo(-4.5, -4); ctx.lineTo(4.5, 4); ctx.stroke();
+      if (g === 'meds') { ctx.fillStyle = '#c02a20'; ctx.fillRect(-1, -2.4, 2, 5); ctx.fillRect(-2.5, -0.9, 5, 2); }
+    }
+    ctx.restore();
+  },
   carried(ctx, e, x, y, rot, sc = 1) {
+    if (e.kind === 'crate') { this.goods(ctx, x, y, e.g, sc * 1.25); return; }
     ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
     if (e.kind === 'npc') this.human(ctx, 0, 0, rot, e.look, { dead: e.dead, lying: true, tied: e.state === 'tied', noPool: true });
     else if (e.kind === 'pelt') this.pelt(ctx, 0, 0, rot, e.col, e.big);

@@ -41,6 +41,7 @@ const G = {
     this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
+    this.biz = []; this.lotsOwned = []; this.myWagon = null;
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
     this.travelT = 10; this.eventT = 90;
@@ -215,7 +216,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(SAVE_KEY, JSON.stringify(data));
@@ -271,6 +272,7 @@ const G = {
       if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h, true); }
     }
     this.loadCarry(d.carry);
+    this.loadBiz(d.biz);
     if ((d.v || 1) < 2) this.migrateEconomy();
     Platform.syncAchievements(this.achieved);
     this.startPlay();
@@ -557,7 +559,7 @@ const G = {
           p.x += p.vx * dt / steps; p.y += p.vy * dt / steps;
           if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { done = true; break; }
           for (const e of this.ents) {
-            if (e.dead || e === p.owner || e === this.player.riding || e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e === this.horse) continue;
+            if (e.dead || e === p.owner || e === this.player.riding || e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || e === this.horse) continue;
             if (dist2(e.x, e.y, p.x, p.y) < (e.r + 2) * (e.r + 2)) { e.hurt(p.dmg, 'player', 'arrow'); done = true; break; }
           }
         }
@@ -677,7 +679,7 @@ const G = {
     for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P)) vis.push(e);
     if (P.riding) vis.push(P.riding);
     vis.push(P);
-    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' ? -20 : 0;   // yerde yatanlar altta çizilir
+    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' ? -20 : 0;   // yerde yatanlar altta çizilir
     vis.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     for (const e of vis) {
       if (e === P && P.riding) continue;
@@ -918,3 +920,4 @@ const G = {
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(GameSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(CarrySystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(TownLifeSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));

@@ -279,6 +279,10 @@ body.modal-open #modals { background: rgba(0, 0, 0, 0.45); }
 .statbar { height: 6px; background: rgba(255, 255, 255, 0.1); margin: 3px 0 10px; }
 .statbar i { display: block; height: 100%; background: #e8dcc0; }
 .signboard { background: #6a4a2e; padding: 10px; border-radius: 3px; box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5); }
+.biz-card { background: rgba(0, 0, 0, 0.25); border-left: 3px solid #c9a45c; padding: 8px 12px; line-height: 1.55; }
+.biz-card .dim, .p-html .dim { opacity: 0.7; }
+.st-ok { color: #9fcf7a; } .st-mid { color: #e2b64a; } .st-low { color: #e0604a; }
+.jr-biz { width: 100%; border-collapse: collapse; } .jr-biz td, .jr-biz th { padding: 5px 8px; border-bottom: 1px solid rgba(239, 230, 210, 0.12); text-align: left; } .jr-biz th { opacity: 0.7; font-weight: normal; }
 .sign-row { display: flex; gap: 12px; align-items: center; background: #9a7650; color: #1a120c; margin: 5px 0; padding: 4px 10px; font-family: var(--sc); font-size: 19px; clip-path: polygon(0 0, 94% 0, 100% 50%, 94% 100%, 0 100%); }
 .sign-row .sa { font-size: 22px; width: 24px; }
 .sign-row .sn { flex: 1; }

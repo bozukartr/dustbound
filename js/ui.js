@@ -485,7 +485,7 @@ const UI = {
     for (const b of W.buildings) {
       if (Math.abs(b.door.x - P.x) > 900 || Math.abs(b.door.y - P.y) > 900 || (xk > 0.5 && b.town)) continue;   // genişken kasaba adı yeterli
       const ic = BICON[b.type];
-      if (ic && RADAR_B.has(b.type) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', null, 12);
+      if (ic && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 12);
     }
     c.font = 'bold 11px serif';
     for (const p of W.pois) {
@@ -493,6 +493,7 @@ const UI = {
       icon(p.x, p.y, G.rumored.has(p.id) && !G.discovered.has(p.id) ? 'question' : (PICON[p.kind === 'landmark' ? p.type : p.kind] || 'eye'), '#efe6d2', p.kind === 'camp' ? 'rgba(130,20,14,0.9)' : null);
     }
     if (G.camp) icon(G.camp.x, G.camp.y, 'tent', '#efe6d2');
+    if (G.myWagon && P.riding !== G.myWagon) icon(G.myWagon.x, G.myWagon.y, 'bag', '#f0d8a8', 'rgba(60,36,20,0.9)');
     if (G.nomads) for (const nc of G.nomads) if (nc.era >= 0 && G.discovered.has(G.nomadId(nc))) icon(nc.x, nc.y, 'tent', '#f0e4c8', 'rgba(120,80,20,0.9)', 13);
     if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') icon(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', '#fff', 'rgba(150,20,20,0.9)', 15);
     if (G.waypoint) icon(G.waypoint.x, G.waypoint.y, 'waypoint', '#fff', 'rgba(140,40,140,0.9)', 15);
@@ -715,6 +716,9 @@ const UI = {
         const badge = (wx, wy, g, bg, col = '#fff', r = 10) => { const [x, y] = toS(wx, wy); c.fillStyle = bg; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); const im = Icons.img(g, col, 32); if (im.complete) c.drawImage(im, x - r * 0.72, y - r * 0.72, r * 1.44, r * 1.44); };
     if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') badge(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', 'rgba(150,20,20,0.9)');
     if (G.camp) badge(G.camp.x, G.camp.y, 'tent', 'rgba(30,20,12,0.85)', '#efe6d2');
+    // işletmelerin (altın) ve yük araban
+    for (const z of G.biz) { if (z.site) { const l = W.lots.find(x => x.id === z.lot); if (l) badge((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS, 'pick', 'rgba(170,130,30,0.95)', '#fff', 9); continue; } const b = G.bizBuilding(z); if (b) badge(b.door.x, b.door.y, BICON[b.type] || 'store', 'rgba(170,130,30,0.95)', '#fff', 9); }
+    if (G.myWagon && G.player.riding !== G.myWagon) badge(G.myWagon.x, G.myWagon.y, 'bag', 'rgba(60,36,20,0.9)', '#f0d8a8', 9);
     if (G.horse && !G.horse.dead) badge(G.horse.x, G.horse.y, 'horse', 'rgba(60,36,20,0.9)', '#f0d8a8');
     if (G.waypoint) badge(G.waypoint.x, G.waypoint.y, 'waypoint', 'rgba(140,40,140,0.95)');
     // oyuncu
@@ -977,7 +981,7 @@ const UI = {
 
   /* ================= GÜNLÜK ================= */
   openJournal(tab = 0) {
-    const tabs = [Tr('Karakter'), Tr('Yetenekler'), Tr('Başarımlar'), Tr('İstatistikler'), Tr('İlişkiler'), Tr('Rehber')];
+    const tabs = [Tr('Karakter'), Tr('Yetenekler'), Tr('Başarımlar'), Tr('İstatistikler'), Tr('İlişkiler'), Tr('İşlerim'), Tr('Rehber')];
     const el = el_('div', 'modal panel journal');
     const m = this.makeModal(el, { scroll: true, noFocus: true, onTab: (d) => { m.tab = (m.tab + d + tabs.length) % tabs.length; render(); Audio_.ui('move'); } });
     m.tab = tab;
@@ -1026,7 +1030,7 @@ const UI = {
       }).join('') + '</div>';
     }
     if (t === 3) {
-      const rows = [[Tr('Hayatta kalınan gün'), G.day], [Tr('Avlanan hayvan'), S.animals], [Tr('Öldürülen haydut'), S.bandits], [Tr('Toplam öldürülen insan'), S.kills], [Tr('Yürünen mesafe'), S.walkMiles.toFixed(1) + Tr(' mil')], [Tr('At sırtında'), S.rideMiles.toFixed(1) + Tr(' mil')], [Tr('Toplanan bitki'), S.herbs], [Tr('Tutulan balık'), S.fish], [Tr('Yenen yemek'), S.eaten], [Tr('Kazanılan toplam para'), fmtMoney(S.earned)], [Tr('Çalışılan vardiya'), S.shifts], [Tr('Yardım edilen yabancı'), S.helped], [Tr('Keşfedilen yer'), G.discovered.size], [Tr('Ziyaret edilen kasaba'), G.visited.size + ' / 8'], [Tr('Kurulan kamp'), S.camps], [Tr('Tren yolculuğu'), S.trainRides], [Tr('Bulunan altın'), S.nuggets], [Tr('Kazanılan Yirmi Bir eli'), S.bjWins], [Tr('Bilek güreşi zaferi'), S.armWins]];
+      const rows = [[Tr('Hayatta kalınan gün'), G.day], [Tr('Avlanan hayvan'), S.animals], [Tr('Öldürülen haydut'), S.bandits], [Tr('Toplam öldürülen insan'), S.kills], [Tr('Yürünen mesafe'), S.walkMiles.toFixed(1) + Tr(' mil')], [Tr('At sırtında'), S.rideMiles.toFixed(1) + Tr(' mil')], [Tr('Toplanan bitki'), S.herbs], [Tr('Tutulan balık'), S.fish], [Tr('Yenen yemek'), S.eaten], [Tr('Kazanılan toplam para'), fmtMoney(S.earned)], [Tr('Çalışılan vardiya'), S.shifts], [Tr('Yardım edilen yabancı'), S.helped], [Tr('Keşfedilen yer'), G.discovered.size], [Tr('Ziyaret edilen kasaba'), G.visited.size + ' / ' + G.world.towns.length], [Tr('Kurulan kamp'), S.camps], [Tr('Tren yolculuğu'), S.trainRides], [Tr('Bulunan altın'), S.nuggets], [Tr('Kazanılan Yirmi Bir eli'), S.bjWins], [Tr('Bilek güreşi zaferi'), S.armWins]];
       return `<table class="stats">${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>`;
     }
     if (t === 4) {
@@ -1040,13 +1044,39 @@ const UI = {
       }
       return h + `</div><p class="jr-note">${Tr`Her kasabada tanışabileceğin biri yaşıyor (haritada ♥). Onlarla her gün sohbet et, hediye ver. Yakınlık 80'e ulaştığında ve bir mülkün olduğunda evlenme teklif edebilirsin.`}</p>`;
     }
+    if (t === 5) return this.bizJournal();
     return this.guideHtml();
+  },
+  /* İşlerim: işletmeler, stok, kasa, yük arabası */
+  bizJournal() {
+    const L = G.biz;
+    let h = '';
+    if (!L.length && !G.lotsOwned.length) h += `<p class="jr-note">${Tr`Henüz bir işletmen yok. Dükkânların tezgâhında sahibine satın almak istediğini söyleyebilir, ilçe binası ya da tapu dairesinden satılık işletmelere ve arsalara bakabilirsin.`}</p>`;
+    else {
+      let tot = 0, cash = 0;
+      h += `<table class="jr-biz"><tr><th>${Tr`İşletme`}</th><th>${Tr`Kasaba`}</th><th>${Tr`İşletmeci`}</th><th>${Tr`Stok`}</th><th>${Tr('@işletme|Kasa')}</th><th>${Tr('@gelir|Günlük')}</th></tr>`;
+      for (const z of L) {
+        const t = G.bizTown(z.town);
+        if (z.site) { h += `<tr><td>${BUILDINGS[z.type].n}</td><td>${t ? t.n : ''}</td><td>${escapeHtml(z.mgr.name)}</td><td colspan="3" class="dim">${Tr`İnşaat: ${Math.max(0, z.ready - G.day)} gün kaldı`}</td></tr>`; continue; }
+        const est = G.bizDailyEst(z); tot += est; cash += z.cash;
+        h += `<tr><td>${G.bizName(z)}</td><td>${t ? t.n : ''}</td><td>${escapeHtml(z.mgr.name)} <span class="dim">(${MGR_TRAITS[z.mgr.trait].n})</span></td><td class="st-${G.bizStockCls(z)}">${G.bizStockWord(z)}</td><td>${z.bank ? Tr('bankaya') : fmtMoney(z.cash)}</td><td>~${fmtMoney(est)}</td></tr>`;
+      }
+      h += `</table><p class="jr-note">${Tr`Kasalarda toplam ${fmtMoney(cash)} bekliyor. Stok dolu olduğunda günlük brüt gelir ~${fmtMoney(tot)}.`}</p>`;
+      const free = G.lotsOwned.filter(id => !G.biz.some(z => z.lot === id));
+      if (free.length) h += `<p class="jr-note">${Tr`Boş arsaların: ${free.length}. Tabelasından ya da ilçe binasından inşaata başlayabilirsin.`}</p>`;
+      const need = G.goodsNeeded(), nk = Object.keys(need).filter(g => need[g] > 0);
+      if (nk.length) h += `<p class="jr-note">${Tr`Getirilmesi gereken mallar:`} ${nk.map(g => `${GOODS[g].n} ×${need[g]}`).join(', ')}</p>`;
+    }
+    const w = G.myWagon;
+    h += `<p class="jr-note">${w ? Tr`Yük araban: ${w.crates.length}/${WAGON_CAP} sandık.` : Tr`Yük araban yok. Ahırdan ${fmtMoney(WAGON_PRICE)} karşılığında alabilirsin; ${WAGON_CAP} sandık taşır.`}</p>`;
+    return h;
   },
   guideHtml() {
     return `<div class="guide">
       <h3>${Tr`Hayatta Kalma`}</h3><p>${Tr`<b>Açlık</b>, <b>susuzluk</b> ve <b>uyku</b> sürekli azalır. Sıfırlanırlarsa sağlığın düşer. Sağlık çekirdeği (♥ içi) açlık ve susuzluktan beslenir. Sıcak çöllerde daha çok su içmen, karlı dağlarda ise kalın giysiler giymen gerekir. Kamp ateşleri ve sıcak yemekler seni ısıtır.`}</p>
       <h3>${Tr`Yaşlanma`}</h3><p>${Tr`18 yaşında başlarsın. Zaman geçtikçe yaşlanırsın; 30'lardan sonra dayanıklılığın, 50'lerden sonra sağlığın azalır. Hedefin <b>80 yaşına kadar hayatta kalmak.</b>`}</p>
       <h3>${Tr`Para Kazanma`}</h3><p>${Tr`Avlan ve postları kasapta sat. Bitki topla. Madende, kerestecide, limanda ya da çiftliklerde <b>çalış</b>. Nehirde altın ele. Ödül ilanlarını takip et. Ya da… kanunun yanlış tarafında yaşa.`}</p>
+      <h3>${Tr`İşletmeler`}</h3><p>${Tr`Dükkân sahiplerinin bir kısmı dükkânını satar: tezgâhta ya da ilçe binasında satın al. İşletmeci işi yürütür, gelir kasada birikir. Çoğu işletme mal tüketir: toptancıdan, değirmenden ya da imalathaneden sandık alıp omzunda, atınla ya da ahırdan alacağın yük arabasıyla getir. Boş arsalara yeni işletme kurabilirsin. Günlüğün İşlerim sekmesi hepsini gösterir.`}</p>
       <h3>${Tr`Kanun`}</h3><p>${Tr`Görülürsen suçların başına ödül koydurur. Kanun adamlarının arama alanından (haritadaki kırmızı daire) kaç ve görünmeden bekle. Ödülünü şerif ofisinde ödeyebilirsin.`}</p>
       <h3>${Tr`Başarımlar`}</h3><p>${Tr`Başarımlar sana kalıcı kazanımlar (perk) sağlar. Günlüğün Başarımlar sekmesine bak.`}</p>
       <h3>${Tr`Kontroller`}</h3>${this.controlsTable()}
@@ -1189,7 +1219,12 @@ const UI = {
           if (svc.includes('robbank')) it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) });
           return it;
         }
-        for (const s of svc) it.push(...this.svcItems(b, s));
+        const z = G.bizOf(b);
+        if (z) it.push(...this.bizItems(b, z));
+        else if (G.bizForSale(b)) it.push({ icon: '📜', label: Tr('Bu İşletmeyi Satın Al'), right: fmtMoney(G.bizPrice(b)), fn: () => this.confirmBuyBiz(b) });
+        const gd = G.goodsAt(b);
+        if (gd.length) it.push({ icon: '📦', label: Tr('Toptan Mal Al'), fn: () => this.openGoods(b) });
+        for (const s of svc) if (!(z && (s === 'rob' || s === 'robbank'))) it.push(...this.svcItems(b, s));
         it.push({ icon: '🚪', label: Tr('Çık'), fn: () => this.pop() });
         return it;
       },
@@ -1210,7 +1245,7 @@ const UI = {
       case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
       case 'arm': it.push({ icon: '💪', label: Tr('Bilek Güreşi (25¢ bahis)'), fn: () => this.openArmWrestle() }); break;
       case 'rumor': it.push({ icon: '👂', label: Tr('Söylenti Dinle'), right: fmtMoney(0.05), fn: () => this.rumor() }); break;
-      case 'rob': it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) }); break;
+      case 'rob': if (!G.bizOf(b)) it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) }); break;
       case 'news': it.push({ icon: '📰', label: Tr('Gazete Oku'), right: fmtMoney(0.05), fn: () => this.readNews() }); break;
       case 'room': it.push({ icon: '🛏', label: Tr('Oda Tut ve Uyu'), right: fmtMoney(0.5 * G.priceMul(true)), fn: () => this.openSleep('hotel', 0.5 * G.priceMul(true)) }); break;
       case 'bath': it.push({ icon: '🛁', label: Tr('Sıcak Banyo'), right: fmtMoney(0.25), fn: () => { if (G.spend(0.25)) { P.clean = 100; P.warmBuff = 60; this.feed(Tr('🛁 Tertemiz oldun. Kokun bile değişti.')); G.advanceClock(30); } } }); break;
@@ -1222,7 +1257,10 @@ const UI = {
         for (const c of G.carriedAll()) if (c.e.kind === 'npc' && G.wantedValue(c.e)) it.push({ icon: '⚖', label: Tr`Teslim Et: ${c.e.name} ${c.e.dead ? Tr('(ölü)') : Tr('(canlı)')}`, right: fmtMoney(G.wantedValue(c.e)), fn: () => { G.deliverToSheriff(c); this.pop(); } });
         break;
       case 'board': it.push({ icon: '📜', label: Tr('Ödül İlanları'), fn: () => this.openBountyBoard() }); break;
-      case 'horses': it.push({ icon: '🐴', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) }); break;
+      case 'horses': it.push({ icon: '🐴', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) });
+        if (!G.myWagon) it.push({ icon: '📦', label: Tr('Yük Arabası Satın Al'), right: fmtMoney(WAGON_PRICE * G.priceMul(true)), fn: () => { G.buyWagon(b); this.pop(); } });
+        else it.push({ icon: '📦', label: Tr('Arabanı Buraya Getirt'), right: fmtMoney(0.5), fn: () => G.fetchWagon(b) });
+        break;
       case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: Tr`${G.horse.name}'i Tımar Ettir`, right: fmtMoney(0.25), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed(Tr('Atın burada değil.'), 'warn'); return; } if (G.spend(0.25)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(Tr`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
       case 'bank': it.push({ icon: '🏦', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
       case 'robbank': it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
@@ -1230,7 +1268,7 @@ const UI = {
       case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); break;
       case 'donate': it.push({ icon: '🙏', label: Tr('Kiliseye Bağış Yap'), right: fmtMoney(0.5), fn: () => { if (G.spend(0.5)) { G.addHonor(3); this.feed(Tr('Rahip sana teşekkür etti.')); } } }); break;
       case 'pray': it.push({ icon: '✝', label: Tr('Dua Et'), fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed(Tr('Bugün zaten dua ettin.')); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed(Tr('İçin huzurla doldu.')); G.advanceClock(20); } }); break;
-      case 'property': it.push({ icon: '📜', label: Tr('Satılık Mülkler'), fn: () => this.openLand() }); break;
+      case 'property': it.push({ icon: '📜', label: Tr('Satılık Mülkler'), fn: () => this.openLand() }); it.push({ icon: '🏪', label: Tr('Satılık İşletmeler ve Arsalar'), fn: () => this.openBizMarket(b) }); break;
       case 'barber': it.push({ icon: '💈', label: Tr('Tıraş Ol / Saç Kestir'), right: fmtMoney(0.15), fn: () => this.openBarber() }); break;
       case 'work': it.push({ icon: '⚒', label: JOBS[d.work].n, fn: () => this.openWork(d.work, b.name) }); break;
     }
@@ -1662,10 +1700,99 @@ const UI = {
     }).join('');
     this.info(Tr('Yol Tabelası'), `<div class="signboard">${rows}</div>`);
   },
+  /* Arsa tabelası: satılık arsa, senin arsan ya da süren inşaat */
   showLot(lot) {
+    const t = G.world.towns.find(tw => tw.id === lot.town), mine = G.lotOwned(lot), z = G.lotBiz(lot);
+    const card = `<div class="signboard"><div class="sign-row"><span class="sn">${t ? t.n : ''}</span><span class="sm">${lot.w}×${lot.h}</span></div>${mine ? '' : `<div class="sign-row"><span class="sn">${Tr('Fiyat')}</span><span class="sm">$${lot.price}</span></div>`}</div>`;
+    const items = [];
+    if (z && z.site) items.push({ html: card + `<p>${Tr`Burada ${BUILDINGS[z.type].n} inşa ediliyor. Kalan: ${Math.max(0, z.ready - G.day)} gün.`}</p>` });
+    else if (mine) { items.push({ html: card + `<p>${Tr('Bu arsa senin. Üzerine bir işletme kurabilirsin.')}</p>` }); items.push({ icon: '🔨', label: Tr('İnşaata Başla'), fn: () => { this.pop(); this.openBuildMenu(lot); } }); }
+    else {
+      items.push({ html: card + `<p>${Tr('Arsayı satın alıp üzerine kendi işletmeni kurabilirsin. Tapu işleri ilçe binasında da görülür.')}</p>` });
+      items.push({ icon: '📜', label: Tr('Arsayı Satın Al'), right: fmtMoney(lot.price), disabled: G.player.money < lot.price, why: Tr('Yeterli paran yok.'), fn: () => { if (G.buyLot(lot)) { this.pop(); this.showLot(lot); } } });
+    }
+    items.push({ label: Tr('Kapat'), fn: () => this.pop() });
+    this.menu({ title: mine ? Tr('Arsan') : Tr('Satılık Arsa'), cls: 'small', items });
+  },
+  openBuildMenu(lot) {
     const t = G.world.towns.find(tw => tw.id === lot.town);
-    const hasCounty = t && t.buildings.some(b => b.type === 'county');
-    this.info(Tr('Satılık Arsa'), `<div class="signboard"><div class="sign-row"><span class="sn">${t ? t.n : ''}</span><span class="sm">${lot.w}×${lot.h}</span></div><div class="sign-row"><span class="sn">${Tr('Fiyat')}</span><span class="sm">$${lot.price}</span></div></div><p>${hasCounty ? Tr('Tapu işlemleri İlçe Binası\'nda yapılır. Bu arsaya ileride kendi işletmeni kurabilirsin.') : Tr('Tapu işlemleri bölgenin İlçe Binası\'nda yapılır. Bu arsaya ileride kendi işletmeni kurabilirsin.')}</p>`);
+    this.menu({
+      title: Tr('İnşaat'), sub: () => Tr`${t.n} • ${BUILD_DAYS} günde biter • Cüzdan: ${fmtMoney(G.player.money)}`, cls: 'small', side: (it) => it.side || '',
+      build: () => G.lotTypes(lot).sort((a, c) => BIZ[a].p - BIZ[c].p).map(k => {
+        const pr = G.bizBuildPrice(k, t), B = BIZ[k];
+        return { icon: BICON[k] ? Icons.glyph(BICON[k], '#efe6d2') : '🏪', label: BUILDINGS[k].n, right: fmtMoney(pr), disabled: G.player.money < pr, why: Tr('Yeterli paran yok.'),
+          side: this.bizSide(k, t), fn: () => { if (G.startBuild(lot, k)) this.closeAll(); } };
+      }),
+    });
+  },
+  /* İşletme türü açıklaması (yan panel) */
+  bizSide(type, t) {
+    const B = BIZ[type];
+    return `<div class="ps-t">${BUILDINGS[type].n}</div><div class="ps-d">${Tr`${BIZ_TIERS[B.tier]} işletme`}</div><div class="ps-e">${Tr`Günlük brüt gelir: ~${fmtMoney(B.inc * G.bizTownMul(t))}`}<br>${B.goods ? Tr`Tükettiği mal: <b>${GOODS[B.goods].n}</b> (depo ${B.cap} sandık, günde ~${B.use})` : Tr('Mal gerektirmez.')}</div>`;
+  },
+  confirmBuyBiz(b) {
+    const pr = G.bizPrice(b), kr = G.keeperOf(b);
+    this.confirm(Tr('İşletme Satın Al'), Tr`${b.name} — ${fmtMoney(pr)}. ${kr ? Tr`${kr.name} işletmeci olarak kalır.` : ''}`, () => { if (G.buyBiz(b)) this.closeAll(); }, Tr('Vazgeç'), Tr`Satın Al (${fmtMoney(pr)})`);
+  },
+  /* Sahip olunan işletmenin menü öğeleri */
+  bizItems(b, z) {
+    const B = BIZ[z.type], T = MGR_TRAITS[z.mgr.trait], it = [];
+    it.push({ header: Tr('İşletmen') });
+    it.push({ html: `<div class="biz-card"><div><b>${Tr`İşletmeci:`}</b> ${escapeHtml(z.mgr.name)} <span class="dim">(${T.n})</span></div><div><b>${Tr`Stok:`}</b> <span class="st-${G.bizStockCls(z)}">${G.bizStockWord(z)}</span>${B.goods ? ` <span class="dim">— ${GOODS[B.goods].n}</span>` : ''}</div><div><b>${Tr`Dünkü gelir:`}</b> ${fmtMoney(z.last)} &nbsp; <b>${Tr`Toplam:`}</b> ${fmtMoney(z.total)}</div></div>` });
+    it.push({ icon: '💵', label: Tr('Kasayı Al'), right: fmtMoney(z.cash), disabled: z.cash < 0.01, why: Tr('Kasa boş.'), fn: () => G.bizCollect(z) });
+    const dl = G.deliverables(b);
+    if (dl.length) it.push({ icon: '📦', label: Tr`Mal Teslim Et (${dl.length})`, fn: () => G.deliverGoods(b) });
+    it.push({ icon: '🏦', label: z.bank ? Tr('Gelir bankaya aktarılıyor (%10 kesinti)') : Tr('Gelir kasada birikiyor'), right: z.bank ? Tr('Açık') : Tr('Kapalı'), fn: () => { z.bank = !z.bank; } });
+    it.push({ icon: '👤', label: Tr('İşletmeciyi Değiştir'), right: fmtMoney(5), fn: () => this.confirm(Tr('İşletmeciyi Değiştir'), Tr`${z.mgr.name} gönderilir, yerine yeni biri gelir.`, () => G.bizNewMgr(z)) });
+    it.push({ header: Tr('Hizmetler') });
+    return it;
+  },
+  /* Toptan mal satışı */
+  openGoods(b) {
+    const need = G.goodsNeeded();
+    this.menu({
+      title: Tr('Toptan Mal'), sub: () => Tr`${b.name} • Cüzdan: ${fmtMoney(G.player.money)}`, cls: 'small',
+      build: () => {
+        const it = [];
+        for (const { g, p } of G.goodsAt(b)) {
+          const n = need[g] || 0;
+          it.push({ header: GOODS[g].n + (n ? Tr` — işletmelerinin ihtiyacı: ${n}` : '') });
+          for (const k of [1, 2, 4, 8]) it.push({ icon: '📦', label: Tr`${k} sandık`, right: fmtMoney(p * k), disabled: G.player.money < p * k, why: Tr('Yeterli paran yok.'), fn: () => { G.buyGoods(b, g, p, k); this.closeAll(); } });
+        }
+        if (!G.biz.length) it.unshift({ html: `<p class="dim">${Tr('Henüz bir işletmen yok. Toptan mal yalnızca işletme sahiplerinin işine yarar.')}</p>` });
+        return it;
+      },
+    });
+  },
+  /* İlçe binası / tapu dairesi: satılık işletmeler ve arsalar */
+  openBizMarket(b) {
+    const here = G.world.towns.find(t => t.id === b.town) || G.nearestTown(G.player.x, G.player.y);
+    this.menu({
+      title: Tr('Satılık İşletmeler'), sub: () => Tr`Cüzdan: ${fmtMoney(G.player.money)}`, cls: 'small', side: (it) => it.side || '',
+      tabs: [Tr('İşletmeler'), Tr('Arsalar')],
+      build: (m) => {
+        const towns = G.world.towns.filter(t => t === here || G.visited.has(t.id)).sort((a, c) => dist(here.cx, here.cy, a.cx, a.cy) - dist(here.cx, here.cy, c.cx, c.cy));
+        const it = [];
+        for (const t of towns) {
+          if (m.tab === 0) {
+            const list = t.buildings.filter(x => G.bizForSale(x));
+            if (!list.length) continue;
+            it.push({ header: t.n });
+            for (const x of list) { const pr = G.bizPrice(x); it.push({ icon: BICON[x.type] ? Icons.glyph(BICON[x.type], '#efe6d2') : '🏪', label: BUILDINGS[x.type].n, right: fmtMoney(pr), disabled: G.player.money < pr, why: Tr('Yeterli paran yok.'), side: this.bizSide(x.type, t), fn: () => this.confirmBuyBiz(x) }); }
+          } else {
+            const lots = (t.lots || []).filter(l => !G.lotBiz(l));
+            if (!lots.length) continue;
+            it.push({ header: t.n });
+            for (const l of lots) {
+              if (G.lotOwned(l)) it.push({ icon: '🔨', label: Tr`Arsan (${l.w}×${l.h}) — İnşaata Başla`, fn: () => this.openBuildMenu(l) });
+              else it.push({ icon: '📜', label: Tr`Arsa ${l.w}×${l.h}`, right: fmtMoney(l.price), disabled: G.player.money < l.price, why: Tr('Yeterli paran yok.'), side: `<div class="ps-t">${Tr`Arsa ${l.w}×${l.h}`}</div><div class="ps-e">${Tr('Sığan işletmeler:')} ${G.lotTypes(l).map(k => BUILDINGS[k].n).join(', ')}</div>`, fn: () => G.buyLot(l) });
+            }
+          }
+        }
+        return it;
+      },
+      empty: Tr('Şu an satılık bir şey yok. Başka kasabaları gezdikçe liste genişler.'),
+    });
   },
   showTreasureMap() {
     const T_ = G.treasure;
