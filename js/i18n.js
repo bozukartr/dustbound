@@ -66,6 +66,8 @@ const I18N = {
     DIFFICULTIES, LIFE_PACES, LOOKS, GREETS, LINES, HEADLINES, SEASONS, RECIPES, HARVEST,
     GAME_ACTIONS, KEY_LABEL, MOUSE_LABEL, PAD_NAME, TIPS,
     ...(typeof OCCS !== 'undefined' ? [OCCS, KEEPER_N, CHAT, OCC_GREET, NEWS_SHOUT, RES_LINES] : []),
+    ...(typeof HUNTER_LINES !== 'undefined' ? [HUNTER_LINES] : []),
+    ...(typeof POKER_LINES !== 'undefined' ? [POKER_LINES] : []),
   ],
   localizeTables() {
     for (const [o, k, v] of this._orig) o[k] = v;

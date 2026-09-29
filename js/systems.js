@@ -356,7 +356,7 @@ const GameSystems = {
     let instant = type === 'storerob' || type === 'bankrob';
     const ws = [];
     for (const e of this.ents) {
-      if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
+      if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'hunter' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
       if (e.state === 'hurt' || e.bound) continue;
       if (e.res && e !== victim && this.opOf(e.res) >= 50 && chance(0.5)) continue;   // oyuncuyu seven sakin bazen görmezden gelir
       const see = e === victim ? dist2(e.x, e.y, x, y) < 60 * 60 : dist2(e.x, e.y, x, y) < 340 * 340 && this.los(e.x, e.y, x, y);
@@ -769,7 +769,7 @@ const GameSystems = {
         if (b.type === 'property' && this.props.includes(b.prop)) return { label: Tr('Yatağın'), acts: [{ n: Tr('Uyu'), fn: () => U.openSleep('home') }, { n: Tr('Oyunu Kaydet'), fn: () => this.saveGame() }] };
         return null;
       case O.TUB: return b.def.svc.includes('bath') ? { label: Tr('Küvet'), acts: svc('bath') } : null;
-      case O.CARDTABLE: return { label: Tr('Kart Masası'), acts: svc('blackjack') };
+      case O.CARDTABLE: return { label: Tr('Kart Masası'), acts: svc('poker', 'blackjack') };
       case O.TABLE:
         if (b.type === 'saloon' || b.type === 'cantina' || b.type === 'gambling') return { label: Tr('Masa'), acts: [...svc('meal'), ...svc('rumor'), ...svc('arm')] };
         if (b.type === 'bakery') return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
@@ -1531,7 +1531,7 @@ const GameSystems = {
         if (e.dead) continue;
         if (e.hostile && e.aggro) continue;
         const acts = this.npcActions(e);
-        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)}` : e.name, acts, 3);
+        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)}` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.name, acts, 3);
       }
     }
     // kayıp eşyalar
@@ -1631,6 +1631,7 @@ const GameSystems = {
     return cands[0];
   },
   npcActions(e) {
+    if (e.role === 'hunter') return this.hunterActions(e);
     const P = this.player;
     const acts = [];
     const ev = e.event;

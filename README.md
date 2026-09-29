@@ -115,6 +115,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - **Taşıma**: Cesetleri, bağlı ya da baygın kişileri, leşleri ve büyük postları **omzuna alabilir** (leş ve cesette ikincil eylem: şarjör tuşu), atının yanındayken **eyere yükleyebilirsin**. Eyer 4 birim taşır (kişi ve iri leş 2, post ve küçük leş 1). Omuzda yükle koşamaz, silah kullanamazsın; yüklü at biraz yavaşlar. Yükler kayda geçer.
 - **Postlar**: Geyik, kızıl geyik, antilop, bizon, ayı, puma, yaban domuzu ve timsah postları çantaya sığmaz; yüzdükten sonra omzunda ya da eyerde taşınır. Ayı, bizon ve timsah gibi iri hayvanların leşi taşınamaz, önce derisi yüzülür. Postları ve leşleri kasap, tuzakçı ya da genel mağazanın içinde sat; atın kapıdaysa eyerdekiler de satılır. Bütün leş, parça parça satmaktan biraz daha iyi fiyat getirir.
 - NPC'lerle selamlaşma (günün saatine, havaya, role ve tanışıklığa göre değişen 100'ü aşkın replik), kışkırtma, soygun; yol olayları (yaralı yolcular, soygunlar, pusu, kırık arabalar, seyyar satıcılar); ödül ilanları.
+- **Poker** (beş kart çekmeli): Saloon, kumarhane ve cantinadaki kart masasında üç rakiple oynanır. Herkes giriş parası koyar (5¢, 10¢ ya da 25¢), bir bahis turu, en fazla 3 kart değiştirme, ikinci bahis turu ve el gösterme. Sabit limitlidir (bahis ilk turda 2, ikinci turda 4 giriş parası; turda en fazla 3 bahis). Rakiplerin her birinin kendi oyun tarzı vardır (temkinli, gevşek, blöfçü); paraları günlüktür, masayı boşaltırsan ertesi gün yeni oyuncular gelir. Kumarbaz yeteneği rakiplerin yüzünü okumanı sağlar.
 - Yirmi Bir (blackjack), bilek güreşi, hızlı çekiş düellosu, söylenti dinleme, gazete okuma, kamp ateşinde mızıka çalma.
 - Atlar: satın alma, yabani at evcilleştirme, bağ seviyesi, ıslıkla çağırma. Ata ve arabaya binerken ve inerken kısa bir sıçrama animasyonu oynar. Atlı NPC'lerin (kanun adamları dahil) atları yan yan kaymaz: at hep burnunun yönüne gider, sınırlı hızla döner; binici çatışmada oyuncunun çevresinde geniş daireler çizerken silahını ayrıca çevirir.
 - **Kolla nişan**: L2'ye basınca en uygun hedefe kilitlenir (basış anında görünmüyorsa kısa bir süre aramaya devam eder). Kilit hareketli hedefi birebir izler, atış tam hedefe gider ve hedefi takip etmek nişan oturmasını bozmaz. Sağ analogu hafifçe oynatmak kilidi bozmaz; savurmak yandaki hedefe geçirir, bilerek başka yöne itmek kısa bir süre sonra kilidi bırakır. Hedef ölürse ya da düşerse L2 basılıyken sıradaki düşmana geçer.
@@ -127,6 +128,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - **Teslim olma ve tutuklanma**: Düşük aranma seviyesinde (1–2 yıldız) kanun adamları önce silah doğrultup yaklaşır ve teslim olmanı ister; ateş etmezler. Yanlarında etkileşim tuşunu basılı tutarak teslim olursun: ya ödülü ceza olarak ödersin ya da ödüle göre 1–7 gün hapis yatarsın. Ateş edersen, kanun adamına silah doğrultursan, kaçarsan ya da uyarılara rağmen teslim olmazsan ateş açarlar. Cinayet ve kanun adamına saldırı ise doğrudan çatışma başlatır.
 - Aranma seviyesi, arama alanı ve peşine düşen kanun adamları. Ödülünü şerif ofisinde ödeyebilirsin.
 - **Ödül avı ve teslim**: İlan panosundan alınan hedef ölünce ödül kendiliğinden verilmez; kişiyi şerif ofisine getirmen gerekir. Canlı teslim tam ödülü, ceset yarısını getirir. Haydutları da teslim edebilirsin (canlı $5, ceset $2). Omzundakini ofisin içinde, eyerdekini ofis kapısında at sırtında ya da şerifin masasında teslim edersin.
+- **Ödül avcıları**: Başında $20 ya da daha fazla ödül varken, kanun peşini bıraksa bile kasaba dışında zaman zaman 2–4 kişilik ödül avcısı grupları çıkar; ödül büyüdükçe daha sık ve daha kalabalık gelirler. Önce yaklaşıp seslenir ve bir süre beklerler: yanlarına gidip teslim olabilir (tutuklanma menüsü açılır) ya da ödülün yaklaşık %60'ını verip kurtulabilirsin (ödül başında kalır). Kaçarsan, onlara nişan alırsan ya da süre dolarsa ateş açarlar. Onları vurmak suç değildir.
 - **Kanıt**: Öldürdüğün masum birinin cesedi kanıttır. Biri cesedi bulduğunda sen yakındaysan suç sana yazılır ve tanık şerife koşar; uzaktaysan iz kalmaz. Ceset ya da bağlı biriyle görülmek de suçtur. Cesedi ıssız bir yere taşıyabilir, suya atabilir ya da kürekle gömebilirsin. Bağlanan tanık haber veremez.
 - Onur sistemi fiyatları ve insanların sana nasıl davrandığını etkiler.
 
@@ -157,6 +159,41 @@ Oyun içindeyken **Ctrl + Alt + C** sağda sürüklenebilir bir hata ayıklama p
 - **Günlük**: yakalanan hatalar, uyarılar ve oyun bildirimleri; süzme, temizleme, kopyalama.
 
 Bilgi ve katman araçları kaydı etkilemez. Hile sayılan bir şey kullanılırsa kayıt işaretlenir ve o kayıtta başarımlar kapanır.
+
+## Testler
+
+Oyunun ana sistemleri gerçek tarayıcıda uçtan uca sınanır (Playwright, başsız Chromium):
+
+```
+npm install                      # ilk seferde: Playwright
+npx playwright install chromium  # ilk seferde: tarayıcı
+npm test                         # bütün testler (~3 dk)
+npm test -- carry law            # adında "carry" ya da "law" geçen test dosyaları
+npm test -- --jobs 1 --headed    # tek tek, tarayıcı görünür
+npm test -- --list               # test dosyalarını listele
+```
+
+Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir sunucudan açar, her dosyayı temiz bir tarayıcı bağlamında (boş kayıt, Türkçe) çalıştırır ve her adımı doğrular; sayfada yakalanmamış bir JavaScript hatası olursa dosya başarısız sayılır. Başarısız adımların ekran görüntüleri `tests/output/` altına yazılır.
+
+| Dosya | Kapsam |
+|---|---|
+| `boot` | ana menü, karakter ekranı, 13 kasabalık dünya, yeni binaların iç mekânları, yürüme, duraklatma, harita |
+| `saves` | kayıt yuvaları, otomatik/manuel kayıt, Tek Hayat, eski kayıt taşıma, eski 1024 dünya, 1890 fiyat dönüşümü |
+| `i18n` | çeviri anahtarları (tools/i18n-check.js), oyun içinde dil değiştirme |
+| `settings` | ayarlar ekranı, klavye tuş atama, takas, iptal, kalıcılık |
+| `carry` | kement, bağlama, omuzda/eyerde taşıma, şerife teslim, ödül hedefi, leş ve post, kanıt, suya atma |
+| `law` | tanıklar, tehdit, rüşvet, maske, dükkân reddi, teslim olma, ceza, hapis |
+| `economy` | para biçimi, fiyatlar, soygun tekrarları, al-sat açığı, günlük sınırlar |
+| `business` | işletme satın alma, yük arabası, toptan mal, teslimat, gelir, arsaya inşaat, kayıt |
+| `haulers` | nakliyeci, sefer, yoldaki araba, baskın, maaş, kayıt |
+| `poker` | el değerlendirme, masadaki yerler, klavye ve fareyle bir el, çekilme, masadan kalkma, günlük rakipler, kayıt, yüz okuma |
+| `hunters` | ödül avcısı grubu: çıkma koşulları, yaklaşma, parayla kurtulma, teslim olma, çatışma |
+| `world` | kasaba sakinleri, ölüm ve yerine gelen, at arabası, hayvan kementleme, boğulma, göçebeler, mevsimler |
+| `controls` | oyun kolu ile menü, yürüme, nişan ve ateş, silah çarkı, binme animasyonu, genişletilmiş radar |
+| `debug` | hata ayıklama paneli şifresi ve kilidi |
+| `stress` | 45 sn rastgele tuş ve fare girdisi |
+
+Yeni bir test için `tests/e2e/` altına `ad.test.js` ekle: `module.exports = { name, async run(t) { const p = await t.newGame(); await t.step('…', async () => { t.ok(…); }); } }`. Sayfa içinde `TH` yardımcıları (boş yer bulma, ışınlanma, binaya girme, menü öğesine tıklama) hazır gelir.
 
 ## Teknik
 
@@ -191,6 +228,9 @@ js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
 js/business.js  işletmeler: satın alma, işletmeci, stok ve kasa, toptan mal sandıkları, yük arabası, arsaya inşaat
 js/haulers.js   nakliyeciler: işe alma, rota ve sefer, yolda görünen araba, haydut baskını ve kurtarma
+js/poker.js     poker: el değerlendirme, rakip yapay zekâsı, sabit limitli bahis, masa arayüzü
+js/hunters.js   ödül avcıları: kasaba dışında çıkan grup, bekleyiş, teslim olma, parayla kurtulma, çatışma
+tests/run.js    test çalıştırıcı (npm test); tests/lib.js yardımcılar; tests/e2e/*.test.js testler
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar
 js/cinema.js    kasabaya varış sinematikleri (kütüphanesiz WebGL)
 js/fx.js        görsel efektler: rüzgâr, bulut gölgesi, duman, iz, isabet, salınım, su, renk derecelendirme

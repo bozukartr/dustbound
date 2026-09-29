@@ -741,11 +741,14 @@ class Player extends Ent {
     if (e.dead || e.remove || e.state !== 'lassoed') { this.rope = null; return; }
     const L = 44, d = dist(this.x, this.y, e.x, e.y);
     if (d > 150) { this.rope = null; UI.feed(Tr('Kement koptu!'), 'warn'); return; }
+    // oyuncu (ya da atı) bu karede ne kadar hareket etti: yalnız gerçekten sürüklerken kurtulma süresi dolmaz
+    const pulled = this._ropeX !== undefined && dist(this.x, this.y, this._ropeX, this._ropeY) > 12 * dt;
+    this._ropeX = this.x; this._ropeY = this.y;
     if (d > L) {
       const k = (d - L) / d;
       e.move((this.x - e.x) * k, (this.y - e.y) * k);
       e.ang = Math.atan2(e.y - this.y, e.x - this.x);
-      e.lasT = Math.max(e.lasT, 2);                       // sürüklenirken kurtulamaz
+      if (pulled) e.lasT = Math.max(e.lasT, 2);           // sürüklenirken kurtulamaz (ipi kendisi germesi sayılmaz)
       if (this.riding && this.riding.spd > 90) { e.dragT = (e.dragT || 0) + dt; if (e.dragT > 0.5) { e.dragT = 0; e.hurt(4, 'player', 'drag'); } }
     }
   }
@@ -989,7 +992,8 @@ class NPC extends Ent {
     this.hp -= dmg;
     if (how !== 'drown') G.parts.burst('blood', this.x, this.y, 3 + Math.min(dmg, 200) / 12, 35, 0.6, 1.4);
     if (by === 'player') {
-      if (!this.hostile && this.role !== 'bandit' && !(this.fistOK && how === 'melee')) {
+      if (this.role === 'hunter') G.hunterFight();   // ödül avcısını vurmak suç değildir
+      else if (!this.hostile && this.role !== 'bandit' && !(this.fistOK && how === 'melee')) {
         if (this.hp > 0 && !this.assaulted) { this.assaulted = true; G.crime(this.isLaw ? 'assaultLaw' : 'assault', this.x, this.y, this); }
       }
       if (this.isLaw) this.hostile = true;
@@ -1090,6 +1094,7 @@ class NPC extends Ent {
     if (this.isLaw && !this.hostile && G.law.level > 0 && G.suspect() && this.canSee(P.x, P.y, 260)) { this.hostile = true; this.say(pick(LINES.law)); }
     if (this.isLaw && this.hostile && (G.law.level === 0 || !G.suspect()) && !this.personal) { if (G.law.level > 0 && pd < 300) this.say(pick([Tr('Nereye kayboldu bu maskeli?'), Tr('Onu gördün mü? Maskeli biri!'), Tr('İzini kaybettik!')]), 2); this.hostile = false; this.state = 'idle'; }
     if (this.state === 'report') { this.reportUpdate(dt, pd); return; }
+    if (this.role === 'hunter') { G.hunterUpdate(this, dt, pd); return; }
     if (this.hostile && P.hp > 0) {
       if (this.role === 'bandit' && pd > 520 && !this.aggro) { this.idleUpdate(dt, pd); return; }
       if (this.role === 'bandit' || this.role === 'target') {

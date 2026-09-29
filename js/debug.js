@@ -326,7 +326,7 @@ const Debug = {
         h += this.sec(Tr('Işınlan'), `<div class="dbg-line">${this.sel('dbg-tp', [...W.towns.map(t => ['t:' + t.id, '🏠 ' + t.n]), ...W.pois.filter(p => p.n).map(p => ['p:' + p.id, '• ' + p.n])], '')}${this.btn(Tr('Git'), 'tp', 'pri')}</div>` + this.btns([this.btn(Tr('Hedef noktaya'), 'tpWaypoint'), this.btn(Tr('Atın yanına'), 'tpHorse', 'ghost')]) + this.tog('clickTp', Tr('Alt + tık ile ışınlan'), Tr('Ekranda tıkladığın yere')));
         break;
       case 'spawn':
-        h += this.sec(Tr('İnsan'), `<div class="dbg-line">${this.sel('dbg-npc', [['town', Tr('Kasabalı')], ['traveler', Tr('Gezgin')], ['rider', Tr('Atlı gezgin')], ['bandit', Tr('Haydut (düşman)')], ['banditR', Tr('Atlı haydut')], ['law', Tr('Kanun adamı')], ['lawR', Tr('Atlı kanun adamı')]], 'bandit')}${this.btn(Tr('Oluştur'), 'spawnNpc', 'pri')}</div>`);
+        h += this.sec(Tr('İnsan'), `<div class="dbg-line">${this.sel('dbg-npc', [['town', Tr('Kasabalı')], ['traveler', Tr('Gezgin')], ['rider', Tr('Atlı gezgin')], ['bandit', Tr('Haydut (düşman)')], ['banditR', Tr('Atlı haydut')], ['law', Tr('Kanun adamı')], ['lawR', Tr('Atlı kanun adamı')]], 'bandit')}${this.btn(Tr('Oluştur'), 'spawnNpc', 'pri')}${this.btn(Tr('Ödül avcıları'), 'hunters')}</div>`);
         h += this.sec(Tr('Hayvan'), `<div class="dbg-line">${this.sel('dbg-ani', Object.keys(ANIMALS).map(k => [k, ANIMALS[k].n]), 'deer')}<input class="dbg-in num" id="dbg-anin" type="number" min="1" max="12" value="1">${this.btn(Tr('Oluştur'), 'spawnAni', 'pri')}</div>`);
         h += this.sec(Tr('Araç ve binek'), this.btns([this.btn(Tr('Yük arabası'), 'wagon'), this.btn(Tr('Posta arabası'), 'stage'), this.btn(Tr('Sahipsiz at'), 'horse')]));
         h += this.sec(Tr('Temizle'), this.btns([this.btn(Tr('Düşmanları öldür'), 'killHostile', 'warn'), this.btn(Tr('Cesetleri kaldır'), 'clearDead', 'ghost'), this.btn(Tr('Yakındaki hayvanları sil'), 'clearAni', 'ghost')]));
@@ -557,8 +557,9 @@ const Debug = {
         if (best) G.addEnt(new Wagon(best[0], best[1], 1, a === 'stage'));
         break;
       }
+      case 'hunters': if (G.law.bounty < HUNTER_MIN) G.law.bounty = 60; if (G.posse) G.posseLeave(); G.posse = null; G.hunterSpawn(); break;
       case 'horse': { const [x, y] = this.ahead(40); const h = new Horse(x, y, pick(Object.keys(HORSE_BREEDS)), { owner: 'npc' }); G.addEnt(h); break; }
-      case 'killHostile': for (const e of G.ents) if (!e.dead && ((e.kind === 'npc' && (e.hostile || e.role === 'bandit')) || (e.kind === 'animal' && e.state === 'attack'))) e.hurt(9999, 'npc'); break;
+      case 'killHostile': for (const e of G.ents) if (!e.dead && ((e.kind === 'npc' && (e.hostile || e.role === 'bandit' || e.role === 'hunter')) || (e.kind === 'animal' && e.state === 'attack'))) e.hurt(9999, 'npc'); break;
       case 'clearDead': for (const e of G.ents) if (e.dead && (e.kind === 'npc' || e.kind === 'animal')) e.remove = true; break;
       case 'clearAni': for (const e of G.ents) if (e.kind === 'animal' && dist2(e.x, e.y, P.x, P.y) < 600 * 600) e.remove = true; break;
       case 'townReload': { const t = W.towns.find(x => x.id === this.el.querySelector('#dbg-town').value); if (t && t.spawned) { t.spawned = false; t._res = null; for (const e of G.ents) if (e.town === t.id) e.remove = true; } this.refreshTown(true); break; }

@@ -265,7 +265,7 @@ const REGIONS = [
 /* ---- Binalar ---- */
 const BUILDINGS = {
   general:  { n: 'Genel Mağaza', w: 10, h: 7, wall: '#8a6a48', roof: '#5b3a29', sign: '#c9a45c', svc: ['shop', 'news', 'rob'], shop: 'general' },
-  saloon:   { n: 'Saloon', w: 12, h: 9, wall: '#7a4f33', roof: '#46291c', sign: '#b3261e', svc: ['meal', 'shop', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
+  saloon:   { n: 'Saloon', w: 12, h: 9, wall: '#7a4f33', roof: '#46291c', sign: '#b3261e', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
   sheriff:  { n: 'Şerif Ofisi', w: 9, h: 7, wall: '#9a8a70', roof: '#4a3a2a', sign: '#d8c080', svc: ['bounty', 'board'] },
   doctor:   { n: 'Doktor', w: 8, h: 7, wall: '#d8d0c0', roof: '#5a4a40', sign: '#e8e8e8', svc: ['heal', 'shop'], shop: 'doctor' },
   gunsmith: { n: 'Silahçı', w: 8, h: 6, wall: '#6a5a4a', roof: '#3a2e24', sign: '#909090', svc: ['shop', 'rob'], shop: 'gunsmith' },
@@ -296,13 +296,13 @@ const BUILDINGS = {
   smith:    { n: 'Demirci', w: 9, h: 6, wall: '#5a5048', roof: '#2e2824', sign: '#b0a090', svc: ['shop', 'horsecare'], shop: 'smith' },
   pharmacy: { n: 'Eczane', w: 7, h: 6, wall: '#d8d8c8', roof: '#3a5a4a', sign: '#80c0a0', svc: ['shop', 'rob'], shop: 'pharmacy' },
   laundry:  { n: 'Çamaşırhane', w: 8, h: 6, wall: '#b8b0a0', roof: '#5a6a7a', sign: '#a0c0e0', svc: ['bath'] },
-  gambling: { n: 'Kumarhane', w: 11, h: 8, wall: '#5a2a2a', roof: '#2a1414', sign: '#e0b040', svc: ['blackjack', 'shop', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
+  gambling: { n: 'Kumarhane', w: 11, h: 8, wall: '#5a2a2a', roof: '#2a1414', sign: '#e0b040', svc: ['poker', 'blackjack', 'shop', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
   brewery:  { n: 'Bira İmalathanesi', w: 11, h: 8, wall: '#7a5030', roof: '#3a2818', sign: '#d8a040', svc: ['work', 'shop'], shop: 'brewery', work: 'brewery', brick: 1 },
   mill:     { n: 'Değirmen', w: 8, h: 7, wall: '#a88a60', roof: '#5a4030', sign: '#e0d0a0', svc: ['work', 'shop'], shop: 'mill', work: 'mill' },
   county:   { n: 'İlçe Binası', w: 10, h: 8, wall: '#b8a888', roof: '#3a3a44', sign: '#e8e0c0', svc: ['property'], brick: 1, tall: 1 },
   post:     { n: 'Posta ve Telgraf', w: 8, h: 6, wall: '#8a9aa0', roof: '#3a4450', sign: '#e0e0e0', svc: ['stage', 'news', 'rumor'] },
   warehouse:{ n: 'Toptancı Ambarı', w: 12, h: 8, wall: '#7a6a58', roof: '#40382e', sign: '#c8b080', svc: ['shop'], shop: 'warehouse' },
-  cantina:  { n: 'Cantina', w: 10, h: 8, wall: '#c89a68', roof: '#8a5a38', sign: '#e06040', svc: ['meal', 'shop', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon' },
+  cantina:  { n: 'Cantina', w: 10, h: 8, wall: '#c89a68', roof: '#8a5a38', sign: '#e06040', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon' },
 };
 
 /* İş türleri */
@@ -485,7 +485,7 @@ const ACHIEVEMENTS = [
   { id: 'home',      n: 'Ev Sahibi',             d: 'Bir mülk satın al.', perk: 'Evde uyumak tüm çekirdekleri doldurur', s: 'properties', v: 1 },
   { id: 'married',   n: 'Mutlu Yuva',            d: 'Evlen.', perk: 'Sağlık yenilenmesi +%25', s: 'married', v: 1 },
   { id: 'parent',    n: 'Soy Ağacı',             d: 'Bir çocuğun olsun.', perk: 'Aile seni motive eder: yaşlanma etkileri azalır', s: 'children', v: 1 },
-  { id: 'gambler',   n: 'Kumarbaz',              d: '10 el Yirmi Bir kazan.', perk: 'Kumarda şansın artar', s: 'bjWins', v: 10 },
+  { id: 'gambler',   n: 'Kumarbaz',              d: '10 el Yirmi Bir kazan.', perk: 'Kumarda şansın artar; pokerde rakiplerin yüzünü okursun', s: 'bjWins', v: 10 },
   { id: 'arm',       n: 'Demir Bilek',           d: '5 bilek güreşi kazan.', perk: 'Yakın dövüş hasarı +%30', s: 'armWins', v: 5 },
   { id: 'desert',    n: 'Çöl Faresi',            d: 'Çölde toplam 24 saat geçir.', perk: 'Sıcağa dayanım +6°C', s: 'hoursDesert', v: 24 },
   { id: 'cold',      n: 'Kutup Kurdu',           d: 'Soğuk bölgelerde toplam 24 saat geçir.', perk: 'Soğuğa dayanım +6°C', s: 'hoursCold', v: 24 },
