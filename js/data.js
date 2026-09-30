@@ -40,6 +40,11 @@ const ITEMS = {
   bandage:      { n: 'Bandaj', c: 'med', p: 0.1, i: '🩹', e: { health: 25 }, d: 'Temiz bez sargı.' },
   herbal_tonic: { n: 'Bitki Toniği', c: 'med', p: 0.35, i: '🧉', e: { health: 35, cure: 1, energy: 5 }, d: 'Kendi yaptığın şifalı karışım.' },
   tobacco:      { n: 'Çiğneme Tütünü', c: 'med', p: 0.1, i: '🌿', e: { deadeye: 40 }, d: 'Dikkati keskinleştirir.' },
+  quinine:      { n: 'Kinin', c: 'med', p: 0.6, i: '💊', e: { cure: 1, immune: 24 }, max: 5, d: 'Acı beyaz toz. Ateşi düşürür, bir gün boyunca hastalığa karşı korur.' },
+  laudanum:     { n: 'Laudanum', c: 'med', p: 0.75, i: '🧴', e: { pain: 3, drunk: 15, energy: -15 }, max: 5, d: 'Afyonlu ağrı kesici. Acıyı uyuşturur ama başını döndürür.' },
+  liniment:     { n: 'Kas Merhemi', c: 'med', p: 0.4, i: '🫙', e: { limber: 2 }, max: 5, d: 'Kâfurlu ve terebentinli merhem. Yorgun kaslar daha geç tükenir, çabuk toparlanır.' },
+  smelling_salts:{ n: 'Koklatma Tuzu', c: 'med', p: 0.3, i: '🧂', e: { sober: 1, energy: 30 }, max: 5, d: 'Burnu yakan bir koku. Sarhoşluğu ve uykuyu anında dağıtır.' },
+  sarsaparilla: { n: 'Sarsaparilla', c: 'med', p: 0.1, i: '🍾', e: { thirst: 30, cool: 3 }, d: 'Köklerden yapılan serinletici tonik. Sıcakta vücudu serin tutar.' },
   cigarette:    { n: 'Sigara', c: 'med', p: 0.05, i: '🚬', e: { deadeye: 30, stamina: -5 }, max: 20, d: 'Bir nefes huzur.' },
   // ---- Bitkiler
   ginseng:      { n: 'Ginseng', c: 'herb', p: 0.4, i: '🌱', e: { stamina: 15 }, max: 30, d: 'Güç veren kök.' },
@@ -100,6 +105,8 @@ const ITEMS = {
   horse_brush:  { n: 'At Fırçası', c: 'tool', p: 0.35, i: '🧹', max: 1, d: 'Atını temizler, bağınızı güçlendirir.' },
   horse_reviver:{ n: 'At Diriltici', c: 'horse', p: 3, i: '💉', max: 5, d: 'Yaralı atını ayağa kaldırır.' },
   horse_tonic:  { n: 'At Toniği', c: 'horse', p: 0.75, i: '🍶', max: 10, d: 'Atının dayanıklılığını yeniler.' },
+  binoculars:   { n: 'Dürbün', c: 'tool', p: 3, i: '🔭', max: 1, d: 'Uzağı gösterir: hayvanları, insanları ve ufuktaki yerleri görürsün.' },
+  lockpick:     { n: 'Maymuncuk', c: 'tool', p: 0.5, i: '🗝️', max: 10, d: 'Kilitli ya da kapalı kapıları kırmadan, sessizce açar. Beceriksiz ellerde kırılır.' },
   harmonica:    { n: 'Mızıka', c: 'tool', p: 0.5, i: '🎵', max: 1, d: 'Kamp ateşinin başında çalınır. Ruhu dinlendirir.' },
   bait:         { n: 'Solucan Yem', c: 'tool', p: 0.02, i: '🪱', max: 30, d: 'Balıklar daha çabuk vurur.' },
   // ---- Belgeler
@@ -170,7 +177,7 @@ const ITEM_SLOTS = [
   { n: 'Tütün', g: 'steam', f: (id) => id === 'cigarette' || id === 'tobacco' },
   { n: 'Bitkiler', g: 'wheat', f: (id, it) => it.c === 'herb' && !!it.e },
   { n: 'At', g: 'horse', f: (id, it) => it.c === 'horse' },
-  { n: 'Kit', g: 'lamp', v: ['@lantern', '@harmonica'], f: (id) => id === 'treasure_map' || id === 'region_map' },
+  { n: 'Kit', g: 'lamp', v: ['@lantern', '@harmonica'], f: (id) => id === 'treasure_map' || id === 'region_map' || id === 'binoculars' },
   { n: 'Giysi', g: 'mask', f: (id, it) => it.c === 'clothing' },
 ];
 
@@ -317,30 +324,30 @@ const JOBS = {
 
 /* Dükkan stokları ve alım oranları */
 const SHOPS = {
-  general: { n: 'Genel Mağaza', sell: ['beans', 'bread', 'jerky', 'peaches', 'corn', 'coffee', 'chocolate', 'health_cure', 'stamina_tonic', 'bandage', 'tobacco', 'cigarette', 'canteen', 'bedroll', 'fishing_rod', 'bait', 'gold_pan', 'pickaxe', 'shovel', 'lantern', 'hay', 'horse_brush', 'horse_tonic', 'region_map', 'wildflower', 'harmonica', 'mask_bandana'],
+  general: { n: 'Genel Mağaza', sell: ['beans', 'bread', 'jerky', 'peaches', 'corn', 'coffee', 'chocolate', 'health_cure', 'stamina_tonic', 'bandage', 'tobacco', 'cigarette', 'canteen', 'bedroll', 'fishing_rod', 'bait', 'gold_pan', 'pickaxe', 'shovel', 'lantern', 'hay', 'horse_brush', 'horse_tonic', 'region_map', 'wildflower', 'harmonica', 'mask_bandana', 'sarsaparilla', 'liniment', 'binoculars'],
              ammo: ['pistol', 'repeater'], buy: { food: 0.5, herb: 0.6, valuable: 0.5, animal: 0.35, collect: 0.5, tool: 0.4, clothing: 0.4, horse: 0.4 } },
-  saloon:  { n: 'Bar', sell: ['beer', 'whiskey', 'stew', 'coffee', 'cigarette', 'bread'], buy: {} },
-  doctor:  { n: 'Doktor', sell: ['health_cure', 'bandage', 'antidote', 'snake_oil', 'stamina_tonic', 'herbal_tonic'], buy: { herb: 1.0, med: 0.5 } },
-  gunsmith:{ n: 'Silahçı', weapons: ['knife', 'lasso', 'cattleman', 'schofield', 'repeater', 'winchester', 'rifle', 'shotgun', 'bow'], ammo: ['pistol', 'repeater', 'rifle', 'shotgun', 'arrow'], sell: ['dynamite'], buy: {} },
+  saloon:  { n: 'Bar', sell: ['beer', 'whiskey', 'stew', 'coffee', 'cigarette', 'bread', 'sarsaparilla'], buy: {} },
+  doctor:  { n: 'Doktor', sell: ['health_cure', 'bandage', 'antidote', 'snake_oil', 'stamina_tonic', 'herbal_tonic', 'quinine', 'laudanum', 'liniment', 'smelling_salts'], buy: { herb: 1.0, med: 0.5 } },
+  gunsmith:{ n: 'Silahçı', weapons: ['knife', 'lasso', 'cattleman', 'schofield', 'repeater', 'winchester', 'rifle', 'shotgun', 'bow'], ammo: ['pistol', 'repeater', 'rifle', 'shotgun', 'arrow'], sell: ['dynamite', 'binoculars'], buy: {} },
   butcher: { n: 'Kasap', sell: ['cooked_game', 'cooked_big', 'jerky', 'raw_game', 'bait'], buy: { animal: 1.0, food: 0.7 } },
   tailor:  { n: 'Terzi', sell: ['coat_duster', 'coat_sheep', 'coat_fur', 'coat_poncho', 'coat_linen', 'hat_cowboy', 'hat_bowler', 'hat_flat', 'hat_wide', 'mask_bandana'], buy: { clothing: 0.5 } },
-  fence:   { n: 'Kaçakçı', sell: ['dynamite', 'snake_oil', 'whiskey', 'tobacco', 'mask_bandana', 'mask_sack'], buy: { valuable: 1.0, collect: 0.9, clothing: 0.6 } },
-  nomad_traders: { n: 'Kervan', sell: ['coffee', 'tobacco', 'snake_oil', 'bandage', 'harmonica', 'lantern', 'mask_bandana', 'canteen', 'bedroll', 'chocolate', 'whiskey'], buy: { animal: 0.7, valuable: 0.75, collect: 1.1, herb: 0.6 } },
+  fence:   { n: 'Kaçakçı', sell: ['dynamite', 'snake_oil', 'whiskey', 'tobacco', 'mask_bandana', 'mask_sack', 'lockpick', 'laudanum'], buy: { valuable: 1.0, collect: 0.9, clothing: 0.6 } },
+  nomad_traders: { n: 'Kervan', sell: ['coffee', 'tobacco', 'snake_oil', 'bandage', 'harmonica', 'lantern', 'mask_bandana', 'canteen', 'bedroll', 'chocolate', 'whiskey', 'quinine', 'binoculars'], buy: { animal: 0.7, valuable: 0.75, collect: 1.1, herb: 0.6 } },
   nomad_drovers: { n: 'Sığırtmaçlar', sell: ['cooked_big', 'jerky', 'coffee', 'beans', 'hay', 'horse_tonic', 'horse_brush'], buy: { food: 0.6, animal: 0.6 } },
-  nomad_prospectors: { n: 'Arayıcılar', sell: ['gold_pan', 'pickaxe', 'shovel', 'lantern', 'coffee', 'beans', 'dynamite'], buy: { valuable: 0.95 } },
-  nomad_trappers: { n: 'Kürkçüler', sell: ['bait', 'jerky', 'coat_fur', 'coat_sheep', 'stamina_tonic', 'bandage'], buy: { animal: 1.05, herb: 0.7 } },
+  nomad_prospectors: { n: 'Arayıcılar', sell: ['gold_pan', 'pickaxe', 'shovel', 'lantern', 'coffee', 'beans', 'dynamite', 'binoculars'], buy: { valuable: 0.95 } },
+  nomad_trappers: { n: 'Kürkçüler', sell: ['bait', 'jerky', 'coat_fur', 'coat_sheep', 'stamina_tonic', 'bandage', 'liniment'], buy: { animal: 1.05, herb: 0.7 } },
   stable:  { n: 'Ahır', sell: ['hay', 'horse_brush', 'horse_reviver', 'horse_tonic'], buy: { horse: 0.5 } },
   mine:    { n: 'Maden Deposu', sell: ['pickaxe', 'gold_pan', 'lantern', 'coffee', 'beans'], buy: { valuable: 0.85 } },
   docks:   { n: 'Liman Tüccarı', sell: ['fishing_rod', 'bait', 'whiskey', 'peaches', 'beans'], buy: { food: 0.8, animal: 0.6 } },
   trapper: { n: 'Tuzakçı', sell: ['coat_fur', 'coat_sheep', 'jerky', 'bait'], ammo: ['arrow'], buy: { animal: 1.15, food: 0.6 } },
-  hermit:  { n: 'Münzevi', sell: ['herbal_tonic', 'snake_oil', 'antidote', 'mushroom', 'treasure_map'], buy: { herb: 1.2, collect: 1.0 } },
+  hermit:  { n: 'Münzevi', sell: ['herbal_tonic', 'snake_oil', 'antidote', 'mushroom', 'treasure_map', 'quinine'], buy: { herb: 1.2, collect: 1.0 } },
   bakery:  { n: 'Fırın', sell: ['bread', 'chocolate', 'coffee', 'corn'], buy: { food: 0.5 } },
   smith:   { n: 'Demirci', sell: ['pickaxe', 'shovel', 'lantern', 'gold_pan', 'horse_brush'], weapons: ['knife'], buy: { valuable: 0.6, tool: 0.6 } },
-  pharmacy:{ n: 'Eczane', sell: ['health_cure', 'bandage', 'antidote', 'stamina_tonic', 'herbal_tonic', 'snake_oil', 'tobacco'], buy: { herb: 1.1, med: 0.55 } },
+  pharmacy:{ n: 'Eczane', sell: ['health_cure', 'bandage', 'antidote', 'stamina_tonic', 'herbal_tonic', 'snake_oil', 'tobacco', 'quinine', 'laudanum', 'liniment', 'smelling_salts', 'sarsaparilla'], buy: { herb: 1.1, med: 0.55 } },
   brewery: { n: 'İmalathane', sell: ['beer', 'whiskey'], buy: { food: 0.5 } },
   mill:    { n: 'Değirmen', sell: ['bread', 'corn', 'hay'], buy: { food: 0.6 } },
   warehouse:{ n: 'Toptancı', sell: ['beans', 'coffee', 'corn', 'tobacco', 'hay', 'whiskey', 'lantern', 'canteen'], ammo: ['pistol', 'repeater', 'rifle'], buy: { food: 0.45, animal: 0.45, valuable: 0.6, tool: 0.45 } },
-  peddler: { n: 'Seyyar Satıcı', sell: ['snake_oil', 'chocolate', 'whiskey', 'bandage', 'gold_ring', 'necklace', 'cig_card'], ammo: ['pistol'], buy: { valuable: 0.7, collect: 0.8, animal: 0.5 } },
+  peddler: { n: 'Seyyar Satıcı', sell: ['snake_oil', 'chocolate', 'whiskey', 'bandage', 'gold_ring', 'necklace', 'cig_card', 'liniment', 'sarsaparilla', 'lockpick'], ammo: ['pistol'], buy: { valuable: 0.7, collect: 0.8, animal: 0.5 } },
 };
 /* Herhangi bir dükkanda satılan eşyalar (satış fiyatı sınırı için) */
 const PURCHASABLE = new Set(Object.values(SHOPS).flatMap(S => S.sell || []));

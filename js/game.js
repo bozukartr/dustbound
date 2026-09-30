@@ -37,7 +37,7 @@ const G = {
     this.law = { level: 0, bounty: 0, lastX: 0, lastY: 0, unseen: 0, spawnT: 0, radius: 0, maskBounty: 0, masked: false, desc: null };
     this.reports = []; this.nomads = null;
     this.honor = 0; this.bank = 0; this.scars = 0;
-    this.stats = { animals: 0, bears: 0, discoveries: 0, towns: 0, rideMiles: 0, walkMiles: 0, eaten: 0, herbs: 0, fish: 0, longKills: 0, bandits: 0, kills: 0, maxCash: 0, earned: 0, shifts: 0, helped: 0, maxBounty: 0, maxHonor: 0, minHonor: 0, properties: 0, married: 0, children: 0, bjWins: 0, armWins: 0, pokerWins: 0, hoursDesert: 0, hoursCold: 0, nuggets: 0, collectibles: 0, tamed: 0, camps: 0, treasures: 0, trainRides: 0, deadeyes: 0, age: START_AGE };
+    this.stats = { animals: 0, bears: 0, discoveries: 0, towns: 0, rideMiles: 0, walkMiles: 0, eaten: 0, herbs: 0, fish: 0, longKills: 0, bandits: 0, kills: 0, maxCash: 0, earned: 0, shifts: 0, helped: 0, maxBounty: 0, maxHonor: 0, minHonor: 0, properties: 0, married: 0, children: 0, bjWins: 0, armWins: 0, pokerWins: 0, locksPicked: 0, hoursDesert: 0, hoursCold: 0, nuggets: 0, collectibles: 0, tamed: 0, camps: 0, treasures: 0, trainRides: 0, deadeyes: 0, age: START_AGE };
     this.skills = {}; for (const k in SKILLS) this.skills[k] = { lv: 1, xp: 0 };
     this.achieved = {};
     this.visited = new Set(); this.discovered = new Set(); this.rumored = new Set();
@@ -48,6 +48,7 @@ const G = {
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {};
+    if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
     this.travelT = 10; this.eventT = 90;
@@ -123,6 +124,7 @@ const G = {
     let s = this.settings.zoom || Math.max(2, Math.round(H / 270));
     if (W / s < 320) s = Math.max(1, Math.floor(W / 320));
     this.scale = s;
+    if (this.binoc) this.binocEl(true);
     this.vw = Math.ceil(W / s); this.vh = Math.ceil(H / s);
     const c = this.canvas;
     c.width = this.vw; c.height = this.vh;
@@ -222,7 +224,7 @@ const G = {
     const data = {
       v: 3, ww: WW, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
       profile: this.profile,
-      player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, canteen: P.canteen, coat: P.coat, mask: P.masked ? P.mask : null, lastMask: P.lastMask || null, lantern: P.lantern, riding: !!P.riding },
+      player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, immuneT: P.immuneT, painT: P.painT, limberT: P.limberT, coolT: P.coolT, canteen: P.canteen, coat: P.coat, mask: P.masked ? P.mask : null, lastMask: P.lastMask || null, lantern: P.lantern, riding: !!P.riding },
       horse: h ? { breed: h.breed, name: h.name, look: h.look, hp: h.hp, bond: h.bond, x: h.x, y: h.y, dead: h.dead } : null,
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
@@ -343,7 +345,7 @@ const G = {
     this.rebuildFog();
     const p = d.player;
     const P = this.player = new Player(p.x, p.y, { name: p.name, look: p.look });
-    Object.assign(P, { inv: p.inv, ammo: p.ammo, clip: p.clip, weapon: p.weapon, money: p.money, hp: p.hp, sta: p.sta, de: p.de, hunger: p.hunger, thirst: p.thirst, energy: p.energy, clean: p.clean, deCore: p.deCore, sick: p.sick, canteen: p.canteen, coat: p.coat, mask: p.mask || null, lastMask: p.lastMask || null, lantern: p.lantern });
+    Object.assign(P, { inv: p.inv, ammo: p.ammo, clip: p.clip, weapon: p.weapon, money: p.money, hp: p.hp, sta: p.sta, de: p.de, hunger: p.hunger, thirst: p.thirst, energy: p.energy, clean: p.clean, deCore: p.deCore, sick: p.sick, immuneT: p.immuneT || 0, painT: p.painT || 0, limberT: p.limberT || 0, coolT: p.coolT || 0, canteen: p.canteen, coat: p.coat, mask: p.mask || null, lastMask: p.lastMask || null, lantern: p.lantern });
     P.weapons = new Set(p.weapons);
     // eski kayıtlar: kasaba düzeni değiştiyse duvarın içinde başlama
     if (this.world.blocked(P.x, P.y, 4)) { const t = this.nearestTown(P.x, P.y); P.x = t.spawn.x; P.y = t.spawn.y; }
@@ -403,6 +405,7 @@ const G = {
     const P = this.player, I = Input;
     const modal = UI.isModal() || UI.state === 'fade';
     this.uiBlocksMove = modal || this.state !== 'play';
+    if (this.binoc) { if (modal || this.state !== 'play') this.binocOff(); else this.binocUpdate(dt); }
     if (this.state === 'play' && !modal) this.handleGlobalInput(dt);
     if (modal || this.state !== 'play') Bubbles.clear(); else Bubbles.update(dt);
     if (modal) { this.updateCamera(dt); return; }
@@ -417,7 +420,7 @@ const G = {
       // birkaç dakikada bir sessiz otomatik kayıt (kovalamaca ya da baskın sırasında değil)
       if ((this.autoT += dt) > 240 && this.law.level === 0) { this.autoT = 0; this.saveGame(true); }
     }
-    if (this.state === 'play') P.update(sdt);
+    if (this.state === 'play' && !this.binoc) P.update(sdt);
     for (const e of this.ents) {
       if (e === P) continue;
       // uzaktaki kasaba sakinleri seyrek güncellenir (kalabalık kasabalarda performans)
@@ -694,8 +697,10 @@ const G = {
     let tx = P.x, ty = P.y;
     if (P.riding) { tx += Math.cos(P.riding.ang) * P.riding.spd * 0.45; ty += Math.sin(P.riding.ang) * P.riding.spd * 0.45; }
     if (P.aiming || P.rsAim) { const d = Math.min(P.aimDist, 90) * 0.45; tx += Math.cos(P.aimAng) * d; ty += Math.sin(P.aimAng) * d; }
-    C.x = lerp(C.x, tx, Math.min(1, dt * 4));
-    C.y = lerp(C.y, ty, Math.min(1, dt * 4));
+    if (this.binoc) { tx += this.binoc.x; ty += this.binoc.y; }
+    const cf = this.binoc ? 7 : 4;
+    C.x = lerp(C.x, tx, Math.min(1, dt * cf));
+    C.y = lerp(C.y, ty, Math.min(1, dt * cf));
     let sx = 0, sy = 0;
     if (this.fx.shake > 0 && this.settings.shake) { sx = rnd(-1, 1) * this.fx.shake; sy = rnd(-1, 1) * this.fx.shake; }
     this.fx.shake = Math.max(0, this.fx.shake - dt * 18);
@@ -824,6 +829,7 @@ const G = {
     // sonraki chunk'lar
     this.prefetch(false);
     W.runJobs(4);
+    if (this.binoc) this.binocDraw();
   },
   /* Bina cepheleri ve çatıları: içerideyken ya da arkasındayken soluklaşır */
   drawCovers(ctx, x0, y0, x1, y1, dt) {
@@ -1015,3 +1021,4 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(PokerSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(BinocSystems));

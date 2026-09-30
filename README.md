@@ -97,6 +97,14 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - Açlık, susuzluk, uyku, temizlik, vücut ısısı, hastalık, zehirlenme ve sarhoşluk.
 - **Yaşlanma**: 18 yaşında başlarsın. 30'lardan sonra dayanıklılık, 50'lerden sonra sağlık azalır; saçın ağarır. Yaşlanma hızı seçilebilir.
 - Otellerde, kendi evinde ya da kamp kurup uyuyabilirsin. Kamp kurmak için bir Uyku Tulumu (genel mağaza) gerekir; kasabadan uzakta kamp tuşunu basılı tut. Kamp ateşinde yemek pişirip tonik ve ok yapabilirsin. Ateşin ısısı mesafeyle azalır ve hissedilen sıcaklık yavaşça değişir: ateşe yaklaşınca birkaç saniyede ısınır, uzaklaşınca yavaş yavaş soğursun.
+- **İlaçlar**: Doktor ve eczanede, kısmen seyyar satıcı, kervan ve münzevide satılır. Etkileri süreli olanlar HUD'da simgeyle görünür ve kayıtla korunur.
+  - **Kinin**: hastalığı iyileştirir ve bir gün boyunca hastalık kapmanı önler (kirli su, çiğ et).
+  - **Laudanum**: 3 saat alınan hasarı %40 azaltır; başını döndürür ve uykunu getirir.
+  - **Kas Merhemi**: 2 saat koşarken dayanıklılık çok daha yavaş tükenir, daha çabuk dolar.
+  - **Koklatma Tuzu**: sarhoşluğu anında giderir, uykuyu açar.
+  - **Sarsaparilla**: susuzluğu giderir, 3 saat sıcakta vücudu serin tutar.
+- **Dürbün** (genel mağaza, silahçı, kervan): Eşya çarkından ya da çantadan kullanılır. Durup fareyle, yön tuşlarıyla ya da çubukla 420 piksele kadar uzağa bakarsın. Görüşteki hayvanların ve dikkat çeken insanların adları yazar (aranan hedefler ve haydutlar kırmızı). Uzakta gördüğün yerler haritada işaretlenir, baktığın yerin haritası açılır. Esc, sağ tık ya da hasar almak dürbünü indirir; at sırtında kullanılamaz.
+- **Maymuncuk** (kaçakçı, seyyar satıcı): Kilitli evlerin ve gece kapalı dükkânların kapısında "Maymuncukla Aç" seçeneği çıkar. Gösterge yeşil bölgedeyken basarak pimleri yerine oturtursun (ev 3, dükkân 4, banka 5 pim). Kapıyı kırmanın aksine ses çıkarmaz; ıskalarsan kilit tıkırdar ve maymuncuk kırılabilir. Görülürsen yine suçtur.
 - Madenlerde, kerestecide, limanda ve çiftliklerde çalışarak para kazanırsın. Mülk satın alabilir, bankaya para yatırabilirsin.
 - Her kasabada tanışabileceğin biri yaşar. Onunla ilişki kurup evlenebilir, çocuk sahibi olabilirsin.
 
@@ -186,6 +194,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `economy` | para biçimi, fiyatlar, soygun tekrarları, al-sat açığı, günlük sınırlar |
 | `business` | işletme satın alma, yük arabası, toptan mal, teslimat, gelir, arsaya inşaat, kayıt |
 | `haulers` | nakliyeci, sefer, yoldaki araba, baskın, maaş, kayıt |
+| `items` | yeni ilaçların etkileri, kas merhemiyle koşu, süreli etkilerin kaydı, maymuncuk (ev, dükkân, kırılma), dürbün (görüş, etiket, yer işaretleme, indirme) |
 | `poker` | el değerlendirme, masadaki yerler, klavye ve fareyle bir el, çekilme, masadan kalkma, günlük rakipler, kayıt, yüz okuma |
 | `hunters` | ödül avcısı grubu: çıkma koşulları, yaklaşma, parayla kurtulma, teslim olma, çatışma |
 | `world` | kasaba sakinleri, ölüm ve yerine gelen, at arabası, hayvan kementleme, boğulma, göçebeler, mevsimler |
@@ -228,6 +237,7 @@ js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
 js/business.js  işletmeler: satın alma, işletmeci, stok ve kasa, toptan mal sandıkları, yük arabası, arsaya inşaat
 js/haulers.js   nakliyeciler: işe alma, rota ve sefer, yolda görünen araba, haydut baskını ve kurtarma
+js/binoculars.js dürbün: uzağa bakma, etiketler, uzaktaki yerleri haritada işaretleme
 js/poker.js     poker: el değerlendirme, rakip yapay zekâsı, sabit limitli bahis, masa arayüzü
 js/hunters.js   ödül avcıları: kasaba dışında çıkan grup, bekleyiş, teslim olma, parayla kurtulma, çatışma
 tests/run.js    test çalıştırıcı (npm test); tests/lib.js yardımcılar; tests/e2e/*.test.js testler

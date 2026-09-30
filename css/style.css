@@ -521,6 +521,15 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 .pk-b { font: inherit; font-size: 15px; color: var(--ink-l, #e8dcc0); background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(201, 164, 92, 0.4); padding: 6px 12px; border-radius: 4px; cursor: pointer; }
 .pk-b:hover, .pk-b.pref { border-color: #e0b040; background: rgba(224, 176, 64, 0.15); }
 @media (max-width: 560px) { .pk-opps { grid-template-columns: 1fr; } .card { width: 50px; height: 72px; font-size: 16px; } .pk-hand { gap: 5px; } }
+.panel.lockpick { width: min(520px, 94vw); }
+.lp-pins { display: flex; justify-content: center; gap: 12px; margin: 22px 0 6px; }
+.lp-pins i { width: 14px; height: 34px; border: 2px solid #c9a45c; border-radius: 3px; background: #2a2016; }
+.lp-pins i.cur { border-color: #f0d890; box-shadow: 0 0 8px rgba(240, 216, 144, 0.5); }
+.lp-pins i.set { background: #c9a45c; height: 22px; margin-top: 12px; }
+.lp-bar { position: relative; height: 26px; margin: 18px 26px 22px; background: #2a2016; border: 2px solid #c9a45c; }
+.lp-bar.miss { border-color: #c04030; background: #3a1a14; }
+.lp-zone { position: absolute; top: 0; bottom: 0; background: rgba(110, 170, 80, 0.75); }
+.lp-bar i { position: absolute; top: -6px; width: 6px; height: 38px; margin-left: -3px; background: #fff; box-shadow: 0 0 6px #000; }
 .panel.arm { width: min(560px, 94vw); }
 .arm-bar { position: relative; height: 34px; margin: 30px 26px; background: linear-gradient(90deg, #3a6a2a, #444 50%, #7a1a14); border: 2px solid #c9a45c; }
 .arm-bar i { position: absolute; top: -8px; width: 8px; height: 46px; margin-left: -4px; background: #fff; box-shadow: 0 0 8px #000; }
@@ -806,3 +815,14 @@ body.dbg-nohud #hud { display: none; }
   .panel.slots { width: min(1200px, 90vw); height: min(800px, 86vh); }
   .sl-thumb { width: 256px; height: 144px; } .sl-name { font-size: 30px; } .sl-row { font-size: 19px; } .sl-acts { width: 250px; } .sl-btn b { font-size: 18px; } .sl-btn span { font-size: 14px; }
 }
+
+/* ---------------- Dürbün ---------------- */
+#binoc { position: fixed; inset: 0; pointer-events: none; }
+body.binoc-on #hud-help, body.binoc-on #hud-tr, body.binoc-on #hud-bl, body.binoc-on #hud-br, body.binoc-on #prompts, body.binoc-on #loc-title { visibility: hidden; }
+#binoc .bn-mask { position: absolute; inset: 0; }
+.bn-labels { position: absolute; inset: 0; }
+.bn-l { position: absolute; transform: translate(-50%, -100%); font-family: var(--sc); font-size: 14px; color: #efe6d2; text-shadow: 0 1px 2px #000, 0 0 6px #000; white-space: nowrap; }
+.bn-l.dim { color: #cfc4ac; font-size: 12px; }
+.bn-l.bad { color: #ff8a70; }
+.bn-l.poi { color: #f0d890; font-size: 16px; }
+.bn-hint { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); font-size: 14px; color: #cfc4ac; }

@@ -351,6 +351,10 @@ const UI = {
     if (G.coldness > 0) gi('snow', Tr('Üşüyorsun'), '#9cc8ff', 1);
     if (G.hotness > 0) gi('sun', Tr('Sıcak çarpıyor'), '#ffb060', 1);
     if (P.warmBuff > 0) gi('steam', Tr('Isınmış'), '#f0d8b0');
+    if (P.immuneT > 0) gi('cross', Tr('Kinin: hastalığa karşı korunuyorsun'), '#e8e0c8');
+    if (P.painT > 0) gi('heartp', Tr('Laudanum: acı uyuştu'), '#d8a0c8');
+    if (P.limberT > 0) gi('feet', Tr('Kas merhemi'), '#b8d8a0');
+    if (P.coolT > 0) gi('snow', Tr('Serinlemiş'), '#a8d0f0');
     if (G.nearFire) gi('fire', Tr('Ateş başında'), '#ff9a40');
     if (P.clean < 20) gi('flies', Tr('Kirlisin'), '#c8b890');
     if (P.crouch) gi('feet', Tr('Gizlilik'), '#e8e0d0');
@@ -976,6 +980,11 @@ const UI = {
     for (const k in map) if (e[k]) eff.push(`${map[k]} ${e[k] > 0 ? '+' : ''}${e[k]}`);
     if (e.cure) eff.push(Tr('Hastalığı iyileştirir'));
     if (e.poison) eff.push(Tr('Zehri yok eder'));
+    if (e.immune) eff.push(Tr`${e.immune} saat hastalığa karşı korur`);
+    if (e.pain) eff.push(Tr`${e.pain} saat alınan hasar %40 azalır`);
+    if (e.limber) eff.push(Tr`${e.limber} saat koşarken daha geç yorulursun`);
+    if (e.cool) eff.push(Tr`${e.cool} saat sıcakta serinletir`);
+    if (e.sober) eff.push(Tr('Sarhoşluğu anında giderir'));
     if (it.raw) eff.push(`<span class="bad">${Tr`Çiğ: hastalık riski`}</span>`);
     if (it.coat) eff.push(Tr`Sıcaklık ${it.coat.warm > 0 ? '+' : ''}${it.coat.warm}°C`);
     return `<div class="ps-big">${Icons.item(it.id, 'ic big')}</div><div class="ps-t">${it.n}</div><div class="ps-d">${it.d || ''}</div>${eff.length || extra ? `<div class="ps-e">${extra || eff.join('<br>')}</div>` : ''}<div class="ps-p">${Tr`Değeri: ${fmtMoney(it.p)}`}</div>`;
@@ -1963,6 +1972,56 @@ const UI = {
       }
     };
     el.addEventListener('click', (e) => { if (st.phase === 'bet') { Input.state.confirm = true; Input.prev.confirm = false; } });
+    draw();
+    this.push(m);
+  },
+  /* Maymuncuk: gösterge tatlı bölgedeyken bas, bütün pimleri yerine oturt.
+     Iskalarsan kilit tıkırdar; maymuncuk kırılabilir. */
+  openLockpick(b) {
+    const P = G.player;
+    if (!P.has('lockpick')) { this.feed(Tr('Maymuncuğun yok.'), 'warn'); return; }
+    const pins = b.def.svc.includes('robbank') ? 5 : b.def.lock ? 3 : 4;
+    const el = el_('div', 'modal panel lockpick');
+    const st = { k: 0, pins, pos: 0, dir: 1, zone: rnd(0.25, 0.75), w: 0.17, done: false, msg: '', flash: 0 };
+    const speed = () => 0.8 + st.k * 0.22;
+    const draw = () => {
+      el.innerHTML = `<div class="p-head"><div class="p-title">${Tr`Maymuncuk`}</div><div class="p-sub">${escapeHtml(b.name)} · ${Tr`Maymuncuk: ${P.count('lockpick')}`}</div></div>
+        <div class="lp-pins">${Array.from({ length: pins }, (_, i) => `<i class="${i < st.k ? 'set' : i === st.k && !st.done ? 'cur' : ''}"></i>`).join('')}</div>
+        <div class="lp-bar ${st.flash > 0 ? 'miss' : ''}"><div class="lp-zone" style="left:${(st.zone - st.w / 2) * 100}%;width:${st.w * 100}%"></div><i style="left:${st.pos * 100}%"></i></div>
+        <div class="arm-msg">${st.msg || Tr('Gösterge yeşil bölgedeyken bas.')}</div>
+        <div class="p-foot">${Tr`${Input.glyph('confirm')} Pimi it &nbsp; ${Input.glyph('back')} Vazgeç`}</div>`;
+    };
+    const m = this.makeModal(el, { customInput: true, noFocus: true });
+    m.lock = st;
+    m.tryPin = () => {
+      if (st.done) return;
+      if (Math.abs(st.pos - st.zone) <= st.w / 2) {
+        st.k++; Audio_.tone(900 + st.k * 80, 0.05, 'square', 0.05);
+        if (st.k >= pins) { st.done = true; st.msg = Tr('Kilit açıldı!'); draw(); G.pickLock(b); setTimeout(() => this.pop(m), 450); return; }
+        st.zone = rnd(0.2, 0.8); st.msg = '';
+      } else {
+        st.flash = 0.3; Audio_.tone(160, 0.08, 'square', 0.05);
+        G.noise(b.door.x, b.door.y, 70, 'quiet');
+        if (chance(0.4)) {
+          P.removeItem('lockpick', 1);
+          if (!P.has('lockpick')) { st.done = true; st.msg = Tr('Maymuncuk kırıldı. Başka maymuncuğun kalmadı.'); draw(); setTimeout(() => this.pop(m), 900); return; }
+          st.msg = Tr('Maymuncuk kırıldı! Yenisiyle baştan başla.'); st.k = 0; st.zone = rnd(0.25, 0.75);
+        } else st.msg = Tr('Iskaladın, kilit tıkırdadı.');
+      }
+      draw();
+    };
+    m.update = (dt) => {
+      if (st.done) return;
+      st.pos += st.dir * speed() * dt;
+      if (st.pos >= 1) { st.pos = 1; st.dir = -1; } else if (st.pos <= 0) { st.pos = 0; st.dir = 1; }
+      if (st.flash > 0) st.flash -= dt;
+      const bar = $('.lp-bar i', el); if (bar) bar.style.left = st.pos * 100 + '%';
+      const lb = $('.lp-bar', el); if (lb) lb.classList.toggle('miss', st.flash > 0);
+      if (m.born >= this.frame - 1) return;
+      if (Input.pressed('back')) { this.pop(m); return; }
+      if (Input.pressed('confirm') || Input.pressed('interact')) m.tryPin();
+    };
+    el.addEventListener('mousedown', () => m.tryPin());
     draw();
     this.push(m);
   },
