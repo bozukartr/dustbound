@@ -620,10 +620,10 @@ const Debug = {
     }
     if (o.ovRoutes) {
       for (const e of G.ents) {
-        if (!e.res || !e.route || e.dead || !vis(e.x, e.y, 400)) continue;
+        const R = e.nav && e.nav.route; if (!e.res || !R || e.dead || !vis(e.x, e.y, 400)) continue;
         c.strokeStyle = 'rgba(99,230,190,0.85)'; c.setLineDash([6, 4]); c.lineWidth = 1.5;
         c.beginPath(); c.moveTo(sx(e.x), sy(e.y));
-        for (let i = e.ri || 0; i < e.route.length; i++) c.lineTo(sx(e.route[i][0]), sy(e.route[i][1]));
+        for (let i = e.nav.ri || 0; i < R.length; i++) c.lineTo(sx(R[i][0]), sy(R[i][1]));
         c.stroke(); c.setLineDash([]);
         if (e.goal) { c.fillStyle = 'rgba(99,230,190,0.9)'; c.beginPath(); c.arc(sx(e.goal.x), sy(e.goal.y), 4, 0, TAU); c.fill(); }
       }

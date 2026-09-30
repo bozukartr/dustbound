@@ -36,6 +36,7 @@ const G = {
     this.weather = { type: 'clear', t: 180, i: 0, cloud: 0, fogI: 0 };
     this.law = { level: 0, bounty: 0, lastX: 0, lastY: 0, unseen: 0, spawnT: 0, radius: 0, maskBounty: 0, masked: false, desc: null };
     this.reports = []; this.nomads = null;
+    this.talks = []; this.townNews = {}; this.teaseT = 0;
     this.honor = 0; this.bank = 0; this.scars = 0;
     this.stats = { animals: 0, bears: 0, discoveries: 0, towns: 0, rideMiles: 0, walkMiles: 0, eaten: 0, herbs: 0, fish: 0, longKills: 0, bandits: 0, kills: 0, maxCash: 0, earned: 0, shifts: 0, helped: 0, maxBounty: 0, maxHonor: 0, minHonor: 0, properties: 0, married: 0, children: 0, bjWins: 0, armWins: 0, pokerWins: 0, locksPicked: 0, homesBuilt: 0, hoursDesert: 0, hoursCold: 0, nuggets: 0, collectibles: 0, tamed: 0, camps: 0, treasures: 0, trainRides: 0, deadeyes: 0, age: START_AGE };
     this.skills = {}; for (const k in SKILLS) this.skills[k] = { lv: 1, xp: 0 };
@@ -413,7 +414,7 @@ const G = {
     this.uiBlocksMove = modal || this.state !== 'play';
     if (this.binoc) { if (modal || this.state !== 'play') this.binocOff(); else this.binocUpdate(dt); }
     if (this.state === 'play' && !modal) this.handleGlobalInput(dt);
-    if (modal || this.state !== 'play') Bubbles.clear(); else Bubbles.update(dt);
+    if (modal || this.state !== 'play') Bubbles.clear(); else { this.talkTick(dt); Bubbles.update(dt); }
     if (modal) { this.updateCamera(dt); return; }
     // isabet anında mikro duraklama: dünya bir anlığına durur, çizim sürer
     if (this.hitStopT > 0) { this.hitStopT -= dt; this.updateCamera(dt); return; }
@@ -1082,6 +1083,8 @@ const G = {
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(GameSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(CarrySystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(TownLifeSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcNav));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcMind));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));

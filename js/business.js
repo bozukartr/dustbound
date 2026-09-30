@@ -72,6 +72,7 @@ const BizSystems = {
     if (this.law.level > 0) { UI.feed(Tr('Aranırken kimse sana tapu vermez.'), 'warn'); return false; }
     const pr = this.bizPrice(b);
     if (!this.spend(pr)) return false;
+    this.townNote(b.door.x, b.door.y, 'rich');
     const kr = this.keeperOf(b);
     const mgr = this.newManager(hash2(b.id, 29, this.seed % 7919));
     if (kr) { mgr.name = kr.name; mgr.res = true; }

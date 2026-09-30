@@ -66,6 +66,7 @@ const I18N = {
     DIFFICULTIES, LIFE_PACES, LOOKS, GREETS, LINES, HEADLINES, SEASONS, RECIPES, HARVEST,
     GAME_ACTIONS, KEY_LABEL, MOUSE_LABEL, PAD_NAME, TIPS,
     ...(typeof OCCS !== 'undefined' ? [OCCS, KEEPER_N, CHAT, OCC_GREET, NEWS_SHOUT, RES_LINES] : []),
+    ...(typeof TALKS !== 'undefined' ? [MOODS, TALKS, TEASE, RETORT, REACT] : []),
     ...(typeof HUNTER_LINES !== 'undefined' ? [HUNTER_LINES] : []),
     ...(typeof POKER_LINES !== 'undefined' ? [POKER_LINES] : []),
   ],
