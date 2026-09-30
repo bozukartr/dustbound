@@ -94,7 +94,7 @@ function stageHelpers() {
     npc(dx, dy, role, o = {}) { const P = G.player; const n = new NPC(P.x + dx, P.y + dy, role, o); G.addEnt(n); return n; },
     animal(dx, dy, type) { const P = G.player; const a = new Animal(P.x + dx, P.y + dy, type); G.addEnt(a); return a; },
     ride() { const P = G.player, h = G.horse; if (!h) return; h.dead = false; h.hp = h.maxHp; h.x = P.x; h.y = P.y; h.spd = 0; P.mountAnim = null; if (!P.riding) P.mount(h, true); P.mountAnim = null; },
-    screen(e) { return { x: (e.x - G.cam.ox) * G.scale, y: (e.y - G.cam.oy) * G.scale }; },
+    screen(e) { return G.toScreen(e.x, e.y); },
   };
 }
 

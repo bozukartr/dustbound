@@ -360,6 +360,7 @@ const FX = {
       if (dx > r || dx < -r || dy > r * 0.8 || dy < -r * 0.8) continue;
       k += (dx >= 0 ? 1 : -1) * 0.55 * (1 - Math.abs(dx) / r) * (1 - Math.abs(dy) / (r * 0.8));
     }
+    if (Juice.blasts.length) k += Juice.swayPush(x, base);
     k = clamp(k * cfg[0], -0.75, 0.75);
     ctx.save();
     ctx.transform(1, 0, -k, 1, k * base, 0);
@@ -494,7 +495,7 @@ const FX = {
     const cs = G.canvas.style;
     if (g.drunk > 0.02) {
       const d = g.drunk, t = G.t;
-      const zm = G.camZoom && G.camZoom.z > 1.001 ? `scale(${G.camZoom.z.toFixed(4)}) ` : '';   // iç mekân yakınlaşmasıyla birlikte
+      const zo = G.camZoom ? G.camZoom.out || G.camZoom.z : 1, zm = Math.abs(zo - 1) > 0.001 ? `scale(${zo.toFixed(4)}) ` : '';   // iç mekân yakınlaşmasıyla birlikte
       cs.transform = zm + `rotate(${(Math.sin(t * 0.7) * 1.1 * d).toFixed(3)}deg) scale(${(1 + 0.035 * d).toFixed(4)}) translate(${(Math.sin(t * 0.45) * 0.6 * d).toFixed(2)}%, 0)`;
       this.drunkCss = true;
     } else if (this.drunkCss) this.clearCss();

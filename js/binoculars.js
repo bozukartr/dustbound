@@ -110,8 +110,7 @@ const BinocSystems = {
   binocDraw() {
     const B = this.binoc, el = document.getElementById('binoc');
     if (!B || !el) return;
-    const s = this.scale, C = this.cam;
-    const html = (B.labels || []).map(l => `<div class="bn-l ${l.cls}" style="left:${Math.round((l.x - C.ox) * s)}px;top:${Math.round((l.y - C.oy) * s)}px">${escapeHtml(l.t)}</div>`).join('');
+    const html = (B.labels || []).map(l => { const p = this.toScreen(l.x, l.y); return `<div class="bn-l ${l.cls}" style="left:${Math.round(p.x)}px;top:${Math.round(p.y)}px">${escapeHtml(l.t)}</div>`; }).join('');
     const box = el.querySelector('.bn-labels');
     if (box._h !== html) { box.innerHTML = html; box._h = html; }
   },

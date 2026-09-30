@@ -53,7 +53,7 @@ class Particles {
         }
       }
       else if (p.type === 'blood' || p.type === 'spark' || p.type === 'debris') { p.vx *= 0.9; p.vy *= 0.9; }
-      else if (p.type === 'ember') { p.vy -= 10 * dt; p.vx += (Math.random() - 0.5) * 20 * dt; }
+      else if (p.type === 'ember') { p.vy -= 10 * dt; p.vx += ((Math.random() - 0.5) * 20 + FX.wind.x * 7) * dt; p.vy += FX.wind.y * 3 * dt; }
       else if (p.type === 'feather') { p.vx *= 0.96; p.vy = p.vy * 0.96 + 4 * dt; }
       else if (p.type === 'splash') { p.vx *= 0.9; p.vy *= 0.9; }
     }
@@ -159,7 +159,7 @@ class Horse extends Ent {
   update(dt) {
     if (this.dead) return;
     this.t -= dt;
-    if (this.rider) return;
+    if (this.rider) { Juice.idle(this, dt, this.spd > 3 || this.rearT > 0); return; }
     const P = G.player;
     if (this.state === 'come') {
       const d = this.dTo(P);
@@ -187,6 +187,7 @@ class Horse extends Ent {
     this.mv = this.spd / 60;
     this.phase += dt * (4 + this.spd * 0.09);
     this.sta = Math.min(this.maxSta, this.sta + dt * 6);
+    Juice.idle(this, dt, this.spd > 3 || this.state !== 'idle');
   }
   hurt(dmg) {
     if (this.dead) return;
@@ -200,7 +201,7 @@ class Horse extends Ent {
     } else if (!this.rider && this.owner !== 'player') { this.state = 'flee'; this.t = 4; }
   }
   draw(ctx) {
-    Spr.horse(ctx, this.x, this.y, this.ang, this.look, { phase: this.phase, mv: this.mv, saddle: this.saddle, dead: this.dead, graze: this.graze && !this.rider, bags: this.owner === 'player' });
+    Spr.horse(ctx, this.x, this.y, this.ang, this.look, { phase: this.phase, mv: this.mv, saddle: this.saddle, dead: this.dead, graze: this.graze && !this.rider, bags: this.owner === 'player', rear: Juice.rearK(this), nod: this.nod || 0 });
     // eyerin arkasına yüklenmiş cesetler, leşler ve postlar
     if (this.load && this.load.length && !this.dead) {
       const c = Math.cos(this.ang), s = Math.sin(this.ang);
@@ -369,6 +370,7 @@ class Player extends Ent {
     this.steadyUpdate(dt);
     if (this.riding) this.updateRiding(dt, mv);
     else this.updateFoot(dt, mv, age);
+    Juice.idle(this, dt, !!this.riding || mv.m > 0.1 || this.reloadT > 0 || this.swing > 0 || this.fireCd > -1.5 || this.crouch);
     this.ropeUpdate(dt);
     // saldırılar
     if (!G.uiBlocksMove && !G.wheelOpen) this.updateCombat(dt);
@@ -566,6 +568,12 @@ class Player extends Ent {
     const B = h.def;
     let target = 0;
     const riding = G.skill('riding');
+    if (h.rearT > 0) {   // şahlanırken kontrol yok
+      h.rearT -= dt; h.spd = 0; h.mv = 0; this.galloping = false;
+      if (h.rearT <= 0) { h.rearT = 0; Audio_.step(0.12, true); Juice.hoof(h, G.world.tileAtPx(h.x, h.y)); }
+      this.x = h.x; this.y = h.y; this.ang = (this.aiming || this.rsAim) ? this.aimAng : h.ang; this.mv = 0;
+      return;
+    }
     const sBonus = 1 + riding * 0.02;
     if (mv.m > 0.1) {
       const want = Math.atan2(mv.y, mv.x);
@@ -589,18 +597,22 @@ class Player extends Ent {
     if (h.sta < 5) target = Math.min(target, 60);
     const acc = target > h.spd ? 90 : 180;
     h.spd += clamp(target - h.spd, -acc * dt, acc * dt);
+    // dörtnaldan sert duruş: at bazen şahlanır
+    if (h.spd > 120) h.brk = true;
+    else if (mv.m > 0.1 && h.spd < 90) h.brk = false;
+    if (h.brk && mv.m <= 0.1 && h.spd < 25) { h.brk = false; if (Math.random() < 0.6) Juice.rear(h); }
     const t = G.world.tileAtPx(h.x, h.y);
     const sl = t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD ? 1.05 : 1);
     const vx = Math.cos(h.ang) * h.spd * sl * dt, vy = Math.sin(h.ang) * h.spd * sl * dt;
     const ox = h.x, oy = h.y;
     h.move(vx, vy);
     const actual = dist(ox, oy, h.x, h.y);
-    if (actual < Math.hypot(vx, vy) * 0.3 && h.spd > 100) { h.spd *= 0.3; G.fx.shake = 3; Audio_.thud(0.3); }
+    if (actual < Math.hypot(vx, vy) * 0.3 && h.spd > 100) { h.spd *= 0.3; G.fx.shake = 3; Audio_.thud(0.3); h.brk = false; Juice.rear(h, true); }
     h.mv = h.spd / 60;
     h.phase += dt * (3 + h.spd * 0.1);
     if (h.spd > 40) {
       this.stepT -= dt * h.spd;
-      if (this.stepT <= 0) { this.stepT = 26; Audio_.step(0.07 + h.spd / 2500, true); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', h.x - Math.cos(h.ang) * 9, h.y - Math.sin(h.ang) * 9, rnd(-8, 8), rnd(-8, 8), 0.7, 2.5); if (t === T.WATER) G.parts.add('splash', h.x, h.y, 0, 0, 0.5, 5); }
+      if (this.stepT <= 0) { this.stepT = 26; Audio_.step(0.07 + h.spd / 2500, true); Juice.hoof(h, t); }
     }
     // atla çarpma (NPC ve hayvanlara)
     if (h.spd > 110) {
@@ -689,7 +701,8 @@ class Player extends Ent {
     FX.gunSmoke(ox, oy, sa, Wp.kind === 'long');
     // kollu tüfekler her atışta kovan fırlatır; toplu tabanca, av tüfeği ve tek atımlık tüfek dolumda boşaltır
     if (Wp.kind === 'long' && Wp.clip > 2) FX.casing(this.x + Math.cos(sa) * 3, this.y + Math.sin(sa) * 3, sa, false);
-    G.fx.shake = Math.max(G.fx.shake, Wp.kind === 'long' ? 2.2 : 1.4);
+    G.fx.shake = Math.max(G.fx.shake, Wp.kind === 'long' ? 0.9 : 0.5);
+    Juice.recoil(this, sa, Wp.pellets ? 2.2 : Wp.kind === 'long' ? 1.7 : 1.1);   // yönlü geri tepme
     G.fx.muzzle = 0.06;
     Audio_.shot(this.weapon === 'rifle' ? 'rifle' : this.weapon === 'shotgun' ? 'shotgun' : 'pistol', 0.9);
     Input.rumble(Wp.kind === 'long' ? 0.7 : 0.45, 0.3, Wp.kind === 'long' ? 140 : 90);
@@ -780,6 +793,10 @@ class Player extends Ent {
     this.sta = Math.max(0, this.sta - 5);
   }
   draw(ctx) {
+    if (this.rec) { ctx.save(); ctx.translate(this.rec.x, this.rec.y); this.drawBody(ctx); ctx.restore(); return; }
+    this.drawBody(ctx);
+  }
+  drawBody(ctx) {
     const A = this.mountAnim;
     if (A) {
       // sıçrarken yerden yükselir; eyere yaklaşınca binici duruşuna geçer
@@ -791,11 +808,12 @@ class Player extends Ent {
       return;
     }
     if (this.riding) {
-      Spr.human(ctx, this.x - Math.cos(this.riding.ang) * 1, this.y - Math.sin(this.riding.ang) * 1, this.ang, this.lookNow(), { riding: true, aim: this.aiming, wk: this.aimKind(), draw: this.draw_ });
+      const rb = 1 + Juice.rearK(this.riding) * 3;   // şahlanınca binici geriye yaslanır
+      Spr.human(ctx, this.x - Math.cos(this.riding.ang) * rb, this.y - Math.sin(this.riding.ang) * rb, this.ang, this.lookNow(), { riding: true, aim: this.aiming, wk: this.aimKind(), draw: this.draw_ });
       return;
     }
     Spr.human(ctx, this.x, this.y, this.ang, this.lookNow(), {
-      walk: this.phase, mv: Math.min(1, this.mv), aim: this.aiming || this.swing > 0.2, wk: this.aimKind(), crouch: this.crouch, swing: this.swing, draw: this.draw_,
+      walk: this.phase, mv: Math.min(1, this.mv), aim: this.aiming || this.swing > 0.2, wk: this.aimKind(), crouch: this.crouch, swing: this.swing, draw: this.draw_, head: this.idleA || 0, hatK: this.hatK || 0,
       hasGun: this.weapons.has('cattleman') || this.weapons.has('schofield'), backGun: this.weapons.has('repeater') || this.weapons.has('winchester') || this.weapons.has('rifle') || this.weapons.has('shotgun'),
     });
     // omuzdaki yük omuz hattı boyunca yatar
@@ -929,6 +947,7 @@ class Animal extends Ent {
         target = 0;
         if (this.atkCd <= 0) {
           this.atkCd = 1.1;
+          Juice.hurtFrom(this.x, this.y);
           P.hurt(d.dmg * (G.difficulty === 'hard' ? 1.2 : 1), this.type);
           if (d.venom && !G.player.riding) { P.poison = Math.max(P.poison, 90); UI.help(Tr('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.'), 6); }
           if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar' || this.type === 'gator') Audio_.growl();
@@ -1240,6 +1259,7 @@ class NPC extends Ent {
       const dmg = this.weapon === 'shotgun' ? 7 : this.weapon === 'repeater' ? 13 : this.weapon === 'rifle' ? 22 : 11;
       for (let i = 0; i < n; i++) G.fireRay(this.x + Math.cos(this.ang) * 7, this.y + Math.sin(this.ang) * 7, this.ang + rnd(-acc, acc), W.range, dmg * (G.difficulty === 'hard' ? 1.25 : 1), this, { npc: true, gd: pd + rnd(4, 50) });
       G.parts.add('flash', this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, 0, 0, 0.06, 3.5);
+      Juice.muzzle(this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8);
       if (pd < 500) FX.gunSmoke(this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, this.ang, W.kind === 'long');
       Audio_.shot(this.weapon === 'shotgun' ? 'shotgun' : 'pistol', clamp(1 - pd / 700, 0.1, 0.8));
       if (chance(0.15)) this.say(pick(this.isLaw ? LINES.law : LINES.bandit), 2);
@@ -1250,7 +1270,7 @@ class NPC extends Ent {
     const a = Math.atan2(P.y - this.y, P.x - this.x);
     this.ang = turnTo(this.ang, a, dt * 6);
     if (pd > 14) this.walk(dt, 50);
-    else if (this.cool <= 0) { this.cool = rnd(0.8, 1.4); this.swing = 1; P.hurt(rndi(5, 9), 'fist'); Audio_.thud(0.4); }
+    else if (this.cool <= 0) { this.cool = rnd(0.8, 1.4); this.swing = 1; Juice.hurtFrom(this.x, this.y); P.hurt(rndi(5, 9), 'fist'); Audio_.thud(0.4); }
     if (this.swing > 0) this.swing -= dt * 4;
     if (this.hp < this.maxHp * 0.4) { this.state = 'flee'; this.t = 8; this.say(Tr('Tamam, tamam! Yeter!')); G.addHonor(-1); }
     if (pd > 250) this.state = 'idle';
@@ -1272,7 +1292,7 @@ class NPC extends Ent {
       return;
     }
     Spr.human(ctx, this.x, this.y, this.ang, this.look, {
-      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, noPool: this.inWater, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held,
+      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held,
       aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing', wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
       swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon, hold: this.state === 'flee' || this.state === 'report' ? null : this.carry2,
     });

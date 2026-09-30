@@ -757,7 +757,7 @@ const Spr = {
       f.fillStyle = '#2a2016'; f.fillRect(dx - 5, Y + H - 14, 10, 14);
     } else {
       f.fillStyle = '#2a1c12'; f.fillRect(dx - 4, Y + H - 14, 8, 14);
-      if (b.type === 'saloon') { f.fillStyle = '#8a6040'; f.fillRect(dx - 4, Y + H - 11, 3.6, 6); f.fillRect(dx + 0.4, Y + H - 11, 3.6, 6); }
+      if (b.type === 'saloon' || b.type === 'cantina' || b.type === 'gambling') { /* yarım kanatlı kapılar Juice.drawAfterCovers'ta, salınarak çizilir */ }
       else { f.fillStyle = '#5a3e26'; f.fillRect(dx - 3, Y + H - 13, 6, 12); f.fillStyle = '#c8a040'; f.fillRect(dx + 1.5, Y + H - 7, 1, 1); }
     }
     // pencereler
@@ -844,7 +844,11 @@ const Spr = {
     ctx.translate(x, y);
     if (st.dead || st.lying) {
       // yerde yatan beden: ölü (kan gölü), yaralı ya da bağlı
-      if (st.dead && !st.noPool) this.ell(ctx, 2, 2, 8, 5, 'rgba(110,10,10,0.55)');
+      if (st.dead && !st.noPool) {
+        // kan gölü yavaşça yayılır ve koyulaşır; kumda zamanla toprağa emilir
+        const pk = st.pool === undefined ? 1 : st.pool, r = 3 + 6 * pk;
+        this.ell(ctx, 2, 2, r * 1.1, r * 0.66, `rgba(${130 - 62 * pk | 0},10,10,${(0.5 + 0.2 * pk) * (1 - 0.7 * (st.soak || 0))})`);
+      }
       else if (!st.noPool) this.shadow(ctx, 0, 1.5, 7, 3.4, 0.22);
       ctx.rotate(ang);
       this.ell(ctx, 0, 0, 5.5, 3.2, look.coat);
@@ -860,7 +864,8 @@ const Spr = {
       ctx.restore();
       return;
     }
-    this.shadow(ctx, 1, 2.5, 6, 3.8, 0.3);
+    const [sdx, sl] = Juice.sun(6);
+    this.shadow(ctx, 1 + sdx, 2.5, 6 * sl, 3.8, 0.3);
     ctx.rotate(ang);
     const cr = st.crouch ? 0.88 : 1;
     ctx.scale(cr, cr);
@@ -932,7 +937,8 @@ const Spr = {
         ctx.fillStyle = '#8a8478'; ctx.fillRect(-1.8, 5.2, 3.8, 0.4); ctx.fillRect(-1.8, 6, 3.8, 0.4);
       }
     }
-    // kafa
+    // kafa (boşta etrafa bakarken gövdeden bağımsız döner)
+    if (st.head) ctx.rotate(st.head);
     const hc = look.hairNow || look.hair;
     const mk = look.mask;
     if (mk === 'bandana') {
@@ -944,11 +950,12 @@ const Spr = {
     if (look.sex === 'f' && look.hairStyle !== 3 && mk !== 'sack') this.ell(ctx, -2.6, 0, 2.3, 2.6, hc);
     if (mk === 'sack') { this.circ(ctx, 0, 0, 3.4, '#8a6a3a'); this.circ(ctx, 0, 0, 3, '#c8a870'); ctx.fillStyle = '#9a7a48'; ctx.fillRect(-2, -0.3, 1.2, 0.6); ctx.fillRect(-0.4, -2.2, 0.6, 1.2); ctx.fillStyle = '#1a1008'; ctx.fillRect(1.6, -1.7, 1.2, 1.1); ctx.fillRect(1.6, 0.6, 1.2, 1.1); }
     if (look.hat && look.hat !== 'none') {
-      const br = look.hat === 'wide' ? 5.6 : look.hat === 'bowler' ? 3.8 : look.hat === 'flat' ? 3.4 : 4.8;
-      this.ell(ctx, 0, 0, br, br * 0.95, look.hatCol);
+      const br = (look.hat === 'wide' ? 5.6 : look.hat === 'bowler' ? 3.8 : look.hat === 'flat' ? 3.4 : 4.8) * (1 + (st.hatK || 0) * 0.14);
+      this.ell(ctx, (st.hatK || 0) * 0.8, 0, br, br * 0.95, look.hatCol);
       if (look.hat === 'flat') this.ell(ctx, 2.6, 0, 2, 2.6, shadeHex(look.hatCol, -0.2));
       this.ell(ctx, -0.2, 0, 2.7, 2.5, shadeHex(look.hatCol, -0.28));
       if (look.hat === 'cowboy' || look.hat === 'wide') { ctx.fillStyle = shadeHex(look.hatCol, 0.25); ctx.fillRect(-0.8, -2.4, 1, 4.8); }
+      if ((st.hatK || 0) > 0.15) this.circ(ctx, 2.4, -3.2, 1.1, look.skin);   // şapkayı düzelten el
     } else if (mk !== 'sack') {
       this.circ(ctx, 0, 0, 2.9, hc);
       this.ell(ctx, 1.9, 0, 1.2, 1.9, look.skin);
@@ -1021,20 +1028,23 @@ const Spr = {
       ctx.fillStyle = shadeHex(look.col, -0.3); for (let k = 0; k < 4; k++) ctx.fillRect(-6 + k * 4, 4, 1.6, 6);
       ctx.restore(); return;
     }
-    this.ell(ctx, 2, 2.5, 13, 6, 'rgba(0,0,0,0.28)');
+    { const [sdx, sl] = Juice.sun(12); ctx.save(); ctx.rotate(-ang); ctx.translate(sdx, 0); ctx.rotate(ang); this.ell(ctx, 2, 2.5, 13 * (0.8 + 0.2 * sl), 6, 'rgba(0,0,0,0.28)'); ctx.restore(); }
+    // şahlanma: ön taraf yükselir (üstten bakınca kısalıp genişler), ön ayaklar havada
+    const rk = st.rear || 0;
+    if (rk) { ctx.translate(-9, 0); ctx.scale(1 + 0.08 * rk, 1 + 0.2 * rk); ctx.translate(9 + 2 * rk, 0); }
     const p = st.phase || 0, m = Math.min(1, st.mv || 0);
     const lc = shadeHex(look.col, -0.35);
     const legs = [[6, -3.4, 0], [6, 3.4, Math.PI], [-6, -3.4, Math.PI * 0.6], [-6, 3.4, Math.PI * 1.6]];
-    for (const [lx, ly, ph] of legs) { const o = Math.sin(p + ph) * 3.2 * m; this.ell(ctx, lx + o, ly, 2, 1.3, lc); ctx.fillStyle = '#1a1410'; ctx.fillRect(lx + o + 1.2, ly - 0.8, 1, 1.6); }
+    for (const [lx, ly, ph] of legs) { const o = Math.sin(p + ph) * 3.2 * m + (lx > 0 ? rk * (2.5 + Math.sin(G.t * 18 + ly) * 1.2) : 0); this.ell(ctx, lx + o, ly, 2, 1.3, lc); ctx.fillStyle = '#1a1410'; ctx.fillRect(lx + o + 1.2, ly - 0.8, 1, 1.6); }
     ctx.strokeStyle = look.mane; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(-9.5, 0); ctx.quadraticCurveTo(-13, Math.sin(p * 0.5) * 2 * m, -15, Math.sin(p) * 1.5 * m); ctx.stroke();
     this.ell(ctx, 0, 0, 10.5, 4.6, look.col);
     this.ell(ctx, -1, -1.2, 7, 1.8, shadeHex(look.col, 0.12));
-    const nk = st.graze ? 0.5 : 0;
-    this.ell(ctx, 8.6, 0, 4.2, 2.7, look.col);
-    this.ell(ctx, 12.8 + nk * 2, 0, 3.6, 2, look.col);
-    this.ell(ctx, 15.4 + nk * 2, 0, 1.5, 1.6, shadeHex(look.col, -0.2));
-    if (look.blaze) { ctx.fillStyle = '#f0ece4'; ctx.fillRect(12 + nk * 2, -0.5, 4, 1); }
+    const nk = st.graze ? 0.5 : 0, hy = st.nod || 0;   // hy: baş sallama (yana)
+    this.ell(ctx, 8.6, hy * 0.3, 4.2, 2.7, look.col);
+    this.ell(ctx, 12.8 + nk * 2, hy, 3.6, 2, look.col);
+    this.ell(ctx, 15.4 + nk * 2, hy * 1.2, 1.5, 1.6, shadeHex(look.col, -0.2));
+    if (look.blaze) { ctx.fillStyle = '#f0ece4'; ctx.fillRect(12 + nk * 2, -0.5 + hy, 4, 1); }
     ctx.fillStyle = shadeHex(look.col, -0.2);
     ctx.beginPath(); ctx.moveTo(10.5, -1.2); ctx.lineTo(9.8, -3); ctx.lineTo(11.4, -1.6); ctx.fill();
     ctx.beginPath(); ctx.moveTo(10.5, 1.2); ctx.lineTo(9.8, 3); ctx.lineTo(11.4, 1.6); ctx.fill();
@@ -1057,8 +1067,9 @@ const Spr = {
     const L = d.len, Wd = d.wid, c = d.col, c2 = d.col2;
     const p = a.phase || 0, m = a.dead ? 0 : Math.min(1, a.mv || 0);
     if (a.dead) {
-      if (!a.noPool) this.ell(ctx, 0, L * 0.1, L * 0.55, Wd * 0.9, 'rgba(110,10,10,0.5)');
-    } else this.ell(ctx, 1, 2, L * 0.55, Wd * 0.75, 'rgba(0,0,0,0.25)');
+      const pk = Math.min(1, (a.deadT || 0) / 5) * 0.6 + 0.4;
+      if (!a.noPool) this.ell(ctx, 0, L * 0.1, L * 0.55 * pk, Wd * 0.9 * pk, `rgba(${125 - 50 * pk | 0},10,10,${0.5 * (1 - 0.7 * Juice.soak(a))})`);
+    } else { const [sdx, sl] = Juice.sun(L * 0.5); ctx.save(); ctx.rotate(-a.ang); ctx.translate(sdx, 0); ctx.rotate(a.ang); this.ell(ctx, 1, 2, L * 0.55 * (0.85 + 0.15 * sl), Wd * 0.75, 'rgba(0,0,0,0.25)'); ctx.restore(); }
     const bodyC = a.skinned ? '#9a3a2a' : c;
     if (d.shape === 'snake') {
       ctx.strokeStyle = bodyC; ctx.lineWidth = 2.2; ctx.lineCap = 'round';

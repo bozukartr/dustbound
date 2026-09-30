@@ -4,6 +4,9 @@
    dükkanlar, mini oyunlar, karakter yaratma
    ========================================================== */
 
+/* silah doldururken dönen tambur */
+const CYL_SVG = '<svg class="w-cyl" viewBox="-10 -10 20 20"><circle r="9.2" fill="#8a8a92" stroke="#2a2a2e" stroke-width="1"/><circle cx="5.30" cy="0.00" r="2.1" fill="#16161a"/><circle cx="2.65" cy="4.59" r="2.1" fill="#16161a"/><circle cx="-2.65" cy="4.59" r="2.1" fill="#16161a"/><circle cx="-5.30" cy="0.00" r="2.1" fill="#16161a"/><circle cx="-2.65" cy="-4.59" r="2.1" fill="#16161a"/><circle cx="2.65" cy="-4.59" r="2.1" fill="#16161a"/><circle r="1.7" fill="#4a4a52"/></svg>';
+
 const UI = {
   stack: [],
   frame: 0,
@@ -124,6 +127,7 @@ const UI = {
       this.timers = this.timers || { hud: 0, radar: 0 };
       this.timers.hud -= dt; this.timers.radar -= dt;
       if (this.timers.hud <= 0) { this.timers.hud = 0.1; this.hudUpdate(); }
+      this.moneyTick(dt);
       if (this.timers.radar <= 0) { this.timers.radar = 1 / 20; this.drawRadar(); }
       this.feedUpdate(dt);
     }
@@ -267,6 +271,20 @@ const UI = {
     e.style.setProperty('--c', core.toFixed(3));
     e.classList.toggle('low', ring < 0.25 || core < 0.15);
   },
+  /* Para sayacı: gösterilen değer gerçeğe doğru yuvarlanır (tıkırtıyla), artışta yeşil, azalışta kırmızı parlar */
+  moneyTick(dt) {
+    const P = G.player; if (!P) return;
+    const e = this.cache['hud-money'] || (this.cache['hud-money'] = $('#hud-money'));
+    if (this.moneyP !== P || this.moneyV == null) { this.moneyP = P; this.moneyV = P.money; }
+    const d = P.money - this.moneyV;
+    if (Math.abs(d) >= 0.005) {
+      if (!this.moneyRoll) { this.moneyRoll = true; e.classList.remove('gain', 'loss'); e.classList.add(d > 0 ? 'gain' : 'loss'); }
+      this.moneyV += d * Math.min(1, dt * 6);
+      if (Math.abs(P.money - this.moneyV) < 0.02 || !Juice.motion) this.moneyV = P.money;
+      if ((this.coinT = (this.coinT || 0) - dt) <= 0) { this.coinT = 0.065; Audio_.tone(d > 0 ? rnd(2300, 2700) : rnd(1500, 1800), 0.03, 'square', 0.012); }
+    } else if (this.moneyRoll) { this.moneyRoll = false; this.moneyV = P.money; setTimeout(() => { if (!this.moneyRoll) e.classList.remove('gain', 'loss'); }, 350); }
+    this.setText('hud-money', fmtMoney(this.moneyV));
+  },
   setText(id, t) {
     const e = this.cache[id] || (this.cache[id] = $('#' + id));
     if (e._t !== t) { e._t = t; e.innerHTML = t; }
@@ -299,7 +317,6 @@ const UI = {
     this.setCore('core-de', P.de / 100, P.deCore / 100);
     const setNeed = (id, v) => { const e = this.cache[id] || (this.cache[id] = $('#' + id)); const k = Math.round(v); if (e._k !== k) { e._k = k; e.style.setProperty('--v', v / 100); e.classList.toggle('low', v < 20); } };
     setNeed('need-hunger', P.hunger); setNeed('need-thirst', P.thirst); setNeed('need-energy', P.energy); setNeed('need-clean', P.clean);
-    this.setText('hud-money', fmtMoney(P.money));
     this.setText('hud-time', G.timeStr());
     this.setText('hud-date', G.dateStr());
     this.setText('hud-age', Tr`${P.name} • ${G.age} yaşında`);
@@ -365,7 +382,7 @@ const UI = {
     if (W.clip) ammo = `${P.clip[P.weapon] || 0}<small>/${P.ammo[W.ammo]}</small>`;
     else if (W.throw) ammo = `${P.count('dynamite')}`;
     else if (P.weapon === 'bow') ammo = `${P.ammo.arrow}`;
-    this.setText('w-icon', Icons.weapon(P.weapon)); this.setText('w-name', W.n + (P.reloadT > 0 ? Tr(' <em>dolduruluyor…</em>') : '')); this.setText('w-ammo', ammo);
+    this.setText('w-icon', Icons.weapon(P.weapon)); this.setText('w-name', W.n + (P.reloadT > 0 ? Tr(' <em>dolduruluyor…</em>') : '')); this.setText('w-ammo', (P.reloadT > 0 ? CYL_SVG : '') + ammo);
     // efektler
     document.body.classList.toggle('deadeye', !!P.deadeye);
     document.body.classList.toggle('lowhp', P.hp < P.maxHp * 0.25 && G.state === 'play');

@@ -90,7 +90,11 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .xi-row { display: flex; align-items: center; gap: 6px; color: #d8ccb4; } .xi-row .ic { width: 15px; height: 15px; }
 .xi-grid { display: grid; grid-template-columns: auto auto auto auto; gap: 1px 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(201, 164, 92, 0.3); font-size: 13px; }
 .xi-grid span { color: #b8ab92; } .xi-grid b { font-family: var(--type); color: #fff; text-align: right; }
-#hud-money { font-family: var(--type); font-size: 30px; color: #f6f0e2; letter-spacing: 1px; }
+#hud-money { font-family: var(--type); font-size: 30px; color: #f6f0e2; letter-spacing: 1px; transition: color 0.5s, text-shadow 0.5s; }
+#hud-money.gain { color: #a8e890; text-shadow: 0 0 8px rgba(120, 220, 90, 0.5); transition: none; }
+#hud-money.loss { color: #f09080; text-shadow: 0 0 8px rgba(230, 90, 70, 0.5); transition: none; }
+.w-cyl { display: inline-block; width: 22px; height: 22px; margin-right: 6px; vertical-align: -3px; animation: wcyl 0.6s steps(6) infinite; filter: drop-shadow(0 1px 2px #000); }
+@keyframes wcyl { to { transform: rotate(360deg); } }
 #hud-clock { font-family: var(--sc); font-size: 17px; color: #e8e0d0; }
 #hud-clock #hud-time { font-family: var(--type); font-size: 20px; margin-right: 8px; }
 #hud-date { color: var(--dim); }
@@ -519,6 +523,8 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 .pk-slot.sel .card { opacity: 0.6; }
 .pk-btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 6px 14px 4px; }
 .pk-b { font: inherit; font-size: 15px; color: var(--ink-l, #e8dcc0); background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(201, 164, 92, 0.4); padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+.pk-chip { position: fixed; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; z-index: 60; pointer-events: none; border: 2px dashed #f4ecd8; box-shadow: 0 2px 3px rgba(0, 0, 0, 0.55); }
+.pk-chip.red { background: #b02a22; } .pk-chip.blue { background: #2a4a9a; } .pk-chip.white { background: #d8d0c0; border-color: #6a5a48; } .pk-chip.green { background: #2a7a3a; }
 .pk-b:hover, .pk-b.pref { border-color: #e0b040; background: rgba(224, 176, 64, 0.15); }
 @media (max-width: 560px) { .pk-opps { grid-template-columns: 1fr; } .card { width: 50px; height: 72px; font-size: 16px; } .pk-hand { gap: 5px; } }
 .panel.lockpick { width: min(520px, 94vw); }
