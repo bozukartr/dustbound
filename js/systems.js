@@ -888,7 +888,7 @@ const GameSystems = {
     let hit = null, hd = wallD;
     const cands = opts.npc ? [this.player, ...(this.horse && !this.horse.dead ? [this.horse] : []), ...this.ents.filter(e => e.kind === 'npc' && !e.hostile && !e.dead)] : this.ents;
     for (const e of cands) {
-      if (e === owner || e.dead || e.remove) continue;
+      if (e === owner || e.dead || e.remove || e.hide) continue;
       if (e === this.player && !opts.npc) continue;
       if (e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || (e === this.horse && owner === this.player)) continue;
       if (e === this.player.riding && owner === this.player) continue;
@@ -1545,6 +1545,7 @@ const GameSystems = {
     }
     // varlıklar
     for (const e of this.ents) {
+      if (e.hide) continue;
       if (e.remove) continue;
       const d = e.kind === 'wagon' ? Math.min(dist(P.x, P.y, e.x, e.y), dist(P.x, P.y, e.bx, e.by)) : dist(P.x, P.y, e.x, e.y);   // arabanın gövdesi atların arkasında
       if (d > (e.held ? 50 : 30)) continue;
@@ -1734,8 +1735,10 @@ const GameSystems = {
     const town = this.world.townAt(P.x, P.y);
     const fmt = (l) => l.replace('{ad}', P.name.split(' ')[0]).replace('{kasaba}', town ? town.n : 'buralar');
     let line;
-    const rl = !P.masked && this.residentGreet(e);
-    if (P.masked) line = pick(LINES.maskTown);
+    const ack = this.helloAck(e);   // sakin önce selam verdiyse ve karşılık bekliyorsa sevinir
+    const rl = !ack && !P.masked && this.residentGreet(e);
+    if (ack) line = ack;
+    else if (P.masked) line = pick(LINES.maskTown);
     else if (rl) line = rl;
     else if (P.clean < 20 && chance(0.5)) line = pick(LINES.dirty);
     else if (P.drunk > 50) line = pick(LINES.drunk);

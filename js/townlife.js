@@ -265,13 +265,16 @@ class Wagon extends Ent {
     if (!t || this.stopT) return false;
     // dükkân önlerindeki park yerlerinden boş olanı: iki araba aynı yere park etmez
     const W = G.world, slots = [];
-    for (const ty of ['general', 'hotel', 'saloon', 'station', 'post', 'butcher', 'bakery']) for (const b of t.buildings) if (b.type === ty) for (const k of [0, 1, -1]) slots.push([b.door.x + 34 + k * 30, b.door.y + 34]);
+    for (const ty of ['general', 'hotel', 'saloon', 'station', 'post', 'butcher', 'bakery']) for (const b of t.buildings) if (b.type === ty) for (const k of [0, 1, -1]) slots.push([b.door.x + 34 + k * 30, b.door.y + 34, b]);
     const taken = (x, y) => G.ents.some(o => o !== this && o.kind === 'wagon' && ((o.slot && dist2(o.slot[0], o.slot[1], x, y) < 32 * 32) || dist2(o.x, o.y, x, y) < 26 * 26));
     const slot = slots.find(([x, y]) => !taken(x, y) && !W.blocked(x, y, 9) && !W.blocked(x - 22, y, 7) && !W.indoorPx(x, y));
     if (!slot) return false;
     const r = TownPath.find(t, this.x, this.y, slot[0], slot[1], 6);
     if (!r) return false;
-    this.stopT = t; this.route = r; this.ri = 0; this.leg = 'in'; this.exitPt = [this.x, this.y]; this.slot = slot;
+    // son yaklaşma cepheye paralel: araba dükkânın önüne yan yana durur
+    const side = this.x < slot[0] ? -1 : 1, pre = [slot[0] + side * 30, slot[1]];
+    if (!W.blocked(pre[0], pre[1], 8) && !W.indoorPx(pre[0], pre[1]) && TownPath.walkable(pre, slot, 6)) r.splice(r.length - 1, 0, pre);
+    this.stopT = t; this.route = r; this.ri = 0; this.leg = 'in'; this.exitPt = [this.x, this.y]; this.slot = slot; this.shop = slot[2];
     return true;
   }
   /* Çarpışma çemberleri: önde atlar, arkada gövde */
@@ -298,7 +301,7 @@ class Wagon extends Ent {
       if (fwd < nd) { nd = fwd; near = o; }
     };
     for (const o of G.ents) {
-      if (o === this || o.remove || Math.abs(o.x - this.x) > 70 || Math.abs(o.y - this.y) > 70) continue;
+      if (o === this || o.remove || o.hide || (o === this.ignoreO && this.ignoreT > 0) || Math.abs(o.x - this.x) > 70 || Math.abs(o.y - this.y) > 70) continue;
       if (o.kind === 'wagon') { chk(o.x, o.y, 5.5, o, 46); chk(o.bx, o.by, 7, o, 46); }
       else if (o.kind === 'horse' && !o.dead) chk(o.x, o.y, 5, o, 26);
       else if (o.kind === 'npc' && !o.dead) chk(o.x, o.y, 3, o, 26);
@@ -322,6 +325,7 @@ class Wagon extends Ent {
       if (this.spd > 40 && Math.random() < 0.15) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.x - Math.cos(this.ang) * 12, this.y - Math.sin(this.ang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
       return;
     }
+    if (this.driverEnt) { this.spd = 0; this.mv = 0; G.wagonPark(this, dt); return; }   // sürücü inmiş: yük taşıyor ya da bekliyor
     if (!this.driver) {
       // sürücüsüz: atlar yavaşlayıp durur
       this.spd = Math.max(0, this.spd - 40 * dt);
@@ -340,7 +344,7 @@ class Wagon extends Ent {
       pt = this.route[this.ri]; prev = this.route[this.ri - 1];
       if (!pt) {
         this.route = null;
-        if (this.leg === 'in') { this.parkT = rnd(25, 50); if (this.stage) Bubbles.add(this, pick([Tr('Posta geldi!'), Tr('Yolcular, inin!')]), 2.5); }
+        if (this.leg === 'in') { this.parkT = rnd(35, 60); if (this.stage) Bubbles.add(this, pick([Tr('Posta geldi!'), Tr('Yolcular, inin!')]), 2.5); G.wagonArrive(this); }
         else { this.dir = -this.dir; this.slot = null; }   // yola geri dön
         return;
       }
@@ -353,7 +357,7 @@ class Wagon extends Ent {
     const tx = pt[0] - Math.sin(sa) * lane, ty = pt[1] + Math.cos(sa) * lane;
     const a = Math.atan2(ty - this.y, tx - this.x), da = Math.abs(angDiff(this.ang, a));
     const P = G.player;
-    this.honkT -= dt; this.panicT = (this.panicT || 0) - dt; this.passT = (this.passT || 0) - dt;
+    this.honkT -= dt; this.panicT = (this.panicT || 0) - dt; this.passT = (this.passT || 0) - dt; this.ignoreT = (this.ignoreT || 0) - dt;
     // önünde kim var: araba ise hızına uy ya da yol ver, insan ise dur ve seslen
     const A = this.scanAhead(), ob = A.o;
     const turnK = da > 1.2 ? 0.15 : da > 0.5 ? 0.5 : 1;
@@ -369,8 +373,15 @@ class Wagon extends Ent {
       } else {
         target = Math.min(target, Math.max(0, (A.d - 9) * 2.2));
         if (A.d < 20) { block = true; this.clearWay(ob); }
+        // yoldan çekilmeyen biri (oyuncu, duran atlı) için bir süre sonra etrafından dolaşır
+        if (this.spd < 3) {
+          this.waitP = (this.waitP || 0) + dt; this.waitLong = (this.waitLong || 0) + dt;
+          if (this.waitP > 4) { this.passT = 5; this.waitP = 0; }
+          // hiç kıpırdamayan engel (bağlı at, oturan biri): sonunda yanından sıyrılıp geçer
+          if (this.waitLong > 10 && ob !== P) { this.ignoreO = ob; this.ignoreT = 4; this.waitLong = 0; }
+        }
       }
-    } else this.shy = Math.max(0, (this.shy || 0) - dt * 3);
+    } else { this.shy = Math.max(0, (this.shy || 0) - dt * 3); this.waitLong = 0; this.waitP = 0; }
     if (!ob || ob.kind !== 'wagon') this.waitW = 0;
     this.ang = turnTo(this.ang, a, dt * 2.6);
     this.spd += clamp(target - this.spd, -90 * dt, 30 * dt);
@@ -669,7 +680,8 @@ const TownLifeSystems = {
     if (e.talk) { e.mv = 0; return; }   // sohbet: G.talkTick yönetir
     if (e.pauseT > 0) {
       e.pauseT -= dt; e.mv = 0;
-      if (e.lookAt == null && Math.random() < dt * 0.35) e.ang += rnd(-0.7, 0.7);   // dururken etrafa bakınır
+      if (e.lookAt == null && !e.anim && Math.random() < dt * 0.35) e.ang += rnd(-0.7, 0.7);   // dururken etrafa bakınır
+      this.standTick(e, dt, 0.5);   // sigara, saat, kaşınma, gerinme...
       return;
     }
     if (!p) { e.mv = 0; return; }
@@ -679,8 +691,12 @@ const TownLifeSystems = {
     const o = OCCS[r.occ] || {}, env = this.envCache || {};
     let sp = p.act === 'play' ? 52 : r.occ === 'elder' ? 20 : ['home', 'in', 'away', 'saloon', 'shelter', 'errand', 'church', 'school'].includes(p.act) ? 34 : 26;
     if ((env.rain || 0) > 0.3 && r.occ !== 'elder') sp *= 1.4;   // yağmurda acele eder
-    const res = this.navStep(e, g.x, g.y, dt, sp * (o.kid ? 1.1 : 1), { near: g.kind === 'door' || g.kind === 'gate' ? 7 : 5 });
+    const res = this.navStep(e, g.x, g.y, dt, sp * (o.kid ? 1.1 : 1), { near: g.kind === 'door' || g.kind === 'gate' ? 7 : g.kind === 'sit' ? 9 : 5 });
     if (res === 'arrived') { e.goalFails = 0; this.arrive(e); }
+    else if (res === 'moving' && ['stroll', 'errand', 'news', 'play'].includes(p.act) && g.kind !== 'door' && Math.random() < dt * 0.035 && dist2(e.x, e.y, g.x, g.y) > 50 * 50) {
+      // gezerken arada durup bakınır: vitrine, gökyüzüne, gelen geçene
+      e.pauseT = rnd(1.2, 3.5); e.ang += rnd(-1.2, 1.2);
+    }
     else if (res === 'fail') {
       e.goalFails = (e.goalFails || 0) + 1;
       // kapıya ya da kasaba çıkışına bir türlü varamıyorsa ve görünmüyorsa içeri girmiş say

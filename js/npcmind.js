@@ -146,6 +146,7 @@ const TEASE = {
   drifter: ['Bir kadeh ısmarla, sana bir sır vereyim.', 'Hey dostum, bozukluğun var mı?'],
   generic: ['Selam yabancı! {k} nasıl buldun?', 'Buralarda yenisin galiba.', 'İyi günler! Havaya bak, ne güzel.'],
   poker: ['Geçen poker masasında seni gördüm, yüzün kireç gibiydi!', 'Kartlarda şansın yaver gidiyor mu?'],
+  snubbed: ['Selamımı almayan sen değil miydin?', 'Bugün selam verecek misin, yoksa yine mi yok?', 'Hıh, selam vermeyi öğrendin mi bari?'],
 };
 /* Karşılık: oyuncunun cevabı ve sakinin tepkisi */
 const RETORT = {
@@ -172,11 +173,14 @@ const NpcNav = {
     const W = this.world;
     if (!N.route) {
       const t = W.townAt(e.x, e.y, 10) || W.townAt(x, y, 10);
-      N.route = (t && TownPath.find(t, e.x, e.y, x, y)) || [[x, y]]; N.ri = 0;
+      N.route = this.bendRoute(e, (t && TownPath.find(t, e.x, e.y, x, y)) || [[x, y]]); N.ri = 0;
     }
     const wp = N.route[N.ri], last = N.ri >= N.route.length - 1;
     const d2 = dist2(e.x, e.y, wp[0], wp[1]), d = Math.sqrt(d2);
-    if (d2 < (last ? (opt && opt.near ? opt.near * opt.near : 25) : 64)) {
+    // köşeyi yuvarla: ara noktaya yaklaşınca, bir sonrakine düz yol varsa erkenden ona dön
+    const nx = N.route[N.ri + 1];
+    const early = !last && d < 15 && nx && (N.peek === N.ri || (N.peek = N.ri, N.peekOk = TownPath.walkable([e.x, e.y], nx, e.r + 0.5))) && N.peekOk;
+    if (d2 < (last ? (opt && opt.near ? opt.near * opt.near : 25) : 64) || early) {
       N.ri++; N.best = Infinity; N.noProg = 0;
       if (N.ri >= N.route.length) { e.nav = null; e.mv = 0; return 'arrived'; }
       return 'moving';
@@ -190,16 +194,39 @@ const NpcNav = {
     if (d < (N.best === undefined ? Infinity : N.best) - 1.5) { N.best = d; N.noProg = 0; } else N.noProg = (N.noProg || 0) + dt;
     if (last && d < 16 && N.noProg > 0.8) { e.nav = null; e.mv = 0; return 'arrived'; }
     if (N.noProg > 1.6) { N.noProg = 0; N.best = Infinity; e.stuck = 1; }
-    let a = Math.atan2(wp[1] - e.y, wp[0] - e.x);
+    // doğal yürüyüş: herkes kendi şeridinden (rota çizgisinin biraz yanından) yürür, yönü hafifçe salınır
+    const gt = this.gait(e);
+    // şerit hedefi her ara nokta için bir kez hesaplanır; oraya düz yol yoksa rota noktası kullanılır
+    if (N.lti !== N.ri || N.ltr !== N.route) {
+      N.lti = N.ri; N.ltr = N.route; N.lt = null;
+      if (!last && gt.lane) {
+        const pv = N.route[N.ri - 1] || [e.x, e.y], sa = Math.atan2(wp[1] - pv[1], wp[0] - pv[0]);
+        const lx = wp[0] - Math.sin(sa) * gt.lane, ly = wp[1] + Math.cos(sa) * gt.lane;
+        if (!this.world.blocked(lx, ly, e.r + 1.5) && !this.world.indoorPx(lx, ly) && TownPath.walkable([e.x, e.y], [lx, ly], e.r + 0.5)) N.lt = [lx, ly];
+      }
+    }
+    const tx = N.lt ? N.lt[0] : wp[0], ty = N.lt ? N.lt[1] : wp[1];
+    let a = Math.atan2(ty - e.y, tx - e.x);
+    if (d > 10 && !(opt && opt.straight)) {
+      // hafif salınım: duvar dibinde yapılmaz
+      const wa = gt.wa * (e.walkStyle === 'drunk' ? 3.2 : 1), wob = Math.sin(this.t * gt.wf + gt.seed) * wa + Math.sin(this.t * gt.wf * 2.7 + gt.seed * 3) * wa * 0.35;
+      if (!this.world.blocked(e.x + Math.cos(a + wob * 2) * 9, e.y + Math.sin(a + wob * 2) * 9, e.r)) a += wob;
+    }
     const av = this.avoidSteer(e, a, opt && opt.ignore);
     a += av.steer;
-    e.ang = turnTo(e.ang, a, dt * 7);
+    // dönüş hızı sınırlı: köşeler kavisle alınır; ters yöne dönerken olduğu yerde yavaşlar
+    const turn = Math.abs(angDiff(e.ang, a));
+    e.ang = turnTo(e.ang, a, dt * (Math.abs(av.steer) > 0.3 ? 8 : 4.6));
     if (av.wait) { e.mv = 0; N.waitT = (N.waitT || 0) + dt; if (N.waitT < 1.6) return 'moving'; }
     else N.waitT = 0;
+    // kişisel hız, zamanla hafif değişen tempo, kalkışta hızlanma, varışta yavaşlama
+    N.acc = Math.min(1, (N.acc || 0.25) + dt * 2.2);
+    let k = gt.k * (1 + 0.09 * Math.sin(this.t * 0.37 + gt.seed)) * N.acc * (turn > 1.5 ? 0.35 : turn > 0.8 ? 0.7 : 1);
+    if (last && d < 22) k *= 0.45 + 0.55 * d / 22;
     const ox = e.x, oy = e.y;
-    e.walk(dt, sp * av.slow);
+    e.walk(dt, sp * av.slow * k);
     // duvara sürtünerek yavaş kayma da takılmadır (ilerliyor görünse bile)
-    const want = sp * av.slow * e.slow() * dt;
+    const want = sp * av.slow * k * e.slow() * dt;
     if (Math.hypot(e.x - ox, e.y - oy) < want * 0.45) N.slowT = (N.slowT || 0) + dt; else N.slowT = Math.max(0, (N.slowT || 0) - dt * 0.5);
     if (N.slowT > 0.7) { N.slowT = 0; e.stuck = 1; }
     // takılma: yeniden rota, sonra en yakın boş yer, sonra vazgeç
@@ -211,6 +238,32 @@ const NpcNav = {
       else { e.nav = null; return 'fail'; }
     }
     return 'moving';
+  },
+  /* Uzun düz rota parçalarını hafifçe büker: insanlar cetvelle çizilmiş gibi yürümez */
+  bendRoute(e, R) {
+    const out = [];
+    let prev = [e.x, e.y];
+    for (const p of R) {
+      const len = Math.hypot(p[0] - prev[0], p[1] - prev[1]);
+      if (len > 60 && out.length < 14) {
+        const a = Math.atan2(p[1] - prev[1], p[0] - prev[0]), off = (Math.random() * 2 - 1) * Math.min(16, len * 0.13);
+        const m = [(prev[0] + p[0]) / 2 - Math.sin(a) * off, (prev[1] + p[1]) / 2 + Math.cos(a) * off];
+        if (TownPath.walkable(prev, m, e.r + 0.8) && TownPath.walkable(m, p, e.r + 0.8)) out.push(m);
+      }
+      out.push(p); prev = p;
+    }
+    return out;
+  },
+  /* Kişiye özgü yürüyüş: hız, şerit, salınım (kimlikten sabit) */
+  gait(e) {
+    if (e.gt) return e.gt;
+    const h = (k) => hash2(e.id * 7 + k, k * 13 + 5, 311);
+    const occ = e.res ? e.res.occ : e.role;
+    const gt = { k: 0.86 + h(1) * 0.28, lane: (h(2) - 0.5) * 9, wf: 0.45 + h(3) * 0.5, wa: 0.09 + h(4) * 0.1, seed: h(5) * 100, style: null };
+    if (occ === 'elder') { gt.style = h(6) < 0.7 ? 'cane' : null; gt.k *= 0.9; }
+    else if (occ === 'kid' || occ === 'newsboy' || e.child) { gt.style = 'kid'; gt.wa *= 1.6; }
+    e.gt = gt;
+    return gt;
   },
   /* Yakındaki boş ve düz çizgiyle varılabilen nokta */
   freeNear(x, y, r = 5) {
@@ -239,7 +292,7 @@ const NpcNav = {
     };
     if (P && !P.riding && P !== ignore) test(P, P.r || 4);
     for (const o of this.ents) {
-      if (o === e || o === ignore || o.remove) continue;
+      if (o === e || o === ignore || o.remove || o.hide) continue;
       if (o.kind === 'npc') { if (!o.dead && o.state !== 'sit') test(o, o.r); else if (o.dead) test(o, 5); }
       else if (o.kind === 'horse') test(o, 7);
       else if (o.kind === 'wagon') { test(o, 9); test({ x: o.bx, y: o.by }, 10); }
@@ -355,12 +408,15 @@ const NpcMind = {
       if (T.i >= T.script.length) {
         // son: bazen gülerler
         const m = alive[0].res ? MOODS[this.moodOf(alive[0].res)] : MOODS.plain;
-        if (chance(m.laugh * 0.5)) Bubbles.add(pick(alive), pick(REACT.laughAlone), 1.6);
+        if (chance(m.laugh * 0.5)) { const who = pick(alive); Bubbles.add(who, pick(REACT.laughAlone), 1.6); this.setAnim(who, 'laugh'); }
         T.i++; T.t = 1.2; continue;
       }
       const sp = alive[T.i % alive.length], line = T.script[T.i];
       Bubbles.add(sp, line, clamp(1.6 + line.length * 0.045, 2, 4.2));
       T.t = clamp(1.4 + line.length * 0.04, 1.8, 3.8);
+      // konuşan el kol oynatır; dinleyen bazen kollarını kavuşturur ya da sigarasını tüttürür
+      if (!sp.anim || sp.anim.k !== 'smoke') { if (chance(0.7)) this.setAnim(sp, /\?$/.test(line) && chance(0.4) ? 'shrug' : 'gesture', T.t); else sp.anim = null; }
+      for (const o of alive) if (o !== sp && !o.anim && chance(0.15)) this.setAnim(o, chance(0.5) ? 'cross' : 'hips', T.t * 2);
       T.i++;
     }
   },
@@ -385,6 +441,11 @@ const NpcMind = {
     // yağmur başlayınca söylenip adımlarını sıklaştırır
     if ((this.envCache || {}).rain > 0.3 && e.state !== 'sit' && !(e.rainCd > this.day) && chance(0.04)) { e.rainCd = this.day; Bubbles.add(e, pick(REACT.rainHurry), 1.8); }
     // oyuncuya sataşma
+    // selam: önce o selam verir; karşılık bekler
+    if (this.helloTick(e, r, M, d2)) return;
+    // yolda karşılaşan sakinler birbirini selamlar; sarhoş serseri söylenir
+    this.passTick(e);
+    if (e.walkStyle === 'drunk' && chance(0.08)) Bubbles.add(e, pick(DRUNK), 1.8);
     if (d2 < 60 * 60) {
       const m = this.mem(r);
       if (m.seenDay !== this.day) { m.seenDay = this.day; m.seenN = 0; }
@@ -430,6 +491,7 @@ const NpcMind = {
     const m = this.mem(r);
     if (m.seenDay === this.day && m.seenN >= 3) add('again', 2);
     if (op >= 30) add('friend', 3);
+    if (m.snubDay !== undefined && this.day - m.snubDay <= 2) add('snubbed', 4);
     if (this.stats && this.stats.pokerWins) add('poker', 1);
     if (r.occ === 'kid') add('kid', 4);
     else if (r.occ === 'elder') add('elder', 2);
@@ -440,6 +502,7 @@ const NpcMind = {
     e.teaseCd = this.clock + rnd(180, 360); this.teaseT = this.clock + rnd(0.4, 0.8) * 60;
     e.pauseT = Math.max(e.pauseT || 0, 2.2); e.ang = Math.atan2(P.y - e.y, P.x - e.x);
     Bubbles.add(e, line, 3.4);
+    this.setAnim(e, k === 'kid' ? 'wave' : k === 'dirty' ? 'fan' : chance(0.5) ? 'point' : 'hips');
     e.teased = { rt: this.t, k };
     if (k === 'gallop') { e.state = 'flee'; e.t = 1.2; }
     return true;
@@ -454,6 +517,7 @@ const NpcMind = {
     setTimeout(() => {
       if (e.dead || e.remove) return;
       Bubbles.add(e, pick(good ? RETORT.laugh : RETORT.sour), 2.4);
+      this.setAnim(e, good ? 'laugh' : 'cross');
       if (r) this.resOpinion(e, good ? 4 : -3);
     }, 1400);
   },
@@ -461,7 +525,12 @@ const NpcMind = {
   perceive(e, dt) {
     const P = this.player;
     if (e.dead || e.bound || e.hostile || e.role === 'law' || e.role === 'hunter' || e.role === 'bandit' || e.role === 'target') return false;
-    if (e.dodgeT > 0) { e.dodgeT -= dt; e.ang = e.dodgeA; e.walk(dt, 90); return true; }   // atlıdan ya da arabadan kaçış sıçraması
+    if (e.dodgeT > 0) {
+      // atlıdan ya da arabadan kaçış sıçraması: o yan duvarsa öbür yana, ikisi de kapalıysa olduğu yerde kalır
+      const W = this.world, free = (a) => !W.blocked(e.x + Math.cos(a) * 7, e.y + Math.sin(a) * 7, e.r);
+      if (!free(e.dodgeA)) { if (free(e.dodgeA + Math.PI)) e.dodgeA += Math.PI; else { e.dodgeT = 0; return false; } }
+      e.dodgeT -= dt; e.ang = e.dodgeA; e.walk(dt, 90); return true;
+    }
     const dx = P.x - e.x, dy = P.y - e.y, d2 = dx * dx + dy * dy;
     if (d2 > 140 * 140) { e.lookAt = null; return false; }
     // silah doğrultulan sivil ellerini kaldırır, sonra kaçar

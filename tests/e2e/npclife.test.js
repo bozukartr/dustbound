@@ -30,6 +30,7 @@ module.exports = {
       const r = await p.evaluate(() => {
         const W = G.world, road = W.roads.filter(r => !r.spur && r.pts.length > 40)[0];
         const mid = road.pts[20]; TH.goto(mid[0] + 40, mid[1] + 40); TH.clearNpcs();
+        G.eventT = 1e9; G.travelT = 1e9;   // yol olayları (düello, soygun) testi bölmesin
         for (const e of G.ents) if (e.kind === 'wagon') e.remove = true; G.ents = G.ents.filter(e => !e.remove);
         const ws = [new Wagon(road, 10, 1, false), new Wagon(road, 14, 1, true), new Wagon(road, 30, -1, false), new Wagon(road, 26, -1, true), new Wagon(road, 6, 1, true)];
         for (const w of ws) G.addEnt(w);
@@ -39,7 +40,7 @@ module.exports = {
           G.update(1 / 30);
           for (let i = 0; i < ws.length; i++) for (let j = i + 1; j < ws.length; j++) if (!ws[i].remove && !ws[j].remove && ws[i].overlapWith(ws[j]) > 1) ov++;
         }
-        return { ov, moved: ws.map((w, i) => Math.round(Math.hypot(w.x - start[i][0], w.y - start[i][1]))) };
+        return { ov, moved: ws.map((w, i) => Math.round(Math.hypot(w.x - start[i][0], w.y - start[i][1]))), modal: UI.isModal(), st: G.state };
       });
       t.eq(r.ov, 0, 'hiç çakışma olmamalı');
       t.ok(r.moved.every(m => m > 250), 'arabalar birbirini beklerken kilitlenmemeli', r.moved);
@@ -77,7 +78,7 @@ module.exports = {
       const r = await p.evaluate(() => {
         const P = G.player, tw = TH.town('harlow');
         const e = G.ents.find(x => x.res && !x.dead && !x.child && x.res.occ !== 'elder' && x.res.occ !== 'drifter' && x.state !== 'sit');
-        e.x = P.x + 24; e.y = P.y; e.talk = null; e.teaseCd = 0; G.teaseT = 0; P.clean = 5; P.drunk = 0; P.hp = P.maxHp;
+        e.x = P.x + 24; e.y = P.y; e.talk = null; e.teaseCd = 0; G.teaseT = 0; P.clean = 5; P.drunk = 0; P.hp = P.maxHp; e.hiWait = 0; G.mem(e.res).hiDay = G.day;
         G.law.bounty = 0; G.honor = 0; e.res.mood = 'jolly';
         const rr = Math.random; Math.random = () => 0.01;
         try { G.mindTick(e, tw); } finally { Math.random = rr; }
@@ -114,6 +115,102 @@ module.exports = {
       });
       t.eq(r.hands, 'cower', 'eller havada');
       t.ok(r.dodge && r.side > 8, 'atın yolundan yana çekilmeli', r);
+    });
+    await t.step('sakin selam verir; karşılık vermezsen bozulur ve sana küser', async () => {
+      const r = await p.evaluate(() => {
+        const P = G.player, tw = TH.town('harlow');
+        TH.goto(tw.spawn.x, tw.spawn.y); for (let f = 0; f < 60; f++) G.update(1 / 30);
+        const e = G.ents.find(x => x.res && !x.dead && !x.remove && !x.child && x.state !== 'sit' && !x.talk);
+        e.x = P.x + 30; e.y = P.y; e.nav = null; e.goal = null; e.res.mood = 'grumpy'; e.hiWait = 0; e.anim = null;
+        const m = G.mem(e.res); m.hiDay = -1; G.hiT = 0; P.masked && G.toggleMask();
+        const op0 = G.opOf(e.res);
+        const rr = Math.random; Math.random = () => 0.01;
+        let hello; try { hello = G.helloTick(e, e.res, MOODS.grumpy, 30 * 30); } finally { Math.random = rr; }
+        const b1 = [...document.querySelectorAll('#bubbles .bubble')].map(b => b.textContent);
+        const waited = !!e.hiWait, anim = e.anim && e.anim.k;
+        for (let f = 0; f < 30 * 8; f++) { G.update(1 / 30); if (f % 30 === 0) G.mindTick(e, tw); }
+        const b2 = [...document.querySelectorAll('#bubbles .bubble')].map(b => b.textContent);
+        return { hello, waited, anim, b1, b2, op0, op1: G.opOf(e.res), snub: G.mem(e.res).snubDay === G.day, wait2: !!e.hiWait };
+      });
+      t.ok(r.hello && r.waited, 'selam vermeli ve karşılık beklemeli', r);
+      t.ok(r.anim === 'wave' || r.anim === 'tiphat', 'el sallar ya da şapka çıkarır', r.anim);
+      t.ok(r.op1 < r.op0 && r.snub && !r.wait2, 'karşılık gelmeyince görüşü düşer, unutmaz', r);
+      t.ok(r.b2.some(s => /Selam|Kaba|unutmam|para/.test(s)), 'bozulduğunu söyler', r.b2);
+    });
+    await t.step('selama karşılık verilince sevinir', async () => {
+      const r = await p.evaluate(() => {
+        const P = G.player, tw = TH.town('harlow');
+        const e = G.ents.find(x => x.res && !x.dead && !x.remove && !x.child && x.state !== 'sit' && !x.talk && !x.hiWait && G.mem(x.res).snubDay === undefined);
+        e.x = P.x - 30; e.y = P.y; e.nav = null; e.goal = null; e.res.mood = 'jolly'; e.hiWait = 0;
+        G.mem(e.res).hiDay = -1; G.hiT = 0;
+        const op0 = G.opOf(e.res);
+        const rr = Math.random; Math.random = () => 0.01;
+        try { G.helloTick(e, e.res, MOODS.jolly, 30 * 30); } finally { Math.random = rr; }
+        const acts = G.npcActions(e).map(a => a.n);
+        G.npcActions(e).find(a => a.n === 'Selamla').fn();
+        for (let f = 0; f < 30 * 8; f++) { G.update(1 / 30); if (f % 30 === 0) G.mindTick(e, tw); }
+        return { acts, op0, op1: G.opOf(e.res), snub: G.mem(e.res).snubDay === G.day, wait: !!e.hiWait };
+      });
+      t.ok(r.acts.includes('Selamla'), 'Selamla seçeneği', r.acts);
+      t.ok(!r.wait && !r.snub && r.op1 > r.op0, 'selam alınınca görüşü artar, küsmez', r);
+    });
+    await t.step('araba sürücüsü dükkân önünde iner, sandıkları içeri taşır, bekler ve arabasına dönüp gider', async () => {
+      const r = await p.evaluate(() => {
+        const tw = TH.town('harlow'); TH.goto(tw.spawn.x, tw.spawn.y);
+        for (const e of G.ents) if (e.kind === 'wagon') e.remove = true; G.ents = G.ents.filter(e => !e.remove);
+        const g = tw.gates[0], w = new Wagon(null, 0, 1, false, { x: g.x * TS + 8, y: g.y * TS + 8, ang: 0 });
+        w.path = [[w.x, w.y]]; G.addEnt(w); w.enterTown();
+        const S = { phases: new Set(), hid: 0, carried: 0, back: false, left: false, seatEmpty: false };
+        for (let f = 0; f < 30 * 150 && !S.left; f++) {
+          G.update(1 / 30);
+          const d = w.driverEnt;
+          if (d && d.job) { S.phases.add(d.job.phase); if (d.hide) S.hid++; if (d.carry2 === 'crate') S.carried++; if (!w.driver) S.seatEmpty = true; }
+          if (!d && S.phases.size && w.driver) S.back = true;
+          if (S.back && w.leg === 'out') S.left = true;
+        }
+        return { ...S, phases: [...S.phases], slot: w.slot, leg: w.leg, route: w.route && w.route.length, ri: w.ri, pos: [Math.round(w.x), Math.round(w.y)], park: w.parkT, rm: w.remove, modal: UI.isModal(), st: G.state };
+      });
+      t.ok(r.seatEmpty, 'sürücü arabadan iner (koltuk boş)', r);
+      t.ok(r.carried > 30 && r.hid > 10, 'sandık taşıyıp dükkâna girer', r);
+      t.ok(r.phases.includes('rest') || r.phases.includes('idle') || r.phases.includes('return'), 'sonra bekler ya da döner', r.phases);
+      t.ok(r.back && r.left, 'arabasına dönüp yola çıkar', r);
+    });
+    await t.step('iki kişi aynı yere giderken aynı çizgiden yürümez, yolları kavislidir', async () => {
+      const r = await p.evaluate(() => {
+        const tw = TH.town('harlow'), P = G.player; TH.goto(tw.spawn.x, tw.spawn.y);
+        const sp = tw.streetPts.slice().sort((a, b) => dist2(a.x, a.y, P.x, P.y) - dist2(b.x, b.y, P.x, P.y));
+        const A = sp[0], B = sp.find(s => dist2(s.x, s.y, A.x, A.y) > 180 * 180) || sp[sp.length - 1];
+        const mk = () => { const n = new NPC(A.x, A.y, 'traveler', {}); n.state = 'idle'; G.addEnt(n); return n; };
+        const ns = [mk(), mk()], tr = [[], []];
+        for (let f = 0; f < 30 * 25; f++) {
+          ns.forEach((n, i) => { if (G.navStep(n, B.x, B.y, 1 / 30, 30) === 'moving') tr[i].push([n.x, n.y]); });
+        }
+        ns.forEach(n => { n.remove = true; });
+        // düz çizgiden sapma ve iki yol arasındaki fark
+        const dev = (a) => { const [x0, y0] = a[0], [x1, y1] = a[a.length - 1], L = Math.hypot(x1 - x0, y1 - y0) || 1; return Math.max(...a.map(([x, y]) => Math.abs((x1 - x0) * (y0 - y) - (x0 - x) * (y1 - y0)) / L)); };
+        const n = Math.min(tr[0].length, tr[1].length);
+        let apart = 0; for (let i = 0; i < n; i += 10) apart = Math.max(apart, Math.hypot(tr[0][i][0] - tr[1][i][0], tr[0][i][1] - tr[1][i][1]));
+        return { n, dev: tr.map(dev), apart };
+      });
+      t.ok(r.n > 60, 'yürümeliler', r);
+      t.ok(r.apart > 4, 'iki yol birbirinden farklı', r);
+      t.ok(r.dev.every(d => d > 3), 'cetvel gibi dümdüz değil', r);
+    });
+    await t.step('boşta çeşit çeşit hareket: sigara (duman), saat, kol kavuşturma, gerinme...', async () => {
+      const r = await p.evaluate(() => {
+        const e = G.ents.find(x => x.res && !x.dead && !x.remove && !x.child);
+        const kinds = new Set();
+        for (let k = 0; k < 300; k++) kinds.add(G.pickIdle(e, k % 3 === 0));
+        const P = G.player; e.x = P.x + 20; e.y = P.y + 10; e.pauseT = 20; e.nav = null;
+        G.mem(e.res).hiDay = G.day; e.hiWait = 0; e.teaseCd = G.clock + 999; e.talkCd = G.clock + 999; e.passCd = G.t + 999; e.talk = null;
+        e.smk = true; G.setAnim(e, 'smoke', 20); e.anim.t = 2;
+        const before = G.parts.list.filter(q => q.type === 'breath').length;
+        for (let f = 0; f < 30 * 7; f++) G.update(1 / 30);
+        const after = G.parts.list.filter(q => q.type === 'breath').length;
+        return { kinds: [...kinds], smoke: after > before || G.parts.list.some(q => q.type === 'breath') };
+      });
+      t.ok(r.kinds.length >= 7, 'en az 7 farklı hareket', r.kinds);
+      t.ok(r.smoke, 'sigara içen duman çıkarır', r);
     });
   },
 };

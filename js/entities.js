@@ -1111,6 +1111,8 @@ class NPC extends Ent {
   update(dt) {
     if (this.dead) { this.deadT = (this.deadT || 0) + dt; this.waterTick(dt); return; }
     if (this.bound) { this.boundUpdate(dt); if (!this.dead) this.waterTick(dt); return; }
+    if (this.hide) { if (this.job) G.jobUpdate(this, dt); return; }   // dükkânın içinde (sandık taşıyor)
+    G.animTick(this, dt);
     this.t -= dt; this.cool -= dt;
     const P = G.player;
     const pd = dist(this.x, this.y, P.x, P.y);
@@ -1138,11 +1140,13 @@ class NPC extends Ent {
       this.mv = 0;
       if (this.state === 'cower' && this.cowerT !== undefined && (this.cowerT -= dt) <= 0) { this.cowerT = undefined; this.state = 'idle'; this.t = 2; }
       if (this.state === 'static' && pd < 60) this.ang = turnTo(this.ang, Math.atan2(P.y - this.y, P.x - this.x), dt * 3);
+      if (this.state === 'sit' && !this.hostile) G.sitTick(this, dt);
       return;
     }
     if (this.state === 'robbed') { this.mv = 0; if (this.t <= 0) { this.state = this.witness ? 'report' : 'flee'; this.t = 8; } return; }
     if (this.state === 'fightFist') { this.fistFight(dt, pd); return; }
     if (this.role !== 'law' && G.perceive(this, dt)) return;   // atlıdan kaç, silaha el kaldır, bak
+    if (this.job) { G.jobUpdate(this, dt); return; }             // araba sürücüsü, yolcu
     if (this.res) { G.drive(this, dt); return; }   // kasaba sakini: günlük programını izler
     this.idleUpdate(dt, pd);
   }
@@ -1173,6 +1177,7 @@ class NPC extends Ent {
     } else {
       this.mv = 0; this.spd = 0;
       if (pd < 40 && !this.hostile) this.ang = turnTo(this.ang, Math.atan2(P.y - this.y, P.x - this.x), dt * 3);
+      else if (!this.hostile && !this.mounted) G.standTick(this, dt, 0.25);   // beklerken: sigara, kol kavuşturma, saat...
       if (this.t <= 0 && this.home) {
         // yalnızca ulaşılabilir bir yer seç (kasabada A* ızgarası, dışarıda görüş hattı)
         const h = this.home, s = G.reachSpot(h.x, h.y, h.r, this);
@@ -1286,6 +1291,7 @@ class NPC extends Ent {
     if (pd > 250) this.state = 'idle';
   }
   draw(ctx) {
+    if (this.hide) return;
     if (this.mounted && !this.dead) {
       Spr.horse(ctx, this.x, this.y, this.hAng === undefined ? this.ang : this.hAng, this.mounted, { phase: this.phase, mv: this.mv, saddle: true });
       Spr.human(ctx, this.x, this.y, this.ang, this.look, { riding: true, aim: this.hostile && this.aggro !== false, wk: this.weapon ? WEAPONS[this.weapon].kind : null });
@@ -1302,7 +1308,9 @@ class NPC extends Ent {
       return;
     }
     Spr.human(ctx, this.x, this.y, this.ang, this.look, {
-      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held,
+      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held || (this.anim && this.anim.k === 'tie'),
+      anim: this.anim && !this.dead ? this.anim.k : null, animT: this.anim ? this.anim.t : 0, gait: this.walkStyle || (this.gt && this.gt.style),
+      hatK: this.anim && this.anim.k === 'tiphat' ? Math.sin(Math.min(1, this.anim.t / this.anim.dur) * Math.PI) : 0,
       aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing', wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
       swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon, hold: this.state === 'flee' || this.state === 'report' ? null : this.carry2,
       head: this.lookAt != null && !this.dead ? clamp(angDiff(this.ang, this.lookAt), -1.2, 1.2) : 0,

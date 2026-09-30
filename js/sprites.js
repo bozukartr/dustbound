@@ -869,6 +869,15 @@ const Spr = {
     ctx.rotate(ang);
     const cr = st.crouch ? 0.88 : 1;
     ctx.scale(cr, cr);
+    // yürürken omuzlar adımla salınır: çocuk sekerek, sarhoş sendeleyerek, bastonlu yaşlı ağır ağır
+    const mvk = st.riding ? 0 : Math.min(1, st.mv || 0), gs = st.gait;
+    if (mvk > 0.05) {
+      const ph = st.walk || 0;
+      ctx.rotate(Math.sin(ph) * 0.06 * mvk * (gs === 'drunk' ? 3.5 : gs === 'kid' ? 1.5 : gs === 'cane' ? 1.4 : 1));
+      if (gs === 'kid') { const b = 1 + Math.abs(Math.sin(ph)) * 0.06 * mvk; ctx.scale(b, b); }
+      else if (gs === 'drunk') ctx.translate(0, Math.sin(ph * 0.5) * 1.3 * mvk);
+    }
+    if (st.anim === 'laugh') { const q = 1 + Math.abs(Math.sin((st.animT || 0) * 16)) * 0.05; ctx.scale(q, q); }
     const sw = Math.sin(st.walk || 0) * 2.8 * (st.mv || 0);
     if (!st.riding) {
       ctx.fillStyle = look.pants;
@@ -924,6 +933,14 @@ const Spr = {
       ctx.fillStyle = '#9a6e40'; ctx.fillRect(3.8, -3.2, 4.6, 6.4);
       ctx.fillStyle = '#6a4626'; ctx.fillRect(3.8, -0.4, 4.6, 0.8); ctx.fillRect(5.8, -3.2, 0.7, 6.4);
       this.circ(ctx, 3.6, -3.8, 1, look.skin); this.circ(ctx, 3.6, 3.8, 1, look.skin);
+    } else if (st.anim && this.gesture(ctx, look, st, sw, 0)) {
+      // jest çizildi
+    } else if (gs === 'cane' && !st.hold) {
+      // baston: sol kol sallanır, sağ el önde bastona dayanır
+      this.circ(ctx, -sw * 0.7, -4.8, 1.7, look.coat); this.circ(ctx, -sw * 0.7 + 0.8, -5.2, 1, look.skin);
+      const tip = 6.2 + Math.max(0, sw) * 0.6;
+      ctx.strokeStyle = '#4a3220'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(3, 5.2); ctx.lineTo(tip, 6.2); ctx.stroke();
+      this.circ(ctx, 1.6, 4.9, 1.6, look.coat); this.circ(ctx, 3, 5.2, 1, look.skin);
     } else {
       this.circ(ctx, -sw * 0.7, -4.8, 1.7, look.coat); this.circ(ctx, sw * 0.7, 4.8, 1.7, look.coat);
       this.circ(ctx, -sw * 0.7 + 0.8, -5.2, 1, look.skin); this.circ(ctx, sw * 0.7 + 0.8, 5.2, 1, look.skin);
@@ -961,7 +978,89 @@ const Spr = {
       this.ell(ctx, 1.9, 0, 1.2, 1.9, look.skin);
       if (mk === 'bandana') { this.ell(ctx, 2.2, 0, 1, 2.1, '#a8281f'); ctx.fillStyle = '#e8d8c0'; ctx.fillRect(2.4, -1, 0.6, 0.6); ctx.fillRect(2.4, 0.6, 0.6, 0.6); }
     }
+    if (st.anim && !st.hold) this.gesture(ctx, look, st, sw, 1);   // yüze götürülen el, şapkadaki el
     ctx.restore();
+  },
+  /* NPC jestleri, üstten görünüş (gövde çerçevesi: x ileri, y sağ).
+     layer 0: kollar ve eldekiler (true dönerse varsayılan kollar çizilmez); layer 1: başın üstünde kalanlar */
+  gesture(ctx, look, st, sw, layer) {
+    const k = st.anim, t = st.animT || 0, C = look.coat, S = look.skin;
+    if (st.hold || st.aim || st.riding) return false;
+    const arm = (sd, hx, hy, ex, ey) => {
+      ctx.strokeStyle = C; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(0, sd * 4); if (ex !== undefined) ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+      ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+      this.circ(ctx, hx, hy, 1.1, S);
+    };
+    const down = (sd) => { this.circ(ctx, sd * sw * 0.7, sd * 4.8, 1.7, C); this.circ(ctx, sd * sw * 0.7 + 0.8, sd * 5.2, 1, S); };
+    const cyc = (per, up) => { const u = t % per; return u < up ? Math.sin(u / up * Math.PI) : 0; };
+    switch (k) {
+      case 'smoke': {
+        // önce kibritle yakar, sonra ara ara ağzına götürür; ucu kor gibi yanar
+        if (t < 1.3) {
+          if (layer === 1) { this.circ(ctx, 4.6, -0.8, 1.1, S); this.circ(ctx, 4.6, 0.8, 1.1, S); if (Math.sin(t * 40) > -0.3) { ctx.fillStyle = '#ffd060'; ctx.fillRect(5.3, -0.4, 0.9, 0.9); } }
+          else { arm(-1, 4.6, -0.8); arm(1, 4.6, 0.8); }
+          return true;
+        }
+        const r = cyc(6, 1.3), hx = 2.2 + r * 2.4, hy = 4.6 - r * 3.6;
+        if (layer === 0) { down(-1); if (r < 0.35) arm(1, hx, hy); return true; }
+        if (r >= 0.35) arm(1, hx, hy);
+        ctx.fillStyle = '#e8e0d0'; ctx.fillRect(hx + 0.6, hy - 0.3, 1.6, 0.6);
+        ctx.fillStyle = r > 0.8 ? '#ffb040' : '#d0602a'; ctx.fillRect(hx + 2.1, hy - 0.35, 0.7, 0.7);
+        return true;
+      }
+      case 'drink': {
+        const r = cyc(6.5, 1.5), hx = 1.4 + r * 3, hy = 5.4 - r * 4.6;
+        if (layer === 0) { down(-1); if (r < 0.35) { arm(1, hx, hy); ctx.fillStyle = '#6a4a2a'; ctx.fillRect(hx - 0.4, hy - 0.9, 2.4, 1.8); } return true; }
+        if (r >= 0.35) { arm(1, hx, hy); ctx.fillStyle = '#6a4a2a'; ctx.fillRect(hx + 0.3, hy - 0.8, 2.6, 1.6); ctx.fillStyle = '#c8a040'; ctx.fillRect(hx + 2.7, hy - 0.4, 0.6, 0.8); }
+        return true;
+      }
+      case 'watch':
+        if (layer === 1) return true;
+        arm(-1, 5.4, -1.2); arm(1, 5.4, 1.2);
+        this.circ(ctx, 6.3, 0, 1.3, '#d8b048'); this.circ(ctx, 6.3, 0, 0.8, '#f4ecd8');
+        ctx.strokeStyle = '#c8a040'; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.moveTo(6.3, 0); ctx.lineTo(2.5, 1.5); ctx.stroke();
+        return true;
+      case 'wave': if (layer === 0) { down(-1); arm(1, 4 + Math.sin(t * 13) * 1.1, 7.6, 1.5, 6.4); } return true;
+      case 'cross':
+        if (layer === 1) return true;
+        arm(-1, 5.2, 2.2, 2.5, -4.6); arm(1, 5.2, -2.2, 2.5, 4.6);
+        ctx.fillStyle = C; ctx.fillRect(4.4, -3, 1.8, 6);
+        return true;
+      case 'hips': if (layer === 0) { arm(-1, -1.4, -5.4, 0.8, -7.6); arm(1, -1.4, 5.4, 0.8, 7.6); } return true;
+      case 'scratch':
+        if (layer === 0) { down(-1); return true; }
+        arm(1, -0.4 + Math.sin(t * 18) * 0.6, 3.2);
+        return true;
+      case 'stretch': { if (layer === 1) return true; const q = 0.85 + 0.15 * Math.sin(t * 2.2); arm(-1, 1.4, -9.8 * q); arm(1, 1.4, 9.8 * q); return true; }
+      case 'shrug': if (layer === 0) { arm(-1, 3.6, -7.6, 0.8, -6.8); arm(1, 3.6, 7.6, 0.8, 6.8); } return true;
+      case 'point': if (layer === 0) { down(-1); arm(1, 10.5, 2.6); } return true;
+      case 'gesture':
+        if (layer === 1) return true;
+        arm(1, 5.4 + Math.sin(t * 6.3) * 1.3, 3.4 + Math.cos(t * 4.1) * 1.1);
+        arm(-1, 5 + Math.sin(t * 4.7 + 1.3) * 1.1, -3.3 + Math.sin(t * 3.1) * 0.8);
+        return true;
+      case 'laugh': if (layer === 0) { arm(-1, 4.8, -1.7); arm(1, 4.8, 1.7); } return true;
+      case 'fan':
+        if (layer === 0) { down(-1); return true; }
+        arm(1, 5.2, 1.4 + Math.sin(t * 14) * 1.6);
+        return true;
+      case 'rub': if (layer === 0) { const j = Math.sin(t * 18) * 0.5; arm(-1, 5.3, -0.9 + j); arm(1, 5.3, 0.9 + j); } return true;
+      case 'read':
+        if (layer === 1) return true;
+        arm(-1, 5.4, -2.9); arm(1, 5.4, 2.9);
+        ctx.fillStyle = '#d8d0bc'; ctx.fillRect(5.2, -3.6, 2.6, 7.2);
+        ctx.fillStyle = '#8a8478'; ctx.fillRect(5.6, -3, 1.8, 0.4); ctx.fillRect(5.6, -1.6, 1.8, 0.4); ctx.fillRect(5.6, 0.2, 1.8, 0.4); ctx.fillRect(5.6, 1.8, 1.8, 0.4);
+        return true;
+      case 'tie': if (layer === 0) { arm(-1, 6.2, -1.3 + Math.sin(t * 9) * 0.4); arm(1, 6.2, 1.3); } return true;
+      case 'hurry':
+        if (layer === 0) return true;
+        arm(-1, 0.6, -3.5); arm(1, 0.6, 3.5);
+        return true;
+      case 'pat': if (layer === 0) { down(-1); arm(1, 7.4 + Math.sin(t * 7) * 0.9, 1.8); } return true;
+      case 'nod': return false;
+    }
+    return false;
   },
 
   /* ---------- Taşınan yük: post, ceset, leş ---------- */
