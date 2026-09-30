@@ -494,7 +494,8 @@ const FX = {
     const cs = G.canvas.style;
     if (g.drunk > 0.02) {
       const d = g.drunk, t = G.t;
-      cs.transform = `rotate(${(Math.sin(t * 0.7) * 1.1 * d).toFixed(3)}deg) scale(${(1 + 0.035 * d).toFixed(4)}) translate(${(Math.sin(t * 0.45) * 0.6 * d).toFixed(2)}%, 0)`;
+      const zm = G.camZoom && G.camZoom.z > 1.001 ? `scale(${G.camZoom.z.toFixed(4)}) ` : '';   // iç mekân yakınlaşmasıyla birlikte
+      cs.transform = zm + `rotate(${(Math.sin(t * 0.7) * 1.1 * d).toFixed(3)}deg) scale(${(1 + 0.035 * d).toFixed(4)}) translate(${(Math.sin(t * 0.45) * 0.6 * d).toFixed(2)}%, 0)`;
       this.drunkCss = true;
     } else if (this.drunkCss) this.clearCss();
   },

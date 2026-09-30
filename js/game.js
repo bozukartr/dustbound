@@ -714,6 +714,7 @@ const G = {
       const u = Z.t, e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;   // yumuşak başlayıp yumuşak biten geçiş
       Z.z = lerp(Z.from, Z.to, e); Z.k = lerp(Z.kFrom, Z.kTo, e);
     }
+    if (FX.drunkCss) return Z;   // sarhoşken dönüşümü FX.post yazar (yakınlaşmayı da içerir)
     const tf = Z.z > 1.001 ? `scale(${Z.z.toFixed(4)})` : '';
     if (this.canvas.style.transform !== tf) this.canvas.style.transform = tf;
     return Z;
