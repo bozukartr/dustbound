@@ -99,6 +99,25 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
     - Yanlarından geçene başlarını çevirip bakarlar.
     - Üstlerine yürüyene çıkışırlar.
   - *Mizaç:* Her sakinin bir mizacı vardır (şakacı, huysuz, utangaç, dedikoducu, dindar, sakin). Adın yanında görünür; ne kadar konuşacağını ve takılacağını belirler.
+- **Doğal yürüyüş**:
+  - Herkes kendi hızında ve rota çizgisinin biraz yanından yürür; uzun düz yollar hafifçe kavislenir, köşeler kavisle dönülür.
+  - Kalkışta hızlanıp varışta yavaşlarlar, yönleri hafifçe salınır, gezerken arada durup bakınırlar.
+  - Yürüyüş stilleri: yaşlılar bastonla, çocuklar sekerek, gece saloondan çıkan serseri sendeleyerek ("Hık!") yürür; yağmurda şapkasını tutarak acele ederler.
+- **Hareket çeşitliliği**:
+  - Beklerken ya da otururken: sigara (önce kibritle yakar, ara ara ağzına götürür, dumanı üfler), mataradan içme, cep saatine bakma, kol kavuşturma, eller belde durma, kafa kaşıma, gerinme (sabahları), omuz silkme, işaret etme, ayakkabı bağlama, gazete okuma (bankta), sıcakta yelpazelenme, soğukta el ovuşturma.
+  - Sohbette konuşan el kol oynatır, soru sorarken omuz silker, dinleyen bazen kollarını kavuşturur, sonunda biri güler.
+  - Selamlaşırken el sallar ya da şapkasına dokunur.
+  - Hangi hareketin seçileceği kişiye (sigara içen, içkici, yaşlı, çocuk), saate ve havaya göre değişir.
+- **Selamlaşma**:
+  - Sakin seni el sallayıp selamlar ve karşılık bekler. **Selamla** ile karşılık verirsen sevinir ve seni biraz daha sever.
+  - Karşılık vermezsen mizacına göre bozulur: huysuz "Kaba herif!" der, dindar öğüt verir, utangaç sessizce üzülür, dedikoducu yanındakine dert yanar. Seni birkaç gün unutmaz ve laf atar.
+  - Sakinler yolda karşılaşınca birbirini adıyla selamlar.
+- **Araba sürücüleri**:
+  - Dükkân önüne park eden yük arabasının sürücüsü iner, sandıkları tek tek dükkâna taşır, sonra atlarının yanında bekler: sigara yakar, gerinir, saatine bakar, atını okşar, yoldan geçenle sohbet eder.
+  - Vakit gelince arabasına döner ve "Deh! Hadi kızlar!" diye yola çıkar.
+  - Posta arabasından yolcular iner ve otele, saloona ya da istasyona yürür.
+  - Sürücü dışarıdayken araba çalınırsa ya da sürücü öldürülürse tepki verir; araba sürücüsüz kalır.
+  - Arabalar dükkânın önüne cepheye paralel park eder.
 - **Sakinlerin sohbetleri**:
   - Sakinler kendi aralarında satır satır konuşur; yakındaysan baloncuklar görünür, üçüncü biri de katılabilir.
   - Konu saate (sabah kahvesi, akşam saloonu, gece), havaya, pazar vaazına, mesleğe (hamal, madenci, emekli, çocuklar) ve senin ününe göre seçilir.
@@ -225,7 +244,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 |---|---|
 | `camera` | iç mekân yakınlaşması: yumuşak geçiş, binayı ortalama, doluluk oranı, yakınken fareyle nişan, çıkınca uzaklaşma |
 | `juice` | his efektleri: isabet duraklaması, savrulma ve uçan şapka, dinamit izi ve şok dalgası, dörtnala uzaklaşma, şahlanma, boşta animasyon, sönen pencereler, para sayacı |
-| `npclife` | NPC aklı: kasabada duvara takılmadan yürüme, arabaların çakışmaması ve ayrı park yerleri, satır satır sohbet, sataşma ve karşılık verme, silaha el kaldırma, atlıdan kaçma |
+| `npclife` | NPC aklı: duvara takılmadan ve aynı çizgiden olmadan doğal yürüme, arabaların çakışmaması, ayrı park yerleri, sürücünün inip sandık taşıması ve geri dönmesi, satır satır sohbet, sataşma ve karşılık verme, selam ve selamı almama tepkisi, boşta hareket çeşitliliği, silaha el kaldırma, atlıdan kaçma |
 | `boot` | ana menü, karakter ekranı, 13 kasabalık dünya, yeni binaların iç mekânları, yürüme, duraklatma, harita |
 | `saves` | kayıt yuvaları, otomatik/manuel kayıt, Tek Hayat, eski kayıt taşıma, eski 1024 dünya, 1890 fiyat dönüşümü |
 | `i18n` | çeviri anahtarları (tools/i18n-check.js), oyun içinde dil değiştirme |
@@ -278,6 +297,7 @@ js/carry.js     taşıma, kement, ödül teslimi, kanıt
 js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
 js/npcmind.js   NPC aklı: gövde genişliğiyle yol bulma, takılma kurtarma, kalabalıkta kaçınma, algı ve tepkiler, sohbetler, sataşma
+js/npcacts.js   NPC eylemleri: boşta hareketler ve jestler, yürüyüş stilleri, selamlaşma ve tepkisi, araba sürücüsü ve yolcu işleri
 js/business.js  işletmeler: satın alma, işletmeci, stok ve kasa, toptan mal sandıkları, yük arabası, arsaya inşaat
 js/haulers.js   nakliyeciler: işe alma, rota ve sefer, yolda görünen araba, haydut baskını ve kurtarma
 js/homestead.js  kendi yapın: arazi seçimi, tapulu/kaçak inşaat, aşamalar, iç tasarımlar, ahır/kuyu/bostan

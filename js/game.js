@@ -1085,6 +1085,7 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(CarrySystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(TownLifeSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcNav));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcMind));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcActs));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));
