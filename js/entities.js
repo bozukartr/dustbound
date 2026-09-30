@@ -397,7 +397,9 @@ class Player extends Ent {
     const sx = G.cam.sx(this.x), sy = G.cam.sy(this.y);
     if (I.device === 'kb') {
       this.lockTarget = null;
-      const mx = I.mouse.x / G.scale, my = I.mouse.y / G.scale;
+      // tuval CSS ile ölçeklenmiş olabilir (iç mekân yakınlaşması): ekran → tuval pikseli
+      const r = G.canvas.getBoundingClientRect(), k = G.canvas.width / r.width;
+      const mx = (I.mouse.x - r.left) * k, my = (I.mouse.y - r.top) * k;
       this.aimAng = Math.atan2(my - sy, mx - sx);
       this.aimDist = clamp(Math.hypot(mx - sx, my - sy), 14, this.W && this.W.range ? this.W.range : 200);
     } else this.padAim(dt);

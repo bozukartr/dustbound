@@ -61,4 +61,4 @@ Oyun sayfası `contextIsolation` ve `sandbox` açıkken çalışır; Node erişi
 
 - Steam Deck'te karakter adı yazarken Steam'in ekran klavyesi otomatik açılmıyor. Kullanıcı Steam + X ile açabilir; ad rastgele de seçilebilir.
 - macOS paketi imzasız. Mac için Apple Developer imzası ve notarization gerekir.
-- Mağaza görselleri (kapsül resimleri, ekran görüntüleri, fragman) bu depoda yok.
+- Mağaza ekran görüntüleri `steam/screenshots/en/` altında (yeniden çekmek için `node tools/steam-shots.js`). Kapsül resimleri ve fragman henüz yok.

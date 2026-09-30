@@ -129,6 +129,7 @@ const G = {
     const c = this.canvas;
     c.width = this.vw; c.height = this.vh;
     c.style.width = this.vw * s + 'px'; c.style.height = this.vh * s + 'px';
+    c.style.transformOrigin = `${W / 2}px ${H / 2}px`;   // iç mekân yakınlaşması ekranın ortasından
     this.light.width = this.vw; this.light.height = this.vh;
     this.over.width = this.vw; this.over.height = this.vh;
     this.ctx.imageSmoothingEnabled = false;
@@ -693,12 +694,39 @@ const G = {
       }
     }
   },
+  /* Binaya girince kamera yumuşakça binaya doğru yaklaşır (bina ekranı tamamen doldurmaz),
+     çıkınca aynı yumuşaklıkla geri uzaklaşır. Yakınlaşma tuvalin CSS ölçeğiyle yapılır;
+     dünya çizimi ve piksel ölçeği değişmez. */
+  zoomFor(b) {
+    const fill = 0.8, bw = b.w * TS, bh = (b.h + 1) * TS;
+    return clamp(Math.min(this.vw * fill / bw, this.vh * fill / bh), 1, 2.2);
+  },
+  zoomUpdate(dt) {
+    const Z = this.camZoom || (this.camZoom = { z: 1, from: 1, to: 1, k: 0, kFrom: 0, kTo: 0, t: 1, b: null, cx: 0, cy: 0 });
+    const IB = this.state === 'play' && this.insideB && this.insideB.enter ? this.insideB : null;
+    if (IB !== Z.b) {
+      Z.b = IB; Z.t = 0; Z.from = Z.z; Z.kFrom = Z.k;
+      Z.to = IB ? this.zoomFor(IB) : 1; Z.kTo = IB ? 1 : 0;
+      if (IB) { Z.cx = (IB.x + IB.w / 2) * TS; Z.cy = (IB.y + IB.h / 2) * TS; }
+    }
+    if (Z.t < 1) {
+      Z.t = Math.min(1, Z.t + dt / 0.75);
+      const u = Z.t, e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;   // yumuşak başlayıp yumuşak biten geçiş
+      Z.z = lerp(Z.from, Z.to, e); Z.k = lerp(Z.kFrom, Z.kTo, e);
+    }
+    const tf = Z.z > 1.001 ? `scale(${Z.z.toFixed(4)})` : '';
+    if (this.canvas.style.transform !== tf) this.canvas.style.transform = tf;
+    return Z;
+  },
   updateCamera(dt) {
     const P = this.player, C = this.cam;
     let tx = P.x, ty = P.y;
     if (P.riding) { tx += Math.cos(P.riding.ang) * P.riding.spd * 0.45; ty += Math.sin(P.riding.ang) * P.riding.spd * 0.45; }
     if (P.aiming || P.rsAim) { const d = Math.min(P.aimDist, 90) * 0.45; tx += Math.cos(P.aimAng) * d; ty += Math.sin(P.aimAng) * d; }
     if (this.binoc) { tx += this.binoc.x; ty += this.binoc.y; }
+    // içerideyken kamera binanın ortasına oturur
+    const Z = this.zoomUpdate(dt);
+    if (Z.k > 0.001) { tx = lerp(tx, Z.cx, Z.k); ty = lerp(ty, Z.cy, Z.k); }
     const cf = this.binoc ? 7 : 4;
     C.x = lerp(C.x, tx, Math.min(1, dt * cf));
     C.y = lerp(C.y, ty, Math.min(1, dt * cf));
