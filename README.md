@@ -97,6 +97,11 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - Açlık, susuzluk, uyku, temizlik, vücut ısısı, hastalık, zehirlenme ve sarhoşluk.
 - **Yaşlanma**: 18 yaşında başlarsın. 30'lardan sonra dayanıklılık, 50'lerden sonra sağlık azalır; saçın ağarır. Yaşlanma hızı seçilebilir.
 - Otellerde, kendi evinde ya da kamp kurup uyuyabilirsin. Kamp kurmak için bir Uyku Tulumu (genel mağaza) gerekir; kasabadan uzakta kamp tuşunu basılı tut. Kamp ateşinde yemek pişirip tonik ve ok yapabilirsin. Ateşin ısısı mesafeyle azalır ve hissedilen sıcaklık yavaşça değişir: ateşe yaklaşınca birkaç saniyede ısınır, uzaklaşınca yavaş yavaş soğursun.
+- **Kendi yapın**: Genel mağaza ya da toptancıdan **Arazi Kazıkları** alıp kasabalardan uzak, boş bir araziye çakarsın. Her yere kurulamaz: kasabalara, yollara, demiryoluna, suya ve bataklığa, kayalık ve kumlu zemine, önemli yerlere, göçebe kamplarına ve diğer yapılarına yakın yerler reddedilir; çok sık ağaçlık araziler de uygun değildir. Kazık çakınca arazinin sınırı yerde görünür.
+  - Yalnızca konaklama yapıları vardır: **Baraka** ($30, 3 gün; yatak ve sandık), **Kütük Kulübe** ($80, 5 gün; ocak da var), **Çiftlik Evi** ($200, 8 gün; iki yatak ve küvet de var). İç düzen her yapı için üç tasarımdan rastgele biridir.
+  - **Tapulu ya da kaçak**: Tapu dairesi ya da ilçe binasından Arazi Tapusu ($25) alırsan yapın yasaldır. Tapusuz (kaçak) da kurabilirsin; ama her gün ihbar edilme ihtimali vardır (kasabaya yakınsa daha yüksek). İhbar edilirse 3 gün içinde tapu dairesinde tapuya bağlamazsan (tapu + ceza) yapın mühürlenir: kapısı kilitlenir, yatağını ve sandığını kullanamazsın. Tapuya bağlayınca mühür kalkar.
+  - İnşaat günler sürer, şantiye her gün kendiliğinden ilerler ve gözle görülür biçimde yükselir. Tabeladan şantiyede çalışırsan (günde en çok iki kez, ikişer saat) iş hızlanır.
+  - Biten yapına **ahır** ($25; yemlikte atın doyar ve dinlenir), **kuyu** ($15) ve **bostan** ($10; mısır yetişir) eklenebilir. Bu ekler tek başına kurulamaz. Yapıların haritada işaretlidir ve kayıtla korunur.
 - **İlaçlar**: Doktor ve eczanede, kısmen seyyar satıcı, kervan ve münzevide satılır. Etkileri süreli olanlar HUD'da simgeyle görünür ve kayıtla korunur.
   - **Kinin**: hastalığı iyileştirir ve bir gün boyunca hastalık kapmanı önler (kirli su, çiğ et).
   - **Laudanum**: 3 saat alınan hasarı %40 azaltır; başını döndürür ve uykunu getirir.
@@ -194,6 +199,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `economy` | para biçimi, fiyatlar, soygun tekrarları, al-sat açığı, günlük sınırlar |
 | `business` | işletme satın alma, yük arabası, toptan mal, teslimat, gelir, arsaya inşaat, kayıt |
 | `haulers` | nakliyeci, sefer, yoldaki araba, baskın, maaş, kayıt |
+| `homestead` | yer uygunluğu (kasaba, su, yol), kazık ve plan menüsü, tapu alma, tapulu inşaat, şantiyede çalışma, aşamalar, iç eşyalar, ekler ve yemlik, kaçak yapı ihbarı/mühür/tapuya bağlama, iç tasarımlar, kayıt |
 | `items` | yeni ilaçların etkileri, kas merhemiyle koşu, süreli etkilerin kaydı, maymuncuk (ev, dükkân, kırılma), dürbün (görüş, etiket, yer işaretleme, indirme) |
 | `poker` | el değerlendirme, masadaki yerler, klavye ve fareyle bir el, çekilme, masadan kalkma, günlük rakipler, kayıt, yüz okuma |
 | `hunters` | ödül avcısı grubu: çıkma koşulları, yaklaşma, parayla kurtulma, teslim olma, çatışma |
@@ -237,6 +243,7 @@ js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
 js/business.js  işletmeler: satın alma, işletmeci, stok ve kasa, toptan mal sandıkları, yük arabası, arsaya inşaat
 js/haulers.js   nakliyeciler: işe alma, rota ve sefer, yolda görünen araba, haydut baskını ve kurtarma
+js/homestead.js  kendi yapın: arazi seçimi, tapulu/kaçak inşaat, aşamalar, iç tasarımlar, ahır/kuyu/bostan
 js/binoculars.js dürbün: uzağa bakma, etiketler, uzaktaki yerleri haritada işaretleme
 js/poker.js     poker: el değerlendirme, rakip yapay zekâsı, sabit limitli bahis, masa arayüzü
 js/hunters.js   ödül avcıları: kasaba dışında çıkan grup, bekleyiş, teslim olma, parayla kurtulma, çatışma

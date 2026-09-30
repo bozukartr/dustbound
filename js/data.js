@@ -105,11 +105,13 @@ const ITEMS = {
   horse_brush:  { n: 'At Fırçası', c: 'tool', p: 0.35, i: '🧹', max: 1, d: 'Atını temizler, bağınızı güçlendirir.' },
   horse_reviver:{ n: 'At Diriltici', c: 'horse', p: 3, i: '💉', max: 5, d: 'Yaralı atını ayağa kaldırır.' },
   horse_tonic:  { n: 'At Toniği', c: 'horse', p: 0.75, i: '🍶', max: 10, d: 'Atının dayanıklılığını yeniler.' },
+  stakes:       { n: 'Arazi Kazıkları', c: 'tool', p: 0.5, i: '📍', max: 3, d: 'Yapı kurmak istediğin boş araziye çak. Yer uygunsa ne inşa edeceğini seçersin.' },
   binoculars:   { n: 'Dürbün', c: 'tool', p: 3, i: '🔭', max: 1, d: 'Uzağı gösterir: hayvanları, insanları ve ufuktaki yerleri görürsün.' },
   lockpick:     { n: 'Maymuncuk', c: 'tool', p: 0.5, i: '🗝️', max: 10, d: 'Kilitli ya da kapalı kapıları kırmadan, sessizce açar. Beceriksiz ellerde kırılır.' },
   harmonica:    { n: 'Mızıka', c: 'tool', p: 0.5, i: '🎵', max: 1, d: 'Kamp ateşinin başında çalınır. Ruhu dinlendirir.' },
   bait:         { n: 'Solucan Yem', c: 'tool', p: 0.02, i: '🪱', max: 30, d: 'Balıklar daha çabuk vurur.' },
   // ---- Belgeler
+  land_deed:    { n: 'Arazi Tapusu', c: 'doc', p: 25, i: '📜', max: 3, d: 'Tapu dairesinden alınmış boş bir arazi hakkı. Kazıkları çaktığın yere yasal yapı kurmanı sağlar.' },
   treasure_map: { n: 'Hazine Haritası', c: 'doc', p: 0, i: '🗺️', max: 5, d: 'Kürekle işaretli yeri kaz.' },
   region_map:   { n: 'Bölge Haritası', c: 'doc', p: 0.5, i: '📜', max: 1, d: 'Satın alındığı kasabanın çevresini haritanda açar.', autoUse: true },
   // ---- Giysiler
@@ -177,7 +179,7 @@ const ITEM_SLOTS = [
   { n: 'Tütün', g: 'steam', f: (id) => id === 'cigarette' || id === 'tobacco' },
   { n: 'Bitkiler', g: 'wheat', f: (id, it) => it.c === 'herb' && !!it.e },
   { n: 'At', g: 'horse', f: (id, it) => it.c === 'horse' },
-  { n: 'Kit', g: 'lamp', v: ['@lantern', '@harmonica'], f: (id) => id === 'treasure_map' || id === 'region_map' || id === 'binoculars' },
+  { n: 'Kit', g: 'lamp', v: ['@lantern', '@harmonica'], f: (id) => id === 'treasure_map' || id === 'region_map' || id === 'binoculars' || id === 'stakes' },
   { n: 'Giysi', g: 'mask', f: (id, it) => it.c === 'clothing' },
 ];
 
@@ -291,6 +293,9 @@ const BUILDINGS = {
   docks:    { n: 'Liman Deposu', w: 10, h: 6, wall: '#6a6a60', roof: '#3a3a40', sign: '#6080a0', svc: ['work', 'shop'], shop: 'docks', work: 'docks' },
   ranch:    { n: 'Çiftlik Evi', w: 8, h: 6, wall: '#a07850', roof: '#6a4030', sign: '#c0a070', svc: ['work'], work: 'ranch' },
   barn:     { n: 'Ambar', w: 8, h: 7, wall: '#8a2a20', roof: '#4a2a22', sign: '#8a2a20', svc: [] },
+  hs_shack: { n: 'Baraka', w: 6, h: 5, wall: '#7a5a3a', roof: '#4a3424', svc: [], home: 1 },
+  hs_cabin: { n: 'Kütük Kulübe', w: 7, h: 6, wall: '#6a4a2a', roof: '#3a2a1a', svc: [], home: 1 },
+  hs_house: { n: 'Çiftlik Evi', w: 9, h: 7, wall: '#a8906a', roof: '#5a3a2a', svc: [], home: 1 },
   house:    { n: 'Ev', lock: 1, w: 6, h: 6, wall: '#9a8060', roof: '#5a4030', svc: [] },
   property: { n: 'Satılık Mülk', w: 7, h: 6, wall: '#a08a6a', roof: '#4a3a2a', sign: '#80a060', svc: ['home'] },
   ruin:     { n: 'Harabe', w: 6, h: 5, wall: '#5a4a3a', roof: '#2a2420', svc: [], ruin: 1, noInt: 1 },
@@ -324,7 +329,7 @@ const JOBS = {
 
 /* Dükkan stokları ve alım oranları */
 const SHOPS = {
-  general: { n: 'Genel Mağaza', sell: ['beans', 'bread', 'jerky', 'peaches', 'corn', 'coffee', 'chocolate', 'health_cure', 'stamina_tonic', 'bandage', 'tobacco', 'cigarette', 'canteen', 'bedroll', 'fishing_rod', 'bait', 'gold_pan', 'pickaxe', 'shovel', 'lantern', 'hay', 'horse_brush', 'horse_tonic', 'region_map', 'wildflower', 'harmonica', 'mask_bandana', 'sarsaparilla', 'liniment', 'binoculars'],
+  general: { n: 'Genel Mağaza', sell: ['beans', 'bread', 'jerky', 'peaches', 'corn', 'coffee', 'chocolate', 'health_cure', 'stamina_tonic', 'bandage', 'tobacco', 'cigarette', 'canteen', 'bedroll', 'fishing_rod', 'bait', 'gold_pan', 'pickaxe', 'shovel', 'lantern', 'hay', 'horse_brush', 'horse_tonic', 'region_map', 'wildflower', 'harmonica', 'mask_bandana', 'sarsaparilla', 'liniment', 'binoculars', 'stakes'],
              ammo: ['pistol', 'repeater'], buy: { food: 0.5, herb: 0.6, valuable: 0.5, animal: 0.35, collect: 0.5, tool: 0.4, clothing: 0.4, horse: 0.4 } },
   saloon:  { n: 'Bar', sell: ['beer', 'whiskey', 'stew', 'coffee', 'cigarette', 'bread', 'sarsaparilla'], buy: {} },
   doctor:  { n: 'Doktor', sell: ['health_cure', 'bandage', 'antidote', 'snake_oil', 'stamina_tonic', 'herbal_tonic', 'quinine', 'laudanum', 'liniment', 'smelling_salts'], buy: { herb: 1.0, med: 0.5 } },
@@ -346,7 +351,7 @@ const SHOPS = {
   pharmacy:{ n: 'Eczane', sell: ['health_cure', 'bandage', 'antidote', 'stamina_tonic', 'herbal_tonic', 'snake_oil', 'tobacco', 'quinine', 'laudanum', 'liniment', 'smelling_salts', 'sarsaparilla'], buy: { herb: 1.1, med: 0.55 } },
   brewery: { n: 'İmalathane', sell: ['beer', 'whiskey'], buy: { food: 0.5 } },
   mill:    { n: 'Değirmen', sell: ['bread', 'corn', 'hay'], buy: { food: 0.6 } },
-  warehouse:{ n: 'Toptancı', sell: ['beans', 'coffee', 'corn', 'tobacco', 'hay', 'whiskey', 'lantern', 'canteen'], ammo: ['pistol', 'repeater', 'rifle'], buy: { food: 0.45, animal: 0.45, valuable: 0.6, tool: 0.45 } },
+  warehouse:{ n: 'Toptancı', sell: ['beans', 'coffee', 'corn', 'tobacco', 'hay', 'whiskey', 'lantern', 'canteen', 'stakes'], ammo: ['pistol', 'repeater', 'rifle'], buy: { food: 0.45, animal: 0.45, valuable: 0.6, tool: 0.45 } },
   peddler: { n: 'Seyyar Satıcı', sell: ['snake_oil', 'chocolate', 'whiskey', 'bandage', 'gold_ring', 'necklace', 'cig_card', 'liniment', 'sarsaparilla', 'lockpick'], ammo: ['pistol'], buy: { valuable: 0.7, collect: 0.8, animal: 0.5 } },
 };
 /* Herhangi bir dükkanda satılan eşyalar (satış fiyatı sınırı için) */
@@ -418,6 +423,21 @@ const PROPERTIES = [
   { id: 'ranch',  n: 'Harlow Çiftliği', p: 600, near: [0.5, 0.47], perks: 'Günlük $1.50 gelir getiren küçük bir çiftlik.', income: 1.5 },
   { id: 'estate', n: 'Clement Konağı', p: 1800, near: [0.82, 0.52], perks: 'Lüks konak. Günlük $4 kira geliri.', income: 4 },
 ];
+
+/* ---- Kendi yapın (homestead.js) ----
+   Kasabalardan uzakta, uygun boş araziye; tapulu ya da kaçak. Yalnızca konaklama yapıları.
+   Ekler (ahır, kuyu, bostan) yalnızca biten bir yapının yanına kurulur. p fiyat ($), days inşaat günü. */
+const HOME_TYPES = {
+  hs_shack: { p: 30, days: 3, d: 'Tek odalı tahta baraka. Yatak ve sandık.' },
+  hs_cabin: { p: 80, days: 5, d: 'Sağlam kütük kulübe. Yatak, sandık ve yemek pişirebileceğin bir ocak.' },
+  hs_house: { p: 200, days: 8, d: 'Geniş çiftlik evi. İki yatak, ocak, sandık ve sıcak banyo için küvet.' },
+};
+const HOME_ADDONS = {
+  stable: { n: 'Ahır', p: 25, days: 2, d: 'Atın yemliğin başında dinlenir, sağlığı ve dayanıklılığı dolar.' },
+  well:   { n: 'Kuyu', p: 15, days: 1, d: 'Temiz su: iç, matarayı doldur, yüzünü yıka.' },
+  garden: { n: 'Bostan', p: 10, days: 1, d: 'Mısır yetişir; birkaç günde bir hasat edersin.' },
+};
+const HOME_FW = 18, HOME_FH = 11, DEED_PRICE = 25;
 
 /* ---- İşletmeler ----
    GOODS: toptan mal türleri. src: [bina tipi, fiyat çarpanı]; ilki asıl üretici (kendi zincirin olursa ucuz).

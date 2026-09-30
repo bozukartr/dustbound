@@ -37,7 +37,7 @@ const G = {
     this.law = { level: 0, bounty: 0, lastX: 0, lastY: 0, unseen: 0, spawnT: 0, radius: 0, maskBounty: 0, masked: false, desc: null };
     this.reports = []; this.nomads = null;
     this.honor = 0; this.bank = 0; this.scars = 0;
-    this.stats = { animals: 0, bears: 0, discoveries: 0, towns: 0, rideMiles: 0, walkMiles: 0, eaten: 0, herbs: 0, fish: 0, longKills: 0, bandits: 0, kills: 0, maxCash: 0, earned: 0, shifts: 0, helped: 0, maxBounty: 0, maxHonor: 0, minHonor: 0, properties: 0, married: 0, children: 0, bjWins: 0, armWins: 0, pokerWins: 0, locksPicked: 0, hoursDesert: 0, hoursCold: 0, nuggets: 0, collectibles: 0, tamed: 0, camps: 0, treasures: 0, trainRides: 0, deadeyes: 0, age: START_AGE };
+    this.stats = { animals: 0, bears: 0, discoveries: 0, towns: 0, rideMiles: 0, walkMiles: 0, eaten: 0, herbs: 0, fish: 0, longKills: 0, bandits: 0, kills: 0, maxCash: 0, earned: 0, shifts: 0, helped: 0, maxBounty: 0, maxHonor: 0, minHonor: 0, properties: 0, married: 0, children: 0, bjWins: 0, armWins: 0, pokerWins: 0, locksPicked: 0, homesBuilt: 0, hoursDesert: 0, hoursCold: 0, nuggets: 0, collectibles: 0, tamed: 0, camps: 0, treasures: 0, trainRides: 0, deadeyes: 0, age: START_AGE };
     this.skills = {}; for (const k in SKILLS) this.skills[k] = { lv: 1, xp: 0 };
     this.achieved = {};
     this.visited = new Set(); this.discovered = new Set(); this.rumored = new Set();
@@ -47,7 +47,7 @@ const G = {
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
-    this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {};
+    this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null;
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -229,7 +229,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -358,6 +358,7 @@ const G = {
     }
     this.loadCarry(d.carry);
     this.loadBiz(d.biz);
+    this.loadHomes(d.homes);
     this.pokerTables = d.poker || {};
     this.loadHaul(d.haul);
     if ((d.v || 1) < 2) this.migrateEconomy();
@@ -893,6 +894,13 @@ const G = {
         if (P.weapon === 'dynamite') { ctx.strokeStyle = 'rgba(255,200,100,0.6)'; ctx.beginPath(); ctx.arc(rx, ry, 20, 0, TAU); ctx.stroke(); }
       } else { ctx.globalAlpha = 0.5; ctx.fillRect(rx - 0.5, ry - 0.5, 1, 1); ctx.globalAlpha = 1; }
     }
+    // yapı kurma önizlemesi: arazinin sınırı (uygun değilse kırmızı)
+    const HP = this.homePreview;
+    if (HP) {
+      if (HP.t !== undefined && (HP.t -= 1 / 60) <= 0) this.homePreview = null;
+      ctx.strokeStyle = HP.bad ? 'rgba(230,80,60,0.9)' : 'rgba(240,220,140,0.9)'; ctx.lineWidth = 1; ctx.setLineDash([3, 2]);
+      ctx.strokeRect(HP.tx * TS + 0.5, HP.ty * TS + 0.5, HOME_FW * TS - 1, HOME_FH * TS - 1); ctx.setLineDash([]);
+    }
     // waypoint oku (ekran dışı)
     if (this.waypoint) {
       const wp = this.waypoint;
@@ -1022,3 +1030,4 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(PokerSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BinocSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(HomeSystems));

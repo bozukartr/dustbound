@@ -704,7 +704,7 @@ const UI = {
       const im = Icons.img(rum && !known ? 'question' : (PICON[p.kind === 'landmark' ? p.type : p.kind] || 'eye'), '#f0e4c8', 32);
       if (im.complete) c.drawImage(im, x - 6.5, y - 6.5, 13, 13);
       if (M.zoom > 2.2 && known) { c.font = 'italic 12px "IM Fell English", serif'; c.fillStyle = '#2a1a0e'; c.fillText(p.n, x, y + 17); c.font = '13px serif'; }
-      if (p.kind === 'property' && G.props.includes(p.prop)) { c.strokeStyle = '#e8c860'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 11, 0, TAU); c.stroke(); }
+      if ((p.kind === 'property' && G.props.includes(p.prop)) || p.kind === 'home') { c.strokeStyle = '#e8c860'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 11, 0, TAU); c.stroke(); }
     }
     // göçebe kamplar (keşfedilmiş, güncel yerleri)
     if (G.nomads) for (const nc of G.nomads) {
@@ -1359,7 +1359,10 @@ const UI = {
       case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); it.push({ icon: '📦', label: G.haulers.length ? Tr`Nakliyeciler (${G.haulers.length}/${HAUL_MAX})` : Tr('Nakliyeci Tut'), fn: () => this.openHaulers(b) }); break;
       case 'donate': it.push({ icon: '🙏', label: Tr('Kiliseye Bağış Yap'), right: fmtMoney(0.5), fn: () => { if (G.spend(0.5)) { G.addHonor(3); this.feed(Tr('Rahip sana teşekkür etti.')); } } }); break;
       case 'pray': it.push({ icon: '✝', label: Tr('Dua Et'), fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed(Tr('Bugün zaten dua ettin.')); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed(Tr('İçin huzurla doldu.')); G.advanceClock(20); } }); break;
-      case 'property': it.push({ icon: '📜', label: Tr('Satılık Mülkler'), fn: () => this.openLand() }); it.push({ icon: '🏪', label: Tr('Satılık İşletmeler ve Arsalar'), fn: () => this.openBizMarket(b) }); break;
+      case 'property': it.push({ icon: '📜', label: Tr('Satılık Mülkler'), fn: () => this.openLand() }); it.push({ icon: '🏪', label: Tr('Satılık İşletmeler ve Arsalar'), fn: () => this.openBizMarket(b) });
+        it.push({ icon: '📜', label: Tr('Arazi Tapusu Al'), right: fmtMoney(DEED_PRICE), fn: () => G.buyDeed() });
+        for (const h of G.homes.filter(x => !x.legal)) it.push({ icon: '⚖', label: Tr`Tapuya Bağla: ${G.homeName(h)}${h.sealed ? Tr(' (mühürlü)') : h.notice ? Tr(' (ihbarlı)') : ''}`, right: fmtMoney(G.homeLegalPrice(h)), fn: () => { if (G.homeLegalize(h)) this.pop(); } });
+        break;
       case 'barber': it.push({ icon: '💈', label: Tr('Tıraş Ol / Saç Kestir'), right: fmtMoney(0.15), fn: () => this.openBarber() }); break;
       case 'work': it.push({ icon: '⚒', label: JOBS[d.work].n, fn: () => this.openWork(d.work, b.name) }); break;
     }
@@ -2510,7 +2513,7 @@ const I_WHEEL_HINT = (page) => {
 };
 const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence', 'bakery', 'smith', 'pharmacy', 'gambling', 'brewery', 'mill', 'county', 'post', 'warehouse', 'cantina']);
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass' };
-const PICON = { camp: 'tent', farm: 'wheat', property: 'house', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
+const PICON = { camp: 'tent', farm: 'wheat', property: 'house', home: 'hut', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
 const TIPS = [
   'İpucu: Çömelerek hayvanlara daha kolay yaklaşabilirsin.',
   'İpucu: Çiğ et yemek hastalık yapabilir. Kamp ateşinde pişir.',
