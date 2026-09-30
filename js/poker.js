@@ -137,7 +137,10 @@ const Poker = {
     if (c <= 0) return;
     if (s.me) G.player.money -= c / 100; else s.o.stack -= c;
     s.contrib += c; s.total += c; st.pot += c;
+    Poker.fly(st, st.seats.indexOf(s), c, false);
   },
+  /* masada kayan fişler için kuyruk (arayüz çizerken tüketir) */
+  fly(st, i, c, win) { const f = st.fly || (st.fly = []); f.push({ i, c, win }); if (f.length > 24) f.shift(); },
   live: st => st.seats.filter(s => !s.folded),
   order(st, from) {
     const n = st.seats.length, out = [];
@@ -248,7 +251,7 @@ const Poker = {
     for (const s of win) {
       const c = share + rest; rest = 0;
       if (s.me) G.player.money += c / 100; else s.o.stack += c;
-      s.win = true;
+      s.win = true; Poker.fly(st, st.seats.indexOf(s), c, true);
     }
     const name = st.reveal ? POKER_HANDS()[win[0].ev[0]] : '';
     const who = win.map(s => (s.me ? Tr('Sen') : s.name)).join(', ');
@@ -289,6 +292,32 @@ const PokerSystems = {
 
 /* ---------------- arayüz ---------------- */
 Object.assign(UI, {
+  /* Fişler oturandan pota, kazanınca pottan kazanana kayar */
+  chipFly(el, st) {
+    const F = st.fly; if (!F || !F.length) return;
+    st.fly = [];
+    const pot = el.querySelector('.pk-pot'); if (!pot || !el.isConnected) return;
+    const seatEl = i => i === 0 ? el.querySelector('.pk-me') : el.querySelectorAll('.pk-seat')[i - 1];
+    const mid = r => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    const pr = mid(pot.getBoundingClientRect());
+    let delay = 0;
+    for (const f of F) {
+      const se = seatEl(f.i); if (!se) continue;
+      const sr = mid(se.getBoundingClientRect()), a = f.win ? pr : sr, b = f.win ? sr : pr;
+      const n = Math.min(4, 1 + Math.floor(f.c / Math.max(1, st.ante)));
+      for (let k = 0; k < n; k++) {
+        const c = document.createElement('div');
+        c.className = 'pk-chip ' + ['red', 'blue', 'white', 'green'][(f.i + k) % 4];
+        document.body.appendChild(c);
+        const j = () => rnd(-10, 10);
+        const an = c.animate([{ transform: `translate(${a.x + j()}px,${a.y + j()}px)`, opacity: 1 }, { transform: `translate(${b.x + j()}px,${b.y + j() * 0.5}px)`, opacity: 1, offset: 0.85 }, { transform: `translate(${b.x}px,${b.y}px)`, opacity: 0 }],
+          { duration: 480, delay: delay + k * 45, easing: 'cubic-bezier(.25,.7,.35,1)', fill: 'both' });
+        an.onfinish = () => c.remove();
+        setTimeout(() => { if (c.isConnected) Audio_.tone(2600 + rnd(-300, 300), 0.03, 'square', 0.018); }, delay + k * 45 + 400);
+      }
+      delay += 70;
+    }
+  },
   openPoker(b) {
     const P = G.player, table = G.pokerTable(b);
     if (!table.opps.length) { this.feed(Tr('Masada oynayacak kimse kalmadı. Yarın yine gel.'), 'warn'); return; }
@@ -331,6 +360,7 @@ Object.assign(UI, {
         <div class="pk-me ${cur === 0 ? 'turn' : ''} ${me.folded && inHand ? 'folded' : ''} ${me.win ? 'win' : ''}"><div class="bj-l">${Tr`Sen`}${st.btn === 0 ? ' <i class="pk-dealer">D</i>' : ''}${me.hand.length ? ' · ' + Poker.handName(me.hand) : ''}${me.act && inHand ? ' · ' + me.act : ''}</div><div class="bj-c pk-hand">${mine}</div></div></div>
         <div class="pk-btns">${buttons()}</div>
         <div class="p-foot">${st.phase === 'draw' && !me.folded ? Tr`◀ ▶ Kart &nbsp; ${G_('confirm')} Seç` : st.phase === 'idle' ? Tr`◀ ▶ Giriş parası` : Tr`Sabit limit: bahis ${fmtMoney(Poker.betSize(st) / 100)}, turda en fazla ${POKER_CAP} bahis`}</div>`;
+      this.chipFly(el, st);
     };
     const deal = () => {
       if (st.phase !== 'idle') return;

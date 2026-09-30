@@ -46,6 +46,15 @@ module.exports = {
       const a = await p.evaluate(() => G.player.aimAng);
       t.near(a, 0, 0.12, 'sağa nişan');
     });
+    await t.step('sarhoşken içeride hem sallantı hem yakınlaşma birlikte uygulanır', async () => {
+      await p.evaluate(() => { G.player.drunk = 90; });
+      await t.sleep(2500);
+      const r = await p.evaluate(() => ({ tf: G.canvas.style.transform, z: G.camZoom.z }));
+      t.ok(/scale\(1\.[2-9]/.test(r.tf) && /rotate/.test(r.tf), 'yakınlaşma ve dönme birlikte', r);
+      await p.evaluate(() => { G.player.drunk = 0; FX.g.drunk = 0; });
+      await t.sleep(400);
+      t.ok(/^scale\(/.test(await p.evaluate(() => G.canvas.style.transform)), 'ayılınca yalnızca yakınlaşma kalır');
+    });
     await t.step('çıkınca kamera aynı yumuşaklıkla uzaklaşır', async () => {
       await p.evaluate(() => { const P = G.player; P.x = GB.door.x; P.y = GB.door.y - 18; P.ang = Math.PI / 2; });
       await p.keyboard.down('KeyS');

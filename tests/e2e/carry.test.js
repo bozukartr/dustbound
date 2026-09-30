@@ -14,10 +14,10 @@ module.exports = {
     await t.step('fareyle kement atılır, hedef yakalanır ve sürüklenir', async () => {
       const pos = await p.evaluate(() => {
         const P = G.player, n = new NPC(P.x + 60, P.y + 10, 'bandit', { hostile: true, weapon: 'cattleman' }); n.aggro = false; G.addEnt(n); window.TG = n;
-        return { sx: (n.x - G.cam.ox) * G.scale, sy: (n.y - G.cam.oy) * G.scale };
+        const q = G.toScreen(n.x, n.y); return { sx: q.x, sy: q.y };
       });
       await t.sleep(200);
-      const pos2 = await p.evaluate(() => ({ sx: (TG.x - G.cam.ox) * G.scale, sy: (TG.y - G.cam.oy) * G.scale }));
+      const pos2 = await p.evaluate(() => { const q = G.toScreen(TG.x, TG.y); return { sx: q.x, sy: q.y }; });
       await p.mouse.move(pos2.sx, pos2.sy); await t.sleep(120);
       await p.mouse.down(); await t.sleep(80); await p.mouse.up(); await t.sleep(800);
       const r = await p.evaluate(() => ({ state: TG.state, rope: G.player.rope === TG }));

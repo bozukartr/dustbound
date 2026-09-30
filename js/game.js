@@ -47,7 +47,7 @@ const G = {
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
-    this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null;
+    this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -125,11 +125,15 @@ const G = {
     if (W / s < 320) s = Math.max(1, Math.floor(W / 320));
     this.scale = s;
     if (this.binoc) this.binocEl(true);
-    this.vw = Math.ceil(W / s); this.vh = Math.ceil(H / s);
+    // kenar payı: tuval ekrandan biraz büyük çizilir; dörtnala giderken kamera bu payı açarak uzaklaşır
+    this.os = OVERSCAN;
+    this.vw = Math.ceil(W / s * OVERSCAN); this.vh = Math.ceil(H / s * OVERSCAN);
     const c = this.canvas;
     c.width = this.vw; c.height = this.vh;
     c.style.width = this.vw * s + 'px'; c.style.height = this.vh * s + 'px';
-    c.style.transformOrigin = `${W / 2}px ${H / 2}px`;   // iç mekân yakınlaşması ekranın ortasından
+    const L = Math.round((W - this.vw * s) / 2), Tp = Math.round((H - this.vh * s) / 2);
+    c.style.left = L + 'px'; c.style.top = Tp + 'px';
+    c.style.transformOrigin = `${W / 2 - L}px ${H / 2 - Tp}px`;   // yakınlaşma ekranın ortasından
     this.light.width = this.vw; this.light.height = this.vh;
     this.over.width = this.vw; this.over.height = this.vh;
     this.ctx.imageSmoothingEnabled = false;
@@ -411,6 +415,8 @@ const G = {
     if (this.state === 'play' && !modal) this.handleGlobalInput(dt);
     if (modal || this.state !== 'play') Bubbles.clear(); else Bubbles.update(dt);
     if (modal) { this.updateCamera(dt); return; }
+    // isabet anında mikro duraklama: dünya bir anlığına durur, çizim sürer
+    if (this.hitStopT > 0) { this.hitStopT -= dt; this.updateCamera(dt); return; }
     let ts = 1;
     if (this.wheelOpen) ts = 0.2;
     if (P.deadeye) ts = 0.35;
@@ -439,6 +445,7 @@ const G = {
     for (const tr of this.trains) tr.update(sdt);
     this.parts.update(sdt);
     FX.update(sdt, dt);
+    Juice.update(sdt);
     if (this.state !== 'play') { this.updateCamera(dt); return; }
     const dmin = sdt * MIN_PER_SEC;
     this.advanceClock(dmin);
@@ -698,8 +705,8 @@ const G = {
      çıkınca aynı yumuşaklıkla geri uzaklaşır. Yakınlaşma tuvalin CSS ölçeğiyle yapılır;
      dünya çizimi ve piksel ölçeği değişmez. */
   zoomFor(b) {
-    const fill = 0.8, bw = b.w * TS, bh = (b.h + 1) * TS;
-    return clamp(Math.min(this.vw * fill / bw, this.vh * fill / bh), 1, 2.2);
+    const fill = 0.8, bw = b.w * TS, bh = (b.h + 1) * TS, os = this.os || 1;
+    return clamp(Math.min(this.vw / os * fill / bw, this.vh / os * fill / bh), 1, 2.2);
   },
   zoomUpdate(dt) {
     const Z = this.camZoom || (this.camZoom = { z: 1, from: 1, to: 1, k: 0, kFrom: 0, kTo: 0, t: 1, b: null, cx: 0, cy: 0 });
@@ -714,7 +721,14 @@ const G = {
       const u = Z.t, e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;   // yumuşak başlayıp yumuşak biten geçiş
       Z.z = lerp(Z.from, Z.to, e); Z.k = lerp(Z.kFrom, Z.kTo, e);
     }
-    const tf = Z.z > 1.001 ? `scale(${Z.z.toFixed(4)})` : '';
+    // dörtnala giderken kenar payı açılır: kamera hafifçe uzaklaşır
+    const R = !IB && this.state === 'play' ? this.player.riding : null;
+    const sp = R ? R.spd : 0, sTo = 1 - (1 - 1 / (this.os || 1)) * clamp((sp - 100) / 60, 0, 1);
+    Z.sz = (Z.sz || 1) + (sTo - (Z.sz || 1)) * Math.min(1, dt * 1.6);
+    if (Math.abs(Z.sz - sTo) < 0.002) Z.sz = sTo;
+    Z.out = Z.z * Z.sz;
+    if (FX.drunkCss) return Z;   // sarhoşken dönüşümü FX.post yazar (yakınlaşmayı da içerir)
+    const tf = Math.abs(Z.out - 1) > 0.001 ? `scale(${Z.out.toFixed(4)})` : '';
     if (this.canvas.style.transform !== tf) this.canvas.style.transform = tf;
     return Z;
   },
@@ -733,8 +747,14 @@ const G = {
     let sx = 0, sy = 0;
     if (this.fx.shake > 0 && this.settings.shake) { sx = rnd(-1, 1) * this.fx.shake; sy = rnd(-1, 1) * this.fx.shake; }
     this.fx.shake = Math.max(0, this.fx.shake - dt * 18);
+    if (this.settings.shake) { sx += this.fx.kx || 0; sy += this.fx.ky || 0; }   // yönlü tepme (atış, patlama)
     C.ox = Math.round(C.x - this.vw / 2 + sx);
     C.oy = Math.round(C.y - this.vh / 2 + sy);
+  },
+  /* Dünya koordinatı → ekran (CSS pikseli); tuvalin kenar payını ve yakınlaşmasını hesaba katar */
+  toScreen(x, y) {
+    const r = this.canvas.getBoundingClientRect(), k = r.width / this.canvas.width;
+    return { x: r.left + (x - this.cam.ox) * k, y: r.top + (y - this.cam.oy) * k };
   },
   prefetch(sync) {
     const W = this.world, C = this.cam;
@@ -767,6 +787,7 @@ const G = {
     ctx.translate(-x0, -y0);
     FX.beginFrame();
     FX.drawGround(ctx);
+    Juice.drawGround(ctx, x0, y0, x1, y1);
     // dinamik zemin öğeleri
     const tx0 = Math.max(0, (x0 >> 4) - 1), ty0 = Math.max(0, (y0 >> 4) - 1), tx1 = Math.min(WW - 1, (x1 >> 4) + 1), ty1 = Math.min(WH - 1, (y1 >> 4) + 1);
     const obj = W.obj, tile = W.tile, flags = W.flags, day = this.day, t = this.t;
@@ -775,7 +796,7 @@ const G = {
     for (let ty = ty0; ty <= ty1; ty++) {
       const row = ty * WW;
       for (let tx = tx0; tx <= tx1; tx++) {
-        if (tile[row + tx] === T.WATER) FX.foam(ctx, tx, ty, t);
+        if (tile[row + tx] === T.WATER) { FX.foam(ctx, tx, ty, t); if (fxFull) Juice.water(ctx, tx, ty, t); }
         const o = obj[row + tx];
         if (!o) continue;
         if (fxFull && SWAY_O[o] && !(flags[row + tx] & 16)) { FX.sway(ctx, o, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77)); continue; }
@@ -800,6 +821,7 @@ const G = {
     for (const tr of this.trains) tr.draw(ctx, x0, y0, x1, y1);
     this.drawTumbles(ctx);
     // varlıklar
+    Juice.sunOn = !this.insideB;   // varlık gölgeleri güneşe göre
     const vis = [];
     for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P)) vis.push(e);
     if (P.riding) vis.push(P.riding);
@@ -820,8 +842,10 @@ const G = {
     }
     // kementteki kişiye uzanan ip
     if (P.rope) { const e = P.rope, d = dist(P.x, P.y, e.x, e.y); Spr.rope(ctx, P.x, P.y, e.x, e.y, Math.max(0, 44 - d) * 0.25); }
+    Juice.sunOn = false;
     this.parts.draw(ctx, x0, y0, x1, y1);
     this.drawCovers(ctx, x0, y0, x1, y1, dt);
+    Juice.drawAfterCovers(ctx, x0, y0, x1, y1, dt);
     ctx.restore();
     // üst katman (ağaç tepeleri, çatılar)
     const under = this.playerUnderCanopy();
@@ -840,6 +864,7 @@ const G = {
     ctx.translate(-x0, -y0);
     FX.drawHigh(ctx);
     this.drawBirds(ctx);
+    Juice.drawHigh(ctx, x0, y0, x1, y1);
     ctx.restore();
     FX.drawClouds(ctx);
     ctx.save();
@@ -848,8 +873,10 @@ const G = {
     ctx.restore();
     this.drawWeather(ctx, dt);
     this.drawLighting(ctx, fires);
+    Juice.drawGlow(ctx, x0, y0);
     if (this.amb.flies.length) this.drawFlies(ctx);
     FX.post(ctx, dt);
+    Juice.drawScreen(ctx);
     // flaşlar
     if (this.fx.lightning > 0) { ctx.fillStyle = `rgba(230,235,255,${this.fx.lightning * 0.6})`; ctx.fillRect(0, 0, vw, vh); this.fx.lightning = Math.max(0, this.fx.lightning - dt * 3); }
     if (this.fx.boom > 0) { ctx.fillStyle = `rgba(255,220,160,${this.fx.boom})`; ctx.fillRect(0, 0, vw, vh); this.fx.boom = Math.max(0, this.fx.boom - dt * 2); }
@@ -1000,13 +1027,15 @@ const G = {
     const night = dark > 0.35;
     for (const L of this.world.lights) {
       if (!inView(L.x, L.y, L.r)) continue;
-      if (L.type === 'window' && (!night || hash2(L.x | 0, L.y | 0, this.day) < 0.25)) continue;
+      if (L.type === 'window' && (!night || !Juice.windowLit(L))) continue;
       if (L.type === 'lamp' && !night) continue;
       if (L.type === 'inner' && !(this.insideB && this.insideB.id === L.b)) continue;
-      lights.push([L.x, L.y, L.r * (L.type === 'fire' ? 1 + Math.sin(this.t * 9) * 0.05 : 1), L.type === 'window' ? 0.75 : 1]);
+      const fl = L.type === 'fire' ? Juice.flicker(L.x, this.t, 0.08) : L.type === 'lamp' ? Juice.flicker(L.x + L.y, this.t * 0.6, 0.035) : 1;
+      lights.push([L.x, L.y, L.r * fl, L.type === 'window' ? 0.75 : 1]);
     }
-    for (const [x, y] of fires) lights.push([x, y, 80 + Math.sin(this.t * 11) * 4, 1]);
-    if (this.camp) lights.push([this.camp.x, this.camp.y, 90 + Math.sin(this.t * 11) * 4, 1]);
+    for (const [x, y] of fires) lights.push([x, y, 80 * Juice.flicker(x * 0.37 + y, this.t, 0.07), 1]);
+    if (this.camp) lights.push([this.camp.x, this.camp.y, 90 * Juice.flicker(3.1, this.t, 0.07), 1]);
+    for (const f of Juice.flashes) if (inView(f.x, f.y, 80)) lights.push([f.x, f.y, 80, f.t * 12]);
     if (this.nomads) for (const c of this.nomads) if (c.spawned && inView(c.x, c.y, 100)) lights.push([c.x, c.y, 95 + Math.sin(this.t * 10) * 5, 1]);
     if (P.lantern && P.has('lantern')) lights.push([P.x + Math.cos(P.ang) * 6, P.y + Math.sin(P.ang) * 6, 100, 1]);
     else lights.push([P.x, P.y, 26, 0.35]);

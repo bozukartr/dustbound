@@ -903,8 +903,15 @@ const GameSystems = {
     const ex = ox + dx * hd, ey = oy + dy * hd;
     this.parts.tracer(ox, oy, ex, ey);
     if (hit) {
-      if (hit === this.player) hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : 'haydut');
+      const was = hit.dead;
+      if (hit === this.player) { if (owner) Juice.hurtFrom(owner.x, owner.y); hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : 'haydut'); }
       else hit.hurt(dmg, owner === this.player ? 'player' : 'npc', 'gun');
+      // vuruşun hissi: ölümde savrulma ve uçan şapka; oyuncunun isabetinde mikro duraklama
+      if (hit !== this.player && hit.dead && !was) {
+        const W_ = WEAPONS[opts.weapon || (owner && owner.weapon)] || {}, pow = W_.pellets ? 120 : W_.kind === 'long' ? 85 : 60;
+        Juice.knock(hit, ang, pow); Juice.hatOff(hit, ang, pow * 0.9);
+        if (owner === this.player) Juice.hitStop(hit.kind === 'animal' ? 0.045 : 0.065);
+      } else if (owner === this.player && hit !== this.player && dmg >= 40) Juice.hitStop(0.03);
       if (hit.kind === 'wagon' && Math.abs(ex - this.player.x) < 700) FX.impact(ex, ey, ang);
       if (owner === this.player && hit.dead && hd > 400) this.stat('longKills', 1);
     } else {
@@ -925,8 +932,13 @@ const GameSystems = {
     for (const e of [...this.ents, this.player]) {
       if (e.dead || !e.hurt) continue;
       const d = dist(x, y, e.x, e.y);
-      if (d < R) e.hurt(WEAPONS.dynamite.dmg * (1 - d / R) + 10, e === this.player ? 'patlama' : (owner === this.player ? 'player' : 'npc'), 'explosion');
+      if (d >= R) continue;
+      const was = e.dead;
+      if (e === this.player) Juice.hurtFrom(x, y);
+      e.hurt(WEAPONS.dynamite.dmg * (1 - d / R) + 10, e === this.player ? 'patlama' : (owner === this.player ? 'player' : 'npc'), 'explosion');
+      if (e !== this.player && e.dead && !was) { const a = Math.atan2(e.y - y, e.x - x); Juice.knock(e, a, 150 * (1 - d / R) + 40); Juice.hatOff(e, a, 110); }
     }
+    Juice.explosion(x, y);
     this.noise(x, y, 900, 'gun');
   },
   noise(x, y, r, type) {
