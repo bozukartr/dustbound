@@ -42,7 +42,7 @@ const GameSystems = {
     let inc = 0;
     for (const id of this.props) { const P = PROPERTIES.find(p => p.id === id); if (P && P.income) inc += P.income; }
     if (inc > 0) { inc *= this.hasPerk('tycoon') ? 1.5 : 1; this.bank += inc; UI.feed(Tr`🏠 Mülk geliri bankaya yatırıldı: ${fmtMoney(inc)}`); this.stats.earned += inc; }
-    this.bizDaily(); this.bizBuildTick(); this.haulDaily();
+    this.bizDaily(); this.bizBuildTick(); this.haulDaily(); this.homeDaily();
     this.bounties = null; // ilanlar yenilenir
     const L = this.player.look;
     if (L.sex === 'm' && L.beard > 0) { L.beardLen = Math.min(1, (L.beardLen || 0.3) + 0.08); this.player._lk = null; }
@@ -53,8 +53,7 @@ const GameSystems = {
     UI.toast(Tr`${age} Yaşındasın`, age >= GOAL_AGE ? Tr('Bir efsane oldun.') : pick([Tr('Doğum günün kutlu olsun.'), Tr('Bir yıl daha geride kaldı.'), Tr('Batı seni yaşlandırıyor ama yıkamıyor.'), Tr('Zaman akıp gidiyor.')]), 'year');
     // yaşlılık hastalıkları
     if (age >= 62 && Math.random() < 0.15 + (age - 62) * 0.012) {
-      this.player.sick = Math.max(this.player.sick, 30);
-      UI.help(Tr('Yaşın ilerledikçe bünyen zayıflıyor. <b>Hastalandın</b>. Bir doktora görün ya da tonik kullan.'), 8);
+      this.sicken(30, Tr('Yaşın ilerledikçe bünyen zayıflıyor. <b>Hastalandın</b>. Bir doktora görün ya da tonik kullan.'), 8);
     }
     // aile
     if (this.family.spouse && this.family.children.length < 4 && Math.random() < 0.4 && age < 58) {
@@ -132,6 +131,7 @@ const GameSystems = {
     let felt = amb;
     if (P.coat) felt += ITEMS[P.coat].coat.warm;
     if (P.warmBuff > 0) felt += 8;
+    if (P.coolT > 0 && amb > 20) felt -= 7;   // sarsaparilla: sıcakta serinletir
     felt += this.fireHeat || 0;   // ateşe yakınlığa göre (checkFire)
     if (P.look.hat === 'wide' && amb > 28) felt -= 2;
     if (this.envCache && this.envCache.rain > 0.3 && !(P.coat && ITEMS[P.coat].coat.rain) && !this.insideB) felt -= 3;
@@ -153,6 +153,7 @@ const GameSystems = {
     P.clean = Math.max(0, P.clean - 1 * hours);
     P.drunk = Math.max(0, P.drunk - 25 * hours);
     P.warmBuff = Math.max(0, P.warmBuff - dtMin);
+    for (const k of ['immuneT', 'painT', 'limberT', 'coolT']) if (P[k] > 0) P[k] = Math.max(0, P[k] - dtMin);
     P.deCore = Math.max(0, P.deCore - 1.2 * hours * (this.hasPerk('deadeye') ? 0.6 : 1));
     if (P.sick > 0) P.sick = Math.max(0, P.sick - hours);
     // bölge istatistikleri
@@ -184,6 +185,9 @@ const GameSystems = {
     const e = it.e || {};
     if (it.c === 'horse') return this.useHorseItem(id);
     if (it.c === 'clothing') return this.equipClothing(id);
+    if (id === 'binoculars') { this.toggleBinoc(); return true; }
+    if (id === 'stakes') { this.useStakes(); return true; }
+    if (id === 'lockpick') { UI.feed(Tr('Maymuncuğu kilitli ya da kapalı bir kapının önünde kullan.'), 'warn'); return false; }
     if (it.autoUse || id === 'region_map') { this.useRegionMap(); P.removeItem(id); return true; }
     if (id === 'treasure_map') { UI.showTreasureMap(); return true; }
     if (!it.e) { UI.feed(Tr('Bu eşya kullanılamaz.'), 'warn'); return false; }
@@ -199,10 +203,24 @@ const GameSystems = {
     if (e.warmth) P.warmBuff = Math.max(P.warmBuff, e.warmth * 4);
     if (e.cure) { if (P.sick > 0) UI.feed(Tr('Kendini daha iyi hissediyorsun.')); P.sick = 0; }
     if (e.poison) { P.poison = 0; UI.feed(Tr('Zehir etkisini yitirdi.')); }
-    if (it.raw && Math.random() < it.raw * (this.hasPerk('eater') ? 0.5 : 1)) { P.sick = Math.max(P.sick, 8); UI.help(Tr('Çiğ et yedin ve midenin bozulduğunu hissediyorsun. <b>Hastasın.</b>'), 5); }
+    // süreli etkiler (oyun dakikası)
+    if (e.immune) P.immuneT = Math.max(P.immuneT, e.immune * 60);
+    if (e.pain) P.painT = Math.max(P.painT, e.pain * 60);
+    if (e.limber) P.limberT = Math.max(P.limberT, e.limber * 60);
+    if (e.cool) P.coolT = Math.max(P.coolT, e.cool * 60);
+    if (e.sober && P.drunk > 0) { P.drunk = 0; UI.feed(Tr('Burnun yandı, başın bir anda açıldı.')); }
+    if (it.raw && Math.random() < it.raw * (this.hasPerk('eater') ? 0.5 : 1)) this.sicken(8, Tr('Çiğ et yedin ve midenin bozulduğunu hissediyorsun. <b>Hastasın.</b>'));
     if (it.c === 'food') { this.stat('eaten', 1); Audio_.tone(300, 0.08, 'triangle', 0.06); Audio_.tone(240, 0.08, 'triangle', 0.06, null, 0.12); }
     else Audio_.ui('pick');
     UI.feed(Tr`${Icons.item(id, 'ic inl')} ${it.n} kullanıldı`);
+    return true;
+  },
+  /* Hastalık kapma: kinin etkisi sürerken hastalanmazsın */
+  sicken(v, msg, t = 5) {
+    const P = this.player;
+    if (P.immuneT > 0) return false;
+    P.sick = Math.max(P.sick, v);
+    if (msg) UI.help(msg, t);
     return true;
   },
   drinkCanteen() {
@@ -738,6 +756,14 @@ const GameSystems = {
     this.crime('trespass', b.door.x, b.door.y);
     UI.feed(Tr('Kapıyı kırdın.'), 'warn');
   },
+  /* Maymuncukla açılan kapı: gürültü yok, yalnızca görülürse suç */
+  pickLock(b) {
+    b.picked = this.day;
+    this.advanceClock(5);
+    this.crime('trespass', b.door.x, b.door.y);
+    this.stat('locksPicked', 1);
+    UI.feed(Tr('🗝️ Kilit sessizce açıldı.'));
+  },
   /* İç mekân eşyası -> etkileşimler */
   furnActions(b, o) {
     const P = this.player, U = UI;
@@ -753,6 +779,7 @@ const GameSystems = {
       if (b.def.svc.includes('rob') && !this.bizOf(b)) acts.push({ n: Tr('Kasayı Boşalt'), fn: () => U.robStore(b, true) });
       return { label, acts };
     };
+    if (b.home !== undefined) { const r = this.homeFurn(b, o); if (r !== undefined) return r; }
     switch (o) {
       case O.COUNTER: return counter(b.type === 'bank' ? Tr('Veznedar') : b.type === 'hotel' ? Tr('Resepsiyon') : Tr('Tezgah'));
       case O.BAR: return counter(Tr('Bar'));
@@ -815,7 +842,8 @@ const GameSystems = {
     const P = this.player;
     if (P) { const W = this.world, i = (P.y >> 4) * WW + (P.x >> 4); if (W.solid[i] === 3 && W.buildings[W.bid[i]] === b) return true; }   // tam kapı eşiğindeyken kapanırsa
     if (b.type === 'property') return this.props.includes(b.prop);
-    if (b.forced === this.day) return true;          // kırılan kapı o gün açık kalır (kilitli evler dahil)
+    if (b.forced === this.day || b.picked === this.day) return true;
+    if (b.home !== undefined) { const h = this.homeOf(b); return !!h && !h.sealed; }   // kendi yapın: mühürlenmediyse hep açık   // kırılan ya da maymuncukla açılan kapı o gün açık kalır
     if (b.def.lock) return false;
     return this.isOpen(b);
   },
@@ -1509,6 +1537,8 @@ const GameSystems = {
         if (e === this.horse) {
           if (e.dead) { add(e.x, e.y, e.name, [{ n: Tr('At Diriltici Kullan'), fn: () => this.consume('horse_reviver') }]); continue; }
           const acts = [{ n: Tr('Bin'), fn: () => P.mount(e) }, { n: Tr('Atı Okşa'), fn: () => { e.addBond(3); Audio_.neigh(); UI.feed(Tr`${e.name} mutlu görünüyor.`); } }];
+          const st = this.homeStableNear(e.x, e.y);
+          if (st) acts.push({ n: Tr('Atını Besle ve Dinlendir'), fn: () => this.homeRestHorse(st) });
           if (P.has('horse_brush')) acts.push({ n: Tr('Fırçala'), fn: () => { e.addBond(5); e.dirty = 0; UI.feed(Tr`${e.name} tertemiz oldu.`); } });
           if (P.has('hay')) acts.push({ n: Tr('Saman Ver'), fn: () => this.consume('hay') });
           if (P.has('horse_tonic')) acts.push({ n: Tr('At Toniği Ver'), fn: () => this.consume('horse_tonic') });
@@ -1561,7 +1591,10 @@ const GameSystems = {
       }
       switch (o) {
         case O.WELL: case O.PUMP: case O.TROUGH:
-          add(ox, oy, o === O.TROUGH ? Tr('Yalak') : Tr('Kuyu'), [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }]);
+          { const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }];
+            const hm = o === O.TROUGH ? this.homeAtIdx(i) : null;
+            if (hm && this.horse && !this.horse.dead && dist(this.horse.x, this.horse.y, ox, oy) < 90) acts.unshift({ n: Tr('Atını Besle ve Dinlendir'), fn: () => this.homeRestHorse(hm) });
+            add(ox, oy, o === O.TROUGH ? (hm ? Tr('Yemlik') : Tr('Yalak')) : Tr('Kuyu'), acts); }
           break;
         case O.CHEST: {
           const c = W.chests.get(i);
@@ -1573,7 +1606,8 @@ const GameSystems = {
         case O.GRAVE: case O.CROSS:
           if (!this.graves[i]) add(ox, oy, Tr('Mezar'), [{ n: Tr('Saygı Göster'), hold: 1, fn: () => { this.graves[i] = 1; this.addHonor(1); UI.feed(Tr('Ölüye saygı gösterdin. Huzur içinde yatsın.')); } }]);
           break;
-        case O.SIGN: add(ox, oy, Tr('Yol Tabelası'), [{ n: Tr('Tabelayı Oku'), fn: () => UI.showSign(ox, oy) }]); break;
+        case O.SIGN: { const hm = this.homes.find(h => h.sign === i); if (hm) { add(ox, oy, this.homeSignLabel(hm), this.homeSignActs(hm)); break; } }
+          add(ox, oy, Tr('Yol Tabelası'), [{ n: Tr('Tabelayı Oku'), fn: () => UI.showSign(ox, oy) }]); break;
         case O.BENCH: add(ox, oy, 'Bank', [{ n: Tr('Otur ve Bekle'), fn: () => UI.openWait() }]); break;
         case O.LOTSIGN: { const lot = W.lots.find(l => l.sign === i); if (lot) add(ox, oy, this.lotOwned(lot) ? Tr('Arsan') : Tr('Satılık Arsa'), [{ n: this.lotOwned(lot) ? Tr('Arsaya Bak') : Tr('İlanı Oku'), fn: () => UI.showLot(lot) }]); break; }
         case O.BOARD: add(ox, oy, Tr('İlan Panosu'), [{ n: Tr('İlanlara Bak'), fn: () => UI.openBountyBoard() }]); break;
@@ -1613,8 +1647,10 @@ const GameSystems = {
         continue;
       }
       if (this.doorOpen(b)) continue;
-      if (b.def.lock) { add(b.door.x, b.door.y, Tr('Kilitli Kapı'), [{ n: Tr('Kapıyı Çal'), fn: () => this.knock(b) }, { n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) }], 5); continue; }
-      const acts = [{ n: Tr('Kapalı (06:00\'da açılır)'), fn: () => UI.feed(Tr`${b.name} kapalı. Sabah 06:00'da açılır.`) }];
+      const pickA = P.has('lockpick') ? [{ n: Tr('Maymuncukla Aç'), fn: () => UI.openLockpick(b) }] : [];
+      if (b.home !== undefined) { add(b.door.x, b.door.y, Tr('Mühürlü Kapı'), [{ n: Tr('Mührü Oku'), fn: () => UI.feed(Tr('İlçe mührü: tapusuz yapı. Tapuya bağlanana kadar girmek yasak.'), 'warn') }, ...pickA, { n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) }], 5); continue; }
+      if (b.def.lock) { add(b.door.x, b.door.y, Tr('Kilitli Kapı'), [{ n: Tr('Kapıyı Çal'), fn: () => this.knock(b) }, ...pickA, { n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) }], 5); continue; }
+      const acts = [{ n: Tr('Kapalı (06:00\'da açılır)'), fn: () => UI.feed(Tr`${b.name} kapalı. Sabah 06:00'da açılır.`) }, ...pickA];
       if (b.def.svc.includes('rob') || b.def.svc.includes('robbank')) acts.push({ n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) });
       add(b.door.x, b.door.y, b.name, acts, 5);
     }
@@ -1862,7 +1898,7 @@ const GameSystems = {
     Audio_.tone(400, 0.2, 'sine', 0.05, null, 0, 250);
     if (!clean) {
       const t = this.world.tileAtPx(P.x, P.y);
-      if (chance(0.06) || (t === T.SWAMP && chance(0.2))) { P.sick = Math.max(P.sick, 6); UI.help(Tr('Su pek temiz değildi. <b>Midende bir bulantı hissediyorsun.</b>'), 5); }
+      if (chance(0.06) || (t === T.SWAMP && chance(0.2))) this.sicken(6, Tr('Su pek temiz değildi. <b>Midende bir bulantı hissediyorsun.</b>'));
     }
     UI.feed(Tr('💧 Su içtin'));
   },
@@ -1986,7 +2022,7 @@ const GameSystems = {
     UI.feed(Tr`❤ ${R.name}: Yakınlık ${Math.round(R.rel)}`);
   },
   propose(e, R) {
-    if (!this.props.length) { e.say(Tr('Seni seviyorum ama... başımızı sokacak bir evimiz bile yok.')); return; }
+    if (!this.props.length && !this.homes.some(h => h.done && !h.sealed)) { e.say(Tr('Seni seviyorum ama... başımızı sokacak bir evimiz bile yok.')); return; }
     if (this.family.spouse) { e.say(Tr('Sen zaten evlisin!')); return; }
     const ring = this.player.has('gold_ring');
     if (ring || R.rel >= 95 || chance(0.6)) {

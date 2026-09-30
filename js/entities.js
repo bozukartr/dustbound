@@ -229,6 +229,7 @@ class Player extends Ent {
     this.hunger = 85; this.thirst = 85; this.energy = 90; this.clean = 90; this.drunk = 0; this.warmBuff = 0;
     this.deCore = 70;
     this.sick = 0; this.poison = 0;
+    this.immuneT = 0; this.painT = 0; this.limberT = 0; this.coolT = 0;   // ilaçların süreli etkileri (oyun dakikası)
     this.canteen = 3;
     this.coat = null;
     this.mask = null;
@@ -340,6 +341,7 @@ class Player extends Ent {
     if (G.state !== 'play' || this.hp <= 0) return;
     if (this.riding && src && src !== 'fall' && Math.random() < 0.25) { this.riding.hurt(dmg); return; }
     if (G.godMode) return;
+    if (this.painT > 0) dmg *= 0.6;   // laudanum: acıyı uyuşturur
     this.hp -= dmg;
     this.hurtT = 0.4;
     G.fx.flash = Math.min(0.6, G.fx.flash + dmg / 40);
@@ -524,10 +526,10 @@ class Player extends Ent {
     this.sprinting = false;
     if (wantSprint && this.sta > 1 && !this.crouch) {
       speed = 88; this.sprinting = true;
-      this.sta -= dt * 16 * (this.energy < 20 ? 1.5 : 1);
+      this.sta -= dt * 16 * (this.energy < 20 ? 1.5 : 1) * (this.limberT > 0 ? 0.4 : 1);
       if (this.sta < 0) this.sta = 0;
     } else {
-      const regen = 14 * (this.energy < 15 ? 0.4 : 1) * (G.coldness > 0.5 ? 0.5 : 1);
+      const regen = 14 * (this.energy < 15 ? 0.4 : 1) * (G.coldness > 0.5 ? 0.5 : 1) * (this.limberT > 0 ? 1.5 : 1);
       this.sta = Math.min(this.maxSta, this.sta + dt * regen);
     }
     if (this.aiming) speed = Math.min(speed, 32);

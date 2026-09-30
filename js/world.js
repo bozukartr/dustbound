@@ -466,6 +466,22 @@ class World {
       case 'house': bed(1, 1); put(W - 2, 1, O.STOVE); put(W - 2, 3, O.TABLE); break;
       case 'property': bed(1, 1); put(D, 1, O.HOMECHEST); put(W - 2, 1, O.STOVE); put(W - 2, 3, O.TABLE); break;
       case 'cabin': row(2, 1, 2, O.COUNTER); b.staff = at(1, 1); put(W - 2, 1, O.STOVE); break;
+      // oyuncunun kurduğu yapılar: her yapı türü için birkaç iç tasarımdan biri (b.design)
+      case 'hs_shack': [
+        () => { bed(1, 1); put(4, 1, O.HOMECHEST); put(4, 3, O.CHAIR); },
+        () => { bed(4, 1); put(1, 1, O.HOMECHEST); put(1, 3, O.CHAIR); },
+        () => { bed(1, 2); put(1, 1, O.HOMECHEST); put(4, 1, O.SHELF); put(4, 3, O.PLANT); },
+      ][(b.design || 0) % 3](); break;
+      case 'hs_cabin': [
+        () => { bed(1, 1); put(2, 1, O.HOMECHEST); put(5, 1, O.STOVE); put(5, 3, O.TABLE); put(1, 4, O.PLANT); },
+        () => { bed(5, 1); put(4, 1, O.HOMECHEST); put(1, 1, O.STOVE); put(2, 1, O.SHELF); put(1, 3, O.TABLE); },
+        () => { bed(1, 2); put(1, 1, O.HOMECHEST); put(5, 1, O.STOVE); put(4, 1, O.SHELF); put(5, 3, O.TABLE); put(5, 4, O.CHAIR); },
+      ][(b.design || 0) % 3](); break;
+      case 'hs_house': [
+        () => { bed(1, 1); bed(2, 1); put(3, 1, O.HOMECHEST); put(7, 1, O.STOVE); put(6, 3, O.TABLE); put(7, 5, O.TUB); put(1, 5, O.PLANT); },
+        () => { bed(7, 1); bed(6, 1); put(5, 1, O.HOMECHEST); put(1, 1, O.STOVE); put(2, 1, O.SHELF); put(2, 3, O.TABLE); put(1, 5, O.TUB); put(7, 5, O.PLANT); },
+        () => { bed(1, 3); bed(7, 3); put(1, 1, O.HOMECHEST); put(4, 1, O.STOVE); put(7, 1, O.SHELF); put(5, 2, O.TABLE); put(2, 5, O.TUB); put(7, 5, O.PLANT); },
+      ][(b.design || 0) % 3](); break;
       // büyük dünya binaları
       case 'bakery': row(2, 2, W - 3, O.COUNTER); b.staff = at(D, 1); put(1, 1, O.STOVE); put(W - 2, 1, O.STOVE); put(1, 4, O.SHELF); put(W - 2, F, O.BARREL); put(W - 3, F - 1, O.TABLE); break;
       case 'smith': put(1, 1, O.WORKBENCH); put(2, 1, O.WORKBENCH); put(W - 2, 1, O.STOVE); row(3, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, 2); put(1, F, O.RACK); put(2, F, O.CRATE); put(W - 2, F, O.BARREL); break;
