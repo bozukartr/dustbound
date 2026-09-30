@@ -1129,10 +1129,9 @@ class NPC extends Ent {
       return;
     }
     if (this.state === 'flee') {
-      const a = Math.atan2(this.y - P.y, this.x - P.x);
-      this.ang = turnTo(this.ang, a, dt * 4);
-      this.walk(dt, this.mounted ? 140 : 80);
-      if (this.t <= 0) { this.state = 'idle'; this.t = 2; }
+      if (this.mounted) { this.ang = turnTo(this.ang, Math.atan2(this.y - P.y, this.x - P.x), dt * 4); this.walk(dt, 140); }
+      else G.fleeStep(this, P.x, P.y, dt, 80);
+      if (this.t <= 0) { this.state = 'idle'; this.t = 2; this.fleePt = null; this.nav = null; if (this.res) this.goal = null; }
       return;
     }
     if (this.state === 'cower' || this.state === 'hurt' || this.state === 'sit' || this.state === 'static' || this.state === 'sleep') {
@@ -1143,6 +1142,7 @@ class NPC extends Ent {
     }
     if (this.state === 'robbed') { this.mv = 0; if (this.t <= 0) { this.state = this.witness ? 'report' : 'flee'; this.t = 8; } return; }
     if (this.state === 'fightFist') { this.fistFight(dt, pd); return; }
+    if (this.role !== 'law' && G.perceive(this, dt)) return;   // atlıdan kaç, silaha el kaldır, bak
     if (this.res) { G.drive(this, dt); return; }   // kasaba sakini: günlük programını izler
     this.idleUpdate(dt, pd);
   }
@@ -1159,25 +1159,24 @@ class NPC extends Ent {
       return;
     }
     if (this.state === 'walk') {
+      // yol bularak yürür: binaların etrafından dolaşır, kalabalıkta yol verir
       const tg = this.target;
-      const a = Math.atan2(tg.y - this.y, tg.x - this.x);
-      this.ang = turnTo(this.ang, a, dt * 4);
-      this.walk(dt, 28);
+      const r = this.mounted ? (this.walk(dt, 28), dist(this.x, this.y, tg.x, tg.y) < 10 ? 'arrived' : 'moving') : G.navStep(this, tg.x, tg.y, dt, this.isLaw ? 30 : 28);
+      if (this.mounted) this.ang = turnTo(this.ang, Math.atan2(tg.y - this.y, tg.x - this.x), dt * 4);
       if (this.goHome) {
-        if (dist(this.x, this.y, tg.x, tg.y) < 10 || (this.t <= 0 && dist(this.x, this.y, G.player.x, G.player.y) > 260)) { this.remove = true; return; }
-        if (this.stuck > 1.2) { this.ang += rnd(-2, 2); this.stuck = 0; }
+        if (r === 'arrived' || (this.t <= 0 && dist(this.x, this.y, G.player.x, G.player.y) > 260)) { this.remove = true; return; }
+        if (r === 'fail' && !G.onScreen(this.x, this.y, 40)) { this.remove = true; return; }
         if (this.t <= 0) this.t = 10;
         return;
       }
-      if (dist(this.x, this.y, tg.x, tg.y) < 8 || this.t <= 0 || this.stuck > 1.5) { this.state = 'idle'; this.t = rnd(2, 8); this.stuck = 0; }
+      if (r !== 'moving' || this.t <= 0) { this.state = 'idle'; this.t = rnd(2, 8); this.stuck = 0; this.nav = null; }
     } else {
       this.mv = 0; this.spd = 0;
       if (pd < 40 && !this.hostile) this.ang = turnTo(this.ang, Math.atan2(P.y - this.y, P.x - this.x), dt * 3);
       if (this.t <= 0 && this.home) {
-        const h = this.home;
-        let tx, ty, tries = 0;
-        do { tx = h.x + rnd(-h.r, h.r); ty = h.y + rnd(-h.r * 0.6, h.r * 0.6); tries++; } while ((G.world.blocked(tx, ty, 4) || G.world.indoorPx(tx, ty)) && tries < 8);
-        this.target = { x: tx, y: ty }; this.state = 'walk'; this.t = 15;
+        // yalnızca ulaşılabilir bir yer seç (kasabada A* ızgarası, dışarıda görüş hattı)
+        const h = this.home, s = G.reachSpot(h.x, h.y, h.r, this);
+        if (s) { this.target = s; this.state = 'walk'; this.t = 25; this.nav = null; } else this.t = rnd(1, 3);
       }
     }
   }
@@ -1197,6 +1196,14 @@ class NPC extends Ent {
     this.tgtT = (this.tgtT || 0) - dt;
     if (this.tgtT <= 0) { this.tgtT = 1.5; this.rTarget = G.reportTarget(this); }
     const tg = this.rTarget && !this.rTarget.dead ? this.rTarget : null;
+    if (tg && !this.mounted && pd > 50 && G.world.townAt(this.x, this.y, 10)) {
+      const gx = tg.door ? tg.door.x : tg.x, gy = tg.door ? tg.door.y + 3 : tg.y;
+      G.navStep(this, gx, gy, dt, 62 * (this.fear || 1), { ignore: tg.door ? null : tg, near: tg.door ? 8 : 14 });
+      this.chatT = (this.chatT || 0) - dt;
+      if (this.chatT <= 0) { this.chatT = rnd(4, 7); this.say(pick(LINES.witness), 2); }
+      if (dist(this.x, this.y, tg.x, tg.y) < (tg.door ? 14 : 22)) G.deliverReport(r, this, tg);
+      return;
+    }
     let a = tg ? Math.atan2(tg.y - this.y, tg.x - this.x) : toMe;
     if (pd < 50 && tg && Math.abs(angDiff(a, toMe)) > 1.6) a = toMe + (angDiff(toMe, a) > 0 ? 0.9 : -0.9);
     // engele takılırsa bir süre yan yoldan dolaş
@@ -1229,7 +1236,10 @@ class NPC extends Ent {
     const P = G.player;
     const a = Math.atan2(P.y - this.y, P.x - this.x);
     this.ang = turnTo(this.ang, a, dt * 6);
-    if (pd > 30) { this.walk(dt, this.mounted ? 110 : pd > 80 ? 66 : 46); if (this.stuck > 1) { this.ang += rnd(-1.5, 1.5); this.stuck = 0; } } else { this.mv = 0; }
+    if (pd > 30) {
+      if (!this.mounted && pd > 45 && G.world.townAt(this.x, this.y, 10)) { G.navStep(this, P.x, P.y, dt, pd > 80 ? 66 : 46, { ignore: P, near: 28 }); this.ang = turnTo(this.ang, a, dt * 3); }
+      else { this.walk(dt, this.mounted ? 110 : pd > 80 ? 66 : 46); if (this.stuck > 1) { this.ang += rnd(-1.5, 1.5); this.stuck = 0; } }
+    } else { this.mv = 0; }
     this.arrT = (this.arrT || 0) - dt;
     if (this.arrT <= 0 && pd < 220) { this.arrT = rnd(4, 7); this.say(pick(LINES.arrest), 2.5); }
   }
@@ -1295,6 +1305,7 @@ class NPC extends Ent {
       walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held,
       aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing', wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
       swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon, hold: this.state === 'flee' || this.state === 'report' ? null : this.carry2,
+      head: this.lookAt != null && !this.dead ? clamp(angDiff(this.ang, this.lookAt), -1.2, 1.2) : 0,
     });
     if (this.witness && !this.dead) {
       // tanık işareti

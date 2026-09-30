@@ -597,6 +597,8 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 #bubbles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 .bubble { position: fixed; transform: translate(-50%, -100%); max-width: 220px; padding: 4px 9px 5px; background: rgba(246, 238, 220, 0.92); color: #2a1c10; font-family: var(--serif); font-size: 14px; line-height: 1.25; text-align: center; border-radius: 9px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45); white-space: normal; }
 .bubble::after { content: ''; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: rgba(246, 238, 220, 0.92); }
+.bubble.me { background: rgba(252, 232, 170, 0.95); box-shadow: 0 0 0 1px #b08840, 0 2px 6px rgba(0, 0, 0, 0.45); }
+.bubble.me::after { border-top-color: rgba(252, 232, 170, 0.95); }
 
 /* ================= Hata ayıklama paneli (Ctrl+Alt+C) ================= */
 .dbg { --bg: rgba(16, 18, 23, 0.86); --line: rgba(255, 255, 255, 0.08); --tx: #e7e9ee; --mut: #8b93a3; --acc: #f5a524; --acc2: #ffcf70; --ok: #3ddc97; --bad: #ff6b6b;

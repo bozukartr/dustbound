@@ -359,6 +359,7 @@ const GameSystems = {
 
   /* ================= KANUN ================= */
   crime(type, x, y, victim, opts = {}) {
+    if (type === 'robbery' || type === 'storerob' || type === 'storeNight' || type === 'bankrob') this.townNote(x, y, 'robbery');
     const C = {
       murder: [50, 2, -12, Tr('Cinayet')], murderLaw: [100, 3, -15, Tr('Kanun adamı öldürme')], assault: [5, 1, -3, Tr('Saldırı')], assaultLaw: [10, 2, -4, Tr('Kanun adamına saldırı')],
       livestock: [3, 0, -3, Tr('Hayvan öldürme'), 1], livestockHurt: [0, 0, -1, ''], horsetheft: [25, 1, -4, Tr('At hırsızlığı')], robbery: [8, 1, -6, Tr('Soygun')],
@@ -942,6 +943,7 @@ const GameSystems = {
     this.noise(x, y, 900, 'gun');
   },
   noise(x, y, r, type) {
+    if (type === 'gun') this.townNote(x, y, 'gunfire');
     for (const e of this.ents) {
       if (e.dead) continue;
       const d2 = dist2(e.x, e.y, x, y);
@@ -950,6 +952,7 @@ const GameSystems = {
         if (e.def.beh === 'hostile' && d2 < 200 * 200) { e.state = 'attack'; e.t = 15; }
         else if (e.def.beh !== 'hostile') { e.state = 'flee'; e.t = rnd(6, 10); e.fleeFrom({ x, y }); }
       } else if (e.kind === 'npc' && !e.hostile && e.role !== 'bandit' && type === 'gun') {
+        if (e.talk) e.talk = null;
         if (e.state !== 'hurt' && e.state !== 'static' && e.state !== 'report' && !e.bound) { e.state = e.role === 'town' && chance(0.4) ? 'cower' : 'flee'; e.t = rnd(5, 10); if (chance(0.2)) e.say(pick(LINES.flee), 2); if (e.state === 'cower') setTimeout(() => { if (e.state === 'cower') e.state = 'idle'; }, 8000); }
       } else if (e.kind === 'horse' && e.owner !== 'player' && !e.rider && type === 'gun' && !e.hitch) { e.state = 'flee'; e.t = 5; e.ang = Math.atan2(e.y - y, e.x - x); }
       else if (e.kind === 'npc' && e.role === 'bandit' && type === 'gun' && d2 < 500 * 500) e.aggro = true;
@@ -1573,7 +1576,7 @@ const GameSystems = {
         if (e.dead) continue;
         if (e.hostile && e.aggro) continue;
         const acts = this.npcActions(e);
-        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)}` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.name, acts, 3);
+        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)} <span class="dim">(${MOODS[this.moodOf(e.res)].n})</span>` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.name, acts, 3);
       }
     }
     // kayıp eşyalar
@@ -1682,6 +1685,8 @@ const GameSystems = {
     if (e.role === 'hunter') return this.hunterActions(e);
     const P = this.player;
     const acts = [];
+    // az önce sana laf attı: karşılık verebilirsin
+    if (e.teased && this.t - e.teased.rt < 8 && !e.hostile && !e.dead) acts.push({ n: Tr('Karşılık Ver'), fn: () => this.retort(e) });
     const ev = e.event;
     if (e.eventType === 'injured' || e.eventType === 'snakebite') {
       if (!ev.done) {

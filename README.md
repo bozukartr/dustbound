@@ -87,6 +87,31 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - Dükkanlar gece kapanır ve kapıları kilitlenir (kapı kırılabilir). İçerideyken kapanış saati gelirse kapıdan rahatça çıkabilirsin; kapı yalnızca dışarıdan girişe kapanır. Evler kilitlidir; kapıyı çalabilir ya da kırıp içeri girebilirsin (haneye tecavüz sayılır, evi aramak haftada bir şey kazandırır). Harabeler aranabilir, terk edilmiş maden galerilerine fenerle girilebilir, deniz fenerine tırmanınca kıyı haritası açılır. Her binanın kapı önü dünya üretilirken engellerden temizlenir. Atlar ve hayvanlar binalara giremez. Saloon akşamları kalabalıklaşır, piyanist çalar.
 - **Kasaba hayatı**: Her kasabanın kalıcı sakinleri vardır (büyük kasabada 56, ortada 38, küçükte 22 kişi); adları, yüzleri, meslekleri, evleri ve iş yerleri dünya tohumundan hep aynı üretilir. Dükkân sahibi sabah evinden çıkıp dükkânına yürür ve tezgâhın arkasına geçer, kapanışta evine döner. Hamallar sandık taşır, lambacı sabah sokak süpürür ve akşam lambaları dolaşır, gazeteci çocuk manşet bağırır, ev hanımları dükkân dükkân alışveriş yapar, çocuklar sabah okula (kiliseye) gider ve öğleden sonra oynar, emekliler banklarda oturur, madenci ve oduncular gün boyu kasaba dışında çalışır, akşam saloona uğrar. Pazar sabahı kasaba kiliseye gider; yağmurda, fırtınada ve kum fırtınasında insanlar kapalı yerlere sığınır. Sakinler kasaba içinde yol bularak (A*) binaların etrafından dolaşır; binaya giren kişi görünmez olur ve programı değişince kapıdan çıkar. Oyuncudan uzaktakiler seyrek güncellenir, böylece kalabalık kasabalar akıcı kalır.
 - **Hafıza ve sohbet**: Sakinler seni hatırlar. Selamlaştıkça ısınırlar; soyduğun, saldırdığın, tehdit ettiğin ya da gözü önünde suç işlediğin kişiler sana soğur. Seni seven dükkân sahibi %10'a kadar indirim yapar, nefret eden zam yapar; seni seven komşu bazen suçunu görmezden gelir, nefret eden seni görünce uzaklaşır. Sokakta karşılaşan sakinler havaya, mevsime ve senin ününe göre sohbet eder (konuşma baloncukları). Ölen bir sakinin yerine birkaç gün sonra kasabaya yeni biri gelir. Yaklaşınca adı ve mesleği görünür.
+- **NPC aklı**:
+  - *Yol bulma:* Sakinler, şerifler ve diğer NPC'ler kasabada A* rotasıyla binaların etrafından dolaşır. Rota gövde genişliği hesaba katılarak sadeleştirilir, köşeler kesilmez.
+  - *Takılma:* Takılan NPC önce yeniden rota çizer, sonra en yakın boş yere çıkıp devam eder, olmazsa hedefini değiştirir. Duvara doğru yürüyüp kalma yok.
+  - *Kalabalık:* Kalabalıkta birbirinden, oyuncudan, atlardan ve arabalardan kaçınırlar. Karşılaşınca sağdan geçerler, önleri kapalıysa kısa süre beklerler.
+  - *Tepkiler:*
+    - Dörtnala gelen atlıdan yana sıçrayıp söylenirler.
+    - Silah doğrultulan sivil ellerini kaldırır.
+    - Ceset gören durur, bakar, bağırır.
+    - Yağmurda adımlarını sıklaştırırlar.
+    - Yanlarından geçene başlarını çevirip bakarlar.
+    - Üstlerine yürüyene çıkışırlar.
+  - *Mizaç:* Her sakinin bir mizacı vardır (şakacı, huysuz, utangaç, dedikoducu, dindar, sakin). Adın yanında görünür; ne kadar konuşacağını ve takılacağını belirler.
+- **Sakinlerin sohbetleri**:
+  - Sakinler kendi aralarında satır satır konuşur; yakındaysan baloncuklar görünür, üçüncü biri de katılabilir.
+  - Konu saate (sabah kahvesi, akşam saloonu, gece), havaya, pazar vaazına, mesleğe (hamal, madenci, emekli, çocuklar) ve senin ününe göre seçilir.
+  - Kasabada yakın zamanda olanlar da konuşulur: silah sesleri, sokaktaki ceset, dörtnala geçen atlı, soygun, şerife teslim edilen ceset, senin aldığın dükkân.
+  - Sohbette kasabadan başka sakinlerin adları geçer.
+- **Sataşma**:
+  - Sakinler sana laf atar: kirliysen, sarhoşsan, yaralıysan, kesen doluysa, dörtnala geçiyorsan, maskeliysen, aranıyorsan, silah doğrultuyorsan, omzunda ceset varsa, gece sokaktaysan, yağmurda ıslanıyorsan, bugün onu üçüncü kez görüyorsan.
+  - Seni seven dostça takılır. Çocuklar "Kovboy! Nişan göster!" der, emekliler öğüt verir.
+  - Laf atıldıktan hemen sonra **Karşılık Ver** seçeneği çıkar. Şakadan anlayan güler ve seni biraz daha sever, huysuz bozulur.
+- **Arabalar**:
+  - Yük ve posta arabaları yolun sağından gider. Öndeki arabanın hızına uyar, karşıdan gelene sağa çekilerek yol verir, park etmiş arabayı sollar.
+  - Yoldaki yayaya seslenir, yaya kenara çekilir.
+  - Kasabada dükkân önlerindeki ayrı park yerlerine park ederler; iki araba asla üst üste binmez.
 - **Yol trafiği**: Kasabalar arası yollarda yük arabaları ve posta arabaları gider. Kasabaya varan araba mağazanın ya da otelin önünde bir süre durur, sonra geri döner. Önüne çıkarsan durup bağırırlar. Sürücüyü vurabilir, kementle çekebilir ya da araba dururken zorla indirebilirsin; sürücüsüz arabayı at gibi sürer, yükünü ya da posta çantasını arayabilirsin (at hırsızlığı ve soygun sayılır). Araba bir tır dorsesi gibi hareket eder: önce atlar döner, gövde çeki okundan arkadan izler; ön tekerlekler dönüşe göre kırılır.
 - **Göçebe kampları**: tüccar kervanları, sığırtmaçlar, altın arayıcıları, kürkçüler ve seyyar bir kumpanya kasabaların dışında kamp kurar. Takas yapabilir, ateş başında dinlenip hikâye dinleyebilirsin. Her kamp 5–10 yılda bir başka bir yere göç eder.
 - Kasabaları bağlayan yollar, köprüler ve istasyonlar arasında gidip gelen **trenler** (bilet alıp seyahat edebilirsin).
@@ -200,6 +225,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 |---|---|
 | `camera` | iç mekân yakınlaşması: yumuşak geçiş, binayı ortalama, doluluk oranı, yakınken fareyle nişan, çıkınca uzaklaşma |
 | `juice` | his efektleri: isabet duraklaması, savrulma ve uçan şapka, dinamit izi ve şok dalgası, dörtnala uzaklaşma, şahlanma, boşta animasyon, sönen pencereler, para sayacı |
+| `npclife` | NPC aklı: kasabada duvara takılmadan yürüme, arabaların çakışmaması ve ayrı park yerleri, satır satır sohbet, sataşma ve karşılık verme, silaha el kaldırma, atlıdan kaçma |
 | `boot` | ana menü, karakter ekranı, 13 kasabalık dünya, yeni binaların iç mekânları, yürüme, duraklatma, harita |
 | `saves` | kayıt yuvaları, otomatik/manuel kayıt, Tek Hayat, eski kayıt taşıma, eski 1024 dünya, 1890 fiyat dönüşümü |
 | `i18n` | çeviri anahtarları (tools/i18n-check.js), oyun içinde dil değiştirme |
@@ -251,6 +277,7 @@ js/systems.js   zaman, hava, hayatta kalma, kanun, doğma, etkileşim
 js/carry.js     taşıma, kement, ödül teslimi, kanıt
 js/debug.js     hata ayıklama paneli (Ctrl+Alt+C)
 js/townlife.js  kasaba sakinleri, günlük program, A* yol bulma, hafıza, sohbet baloncukları, yol trafiği
+js/npcmind.js   NPC aklı: gövde genişliğiyle yol bulma, takılma kurtarma, kalabalıkta kaçınma, algı ve tepkiler, sohbetler, sataşma
 js/business.js  işletmeler: satın alma, işletmeci, stok ve kasa, toptan mal sandıkları, yük arabası, arsaya inşaat
 js/haulers.js   nakliyeciler: işe alma, rota ve sefer, yolda görünen araba, haydut baskını ve kurtarma
 js/homestead.js  kendi yapın: arazi seçimi, tapulu/kaçak inşaat, aşamalar, iç tasarımlar, ahır/kuyu/bostan

@@ -198,6 +198,7 @@ const CarrySystems = {
     return 0;
   },
   deliverToSheriff(it) {
+    this.townNote(this.player.x, this.player.y, 'bounty');
     const e = it.e, v = this.wantedValue(e);
     if (!v) { UI.subtitle(Tr('Şerif'), Tr`${e.name} aranan biri değil. Onu buraya neden getirdin?`, 3); return; }
     const alive = !e.dead, target = this.isBountyTarget(e);

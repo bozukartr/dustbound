@@ -73,7 +73,7 @@ const TownPath = {
     const pass = new Uint8Array(w * h);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const px = (x0 + x) * TS + 8, py = (y0 + y) * TS + 8;
-      pass[y * w + x] = W.inb(x0 + x, y0 + y) && !W.blocked(px, py, 3.2) && !W.indoorPx(px, py) && !W.isWaterPx(px, py) ? 1 : 0;
+      pass[y * w + x] = W.inb(x0 + x, y0 + y) && !W.blocked(px, py, 4.5) && !W.indoorPx(px, py) && !W.isWaterPx(px, py) ? 1 : 0;
     }
     t._grid = { x0, y0, w, h, pass, cache: new Map() };
     return t._grid;
@@ -86,20 +86,38 @@ const TownPath = {
     }
     return null;
   },
-  /* px koordinatlarında nokta listesi döner (null: yol yok) */
-  find(t, ax, ay, bx, by) {
+  /* px koordinatlarında nokta listesi döner (null: yol yok). Karo yolu önbelleğe alınır;
+     sadeleştirme gerçek başlangıç konumundan ve gövde genişliğiyle yapılır: rota köşeleri
+     kesip duvara sürtmez, ilk ayak da yürünebilir olur. */
+  find(t, ax, ay, bx, by, r = 4.2) {
     const g = this.grid(t);
     const s = this.near(g, (ax >> 4) - g.x0, (ay >> 4) - g.y0), e = this.near(g, (bx >> 4) - g.x0, (by >> 4) - g.y0);
     if (!s || !e) return null;
     const key = s[0] + ',' + s[1] + '>' + e[0] + ',' + e[1];
-    if (g.cache.has(key)) { const c = g.cache.get(key); return c && c.map(p => p.slice()).concat([[bx, by]]); }
+    let raw = g.cache.get(key);
+    if (raw === undefined) {
+      raw = this.astar(g, s, e);
+      if (g.cache.size > 400) g.cache.delete(g.cache.keys().next().value);
+      g.cache.set(key, raw);
+    }
+    if (!raw) return null;
+    const pts = [[ax, ay], ...raw, [bx, by]], out = [];
+    let a = 0;
+    while (a < pts.length - 1) {
+      let b = Math.min(pts.length - 1, a + 28);
+      while (b > a + 1 && !this.walkable(pts[a], pts[b], r)) b--;
+      out.push(pts[b].slice()); a = b;
+    }
+    return out;
+  },
+  astar(g, s, e) {
     const W = g.w, N = g.w * g.h, si = s[1] * W + s[0], ei = e[1] * W + e[0];
     const gs = new Float32Array(N).fill(1e9), came = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
     const open = [si]; gs[si] = 0;
     const hf = (i) => { const dx = Math.abs(i % W - e[0]), dy = Math.abs(((i / W) | 0) - e[1]); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
     const fs = new Float32Array(N); fs[si] = hf(si);
     let found = false, iter = 0;
-    while (open.length && iter++ < 6000) {
+    while (open.length && iter++ < 8000) {
       let bi = 0; for (let k = 1; k < open.length; k++) if (fs[open[k]] < fs[open[bi]]) bi = k;
       const cur = open[bi]; open[bi] = open[open.length - 1]; open.pop();
       if (cur === ei) { found = true; break; }
@@ -112,27 +130,26 @@ const TownPath = {
         const ni = ny * W + nx;
         if (!g.pass[ni] || closed[ni]) continue;
         if (dx && dy && (!g.pass[cy * W + nx] || !g.pass[ny * W + cx])) continue;   // köşeden kesme
-        const ng = gs[cur] + (dx && dy ? 1.41 : 1);
+        // duvar dibinden geçmek pahalıdır: rotalar sokağın ortasına yakın kalır
+        const wall = (nx > 0 && !g.pass[ni - 1]) || (nx < W - 1 && !g.pass[ni + 1]) || (ny > 0 && !g.pass[ni - W]) || (ny < g.h - 1 && !g.pass[ni + W]);
+        const ng = gs[cur] + (dx && dy ? 1.41 : 1) + (wall ? 0.35 : 0);
         if (ng < gs[ni]) { gs[ni] = ng; came[ni] = cur; fs[ni] = ng + hf(ni); open.push(ni); }
       }
     }
-    let pts = null;
-    if (found) {
-      const raw = [];
-      for (let i = ei; i !== -1; i = came[i]) raw.push([(g.x0 + i % W) * TS + 8, (g.y0 + ((i / W) | 0)) * TS + 8]);
-      raw.reverse();
-      // görüş hattı ile sadeleştir
-      pts = [];
-      let a = 0;
-      while (a < raw.length - 1) {
-        let b = raw.length - 1;
-        while (b > a + 1 && !this.clear(g, raw[a], raw[b])) b--;
-        pts.push(raw[b]); a = b;
-      }
+    if (!found) return null;
+    const raw = [];
+    for (let i = ei; i !== -1; i = came[i]) raw.push([(g.x0 + i % W) * TS + 8, (g.y0 + ((i / W) | 0)) * TS + 8]);
+    raw.reverse();
+    return raw;
+  },
+  /* İki nokta arası gövdeyle (r) yürünebilir mi: engel, bina içi ve su yok */
+  walkable(a, b, r = 4.2) {
+    const W = G.world, d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.ceil(d / 3);
+    for (let i = 1; i <= n; i++) {
+      const x = a[0] + (b[0] - a[0]) * i / n, y = a[1] + (b[1] - a[1]) * i / n;
+      if (W.blocked(x, y, r) || W.indoorPx(x, y) || W.isWaterPx(x, y)) return false;
     }
-    if (g.cache.size > 300) g.cache.delete(g.cache.keys().next().value);
-    g.cache.set(key, pts);
-    return pts && pts.map(p => p.slice()).concat([[bx, by]]);
+    return true;
   },
   clear(g, a, b) {
     const d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.ceil(d / 6);
@@ -155,7 +172,7 @@ const Bubbles = {
     let root = document.getElementById('bubbles');
     if (!root) { root = document.createElement('div'); root.id = 'bubbles'; (document.getElementById('hud') || document.body).appendChild(root); }
     const el = document.createElement('div');
-    el.className = 'bubble';
+    el.className = 'bubble' + (e === P ? ' me' : '');
     el.textContent = text;
     root.appendChild(el);
     this.list.push({ e, el, t: dur });
@@ -167,11 +184,23 @@ const Bubbles = {
       b.t -= dt;
       if (b.t <= 0 || b.e.remove || b.e.dead || G.state !== 'play') { b.el.remove(); return false; }
       const k = r.width / G.canvas.width, lift = b.e.child ? 9 : 13;
-      b.el.style.left = (r.left + (b.e.x - C.ox) * k) + 'px';
-      b.el.style.top = (r.top + (b.e.y - C.oy - lift) * k) + 'px';
+      b.x = r.left + (b.e.x - C.ox) * k; b.y = r.top + (b.e.y - C.oy - lift) * k;
       b.el.style.opacity = Math.min(1, b.t * 2).toFixed(2);
       return true;
     });
+    // yakın konuşanların baloncukları üst üste binmesin: aşağıdakinden yukarı doğru dizilir
+    const placed = [];
+    for (const b of this.list.slice().sort((a, c) => c.y - a.y)) {
+      const w = b.el.offsetWidth || 120, h = b.el.offsetHeight || 22;
+      let y = b.y;
+      for (let n = 0; n < 6; n++) {
+        const hit = placed.find(q => Math.abs(q.x - b.x) < (q.w + w) / 2 + 2 && y > q.y - q.h - 2 && y - h < q.y + 2);
+        if (!hit) break;
+        y = hit.y - hit.h - 4;
+      }
+      placed.push({ x: b.x, y, w, h });
+      b.el.style.left = b.x + 'px'; b.el.style.top = y + 'px';
+    }
   },
   clear() { for (const b of this.list) b.el.remove(); this.list = []; },
 };
@@ -234,12 +263,56 @@ class Wagon extends Ent {
   enterTown() {
     const t = G.world.townAt(this.x, this.y, 10);
     if (!t || this.stopT) return false;
-    const stop = ['general', 'hotel', 'saloon', 'station'].map(ty => t.buildings.find(b => b.type === ty)).find(Boolean);
-    if (!stop) return false;
-    const r = TownPath.find(t, this.x, this.y, stop.door.x + 34, stop.door.y + 34);
+    // dükkân önlerindeki park yerlerinden boş olanı: iki araba aynı yere park etmez
+    const W = G.world, slots = [];
+    for (const ty of ['general', 'hotel', 'saloon', 'station', 'post', 'butcher', 'bakery']) for (const b of t.buildings) if (b.type === ty) for (const k of [0, 1, -1]) slots.push([b.door.x + 34 + k * 30, b.door.y + 34]);
+    const taken = (x, y) => G.ents.some(o => o !== this && o.kind === 'wagon' && ((o.slot && dist2(o.slot[0], o.slot[1], x, y) < 32 * 32) || dist2(o.x, o.y, x, y) < 26 * 26));
+    const slot = slots.find(([x, y]) => !taken(x, y) && !W.blocked(x, y, 9) && !W.blocked(x - 22, y, 7) && !W.indoorPx(x, y));
+    if (!slot) return false;
+    const r = TownPath.find(t, this.x, this.y, slot[0], slot[1], 6);
     if (!r) return false;
-    this.stopT = t; this.route = r; this.ri = 0; this.leg = 'in'; this.exitPt = [this.x, this.y];
+    this.stopT = t; this.route = r; this.ri = 0; this.leg = 'in'; this.exitPt = [this.x, this.y]; this.slot = slot;
     return true;
+  }
+  /* Çarpışma çemberleri: önde atlar, arkada gövde */
+  circles() { return [[this.x, this.y, 5.5], [this.bx, this.by, 7]]; }
+  overlapWith(o) {
+    let m = 0;
+    for (const [x1, y1, r1] of this.circles()) for (const [x2, y2, r2] of o.circles()) { const v = r1 + r2 - Math.hypot(x1 - x2, y1 - y2); if (v > m) m = v; }
+    return m;
+  }
+  maxOverlap() {
+    let m = 0;
+    for (const o of G.ents) if (o !== this && o.kind === 'wagon' && !o.remove && Math.abs(o.x - this.x) < 60 && Math.abs(o.y - this.y) < 60) m = Math.max(m, this.overlapWith(o));
+    return m;
+  }
+  /* Önündeki en yakın engel (araba, at, insan, oyuncu): mesafe ve kendisi */
+  scanAhead() {
+    const c = Math.cos(this.ang), s = Math.sin(this.ang), fx = this.x + c * 5, fy = this.y + s * 5, P = G.player;
+    let near = null, nd = 99;
+    const chk = (x, y, r, o, reach) => {
+      const dx = x - fx, dy = y - fy, fwd = dx * c + dy * s;
+      if (fwd < -4 || fwd > reach) return;
+      const lat = -dx * s + dy * c;
+      if (Math.abs(lat) > r + 6) return;
+      if (fwd < nd) { nd = fwd; near = o; }
+    };
+    for (const o of G.ents) {
+      if (o === this || o.remove || Math.abs(o.x - this.x) > 70 || Math.abs(o.y - this.y) > 70) continue;
+      if (o.kind === 'wagon') { chk(o.x, o.y, 5.5, o, 46); chk(o.bx, o.by, 7, o, 46); }
+      else if (o.kind === 'horse' && !o.dead) chk(o.x, o.y, 5, o, 26);
+      else if (o.kind === 'npc' && !o.dead) chk(o.x, o.y, 3, o, 26);
+    }
+    if (!P.riding || P.riding !== this) chk(P.x, P.y, P.riding ? 6 : 3, P, 26);
+    return { o: near, d: nd };
+  }
+  /* Yoldaki yaya kenara çekilir (sürücü seslenir) */
+  clearWay(o) {
+    if (!o || o.kind !== 'npc' || o.dead || o.bound || o.hostile || o.isLaw || o.state === 'sit' || o.dodgeT > 0) return;
+    const side = Math.sign(-Math.sin(this.ang) * (o.x - this.x) + Math.cos(this.ang) * (o.y - this.y)) || 1;
+    o.talk = null; o.pauseT = 0; o.dodgeT = 0.7; o.dodgeA = this.ang + side * Math.PI / 2;
+    if (this.honkT <= 0) { this.honkT = 4; Bubbles.add(this, pick([Tr('Yol verin!'), Tr('Çekilin, araba geliyor!'), Tr('Hooop!')]), 1.8); }
+    if (chance(0.35)) setTimeout(() => { if (!o.dead && !o.remove) Bubbles.add(o, pick([Tr('Tamam, tamam!'), Tr('Gözünü aç biraz!'), Tr('Ezecektin az kalsın!')]), 1.8); }, 500);
   }
   update(dt) {
     if (this.hauler) { G.haulSync(this, dt); return; }
@@ -259,41 +332,71 @@ class Wagon extends Ent {
     }
     if (this.parkT > 0) {
       this.spd = 0; this.mv = 0; this.parkT -= dt;
-      if (this.parkT <= 0) { this.route = TownPath.find(this.stopT, this.x, this.y, this.exitPt[0], this.exitPt[1]) || [this.exitPt.slice()]; this.ri = 0; this.leg = 'out'; }
+      if (this.parkT <= 0) { this.route = TownPath.find(this.stopT, this.x, this.y, this.exitPt[0], this.exitPt[1], 6) || [this.exitPt.slice()]; this.slot = null; this.ri = 0; this.leg = 'out'; }
       return;
     }
-    let pt;
+    let pt, prev;
     if (this.route) {
-      pt = this.route[this.ri];
+      pt = this.route[this.ri]; prev = this.route[this.ri - 1];
       if (!pt) {
         this.route = null;
         if (this.leg === 'in') { this.parkT = rnd(25, 50); if (this.stage) Bubbles.add(this, pick([Tr('Posta geldi!'), Tr('Yolcular, inin!')]), 2.5); }
-        else this.dir = -this.dir;   // yola geri dön
+        else { this.dir = -this.dir; this.slot = null; }   // yola geri dön
         return;
       }
-    } else pt = this.path[this.pi + this.dir];
+    } else { pt = this.path[this.pi + this.dir]; prev = this.path[this.pi]; }
     if (!pt) { if (!this.enterTown()) this.remove = true; return; }
-    const a = Math.atan2(pt[1] - this.y, pt[0] - this.x), da = Math.abs(angDiff(this.ang, a));
-    this.ang = turnTo(this.ang, a, dt * 2.6);
-    // önünde oyuncu varsa dur ve seslen
-    const P = G.player, fx = this.x + Math.cos(this.ang) * 12, fy = this.y + Math.sin(this.ang) * 12;
-    const block = dist2(fx, fy, P.x, P.y) < 16 * 16;
-    this.honkT -= dt; this.panicT = (this.panicT || 0) - dt;
-    if (block && this.honkT <= 0) { this.honkT = 5; Bubbles.add(this, pick([Tr('Yoldan çekil!'), Tr('Hey! Çekil önümden!'), Tr('Açılın!')]), 2); }
-    // keskin dönüşte yavaşla: dönüş yarıçapı küçülür, hedef noktanın çevresinde dönüp durmaz
+    // sağdan gidiş: hedef nokta yolun sağ şeridine kaydırılır; karşıdan gelene yol verirken daha da sağa,
+    // duran bir arabayı sollarken sola geçer
+    const sa = prev ? Math.atan2(pt[1] - prev[1], pt[0] - prev[0]) : Math.atan2(pt[1] - this.y, pt[0] - this.x);
+    const lane = this.passT > 0 ? -9 : (this.route ? 3 : 7) + (this.shy || 0);
+    const tx = pt[0] - Math.sin(sa) * lane, ty = pt[1] + Math.cos(sa) * lane;
+    const a = Math.atan2(ty - this.y, tx - this.x), da = Math.abs(angDiff(this.ang, a));
+    const P = G.player;
+    this.honkT -= dt; this.panicT = (this.panicT || 0) - dt; this.passT = (this.passT || 0) - dt;
+    // önünde kim var: araba ise hızına uy ya da yol ver, insan ise dur ve seslen
+    const A = this.scanAhead(), ob = A.o;
     const turnK = da > 1.2 ? 0.15 : da > 0.5 ? 0.5 : 1;
-    const target = block ? 0 : this.max * (this.panicT > 0 ? 1.7 : 1) * turnK;
+    let target = this.max * (this.panicT > 0 ? 1.7 : 1) * turnK, block = false;
+    if (ob) {
+      if (ob.kind === 'wagon') {
+        const same = Math.cos(angDiff(this.ang, ob.ang)) > 0.2;
+        if (same) target = Math.min(target, Math.max(0, (ob.spd || 0) * 0.95 + (A.d - 20) * 1.4));
+        else { this.shy = Math.min(10, (this.shy || 0) + dt * 18); target = Math.min(target, 12); }
+        if (A.d < 9) target = 0;
+        // önündeki araba park etmiş ya da duruyorsa bir süre sonra sollar
+        if (same && (ob.spd || 0) < 3 && this.spd < 3) { this.waitW = (this.waitW || 0) + dt; if (this.waitW > 3.5) { this.passT = 6; this.waitW = 0; } }
+      } else {
+        target = Math.min(target, Math.max(0, (A.d - 9) * 2.2));
+        if (A.d < 20) { block = true; this.clearWay(ob); }
+      }
+    } else this.shy = Math.max(0, (this.shy || 0) - dt * 3);
+    if (!ob || ob.kind !== 'wagon') this.waitW = 0;
+    this.ang = turnTo(this.ang, a, dt * 2.6);
     this.spd += clamp(target - this.spd, -90 * dt, 30 * dt);
+    // son güvence: bu adım başka bir arabayla üst üste binmeyi artırıyorsa atma
+    const ox = this.x, oy = this.y, obx = this.bx, oby = this.by, obang = this.bang, ov0 = this.maxOverlap();
     this.x += Math.cos(this.ang) * this.spd * dt; this.y += Math.sin(this.ang) * this.spd * dt;
     this.trail();
+    const ov1 = this.maxOverlap();
+    if (ov1 > 0.5 && ov1 > ov0 + 0.02 && !(this.ghostT > 0)) {
+      this.x = ox; this.y = oy; this.bx = obx; this.by = oby; this.bang = obang; this.spd = 0;
+      this.jamT = (this.jamT || 0) + dt;
+      // kilitlenme: görünmüyorsa yoluna gitmiş say, görünüyorsa geri dön ya da kısa süre sıkışarak geç
+      if (this.jamT > 8 && !G.onScreen(this.x, this.y, 60)) { this.remove = true; return; }
+      if (this.jamT > 8 && !this.route) { this.dir = -this.dir; this.jamT = 0; this.ghostT = 1.5; }
+      else if (this.jamT > 14) { this.ghostT = 2; this.jamT = 0; }
+    } else this.jamT = Math.max(0, (this.jamT || 0) - dt);
+    this.ghostT = (this.ghostT || 0) - dt;
+    if (block && P === ob && this.honkT <= 0) { this.honkT = 5; Bubbles.add(this, pick([Tr('Yoldan çekil!'), Tr('Hey! Çekil önümden!'), Tr('Açılın!')]), 2); }
     this.phase += dt * this.spd * 0.15; this.mv = this.spd / 60;
     // hedef noktaya varınca ya da onu geçince (arkada kalınca) bir sonrakine geç
     const d2 = dist2(this.x, this.y, pt[0], pt[1]);
     const behind = (pt[0] - this.x) * Math.cos(this.ang) + (pt[1] - this.y) * Math.sin(this.ang) < 0;
     // hedefe 4 sn boyunca hiç yaklaşamıyorsa (etrafında dönüyorsa) o noktayı atla
     if (!(d2 < (this.bestD2 === undefined ? Infinity : this.bestD2) - 9)) this.wpT = (this.wpT || 0) + dt; else { this.bestD2 = d2; this.wpT = 0; }
-    if (block) this.wpT = 0;
-    if (d2 < 14 * 14 || (behind && d2 < 40 * 40) || this.wpT > 4) { this.wpT = 0; this.bestD2 = undefined; if (this.route) this.ri++; else this.pi += this.dir; }
+    if (block || target < 1) this.wpT = 0;
+    if (d2 < 16 * 16 || (behind && d2 < 40 * 40) || this.wpT > 4) { this.wpT = 0; this.bestD2 = undefined; if (this.route) this.ri++; else this.pi += this.dir; }
     if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.bx - Math.cos(this.bang) * 10, this.by - Math.sin(this.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
   }
   draw(ctx) {
@@ -490,7 +593,7 @@ const TownLifeSystems = {
       if (e) {
         if (e.staffOf) continue;   // tezgâhtaki esnaf: dükkân kapanınca townStaff çıkarır
         if (e.planKey !== key) {
-          e.plan = plan; e.planKey = key; e.goal = null; e.route = null; e.carry2 = null;
+          e.plan = plan; e.planKey = key; e.goal = null; e.nav = null; e.carry2 = null; e.goalFails = 0;
           if (e.seatB) {
             // saloondan kalkan: oyuncu içeride değilse sessizce kapıya taşınır
             e.seatB.patrons = (e.seatB.patrons || []).filter(x => x !== e);
@@ -563,25 +666,30 @@ const TownLifeSystems = {
   /* ---------------- hareket: NPC.update, sakinler için idleUpdate yerine bunu çağırır ---------------- */
   drive(e, dt) {
     const r = e.res, p = e.plan;
-    if (e.talkT > 0) { e.talkT -= dt; e.mv = 0; if (e.talkTo) e.ang = turnTo(e.ang, Math.atan2(e.talkTo.y - e.y, e.talkTo.x - e.x), dt * 5); return; }
-    if (e.pauseT > 0) { e.pauseT -= dt; e.mv = 0; return; }
+    if (e.talk) { e.mv = 0; return; }   // sohbet: G.talkTick yönetir
+    if (e.pauseT > 0) {
+      e.pauseT -= dt; e.mv = 0;
+      if (e.lookAt == null && Math.random() < dt * 0.35) e.ang += rnd(-0.7, 0.7);   // dururken etrafa bakınır
+      return;
+    }
     if (!p) { e.mv = 0; return; }
     if (!e.goal) this.pickGoal(e);
     const g = e.goal;
     if (!g) { e.mv = 0; e.pauseT = rnd(1, 3); return; }
-    if (!e.route) { e.route = TownPath.find(r.t, e.x, e.y, g.x, g.y) || [[g.x, g.y]]; e.ri = 0; }
-    const wp = e.route[e.ri];
-    const a = Math.atan2(wp[1] - e.y, wp[0] - e.x);
-    e.ang = turnTo(e.ang, a, dt * 7);
-    const o = OCCS[r.occ] || {};
-    const sp = p.act === 'play' ? 52 : r.occ === 'elder' ? 20 : ['home', 'in', 'away', 'saloon', 'shelter', 'errand', 'church', 'school'].includes(p.act) ? 34 : 26;
-    e.walk(dt, sp * (o.kid ? 1.1 : 1));
-    if (dist2(e.x, e.y, wp[0], wp[1]) < (e.ri === e.route.length - 1 ? 5 * 5 : 8 * 8)) {
-      e.ri++;
-      if (e.ri >= e.route.length) this.arrive(e);
+    const o = OCCS[r.occ] || {}, env = this.envCache || {};
+    let sp = p.act === 'play' ? 52 : r.occ === 'elder' ? 20 : ['home', 'in', 'away', 'saloon', 'shelter', 'errand', 'church', 'school'].includes(p.act) ? 34 : 26;
+    if ((env.rain || 0) > 0.3 && r.occ !== 'elder') sp *= 1.4;   // yağmurda acele eder
+    const res = this.navStep(e, g.x, g.y, dt, sp * (o.kid ? 1.1 : 1), { near: g.kind === 'door' || g.kind === 'gate' ? 7 : 5 });
+    if (res === 'arrived') { e.goalFails = 0; this.arrive(e); }
+    else if (res === 'fail') {
+      e.goalFails = (e.goalFails || 0) + 1;
+      // kapıya ya da kasaba çıkışına bir türlü varamıyorsa ve görünmüyorsa içeri girmiş say
+      if ((g.kind === 'door' || g.kind === 'gate') && e.goalFails >= 2 && !this.onScreen(e.x, e.y, 30)) { this.arrive(e); return; }
+      if (e.goalFails >= 5 && !this.onScreen(e.x, e.y, 30)) { e.remove = true; r.ent = null; return; }
+      e.goal = null; e.pauseT = rnd(0.6, 1.6);
     }
-    if (e.stuck > 1.4) { e.stuck = 0; e.route = null; e.nudge = (e.nudge || 0) + 1; if (e.nudge > 3) { e.goal = null; e.nudge = 0; } }
   },
+  onScreen(x, y, pad = 0) { const C = this.cam; return x > C.ox - pad && x < C.ox + this.vw + pad && y > C.oy - pad && y < C.oy + this.vh + pad; },
   pickGoal(e) {
     const r = e.res, p = e.plan, t = r.t, W = this.world;
     const street = (maxD) => { for (let k = 0; k < 8; k++) { const s = pick(t.streetPts); if (!maxD || dist2(s.x, s.y, e.x, e.y) < maxD * maxD) return { x: s.x + rnd(-6, 6), y: s.y + rnd(-6, 6), kind: 'spot' }; } return null; };
@@ -608,11 +716,11 @@ const TownLifeSystems = {
       }
       default: e.goal = street(200);
     }
-    e.route = null;
+    e.nav = null;
   },
   arrive(e) {
     const g = e.goal, r = e.res;
-    e.goal = null; e.route = null;
+    e.goal = null; e.nav = null;
     if (g.kind === 'door' || g.kind === 'gate') {
       // içeri gir / kasabadan çık: görünmez olur
       r.inside = g.kind === 'gate' ? 'away' : g.b;
@@ -660,23 +768,11 @@ const TownLifeSystems = {
     if (m && m.op <= -40 && d2 < 70 * 70 && !P.masked && this.los(e.x, e.y, P.x, P.y) && !(e.avoidT > this.clock)) {
       e.avoidT = this.clock + 60;
       Bubbles.add(e, this.fmtLine(pick(RES_LINES.hate)), 2.5);
-      e.state = 'flee'; e.t = 3; e.goal = null; e.route = null;
+      e.state = 'flee'; e.t = 3; e.goal = null; e.nav = null;
       return;
     }
-    // iki sakin karşılaşınca kısa sohbet
-    if (e.talkT > 0 || !e.plan || !['stroll', 'sit', 'play', 'sweep'].includes(e.plan.act) || !chance(0.05)) return;
-    const o = this.ents.find(o => o !== e && o.res && !o.dead && !o.hostile && !(o.talkT > 0) && o.plan && ['stroll', 'sit', 'sweep'].includes(o.plan.act) && dist2(o.x, o.y, e.x, e.y) < 30 * 30);
-    if (!o) return;
-    const env = this.envCache || {};
-    let pool = CHAT.any;
-    if ((env.rain || 0) > 0.2) pool = CHAT.rain;
-    else if (this.hotness > 0.3) pool = CHAT.hot;
-    else if (this.coldness > 0.3) pool = CHAT.cold;
-    if (d2 < 140 * 140 && chance(0.4)) pool = this.honor > 30 ? CHAT.good : this.honor < -30 ? CHAT.bad : pool;
-    const [q, a] = pick(pool);
-    e.talkT = o.talkT = 4.6; e.talkTo = o; o.talkTo = e;
-    Bubbles.add(e, this.fmtLine(q), 2.4);
-    setTimeout(() => { if (!o.dead && !o.remove) Bubbles.add(o, this.fmtLine(a), 2.4); }, 1700);
+    // sohbet, sataşma, ceset tepkisi (npcmind.js)
+    this.mindTick(e, t);
   },
   fmtLine(l) { return l.replace('{ad}', this.player.name.split(' ')[0]); },
   /* Selamlaşma: sakin oyuncuyu hatırlar */
@@ -752,7 +848,8 @@ const TownLifeSystems = {
         const [x, y] = r.pts[i];
         if (Math.abs(x - P.x) > 900 || Math.abs(y - P.y) > 900) continue;
         const d2 = dist2(x, y, P.x, P.y);
-        if (d2 > 360 * 360 && d2 < 900 * 900) cands.push([r, i]);
+        // başka bir arabanın dibinde doğmasın
+        if (d2 > 360 * 360 && d2 < 900 * 900 && !this.ents.some(o => o.kind === 'wagon' && dist2(o.x, o.y, x, y) < 160 * 160)) cands.push([r, i]);
       }
     }
     if (!cands.length) return;
