@@ -21,6 +21,13 @@ Oyun **Türkçe** ve **İngilizce** oynanabilir. İlk açılışta tarayıcını
 
 **İlk oyun:** Varış sinematiğinden sonra kısa, sayfalı bir **hoş geldin rehberi** açılır: amaç, hayatta kalma, dolaşma ve etkileşim, para kazanma, kasaba hayatı ve kısayollar. Sayfalar ◀ ▶ ile gezilir, "Atla" ya da "Maceraya Başla!" ile kapanır ve bir daha kendiliğinden açılmaz. İstendiğinde Duraklat menüsünden (**Rehber**) ya da Günlük → Rehber sekmesinden yeniden açılır.
 
+**Kaldığın yerden devam:** Kayıt, çevredeki dünyanın anlık görüntüsünü de saklar. "Devam Et" dediğinde her şey kaldığın gibi gelir:
+- kasaba sakinleri, kanun adamları, yolcular, haydutlar ve çiftçiler (durumları ve kasaba kayıtlarıyla, saloonda oturanlar sandalyelerinde),
+- av ve çiftlik hayvanları, bağlı atlar, yoldaki ve park etmiş arabalar,
+- yerdeki cesetler, postlar ve sandıklar, uçmuş şapkalar ve dinamit izleri.
+
+Tezgâhtaki esnaf, piyanist, göçebeler, ödül hedefi, aile ve yol olayları kaydedilmez; bunları kendi sistemleri yeniden yerleştirir. Tarayıcı sekmesi kapanırken ya da arka plana geçerken (masaüstünde pencere kapanırken) oyun otomatik kaydedilir.
+
 **Ayarlar:** Ses ayarları sürüklenebilir pirinç kaydırıcılardır (%5 adımlarla, ◀ ▶ ile de). Alt kısımda **Kaydet ve Kapat** ile **Sekmeyi Varsayılana Döndür** düğmeleri vardır. **Tam Ekran** tercihi kaydedilir. Tarayıcıda Esc, menüleri kapatır ama tam ekrandan çıkarmaz (Chromium'da tam ekrandan çıkmak için Esc basılı tutulur). Başka bir tarayıcı Esc ile tam ekrandan çıkarırsa oyun, ilk tıklama ya da tuşta tam ekrana geri döner. F11 de tercihi değiştirir.
 
 Nasıl çalışıyor:
@@ -253,6 +260,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `saves` | kayıt yuvaları, otomatik/manuel kayıt, Tek Hayat, eski kayıt taşıma, eski 1024 dünya, 1890 fiyat dönüşümü |
 | `i18n` | çeviri anahtarları (tools/i18n-check.js), oyun içinde dil değiştirme |
 | `settings` | ayarlar ekranı, ses kaydırıcısına tıklama ve sürükleme, Kaydet ve Kapat düğmesi, tam ekran tercihinin saklanması, klavye tuş atama, takas, iptal, kalıcılık |
+| `resume` | kaldığı yerden devam: NPC, hayvan, ceset, post, sandık ve arabaların konumu ve durumu, sakinlerin kasaba kaydına bağlanması, kopya doğmaması, sekme kapanırken kayıt |
 | `guide` | ilk oyunda hoş geldin rehberinin kendiliğinden açılması, sayfalar, bir daha açılmaması, Duraklat menüsünden yeniden açma |
 | `carry` | kement, bağlama, omuzda/eyerde taşıma, şerife teslim, ödül hedefi, leş ve post, kanıt, suya atma |
 | `law` | tanıklar, tehdit, rüşvet, maske, dükkân reddi, teslim olma, ceza, hapis |
@@ -283,6 +291,7 @@ Yeni bir test için `tests/e2e/` altına `ad.test.js` ekle: `module.exports = { 
 index.html
 css/style.css
 js/util.js      yardımcılar, RNG, gürültü
+js/worldsave.js dünyanın anlık görüntüsü: çevredeki NPC, hayvan, at, araba, ceset ve yerdeki eşyaların kaydı ve geri kurulması
 js/platform.js  platform katmanı: kayıt, Steam başarımları, rich presence, tam ekran, çıkış
 fonts/          yerel fontlar ve lisansları
 desktop/        Electron + Steam masaüstü paketi

@@ -244,7 +244,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -376,6 +376,8 @@ const G = {
     this.loadHomes(d.homes);
     this.pokerTables = d.poker || {};
     this.loadHaul(d.haul);
+    // çevredeki dünya kaldığı gibi: NPC'ler, hayvanlar, arabalar, cesetler, yerdeki eşyalar
+    try { this.loadEnts(d.world); } catch (e) { console.warn('dünya anlık görüntüsü yüklenemedi', e); }
     if ((d.v || 1) < 2) this.migrateEconomy();
     Platform.syncAchievements(this.achieved);
     this.startPlay();
@@ -1095,6 +1097,7 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(TownLifeSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcNav));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcMind));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcActs));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(WorldSave));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));
