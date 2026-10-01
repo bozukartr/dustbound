@@ -323,9 +323,10 @@ const Cinema = (() => {
     leg.box(0, -0.9, 0, 0.16, 0.9, 0.18, look.pants);
     return { body: b.build(gl), leg: leg.build(gl) };
   }
-  function drawHorse(D, parts, x, y, z, ang, ph, gallop) {
-    const bob = Math.abs(Math.sin(ph)) * (gallop ? 0.14 : 0.05);
-    const base = M4.chain(M4.tr(x, y + bob, z), M4.ry(ang));
+  function drawHorse(D, parts, x, y, z, ang, ph, gallop, sc) {
+    const bob = Math.abs(Math.sin(ph)) * (gallop ? 0.14 : 0.05) * (sc || 1);
+    let base = M4.chain(M4.tr(x, y + bob, z), M4.ry(ang));
+    if (sc) base = M4.mul(base, new Float32Array([sc, 0, 0, 0, 0, sc, 0, 0, 0, 0, sc, 0, 0, 0, 0, 1]));
     D.push([blob, M4.chain(M4.tr(x, y + 0.06, z), M4.ry(ang), [1.1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2.0, 0, 0, 0, 0, 1]), 0.28]);
     D.push([parts.body, base]);
     const legs = [[0.25, 0.8, 0], [-0.25, 0.8, Math.PI], [0.25, -0.8, Math.PI * (gallop ? 0.35 : 1)], [-0.25, -0.8, gallop ? Math.PI * 1.35 : 0]];
@@ -536,7 +537,7 @@ const Cinema = (() => {
     el = document.createElement('div');
     el.id = 'cinema';
     el.innerHTML = `<div class="cn-frame"><canvas width="${RW}" height="${RH}"></canvas><div class="cn-bar t"></div><div class="cn-bar b"></div>
-      <div class="cn-cap"><div class="cn-k"></div><div class="cn-n"></div><div class="cn-s"></div></div><div class="cn-fade"></div></div><div class="cn-skip"></div>`;
+      <div class="cn-cap"><div class="cn-k"></div><div class="cn-n"></div><div class="cn-s"></div></div><div class="cn-line"></div><div class="cn-fade"></div></div><div class="cn-skip"></div>`;
     document.body.appendChild(el);
     return el;
   }
@@ -557,12 +558,17 @@ const Cinema = (() => {
       const cv = el.querySelector('canvas');
       try { if (!gl && !init(cv)) { resolve(); return; } } catch (e) { console.warn('Sinematik başlatılamadı', e); resolve(); return; }
       let S;
-      try { S = mk(new RNG(opts.seed || 1890), opts.look || randomLook('m')); } catch (e) { console.warn(e); resolve(); return; }
+      try { S = mk(new RNG(opts.seed || 1890), opts.look || randomLook('m'), opts); } catch (e) { console.warn(e); resolve(); return; }
       const town = TOWNS.find(t => t.id === (BACKGROUNDS.find(b => b.id === bgId) || {}).town);
       const cap = CAPS[bgId] || ['', ''];
-      el.querySelector('.cn-k').textContent = Tr`Amerika, ${START_YEAR}`;
-      el.querySelector('.cn-n').textContent = town ? town.n : cap[0];
-      el.querySelector('.cn-s').textContent = cap[1];
+      // hikâye sahneleri kendi başlığını (bölüm adı) ve konuşma satırlarını verir
+      const oc = opts.cap || {};
+      el.querySelector('.cn-k').textContent = oc.k !== undefined ? oc.k : Tr`Amerika, ${START_YEAR}`;
+      el.querySelector('.cn-n').textContent = oc.n !== undefined ? oc.n : town ? town.n : cap[0];
+      el.querySelector('.cn-s').textContent = oc.s !== undefined ? oc.s : cap[1];
+      const lineEl = el.querySelector('.cn-line'), lines = opts.lines || [];
+      let curLine = null;
+      lineEl.innerHTML = '';
       el.querySelector('.cn-skip').innerHTML = Tr`${Input.glyph('confirm')} Geç`;
       el.classList.remove('out'); el.classList.add('on');
       const fd = el.querySelector('.cn-fade'); fd.style.animation = 'none'; void fd.offsetWidth; fd.style.animation = '';
@@ -581,9 +587,14 @@ const Cinema = (() => {
       window.addEventListener('keydown', skip, true); window.addEventListener('pointerdown', skip, true);
       const sky = S.sky;
       // çekimler: sahne tek bir S.cam veriyorsa tek çekim sayılır
-      const shots = S.shots || [{ d: DUR, cam: (t) => S.cam(t) }];
+      let shots = S.shots || [{ d: DUR, cam: (t) => S.cam(t) }];
+      // konuşma satırları sahneden uzun sürerse çekimler orantılı uzatılır
+      const base = shots.reduce((a, sh) => a + sh.d, 0);
+      if (opts.dur && opts.dur > base) shots = shots.map(sh => Object.assign({}, sh, { d: sh.d * opts.dur / base }));
       const total = shots.reduce((a, sh) => a + sh.d, 0);
       const cut1 = shots.length > 1 ? shots[0].d : 0;
+      const cuts = []; { let a = 0; for (const sh of shots.slice(0, -1)) cuts.push(a += sh.d); }
+      const capAt = opts.capAt !== undefined ? opts.capAt : S.capAt !== undefined ? S.capAt : cut1 + 0.5, capEnd = S.capEnd || total;
       const shotAt = (t) => { let a = 0; for (const sh of shots) { if (t < a + sh.d || sh === shots[shots.length - 1]) return sh.cam(t, cl01((t - a) / sh.d)); a += sh.d; } };
       const G = Object.assign({ lift: [0, 0, 0], gain: [1, 1, 1], sat: 1, con: 1 }, S.grade || {});
       fd.style.animationDuration = total + 's';
@@ -593,7 +604,10 @@ const Cinema = (() => {
         const t = opts.freeze !== undefined ? opts.freeze : (now - t0) / 1000, dt = Math.min(0.05, (now - last) / 1000); last = now;
         if ((t > total && opts.freeze === undefined) || (Input.pad && (Input.padTap(PS.X) || Input.padTap(PS.O) || Input.padTap(PS.OPT)) && t > 0.4)) { finish(); return; }
         // başlık ikinci çekimde (geniş açı) belirir
-        el.querySelector('.cn-cap').style.opacity = clamp((t - cut1 - 0.5) * 1.4, 0, 1) * clamp((total - t) * 2, 0, 1);
+        el.querySelector('.cn-cap').style.opacity = clamp((t - capAt) * 1.4, 0, 1) * clamp((Math.min(total, capEnd) - t) * 2, 0, 1);
+        // altyazı: alttaki siyah şeritte konuşan kişinin adı ve sözü
+        const ln = lines.find(l => t >= l.t && t < l.t + l.d) || null;
+        if (ln !== curLine) { curLine = ln; lineEl.innerHTML = ln ? `<span class="cl-n ${ln.self ? 'self' : ''}">${escapeHtml(ln.w)}</span> ${escapeHtml(ln.x)}` : ''; lineEl.classList.toggle('on', !!ln); }
         const D = [];
         S.dyn(t, D);
         const cam = shotAt(t);
@@ -662,7 +676,7 @@ const Cinema = (() => {
           gl.uniform2f(QP.u.uSun, sunX, sunY); gl.uniform1f(QP.u.uSunVis, sunOn); gl.uniform3fv(QP.u.uSunC, C(sky.sunC));
           gl.uniform3fv(QP.u.uLift, G.lift); gl.uniform3fv(QP.u.uGain, G.gain); gl.uniform1f(QP.u.uSat, G.sat); gl.uniform1f(QP.u.uCon, G.con);
           // çekim geçişinde kısa bir kararma, başta ve sonda yumuşak açılış/kapanış
-          const cutDip = cut1 ? 1 - 0.85 * Math.max(0, 1 - Math.abs(t - cut1) / 0.12) : 1;
+          let cutDip = 1; for (const c of cuts) cutDip = Math.min(cutDip, 1 - 0.85 * Math.max(0, 1 - Math.abs(t - c) / 0.12));
           gl.uniform1f(QP.u.uTime, t); gl.uniform1f(QP.u.uFade, cutDip);
           gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf);
           const qa = QP.a('aP'); gl.enableVertexAttribArray(qa); gl.vertexAttribPointer(qa, 2, gl.FLOAT, false, 0, 0);
@@ -675,5 +689,11 @@ const Cinema = (() => {
       raf = requestAnimationFrame(frame);
     });
   }
-  return { play, RW, RH, DUR };
+  /* Başka dosyalardaki sahneler (hikâye sinematikleri) aynı yapı taşlarını kullanır */
+  const kit = {
+    M4, V, C, ease, cl01, flatW, Mesh, building, town, tree, mountain, mesa, horseParts, rider, personParts, drawHorse,
+    build: (m) => m.build(gl), blob: () => blob,
+  };
+  function addScene(id, fn) { SCENES[id] = fn; }
+  return { play, addScene, kit, has: (id) => !!SCENES[id], RW, RH, DUR };
 })();

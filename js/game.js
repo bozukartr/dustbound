@@ -55,6 +55,7 @@ const G = {
     this.travelT = 10; this.eventT = 90;
     this.amb = { birds: [], tumbles: [], flies: [] };
     this.curTown = null; this.curRegion = null; this.goalReached = false; this.hints = {};
+    this.story = null; this.cine = false;
     FX.reset();
   },
 
@@ -183,7 +184,10 @@ const G = {
     try { await Cinema.play(profile.bg, { look: profile.look, seed }); } catch (e) { console.warn(e); }
     this.unlock('begin');
     this.startPlay();
+    // hikâyeli başlangıç: rehber kapanınca Sully'nin ilk bölümü başlar
+    const story = this._storyNext = profile.story !== false && !window.__testNoStory;
     const hints = () => {
+      if (story) { this.storyStart(); return; }
       UI.help(Tr`<b>${P.name}</b>, 18 yaşındasın ve yıl ${START_YEAR}. Hedefin: <b>80 yaşına kadar hayatta kalmak.</b><br>Aç kalma, susuz kalma, uykusuz kalma. Avlan, çalış, keşfet.`, 12);
       setTimeout(() => UI.help(Tr`${Input.glyph('map')} Harita &nbsp; ${Input.glyph('satchel')} Çanta &nbsp; ${Input.glyph('journal')} Günlük &nbsp; ${Input.glyph('wheel')} Silah Çarkı &nbsp; ${Input.glyph('pause')} Duraklat`, 10), 13000);
     };
@@ -244,7 +248,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -378,6 +382,7 @@ const G = {
     this.loadHaul(d.haul);
     // çevredeki dünya kaldığı gibi: NPC'ler, hayvanlar, arabalar, cesetler, yerdeki eşyalar
     try { this.loadEnts(d.world); } catch (e) { console.warn('dünya anlık görüntüsü yüklenemedi', e); }
+    try { this.loadStory(d.story); } catch (e) { console.warn('hikâye yüklenemedi', e); this.story = null; }
     if ((d.v || 1) < 2) this.migrateEconomy();
     Platform.syncAchievements(this.achieved);
     this.startPlay();
@@ -421,6 +426,8 @@ const G = {
   },
   update(dt) {
     const P = this.player, I = Input;
+    // hikâye sinematiği oynarken dünya bekler
+    if (this.cine) { this.uiBlocksMove = true; return; }
     const modal = UI.isModal() || UI.state === 'fade';
     this.uiBlocksMove = modal || this.state !== 'play';
     if (this.binoc) { if (modal || this.state !== 'play') this.binocOff(); else this.binocUpdate(dt); }
@@ -471,12 +478,14 @@ const G = {
     if (P.poison > 0) { P.poison -= dt; P.hurt(dt * 1.6, 'zehir', true); }
     P.hp = Math.min(P.hp, P.maxHp);
     this.lawUpdate(dt);
+    this.storyTick(dt);
     this.hunterTick(dt);
     this.witnessUpdate(dt);
     const ib = this.world.buildingAtPx(P.x, P.y);
     if (ib !== this.insideB) {
       if (ib && (!this.insideB || this.insideB !== ib)) {
         UI.feed(`${Icons.glyph('door', '#efe6d2', 'ic inl')} ${ib.name}`); Audio_.tone(180, 0.06, 'triangle', 0.05);
+        this.qEvent('enter', ib);
         this.hintOnce('indoor', Tr`Binaların içinde dolaşabilirsin. Tezgahtaki çalışanla, yataklarla, masalarla ve diğer eşyalarla ${Input.glyph('interact')} ile etkileşime geç. Dükkanlar gece kapanır.`);
       }
       if (this.insideB && !ib) this.exitB = this.insideB;
@@ -968,6 +977,13 @@ const G = {
       ctx.strokeStyle = HP.bad ? 'rgba(230,80,60,0.9)' : 'rgba(240,220,140,0.9)'; ctx.lineWidth = 1; ctx.setLineDash([3, 2]);
       ctx.strokeRect(HP.tx * TS + 0.5, HP.ty * TS + 0.5, HOME_FW * TS - 1, HOME_FH * TS - 1); ctx.setLineDash([]);
     }
+    // hikâye hedefi: üstünde salınan altın elmas
+    const qm = this.questMark();
+    if (qm && !this.storyTalking() && Math.abs(qm.x - this.cam.x) < this.vw / 2 + 10 && Math.abs(qm.y - this.cam.y) < this.vh / 2 + 10) {
+      const b = Math.sin(this.t * 4) * 1.5, y = qm.y - (qm.kind ? 20 : 12) + b;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.moveTo(qm.x, y - 5); ctx.lineTo(qm.x + 4.5, y); ctx.lineTo(qm.x, y + 5); ctx.lineTo(qm.x - 4.5, y); ctx.fill();
+      ctx.fillStyle = '#f0c040'; ctx.beginPath(); ctx.moveTo(qm.x, y - 4); ctx.lineTo(qm.x + 3.5, y); ctx.lineTo(qm.x, y + 4); ctx.lineTo(qm.x - 3.5, y); ctx.fill();
+    }
     // waypoint oku (ekran dışı)
     if (this.waypoint) {
       const wp = this.waypoint;
@@ -1104,3 +1120,4 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(PokerSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BinocSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HomeSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(Story));

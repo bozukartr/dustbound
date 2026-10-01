@@ -164,7 +164,8 @@ const TownPath = {
 /* ---------------- Konuşma baloncukları (ekranda, dünya konumuna bağlı) ---------------- */
 const Bubbles = {
   list: [],
-  add(e, text, dur = 3.2) {
+  /* talk: true → metin altyazıda; kişinin üstünde yalnızca "konuşuyor" işareti */
+  add(e, text, dur = 3.2, talk) {
     if (!e || e.remove) return;
     const P = G.player;
     if (dist2(e.x, e.y, P.x, P.y) > 330 * 330) return;
@@ -172,8 +173,8 @@ const Bubbles = {
     let root = document.getElementById('bubbles');
     if (!root) { root = document.createElement('div'); root.id = 'bubbles'; (document.getElementById('hud') || document.body).appendChild(root); }
     const el = document.createElement('div');
-    el.className = 'bubble' + (e === P ? ' me' : '');
-    el.textContent = text;
+    el.className = 'bubble' + (e === P ? ' me' : '') + (talk ? ' talk' : '');
+    if (talk) el.innerHTML = '<i></i><i></i><i></i>'; else el.textContent = text;
     root.appendChild(el);
     this.list.push({ e, el, t: dur });
   },
