@@ -194,6 +194,7 @@ const CarrySystems = {
     if (e.kind !== 'npc') return 0;
     const B = this.activeBounty;
     if (B && e.bountyId === B.id) return e.dead ? Math.round(B.reward * 0.5) : B.reward;
+    if (e.quest === 'jack') return e.dead ? 12 : 25;
     if (e.role === 'bandit' || e.role === 'target') return e.dead ? 2 : 5;
     return 0;
   },
@@ -203,6 +204,7 @@ const CarrySystems = {
     if (!v) { UI.subtitle(Tr('Şerif'), Tr`${e.name} aranan biri değil. Onu buraya neden getirdin?`, 3); return; }
     const alive = !e.dead, target = this.isBountyTarget(e);
     this.takeCarried(it);
+    if (e.quest === 'jack') { this.earn(v, alive ? Tr('Canlı teslim') : Tr('Ceset teslimi')); this.addHonor(alive ? 5 : 2); this.stat('captures', 1); this.qEvent('deliver', e); return; }
     this.earn(v, alive ? Tr('Canlı teslim') : Tr('Ceset teslimi'));
     this.addHonor(alive ? 3 : 1);
     this.stat('captures', 1);
@@ -233,6 +235,7 @@ const CarrySystems = {
     if (sum <= 0) return;
     this.earn(sum, Tr('Av satışı'));
     this.skillXp('trade', 1 + list.length);
+    this.qEvent('sell', { carried: list.length });
     Audio_.ui('cash');
   },
   /* Bulunduğun binanın dükkânı (hayvan ürünü alıyorsa) */
@@ -291,6 +294,8 @@ const CarrySystems = {
       return true;
     }
     if (e.kind !== 'npc') return false;
+    // Kızıl Jack: tapuyu üstünden alma eylemi öbür seçeneklerin başına eklenir
+    if (e.quest === 'jack') { const ja = this.jackActions(e); if (ja.length) { const add0 = add; add = (x, y, l, acts, p, tk) => add0(x, y, l, ja.concat(acts), p, tk); } }
     if (e.dead) {
       if (!e.looted) add(e.x, e.y, e.name, [{ n: Tr('Cesedi Ara'), hold: 0.8, fn: () => this.lootBody(e) }], 0, take);
       else {
@@ -357,7 +362,7 @@ const CarrySystems = {
     if (e.kind === 'crate') return { k: 'crate', g: e.g };
     if (e.kind === 'pelt') return { k: 'pelt', id: e.id, q: e.q };
     if (e.kind === 'animal') return { k: 'animal', type: e.type, male: e.male, look: e.look };
-    return { k: 'npc', role: e.role, name: e.name, look: e.look, dead: e.dead, state: e.state, tieT: e.tieT, money: e.money, weapon: e.weapon, looted: e.looted, bountyId: e.bountyId || null, evidence: !!e.evidence, hostile: e.hostile, assaulted: !!e.assaulted };
+    return { k: 'npc', role: e.role, name: e.name, look: e.look, dead: e.dead, state: e.state, tieT: e.tieT, money: e.money, weapon: e.weapon, looted: e.looted, bountyId: e.bountyId || null, quest: e.quest || null, evidence: !!e.evidence, hostile: e.hostile, assaulted: !!e.assaulted };
   },
   deserCarry(d) {
     if (d.k === 'crate') return new Crate(0, 0, d.g);
@@ -366,6 +371,7 @@ const CarrySystems = {
     const n = new NPC(0, 0, d.role, { name: d.name, look: d.look, hostile: d.hostile, weapon: d.weapon, money: d.money });
     n.looted = d.looted; n.evidence = d.evidence; n.assaulted = d.assaulted;
     if (d.bountyId) { n.bountyId = d.bountyId; n.keep = true; }
+    if (d.quest) { n.quest = d.quest; n.keep = true; }
     if (d.dead) { n.dead = true; n.hp = 0; n.state = 'dead'; } else { n.state = 'tied'; n.tieT = d.tieT || 120; n.hp = Math.max(1, n.maxHp * 0.3); }
     return n;
   },

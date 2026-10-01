@@ -70,6 +70,9 @@ async function runFile(file, browser, url) {
       await p.addInitScript(() => { window.addEventListener('blur', (e) => { if (e.target === window) e.stopImmediatePropagation(); }, true); });
       // hoş geldin rehberi yalnızca onu sınayan testte açılır
       if (!o.guide) await p.addInitScript(() => { window.__testNoGuide = true; });
+      // hikâyeli başlangıç ve sinematikleri yalnızca onları sınayan testler açar
+      if (!o.story) await p.addInitScript(() => { window.__testNoStory = true; });
+      if (!o.cine) await p.addInitScript(() => { window.__testNoCine = true; });
       if (o.init) await p.addInitScript(o.init);
       await p.goto(url + 'index.html');
       await p.waitForFunction(() => typeof G !== 'undefined' && G.state === 'menu', null, { timeout: 30000 });

@@ -518,6 +518,8 @@ const UI = {
     if (G.nomads) for (const nc of G.nomads) if (nc.era >= 0 && G.discovered.has(G.nomadId(nc))) icon(nc.x, nc.y, 'tent', '#f0e4c8', 'rgba(120,80,20,0.9)', 13);
     if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') icon(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', '#fff', 'rgba(150,20,20,0.9)', 15);
     if (G.waypoint) icon(G.waypoint.x, G.waypoint.y, 'waypoint', '#fff', 'rgba(140,40,140,0.9)', 15);
+    const qm = G.questMark();
+    if (qm) icon(qm.x, qm.y, 'star', '#fff', 'rgba(190,140,20,0.95)', 15);
     // canlılar
     for (const e of G.ents) {
       if (e.dead) continue;
@@ -744,6 +746,8 @@ const UI = {
     for (const R of G.raids) badge(R.x, R.y, 'skull', 'rgba(160,20,14,0.95)', '#fff', 11);
     if (G.horse && !G.horse.dead) badge(G.horse.x, G.horse.y, 'horse', 'rgba(60,36,20,0.9)', '#f0d8a8');
     if (G.waypoint) badge(G.waypoint.x, G.waypoint.y, 'waypoint', 'rgba(140,40,140,0.95)');
+    const qm = G.questMark();
+    if (qm) badge(qm.x, qm.y, 'star', 'rgba(190,140,20,0.95)', '#fff', 11);
     // oyuncu
     const P = G.player;
     const [px, py] = toS(P.x, P.y);
@@ -1009,7 +1013,7 @@ const UI = {
 
   /* ================= GÜNLÜK ================= */
   openJournal(tab = 0) {
-    const tabs = [Tr('Karakter'), Tr('Yetenekler'), Tr('Başarımlar'), Tr('İstatistikler'), Tr('İlişkiler'), Tr('İşlerim'), Tr('Rehber')];
+    const tabs = [Tr('Karakter'), Tr('Yetenekler'), Tr('Başarımlar'), Tr('İstatistikler'), Tr('İlişkiler'), Tr('İşlerim'), Tr('Görevler'), Tr('Rehber')];
     const el = el_('div', 'modal panel journal');
     const m = this.makeModal(el, { scroll: true, noFocus: true, onTab: (d) => { m.tab = (m.tab + d + tabs.length) % tabs.length; render(); Audio_.ui('move'); } });
     m.tab = tab;
@@ -1018,6 +1022,8 @@ const UI = {
       $$('.tab', el).forEach(n => (n.onclick = () => { m.tab = +n.dataset.tab; render(); }));
       const pc = $('#jr-portrait', el);
       if (pc) Spr.portrait(pc.getContext('2d'), pc.width, pc.height, G.player.look, G.age);
+      const qa = $('[data-qa]', el);
+      if (qa) qa.onclick = () => this.confirm(Tr('Hikâyeyi Bırak'), Tr('Sully\'nin hikâyesini bırakırsan bir daha devam edemezsin. Emin misin?'), () => { G.storyAbandon(); this.closeAll(); });
     };
     render();
     this.push(m);
@@ -1073,6 +1079,7 @@ const UI = {
       return h + `</div><p class="jr-note">${Tr`Her kasabada tanışabileceğin biri yaşıyor (haritada ♥). Onlarla her gün sohbet et, hediye ver. Yakınlık 80'e ulaştığında ve bir mülkün olduğunda evlenme teklif edebilirsin.`}</p>`;
     }
     if (t === 5) return this.bizJournal();
+    if (t === 6) return G.questJournal();
     return this.guideHtml();
   },
   /* İşlerim: işletmeler, stok, kasa, yük arabası */
@@ -1122,7 +1129,7 @@ const UI = {
         tips: [['talk', Tr`Sakinlerin adı, mesleği ve huyu var. Seni selamlarlarsa ${g('interact')} ile <b>Selamla</b>: selamı alınmayan bozulur!`], ['mask', Tr('Laf atana karşılık verebilirsin. Ama suç işlersen tanıklar şerife koşar.')], ['star', Tr('İyilik yaparsan ünün artar; dükkânlar indirim yapar, insanlar sana gülümser.')]] },
       { ic: 'book', t: Tr('İşine Yarayacaklar'),
         tips: [['satchel', Tr`${g('satchel')} Çanta: yiyecek, ilaç, giysi ve eşyalar.`], ['book', Tr`${g('journal')} Günlük: karakterin, başarımlar, işlerin ve bu rehber.`], ['gun', Tr`${g('wheel')} Silah çarkı, ${g('aim')} nişan, ${g('fire')} ateş.`], ['gear', Tr`${g('pause')} Duraklat: kaydet, ayarlar, ana menü.`]],
-        b: Tr('İyi yolculuklar, kovboy. Batı seni bekliyor!') },
+        b: G.story === null && G._storyNext ? Tr('İyi yolculuklar, kovboy. Gazete ilanını veren <b>Dunham Sully</b> seni kasabada bekliyor; sağ üstteki hedefi izle.') : Tr('İyi yolculuklar, kovboy. Batı seni bekliyor!') },
     ];
     const el = el_('div', 'modal panel welcome');
     let pg = 0;
@@ -1436,8 +1443,8 @@ const UI = {
         if (L.length) it.push({ icon: '🦌', label: Tr`Getirdiğin Avı Sat (${L.length})`, right: fmtMoney(L.reduce((a, c) => a + G.loadValue(c.e, d.shop), 0)), fn: () => { G.sellCarried(d.shop); this.pop(); } });
         break;
       }
-      case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(0.25 * G.priceMul(true)), fn: () => { if (G.spend(0.25 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); } } });
-        it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(0.1), fn: () => { if (G.spend(0.1)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); } } }); break;
+      case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(0.25 * G.priceMul(true)), fn: () => { if (G.spend(0.25 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); G.qEvent('eat', 'meal'); } } });
+        it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(0.1), fn: () => { if (G.spend(0.1)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); G.qEvent('drink', 'whiskey'); } } }); break;
       case 'poker': it.push({ icon: '♠', label: Tr('Poker Oyna'), fn: () => this.openPoker(b) }); break;
       case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
       case 'arm': it.push({ icon: '💪', label: Tr('Bilek Güreşi (25¢ bahis)'), fn: () => this.openArmWrestle() }); break;
@@ -1453,7 +1460,7 @@ const UI = {
         // omuzda ya da kapıdaki atın eyerinde getirilen suçlular
         for (const c of G.carriedAll()) if (c.e.kind === 'npc' && G.wantedValue(c.e)) it.push({ icon: '⚖', label: Tr`Teslim Et: ${c.e.name} ${c.e.dead ? Tr('(ölü)') : Tr('(canlı)')}`, right: fmtMoney(G.wantedValue(c.e)), fn: () => { G.deliverToSheriff(c); this.pop(); } });
         break;
-      case 'board': it.push({ icon: '📜', label: Tr('Ödül İlanları'), fn: () => this.openBountyBoard() }); break;
+      case 'board': it.push({ icon: '📜', label: Tr('Ödül İlanları'), fn: () => { this.openBountyBoard(); G.qEvent('board'); } }); break;
       case 'horses': it.push({ icon: '🐴', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) });
         if (!G.myWagon) it.push({ icon: '📦', label: Tr('Yük Arabası Satın Al'), right: fmtMoney(WAGON_PRICE * G.priceMul(true)), fn: () => { G.buyWagon(b); this.pop(); } });
         else it.push({ icon: '📦', label: Tr('Arabanı Buraya Getirt'), right: fmtMoney(0.5), fn: () => G.fetchWagon(b) });
@@ -1506,7 +1513,7 @@ const UI = {
               if (id === 'treasure_map' && (G.treasure || P.has('treasure_map'))) continue;
               const pr = (id === 'treasure_map' ? 25 : it.p) * G.priceMul(true) * regional;
               const full = P.count(id) >= it.max;
-              items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, disabled: full, why: Tr('Daha fazla taşıyamazsın.'), sideHtml: this.itemSide(it), fn: () => { if (G.spend(pr)) { P.addItem(id, 1, true); if (id === 'treasure_map') G.makeTreasure(); if (it.autoUse) G.consume(id); Audio_.ui('cash'); } } });
+              items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, disabled: full, why: Tr('Daha fazla taşıyamazsın.'), sideHtml: this.itemSide(it), fn: () => { if (G.spend(pr)) { P.addItem(id, 1, true); if (id === 'treasure_map') G.makeTreasure(); if (it.autoUse) G.consume(id); Audio_.ui('cash'); G.qEvent('buy', { id, shop: shopId }); if (shopId === 'saloon' && (id === 'beer' || id === 'whiskey' || id === 'sarsaparilla')) G.qEvent('drink', id); } } });
             }
           }
         } else {
@@ -1517,14 +1524,14 @@ const UI = {
             const cats = new Set(ids.map(id => ITEMS[id].c));
             if (cats.has('animal')) {
               const tA = ids.filter(id => ITEMS[id].c === 'animal').reduce((s, id) => s + G.sellPrice(id, shopId) * P.count(id), 0);
-              items.push({ icon: '💰', label: Tr('Tüm Av Ürünlerini Sat'), right: fmtMoney(tA), fn: () => { for (const id of ids) if (ITEMS[id].c === 'animal') { const n = P.count(id); P.removeItem(id, n); } G.earn(tA, Tr('Satış')); } });
+              items.push({ icon: '💰', label: Tr('Tüm Av Ürünlerini Sat'), right: fmtMoney(tA), fn: () => { for (const id of ids) if (ITEMS[id].c === 'animal') { const n = P.count(id); P.removeItem(id, n); } G.earn(tA, Tr('Satış')); G.qEvent('sell', { all: 1 }); } });
             }
             void tot;
           }
           for (const id of ids) {
             const it = ITEMS[id], pr = G.sellPrice(id, shopId);
             const worn = P.coat === id || (P.masked && P.mask === id);
-            items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, sideHtml: this.itemSide(it), disabled: worn, why: Tr('Üzerindeki giysiyi satamazsın.'), fn: () => { P.removeItem(id, 1); G.earn(pr, ''); G.skillXp('trade', 1 + pr * 0.1); } });
+            items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, sideHtml: this.itemSide(it), disabled: worn, why: Tr('Üzerindeki giysiyi satamazsın.'), fn: () => { P.removeItem(id, 1); G.earn(pr, ''); G.skillXp('trade', 1 + pr * 0.1); G.qEvent('sell', { id }); } });
           }
         }
         return items;
@@ -1603,6 +1610,7 @@ const UI = {
   },
   rumor() {
     if (!G.spend(0.05)) return;
+    if (G.storyRumor()) return;
     const unk = G.world.pois.filter(p => (p.kind === 'landmark' || p.kind === 'camp') && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     const line = pick(LINES.rumor);
     if (unk.length) {
@@ -1674,6 +1682,7 @@ const UI = {
           if (R.outAmmo) for (const k in R.outAmmo) { P.ammo[k] = Math.min(AMMO[k].max, P.ammo[k] + R.outAmmo[k]); this.feed(`+${R.outAmmo[k]} ${AMMO[k].n}`); }
           G.advanceClock(10);
           G.skillXp('survival', 2);
+          G.qEvent('cook', R.id);
           if (G.hasPerk('camper') && R.id.startsWith('cook')) P.hp = Math.min(P.maxHp, P.hp + 5);
         },
       })),
@@ -1764,8 +1773,8 @@ const UI = {
       title: Tr('Banka'), sub: () => Tr`Hesap: <b>${fmtMoney(G.bank)}</b> • Cüzdan: <b>${fmtMoney(P.money)}</b><br><small>Bankadaki para ölünce kaybolmaz ve yıllık %2 faiz kazanır.</small>`, cls: 'small',
       build: () => {
         const it = [];
-        for (const v of [1, 10, 50]) it.push({ label: Tr`${fmtMoney(v)} Yatır`, disabled: P.money < v, fn: () => { P.money -= v; G.bank += v; } });
-        it.push({ label: Tr('Tümünü Yatır'), disabled: P.money < 0.01, fn: () => { G.bank += P.money; P.money = 0; } });
+        for (const v of [1, 10, 50]) it.push({ label: Tr`${fmtMoney(v)} Yatır`, disabled: P.money < v, fn: () => { P.money -= v; G.bank += v; G.qEvent('deposit', v); } });
+        it.push({ label: Tr('Tümünü Yatır'), disabled: P.money < 0.01, fn: () => { G.qEvent('deposit', P.money); G.bank += P.money; P.money = 0; } });
         for (const v of [1, 10, 50]) it.push({ label: Tr`${fmtMoney(v)} Çek`, disabled: G.bank < v, fn: () => { G.bank -= v; P.money += v; } });
         it.push({ label: Tr('Tümünü Çek'), disabled: G.bank < 0.01, fn: () => { P.money += G.bank; G.bank = 0; } });
         return it;
@@ -1878,7 +1887,8 @@ const UI = {
       title: Tr('Ödül İlanları'), cls: 'shop board', side: (it) => it.sideHtml || '',
       build: () => {
         const it = [];
-        const A = G.activeBounty;
+        const A = G.activeBounty, sp = G.storyPoster();
+        if (sp) it.push({ html: sp });
         if (A) it.push({ html: `<p class="active-b">${Tr`Aktif: <b>${A.name}</b> — ${A.done ? Tr('Etkisiz hale getirildi. Ödülü bir şerif ofisinden al.') : Tr('{0} civarında.', A.where)}`}</p>` });
         for (const b of G.bounties) {
           it.push({ icon: '📜', label: b.name, right: fmtMoney(b.reward), disabled: !!A, why: Tr('Önce aktif ödül avını tamamla.'),
@@ -2290,7 +2300,7 @@ const UI = {
         else if (id === 'set') this.openSettings();
         else if (id === 'ctrl') this.openControls();
         else if (id === 'quit') Platform.quit();
-        else if (id === 'about') this.info("Frontier's End", `<p>${Tr`<b>Frontier's End</b>, 1890'lar Amerika'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunudur.`}</p><p>${Tr`Görev yok; sadece hayat var. 18 yaşında başla, avlan, çalış, sev, keşfet ve 80 yaşına kadar hayatta kalmaya çalış.`}</p><p class="dim">${Tr`HTML5 Canvas • Prosedürel dünya, grafik ve ses`}</p>`);
+        else if (id === 'about') this.info("Frontier's End", `<p>${Tr`<b>Frontier's End</b>, 1890'lar Amerika'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunudur.`}</p><p>${Tr`İstersen kısa bir hikâyeyle başla, istersen doğrudan hayatın içine dal. 18 yaşında başla, avlan, çalış, sev, keşfet ve 80 yaşına kadar hayatta kalmaya çalış.`}</p><p class="dim">${Tr`HTML5 Canvas • Prosedürel dünya, grafik ve ses`}</p>`);
       };
     });
     this.stack.push(m);
@@ -2357,7 +2367,7 @@ const UI = {
   showCreate(slot) {
     const look = randomLook(chance(0.5) ? 'm' : 'f');
     look.coatLen = 0;
-    const prof = { name: pick(NAMES[look.sex]) + ' ' + pick(NAMES.last), look, bg: 'farm', difficulty: 'story', pace: 'normal', slot: slot || G.freeSlot() || 1 };
+    const prof = { name: pick(NAMES[look.sex]) + ' ' + pick(NAMES.last), look, bg: 'farm', difficulty: 'story', pace: 'normal', story: true, slot: slot || G.freeSlot() || 1 };
     const el = el_('div', 'modal create');
     const TABS = [{ n: Tr('Kimlik'), g: 'quill' }, { n: Tr('Görünüm'), g: 'barber' }, { n: Tr('Kıyafet'), g: 'scissors' }, { n: Tr('Hikâye'), g: 'book' }];
     const rows = [
@@ -2375,6 +2385,7 @@ const UI = {
       { t: 3, k: 'bg', n: Tr('Geçmiş'), opts: BACKGROUNDS.map(b => b.id), lab: v => BACKGROUNDS.find(b => b.id === v).n, prof: 1 },
       { t: 3, k: 'difficulty', n: Tr('Zorluk'), opts: DIFFICULTIES.map(b => b.id), lab: v => DIFFICULTIES.find(b => b.id === v).n, prof: 1 },
       { t: 3, k: 'pace', n: Tr('Yaşlanma Hızı'), opts: LIFE_PACES.map(b => b.id), lab: v => LIFE_PACES.find(b => b.id === v).n, prof: 1 },
+      { t: 3, k: 'story', n: Tr('Hikâyeli Başlangıç'), opts: [true, false], lab: v => (v ? Tr('Açık (önerilir)') : Tr('Kapalı')), prof: 1 },
     ];
     const BGI = { farm: 'wheat', immigrant: 'anchor', outlaw: 'skull', rail: 'train', trapper: 'fox' };
     let tab = 0;
@@ -2468,7 +2479,7 @@ const UI = {
         look.beardLen = 0.4;
         this.pop(m);
         G.deleteSlot(prof.slot);
-        G.newGame({ name: prof.name, look, bg: prof.bg, difficulty: prof.difficulty, pace: prof.pace, slot: prof.slot });
+        G.newGame({ name: prof.name, look, bg: prof.bg, difficulty: prof.difficulty, pace: prof.pace, story: prof.story, slot: prof.slot });
       };
       refresh(); drawTop();
     };

@@ -2,7 +2,7 @@
 
 **Amerika, 1890.** 18 yaşındasın. Hedefin, 80 yaşına kadar hayatta kalmak.
 
-Frontier's End, 2D açık dünya bir **hayatta kalma ve rol yapma** oyunudur. Görev yok, "oyun sonu" yok; oynadığın şey bir hayat. Avlan, çalış, keşfet, âşık ol, ev al, kanunla başın derde girsin, yaşlan.
+Frontier's End, 2D açık dünya bir **hayatta kalma ve rol yapma** oyunudur. Sabit bir "oyun sonu" yok; oynadığın şey bir hayat. İstersen kısa, hikâyeli bir başlangıçla öğrenerek girersin. Avlan, çalış, keşfet, âşık ol, ev al, kanunla başın derde girsin, yaşlan.
 
 ## Çalıştırma
 
@@ -20,6 +20,12 @@ Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation, Xbox ve
 Oyun **Türkçe** ve **İngilizce** oynanabilir. İlk açılışta tarayıcının dili Türkçeyse Türkçe, değilse İngilizce seçilir; Ayarlar > **Dil / Language** satırından istediğin an değiştirebilirsin (menüler anında yeni dile geçer). Dünya üretilirken verilen bina adları gibi birkaç metin, oyun yeniden yüklendiğinde yeni dile döner.
 
 **İlk oyun:** Varış sinematiğinden sonra kısa, sayfalı bir **hoş geldin rehberi** açılır: amaç, hayatta kalma, dolaşma ve etkileşim, para kazanma, kasaba hayatı ve kısayollar. Sayfalar ◀ ▶ ile gezilir, "Atla" ya da "Maceraya Başla!" ile kapanır ve bir daha kendiliğinden açılmaz. İstendiğinde Duraklat menüsünden (**Rehber**) ya da Günlük → Rehber sekmesinden yeniden açılır.
+
+**Hikâyeli başlangıç — Sully'nin Senedi:** Karakter ekranının Hikâye sekmesindeki **Hikâyeli Başlangıç** (varsayılan açık) oyunu on bölümlük, oynayarak öğreten bir hikâyeyle başlatır. Gazete ilanıyla geldiğin kasabada yaşlı çiftçi **Dunham Sully** seni bekler; çiftliğinin tapusu yolda Kızıl Jack'in çetesi tarafından çalınmıştır. Bölümler: *Yeni Kasaba* (tanışma, selamlaşma, mağaza), *Karnını Doyur* (alışveriş, yemek, matara), *Sully'nin Çiftliği* (ıslık, ata binme, rota), *Kümesteki Çakallar* (nişan, ateş, av, deri yüzme), *Kasabın Terazisi* (satış), *Alın Teri* (gece itirafı, çiftlikte çalışma), *Kanunun Kapısı* (banka, şerif, ilan panosu), *Saloon Söylentileri* (içki, söylenti, kampın yeri), *Ateş Başında* (kamp, pişirme, sabaha kadar uyku), *Kızıl Jack* (dürbün, gizlenme, odak, kement, bağlama, tapuyu alma, şerife teslim).
+- Bölüm geçişleri varış sinematikleriyle aynı 3D çiziciyle oynar (yolculuk, akşam çakallar, verandada itiraf, kasaba sabahı, saloon gecesi, kamp ateşi, şafakta haydut kampı, gün batımında final). Sahneler başladığın yerin doğasına (ova, kıyı, çöl, kurak bozkır, orman) göre değişir; konuşmalar altyazıyla alttaki siyah şeritte akar, herhangi bir tuşla geçilir.
+- Konuşmalar baloncuk ve altyazıyla oyun içinde de sürer; Sully yürür, ata biner, seni bekler, uzaktaysa görünmeden yerini alır.
+- Sağ üstte bölüm adı ve hedef görünür; hedef dünyada altın elmasla, radarda ve haritada yıldızla işaretlenir, uzaksa rota çizilir. İpuçları doğru tuşları gösterir.
+- Görevler serbest oyunu kilitlemez; Günlük → **Görevler** sekmesi ilerlemeyi gösterir, hikâye oradan bırakılabilir. Kayıtta kalınan adım saklanır; Jack'i canlı teslim etmek daha çok ödül getirir. Sonunda Sully'nin eski tüfeği, para, onur ve **Sully'nin Senedi** başarımı; Sully çiftliğinde kalır, uğrayıp sohbet edebilir ve çalışabilirsin.
 
 **Kaldığın yerden devam:** Kayıt, çevredeki dünyanın anlık görüntüsünü de saklar. "Devam Et" dediğinde her şey kaldığın gibi gelir:
 - kasaba sakinleri, kanun adamları, yolcular, haydutlar ve çiftçiler (durumları ve kasaba kayıtlarıyla, saloonda oturanlar sandalyelerinde),
@@ -261,6 +267,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `i18n` | çeviri anahtarları (tools/i18n-check.js), oyun içinde dil değiştirme |
 | `settings` | ayarlar ekranı, ses kaydırıcısına tıklama ve sürükleme, Kaydet ve Kapat düğmesi, tam ekran tercihinin saklanması, klavye tuş atama, takas, iptal, kalıcılık |
 | `resume` | kaldığı yerden devam: NPC, hayvan, ceset, post, sandık ve arabaların konumu ve durumu, sakinlerin kasaba kaydına bağlanması, kopya doğmaması, sekme kapanırken kayıt |
+| `story` | hikâyeli başlangıç: on bölüm baştan sona (selamlaşma, alışveriş, matara, ata binme, çakallar, av, deri, satış, çalışma, şerif, saloon, kamp, uyku, dürbün, kement, teslim, final), kayıt/yükleme, günlük sekmesi, bırakma |
 | `guide` | ilk oyunda hoş geldin rehberinin kendiliğinden açılması, sayfalar, bir daha açılmaması, Duraklat menüsünden yeniden açma |
 | `carry` | kement, bağlama, omuzda/eyerde taşıma, şerife teslim, ödül hedefi, leş ve post, kanıt, suya atma |
 | `law` | tanıklar, tehdit, rüşvet, maske, dükkân reddi, teslim olma, ceza, hapis |
@@ -291,6 +298,8 @@ Yeni bir test için `tests/e2e/` altına `ad.test.js` ekle: `module.exports = { 
 index.html
 css/style.css
 js/util.js      yardımcılar, RNG, gürültü
+js/quests.js    hikâyeli başlangıç: Sully'nin Senedi (görev motoru, bölümler, Sully ve Jack, izleyici, işaretler)
+js/storycine.js hikâye sinematikleri (bölüm geçişlerinin 3D sahneleri)
 js/worldsave.js dünyanın anlık görüntüsü: çevredeki NPC, hayvan, at, araba, ceset ve yerdeki eşyaların kaydı ve geri kurulması
 js/platform.js  platform katmanı: kayıt, Steam başarımları, rich presence, tam ekran, çıkış
 fonts/          yerel fontlar ve lisansları

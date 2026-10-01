@@ -210,7 +210,7 @@ const GameSystems = {
     if (e.cool) P.coolT = Math.max(P.coolT, e.cool * 60);
     if (e.sober && P.drunk > 0) { P.drunk = 0; UI.feed(Tr('Burnun yandı, başın bir anda açıldı.')); }
     if (it.raw && Math.random() < it.raw * (this.hasPerk('eater') ? 0.5 : 1)) this.sicken(8, Tr('Çiğ et yedin ve midenin bozulduğunu hissediyorsun. <b>Hastasın.</b>'));
-    if (it.c === 'food') { this.stat('eaten', 1); Audio_.tone(300, 0.08, 'triangle', 0.06); Audio_.tone(240, 0.08, 'triangle', 0.06, null, 0.12); }
+    if (it.c === 'food') { this.qEvent('eat', id); this.stat('eaten', 1); Audio_.tone(300, 0.08, 'triangle', 0.06); Audio_.tone(240, 0.08, 'triangle', 0.06, null, 0.12); }
     else Audio_.ui('pick');
     UI.feed(Tr`${Icons.item(id, 'ic inl')} ${it.n} kullanıldı`);
     return true;
@@ -966,6 +966,7 @@ const GameSystems = {
     if (a.def.owned) this.crime('livestock', a.x, a.y, a);
     const d = dist(this.player.x, this.player.y, a.x, a.y);
     if (d > 400) this.stat('longKills', 1);
+    this.qEvent('kill', a);
   },
   onNpcKill(n, how) {
     this.stat('kills', 1);
@@ -980,6 +981,7 @@ const GameSystems = {
       UI.toast(Tr('Hedef Öldü'), Tr`${n.name} — cesedini şerif ofisine götür: ${fmtMoney(Math.round(B.reward * 0.5))} (canlı teslimde ${fmtMoney(B.reward)})`, 'bounty');
     }
     if (this.player.deadeye) this.stat('deadeyeKills', 1);
+    this.qEvent('kill', n);
   },
   playerDied(cause) {
     if (this.state !== 'play') return;
@@ -998,6 +1000,7 @@ const GameSystems = {
   whistle() {
     const P = this.player, h = this.horse;
     Audio_.whistle();
+    this.qEvent('whistle');
     if (P.riding) return;
     if (!h) { UI.feed(Tr('Bir atın yok. Ahırdan satın alabilir ya da yabani bir atı evcilleştirebilirsin.'), 'warn'); return; }
     if (h.dead) { UI.feed(Tr`${h.name} yaralı yatıyor. At Diriltici gerekli.`, 'warn'); return; }
@@ -1065,8 +1068,10 @@ const GameSystems = {
         if (d < 700 && !p.spawned) {
           p.spawned = true;
           const b = W.buildings[p.building];
-          const n = new NPC(b.door.x, b.door.y + 6, 'farmer', { home: { x: b.door.x, y: b.door.y + 10, r: 30 }, state: 'idle' });
-          n.poi = p.pid; n.keepPoi = true; this.addEnt(n);
+          if (!p.sully) {
+            const n = new NPC(b.door.x, b.door.y + 6, 'farmer', { home: { x: b.door.x, y: b.door.y + 10, r: 30 }, state: 'idle' });
+            n.poi = p.pid; n.keepPoi = true; this.addEnt(n);
+          }
           for (let k = 0; k < 4; k++) { const c = new Animal(p.x + rnd(-60, 60), p.y + rnd(40, 110), chance(0.6) ? 'cow' : 'chicken'); c.home = { x: p.x, y: p.y + 70, r: 80 }; c.poi = p.pid; this.addEnt(c); }
         } else if (d > 1100 && p.spawned) { p.spawned = false; for (const e of ents) if (e.poi === p.pid) e.remove = true; }
       }
@@ -1074,7 +1079,7 @@ const GameSystems = {
         const cleared = this.campCleared[p.pid];
         if (d < 600 && !p.spawned && !(cleared !== undefined && this.day - cleared < 3)) {
           p.spawned = true;
-          const n = rndi(3, 5);
+          const n = this.story && this.story.camp && this.story.camp.pid === p.pid && this.story.jack !== 'delivered' ? 3 : rndi(3, 5);
           for (let k = 0; k < n; k++) {
             const pos = this.findSpawnPos(p.x, p.y, 20, 70);
             if (!pos) continue;
@@ -1684,6 +1689,7 @@ const GameSystems = {
   },
   npcActions(e) {
     if (e.role === 'hunter') return this.hunterActions(e);
+    if (e.quest === 'sully') return this.sullyActions(e);
     const P = this.player;
     const acts = [];
     // az önce sana laf attı: karşılık verebilirsin
@@ -1756,6 +1762,7 @@ const GameSystems = {
       line = pick(pool);
     }
     e.greetDay = this.day;
+    this.qEvent('greet', e);
     // önce oyuncu selam verir, NPC karşılık verir
     UI.subtitle(P.name, pick(GREETS.reply[tod]), 1.3, true);
     e.ang = Math.atan2(P.y - e.y, P.x - e.x);
@@ -1815,6 +1822,7 @@ const GameSystems = {
     this.skillXp('hunting', 3);
     Audio_.tone(200, 0.2, 'sawtooth', 0.03);
     this.parts.burst('blood', a.x, a.y, 6, 20, 0.6, 1.2);
+    this.qEvent('skin', a);
   },
   tameHorse(a, lassoed) {
     const P = this.player;
@@ -1926,6 +1934,7 @@ const GameSystems = {
     const P = this.player;
     if (!P.has('canteen')) { UI.feed(Tr('Mataran yok. Genel mağazadan alabilirsin.'), 'warn'); return; }
     P.canteen = 5; UI.feed(Tr('🫗 Matara dolduruldu (5/5)'));
+    this.qEvent('fill');
     Audio_.tone(300, 0.4, 'sine', 0.04, null, 0, 600);
   },
   wash() {
@@ -2072,6 +2081,7 @@ const GameSystems = {
       if (J.bonus) for (const [id, c] of J.bonus) if (chance(c)) P.addItem(id, 1);
       this.stat('shifts', 1);
       this.skillXp(J.skill, J.xp);
+      this.qEvent('work', jobId);
     }, Tr`${J.hours} saat çalıştın...`);
     return true;
   },
@@ -2094,7 +2104,8 @@ const GameSystems = {
       this.saveGame(true);
       UI.feed(Tr('💾 Oyun kaydedildi'));
       // uyurken saldırı
-      if (where === 'camp' && this.isNight && chance(0.1)) { this.eventT = 0; UI.help(Tr('Bir ses seni uyandırdı...'), 4); }
+      if (where === 'camp' && this.isNight && chance(0.1) && !this.storyOn) { this.eventT = 0; UI.help(Tr('Bir ses seni uyandırdı...'), 4); }
+      this.qEvent('sleep', where);
     }, Tr`${hours} saat uyudun...`);
   },
   passTime(hours) {
@@ -2116,5 +2127,6 @@ const GameSystems = {
     this.stat('camps', 1);
     Audio_.ui('ok');
     UI.openCamp();
+    this.qEvent('camp');
   },
 };
