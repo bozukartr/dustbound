@@ -1,5 +1,5 @@
 'use strict';
-/* İlk oyunda sinematikten sonra açılan hoş geldin rehberi */
+/* Her yeni hayatta sinematikten sonra açılan hoş geldin rehberi */
 module.exports = {
   name: 'Hoş geldin rehberi',
   async run(t) {
@@ -24,9 +24,23 @@ module.exports = {
       }
       t.ok(new Set(titles).size >= 5, 'farklı sayfalar', titles);
       await p.click('[data-act="done"]'); await t.sleep(300);
-      const r = await p.evaluate(() => ({ open: !!document.querySelector('.panel.welcome'), seen: JSON.parse(localStorage.getItem('frontiersend_settings_v1')).guideSeen, modal: UI.isModal() }));
+      const r = await p.evaluate(() => ({ open: !!document.querySelector('.panel.welcome'), on: G.settings.guideNew, modal: UI.isModal() }));
       t.ok(!r.open && !r.modal, 'rehber kapanır, oyun sürer', r);
-      t.eq(r.seen, true, 'bir daha kendiliğinden açılmaz');
+      t.ok(r.on !== false, 'işaretlenmedikçe yeni hayatlarda yine açılır');
+    });
+    await t.step('yeni bir hayatta rehber yine açılır; "gösterme" işaretlenince açılmaz', async () => {
+      const life = () => p.evaluate(async () => { UI.closeAll(); await G.newGame({ name: 'Test Kişi', look: randomLook('m'), bg: 'farm', difficulty: 'story', pace: 'normal', slot: 2 }); });
+      await life();
+      await p.waitForFunction(() => !!document.querySelector('.panel.welcome'), null, { timeout: 20000 });
+      // son sayfaya git, işareti koy, kapat
+      for (let k = 0; k < 10 && !(await p.evaluate(() => !!document.querySelector('[data-act="done"]'))); k++) { await p.keyboard.press('ArrowRight'); await t.sleep(200); }
+      await p.click('[data-skip]'); await t.sleep(100);
+      await p.click('[data-act="done"]'); await t.sleep(300);
+      t.eq(await p.evaluate(() => JSON.parse(localStorage.getItem('frontiersend_settings_v1')).guideNew), false, 'tercih kaydedildi');
+      await life();
+      await t.sleep(2500);
+      t.ok(await p.evaluate(() => !document.querySelector('.panel.welcome')), 'işaretliyken açılmaz');
+      await p.evaluate(() => { G.settings.guideNew = true; G.saveSettings(); });
     });
     await t.step('duraklat menüsünden yeniden açılır', async () => {
       await p.evaluate(() => UI.openPause()); await t.sleep(200);

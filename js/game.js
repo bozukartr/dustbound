@@ -26,7 +26,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, lang: null, padGlyphs: 0 },
+  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, lang: null, padGlyphs: 0, guideNew: true },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -191,8 +191,9 @@ const G = {
       UI.help(Tr`<b>${P.name}</b>, 18 yaşındasın ve yıl ${START_YEAR}. Hedefin: <b>80 yaşına kadar hayatta kalmak.</b><br>Aç kalma, susuz kalma, uykusuz kalma. Avlan, çalış, keşfet.`, 12);
       setTimeout(() => UI.help(Tr`${Input.glyph('map')} Harita &nbsp; ${Input.glyph('satchel')} Çanta &nbsp; ${Input.glyph('journal')} Günlük &nbsp; ${Input.glyph('wheel')} Silah Çarkı &nbsp; ${Input.glyph('pause')} Duraklat`, 10), 13000);
     };
-    // ilk oyunda sinematikten hemen sonra kısa rehber açılır; kapanınca ipuçları gelir
-    if (!this.settings.guideSeen && !window.__testNoGuide) setTimeout(() => { if (this.state === 'play' && !UI.isModal()) UI.openWelcome(() => setTimeout(hints, 600)); else hints(); }, 700);
+    // her yeni hayatta sinematikten hemen sonra kısa rehber açılır (Ayarlar'dan ya da rehberden kapatılabilir);
+    // kapanınca hikâye ya da ipuçları başlar
+    if (this.settings.guideNew !== false && !window.__testNoGuide) setTimeout(() => { if (this.state === 'play' && !UI.isModal()) UI.openWelcome(() => setTimeout(hints, 600)); else hints(); }, 700);
     else setTimeout(hints, 1200);
     this.saveGame(true);
   },
