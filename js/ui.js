@@ -1143,6 +1143,7 @@ const UI = {
         ${Pg.b && Pg.pre ? `<div class="wl-body">${Pg.b}</div>` : ''}
         ${Pg.tips ? `<div class="wl-tips">${Pg.tips.map(([ic, tx]) => `<div class="wl-tip"><span class="wl-ic">${Icons.glyph(ic, '#c9a45c')}</span><span>${tx}</span></div>`).join('')}</div>` : ''}
         ${Pg.b && !Pg.pre ? `<div class="wl-body">${Pg.b}</div>` : ''}
+        ${last ? `<label class="wl-skip"><input type="checkbox" data-skip ${G.settings.guideNew === false ? 'checked' : ''}> ${Tr`Yeni hayatlarda bu rehberi gösterme`}</label>` : ''}
         <div class="wl-dots">${pages.map((_, i) => `<i class="${i === pg ? 'on' : ''}" data-pg="${i}"></i>`).join('')}</div>
         <div class="wl-btns">
           ${pg > 0 ? `<button class="st-btn nav" data-act="prev">${g('left')} ${Tr`Geri`}</button>` : `<button class="st-btn nav" data-act="skip">${Tr`Atla`}</button>`}
@@ -1152,6 +1153,8 @@ const UI = {
       if (pc && P) Spr.portrait(pc.getContext('2d'), pc.width, pc.height, P.look, G.age);
       $$('[data-pg]', el).forEach(n => (n.onclick = () => { pg = +n.dataset.pg; Audio_.ui('move'); render(); }));
       $$('[data-act]', el).forEach(n => (n.onclick = () => act(n.dataset.act)));
+      const sk = $('[data-skip]', el);
+      if (sk) sk.onchange = () => { G.settings.guideNew = !sk.checked; G.saveSettings(); };
       m.focusFirst();
     };
     const act = (a) => {
@@ -1261,7 +1264,7 @@ const UI = {
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, padGlyphs: 0 };
+    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, padGlyphs: 0, guideNew: true };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
       padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')],
@@ -1272,6 +1275,7 @@ const UI = {
         ['lang', 'Dil / Language', 'lang', Tr('Oyunun dili. Menüler, diyaloglar ve bütün metinler hemen değişir.')],
         ['shake', Tr('Ekran Sarsıntısı'), 'bool', Tr('Silah sesi, patlama ve darbelerde kameranın sarsılması. Baş dönmesi yapıyorsa kapat.')],
         ['fps', Tr('FPS Göster'), 'bool', Tr('Ekranın köşesinde saniyedeki kare sayısını gösterir.')],
+        ['guideNew', Tr('Yeni Hayatta Rehber'), 'bool', Tr('Her yeni hayatın başında, varış sinematiğinden sonra hoş geldin rehberi açılır. Duraklat menüsünden her zaman açabilirsin.')],
       ] },
       { n: Tr('Ses'), g: 'note', rows: [
         ['master', Tr('Ana Ses'), 'vol', Tr('Bütün seslerin genel seviyesi.')],
