@@ -19,6 +19,10 @@ Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation, Xbox ve
 
 Oyun **Türkçe** ve **İngilizce** oynanabilir. İlk açılışta tarayıcının dili Türkçeyse Türkçe, değilse İngilizce seçilir; Ayarlar > **Dil / Language** satırından istediğin an değiştirebilirsin (menüler anında yeni dile geçer). Dünya üretilirken verilen bina adları gibi birkaç metin, oyun yeniden yüklendiğinde yeni dile döner.
 
+**İlk oyun:** Varış sinematiğinden sonra kısa, sayfalı bir **hoş geldin rehberi** açılır: amaç, hayatta kalma, dolaşma ve etkileşim, para kazanma, kasaba hayatı ve kısayollar. Sayfalar ◀ ▶ ile gezilir, "Atla" ya da "Maceraya Başla!" ile kapanır ve bir daha kendiliğinden açılmaz. İstendiğinde Duraklat menüsünden (**Rehber**) ya da Günlük → Rehber sekmesinden yeniden açılır.
+
+**Ayarlar:** Ses ayarları sürüklenebilir pirinç kaydırıcılardır (%5 adımlarla, ◀ ▶ ile de). Alt kısımda **Kaydet ve Kapat** ile **Sekmeyi Varsayılana Döndür** düğmeleri vardır. **Tam Ekran** tercihi kaydedilir. Tarayıcıda Esc, menüleri kapatır ama tam ekrandan çıkarmaz (Chromium'da tam ekrandan çıkmak için Esc basılı tutulur). Başka bir tarayıcı Esc ile tam ekrandan çıkarırsa oyun, ilk tıklama ya da tuşta tam ekrana geri döner. F11 de tercihi değiştirir.
+
 Nasıl çalışıyor:
 
 - Kaynak dil Türkçe. Oyuncuya görünen her metin kodda Türkçe yazılır ve `Tr('…')` ya da `` Tr`… ${x} …` `` ile sarılır. Sözlükteki anahtar, bu Türkçe metnin kendisidir (gettext mantığı). Şablonlardaki `${…}` ifadeleri `{0}`, `{1}`… olur ve çeviride yerleri değiştirilebilir. `{0:day|days}` sayıya göre tekil/çoğul seçer.
@@ -248,7 +252,8 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `boot` | ana menü, karakter ekranı, 13 kasabalık dünya, yeni binaların iç mekânları, yürüme, duraklatma, harita |
 | `saves` | kayıt yuvaları, otomatik/manuel kayıt, Tek Hayat, eski kayıt taşıma, eski 1024 dünya, 1890 fiyat dönüşümü |
 | `i18n` | çeviri anahtarları (tools/i18n-check.js), oyun içinde dil değiştirme |
-| `settings` | ayarlar ekranı, klavye tuş atama, takas, iptal, kalıcılık |
+| `settings` | ayarlar ekranı, ses kaydırıcısına tıklama ve sürükleme, Kaydet ve Kapat düğmesi, tam ekran tercihinin saklanması, klavye tuş atama, takas, iptal, kalıcılık |
+| `guide` | ilk oyunda hoş geldin rehberinin kendiliğinden açılması, sayfalar, bir daha açılmaması, Duraklat menüsünden yeniden açma |
 | `carry` | kement, bağlama, omuzda/eyerde taşıma, şerife teslim, ödül hedefi, leş ve post, kanıt, suya atma |
 | `law` | tanıklar, tehdit, rüşvet, maske, dükkân reddi, teslim olma, ceza, hapis |
 | `economy` | para biçimi, fiyatlar, soygun tekrarları, al-sat açığı, günlük sınırlar |

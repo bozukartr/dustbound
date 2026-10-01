@@ -21,7 +21,7 @@ module.exports = {
       });
       t.ok(r.dead, 'ölmeli'); t.ok(r.hs > 0.03, 'mikro duraklama', r.hs); t.ok(r.kb, 'savrulma başlamalı');
       t.eq(r.hats, 1, 'şapka uçmalı'); t.eq(r.hat, 'none', 'şapka başından düşmeli');
-      await t.sleep(900);
+      await p.waitForFunction(() => Juice.hats[0] && Juice.hats[0].z === 0 && !JN.kb, null, { timeout: 4000 }).catch(() => {});
       const s = await p.evaluate(() => ({ hs: G.hitStopT, dx: JN.x - JX, kb: !!JN.kb, z: Juice.hats[0].z, hx: Juice.hats[0].x - JX }));
       t.ok(s.hs <= 0, 'duraklama biter'); t.ok(s.dx > 3, 'ceset vuruş yönünde kaymalı', s.dx); t.ok(!s.kb, 'kayma durur');
       t.eq(s.z, 0, 'şapka yere düşer'); t.ok(s.hx > 0, 'şapka ileri uçar', s.hx);

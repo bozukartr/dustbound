@@ -68,6 +68,8 @@ async function runFile(file, browser, url) {
       // Paralel sayfalar birbirinin odağını çalar; oyun odak kaybında duraklatma menüsünü
       // açtığı için testlerde pencere "blur" olayı yok sayılır.
       await p.addInitScript(() => { window.addEventListener('blur', (e) => { if (e.target === window) e.stopImmediatePropagation(); }, true); });
+      // hoş geldin rehberi yalnızca onu sınayan testte açılır
+      if (!o.guide) await p.addInitScript(() => { window.__testNoGuide = true; });
       if (o.init) await p.addInitScript(o.init);
       await p.goto(url + 'index.html');
       await p.waitForFunction(() => typeof G !== 'undefined' && G.state === 'menu', null, { timeout: 30000 });

@@ -92,6 +92,12 @@ const G = {
     Input.setBinds(this.settings.binds);
     this.applySettings();
   },
+  /* Tam ekran tercihi: ayarlarda ve F11 ile değişir, kayıtta saklanır */
+  setFullscreenPref(on) {
+    this.settings.fullscreen = !!on;
+    Platform.setFullscreen(!!on);
+    this.saveSettings();
+  },
   saveSettings() {
     this.settings.binds = JSON.parse(JSON.stringify(Input.binds));
     try { Platform.set(SET_KEY, JSON.stringify(this.settings)); } catch (e) {}
@@ -177,10 +183,13 @@ const G = {
     try { await Cinema.play(profile.bg, { look: profile.look, seed }); } catch (e) { console.warn(e); }
     this.unlock('begin');
     this.startPlay();
-    setTimeout(() => {
+    const hints = () => {
       UI.help(Tr`<b>${P.name}</b>, 18 yaşındasın ve yıl ${START_YEAR}. Hedefin: <b>80 yaşına kadar hayatta kalmak.</b><br>Aç kalma, susuz kalma, uykusuz kalma. Avlan, çalış, keşfet.`, 12);
       setTimeout(() => UI.help(Tr`${Input.glyph('map')} Harita &nbsp; ${Input.glyph('satchel')} Çanta &nbsp; ${Input.glyph('journal')} Günlük &nbsp; ${Input.glyph('wheel')} Silah Çarkı &nbsp; ${Input.glyph('pause')} Duraklat`, 10), 13000);
-    }, 1200);
+    };
+    // ilk oyunda sinematikten hemen sonra kısa rehber açılır; kapanınca ipuçları gelir
+    if (!this.settings.guideSeen && !window.__testNoGuide) setTimeout(() => { if (this.state === 'play' && !UI.isModal()) UI.openWelcome(() => setTimeout(hints, 600)); else hints(); }, 700);
+    else setTimeout(hints, 1200);
     this.saveGame(true);
   },
   initRomances() {

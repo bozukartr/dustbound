@@ -6,12 +6,17 @@ module.exports = {
     const p = await t.page();
     await t.step('sekmeler ve denetimler ayarları değiştirir', async () => {
       await p.evaluate(() => UI.openSettings(1)); await t.sleep(200);
-      await p.evaluate(() => document.querySelector('.st-row[data-k="music"] [data-i="2"]').click());
-      t.near(await p.evaluate(() => G.settings.music), 0.3, 0.001, 'ses göstergesine tıklama');
+      // ses kaydırıcısı: tıklanan yere atlar, sürüklenince izler
+      const tr = await p.evaluate(() => { const r = document.querySelector('.st-row[data-k="music"] .st-sl-track').getBoundingClientRect(); return { x: r.left, y: r.top + r.height / 2, w: r.width }; });
+      await p.mouse.click(tr.x + tr.w * 0.7, tr.y); await t.sleep(100);
+      t.near(await p.evaluate(() => G.settings.music), 0.7, 0.001, 'kaydırıcıya tıklama');
+      await p.mouse.move(tr.x + tr.w * 0.7, tr.y); await p.mouse.down(); await p.mouse.move(tr.x + tr.w * 0.5, tr.y, { steps: 4 }); await p.mouse.move(tr.x + tr.w * 0.3, tr.y, { steps: 4 }); await p.mouse.up(); await t.sleep(100);
+      t.near(await p.evaluate(() => G.settings.music), 0.3, 0.001, 'kaydırıcıyı sürükleme');
+      t.eq(await p.evaluate(() => document.querySelector('.st-row[data-k="music"] .st-num').textContent), '30', 'değer yazısı güncellenir');
       await p.evaluate(() => { const r = document.querySelector('.st-row[data-k="master"]'); UI.top().setFocus(r, true); });
       const m0 = await p.evaluate(() => G.settings.master);
       await p.keyboard.press('ArrowRight'); await t.sleep(150);
-      t.near(await p.evaluate(() => G.settings.master), Math.min(1, m0 + 0.1), 0.001, 'sağ ok sesi artırır');
+      t.near(await p.evaluate(() => G.settings.master), Math.min(1, m0 + 0.05), 0.001, 'sağ ok sesi artırır');
       await p.keyboard.press('KeyE'); await t.sleep(200);
       t.eq(await p.evaluate(() => document.querySelector('.st-tabs .tab.on').dataset.tab), '2', 'E sonraki sekmeye geçer');
       await p.evaluate(() => document.querySelector('.st-row[data-k="fxq"] [data-v="1"]').click());
@@ -23,6 +28,20 @@ module.exports = {
       await p.keyboard.press('Escape'); await t.sleep(200);
       const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('frontiersend_settings_v1')).music);
       t.near(saved, 0.3, 0.001, 'ayarlar kapanınca kaydedilir');
+    });
+    await t.step('Kaydet ve Kapat düğmesi; tam ekran tercihi kaydedilir', async () => {
+      await p.evaluate(() => UI.openSettings(1)); await t.sleep(200);
+      const btns = await p.evaluate(() => [...document.querySelectorAll('.st-btn')].map(b => b.textContent));
+      t.ok(btns.some(b => /Kaydet ve Kapat/.test(b)) && btns.some(b => /Varsayılan/.test(b)), 'düğmeler görünür', btns);
+      await p.evaluate(() => { G.settings.music = 0.45; });
+      await p.click('.st-btn[data-act="close"]'); await t.sleep(200);
+      t.ok(await p.evaluate(() => !document.querySelector('.panel.settings')), 'ayarlar kapanır');
+      t.near(await p.evaluate(() => JSON.parse(localStorage.getItem('frontiersend_settings_v1')).music), 0.45, 0.001, 'kapatınca kaydedilir');
+      // tam ekran tercihi (tarayıcı izin vermese de tercih saklanır)
+      await p.evaluate(() => UI.openSettings(2)); await t.sleep(200);
+      await p.click('.st-row[data-k="fullscreen"] .st-tog'); await t.sleep(400);
+      t.eq(await p.evaluate(() => JSON.parse(localStorage.getItem('frontiersend_settings_v1')).fullscreen), true, 'tercih kaydedilir');
+      await p.evaluate(() => G.setFullscreenPref(false)); await p.keyboard.press('Escape'); await t.sleep(200);
     });
     await t.step('klavye tuşu atama, takas ve iptal', async () => {
       await p.evaluate(() => UI.openControls(0)); await t.sleep(200);

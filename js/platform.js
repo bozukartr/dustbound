@@ -80,9 +80,30 @@ const Platform = {
   setFullscreen(on) {
     if (this.native) { try { this.native.setFullscreen(!!on); } catch (e) {} return; }
     try {
-      if (on && !document.fullscreenElement) document.documentElement.requestFullscreen();
-      else if (!on && document.fullscreenElement) document.exitFullscreen();
+      if (on && !document.fullscreenElement) {
+        const p = document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+        if (p && p.then) p.then(() => this.lockEsc()).catch(() => {});
+      } else if (!on && document.fullscreenElement) { this.leaving = true; this.unlockEsc(); document.exitFullscreen(); }
     } catch (e) {}
   },
   toggleFullscreen() { this.setFullscreen(!this.isFullscreen()); },
+  /* Tarayıcıda Esc tam ekrandan çıkarır; menüden Esc ile çıkarken tam ekran gitmesin diye
+     (Chromium) Esc oyuna yönlendirilir: tam ekrandan çıkmak için Esc basılı tutulur. */
+  lockEsc() { try { if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock(['Escape']).catch(() => {}); } catch (e) {} },
+  unlockEsc() { try { if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock(); } catch (e) {} },
+  /* Tam ekran tercihi kalıcıdır: tarayıcı kendiliğinden çıkarırsa (Esc) ilk tıklama ya da tuşta geri döner */
+  watchFullscreen(want) {
+    if (this.native) { if (want()) this.setFullscreen(true); return; }
+    let pending = false;
+    const again = () => { if (!pending) return; pending = false; if (want() && !this.isFullscreen()) this.setFullscreen(true); };
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement) { this.lockEsc(); return; }
+      if (this.leaving) { this.leaving = false; return; }
+      if (want()) pending = true;
+    });
+    window.addEventListener('pointerdown', again, true);
+    window.addEventListener('keydown', (e) => { if (e.code !== 'Escape' && e.code !== 'F11') again(); }, true);
+    // açılışta tercih açıksa ilk etkileşimde tam ekrana geç (tarayıcı kullanıcı hareketi ister)
+    if (want()) pending = true;
+  },
 };
