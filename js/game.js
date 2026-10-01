@@ -979,7 +979,7 @@ const G = {
     }
     // hikâye hedefi: üstünde salınan altın elmas
     const qm = this.questMark();
-    if (qm && Math.abs(qm.x - this.cam.x) < this.vw / 2 + 10 && Math.abs(qm.y - this.cam.y) < this.vh / 2 + 10) {
+    if (qm && !this.storyTalking() && Math.abs(qm.x - this.cam.x) < this.vw / 2 + 10 && Math.abs(qm.y - this.cam.y) < this.vh / 2 + 10) {
       const b = Math.sin(this.t * 4) * 1.5, y = qm.y - (qm.kind ? 20 : 12) + b;
       ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.moveTo(qm.x, y - 5); ctx.lineTo(qm.x + 4.5, y); ctx.lineTo(qm.x, y + 5); ctx.lineTo(qm.x - 4.5, y); ctx.fill();
       ctx.fillStyle = '#f0c040'; ctx.beginPath(); ctx.moveTo(qm.x, y - 4); ctx.lineTo(qm.x + 3.5, y); ctx.lineTo(qm.x, y + 4); ctx.lineTo(qm.x - 3.5, y); ctx.fill();

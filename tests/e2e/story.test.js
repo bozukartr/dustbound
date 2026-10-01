@@ -4,7 +4,7 @@ module.exports = {
   name: 'Hikâyeli başlangıç',
   timeout: 300000,
   async run(t) {
-    const p = await t.newGame({ story: true });
+    const p = await t.newGame({ story: true, init: () => { window.__errs = []; const ce = console.error; console.error = (...a) => { window.__errs.push(String(a[0] && a[0].stack || a[0]).slice(0, 300)); ce(...a); }; } });
     await p.evaluate(() => { window.__storyFast = true; });
     const S = () => p.evaluate(() => { const s = G.story; return s && { ch: s.ch, st: s.st, n: s.n, wait: s.wait, done: !!s.done, on: s.on, jack: s.jack }; });
     const waitStep = (ch, st, ms = 15000) => p.waitForFunction(([ch, st]) => G.story && G.story.ch === ch && G.story.st === st && !G.story.wait, [ch, st], { timeout: ms });
@@ -55,8 +55,8 @@ module.exports = {
       const wp = await p.evaluate(() => !!G.waypoint);
       t.ok(wp, 'çiftliğe rota çizildi');
       await t.sleep(600);
-      const ride = await p.evaluate(() => { const e = G.sullyEnt(); return !!(e && e.mounted); });
-      t.ok(ride, 'Sully atla önden gider');
+      const ride = await p.evaluate(() => { const e = G.sullyEnt(); return { m: !!(e && e.mounted), e: e && { x: e.x | 0, y: e.y | 0, st: e.state, hide: e.hide, dead: e.dead, n: G.ents.filter(x => x.quest === 'sully').length }, g: G.story.sully, err: G._errShown, cine: G.cine, modal: UI.isModal(), state: G.state, talk: G.story.talkQ && G.story.talkQ.length, p: [G.player.x | 0, G.player.y | 0], ch: G.story.ch, st: G.story.st, errs: window.__errs }; });
+      t.ok(ride.m, 'Sully atla önden gider ' + JSON.stringify(ride));
       await p.evaluate(() => { const R = G.story.ranch, h = G.player.riding; h.x = R.x; h.y = R.y + 30; G.player.x = h.x; G.player.y = h.y; });
       await waitStep(3, 0, 20000);
     });

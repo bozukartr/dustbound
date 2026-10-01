@@ -1082,7 +1082,7 @@ class NPC extends Ent {
   }
   say(text, dur = 3) {
     const d = dist(this.x, this.y, G.player.x, G.player.y);
-    if (d < 180) UI.subtitle(this.name, text, dur);
+    if (d < 180) { UI.subtitle(this.name, text, dur); Bubbles.add(this, '', dur, true); }
   }
   canSee(tx, ty, range) {
     const d = dist(this.x, this.y, tx, ty);

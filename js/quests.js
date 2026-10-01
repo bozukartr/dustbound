@@ -172,6 +172,7 @@ const Story = {
     S.talkT = -delay; S.talkCb = cb || null;
     if (!S.talkQ.length) { S.talkCb = null; if (cb) cb(); }
   },
+  storyTalking() { const S = this.story; return !!(S && S.talkQ && (S.talkQ.length || S.talkCb)); },
   talkDur(x) { return window.__storyFast ? 0.05 : clamp(1.5 + x.length * 0.052, 2.2, 6.5); },
   storyTalkTick(dt) {
     const S = this.story;
@@ -183,7 +184,8 @@ const Story = {
     const d = this.talkDur(ln.x);
     UI.subtitle(this.sName(ln.w), ln.x, d - 0.2, ln.w === 'P');
     const who = ln.w === 'S' ? this.sullyEnt() : ln.w === 'P' ? this.player : null;
-    if (who && (who === this.player || dist(who.x, who.y, this.player.x, this.player.y) < 300)) Bubbles.add(who, ln.x.length > 70 ? ln.x.slice(0, 66) + '…' : ln.x, d - 0.2);
+    // söz bir kez, altyazıda yazılır; konuşanın üstünde yalnızca konuşma işareti
+    if (who && (who === this.player || dist(who.x, who.y, this.player.x, this.player.y) < 300)) Bubbles.add(who, '', d - 0.2, true);
     if (ln.w === 'S') { const e = this.sullyEnt(); if (e && !e.anim && chance(0.4)) this.setAnim(e, pick(['gesture', 'point', 'shrug', 'rub', 'scratch'])); }
     S.talkT = d;
   },
@@ -223,8 +225,10 @@ const Story = {
     if (!g) { if (e) e.remove = true; return; }
     const pd = dist(P.x, P.y, g.x, g.y);
     if (!e) {
-      if (pd > 1200) return;
-      const s = this.sSpot(g.x, g.y, 0, 30);
+      // atlıyken önden gider: uzaktaysa oyuncunun önünde, hedef yönünde belirir
+      const at = g.ride && pd > 400 ? this.sAhead(g) : g;
+      if (dist(P.x, P.y, at.x, at.y) > 1200) return;
+      const s = this.sSpot(at.x, at.y, 0, 30);
       e = new NPC(s[0], s[1], 'sully', { name: 'Dunham Sully', look: Object.assign({}, SULLY_LOOK), hp: 9999 });
       e.quest = 'sully'; e.keep = true; e.weapon = null; e.money = 0; e.ang = Math.atan2(P.y - e.y, P.x - e.x);
       if (g.ride) e.mounted = Object.assign({}, SULLY_HORSE);
@@ -241,9 +245,11 @@ const Story = {
     const d = dist(e.x, e.y, g.x, g.y), pd = dist(e.x, e.y, P.x, P.y);
     if (d > 8) {
       // ekran dışında ve uzaktaysa doğrudan yerini alır
-      if (d > 220 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; e.mv = 0; e.mounted = g.ride ? e.mounted || Object.assign({}, SULLY_HORSE) : null; return true; }
+      if (g.ride && d > 300 && pd > 450 && !this.onScreen(e.x, e.y, 40)) { const a = this.sAhead(g), s = this.sSpot(a.x, a.y, 0, 30); e.x = s[0]; e.y = s[1]; e.nav = null; e.mounted = e.mounted || Object.assign({}, SULLY_HORSE); return true; }
+      if (!g.ride && d > 220 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; e.mv = 0; e.mounted = g.ride ? e.mounted || Object.assign({}, SULLY_HORSE) : null; return true; }
       if (g.ride) {
         e.mounted = e.mounted || Object.assign({}, SULLY_HORSE);
+        if (d < 400 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; return true; }
         // oyuncu geride kalırsa bekler
         if (pd > 380 && dist(P.x, P.y, g.x, g.y) > d) { e.mv = 0; e.spd = 0; e.ang = turnTo(e.ang, Math.atan2(P.y - e.y, P.x - e.x), dt * 2); return true; }
         const a = Math.atan2(g.y - e.y, g.x - e.x);
@@ -264,6 +270,8 @@ const Story = {
     else this.standTick(e, dt, 0.25);
     return true;
   },
+  /* atlı Sully için oyuncunun önünde, hedef yönünde bir nokta */
+  sAhead(g) { const P = this.player, d = dist(P.x, P.y, g.x, g.y), k = Math.min(1, 260 / Math.max(1, d)); return { x: P.x + (g.x - P.x) * k, y: P.y + (g.y - P.y) * k }; },
   sullyGo(x, y, ride, ang) { this.story.sully = { x, y, ride: !!ride, ang }; },
   /* Kızıl Jack: kampta belirir; bağlıysa kaçmaz, kayıttan dönüşte yerinde bekler */
   storyJack() {
@@ -322,7 +330,7 @@ const Story = {
       Tr('Yorgun görünüyorsun, {ad}. Otur biraz, toprak kaçmaz.'), Tr('Ne zaman istersen gel. Ahırda yer var, sofrada da.'),
     ] : [Tr('Şimdi değil, evlat. Önce işimizi bitirelim.'), Tr('Bir şey mi unuttun? Ben de çok unuturum, yaştan.'), Tr('Konuşacak çok vaktimiz olacak. Hadi.')];
     const x = this.sFmt(pick(L));
-    UI.subtitle('Sully', x, 3.5); Bubbles.add(e, x, 3.5);
+    UI.subtitle('Sully', x, 3.5); Bubbles.add(e, '', 3.5, true);
     e.ang = Math.atan2(this.player.y - e.y, this.player.x - e.x);
   },
   jackActions(e) {
