@@ -326,7 +326,7 @@ const SCENES = [
   const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, locale: opt.lang === 'tr' ? 'tr-TR' : 'en-US' });
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.log('  sayfa hatası:', e.message));
-  await p.addInitScript(() => { window.addEventListener('blur', (e) => { if (e.target === window) e.stopImmediatePropagation(); }, true); });
+  await p.addInitScript(() => { window.__testNoGuide = true; window.addEventListener('blur', (e) => { if (e.target === window) e.stopImmediatePropagation(); }, true); });
   await p.goto(url + 'index.html');
   await p.waitForFunction(() => typeof G !== 'undefined' && G.state === 'menu', null, { timeout: 30000 });
   fs.mkdirSync(OUT, { recursive: true });

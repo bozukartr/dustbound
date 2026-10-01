@@ -174,6 +174,9 @@ const NpcNav = {
     if (!N.route) {
       const t = W.townAt(e.x, e.y, 10) || W.townAt(x, y, 10);
       N.route = this.bendRoute(e, (t && TownPath.find(t, e.x, e.y, x, y)) || [[x, y]]); N.ri = 0;
+      // bina içindeyse önce kapıdan çıkar (dış rota duvarın öbür yanından başlar)
+      const B = W.buildingAtPx(e.x, e.y);
+      if (B && B.door && !W.buildingAtPx(x, y)) N.route.unshift([B.door.x, B.door.y - 10], [B.door.x, B.door.y + 8]);
     }
     const wp = N.route[N.ri], last = N.ri >= N.route.length - 1;
     const d2 = dist2(e.x, e.y, wp[0], wp[1]), d = Math.sqrt(d2);

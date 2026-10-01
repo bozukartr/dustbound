@@ -1105,8 +1105,70 @@ const UI = {
     h += `<p class="jr-note">${w ? Tr`Yük araban: ${w.crates.length}/${WAGON_CAP} sandık.` : Tr`Yük araban yok. Ahırdan ${fmtMoney(WAGON_PRICE)} karşılığında alabilirsin; ${WAGON_CAP} sandık taşır.`}</p>`;
     return h;
   },
+  /* İlk oyunda sinematikten sonra açılan kısa, sayfalı rehber (Günlük → Rehber ve Duraklat menüsünden de açılır) */
+  openWelcome(onDone) {
+    const P = G.player, g = (a) => Input.glyph(a), name = P ? P.name.split(' ')[0] : '';
+    const pages = [
+      { ic: 'star', t: Tr('Batıya Hoş Geldin!'), portrait: true,
+        b: Tr`Merhaba <b>${name}</b>! Yıl ${START_YEAR}, daha 18 yaşındasın ve cebinde birkaç dolar var.<br>Hedefin basit ama kolay değil: <b>80 yaşına kadar hayatta kalmak</b>.<br><br>Bu kısa rehber ilk adımlarını gösterecek. Hazırsan başlayalım!` },
+      { ic: 'heart', t: Tr('Hayatta Kal'), pre: true,
+        b: Tr`Sol alttaki halkalar <b>sağlık</b>, <b>dayanıklılık</b> ve <b>odak</b>; yanındaki çubuklar <b>açlık</b>, <b>susuzluk</b>, <b>uyku</b> ve <b>temizlik</b>.`,
+        tips: [['meat', Tr`Acıkınca ${g('satchel')} Çanta'dan ye, ${g('quick')} ile hızlıca atıştır.`], ['drop', Tr('Matarandan iç, nehirden ya da kuyudan doldur.')], ['bed', Tr('Otelde, evinde ya da kamp kurup uyu.')], ['sun', Tr('Çölde bol su iç, karda kalın giyin.')]] },
+      { ic: 'feet', t: Tr('Dolaş ve Keşfet'),
+        tips: [['feet', Tr`${g('moveUp')}${g('moveLeft')}${g('moveDown')}${g('moveRight')} yürü, ${g('sprint')} koş.`], ['talk', Tr`İnsanlara, kapılara ve eşyalara yaklaş: ${g('interact')} ile etkileş. Basılı tutunca başka seçenekler çıkar.`], ['horse', Tr`${g('whistle')} ile atını çağır, ${g('interact')} ile bin; dörtnala için ${g('sprint')}.`], ['map', Tr`${g('map')} Harita: kasabalar, yollar ve işaretlediğin yerler.`]] },
+      { ic: 'coin', t: Tr('Para Kazan'),
+        tips: [['fox', Tr('Avlan; postları ve etleri kasaba sat.')], ['pick', Tr('Madende, kerestecide, limanda ya da çiftlikte çalış.')], ['scroll', Tr('Şerif ofisindeki ödül ilanlarını takip et.')], ['bank', Tr('Kazancını bankaya yatır: ölürsen bankadaki para kaybolmaz.')], ['cards', Tr('Şansını saloonda pokerde dene... ama dikkat!')]] },
+      { ic: 'talk', t: Tr('Kasaba Seni Hatırlar'),
+        tips: [['talk', Tr`Sakinlerin adı, mesleği ve huyu var. Seni selamlarlarsa ${g('interact')} ile <b>Selamla</b>: selamı alınmayan bozulur!`], ['mask', Tr('Laf atana karşılık verebilirsin. Ama suç işlersen tanıklar şerife koşar.')], ['star', Tr('İyilik yaparsan ünün artar; dükkânlar indirim yapar, insanlar sana gülümser.')]] },
+      { ic: 'book', t: Tr('İşine Yarayacaklar'),
+        tips: [['satchel', Tr`${g('satchel')} Çanta: yiyecek, ilaç, giysi ve eşyalar.`], ['book', Tr`${g('journal')} Günlük: karakterin, başarımlar, işlerin ve bu rehber.`], ['gun', Tr`${g('wheel')} Silah çarkı, ${g('aim')} nişan, ${g('fire')} ateş.`], ['gear', Tr`${g('pause')} Duraklat: kaydet, ayarlar, ana menü.`]],
+        b: Tr('İyi yolculuklar, kovboy. Batı seni bekliyor!') },
+    ];
+    const el = el_('div', 'modal panel welcome');
+    let pg = 0;
+    const done = () => { G.settings.guideSeen = true; G.saveSettings(); this.pop(m); if (onDone) onDone(); };
+    const render = () => {
+      const Pg = pages[pg], last = pg === pages.length - 1;
+      el.innerHTML = `<div class="wl-card">
+        <div class="wl-top"><span class="wl-rope"></span><span class="wl-kick">${Tr`Rehber`} · ${pg + 1}/${pages.length}</span><span class="wl-rope"></span></div>
+        <div class="wl-medal">${Pg.portrait ? '<canvas id="wl-portrait" width="96" height="112"></canvas>' : Icons.glyph(Pg.ic, '#4a2e10')}</div>
+        <div class="wl-title">${Pg.t}</div>
+        ${Pg.b && Pg.pre ? `<div class="wl-body">${Pg.b}</div>` : ''}
+        ${Pg.tips ? `<div class="wl-tips">${Pg.tips.map(([ic, tx]) => `<div class="wl-tip"><span class="wl-ic">${Icons.glyph(ic, '#c9a45c')}</span><span>${tx}</span></div>`).join('')}</div>` : ''}
+        ${Pg.b && !Pg.pre ? `<div class="wl-body">${Pg.b}</div>` : ''}
+        <div class="wl-dots">${pages.map((_, i) => `<i class="${i === pg ? 'on' : ''}" data-pg="${i}"></i>`).join('')}</div>
+        <div class="wl-btns">
+          ${pg > 0 ? `<button class="st-btn nav" data-act="prev">${g('left')} ${Tr`Geri`}</button>` : `<button class="st-btn nav" data-act="skip">${Tr`Atla`}</button>`}
+          <button class="st-btn nav pref" data-act="${last ? 'done' : 'next'}">${last ? Tr('Maceraya Başla!') : Tr('İleri')} ${last ? '' : g('right')}</button>
+        </div></div>`;
+      const pc = $('#wl-portrait', el);
+      if (pc && P) Spr.portrait(pc.getContext('2d'), pc.width, pc.height, P.look, G.age);
+      $$('[data-pg]', el).forEach(n => (n.onclick = () => { pg = +n.dataset.pg; Audio_.ui('move'); render(); }));
+      $$('[data-act]', el).forEach(n => (n.onclick = () => act(n.dataset.act)));
+      m.focusFirst();
+    };
+    const act = (a) => {
+      if (a === 'next' && pg < pages.length - 1) { pg++; Audio_.ui('move'); render(); }
+      else if (a === 'prev' && pg > 0) { pg--; Audio_.ui('move'); render(); }
+      else if (a === 'done' || a === 'skip') { Audio_.ui('ok'); done(); }
+    };
+    const m = this.makeModal(el, { customInput: true, onBack: done });
+    m.update = (dt) => {
+      if (m.born >= this.frame - 1) return;
+      const I = Input;
+      if (I.nav('right', dt)) act('next');
+      else if (I.nav('left', dt)) act('prev');
+      else if (I.pressed('confirm')) act(pg === pages.length - 1 ? 'done' : 'next');
+      else if (I.pressed('back')) { Audio_.ui('back'); done(); }
+    };
+    m.welcome = true;
+    render();
+    this.push(m);
+    Audio_.ui('ok');
+    return m;
+  },
   guideHtml() {
-    return `<div class="guide">
+    return `<div class="guide"><p><button class="st-btn" onclick="UI.openWelcome()">${Icons.glyph('book', 'currentColor')} ${Tr`Hoş Geldin Rehberini Aç`}</button></p>
       <h3>${Tr`Hayatta Kalma`}</h3><p>${Tr`<b>Açlık</b>, <b>susuzluk</b> ve <b>uyku</b> sürekli azalır. Sıfırlanırlarsa sağlığın düşer. Sağlık çekirdeği (♥ içi) açlık ve susuzluktan beslenir. Sıcak çöllerde daha çok su içmen, karlı dağlarda ise kalın giysiler giymen gerekir. Kamp ateşleri ve sıcak yemekler seni ısıtır.`}</p>
       <h3>${Tr`Yaşlanma`}</h3><p>${Tr`18 yaşında başlarsın. Zaman geçtikçe yaşlanırsın; 30'lardan sonra dayanıklılığın, 50'lerden sonra sağlığın azalır. Hedefin <b>80 yaşına kadar hayatta kalmak.</b>`}</p>
       <h3>${Tr`Para Kazanma`}</h3><p>${Tr`Avlan ve postları kasapta sat. Bitki topla. Madende, kerestecide, limanda ya da çiftliklerde <b>çalış</b>. Nehirde altın ele. Ödül ilanlarını takip et. Ya da… kanunun yanlış tarafında yaşa.`}</p>
@@ -1177,6 +1239,7 @@ const UI = {
         { label: Tr('Harita'), fn: () => { this.pop(); this.openMap(); } },
         { label: Tr('Çanta'), fn: () => { this.pop(); this.openSatchel(); } },
         { label: Tr('Günlük'), fn: () => { this.pop(); this.openJournal(); } },
+        { label: Tr('Rehber'), fn: () => { this.pop(); this.openWelcome(); } },
         { label: G.difficulty === 'hard' ? Tr('Oyunu Kaydet') : Tr`Oyunu Kaydet (${G.slot}. yuva)`, fn: () => G.saveGame() },
         { label: Tr('Kayıt Yükle'), fn: () => this.openSlots('load') },
         { label: Tr('Ayarlar'), fn: () => this.openSettings() },
@@ -1210,7 +1273,7 @@ const UI = {
         ['amb', Tr('Ortam Sesleri'), 'vol', Tr('Rüzgâr, yağmur, kuşlar, böcekler ve kasaba uğultusu.')],
       ] },
       { n: Tr('Görüntü'), g: 'eye', rows: [
-        ...(Platform.canFullscreen === false ? [] : [['fullscreen', Tr('Tam Ekran'), 'fs', Tr('Oyunu tam ekranda ya da pencerede çalıştırır.')]]),
+        ...(Platform.canFullscreen === false ? [] : [['fullscreen', Tr('Tam Ekran'), 'fs', Tr('Oyunu tam ekranda ya da pencerede çalıştırır. Tercih kaydedilir; tarayıcıda tam ekrandan çıkmak için Esc tuşunu basılı tut.')]]),
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
         ['fxq', Tr('Görsel Efektler'), 'opt', Tr('Tam: bulut gölgeleri, duman, izler, su halkaları ve renk tonlaması. Sade: zayıf bilgisayarlar için azaltılmış efektler.')],
       ] },
@@ -1234,7 +1297,7 @@ const UI = {
     };
     const control = (k, t) => {
       const v = cur(k, t);
-      if (t === 'vol') { const n = Math.round(v * 10); return `<div class="st-vol" data-vol>${Array.from({ length: 10 }, (_, i) => `<i class="${i < n ? 'on' : ''}" data-i="${i}"></i>`).join('')}</div><span class="st-num">${Math.round(v * 100)}</span>`; }
+      if (t === 'vol') { const pc = Math.round(v * 100); return `<div class="st-slider" data-slider="${k}"><div class="st-sl-track"><div class="st-sl-fill" style="width:${pc}%"></div><div class="st-sl-knob" style="left:${pc}%"></div></div></div><span class="st-num">${pc}</span>`; }
       if (t === 'bool' || t === 'fs') return `<div class="st-tog ${v ? 'on' : ''}"><span>${Tr('Kapalı')}</span><span>${Tr('Açık')}</span><b></b></div>`;
       if (t === 'lang') return `<div class="st-seg">${I18N.LANGS.map(l => `<span class="${l[0] === v ? 'on' : ''}" data-v="${l[0]}">${l[1]}</span>`).join('')}</div>`;
       if (t === 'opt') return `<div class="st-seg">${OPTL[k].map((o, i) => `<span class="${i === (v === undefined ? 1 : v) ? 'on' : ''}" data-v="${i}">${o}</span>`).join('')}</div>`;
@@ -1254,9 +1317,9 @@ const UI = {
         this.relocalize(m.tab, 'lang');
         return;
       }
-      if (t === 'fs') { Platform.toggleFullscreen(); setTimeout(() => { if (m.alive) render(); }, 250); return; }
+      if (t === 'fs') { G.setFullscreenPref(direct !== undefined ? direct : !Platform.isFullscreen()); setTimeout(() => { if (m.alive) render(); }, 250); return; }
       if (t === 'link') { G.saveSettings(); this.openControls(); return; }
-      if (t === 'vol') S[k] = clamp(direct !== undefined ? direct : Math.round((S[k] + d * 0.1) * 10) / 10, 0, 1);
+      if (t === 'vol') S[k] = clamp(direct !== undefined ? direct : Math.round((S[k] + d * 0.05) * 20) / 20, 0, 1);
       else if (t === 'bool') S[k] = direct !== undefined ? direct : !S[k];
       else if (t === 'opt') { const n = OPTL[k].length; S[k] = direct !== undefined ? direct : ((S[k] === undefined ? 1 : S[k]) + d + n) % n; }
       G.applySettings();
@@ -1269,17 +1332,43 @@ const UI = {
       el.innerHTML = `<div class="p-head st-head"><div class="p-title">${Tr`Ayarlar`}</div></div>
         <div class="p-tabs st-tabs">${Input.glyph('tabL')}${TABS.map((x, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${Icons.glyph(x.g, 'currentColor')}${x.n}</span>`).join('')}${Input.glyph('tabR')}</div>
         <div class="p-body st-body"><div class="p-list scroll st-list">${T.rows.map(r => `<div class="p-item nav st-row" data-k="${r[0]}" data-t="${r[2]}" ${r[2] !== 'link' ? 'data-lr' : ''}><span class="pi-l">${r[1]}</span><span class="st-ctl">${control(r[0], r[2])}</span></div>`).join('')}</div><div class="p-side st-side"></div></div>
-        <div class="p-foot">${Tr`${Input.glyph('left')}${Input.glyph('right')} Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme &nbsp; ${Input.glyph('alt')} Sekmeyi Varsayılana Döndür &nbsp; ${Input.glyph('back')} Kaydet ve Çık`}</div>`;
+        <div class="p-foot st-foot"><span class="st-hint">${Tr`${Input.glyph('left')}${Input.glyph('right')} Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme`}</span>
+          <span class="st-btns"><button class="st-btn nav" data-act="reset">${Input.glyph('alt')} ${Tr`Sekmeyi Varsayılana Döndür`}</button><button class="st-btn nav pref" data-act="close">${Input.glyph('back')} ${Tr`Kaydet ve Kapat`}</button></span></div>`;
+      $('[data-act="close"]', el).onclick = () => { Audio_.ui('ok'); m.onBack(); };
+      $('[data-act="reset"]', el).onclick = () => m.opts.onAlt(m);
+      // ses kaydırıcıları: tıkla ya da sürükle; sürüklerken yalnızca ses ve görüntü güncellenir
+      $$('[data-slider]', el).forEach(sl => {
+        const k = sl.dataset.slider, row = sl.closest('.st-row');
+        const set = (cx) => {
+          const r = sl.querySelector('.st-sl-track').getBoundingClientRect();
+          const v = clamp(Math.round((cx - r.left) / r.width * 20) / 20, 0, 1);
+          if (v === S[k]) return;
+          S[k] = v; Object.assign(Audio_.vol, { master: S.master, music: S.music, sfx: S.sfx, amb: S.amb }); Audio_.applyVolumes();
+          const pc = Math.round(v * 100);
+          sl.querySelector('.st-sl-fill').style.width = pc + '%'; sl.querySelector('.st-sl-knob').style.left = pc + '%';
+          row.querySelector('.st-num').textContent = pc;
+          const sv = $('.st-side-v', el); if (sv && m.focusEl === row) sv.textContent = pc + '%';
+          if (!sl._tickT || performance.now() - sl._tickT > 70) { sl._tickT = performance.now(); Audio_.ui('move'); }
+        };
+        sl.onpointerdown = (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (m.focusEl !== row) m.setFocus(row, true);
+          sl.classList.add('drag'); set(e.clientX);
+          try { sl.setPointerCapture(e.pointerId); } catch (_) {}
+          sl.onpointermove = (ev) => set(ev.clientX);
+          sl.onpointerup = sl.onpointercancel = () => { sl.classList.remove('drag'); sl.onpointermove = null; G.saveSettings(); };
+        };
+        sl.onclick = (e) => e.stopPropagation();
+      });
       $$('.tab', el).forEach(n => (n.onclick = () => { m.tab = +n.dataset.tab; m.focusEl = null; focusKey = null; render(); }));
       $$('.st-row', el).forEach(n => {
         const k = n.dataset.k, t = n.dataset.t, row = T.rows.find(r => r[0] === k);
         n._lr = (d) => change(k, t, d);
         n._row = row;
         n.onclick = (e) => {
-          const seg = e.target.closest('[data-v]'), vi = e.target.closest('[data-i]');
+          const seg = e.target.closest('[data-v]');
           if (seg) change(k, t, 0, t === 'lang' ? seg.dataset.v : +seg.dataset.v);
-          else if (vi) { const i = +vi.dataset.i, nv = (i + 1) / 10; change(k, t, 0, Math.abs(nv - S[k]) < 0.01 && i === 0 ? 0 : nv); }
-          else change(k, t, 1);
+          else if (t !== 'vol') change(k, t, 1);
         };
         n.onmouseenter = () => { if (m.focusEl !== n) m.setFocus(n, true); };
       });
