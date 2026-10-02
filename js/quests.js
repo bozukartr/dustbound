@@ -160,7 +160,8 @@ const Story = {
   /* ---------------- konuşma ---------------- */
   /* satırlar: [kim, söz]; S = Sully, P = oyuncu, W = şerif, B = barmen */
   qSay(lines, cb, delay = 0) {
-    const S = this.story, L = (lines || []).filter(Boolean).map(([w, x]) => ({ w, x: this.sFmt(x) }));
+    const S = this.story, L = (lines || []).filter(Boolean).map(([w, x]) => ({ w, x: this.sFmt(x), raw: x }));
+    for (const l of L) Audio_.voPreload(l.raw, I18N.lang);   // seslendirme dosyası varsa önceden yüklenir
     // süren bir konuşma varsa arkasına eklenir (bekleyen geri çağrı kaybolmaz)
     if (S.talkQ && (S.talkQ.length || S.talkCb)) {
       S.talkQ.push(...L);
@@ -181,7 +182,9 @@ const Story = {
     if (S.talkT > 0) return;
     const ln = S.talkQ.shift();
     if (!ln) { const cb = S.talkCb; S.talkCb = null; S.talkQ = null; if (cb) cb(); return; }
-    const d = this.talkDur(ln.x);
+    // seslendirme varsa satır sesin süresi kadar ekranda kalır
+    const vd = Audio_.voice(ln.raw || ln.x, I18N.lang, ln.w === 'S' && this.sullyEnt() ? { x: this.sullyEnt().x, y: this.sullyEnt().y, dist: 600 } : {});
+    const d = Math.max(this.talkDur(ln.x), vd ? vd + 0.4 : 0);
     UI.subtitle(this.sName(ln.w), ln.x, d - 0.2, ln.w === 'P');
     const who = ln.w === 'S' ? this.sullyEnt() : ln.w === 'P' ? this.player : null;
     // söz bir kez, altyazıda yazılır; konuşanın üstünde yalnızca konuşma işareti
@@ -193,7 +196,11 @@ const Story = {
   /* ---------------- sinematik ---------------- */
   cineLines(lines, start = 3.4) {
     let t = start; const out = [];
-    for (const [w, x0] of lines || []) { const x = this.sFmt(x0), d = this.talkDur(x) * 0.95; out.push({ t, d, w: this.sName(w), x, self: w === 'P' }); t += d + 0.3; }
+    for (const [w, x0] of lines || []) {
+      Audio_.voPreload(x0, I18N.lang);
+      const x = this.sFmt(x0), vd = Audio_.voDur(x0, I18N.lang), d = Math.max(this.talkDur(x) * 0.95, vd ? vd + 0.3 : 0);
+      out.push({ t, d, w: this.sName(w), x, raw: x0, self: w === 'P' }); t += d + 0.3;
+    }
     return { lines: out, dur: t + 1.2 };
   },
   qCine(sc, lines, cap, after) {
@@ -201,7 +208,7 @@ const Story = {
     if (window.__testNoCine || typeof Cinema === 'undefined' || !Cinema.has(sc)) { fin(); return; }
     this.cine = true; Bubbles.clear(); UI.el.sub.classList.add('hidden');
     const L = this.cineLines(lines), h = this.horse, S = this.story;
-    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: SULLY_LOOK, jack: JACK_LOOK, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4 }).then(fin, fin);
+    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: SULLY_LOOK, jack: JACK_LOOK, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
   },
 
   /* ---------------- her kare ---------------- */

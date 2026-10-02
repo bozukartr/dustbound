@@ -83,7 +83,7 @@ const Juice = {
   /* Sert duruşta ya da çarpmada şahlanma */
   rear(h, big) {
     if (h.rearT > 0) return;
-    h.rearT = 0.9; h.spd = 0; Audio_.neigh();
+    h.rearT = 0.9; h.spd = 0; Audio_.neigh(h.x, h.y);
     const col = DUST_C[G.world.tileAtPx(h.x, h.y)];
     if (col) for (let i = 0; i < (big ? 7 : 4); i++) G.parts.add('dust', h.x + rnd(-6, 6), h.y + rnd(-3, 3), rnd(-14, 14), rnd(-10, 6), rnd(0.8, 1.4), rnd(2.5, 4), col);
   },

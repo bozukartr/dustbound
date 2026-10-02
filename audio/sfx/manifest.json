@@ -1,0 +1,569 @@
+{
+ "amb_crickets": {
+  "bus": "amb",
+  "loop": true,
+  "n": 1,
+  "vol": 1.0
+ },
+ "amb_crowd": {
+  "bus": "amb",
+  "loop": true,
+  "n": 1,
+  "vol": 1.0
+ },
+ "amb_fire": {
+  "bus": "amb",
+  "loop": true,
+  "n": 1,
+  "vol": 1.0
+ },
+ "amb_rain": {
+  "bus": "amb",
+  "loop": true,
+  "n": 1,
+  "vol": 1.0
+ },
+ "amb_river": {
+  "bus": "amb",
+  "loop": true,
+  "n": 1,
+  "vol": 1.0
+ },
+ "amb_train": {
+  "bus": "amb",
+  "loop": true,
+  "n": 1,
+  "vol": 1.0
+ },
+ "amb_wind": {
+  "bus": "amb",
+  "loop": true,
+  "n": 1,
+  "vol": 1.0
+ },
+ "amb_wind_strong": {
+  "bus": "amb",
+  "loop": true,
+  "n": 1,
+  "vol": 1.0
+ },
+ "bird": {
+  "bus": "amb",
+  "dist": 900,
+  "n": 8,
+  "pitch": 0.08,
+  "rev": 0.4,
+  "vol": 0.25
+ },
+ "body_fall": {
+  "dist": 500,
+  "n": 3,
+  "pitch": 0.08,
+  "rev": 0.3,
+  "vol": 0.6
+ },
+ "chicken": {
+  "bus": "amb",
+  "dist": 350,
+  "n": 4,
+  "pitch": 0.1,
+  "rev": 0.2,
+  "vol": 0.3
+ },
+ "chime": {
+  "bus": "ui",
+  "n": 1,
+  "pitch": 0.0,
+  "rev": 0,
+  "vol": 0.6
+ },
+ "chop": {
+  "dist": 600,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 0.4,
+  "vol": 0.5
+ },
+ "coins": {
+  "bus": "ui",
+  "n": 4,
+  "pitch": 0.06,
+  "rev": 0.1,
+  "vol": 0.45
+ },
+ "cougar": {
+  "dist": 700,
+  "n": 2,
+  "pitch": 0.06,
+  "rev": 0.4,
+  "vol": 0.6
+ },
+ "cow": {
+  "bus": "amb",
+  "dist": 700,
+  "n": 3,
+  "pitch": 0.08,
+  "rev": 0.4,
+  "vol": 0.35
+ },
+ "coyote_howl": {
+  "bus": "amb",
+  "dist": 3000,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 1.0,
+  "vol": 0.4
+ },
+ "discover": {
+  "bus": "ui",
+  "n": 1,
+  "pitch": 0.0,
+  "rev": 0,
+  "vol": 0.55
+ },
+ "door_close": {
+  "dist": 400,
+  "n": 3,
+  "pitch": 0.05,
+  "rev": 0.3,
+  "vol": 0.5
+ },
+ "door_open": {
+  "dist": 350,
+  "n": 4,
+  "pitch": 0.06,
+  "rev": 0.3,
+  "vol": 0.45
+ },
+ "drink": {
+  "dist": 200,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 0.1,
+  "vol": 0.45
+ },
+ "eat": {
+  "dist": 200,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 0.1,
+  "vol": 0.45
+ },
+ "explosion": {
+  "dist": 2600,
+  "max": 3,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 1.0,
+  "vol": 1.0
+ },
+ "growl": {
+  "dist": 600,
+  "n": 3,
+  "pitch": 0.08,
+  "rev": 0.4,
+  "vol": 0.6
+ },
+ "growl_bear": {
+  "dist": 800,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 0.4,
+  "vol": 0.75
+ },
+ "gun_bow": {
+  "dist": 500,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 0.3,
+  "vol": 0.6
+ },
+ "gun_dry": {
+  "dist": 300,
+  "n": 2,
+  "pitch": 0.05,
+  "rev": 0.1,
+  "vol": 0.5
+ },
+ "gun_pistol": {
+  "dist": 1600,
+  "max": 6,
+  "n": 5,
+  "pitch": 0.05,
+  "rev": 0.9,
+  "vol": 0.9
+ },
+ "gun_repeater": {
+  "dist": 1700,
+  "max": 6,
+  "n": 4,
+  "pitch": 0.04,
+  "rev": 0.9,
+  "vol": 0.95
+ },
+ "gun_rifle": {
+  "dist": 2200,
+  "max": 4,
+  "n": 4,
+  "pitch": 0.03,
+  "rev": 1.0,
+  "vol": 1.0
+ },
+ "gun_shotgun": {
+  "dist": 1600,
+  "max": 4,
+  "n": 4,
+  "pitch": 0.04,
+  "rev": 0.9,
+  "vol": 1.0
+ },
+ "hawk": {
+  "bus": "amb",
+  "dist": 2500,
+  "n": 2,
+  "pitch": 0.05,
+  "rev": 0.9,
+  "vol": 0.3
+ },
+ "hit_dirt": {
+  "dist": 500,
+  "n": 4,
+  "pitch": 0.1,
+  "rev": 0.2,
+  "vol": 0.4
+ },
+ "hit_flesh": {
+  "dist": 500,
+  "n": 4,
+  "pitch": 0.1,
+  "rev": 0.2,
+  "vol": 0.55
+ },
+ "hit_wood": {
+  "dist": 500,
+  "n": 3,
+  "pitch": 0.1,
+  "rev": 0.3,
+  "vol": 0.45
+ },
+ "hoof_dirt": {
+  "dist": 420,
+  "max": 10,
+  "n": 6,
+  "pitch": 0.07,
+  "rev": 0.2,
+  "vol": 0.42
+ },
+ "hoof_grass": {
+  "dist": 420,
+  "max": 10,
+  "n": 6,
+  "pitch": 0.07,
+  "rev": 0.2,
+  "vol": 0.42
+ },
+ "hoof_mud": {
+  "dist": 420,
+  "max": 10,
+  "n": 6,
+  "pitch": 0.07,
+  "rev": 0.2,
+  "vol": 0.42
+ },
+ "hoof_sand": {
+  "dist": 420,
+  "max": 10,
+  "n": 6,
+  "pitch": 0.07,
+  "rev": 0.2,
+  "vol": 0.42
+ },
+ "hoof_snow": {
+  "dist": 420,
+  "max": 10,
+  "n": 6,
+  "pitch": 0.07,
+  "rev": 0.2,
+  "vol": 0.42
+ },
+ "hoof_stone": {
+  "dist": 420,
+  "max": 10,
+  "n": 6,
+  "pitch": 0.07,
+  "rev": 0.2,
+  "vol": 0.42
+ },
+ "hoof_water": {
+  "dist": 420,
+  "max": 10,
+  "n": 6,
+  "pitch": 0.07,
+  "rev": 0.2,
+  "vol": 0.42
+ },
+ "hoof_wood": {
+  "dist": 420,
+  "max": 10,
+  "n": 6,
+  "pitch": 0.07,
+  "rev": 0.2,
+  "vol": 0.42
+ },
+ "horse_neigh": {
+  "dist": 900,
+  "n": 4,
+  "pitch": 0.06,
+  "rev": 0.6,
+  "vol": 0.6
+ },
+ "horse_nicker": {
+  "dist": 300,
+  "n": 2,
+  "pitch": 0.05,
+  "rev": 0.3,
+  "vol": 0.4
+ },
+ "horse_snort": {
+  "dist": 400,
+  "n": 4,
+  "pitch": 0.08,
+  "rev": 0.3,
+  "vol": 0.4
+ },
+ "lasso": {
+  "dist": 400,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 0.2,
+  "vol": 0.5
+ },
+ "owl": {
+  "bus": "amb",
+  "dist": 1500,
+  "n": 2,
+  "pitch": 0.05,
+  "rev": 0.8,
+  "vol": 0.3
+ },
+ "paper": {
+  "bus": "ui",
+  "n": 3,
+  "pitch": 0.08,
+  "rev": 0.0,
+  "vol": 0.5
+ },
+ "pickaxe": {
+  "dist": 600,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 0.4,
+  "vol": 0.5
+ },
+ "punch": {
+  "dist": 500,
+  "n": 4,
+  "pitch": 0.08,
+  "rev": 0.2,
+  "vol": 0.6
+ },
+ "quest": {
+  "bus": "ui",
+  "n": 1,
+  "pitch": 0.0,
+  "rev": 0,
+  "vol": 0.5
+ },
+ "reload_pistol": {
+  "dist": 300,
+  "n": 2,
+  "pitch": 0.03,
+  "rev": 0.15,
+  "vol": 0.5
+ },
+ "reload_repeater": {
+  "dist": 300,
+  "n": 3,
+  "pitch": 0.04,
+  "rev": 0.15,
+  "vol": 0.5
+ },
+ "reload_shotgun": {
+  "dist": 300,
+  "n": 2,
+  "pitch": 0.03,
+  "rev": 0.15,
+  "vol": 0.5
+ },
+ "ricochet": {
+  "dist": 600,
+  "n": 4,
+  "pitch": 0.08,
+  "rev": 0.5,
+  "vol": 0.4
+ },
+ "rope": {
+  "dist": 300,
+  "n": 2,
+  "pitch": 0.05,
+  "rev": 0.1,
+  "vol": 0.45
+ },
+ "saloon_door": {
+  "dist": 400,
+  "n": 2,
+  "pitch": 0.05,
+  "rev": 0.3,
+  "vol": 0.45
+ },
+ "skin": {
+  "dist": 300,
+  "n": 3,
+  "pitch": 0.06,
+  "rev": 0.1,
+  "vol": 0.45
+ },
+ "splash": {
+  "dist": 500,
+  "n": 3,
+  "pitch": 0.08,
+  "rev": 0.3,
+  "vol": 0.45
+ },
+ "step_dirt": {
+  "dist": 280,
+  "max": 8,
+  "n": 6,
+  "pitch": 0.08,
+  "rev": 0.2,
+  "vol": 0.32
+ },
+ "step_grass": {
+  "dist": 280,
+  "max": 8,
+  "n": 6,
+  "pitch": 0.08,
+  "rev": 0.2,
+  "vol": 0.32
+ },
+ "step_mud": {
+  "dist": 280,
+  "max": 8,
+  "n": 6,
+  "pitch": 0.08,
+  "rev": 0.2,
+  "vol": 0.32
+ },
+ "step_sand": {
+  "dist": 280,
+  "max": 8,
+  "n": 6,
+  "pitch": 0.08,
+  "rev": 0.2,
+  "vol": 0.32
+ },
+ "step_snow": {
+  "dist": 280,
+  "max": 8,
+  "n": 6,
+  "pitch": 0.08,
+  "rev": 0.2,
+  "vol": 0.32
+ },
+ "step_stone": {
+  "dist": 280,
+  "max": 8,
+  "n": 6,
+  "pitch": 0.08,
+  "rev": 0.2,
+  "vol": 0.32
+ },
+ "step_water": {
+  "dist": 280,
+  "max": 8,
+  "n": 6,
+  "pitch": 0.08,
+  "rev": 0.2,
+  "vol": 0.32
+ },
+ "step_wood": {
+  "dist": 280,
+  "max": 8,
+  "n": 6,
+  "pitch": 0.08,
+  "rev": 0.2,
+  "vol": 0.32
+ },
+ "thud": {
+  "dist": 400,
+  "n": 3,
+  "pitch": 0.1,
+  "rev": 0.2,
+  "vol": 0.5
+ },
+ "thunder": {
+  "bus": "amb",
+  "n": 4,
+  "pitch": 0.08,
+  "rev": 0.3,
+  "vol": 0.9
+ },
+ "train_whistle": {
+  "bus": "amb",
+  "dist": 4000,
+  "n": 2,
+  "pitch": 0.02,
+  "rev": 0.9,
+  "vol": 0.6
+ },
+ "ui_back": {
+  "bus": "ui",
+  "n": 2,
+  "pitch": 0.0,
+  "rev": 0,
+  "vol": 0.6
+ },
+ "ui_error": {
+  "bus": "ui",
+  "n": 2,
+  "pitch": 0.03,
+  "rev": 0,
+  "vol": 0.6
+ },
+ "ui_move": {
+  "bus": "ui",
+  "n": 3,
+  "pitch": 0.03,
+  "rev": 0,
+  "vol": 0.6
+ },
+ "ui_ok": {
+  "bus": "ui",
+  "n": 2,
+  "pitch": 0.0,
+  "rev": 0,
+  "vol": 0.6
+ },
+ "ui_pick": {
+  "bus": "ui",
+  "n": 3,
+  "pitch": 0.05,
+  "rev": 0,
+  "vol": 0.6
+ },
+ "whistle": {
+  "dist": 900,
+  "n": 3,
+  "pitch": 0.03,
+  "rev": 0.5,
+  "vol": 0.5
+ },
+ "wolf_howl": {
+  "bus": "amb",
+  "dist": 3000,
+  "n": 3,
+  "pitch": 0.05,
+  "rev": 1.0,
+  "vol": 0.45
+ }
+}
