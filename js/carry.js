@@ -205,7 +205,18 @@ const CarrySystems = {
     if (!v) { UI.subtitle(Tr('Şerif'), Tr`${e.name} aranan biri değil. Onu buraya neden getirdin?`, 3); return; }
     const alive = !e.dead, target = this.isBountyTarget(e);
     this.takeCarried(it);
-    if (e.quest === 'jack') { this.earn(v, alive ? Tr('Canlı teslim') : Tr('Ceset teslimi')); this.addHonor(alive ? 5 : 2); this.stat('captures', 1); this.qEvent('deliver', e); return; }
+    if (e.quest === 'jack') {
+      this.earn(v, alive ? Tr('Canlı teslim') : Tr('Ceset teslimi')); this.addHonor(alive ? 5 : 2); this.stat('captures', 1); Audio_.ui('cash');
+      const S = this.story;
+      if (S && S.on && !S.done) {
+        // tapuyu almadan getirdiysen şerif Jack'in üstünden çıkarıp sana verir
+        if (!S.deed) { S.deed = true; UI.toast(Tr('Tapu'), Tr('Şerif Jack\'in üstünden çıkan tapuyu sana verdi.'), 'quest'); }
+        if (S.alive === undefined) S.alive = alive;
+        S.jack = 'delivered';
+      }
+      this.qEvent('deliver', e);
+      return;
+    }
     this.earn(v, alive ? Tr('Canlı teslim') : Tr('Ceset teslimi'));
     this.addHonor(alive ? 3 : 1);
     this.stat('captures', 1);

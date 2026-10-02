@@ -23,7 +23,9 @@ module.exports = {
     await t.step('konuş, iki kişiyi selamla, mağazaya gir', async () => {
       t.ok(await talk(), 'Konuş seçeneği var');
       await waitStep(0, 1);
-      const n = await p.evaluate(() => { const P = G.player; const L = G.ents.filter(e => e.kind === 'npc' && !e.quest && !e.dead && !e.hostile && e.role !== 'law').sort((a, b) => dist(a.x, a.y, P.x, P.y) - dist(b.x, b.y, P.x, P.y)).slice(0, 2); L.forEach(e => G.greet(e)); return L.length; });
+      const same = await p.evaluate(() => { const P = G.player; const e = G.ents.filter(e => e.kind === 'npc' && !e.quest && !e.dead && !e.hostile && e.role !== 'law').sort((a, b) => dist(a.x, a.y, P.x, P.y) - dist(b.x, b.y, P.x, P.y))[0]; G.greet(e); G.greet(e); return G.story.n; });
+      t.eq(same, 1, 'aynı kişiyi iki kez selamlamak bir sayılır');
+      const n = await p.evaluate(() => { const P = G.player; const L = G.ents.filter(e => e.kind === 'npc' && !e.quest && !e.dead && !e.hostile && e.role !== 'law' && !(G.story.greeted || []).includes(e.id)).sort((a, b) => dist(a.x, a.y, P.x, P.y) - dist(b.x, b.y, P.x, P.y)).slice(0, 1); L.forEach(e => G.greet(e)); return L.length + 1; });
       t.eq(n, 2, 'iki kasabalı');
       await waitStep(0, 2);
       await p.evaluate(() => { const b = G.sBld('general'); TH.inside(b); });
@@ -178,6 +180,45 @@ module.exports = {
       await p.waitForFunction(() => G.story.done, null, { timeout: 15000 });
       const r = await p.evaluate(() => ({ ach: !!G.achieved.story, hud: document.getElementById('hud-quest').classList.contains('hidden'), rep: G.player.weapons.has('repeater'), near: dist(G.player.x, G.player.y, G.story.ranch.x, G.story.ranch.y) }));
       t.ok(r.ach, 'başarım'); t.ok(r.hud, 'izleyici kapanır'); t.ok(r.rep, 'Sully\'nin tüfeği'); t.ok(r.near < 200, 'final çiftlikte biter', r.near);
+    });
+
+    await t.step('olası hatalar: gece yarısı saat atlatma, konuşmada yapılan eylem, tapusuz teslim, Sully dokunulmaz', async () => {
+      // gece 02:00'de "akşama sar" bir günü atlamaz; akşamüstü ise akşama sarar
+      const sk = await p.evaluate(() => {
+        const day = Math.floor(G.clock / 1440) + 1; G.clock = day * 1440 + 120; const d0 = G.day;
+        G.sSkipTo(19.25, 18); const a = { h: G.hour, d: G.day - d0 };
+        G.clock = day * 1440 + 17 * 60; G.sSkipTo(19.25, 18); const b = G.hour;
+        return { a, b };
+      });
+      t.ok(sk.a.h < 2.1 && sk.a.d === 0, 'gece yarısından sonra saat sarılmaz', sk);
+      t.ok(Math.abs(sk.b - 19.25) < 0.01, 'akşamüstü akşama sarılır', sk);
+      // şerifin konuşması sürerken panoya bakmak sayılır
+      await p.evaluate(() => { Object.assign(G.story, { on: true, done: false, jack: 'free', deed: false }); delete G.story.alive; UI.closeAll(); G.qChapter(6); });
+      await p.waitForFunction(() => G.story.ch === 6 && G.story.st >= 0 && !G.story.wait, null, { timeout: 15000 });
+      await p.evaluate(() => { if (G.story.st === 0) G.qEvent('deposit', 1); });
+      await waitStep(6, 1);
+      await p.evaluate(() => { TH.inside(G.sBld('sheriff')); });
+      await p.waitForFunction(() => G.story.wait, null, { timeout: 3000 });
+      await p.evaluate(() => { UI.svcItems(G.sBld('sheriff'), 'board')[0].fn(); UI.closeAll(); });
+      await p.waitForFunction(() => G.story.ch === 7, null, { timeout: 15000 });
+      t.ok(true, 'konuşma sırasında panoya bakmak adımı tamamladı');
+      // tapuyu almadan Jack'i teslim etmek hikâyeyi kilitlemez, ödül bir kez verilir
+      await p.evaluate(() => { const S = G.story; S.talkQ = null; S.talkCb = null; S.ch = 9; S.st = 1; S.wait = false; S.jack = 'free'; S.deed = false; delete S.alive; delete S.jx; delete S.jy; for (const e of G.ents) if (e.quest === 'jack') e.remove = true; G.qNext(); TH.goto(S.camp.x + 200, S.camp.y + 60); });
+      await p.waitForFunction(() => G.jackEnt() && G.story.st === 2, null, { timeout: 8000 });
+      await p.evaluate(() => { for (const e of G.ents) if (e.role === 'bandit' && !e.quest) e.remove = true; const j = G.jackEnt(); TH.goto(j.x + 30, j.y); G.lassoHit(j); G.hogtie(j); });
+      await waitStep(9, 3);
+      const m0 = await p.evaluate(() => { const j = G.jackEnt(); G.pickUp(j); return G.player.money; });
+      await p.waitForFunction(() => G.story.jack === 'carried', null, { timeout: 3000 });
+      await p.evaluate(() => { const b = G.sBld('sheriff'); const P = G.player; P.x = b.door.x; P.y = b.door.y + 10; G.deliverToSheriff({ e: P.carry, h: null }); });
+      await waitStep(9, 5, 15000);
+      await t.sleep(800);
+      const dl = await p.evaluate(() => ({ deed: G.story.deed, jack: G.story.jack, money: G.player.money, ent: !!G.jackEnt() }));
+      t.ok(dl.deed && dl.jack === 'delivered', 'şerif tapuyu verdi, Jack teslim edildi', dl);
+      t.ok(Math.abs(dl.money - m0 - 25) < 0.01, 'ödül bir kez', dl.money - m0);
+      t.ok(!dl.ent, 'Jack kampta yeniden doğmaz');
+      // Sully: vurulamaz, çarpılamaz, suç yazılmaz
+      const su = await p.evaluate(() => { const e = G.sullyEnt(); const b0 = G.law.bounty, h0 = G.honor; e.hurt(50, 'player', 'gun'); return { bounty: G.law.bounty - b0, assaulted: !!e.assaulted, hp: e.hp }; });
+      t.ok(su.bounty === 0 && !su.assaulted && su.hp > 9000, 'Sully vurulunca suç yok', su);
     });
 
     await t.step('günlükte Görevler sekmesi; yeni hayatta hikâye bırakılabilir', async () => {

@@ -301,7 +301,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `hud` | arayüz boyutu ayarının köşe gruplarını ölçeklemesi ve kaydedilmesi, binilen atın kapıdan içeri uzanamaması, içeride kalan atın dışarı çıkarılması, dükkânda sağ üstteki cüzdan, harita açıklamasından en yakın yeri işaretleme |
 | `settings` | ayarlar ekranı, ses kaydırıcısına tıklama ve sürükleme, Kaydet ve Kapat düğmesi, tam ekran tercihinin saklanması, klavye tuş atama, takas, iptal, kalıcılık |
 | `resume` | kaldığı yerden devam: NPC, hayvan, ceset, post, sandık ve arabaların konumu ve durumu, sakinlerin kasaba kaydına bağlanması, kopya doğmaması, sekme kapanırken kayıt |
-| `story` | hikâyeli başlangıç: on bölüm baştan sona (selamlaşma, alışveriş, matara, ata binme, çakallar, av, deri, satış, çalışma, şerif, saloon, kamp, uyku, dürbün, kement, teslim, final), kayıt/yükleme, günlük sekmesi, bırakma |
+| `story` | hikâyeli başlangıç: on bölüm baştan sona (selamlaşma, alışveriş, matara, ata binme, çakallar, av, deri, satış, çalışma, şerif, saloon, kamp, uyku, dürbün, kement, teslim, final), kayıt/yükleme, günlük sekmesi, bırakma; gece yarısından sonra saat atlatma, konuşma sürerken yapılan eylemin sayılması, tapuyu almadan teslimde kilitlenmeme, aynı kişiyi iki kez selamlamanın sayılmaması, Sully'nin vurulamaması |
 | `guide` | yeni hayatta hoş geldin rehberinin kendiliğinden açılması, sayfalar, ikinci hayatta yine açılması, "gösterme" işaretinin kalıcılığı, Duraklat menüsünden yeniden açma |
 | `carry` | kement, bağlama, omuzda/eyerde taşıma, şerife teslim, ödül hedefi, leş ve post, kanıt, suya atma |
 | `law` | tanıklar, tehdit, rüşvet, maske, dükkân reddi, teslim olma, ceza, hapis, dörtnala kanun adamına ve sivile çarpmada iki uyarı |
