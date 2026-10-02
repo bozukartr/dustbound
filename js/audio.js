@@ -8,8 +8,9 @@
    boğuk gelir; bulunulan yerin yankısı (oda, saloon, sokak, kanyon,
    orman, açık ova, maden) üzerlerine eklenir. Silah sesi ve konuşma
    müziği ve ortamı kısar (ducking).
-   Örnek dosyalar audio/sfx/ altındadır (manifest.json); bir olayın
-   dosyası yoksa ya da tarayıcı OGG çözemiyorsa prosedürel sese düşülür.
+   Ses dosyaları audio/sfx/ altındadır (manifest.json, tools/sfx-manifest.js
+   yazar); bir olayın dosyası yoksa ya da tarayıcı çözemiyorsa prosedürel
+   sese düşülür.
    Konuşmalar audio/vo/<dil>/<anahtar>.ogg|mp3 (bkz. voiceKey).
    ========================================================== */
 
@@ -158,7 +159,8 @@ const Audio_ = {
     if (!this.ctx) return;
     const L = this.listener();
     const px = x !== undefined ? x : L ? L.x : 0, py = y !== undefined ? y : L ? L.y : 0;
-    if (this.play((hoof ? 'hoof_' : 'step_') + this.surface(px, py), { vol: Math.min(1.6, v * (hoof ? 9 : 12)), x: x !== undefined ? x : undefined, y })) return;
+    const pre = hoof ? 'hoof_' : 'step_', nm = this.has(pre + this.surface(px, py)) ? pre + this.surface(px, py) : pre + 'dirt';
+    if (this.play(nm, { vol: Math.min(1.6, v * (hoof ? 9 : 12)), x: x !== undefined ? x : undefined, y })) return;
     const c = this.ctx, t = c.currentTime;
     const n = this.noiseSrc(); const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = hoof ? 500 : 1400; f.Q.value = hoof ? 3 : 1;
     const g = c.createGain(); this.env(g, t, 0.002, v, hoof ? 0.07 : 0.05);
@@ -288,27 +290,22 @@ const Audio_ = {
     this.setLoop('storm', env.storm ? 0.25 : Math.max(0, env.wind - 0.5) * 0.3);
     this.setLoop('crickets', env.night && !env.indoor && env.rain < 0.3 ? 0.14 * env.nature : 0);
     this.setLoop('crowd', env.town && !env.night ? 0.1 : env.town ? 0.04 : 0);
-    // örnekli tekil ortam sesleri: kuşlar, baykuş, şahin, kurt ve çakal ulumaları
-    if (this.has('bird')) {
-      const L = this.listener(), far = (r) => L ? { x: L.x + (Math.random() * 2 - 1) * r, y: L.y + (Math.random() * 2 - 1) * r } : {};
-      if (!env.night && env.rain < 0.2 && !env.indoor && Math.random() < 0.035 * env.nature) this.play('bird', far(500));
-      if (env.night && !env.indoor && Math.random() < 0.004 * env.nature) this.play('owl', far(800));
-      if (!env.night && !env.town && Math.random() < 0.002) this.play('hawk', far(900));
-      if (env.night && env.wolves && Math.random() < 0.004) this.play('wolf_howl', far(1600));
-      else if (env.night && !env.wolves && !env.town && Math.random() < 0.003) this.play('coyote_howl', far(1500));
-      return;
-    }
-    // cırcır böcekleri ve kuşlar
-    if (env.night && Math.random() < 0.08 * env.nature) {
+    // örnekli tekil ortam sesleri: kuşlar, baykuş, şahin, kurt ve çakal ulumaları (dosyası olan çalar)
+    const L = this.listener(), far = (r) => L ? { x: L.x + (Math.random() * 2 - 1) * r, y: L.y + (Math.random() * 2 - 1) * r } : {};
+    if (env.night && !env.indoor && Math.random() < 0.004 * env.nature) this.play('owl', far(800));
+    if (!env.night && !env.town && Math.random() < 0.002) this.play('hawk', far(900));
+    if (env.night && !env.wolves && !env.town && Math.random() < 0.003) this.play('coyote_howl', far(1500));
+    // cırcır böcekleri ve kuşlar (dosyası yoksa prosedürel)
+    if (!this.sloops.crickets && env.night && Math.random() < 0.08 * env.nature) {
       const f = 4200 + Math.random() * 600;
       for (let k = 0; k < 3; k++) this.tone(f, 0.03, 'sine', 0.018, this.amb, k * 0.06);
     }
-    if (!env.night && Math.random() < 0.03 * env.nature && env.rain < 0.2) {
+    if (!env.night && Math.random() < 0.03 * env.nature && env.rain < 0.2 && !(env.indoor && this.has('bird')) && !this.play('bird', far(500))) {
       const f = 2000 + Math.random() * 1800;
       this.tone(f, 0.12, 'sine', 0.025, this.amb, 0, f * (Math.random() < 0.5 ? 1.4 : 0.7));
       if (Math.random() < 0.5) this.tone(f * 1.2, 0.1, 'sine', 0.02, this.amb, 0.15, f);
     }
-    if (env.night && env.wolves && Math.random() < 0.004) {
+    if (env.night && env.wolves && Math.random() < 0.004 && !this.play('wolf_howl', far(1600))) {
       const t = this.ctx.currentTime;
       const o = this.ctx.createOscillator(); o.type = 'sine';
       o.frequency.setValueAtTime(400, t); o.frequency.linearRampToValueAtTime(700, t + 0.6); o.frequency.linearRampToValueAtTime(600, t + 2); o.frequency.linearRampToValueAtTime(380, t + 2.8);
@@ -383,11 +380,12 @@ const Audio_ = {
   /* Her karede çağrılır: temayı ve saloon piyanosunu yumuşakça yönetir */
   /* Yakındaki NPC'lerin, atların ve arabaların adım/toynak sesleri: kat edilen yola göre */
   footTick(e, dt) {
-    if (!this.ctx || !this.bank.step_dirt) return;
+    if (!this.ctx || !(this.bank.step_dirt || this.bank.hoof_dirt)) return;
     if (e._sx === undefined) { e._sx = e.x; e._sy = e.y; e._fa = 0; return; }
     const d = Math.hypot(e.x - e._sx, e.y - e._sy); e._sx = e.x; e._sy = e.y;
     if (d > 40 || d < 0.01) return;      // ışınlanma ya da duruş
     const hoof = e.kind === 'horse' || e.kind === 'wagon' || !!e.mounted, sp = d / Math.max(dt, 0.001);
+    if (!this.has(hoof ? 'hoof_dirt' : 'step_dirt')) return;   // örneği yoksa uzaktaki adımlar sessiz
     e._fa += d;
     const stride = hoof ? (sp > 110 ? 30 : 20) : (sp > 60 ? 16 : 12);
     if (e._fa < stride) return;
@@ -502,7 +500,7 @@ const REVERBS = {
   cave:   { len: 2.6, decay: 2.4, early: [0.02, 0.045, 0.07, 0.1], wet: 0.5, lp: 3000 },       // maden
 };
 Object.assign(Audio_, {
-  bank: {}, man: null, canOgg: true, voices: [], revName: null, envT: 0,
+  bank: {}, sloops: {}, man: null, canOgg: true, voices: [], revName: null, envT: 0,
   /* Yankı: iki evrişim arasında yumuşak geçiş */
   buildReverb() {
     const c = this.ctx;
@@ -565,7 +563,7 @@ Object.assign(Audio_, {
   loadBank() {
     const a = document.createElement('audio');
     this.canOgg = !!(a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"'));
-    if (!this.canOgg || window.__testNoSfx) return;
+    if (window.__testNoSfx) return;
     fetch('audio/sfx/manifest.json').then(r => r.ok ? r.json() : null).then(m => {
       if (!m) return;
       this.man = m;
@@ -573,13 +571,12 @@ Object.assign(Audio_, {
       const pri = ['ui_', 'step_', 'hoof_', 'gun_', 'amb_'];
       const names = Object.keys(m).sort((x, y) => (pri.findIndex(p => x.startsWith(p)) + 1 || 9) - (pri.findIndex(p => y.startsWith(p)) + 1 || 9));
       const queue = [];
-      for (const nm of names) for (let i = 1; i <= m[nm].n; i++) queue.push([nm, i]);
+      for (const nm of names) for (const f of m[nm].files || []) if (this.canOgg || !/\.ogg$/i.test(f)) queue.push([nm, f]);
       let busy = 0;
       const next = () => {
         while (busy < 4 && queue.length) {
-          const [nm, i] = queue.shift(); busy++;
-          const url = `audio/sfx/${nm}_${String(i).padStart(2, '0')}.ogg`;
-          fetch(url).then(r => r.arrayBuffer()).then(ab => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
+          const [nm, f] = queue.shift(); busy++;
+          fetch('audio/sfx/' + encodeURIComponent(f)).then(r => r.arrayBuffer()).then(ab => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
             .then(buf => { const B = this.bank[nm] || (this.bank[nm] = { bufs: [], last: -1 }); B.bufs.push(buf); if (m[nm].loop) this.loopReady(nm); })
             .catch(() => {}).finally(() => { busy--; next(); });
         }
@@ -679,7 +676,6 @@ Object.assign(Audio_, {
   loopReady(nm) {
     const key = Object.keys(this.LOOPMAP).find(k => this.LOOPMAP[k] === nm);
     if (!key) return;
-    this.sloops = this.sloops || {};
     if (this.sloops[key]) return;
     const c = this.ctx, src = c.createBufferSource(); src.buffer = this.bank[nm].bufs[0]; src.loop = true;
     const g = c.createGain(); g.gain.value = 0; src.connect(g); g.connect(this.amb);
