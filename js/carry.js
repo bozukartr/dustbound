@@ -170,6 +170,7 @@ const CarrySystems = {
     if (P.rope === e) P.rope = null;
     const outlaw = e.role === 'bandit' || e.role === 'target';
     e.state = 'tied'; e.tieT = rnd(110, 170) + this.skill('survival') * 8; e.wrig = 0; e.aggro = false;
+    Audio_.play('rope', { x: e.x, y: e.y });
     e.say(pick([Tr('Bunu ödeyeceksin!'), Tr('Çöz beni!'), Tr('Hmmf!')]), 2);
     Audio_.tone(260, 0.1, 'triangle', 0.05);
     if (!e.hostile && !outlaw && !e.assaulted) { e.assaulted = true; this.crime(e.isLaw ? 'assaultLaw' : 'assault', e.x, e.y, e); }

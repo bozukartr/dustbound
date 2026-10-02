@@ -1,6 +1,16 @@
 'use strict';
 /* ==========================================================
-   FRONTIER'S END — prosedürel ses (WebAudio): efektler, ortam, müzik
+   FRONTIER'S END — ses (WebAudio): efektler, ortam, müzik, konuşma
+   Karışım: her olay bir kanala gider (silah/foley, ortam, arayüz, müzik,
+   konuşma); kanallar ortak bir yapıştırıcı kompresörden ve en sonda bir
+   sınırlayıcıdan geçer. Dünyadaki sesler konumlarına göre sağa-sola
+   yerleşir, uzaklıkla kısılır ve tizlerini yitirir, duvar arkasından
+   boğuk gelir; bulunulan yerin yankısı (oda, saloon, sokak, kanyon,
+   orman, açık ova, maden) üzerlerine eklenir. Silah sesi ve konuşma
+   müziği ve ortamı kısar (ducking).
+   Örnek dosyalar audio/sfx/ altındadır (manifest.json); bir olayın
+   dosyası yoksa ya da tarayıcı OGG çözemiyorsa prosedürel sese düşülür.
+   Konuşmalar audio/vo/<dil>/<anahtar>.ogg|mp3 (bkz. voiceKey).
    ========================================================== */
 
 const Audio_ = {
@@ -16,13 +26,31 @@ const Audio_ = {
     if (!AC) return;
     try { this.ctx = new AC(); } catch (e) { return; }
     const c = this.ctx;
-    this.master = c.createGain(); this.master.connect(c.destination);
-    const comp = c.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+    // son katman: tepe sınırlayıcı (bozulmayı önler) → ana ses
+    this.master = c.createGain();
+    const lim = c.createDynamicsCompressor();
+    lim.threshold.value = -3; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.12;
+    this.master.connect(lim); lim.connect(c.destination);
+    this.limiter = lim;
+    // yapıştırıcı kompresör: efekt, ortam ve prosedürel müzik birlikte nefes alır
+    const comp = c.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3; comp.attack.value = 0.006; comp.release.value = 0.25;
     comp.connect(this.master);
+    this.glue = comp;
     this.sfx = c.createGain(); this.sfx.connect(comp);
-    this.music = c.createGain(); this.music.connect(comp);
-    this.amb = c.createGain(); this.amb.connect(comp);
-    this.rec = c.createGain(); this.rec.connect(this.master); // kayıtlı müzik (kompresörsüz)
+    // ortam ve müzik kısma (ducking) düğümlerinden geçer
+    this.duckAmb = c.createGain(); this.duckAmb.connect(comp);
+    this.duckMus = c.createGain(); this.duckMus.connect(comp);
+    this.music = c.createGain(); this.music.connect(this.duckMus);
+    // ortam: içerideyken yağmur ve rüzgâr duvarın ardından boğuk duyulur
+    this.ambLP = c.createBiquadFilter(); this.ambLP.type = 'lowpass'; this.ambLP.frequency.value = 20000; this.ambLP.Q.value = 0.4;
+    this.ambLP.connect(this.duckAmb);
+    this.amb = c.createGain(); this.amb.connect(this.ambLP);
+    this.duckRec = c.createGain(); this.duckRec.connect(this.master);
+    this.rec = c.createGain(); this.rec.connect(this.duckRec); // kayıtlı müzik (kompresörsüz)
+    this.uiBus = c.createGain(); this.uiBus.connect(this.master);
+    this.voiceBus = c.createGain(); this.voiceBus.connect(this.master);
+    this.buildReverb();
+    this.loadBank();
     const len = c.sampleRate * 2;
     this.noise = c.createBuffer(1, len, c.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -38,6 +66,8 @@ const Audio_ = {
     this.music.gain.value = this.vol.music * 0.55;
     this.amb.gain.value = this.vol.amb;
     this.rec.gain.value = this.vol.music;
+    if (this.uiBus) this.uiBus.gain.value = this.vol.sfx * 0.9;
+    if (this.voiceBus) this.voiceBus.gain.value = Math.max(this.vol.sfx, 0.6);
   },
   now() { return this.ctx ? this.ctx.currentTime : 0; },
   env(g, t, a, peak, dcy) {
@@ -47,8 +77,17 @@ const Audio_ = {
   },
   noiseSrc() { const s = this.ctx.createBufferSource(); s.buffer = this.noise; s.loop = true; return s; },
 
-  shot(kind = 'pistol', v = 1) {
+  /* kind: pistol | repeater | rifle | shotgun | bow; x, y verilirse konumlu (uzaklık, yön, yankı) */
+  shot(kind = 'pistol', v = 1, x, y) {
     if (!this.ctx || v < 0.02) return;
+    if (this.play('gun_' + kind, { vol: v, x, y }) || (kind === 'repeater' && this.play('gun_pistol', { vol: v, x, y, rate: 0.92 }))) {
+      // yakındaki silah sesi ortamı ve müziği bir an bastırır
+      const L = this.listener(), d = x !== undefined && L ? Math.hypot(x - L.x, y - L.y) : 0;
+      if (kind !== 'bow' && d < 500) this.duck(0.5 * (1 - d / 500) * v, 0.15, 1.6);
+      return;
+    }
+    if (kind === 'repeater') kind = 'pistol';
+    if (x !== undefined) { const L = this.listener(); if (L) v *= Math.max(0.1, 1 - Math.hypot(x - L.x, y - L.y) / 900); }
     const c = this.ctx, t = c.currentTime;
     const n = this.noiseSrc(); n.playbackRate.value = kind === 'rifle' ? 0.7 : 1;
     const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = kind === 'shotgun' ? 2600 : kind === 'bow' ? 5000 : 3600;
@@ -67,8 +106,9 @@ const Audio_ = {
     const dg = c.createGain(); dg.gain.value = 0.25;
     g.connect(d); d.connect(dg); dg.connect(this.sfx);
   },
-  boom(v = 1) {
+  boom(v = 1, x, y) {
     if (!this.ctx) return;
+    if (this.play('explosion', { vol: x !== undefined ? 1 : v, x, y })) { this.duck(0.7 * v, 0.4, 2.5); return; }
     const c = this.ctx, t = c.currentTime;
     const n = this.noiseSrc(); n.playbackRate.value = 0.4;
     const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
@@ -77,6 +117,7 @@ const Audio_ = {
   },
   thunder() {
     if (!this.ctx) return;
+    if (this.play('thunder', { when: 0.3 + Math.random() * 1.2, vol: 0.8 + Math.random() * 0.3 })) return;
     const c = this.ctx, t = c.currentTime + 0.3 + Math.random() * 1.2;
     const n = this.noiseSrc(); n.playbackRate.value = 0.25;
     const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 400;
@@ -93,8 +134,9 @@ const Audio_ = {
     const g = c.createGain(); this.env(g, t, 0.01, v, dur);
     o.connect(g); g.connect(bus || this.sfx); o.start(t); o.stop(t + dur + 0.05);
   },
-  thud(v = 0.6) {
+  thud(v = 0.6, x, y) {
     if (!this.ctx) return;
+    if (this.play('thud', { vol: v * 1.4, x, y })) return;
     const c = this.ctx, t = c.currentTime;
     const o = c.createOscillator(); o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(50, t + 0.12);
     const g = c.createGain(); this.env(g, t, 0.003, v, 0.14);
@@ -111,8 +153,12 @@ const Audio_ = {
     const g = c.createGain(); this.env(g, t, 0.006, v, dub ? 0.1 : 0.16);
     o.connect(g); g.connect(this.sfx); o.start(t); o.stop(t + 0.26);
   },
-  step(v = 0.08, hoof) {
+  /* ayak sesi / toynak: zemin konumdan bulunur (kum, çimen, taş, tahta, çamur, kar, su, toprak) */
+  step(v = 0.08, hoof, x, y) {
     if (!this.ctx) return;
+    const L = this.listener();
+    const px = x !== undefined ? x : L ? L.x : 0, py = y !== undefined ? y : L ? L.y : 0;
+    if (this.play((hoof ? 'hoof_' : 'step_') + this.surface(px, py), { vol: Math.min(1.6, v * (hoof ? 9 : 12)), x: x !== undefined ? x : undefined, y })) return;
     const c = this.ctx, t = c.currentTime;
     const n = this.noiseSrc(); const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = hoof ? 500 : 1400; f.Q.value = hoof ? 3 : 1;
     const g = c.createGain(); this.env(g, t, 0.002, v, hoof ? 0.07 : 0.05);
@@ -120,6 +166,8 @@ const Audio_ = {
   },
   ui(kind) {
     if (!this.ctx) return;
+    const U = { move: 'ui_move', ok: 'ui_ok', back: 'ui_back', error: 'ui_error', cash: 'coins', pick: 'ui_pick' };
+    if (U[kind] && this.play(U[kind])) return;
     if (kind === 'move') this.tone(880, 0.05, 'triangle', 0.05);
     else if (kind === 'ok') { this.tone(660, 0.08, 'triangle', 0.08); this.tone(990, 0.1, 'triangle', 0.06, null, 0.05); }
     else if (kind === 'back') this.tone(440, 0.08, 'triangle', 0.06, null, 0, 330);
@@ -129,21 +177,25 @@ const Audio_ = {
   },
   chime() {
     if (!this.ctx) return;
+    if (this.play('chime')) return;
     [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.9, 'sine', 0.12, null, i * 0.09));
     [1047, 1319].forEach((f, i) => this.tone(f, 1.2, 'triangle', 0.05, null, 0.4 + i * 0.1));
   },
   discover() {
     if (!this.ctx) return;
+    if (this.play('discover')) return;
     [220, 330, 440].forEach((f, i) => this.pluck(f, 0.25, i * 0.12));
     this.pluck(554, 0.2, 0.42);
   },
   whistle() {
     if (!this.ctx) return;
+    if (this.play('whistle')) return;
     this.tone(1500, 0.18, 'sine', 0.12, null, 0, 2300);
     this.tone(2300, 0.3, 'sine', 0.12, null, 0.22, 1700);
   },
-  neigh() {
+  neigh(x, y) {
     if (!this.ctx) return;
+    if (this.play('horse_neigh', { x, y })) return;
     const c = this.ctx, t = c.currentTime;
     const o = c.createOscillator(); o.type = 'sawtooth';
     o.frequency.setValueAtTime(700, t); o.frequency.linearRampToValueAtTime(900, t + 0.15); o.frequency.linearRampToValueAtTime(500, t + 0.8);
@@ -152,16 +204,18 @@ const Audio_ = {
     const g = c.createGain(); this.env(g, t, 0.05, 0.08, 0.8);
     o.connect(f); f.connect(g); g.connect(this.sfx); o.start(t); lfo.start(t); o.stop(t + 0.9); lfo.stop(t + 0.9);
   },
-  growl() {
+  growl(type, x, y) {
     if (!this.ctx) return;
+    if (this.play(type === 'bear' ? 'growl_bear' : type === 'cougar' ? 'cougar' : 'growl', { x, y })) return;
     const c = this.ctx, t = c.currentTime;
     const n = this.noiseSrc(); n.playbackRate.value = 0.3;
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 220; f.Q.value = 4;
     const g = c.createGain(); this.env(g, t, 0.05, 0.35, 0.7);
     n.connect(f); f.connect(g); g.connect(this.sfx); n.start(t); n.stop(t + 0.8);
   },
-  train() {
+  train(x, y) {
     if (!this.ctx) return;
+    if (this.play('train_whistle', { x, y })) return;
     [0, 0.05].forEach(w => { this.tone(370, 1.2, 'sawtooth', 0.03, this.amb, w); this.tone(466, 1.2, 'sawtooth', 0.03, this.amb, w); this.tone(554, 1.2, 'sawtooth', 0.025, this.amb, w); });
   },
 
@@ -217,10 +271,12 @@ const Audio_ = {
     this.loops.water = mk('bandpass', 700, 0.6);
     this.loops.gallop = mk('lowpass', 300);
   },
+  /* ortam döngüsü seviyesi: örnekli döngü hazırsa o çalar, prosedürel olan susar */
+  LOOPGAIN: { wind: 1.6, rain: 1.5, fire: 2.2, water: 2.0, crickets: 1.2, crowd: 1.0, storm: 1.2 },
   setLoop(name, v) {
-    const L = this.loops[name];
-    if (!L) return;
-    L.g.gain.setTargetAtTime(v, this.ctx.currentTime, 0.4);
+    const S = this.sloops && this.sloops[name], L = this.loops[name], t = this.ctx.currentTime;
+    if (S) { S.g.gain.setTargetAtTime(v * (this.LOOPGAIN[name] || 1), t, 0.6); if (L) L.g.gain.setTargetAtTime(0, t, 0.2); return; }
+    if (L) L.g.gain.setTargetAtTime(v, t, 0.4);
   },
   ambientTick(env) {
     if (!this.ctx) return;
@@ -229,6 +285,19 @@ const Audio_ = {
     this.setLoop('fire', env.fire * 0.12);
     this.setLoop('water', env.water * 0.12);
     this.loops.wind.f.frequency.setTargetAtTime(300 + Math.sin(this.ctx.currentTime * 0.3) * 150, this.ctx.currentTime, 1);
+    this.setLoop('storm', env.storm ? 0.25 : Math.max(0, env.wind - 0.5) * 0.3);
+    this.setLoop('crickets', env.night && !env.indoor && env.rain < 0.3 ? 0.14 * env.nature : 0);
+    this.setLoop('crowd', env.town && !env.night ? 0.1 : env.town ? 0.04 : 0);
+    // örnekli tekil ortam sesleri: kuşlar, baykuş, şahin, kurt ve çakal ulumaları
+    if (this.has('bird')) {
+      const L = this.listener(), far = (r) => L ? { x: L.x + (Math.random() * 2 - 1) * r, y: L.y + (Math.random() * 2 - 1) * r } : {};
+      if (!env.night && env.rain < 0.2 && !env.indoor && Math.random() < 0.035 * env.nature) this.play('bird', far(500));
+      if (env.night && !env.indoor && Math.random() < 0.004 * env.nature) this.play('owl', far(800));
+      if (!env.night && !env.town && Math.random() < 0.002) this.play('hawk', far(900));
+      if (env.night && env.wolves && Math.random() < 0.004) this.play('wolf_howl', far(1600));
+      else if (env.night && !env.wolves && !env.town && Math.random() < 0.003) this.play('coyote_howl', far(1500));
+      return;
+    }
     // cırcır böcekleri ve kuşlar
     if (env.night && Math.random() < 0.08 * env.nature) {
       const f = 4200 + Math.random() * 600;
@@ -312,9 +381,25 @@ const Audio_ = {
     } else t.el.volume = clamp(v * this.vol.master * this.vol.music * (1 - muffle * 0.35), 0, 1);
   },
   /* Her karede çağrılır: temayı ve saloon piyanosunu yumuşakça yönetir */
+  /* Yakındaki NPC'lerin, atların ve arabaların adım/toynak sesleri: kat edilen yola göre */
+  footTick(e, dt) {
+    if (!this.ctx || !this.bank.step_dirt) return;
+    if (e._sx === undefined) { e._sx = e.x; e._sy = e.y; e._fa = 0; return; }
+    const d = Math.hypot(e.x - e._sx, e.y - e._sy); e._sx = e.x; e._sy = e.y;
+    if (d > 40 || d < 0.01) return;      // ışınlanma ya da duruş
+    const hoof = e.kind === 'horse' || e.kind === 'wagon' || !!e.mounted, sp = d / Math.max(dt, 0.001);
+    e._fa += d;
+    const stride = hoof ? (sp > 110 ? 30 : 20) : (sp > 60 ? 16 : 12);
+    if (e._fa < stride) return;
+    e._fa = 0;
+    this.step(hoof ? 0.05 + Math.min(0.06, sp / 3000) : 0.035 + Math.min(0.03, sp / 3000), hoof, e.x, e.y);
+  },
+  /* silah adından ses türü */
+  gunKind(w) { return w === 'rifle' ? 'rifle' : w === 'shotgun' ? 'shotgun' : w === 'repeater' || w === 'winchester' ? 'repeater' : w === 'bow' ? 'bow' : 'pistol'; },
   update(dt) {
     this.clock += dt;
     if (!this.ctx) return;
+    this.envUpdate(dt);
     // saloon piyanosu
     const P = this.track('piano', true);
     this.pianoHold = Math.max(0, this.pianoHold - dt);
@@ -402,3 +487,247 @@ const Audio_ = {
   },
   stopSeq() { if (this.seq) { this.seq.alive = false; clearTimeout(this.seq.timer); this.seq = null; } this.pendingMusic = null; },
 };
+
+/* ==========================================================
+   Örnek tabanlı ses motoru
+   ========================================================== */
+/* Mekân yankıları: [süre (sn), sönüm eğrisi, erken yansımalar (sn), ıslaklık, parlaklık (Hz)] */
+const REVERBS = {
+  open:   { len: 1.2, decay: 2.6, early: [0.09, 0.21], wet: 0.12, lp: 2600 },     // açık ova: uzaktan tek tük yankı
+  street: { len: 1.0, decay: 3.2, early: [0.018, 0.035, 0.06, 0.11], wet: 0.24, lp: 3800 },   // kasaba: cephelerden slapback
+  canyon: { len: 3.2, decay: 2.0, early: [0.16, 0.31, 0.52, 0.8], wet: 0.4, lp: 2400 },        // kanyon: uzun tekrarlayan yankı
+  forest: { len: 1.6, decay: 3.0, early: [0.03, 0.05, 0.08], wet: 0.2, lp: 1800 },             // orman: yaprakta boğulan, yayvan
+  room:   { len: 0.5, decay: 4.5, early: [0.006, 0.011, 0.017], wet: 0.28, lp: 5000 },         // küçük oda: tahta, kuru
+  hall:   { len: 1.3, decay: 3.4, early: [0.012, 0.024, 0.04], wet: 0.34, lp: 4200 },          // saloon, otel, kilise
+  cave:   { len: 2.6, decay: 2.4, early: [0.02, 0.045, 0.07, 0.1], wet: 0.5, lp: 3000 },       // maden
+};
+Object.assign(Audio_, {
+  bank: {}, man: null, canOgg: true, voices: [], revName: null, envT: 0,
+  /* Yankı: iki evrişim arasında yumuşak geçiş */
+  buildReverb() {
+    const c = this.ctx;
+    this.revIn = c.createGain();
+    this.revOut = c.createGain(); this.revOut.connect(this.glue);
+    this.revA = { conv: c.createConvolver(), g: c.createGain() };
+    this.revB = { conv: c.createConvolver(), g: c.createGain() };
+    for (const R of [this.revA, this.revB]) { this.revIn.connect(R.conv); R.conv.connect(R.g); R.g.connect(this.revOut); R.g.gain.value = 0; }
+    this.irs = {};
+    this.setReverb('open', true);
+  },
+  makeIR(name) {
+    if (this.irs[name]) return this.irs[name];
+    const P = REVERBS[name], c = this.ctx, sr = c.sampleRate, len = Math.floor(sr * P.len);
+    const buf = c.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      let lpv = 0; const a = Math.exp(-2 * Math.PI * P.lp / sr);
+      for (let i = 0; i < len; i++) {
+        const t = i / sr, e = Math.exp(-t * P.decay) * Math.min(1, t / 0.008);
+        lpv = lpv * a + (Math.random() * 2 - 1) * (1 - a);    // basit alçak geçiren: kuyruk koyulaşır
+        d[i] = lpv * e * 2.2;
+      }
+      // erken yansımalar (sağ ve sol kanalda biraz farklı)
+      P.early.forEach((tm, k) => { const i = Math.floor((tm * (1 + (ch ? 0.07 : -0.05) * (k + 1))) * sr); if (i < len) d[i] += (0.7 - k * 0.12) * (ch ? 0.9 : 1); });
+    }
+    return (this.irs[name] = buf);
+  },
+  setReverb(name, instant) {
+    if (!this.ctx || this.revName === name || !REVERBS[name]) return;
+    this.revName = name;
+    const t = this.ctx.currentTime, P = REVERBS[name];
+    const [on, off] = this.revA.on ? [this.revB, this.revA] : [this.revA, this.revB];
+    on.conv.buffer = this.makeIR(name); on.on = true; off.on = false;
+    on.g.gain.cancelScheduledValues(t); off.g.gain.cancelScheduledValues(t);
+    on.g.gain.setTargetAtTime(P.wet, t, instant ? 0.01 : 0.35);
+    off.g.gain.setTargetAtTime(0, t, instant ? 0.01 : 0.35);
+  },
+  /* Oyuncunun bulunduğu yere göre yankı (her yarım saniyede) */
+  envUpdate(dt) {
+    if (!this.ctx || typeof G === 'undefined' || !G.player || !G.world || G.state !== 'play') return;
+    if ((this.envT -= dt) > 0) return;
+    this.envT = 0.5;
+    const P = G.player, W = G.world, b = G.insideB;
+    let r = 'open';
+    if (b) r = b.def.mine ? 'cave' : (b.type === 'saloon' || b.type === 'hotel' || b.type === 'church' || b.type === 'gambling' || b.type === 'cantina' || b.def.w >= 11) ? 'hall' : 'room';
+    else if (W.townAt(P.x, P.y, 4)) r = 'street';
+    else {
+      const n = {};
+      for (let k = 0; k < 8; k++) { const a = k / 8 * TAU, bb = W.biomeAt(P.x + Math.cos(a) * 160, P.y + Math.sin(a) * 160); n[bb] = (n[bb] || 0) + 1; }
+      if ((n.REDROCK || 0) + (n.MESA || 0) + (n.CLIFF || 0) + (n.ROCK || 0) + (n.SNOWCLIFF || 0) >= 3) r = 'canyon';
+      else if ((n.FOREST || 0) >= 4) r = 'forest';
+    }
+    this.setReverb(r);
+    this.listenerIn = b || null;
+    this.ambLP.frequency.setTargetAtTime(b ? 700 : 20000, this.ctx.currentTime, 0.25);
+  },
+
+  /* ---- örnek bankası ---- */
+  loadBank() {
+    const a = document.createElement('audio');
+    this.canOgg = !!(a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"'));
+    if (!this.canOgg || window.__testNoSfx) return;
+    fetch('audio/sfx/manifest.json').then(r => r.ok ? r.json() : null).then(m => {
+      if (!m) return;
+      this.man = m;
+      // önce sık kullanılanlar, sonra hepsi; çözümleme sırayla (ana iş parçacığını boğmadan)
+      const pri = ['ui_', 'step_', 'hoof_', 'gun_', 'amb_'];
+      const names = Object.keys(m).sort((x, y) => (pri.findIndex(p => x.startsWith(p)) + 1 || 9) - (pri.findIndex(p => y.startsWith(p)) + 1 || 9));
+      const queue = [];
+      for (const nm of names) for (let i = 1; i <= m[nm].n; i++) queue.push([nm, i]);
+      let busy = 0;
+      const next = () => {
+        while (busy < 4 && queue.length) {
+          const [nm, i] = queue.shift(); busy++;
+          const url = `audio/sfx/${nm}_${String(i).padStart(2, '0')}.ogg`;
+          fetch(url).then(r => r.arrayBuffer()).then(ab => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
+            .then(buf => { const B = this.bank[nm] || (this.bank[nm] = { bufs: [], last: -1 }); B.bufs.push(buf); if (m[nm].loop) this.loopReady(nm); })
+            .catch(() => {}).finally(() => { busy--; next(); });
+        }
+      };
+      next();
+    }).catch(() => {});
+  },
+  has(name) { const B = this.bank[name]; return !!(B && B.bufs.length); },
+  /* Dinleyici: oyuncu (yoksa kamera) */
+  listener() { return typeof G !== 'undefined' && G.player ? G.player : null; },
+  /* Bir örneği çal. o: { x, y (dünya konumu), vol, rate, bus, when, loop, dist, rev, muffle }
+     Dönen kulp: { src, g, stop(fade) }; banka hazır değilse null (çağıran prosedürel sese düşer) */
+  play(name, o = {}) {
+    if (!this.ctx || !this.has(name)) return null;
+    const c = this.ctx, B = this.bank[name], M = (this.man && this.man[name]) || {};
+    // aynı örnek art arda çalmasın
+    let k = Math.floor(Math.random() * B.bufs.length);
+    if (B.bufs.length > 1 && k === B.last) k = (k + 1 + Math.floor(Math.random() * (B.bufs.length - 1))) % B.bufs.length;
+    B.last = k;
+    let vol = (o.vol === undefined ? 1 : o.vol) * (M.vol === undefined ? 1 : M.vol);
+    // uzamsal: uzaklık, yön, duvar
+    let pan = 0, cut = 20000, wet = (M.rev === undefined ? 0.3 : M.rev) * (o.rev === undefined ? 1 : o.rev);
+    const L = this.listener();
+    if (o.x !== undefined && L) {
+      const dx = o.x - L.x, dy = o.y - L.y, d = Math.hypot(dx, dy), maxD = o.dist || M.dist || 900, ref = Math.min(140, maxD * 0.25);
+      if (d > maxD) return null;
+      const fall = d <= ref ? 1 : Math.pow(ref / d, 1.15);
+      vol *= fall * Math.min(1, (maxD - d) / (maxD * 0.25));      // menzilin sonunda yumuşakça kaybolur
+      pan = Math.max(-1, Math.min(1, dx / 340)) * 0.8;
+      cut = 20000 * Math.pow(1 - Math.min(1, d / maxD), 1.6) + 900;
+      wet *= 1 + Math.min(1.5, d / 400);                         // uzaktaki ses daha "odalı"
+      // duvar arkası: dinleyici ve kaynak farklı yerlerdeyse boğuk
+      const W = G.world, sb = W && W.buildingAtPx(o.x, o.y), lb = G.insideB || null;
+      if ((sb || null) !== lb) { cut = Math.min(cut, sb && lb ? 700 : 1100); vol *= 0.55; wet *= 0.6; }
+    }
+    if (o.muffle) cut = Math.min(cut, o.muffle);
+    if (vol < 0.004) return null;
+    // aynı sesten aynı anda en fazla
+    const maxN = M.max || 4;
+    const same = this.voices.filter(v => v.name === name && !v.done);
+    if (same.length >= maxN) { same.sort((a, b) => a.t - b.t)[0].stop(0.03); }
+    if (this.voices.length > 40) this.voices.filter(v => !v.done).sort((a, b) => a.vol - b.vol)[0].stop(0.03);
+    const t = c.currentTime + (o.when || 0);
+    const src = c.createBufferSource(); src.buffer = B.bufs[k];
+    const pv = M.pitch || 0;
+    src.playbackRate.value = (o.rate || 1) * (1 + (Math.random() * 2 - 1) * pv);
+    if (o.loop) src.loop = true;
+    let node = src;
+    if (cut < 19000) { const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; f.Q.value = 0.5; node.connect(f); node = f; }
+    const g = c.createGain(); g.gain.value = vol * (0.92 + Math.random() * 0.16);
+    node.connect(g); node = g;
+    if (pan && c.createStereoPanner) { const p = c.createStereoPanner(); p.pan.value = pan; node.connect(p); node = p; }
+    const bus = o.bus || M.bus || 'sfx';
+    node.connect(bus === 'ui' ? this.uiBus : bus === 'amb' ? this.amb : bus === 'voice' ? this.voiceBus : bus === 'music' ? this.music : this.sfx);
+    if (wet > 0.01 && bus !== 'ui') { const s = c.createGain(); s.gain.value = Math.min(1.5, wet); g.connect(s); s.connect(this.revIn); }
+    src.start(t);
+    const V = { name, src, g, t: c.currentTime, vol, done: false, stop: (fd = 0.08) => { if (V.done) return; V.done = true; const n = c.currentTime; g.gain.cancelScheduledValues(n); g.gain.setTargetAtTime(0, n, fd / 3); try { src.stop(n + fd); } catch (e) {} } };
+    src.onended = () => { V.done = true; this.voices = this.voices.filter(v => v !== V); };
+    this.voices.push(V);
+    return V;
+  },
+  /* Ortamı ve müziği kısa süre kıs: amt 0..1 (kısılma oranı), sürede geri gel */
+  /* konuşma sürerken müzik ve ortamın oturduğu seviye */
+  duckBase(k) { return this.voiceOn ? (k === 'amb' ? 0.6 : 0.4) : 1; },
+  duck(amt, hold = 0.2, rel = 1.2, what = 'all') {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    for (const [n, k] of [[this.duckAmb, 'amb'], [this.duckMus, 'mus'], [this.duckRec, 'mus']]) {
+      if (what !== 'all' && what !== k) continue;
+      const base = this.duckBase(k), lv = Math.min(base, 1 - amt), cur = n.gain.value;
+      n.gain.cancelScheduledValues(t); n.gain.setValueAtTime(cur, t);
+      n.gain.linearRampToValueAtTime(Math.min(cur, lv), t + 0.03);
+      n.gain.setTargetAtTime(base, t + 0.03 + hold, rel / 3);
+    }
+  },
+
+  /* ---- zemin ---- */
+  surface(x, y) {
+    if (typeof G === 'undefined' || !G.world) return 'dirt';
+    const W = G.world;
+    if (W.indoorPx(x, y)) return 'wood';
+    const t = W.tileAtPx(x, y);
+    switch (t) {
+      case T.GRASS: case T.FOREST: case T.FARM: return 'grass';
+      case T.SAND: case T.DESERT: return 'sand';
+      case T.ROCK: case T.CLIFF: case T.REDROCK: case T.MESA: case T.SNOWCLIFF: return 'stone';
+      case T.PLANK: case T.BRIDGE: return 'wood';
+      case T.MUD: case T.SWAMP: return 'mud';
+      case T.SNOW: return 'snow';
+      case T.WATER: case T.DEEP: case T.HOTWATER: return 'water';
+      default: return 'dirt';
+    }
+  },
+
+  /* ---- ortam döngüleri (örnekli): hazır olunca prosedürel döngünün yerini alır ---- */
+  LOOPMAP: { wind: 'amb_wind', rain: 'amb_rain', fire: 'amb_fire', water: 'amb_river', crickets: 'amb_crickets', crowd: 'amb_crowd', storm: 'amb_wind_strong' },
+  loopReady(nm) {
+    const key = Object.keys(this.LOOPMAP).find(k => this.LOOPMAP[k] === nm);
+    if (!key) return;
+    this.sloops = this.sloops || {};
+    if (this.sloops[key]) return;
+    const c = this.ctx, src = c.createBufferSource(); src.buffer = this.bank[nm].bufs[0]; src.loop = true;
+    const g = c.createGain(); g.gain.value = 0; src.connect(g); g.connect(this.amb);
+    try { src.start(c.currentTime, Math.random() * src.buffer.duration); } catch (e) { src.start(); }
+    this.sloops[key] = { src, g };
+    if (this.loops[key]) this.loops[key].g.gain.value = 0;
+  },
+
+  /* ---- konuşma (seslendirme) ----
+     Bir diyalog satırının anahtarı: satırın o dildeki metninden türetilen kısa bir özet (voiceKey).
+     Dosya: audio/vo/<dil>/<anahtar>.ogg (ya da .mp3). audio/vo/manifest.json hangi dosyaların
+     var olduğunu listeler: { "tr": ["a1b2c3d4", ...], "en": [...] }. tools/vo-script.js bütün
+     diyalogları anahtarlarıyla birlikte seslendirme senaryosu olarak dışa aktarır. */
+  voiceKey(text) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return (h >>> 0).toString(16).padStart(8, '0');
+  },
+  vo: { man: null, bufs: {}, loading: {} },
+  voInit() {
+    if (this.vo.man !== null) return;
+    this.vo.man = false;
+    fetch('audio/vo/manifest.json').then(r => r.ok ? r.json() : null).then(m => { this.vo.man = m || {}; }).catch(() => { this.vo.man = {}; });
+  },
+  voHas(key, lang) { const m = this.vo.man; return !!(m && m[lang] && m[lang].includes(key)); },
+  /* Satırın sesini önceden yükle (diyalog kuyruğa girince) */
+  voPreload(text, lang) {
+    if (!this.ctx) return;
+    this.voInit();
+    const key = this.voiceKey(text), id = lang + '/' + key;
+    if (!this.voHas(key, lang) || this.vo.bufs[id] || this.vo.loading[id]) return;
+    const ext = this.canOgg ? 'ogg' : 'mp3';
+    this.vo.loading[id] = fetch(`audio/vo/${id}.${ext}`).then(r => r.arrayBuffer()).then(ab => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
+      .then(b => { this.vo.bufs[id] = b; }).catch(() => {});
+  },
+  voDur(text, lang) { const b = this.vo.bufs[lang + '/' + this.voiceKey(text)]; return b ? b.duration : 0; },
+  /* Satırı seslendir; süresini döndürür (dosya yoksa ya da hazır değilse 0) */
+  voice(text, lang, o = {}) {
+    if (!this.ctx) return 0;
+    const id = lang + '/' + this.voiceKey(text), buf = this.vo.bufs[id];
+    if (!buf) { this.voPreload(text, lang); return 0; }
+    if (this.voCur) this.voCur.stop(0.05);
+    this.bank.__vo = { bufs: [buf], last: -1 };
+    const V = this.play('__vo', Object.assign({ bus: 'voice', rev: 0.4 }, o));
+    if (!V) return 0;
+    this.voCur = V; this.voiceOn = true;
+    this.duck(0, 0, 0.5);
+    V.src.addEventListener('ended', () => { if (this.voCur === V) { this.voCur = null; this.voiceOn = false; this.duck(0, 0, 1); } });
+    return buf.duration;
+  },
+});

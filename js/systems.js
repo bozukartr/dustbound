@@ -210,8 +210,9 @@ const GameSystems = {
     if (e.cool) P.coolT = Math.max(P.coolT, e.cool * 60);
     if (e.sober && P.drunk > 0) { P.drunk = 0; UI.feed(Tr('Burnun yandı, başın bir anda açıldı.')); }
     if (it.raw && Math.random() < it.raw * (this.hasPerk('eater') ? 0.5 : 1)) this.sicken(8, Tr('Çiğ et yedin ve midenin bozulduğunu hissediyorsun. <b>Hastasın.</b>'));
-    if (it.c === 'food') { this.qEvent('eat', id); this.stat('eaten', 1); Audio_.tone(300, 0.08, 'triangle', 0.06); Audio_.tone(240, 0.08, 'triangle', 0.06, null, 0.12); }
-    else Audio_.ui('pick');
+    const liquid = e.thirst > 0 && !e.hunger || e.drunk;
+    if (it.c === 'food') { this.qEvent('eat', id); this.stat('eaten', 1); if (!Audio_.play(liquid ? 'drink' : 'eat')) { Audio_.tone(300, 0.08, 'triangle', 0.06); Audio_.tone(240, 0.08, 'triangle', 0.06, null, 0.12); } }
+    else if (!(liquid && Audio_.play('drink'))) Audio_.ui('pick');
     UI.feed(Tr`${Icons.item(id, 'ic inl')} ${it.n} kullanıldı`);
     return true;
   },
@@ -228,7 +229,7 @@ const GameSystems = {
     if (!P.has('canteen')) { UI.feed(Tr('Mataran yok.'), 'warn'); return; }
     if (P.canteen <= 0) { UI.feed(Tr('Matara boş. Bir kuyu ya da nehirde doldur.'), 'warn'); return; }
     P.canteen--; P.thirst = Math.min(100, P.thirst + 32);
-    Audio_.tone(500, 0.1, 'sine', 0.05, null, 0, 300);
+    if (!Audio_.play('drink')) Audio_.tone(500, 0.1, 'sine', 0.05, null, 0, 300);
     UI.feed(Tr`🫗 Matara: ${P.canteen}/5`);
   },
   equipClothing(id) {
@@ -907,6 +908,8 @@ const GameSystems = {
       const was = hit.dead;
       if (hit === this.player) { if (owner) Juice.hurtFrom(owner.x, owner.y); hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : 'haydut'); }
       else hit.hurt(dmg, owner === this.player ? 'player' : 'npc', 'gun');
+      if (hit.kind === 'npc' || hit.kind === 'animal' || hit === this.player) Audio_.play('hit_flesh', { x: ex, y: ey, vol: hit === this.player ? 1.2 : 0.8 });
+      else if (hit.kind === 'wagon') Audio_.play('hit_wood', { x: ex, y: ey });
       // vuruşun hissi: ölümde savrulma ve uçan şapka; oyuncunun isabetinde mikro duraklama
       if (hit !== this.player && hit.dead && !was) {
         const W_ = WEAPONS[opts.weapon || (owner && owner.weapon)] || {}, pow = W_.pellets ? 120 : W_.kind === 'long' ? 85 : 60;
@@ -917,11 +920,14 @@ const GameSystems = {
       if (owner === this.player && hit.dead && hd > 400) this.stat('longKills', 1);
     } else {
       if (Math.abs(ex - this.player.x) < 700 && Math.abs(ey - this.player.y) < 500) FX.impact(ex, ey, ang);
+      // isabetsiz mermi: duvar/taşta sekme, toprakta gömülme
+      const W2 = this.world, st = W2.tileAtPx(ex, ey);
+      if (hd < range - 2) Audio_.play(W2.buildingAtPx(ex, ey) || W2.indoorPx(ex, ey) ? 'hit_wood' : (st === T.ROCK || st === T.CLIFF || st === T.REDROCK || st === T.MESA) || Math.random() < 0.25 ? 'ricochet' : 'hit_dirt', { x: ex, y: ey });
     }
     return hit;
   },
   explode(x, y, owner) {
-    Audio_.boom(clamp(1 - dist(x, y, this.player.x, this.player.y) / 900, 0.1, 1));
+    Audio_.boom(1, x, y);
     this.parts.burst('smoke', x, y, 16, 50, 2, 5, '80,70,60');
     this.parts.burst('spark', x, y, 30, 140, 0.6, 1);
     this.parts.burst('debris', x, y, 14, 110, 0.9, 2, '#5a4a3a');
@@ -1009,7 +1015,7 @@ const GameSystems = {
       const pos = this.findSpawnPos(P.x, P.y, 200, 280, true);
       if (pos) { h.x = pos[0]; h.y = pos[1]; }
     }
-    if (d > 26) { h.state = 'come'; h.t = 30; setTimeout(() => Audio_.neigh(), 500); }
+    if (d > 26) { h.state = 'come'; h.t = 30; setTimeout(() => Audio_.neigh(h.x, h.y), 500); }
   },
   setHorse(h, silent) {
     if (this.horse && this.horse !== h && !this.horse.dead) {
@@ -1819,6 +1825,7 @@ const GameSystems = {
     }
     if (d.extra && a.male && chance(d.extra[1] + 0.3)) P.addItem(d.extra[0], 1);
     P.clean = Math.max(0, P.clean - 6);
+    Audio_.play('skin', { x: a.x, y: a.y });
     this.skillXp('hunting', 3);
     Audio_.tone(200, 0.2, 'sawtooth', 0.03);
     this.parts.burst('blood', a.x, a.y, 6, 20, 0.6, 1.2);
@@ -1923,7 +1930,7 @@ const GameSystems = {
   drinkWater(clean) {
     const P = this.player;
     P.thirst = Math.min(100, P.thirst + 40);
-    Audio_.tone(400, 0.2, 'sine', 0.05, null, 0, 250);
+    if (!Audio_.play('drink')) Audio_.tone(400, 0.2, 'sine', 0.05, null, 0, 250);
     if (!clean) {
       const t = this.world.tileAtPx(P.x, P.y);
       if (chance(0.06) || (t === T.SWAMP && chance(0.2))) this.sicken(6, Tr('Su pek temiz değildi. <b>Midende bir bulantı hissediyorsun.</b>'));

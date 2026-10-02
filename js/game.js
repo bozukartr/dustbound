@@ -461,6 +461,9 @@ const G = {
     if (this.state === 'play' && !this.binoc) P.update(sdt);
     for (const e of this.ents) {
       if (e === P) continue;
+      if ((e.kind === 'npc' && !e.dead && !e.bound && !e.hide) || (e.kind === 'horse' && !e.rider && !e.dead) || (e.kind === 'wagon' && e !== P.riding)) {
+        if (Math.abs(e.x - P.x) < 300 && Math.abs(e.y - P.y) < 220) Audio_.footTick(e, sdt); else e._sx = undefined;
+      }
       // uzaktaki kasaba sakinleri seyrek güncellenir (kalabalık kasabalarda performans)
       if (e.res && !e.hostile && e.state !== 'flee' && e.state !== 'report' && !e.bound && Math.abs(e.x - P.x) + Math.abs(e.y - P.y) > 620) {
         e.lodT = (e.lodT || 0) + sdt;
@@ -500,6 +503,9 @@ const G = {
         this.hintOnce('indoor', Tr`Binaların içinde dolaşabilirsin. Tezgahtaki çalışanla, yataklarla, masalarla ve diğer eşyalarla ${Input.glyph('interact')} ile etkileşime geç. Dükkanlar gece kapanır.`);
       }
       if (this.insideB && !ib) this.exitB = this.insideB;
+      // kapı sesi: saloonda yaylı kanatlar, öbür binalarda menteşe gıcırtısı
+      const db = ib || this.insideB;
+      if (db && db.door) Audio_.play(db.type === 'saloon' || db.type === 'cantina' ? 'saloon_door' : 'door_open', { x: db.door.x, y: db.door.y, vol: 0.8 });
       this.insideB = ib;
     }
     // çıkılan binanın kapısı, oyuncu kapıdan uzaklaşana kadar açık kalır
@@ -515,7 +521,7 @@ const G = {
       T_.amb = 0.25;
       const env = this.envCache = this.localWeather(P.x, P.y);
       const b = this.world.biomeAt(P.x, P.y);
-      Audio_.ambientTick({ rain: env.rain, wind: Math.max(env.dust, env.snow * 0.6, env.storm ? 0.6 : 0.12), fire: this.nearFire ? 1 : 0, water: this.world.nearWater(P.x, P.y, 40) ? 1 : 0, night: this.isNight, nature: b === 'FOREST' || b === 'GRASS' || b === 'SWAMP' ? 1 : 0.4, wolves: b === 'FOREST' || b === 'SNOW' });
+      Audio_.ambientTick({ town: !!this.world.townAt(P.x, P.y, 2), indoor: !!this.insideB, storm: !!env.storm, rain: env.rain, wind: Math.max(env.dust, env.snow * 0.6, env.storm ? 0.6 : 0.12), fire: this.nearFire ? 1 : 0, water: this.world.nearWater(P.x, P.y, 40) ? 1 : 0, night: this.isNight, nature: b === 'FOREST' || b === 'GRASS' || b === 'SWAMP' ? 1 : 0.4, wolves: b === 'FOREST' || b === 'SNOW' });
       if (env.storm && Math.random() < 0.02) { this.fx.lightning = 1; Audio_.thunder(); }
       // piyano dosyası yüklenemezse eski prosedürel piyano
       if (Audio_.tr && Audio_.tr.piano && Audio_.tr.piano.failed && Audio_.pianoLevel > 0.02) {

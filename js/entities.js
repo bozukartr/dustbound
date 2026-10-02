@@ -678,6 +678,7 @@ class Player extends Ent {
     if ((this.clip[this.weapon] || 0) >= Wp.clip || have <= 0) return;
     let t = Wp.reload * (G.hasPerk('gunslinger') ? 0.75 : 1);
     this.reloadT = t;
+    Audio_.play('reload_' + (this.weapon === 'shotgun' ? 'shotgun' : Wp.kind === 'long' ? 'repeater' : 'pistol'), { rate: Math.min(1.4, Wp.reload / t) });
     if (Wp.kind === 'pistol' || Wp.clip <= 2) {
       const spent = Math.min(6, (this.spent && this.spent[this.weapon]) || 0);
       for (let i = 0; i < spent; i++) FX.casing(this.x + rnd(-1, 1), this.y + rnd(-1, 1), this.ang + rnd(-1, 1), this.weapon === 'shotgun');
@@ -718,7 +719,7 @@ class Player extends Ent {
     G.fx.shake = Math.max(G.fx.shake, Wp.kind === 'long' ? 0.9 : 0.5);
     Juice.recoil(this, sa, Wp.pellets ? 2.2 : Wp.kind === 'long' ? 1.7 : 1.1);   // yönlü geri tepme
     G.fx.muzzle = 0.06;
-    Audio_.shot(this.weapon === 'rifle' ? 'rifle' : this.weapon === 'shotgun' ? 'shotgun' : 'pistol', 0.9);
+    Audio_.shot(Audio_.gunKind(this.weapon), 0.9);
     Input.rumble(Wp.kind === 'long' ? 0.7 : 0.45, 0.3, Wp.kind === 'long' ? 140 : 90);
     G.noise(this.x, this.y, 620, 'gun');
     G.onPlayerFire();
@@ -756,7 +757,7 @@ class Player extends Ent {
     // atış yönüne yakın bir kişi varsa ilmek ona yönelir (nişan yardımı)
     const tg = this.pickTarget(a, 0.35, null, true);
     G.projs.push({ type: 'lasso', x: this.x + Math.cos(a) * 6, y: this.y + Math.sin(a) * 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: R / sp, owner: this, ang: a, t: 0, tg: tg && (tg.kind === 'npc' || tg.kind === 'animal') ? tg : null });
-    Audio_.tone(380, 0.18, 'sine', 0.04, null, 0, 220);
+    if (!Audio_.play('lasso')) Audio_.tone(380, 0.18, 'sine', 0.04, null, 0, 220);
     this.swing = 1;
     this.sta = Math.max(0, this.sta - 4);
   }
@@ -802,8 +803,8 @@ class Player extends Ent {
       hitAny = true;
       break;
     }
-    Audio_.tone(300, 0.06, 'sine', 0.05, null, 0, 120);
-    if (hitAny) { Audio_.thud(0.5); G.fx.shake = 2; G.skillXp('strength', 1); }
+    if (!Audio_.play('lasso', { vol: 0.35, rate: 1.8 })) Audio_.tone(300, 0.06, 'sine', 0.05, null, 0, 120);   // kol savuruşu
+    if (hitAny) { if (!Audio_.play(this.weapon === 'knife' && !bash ? 'hit_flesh' : 'punch')) Audio_.thud(0.5); G.fx.shake = 2; G.skillXp('strength', 1); }
     this.sta = Math.max(0, this.sta - 5);
   }
   draw(ctx) {
@@ -938,7 +939,7 @@ class Animal extends Ent {
     if (G.isNight) sense *= 0.8;
     if (d.tame && P.crouch && !P.riding) sense = 16;
     if (this.state === 'idle' || this.state === 'wander') {
-      if (d.beh === 'hostile' && pd < d.aggro * (G.isNight && d.night ? 1.3 : 1)) { this.state = 'attack'; this.t = 25; if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar') Audio_.growl(); }
+      if (d.beh === 'hostile' && pd < d.aggro * (G.isNight && d.night ? 1.3 : 1)) { this.state = 'attack'; this.t = 25; if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar') Audio_.growl(this.type, this.x, this.y); }
       else if (d.beh === 'skittish' && pd < d.aggro && (P.hp < P.maxHp * 0.35 || G.isNight)) { this.state = 'attack'; this.t = 12; }
       else if ((d.beh === 'flee' || d.beh === 'skittish') && pd < sense) { this.state = 'flee'; this.t = rnd(5, 9); this.fleeFrom(P); }
       else if (d.beh === 'passive' && pd < 20) { this.state = 'flee'; this.t = 2; this.fleeFrom(P); }
@@ -965,7 +966,7 @@ class Animal extends Ent {
           Juice.hurtFrom(this.x, this.y);
           P.hurt(d.dmg * (G.difficulty === 'hard' ? 1.2 : 1), this.type);
           if (d.venom && !G.player.riding) { P.poison = Math.max(P.poison, 90); UI.help(Tr('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.'), 6); }
-          if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar' || this.type === 'gator') Audio_.growl();
+          if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar' || this.type === 'gator') Audio_.growl(this.type, this.x, this.y);
         }
       }
       if (this.t <= 0 || pd > 420) { this.state = 'idle'; this.t = 3; }
@@ -1292,7 +1293,7 @@ class NPC extends Ent {
       G.parts.add('flash', this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, 0, 0, 0.06, 3.5);
       Juice.muzzle(this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8);
       if (pd < 500) FX.gunSmoke(this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, this.ang, W.kind === 'long');
-      Audio_.shot(this.weapon === 'shotgun' ? 'shotgun' : 'pistol', clamp(1 - pd / 700, 0.1, 0.8));
+      Audio_.shot(Audio_.gunKind(this.weapon), 0.85, this.x, this.y);
       if (chance(0.15)) this.say(pick(this.isLaw ? LINES.law : LINES.bandit), 2);
     }
   }

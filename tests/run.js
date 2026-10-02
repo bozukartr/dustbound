@@ -73,6 +73,8 @@ async function runFile(file, browser, url) {
       // hikâyeli başlangıç ve sinematikleri yalnızca onları sınayan testler açar
       if (!o.story) await p.addInitScript(() => { window.__testNoStory = true; });
       if (!o.cine) await p.addInitScript(() => { window.__testNoCine = true; });
+      // ses örneklerini yalnızca ses testi yükler (öbür testler prosedürel sesle hızlı kalır)
+      if (!o.sfx) await p.addInitScript(() => { window.__testNoSfx = true; });
       if (o.init) await p.addInitScript(o.init);
       await p.goto(url + 'index.html');
       await p.waitForFunction(() => typeof G !== 'undefined' && G.state === 'menu', null, { timeout: 30000 });
