@@ -1,14 +1,62 @@
 'use strict';
-/* Ses motoru: örnek bankası, uzamsal ses, mekân yankısı, zemin, kısma, seslendirme anahtarı */
+/* Ses motoru: ses listesi aracı, örnek bankası, uzamsal ses, mekân yankısı, zemin, kısma, seslendirme anahtarı */
 module.exports = {
   name: 'Ses motoru',
   timeout: 200000,
   async run(t) {
+    // araç: klasördeki dosyalar adlarına göre manifeste yazılır
+    await t.step('ses listesi aracı dosyaları tanır (çeşit, uzantı, bilinmeyen ad)', async () => {
+      const fs = require('fs'), os = require('os'), path = require('path');
+      const { build, CATALOG } = require('../../tools/sfx-manifest.js');
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sfx-'));
+      for (const f of ['gun_pistol_01.wav', 'gun_pistol_02.wav', 'step_dirt.mp3', 'amb_wind.ogg', 'foo_bar.ogg', 'notes.txt']) fs.writeFileSync(path.join(dir, f), '');
+      const { man, unknown } = build(dir);
+      fs.rmSync(dir, { recursive: true, force: true });
+      t.eq(man.gun_pistol.files.length, 2, 'iki çeşit'); t.eq(man.step_dirt.files[0], 'step_dirt.mp3', 'numarasız ad');
+      t.ok(man.amb_wind.loop && man.gun_pistol.dist === CATALOG.gun_pistol[1].dist, 'ayarlar listeden gelir');
+      t.eq(unknown, ['foo_bar.ogg'], 'bilinmeyen dosya bildirilir');
+    });
     const p = await t.newGame({ sfx: true });
-    await t.step('örnek bankası yüklenir (manifest + OGG çözümleme)', async () => {
-      await p.waitForFunction(() => Audio_.ctx && Audio_.man && ['gun_pistol', 'step_dirt', 'ui_ok', 'amb_wind', 'explosion', 'horse_neigh'].every(n => Audio_.has(n)), null, { timeout: 60000 });
-      const r = await p.evaluate(() => ({ n: Object.keys(Audio_.man).length, loaded: Object.keys(Audio_.bank).length, ogg: Audio_.canOgg }));
-      t.ok(r.n > 50 && r.loaded > 20, 'yüzlerce örnek', r);
+    await t.step('dosya yokken eski sesler çalar, hata vermez', async () => {
+      const r = await p.evaluate(async () => {
+        await new Promise(res => setTimeout(res, 800));
+        const P = G.player;
+        G.whistle(); Audio_.ui('ok'); Audio_.step(0.06); Audio_.shot('rifle', 1, P.x + 40, P.y); Audio_.neigh(P.x + 40, P.y); G.explode(P.x + 300, P.y, null);
+        P.addItem('beans', 1, true); G.consume('beans');
+        return { bank: Object.keys(Audio_.bank).length, voices: Audio_.voices.length };
+      });
+      t.eq(r.bank, 0, 'banka boş'); t.eq(r.voices, 0, 'örnek çalınmadı');
+    });
+    await t.step('manifestteki dosyalar yüklenir, çeşitler ve döngü kurulur', async () => {
+      const r = await p.evaluate(async () => {
+        // sahte manifest ve kodla üretilmiş WAV dosyaları
+        const wav = (sec, f) => {
+          const sr = 22050, n = Math.floor(sr * sec), b = new ArrayBuffer(44 + n * 2), v = new DataView(b);
+          const S = (o, s) => [...s].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+          S(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); S(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+          v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); S(36, 'data'); v.setUint32(40, n * 2, true);
+          for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.sin(i * f / sr * 6.283) * 8000 * (1 - i / n), true);
+          return b;
+        };
+        const M = (o) => ({ dist: 1600, max: 6, pitch: 0.05, rev: 0.5, vol: 0.8, ...o });
+        const man = {};
+        for (const nm of ['gun_pistol', 'step_dirt', 'step_wood', 'ui_move', 'ui_ok', 'coins', 'whistle', 'horse_neigh', 'explosion', 'eat'])
+          man[nm] = M({ files: [1, 2, 3].map(k => `${nm}_0${k}.wav`), ...(nm.startsWith('step') ? { dist: 280, max: 8 } : nm.startsWith('ui') || nm === 'coins' ? { bus: 'ui' } : {}) });
+        man.amb_wind = { bus: 'amb', loop: true, vol: 1, files: ['amb_wind.wav'] };
+        const real = window.fetch;
+        window.fetch = (u, o) => {
+          u = String(u);
+          if (u.endsWith('audio/sfx/manifest.json')) return Promise.resolve(new Response(JSON.stringify(man)));
+          if (u.includes('audio/sfx/')) return Promise.resolve(new Response(wav(u.includes('amb_') ? 2 : 0.2, 300 + u.length * 7)));
+          return real(u, o);
+        };
+        Audio_.loadBank();
+        const t0 = performance.now();
+        while (!Object.keys(man).every(n => Audio_.has(n)) && performance.now() - t0 < 15000) await new Promise(res => setTimeout(res, 100));
+        window.fetch = real;
+        return { all: Object.keys(man).every(n => Audio_.has(n)), n: Audio_.bank.gun_pistol.bufs.length, loop: !!Audio_.sloops.wind };
+      });
+      t.ok(r.all, 'hepsi yüklendi'); t.eq(r.n, 3, 'üç çeşit'); t.ok(r.loop, 'döngü kuruldu');
     });
     await t.step('konumlu ses: menzil, yön, duvar arkası', async () => {
       const r = await p.evaluate(() => {

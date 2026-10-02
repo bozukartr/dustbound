@@ -251,19 +251,20 @@ Ses motoru (`js/audio.js`) WebAudio üzerinde bir miks masası gibi çalışır:
 - **Konumlu ses:** silah, adım, toynak, hayvan ve patlama sesleri kaynağın yerinden duyulur. Uzaklaştıkça kısılır ve tizleri kaybolur, sağ ve sol kulağa dağılır. Başka bir binanın içindeki ses duvar arkasından boğuk gelir.
 - **Mekâna göre yankı:** açık arazi, kasaba sokağı, kanyon, orman, oda, salon (saloon, otel, banka) ve mağara için ayrı yankılar vardır. Yer değişince yankı yumuşakça geçer. İçerideyken dışarının ortam sesi boğuklaşır.
 - **Zemin:** adım ve toynak sesi, basılan zemine göre seçilir: toprak, çimen, kum, taş, tahta (bina içi de), çamur, kar ve su. Yakındaki NPC'lerin, atların ve arabaların adımları da duyulur.
-- **Çeşitlilik:** her sesin birkaç kaydı vardır. Aynı kayıt art arda çalmaz, perde ve ses düzeyi hafifçe değişir. Aynı anda çalan aynı sesin bir sınırı vardır.
+- **Çeşitlilik:** bir sesin birden çok dosyası varsa aynı dosya art arda çalmaz; perde ve ses düzeyi hafifçe değişir. Aynı anda çalan aynı sesin bir sınırı vardır.
 - **Kısma (ducking):** yakın bir silah sesi ya da patlama, ortamı ve müziği bir an kısar. Konuşma sırasında ortam ve müzik alçalır.
 
-**Ses örnekleri** `audio/sfx/` klasöründedir (OGG Vorbis, 44.1 kHz mono). Hepsi `tools/sfx-render.py` ile katmanlı sentez, modal sentez ve granüler dokularla çevrimdışı üretilmiştir:
+**Ses dosyaları** `audio/sfx/` klasörüne tek tek eklenir. Hangi adın hangi olayda çaldığı `audio/sfx/LISTE.md` içindedir (örneğin `gun_pistol`, `step_wood`, `horse_neigh`, `amb_rain`). Dosyayı bu adla koy, sonra listeyi yenile:
 
 ```
-pip install numpy scipy soundfile
-python3 tools/sfx-render.py            # bütün sesler + audio/sfx/manifest.json
-python3 tools/sfx-render.py gun step   # yalnız adında "gun" ya da "step" geçenler
-python3 tools/sfx-render.py --manifest # yalnız manifesti yenile (elle eklenen kayıtlar için)
+node tools/sfx-manifest.js   # audio/sfx/manifest.json ve LISTE.md
 ```
 
-Gerçek kayıtlarla değiştirmek için dosyayı aynı adla `audio/sfx/` içine koy (örneğin `gun_rifle_00.ogg`, `gun_rifle_01.ogg` …). Sonra `python3 tools/sfx-render.py --manifest` çalıştır: hiçbir sesi yeniden üretmez, yalnızca klasördeki dosyaları sayıp manifesti günceller. Bir sesin kayıt sayısı değişebilir; eski üretilmiş kayıtlardan fazla olanları sil. Ses düzeyi, perde, yankı payı, duyulma mesafesi ve eşzamanlı sınır manifestteki `meta` alanındadır. Tarayıcı OGG çözemezse ya da örnek yoksa eski prosedürel sesler çalar.
+- Uzantı: ogg, mp3, wav, m4a, flac ya da webm.
+- Bir sesin birden çok çeşidi için `_01`, `_02` … ekle (`gun_pistol_01.ogg`, `gun_pistol_02.ogg`). Oyun her seferinde başka birini seçer.
+- Dosyası olmayan ses, oyunun kodla ürettiği eski sesle çalar. Zemin adımlarında o zeminin dosyası yoksa `step_dirt` / `hoof_dirt` çalar.
+- Ses düzeyi, perde oynaması, yankı payı, duyulma mesafesi ve eşzamanlı sınır `tools/sfx-manifest.js` içindeki listededir.
+- Döngülerin (`amb_…`) başı ve sonu kesintisiz birleşmelidir.
 
 **Seslendirme (ileride):** hikâye diyalogları seslendirmeye hazırdır. Her replik, o dildeki metninin özetinden (FNV-1a) türeyen bir anahtarla bulunur:
 
@@ -312,7 +313,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `hunters` | ödül avcısı grubu: çıkma koşulları, yaklaşma, parayla kurtulma, teslim olma, çatışma |
 | `world` | kasaba sakinleri, ölüm ve yerine gelen, at arabası, hayvan kementleme, boğulma, göçebeler, mevsimler |
 | `controls` | oyun kolu ile menü, yürüme, nişan ve ateş, silah çarkı, binme animasyonu, genişletilmiş radar |
-| `audio` | ses örnek bankasının yüklenmesi, konumlu ses (menzil, yön, duvar arkası), mekâna göre yankı ve zemin, silah sesinde kısma, art arda aynı kaydın çalmaması ve eşzamanlı sınır, oyun içi olayların örnekli sesi, seslendirme anahtarı |
+| `audio` | ses listesi aracı (çeşit, uzantı, bilinmeyen ad), dosya yokken eski seslere dönüş, dosyaların yüklenmesi ve döngüler, konumlu ses (menzil, yön, duvar arkası), mekâna göre yankı ve zemin, silah sesinde kısma, art arda aynı kaydın çalmaması ve eşzamanlı sınır, oyun içi olayların örnekli sesi, seslendirme anahtarı |
 | `debug` | hata ayıklama paneli şifresi ve kilidi |
 | `stress` | 45 sn rastgele tuş ve fare girdisi |
 
@@ -320,11 +321,11 @@ Yeni bir test için `tests/e2e/` altına `ad.test.js` ekle: `module.exports = { 
 
 ## Teknik
 
-- Saf HTML, CSS ve JavaScript. Hiçbir kütüphane yok; bütün grafikler kodla üretiliyor. Ses örnekleri çevrimdışı üretilmiş OGG dosyalarıdır (bkz. Ses).
+- Saf HTML, CSS ve JavaScript. Hiçbir kütüphane yok; bütün grafikler kodla üretiliyor.
 - Arayüzdeki bütün ikonlar (eşyalar, silahlar, radar ve harita işaretleri, PS tuşları) koddan üretilen SVG'lerdir.
 - Dünya, 512 piksellik parçalar (chunk) halinde önceden çizilip önbelleğe alınır. Yeni parçalar kare başına küçük bir zaman bütçesiyle arka planda hazırlanır, bu yüzden hareket ederken takılma olmaz.
 - Oyun düşük çözünürlüklü bir tuvale çizilip piksel ölçeklemeyle büyütülür. Bu hem piksel sanat görünümü verir hem de akıcı FPS sağlar.
-- Efektler ve ortam sesleri `audio/sfx/` örneklerinden çalınır; örnek yoksa WebAudio ile prosedürel üretilir. Ana tema ve saloon piyanosu `audio/` klasöründeki sıkıştırılmış mp3 dosyalarından akışla çalınır (belleğe tamamen açılmaz). Ana tema menüde ve keşif sırasında aralıklarla, Karplus-Strong gitarıyla çalan prosedürel müzikle dönüşümlü çalar.
+- Efektler ve ortam sesleri WebAudio ile prosedürel olarak üretilir; `audio/sfx/` klasörüne dosyası konan ses o dosyayla çalar (bkz. Ses). Ana tema ve saloon piyanosu `audio/` klasöründeki sıkıştırılmış mp3 dosyalarından akışla çalınır (belleğe tamamen açılmaz). Ana tema menüde ve keşif sırasında aralıklarla, Karplus-Strong gitarıyla çalan prosedürel müzikle dönüşümlü çalar.
 - Saloon piyanosu üç parça arasından rastgele seçilir. İçeride tam sesle duyulur; dışarıda kapıya yaklaştıkça yavaşça yükselir, duvar arkasından boğuk gelir. Piyano duyulurken ana tema kısılır.
 
 ```
@@ -345,9 +346,9 @@ js/data.js      eşyalar, silahlar, hayvanlar, kasabalar, başarımlar
 js/input.js     klavye, fare ve oyun kolu (PlayStation, Xbox, Steam Deck simgeleri)
 js/audio.js     ses motoru: kanallar, konumlu ses, yankı, zemin, kısma, örnek bankası, seslendirme; müzik ve mp3 akışı
 audio/          ana tema ve saloon piyanosu (mp3)
-audio/sfx/      efekt ve ortam örnekleri (OGG) ve manifest
+audio/sfx/      efekt ve ortam ses dosyaları, manifest ve ses listesi (LISTE.md)
 audio/vo/       seslendirme senaryosu (CSV), kayıtlar ve manifest
-tools/sfx-render.py  ses örneklerini çevrimdışı üreten araç (python)
+tools/sfx-manifest.js  ses listesi ve manifest aracı (node)
 tools/vo-script.js   seslendirme senaryosu ve manifest aracı (node)
 js/world.js     dünya üretimi, chunk render, harita
 js/sprites.js   karakter, hayvan, at, bina ve nesne çizimleri
