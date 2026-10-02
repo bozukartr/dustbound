@@ -416,7 +416,7 @@ const FX = {
   post(ctx, dt) {
     const P = G.player, W = G.world, g = this.g, vw = G.vw, vh = G.vh, h = G.hour;
     const env = G.envCache || {};
-    const biome = W.tileAtPx(P.x, P.y);
+    const biome = W.areaTile(P.x, P.y);   // küçük zemin lekeleri ekran rengini değiştirmesin
     const out = G.insideB ? 0.25 : 1;
     // hedefler
     let gold = 0, blue = 0;

@@ -86,7 +86,7 @@ const GameSystems = {
   },
   localWeather(px, py) {
     const W = this.weather;
-    const t = this.world.tileAtPx(px, py);
+    const t = this.world.areaTile(px, py);   // tek karo değil, çevrenin baskın zemini
     const h = this.world.climateAt(px, py);
     const out = { rain: 0, snow: 0, dust: 0, fog: 0, cloud: W.cloud, storm: W.type === 'storm' && W.i > 0.6 };
     const cold = h < 0.24 || (this.season === 3 && h < SNOW_LINE) || t === T.SNOW;

@@ -18,6 +18,8 @@ const inWorld = d => !d.big || WW > WORLD_OLD;
 
 const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20 };
 const TNAME = Object.keys(T);
+/* Biyom sayılmayan zeminler (yol, kasaba, köprü, tarla, su): baskın biyom hesabında atlanır */
+const AREA_NEUTRAL = new Set([T.DEEP, T.WATER, T.ROAD, T.TOWN, T.FARM, T.BRIDGE, T.PLANK, T.HOTWATER]);
 const TINFO = [
   { c: '#2c4b5e', v: 5, solid: 1, map: '#98aca8' },            // DEEP
   { c: '#41707c', v: 5, slow: 0.55, map: '#aebdb2', water: 1 }, // WATER
@@ -186,6 +188,22 @@ class World {
   }
   isWaterPx(px, py) { return isWaterT(this.tileAtPx(px, py)); }
   biomeAt(px, py) { return TNAME[this.tileAtPx(px, py)]; }
+  /* Çevrenin baskın biyomu: ±256 piksellik alanda en çok görülen doğal zemin.
+     Hava ve ekran rengi bunu kullanır; kasabadaki küçük bir kum ya da kar
+     lekesinin üstüne basmak havayı değiştirmez. 64 piksellik hücre başına önbellekli. */
+  areaTile(px, py) {
+    const key = (px >> 6) * 100003 + (py >> 6), C = this._areaC || (this._areaC = { key: null, t: 0 });
+    if (C.key === key) return C.t;
+    const n = new Uint16Array(TNAME.length);
+    for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
+      const t = this.tileAtPx(px + i * 64, py + j * 64);
+      if (!AREA_NEUTRAL.has(t)) n[t] += i === 0 && j === 0 ? 2 : 1;
+    }
+    let best = -1, bn = 0;
+    for (let t = 0; t < n.length; t++) if (n[t] > bn) { bn = n[t]; best = t; }
+    C.key = key; C.t = best < 0 ? this.tileAtPx(px, py) : best;
+    return C.t;
+  }
   /* Kasaba/yol vb. için arka plan biyomu */
   climateAt(px, py) {
     const x = clamp(px >> 4, 0, WW - 1), y = clamp(py >> 4, 0, WH - 1);

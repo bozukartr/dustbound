@@ -101,5 +101,34 @@ module.exports = {
       });
       t.eq(r, [[3, 3], [2, 2], [0, 0]], 'oyun ve dünya mevsimi');
     });
+    await t.step('küçük bir zemin lekesi havayı ve ekran rengini değiştirmez, geniş çölde toz fırtınası olur', async () => {
+      const r = await p.evaluate(() => {
+        const W = G.world, P = G.player;
+        // sıcak ama çöl olmayan bir kasaba (eski kodda leke burada kum fırtınası açardı)
+        const tw = W.towns.find(t => W.climateAt(t.spawn.x, t.spawn.y) > 0.55 && W.areaTile(t.spawn.x, t.spawn.y) !== T.DESERT && W.areaTile(t.spawn.x, t.spawn.y) !== T.REDROCK && W.areaTile(t.spawn.x, t.spawn.y) !== T.MESA);
+        TH.goto(tw.spawn.x, tw.spawn.y);
+        // oyuncunun altına 3x3 karoluk bir çöl lekesi koy
+        const tx = P.x >> 4, ty = P.y >> 4, old = [];
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const k = (ty + j) * WW + tx + i; old.push([k, W.tile[k]]); W.tile[k] = T.DESERT; }
+        W._areaC = null;
+        const saved = { ...G.weather };
+        Object.assign(G.weather, { type: 'storm', i: 1 });
+        const patch = { tile: W.tileAtPx(P.x, P.y), area: W.areaTile(P.x, P.y), env: G.localWeather(P.x, P.y) };
+        for (const [k, v] of old) W.tile[k] = v;
+        W._areaC = null;
+        // geniş çöl: çevresi de çöl olan, sıcak bir nokta
+        let desert = null;
+        for (let k = 0; k < 4000 && !desert; k++) {
+          const x = rnd(200, WW * TS - 200), y = rnd(200, WH * TS - 200);
+          if (W.tileAtPx(x, y) === T.DESERT && W.areaTile(x, y) === T.DESERT && W.climateAt(x, y) > 0.55) desert = G.localWeather(x, y);
+        }
+        Object.assign(G.weather, saved);
+        return { patch, desert, town: tw.n };
+      });
+      t.eq(r.patch.tile, 3, 'leke karosu çöl');
+      t.ok(r.patch.area !== 3, 'çevrenin baskın zemini çöl değil', r.patch);
+      t.ok(r.patch.env.dust === 0 && r.patch.env.rain > 0.5, 'lekede kum fırtınası değil yağmur', r.patch.env);
+      t.ok(r.desert && r.desert.dust > 0.5, 'geniş çölde toz fırtınası', r.desert);
+    });
   },
 };
