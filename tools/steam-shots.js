@@ -334,7 +334,8 @@ const SCENES = [
   // ana menü ve karakter ekranı sahneleri oyun başlamadan
   for (const s of list.filter(s => s.pre)) { console.log('•', s.name); await s.run(p); await p.screenshot({ path: path.join(OUT, `${s.file || s.name}.png`) }); }
   await sleep(300);
-  await p.keyboard.press('Enter'); await sleep(500); await p.keyboard.press('Enter');
+  await p.keyboard.press('Enter'); await sleep(500);
+  await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
   await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 });
   await sleep(1500);
   await p.evaluate(pageHelpers); await p.evaluate(stageHelpers);

@@ -6,7 +6,8 @@ module.exports = {
     const p = await t.page({ guide: true });
     await t.step('ilk oyunda rehber kendiliğinden açılır', async () => {
       await t.sleep(300);
-      await p.keyboard.press('Enter'); await t.sleep(400); await p.keyboard.press('Enter');
+      await p.keyboard.press('Enter'); await t.sleep(400);
+      await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 });
       await p.waitForFunction(() => !!document.querySelector('.panel.welcome'), null, { timeout: 8000 });
       const r = await p.evaluate(() => ({ title: document.querySelector('.wl-title').textContent, dots: document.querySelectorAll('.wl-dots i').length, portrait: !!document.querySelector('#wl-portrait') }));

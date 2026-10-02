@@ -17,7 +17,7 @@ module.exports = {
       t.eq(await p.evaluate(() => UI.top().focusEl.dataset.id), 'new', 'D-pad ile odak');
       await tap(0); await t.sleep(400);
       t.ok(await p.evaluate(() => !!document.querySelector('.create')), 'X karakter ekranını açmalı');
-      await p.evaluate(() => document.querySelector('#cr-go').click());
+      await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 }); await t.sleep(600);
       await p.evaluate(() => UI.el.help.classList.add('hidden'));
       await t.helpers(p);

@@ -84,7 +84,9 @@ async function runFile(file, browser, url) {
     async newGame(o = {}) {
       const p = o.page || await t.page(o);
       await sleep(300);
-      await p.keyboard.press('Enter'); await sleep(400); await p.keyboard.press('Enter');
+      await p.keyboard.press('Enter'); await sleep(400);
+      // karakter ekranı adım adım: her bölümde İleri, sonunda Hayata Başla
+      await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 });
       await sleep(600);
       await p.evaluate(pageHelpers);

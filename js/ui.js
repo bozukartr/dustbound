@@ -2419,9 +2419,20 @@ const UI = {
   showCreate(slot) {
     const look = randomLook(chance(0.5) ? 'm' : 'f');
     look.coatLen = 0;
-    const prof = { name: pick(NAMES[look.sex]) + ' ' + pick(NAMES.last), look, bg: 'farm', difficulty: 'story', pace: 'normal', story: true, slot: slot || G.freeSlot() || 1 };
+    const rndName = (sex) => pick(NAMES[sex]) + ' ' + pick(NAMES.last);
+    const prof = { name: rndName(look.sex), look, bg: 'farm', difficulty: 'story', pace: 'normal', story: true, slot: slot || G.freeSlot() || 1 };
+    // oyuncu kendi ismini yazdıysa cinsiyet değişince ya da Rastgele'de korunur
+    let customName = false, started = false;
     const el = el_('div', 'modal create');
-    const TABS = [{ n: Tr('Kimlik'), g: 'quill' }, { n: Tr('Görünüm'), g: 'barber' }, { n: Tr('Kıyafet'), g: 'scissors' }, { n: Tr('Hikâye'), g: 'book' }];
+    const TABS = [
+      { n: Tr('Kimlik'), g: 'quill', d: Tr('Adını yaz; cinsiyetini, ten ve göz rengini seç.') },
+      { n: Tr('Görünüm'), g: 'barber', d: Tr('Saçını ve sakalını belirle. Portre her değişikliği gösterir.') },
+      { n: Tr('Kıyafet'), g: 'scissors', d: Tr('Batıya ne giyerek geleceğini seç: şapka, ceket, gömlek, pantolon.') },
+      { n: Tr('Hikâye'), g: 'book', d: Tr('Geçmişin başlangıç kasabanı, paranı, atını ve becerilerini belirler. Zorluğu ve yaşlanma hızını seç, sonra hayata başla.') },
+    ];
+    // her bölüme en az bir kez bakılmadan hayata başlanamaz
+    const seen = new Set([0]);
+    const allSeen = () => seen.size === TABS.length;
     const rows = [
       { t: 0, k: 'sex', n: Tr('Cinsiyet'), opts: ['m', 'f'], lab: v => (v === 'm' ? Tr('Erkek') : Tr('Kadın')) },
       { t: 0, k: 'skin', n: Tr('Ten Rengi'), opts: LOOKS.skin, sw: 1 },
@@ -2449,7 +2460,7 @@ const UI = {
     };
     const rowsHtml = () => {
       let h = '';
-      if (tab === 0) h += `<div class="cr-row nav" id="cr-name-row"><span class="cr-l">${Tr`İsim`}</span><span class="cr-name-w"><input id="cr-name" maxlength="28" value="${escapeHtml(prof.name)}"><span class="cr-rand" id="cr-rn" title="Rastgele isim">${Icons.glyph('dice', '#c9a45c')}</span></span></div>`;
+      if (tab === 0) h += `<div class="cr-row nav" id="cr-name-row"><span class="cr-l">${Tr`İsim`}</span><span class="cr-name-w"><input id="cr-name" maxlength="28" value="${escapeHtml(prof.name)}"><span class="cr-rand" id="cr-rn" title="${Tr('Rastgele isim')}">${Icons.glyph('dice', '#c9a45c')}</span></span></div>`;
       rows.forEach((r, i) => {
         if (r.t !== tab || (r.male && look.sex !== 'm')) return;
         h += `<div class="cr-row nav opt ${r.sw ? 'sw' : ''}" data-i="${i}" data-lr><span class="cr-l">${r.n}</span><span class="cr-v"><b class="arr">◀</b>${valHtml(r)}<b class="arr">▶</b></span></div>`;
@@ -2460,9 +2471,9 @@ const UI = {
     const html = () => `
       <div class="cr-head">
         <div class="cr-title"><div class="p-title">${Tr`Yeni Bir Hayat`}</div><div class="cr-sub">${Tr`Amerika, ${START_YEAR} • 18 yaşındasın`}</div></div>
-        <div class="cr-tabs">${Input.glyph('tabL')}${TABS.map((t, i) => `<span class="cr-tab ${i === tab ? 'on' : ''}" data-t="${i}">${Icons.glyph(t.g, i === tab ? '#fff' : '#a89c88')}${t.n}</span>`).join('')}${Input.glyph('tabR')}</div>
+        <div class="cr-tabs">${Input.glyph('tabL')}${TABS.map((t, i) => `<span class="cr-tab ${i === tab ? 'on' : ''} ${seen.has(i) ? 'seen' : 'new'}" data-t="${i}"><em class="cr-tn">${seen.has(i) && i !== tab ? '✓' : i + 1}</em>${Icons.glyph(t.g, i === tab ? '#fff' : '#a89c88')}${t.n}</span>`).join('')}${Input.glyph('tabR')}</div>
       </div>
-      <div class="cr-left"><div class="cr-sec">${TABS[tab].n}</div><div class="cr-list">${rowsHtml()}</div></div>
+      <div class="cr-left"><div class="cr-sec">${Tr`Adım ${tab + 1}/${TABS.length}`} · ${TABS[tab].n}</div><div class="cr-steps">${TABS.map((t, i) => `<i class="${i === tab ? 'on' : seen.has(i) ? 'ok' : ''}"></i>`).join('')}</div><p class="cr-guide">${TABS[tab].d}</p><div class="cr-list">${rowsHtml()}</div></div>
       <div class="cr-stage">
         <div class="cr-frame"><canvas id="cr-portrait" width="400" height="480"></canvas><i class="cr-c tl"></i><i class="cr-c tr"></i><i class="cr-c bl"></i><i class="cr-c br"></i></div>
         <div class="cr-under"><div class="cr-plate"><div class="cr-pn" id="cr-pn"></div><div class="cr-ps" id="cr-ps"></div></div>
@@ -2470,7 +2481,7 @@ const UI = {
       </div>
       <div class="cr-right" id="cr-desc"></div>
       <div class="cr-foot"><div class="cr-keys">${Tr`${Input.glyph('up')}${Input.glyph('down')} Seç &nbsp; ◀ ▶ Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Bölüm &nbsp; ${Input.glyph('back')} Geri`}</div>
-        <div class="cr-btns"><div class="p-item nav" id="cr-rand">${Tr`${Icons.glyph('dice', '#e8dcc6')} Rastgele`}</div><div class="p-item nav pref" id="cr-go">${Tr`Hayata Başla ${Input.glyph('confirm')}`}</div></div></div>`;
+        <div class="cr-btns"><div class="p-item nav" id="cr-rand">${Tr`${Icons.glyph('dice', '#e8dcc6')} Rastgele`}</div>${tab > 0 ? `<div class="p-item nav" id="cr-prev">${Tr`◂ Geri`}</div>` : ''}<div class="p-item nav pref ${tab === TABS.length - 1 && allSeen() ? 'go' : 'next'}" id="cr-go">${tab < TABS.length - 1 ? Tr`İleri: ${TABS[tab + 1].n} ▸` : !allSeen() ? Tr`Sırada: ${TABS[TABS.findIndex((t, i) => !seen.has(i))].n} ▸` : Tr`Hayata Başla`} ${Input.glyph('confirm')}</div></div></div>`;
     let m;
     const refresh = () => {
       Spr.portrait($('#cr-portrait', el).getContext('2d'), 400, 480, look, 18);
@@ -2496,8 +2507,10 @@ const UI = {
       Spr.human(tc, 0, 0, -Math.PI / 2 + Math.sin(performance.now() / 900) * 0.5, look, { walk: performance.now() / 150, mv: 0.6 });
       tc.setTransform(1, 0, 0, 1, 0, 0);
     };
-    const setTab = (t, focusRows) => { tab = (t + TABS.length) % TABS.length; build(); if (focusRows) { const f = $('.cr-list .nav', el); if (f) m.setFocus(f, true); } Audio_.ui('move'); };
+    const setTab = (t, focusRows) => { tab = (t + TABS.length) % TABS.length; seen.add(tab); build(); if (focusRows) { const f = $('.cr-list .nav', el); if (f) m.setFocus(f, true); } else m.setFocus($('#cr-go', el), true); Audio_.ui('move'); };
     const build = () => {
+      // isim kutusu odaktayken sayfa yeniden çizilirse blur gelmez: yazı modu açık kalmasın
+      Input.textFocus = false;
       el.innerHTML = html();
       const nameIn = $('#cr-name', el);
       if (nameIn) {
@@ -2506,7 +2519,8 @@ const UI = {
         nameIn.oninput = () => { prof.name = nameIn.value; $('#cr-pn', el).textContent = prof.name || '—'; };
         nameIn.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); nameIn.blur(); } };
         $('#cr-name-row', el).onclick = () => nameIn.focus();
-        const rn = () => { prof.name = pick(NAMES[look.sex]) + ' ' + pick(NAMES.last); nameIn.value = prof.name; refresh(); };
+        nameIn.addEventListener('input', () => { customName = !!nameIn.value.trim(); });
+        const rn = () => { prof.name = rndName(look.sex); customName = false; nameIn.value = prof.name; refresh(); };
         $('#cr-rn', el).onclick = (e) => { e.stopPropagation(); rn(); };
         $('#cr-name-row', el)._lr = rn;
         $('#cr-name-row', el).dataset.lr = '';
@@ -2517,7 +2531,7 @@ const UI = {
         const r = rows[+n.dataset.i];
         const setV = (v) => {
           if (r.prof) prof[r.k] = v; else look[r.k] = v;
-          if (r.k === 'sex') { if (v === 'f') { look.beard = 0; if (look.hairStyle === 3) look.hairStyle = 1; } prof.name = pick(NAMES[v]) + ' ' + pick(NAMES.last); }
+          if (r.k === 'sex') { if (v === 'f') { look.beard = 0; if (look.hairStyle === 3) look.hairStyle = 1; } if (!customName) prof.name = rndName(v); }
           const i = +n.dataset.i; build(); const back = $(`.opt[data-i="${i}"]`, el); if (back) m.setFocus(back, true);
         };
         n._lr = (d) => { const i = r.opts.indexOf(get(r)); setV(r.opts[(i + d + r.opts.length) % r.opts.length]); };
@@ -2525,21 +2539,32 @@ const UI = {
         $$('.arr', n).forEach((a, i) => (a.onclick = (e) => { e.stopPropagation(); n._lr(i ? 1 : -1); }));
         n.onmouseenter = () => m && m.setFocus(n, true);
       });
-      $('#cr-rand', el).onclick = () => { const nl = randomLook(look.sex); Object.assign(look, nl, { coatLen: 0 }); prof.name = pick(NAMES[look.sex]) + ' ' + pick(NAMES.last); build(); m.setFocus($('#cr-rand', el), true); };
+      $('#cr-rand', el).onclick = () => { const nl = randomLook(look.sex); Object.assign(look, nl, { coatLen: 0 }); if (!customName) prof.name = rndName(look.sex); build(); m.setFocus($('#cr-rand', el), true); };
+      const prev = $('#cr-prev', el); if (prev) prev.onclick = () => setTab(tab - 1);
       $('#cr-go', el).onclick = () => {
-        prof.name = (prof.name || '').trim() || pick(NAMES[look.sex]) + ' ' + pick(NAMES.last);
+        if (started || !m.alive) return;   // çift tıklama yeni hayatı iki kez başlatmasın
+        if (tab < TABS.length - 1) { setTab(tab + 1); return; }
+        // bakılmamış bölüm varsa oraya götür
+        const miss = TABS.findIndex((t, i) => !seen.has(i));
+        if (miss >= 0) { setTab(miss); return; }
+        // < > & " isimde olmasın (isim birçok yerde metin içine yazılır)
+        prof.name = (prof.name || '').replace(/[<>&"]/g, '').replace(/\s+/g, ' ').trim() || rndName(look.sex);
         look.beardLen = 0.4;
+        Input.textFocus = false;
+        started = true;
         this.pop(m);
         G.deleteSlot(prof.slot);
         G.newGame({ name: prof.name, look, bg: prof.bg, difficulty: prof.difficulty, pace: prof.pace, story: prof.story, slot: prof.slot });
       };
       refresh(); drawTop();
     };
-    m = this.makeModal(el, { onBack: () => { this.pop(m); this.showMainMenu(); }, onTab: (d) => setTab(tab + d, true) });
+    m = this.makeModal(el, { onBack: () => { if (tab > 0) { setTab(tab - 1); return; } this.pop(m); this.showMainMenu(); }, onTab: (d) => setTab(tab + d, true) });
     build();
     m.update = () => { if (this.frame % 2 === 0) drawTop(); };
     this.push(m);
     const go = $('#cr-go', el); m.setFocus(go, true);
+    // klavyeyle oynayan doğrudan ismini yazabilsin (Enter yazmayı bitirir, ikinci Enter ileri götürür)
+    if (Input.device !== 'pad') { const ni = $('#cr-name', el); if (ni) { ni.focus(); ni.select(); } }
   },
 
   /* Ana menü arka planı: gün batımında çöl (paralaks, döngüsel) */

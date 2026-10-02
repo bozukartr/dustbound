@@ -37,7 +37,7 @@ module.exports = {
       const focus = await p.evaluate(() => UI.top().focusEl && UI.top().focusEl.dataset.n);
       t.eq(focus, '2', 'yeni hayatta ilk boş yuva seçili gelmeli');
       await p.evaluate(() => document.querySelector('.sl-card[data-n="2"]').click()); await t.sleep(500);
-      await p.evaluate(() => document.querySelector('#cr-go').click());
+      await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 }); await t.sleep(500);
       const L = await p.evaluate(() => G.slotList().map(s => !!s.auto));
       t.eq(await p.evaluate(() => G.slot), 2, 'yeni hayat 2. yuvada');
