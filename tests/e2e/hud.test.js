@@ -1,7 +1,7 @@
 'use strict';
-/* Arayüz boyutu ayarı ve atların binalara girememesi */
+/* Arayüz boyutu ayarı, atların binalara girememesi, dükkânda cüzdan, harita açıklamalarından işaretleme */
 module.exports = {
-  name: 'Arayüz boyutu ve at-bina',
+  name: 'Arayüz boyutu, at-bina, cüzdan, harita açıklamaları',
   async run(t) {
     const p = await t.newGame();
     await t.step('arayüz boyutu ayarı HUD köşelerini ölçekler ve kaydedilir', async () => {
@@ -46,6 +46,49 @@ module.exports = {
         return { inside: G.world.indoorPx(h.x, h.y), d: Math.round(dist(h.x, h.y, b.door.x, b.door.y)) };
       });
       t.ok(!r.inside && r.d < 80, 'dışarı, kapının önüne', r);
+    });
+    await t.step('dükkânda cüzdan sağ üstte büyük görünür, alışverişte güncellenir', async () => {
+      const r = await p.evaluate(async () => {
+        UI.closeAll(); const P = G.player; P.money = 50;
+        UI.openShop('general');
+        const panel = document.querySelector('.panel.shop'), w = panel.querySelector('.p-wallet');
+        const pr = panel.getBoundingClientRect(), wr = w.getBoundingClientRect(), fs = parseFloat(getComputedStyle(w.querySelector('b')).fontSize);
+        const before = w.querySelector('b').textContent;
+        const item = [...panel.querySelectorAll('.p-item')].find(n => !n.classList.contains('dis'));
+        item.click(); await new Promise(res => setTimeout(res, 50));
+        const w2 = document.querySelector('.panel.shop .p-wallet');
+        const out = { right: pr.right - wr.right, top: wr.top - pr.top, fs, before, after: w2.querySelector('b').textContent, spent: w2.classList.contains('spent'), money: fmtMoney(P.money), sub: !!panel.querySelector('.p-sub') };
+        UI.closeAll(); return out;
+      });
+      t.ok(r.right < 40 && r.top < 60, 'sağ üst köşede', r); t.ok(r.fs >= 26, 'büyük yazı', r.fs);
+      t.ok(/50/.test(r.before), 'cüzdandaki para gösterilir', r.before);
+      t.ok(r.after !== r.before && r.after === r.money && r.spent, 'alınca güncellenir ve parlar', r);
+    });
+    await t.step('harita açıklamasından tür seçince en yakın yer işaretlenir, yeniden seçince sıradaki', async () => {
+      const r = await p.evaluate(() => {
+        UI.closeAll(); G.setWaypoint(null);
+        const P = G.player, tw = TH.town('harlow'); TH.goto(tw.spawn.x, tw.spawn.y); G.visited.add('harlow');
+        UI.openMap();
+        const rows = [...document.querySelectorAll('#map-legend .ml-i')];
+        const idx = (re) => rows.findIndex(n => re.test(n.textContent));
+        const saloons = UI.mapLegendTargets('glass');
+        rows[idx(/Saloon/)].click();
+        const w1 = G.waypoint && { ...G.waypoint }, on = rows[idx(/Saloon/)].classList.contains('on');
+        rows[idx(/Saloon/)].click();
+        const w2 = G.waypoint && { ...G.waypoint };
+        const sb = G.world.buildings.filter(b => b.type === 'saloon' || b.type === 'cantina' || b.type === 'gambling');
+        const nearest = saloons[0];
+        [...G.rumored].forEach(id => G.discovered.has(id) || G.rumored.delete(id));
+        G.setWaypoint(null); rows[idx(/Söylenti/)].click();
+        const none = G.waypoint;
+        const cam = { cx: UI.map.cx * TS, cy: UI.map.cy * TS };
+        UI.closeAll();
+        return { n: saloons.length, w1, w2, on, nearest, none, isDoor: sb.some(b => w1 && b.door.x === w1.x && b.door.y === w1.y), sorted: saloons.every((s, i) => !i || dist(P.x, P.y, s.x, s.y) >= dist(P.x, P.y, saloons[i - 1].x, saloons[i - 1].y)) };
+      });
+      t.ok(r.n >= 1 && r.isDoor && r.w1.x === r.nearest.x && r.w1.y === r.nearest.y, 'en yakın saloon kapısı işaretlenir', r);
+      t.ok(r.on, 'seçili satır vurgulanır'); t.ok(r.sorted, 'yakından uzağa sıralı');
+      if (r.n > 1) t.ok(r.w2.x !== r.w1.x || r.w2.y !== r.w1.y, 'ikinci seçim sıradakine geçer', r);
+      t.eq(r.none, null, 'bilinen yer yoksa işaret konmaz');
     });
   },
 };

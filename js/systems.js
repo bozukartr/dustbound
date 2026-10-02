@@ -1514,6 +1514,21 @@ const GameSystems = {
   },
 
   /* ================= GPS ================= */
+  /* Dörtnala giderken kanun adamına ya da sivile çarpma: ilk iki çarpma uyarı (itilir, hasar ve
+     suç yok), ikiden fazlası saldırıdır. İki dakika çarpmazsan sayaç sıfırlanır. true: bu çarpma uyarıydı */
+  npcBump(e, h) {
+    const now = this.playtime || 0;
+    if (e._bumpAt !== undefined && now - e._bumpAt < 1.2) return true;      // aynı çarpışmanın devamı
+    e.bumps = e._bumpAt === undefined || now - e._bumpAt > 120 ? 1 : (e.bumps || 0) + 1;
+    e._bumpAt = now;
+    if (e.bumps > 2) return false;
+    e.x += Math.cos(h.ang) * 14; e.y += Math.sin(h.ang) * 14;
+    h.spd *= 0.5; this.fx.shake = Math.max(this.fx.shake, 2);
+    if (e.isLaw) e.say(e.bumps === 1 ? Tr('Hey! Önüne baksana!') : Tr('Bir daha çarparsan seni içeri atarım!'));
+    else e.say(e.bumps === 1 ? Tr('Hey! Dikkat etsene!') : Tr('Bir daha çarparsan şerife giderim!'));
+    if (e.bumps === 2) UI.feed(e.isLaw ? Tr('⚠ Kanun adamı uyardı: bir daha çarparsan saldırı sayılır.') : Tr('⚠ Uyarıldın: bir daha çarparsan saldırı sayılır.'), 'warn');
+    return true;
+  },
   setWaypoint(x, y) {
     if (x === null) { this.waypoint = null; this.gps = null; return; }
     this.waypoint = { x, y };

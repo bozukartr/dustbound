@@ -141,7 +141,15 @@ const UI = {
       const items = spec.build ? spec.build(m) : spec.items;
       m.items = items;
       const prevI = m.focusEl ? +m.focusEl.dataset.i : (spec.focus || 0);
-      let h = `<div class="p-head"><div class="p-title">${spec.title}</div>${spec.sub ? `<div class="p-sub">${typeof spec.sub === 'function' ? spec.sub(m) : spec.sub}</div>` : ''}</div>`;
+      // cüzdan: sağ üstte büyük; para değişince kısa bir parlama
+      let wl = '';
+      if (spec.wallet && G.player) {
+        const mo = G.player.money, fl = m._money === undefined || m._money === mo ? '' : mo < m._money ? ' spent' : ' gain';
+        m._money = mo;
+        wl = `<div class="p-wallet${fl}"><span>${Tr('Cüzdan')}</span><b>${fmtMoney(mo)}</b></div>`;
+      }
+      const sub = spec.sub ? (typeof spec.sub === 'function' ? spec.sub(m) : spec.sub) : '';
+      let h = `<div class="p-head${wl ? ' has-wallet' : ''}">${wl}<div class="p-title">${spec.title}</div>${sub ? `<div class="p-sub">${sub}</div>` : ''}</div>`;
       if (spec.tabs) h += `<div class="p-tabs">${Input.glyph('tabL')}${spec.tabs.map((t, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${t}</span>`).join('')}${Input.glyph('tabR')}</div>`;
       h += `<div class="p-body"><div class="p-list scroll">`;
       items.forEach((it, i) => {
@@ -571,7 +579,41 @@ const UI = {
     this.updatePauseState();
     this.mapResize();
     this.mapDirty = true;
-    $('#map-legend').innerHTML = `<div class="ml-t">${Tr`Açıklamalar`}</div>` + [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]].map(([a, b]) => `<div><span>${Icons.glyph(a, '#2a1a0e')}</span>${b}</div>`).join('');
+    this.map.lg = -1; this.map.lgPick = null;
+    const lg = $('#map-legend');
+    lg.innerHTML = `<div class="ml-t">${Tr`Açıklamalar`}</div>` + mapLegend().map(([a, b], i) => `<div class="ml-i" data-i="${i}"><span>${Icons.glyph(a, '#2a1a0e')}</span>${b}</div>`).join('');
+    $$('.ml-i', lg).forEach(n => { n.onclick = (e) => { e.stopPropagation(); this.mapLegendPick(+n.dataset.i); }; });
+  },
+  /* Açıklamadaki bir türün haritada bilinen yerleri (oyuncuya yakından uzağa) */
+  mapLegendTargets(key) {
+    const W = G.world, P = G.player, out = [];
+    const known = (t) => G.visited.has(t.id) || G.reveal[((t.cy / TS / 4) | 0) * FW + ((t.cx / TS / 4) | 0)];
+    const types = MAP_LEGEND_B[key];
+    if (types) for (const t of W.towns) if (known(t)) for (const b of t.buildings) if (types.includes(b.type)) out.push({ x: b.door.x, y: b.door.y, n: b.name });
+    const poi = (f) => { for (const p of W.pois) if (f(p, G.discovered.has(p.id), G.rumored.has(p.id))) out.push({ x: p.x, y: p.y, n: p.n }); };
+    if (key === 'house') poi((p, k) => k && (p.kind === 'property' || p.kind === 'home'));
+    else if (key === 'tent') poi((p, k) => k && p.kind === 'camp');
+    else if (key === 'eye') poi((p, k) => k && !['camp', 'property', 'home'].includes(p.kind));
+    else if (key === 'question') poi((p, k, r) => r && !k);
+    else if (key === 'waypoint' && G.waypoint) out.push({ x: G.waypoint.x, y: G.waypoint.y, n: Tr('Hedef'), keep: true });
+    return out.sort((a, b) => dist2(a.x, a.y, P.x, P.y) - dist2(b.x, b.y, P.x, P.y));
+  },
+  /* Açıklamadan bir tür seç: en yakın bilinen yeri işaretle; aynı türü yeniden seçmek sıradakine geçer */
+  mapLegendPick(i) {
+    const M = this.map, [key, label] = mapLegend()[i];
+    const ts = this.mapLegendTargets(key);
+    this.mapLegendFocus(i);
+    if (!ts.length) { Audio_.ui('error'); this.feed(Tr`Haritada bilinen bir yer yok: ${label}`, 'warn'); return null; }
+    const k = M.lgPick && M.lgPick.i === i ? (M.lgPick.k + 1) % ts.length : 0;
+    M.lgPick = { i, k };
+    const t = ts[k];
+    M.cx = t.x / TS; M.cy = t.y / TS; M.zoom = Math.max(M.zoom, 2.2); this.mapDirty = true;
+    if (!t.keep) { G.setWaypoint(t.x, t.y); this.feed(Tr`📍 Hedef: ${t.n}${ts.length > 1 ? ` (${k + 1}/${ts.length})` : ''}`); }
+    return t;
+  },
+  mapLegendFocus(i) {
+    this.map.lg = i;
+    $$('#map-legend .ml-i').forEach(n => n.classList.toggle('on', +n.dataset.i === i));
   },
   mapResize() {
     const c = this.mapCanvas, d = window.devicePixelRatio || 1;
@@ -616,13 +658,17 @@ const UI = {
     const I = Input, M = this.map;
     if (m.born >= this.frame - 1) return;
     const mv = I.moveVec();
-    if (mv.m > 0) { M.cx += mv.x * mv.m * dt * 500 / M.zoom; M.cy += mv.y * mv.m * dt * 500 / M.zoom; this.mapDirty = true; }
+    if (mv.m > 0) { M.cx += mv.x * mv.m * dt * 500 / M.zoom; M.cy += mv.y * mv.m * dt * 500 / M.zoom; this.mapDirty = true; if (M.lg >= 0 && I.device === 'pad') this.mapLegendFocus(-1); }
+    // açıklamalarda gezinme: yön tuşu yukarı/aşağı, ✕ ile işaretle
+    const dU = I.padTap(PS.UP), dD = I.padTap(PS.DOWN);
+    if (dU || dD) { this.mapLegendFocus(M.lg < 0 ? (dU ? mapLegend().length - 1 : 0) : (M.lg + (dU ? -1 : 1) + mapLegend().length) % mapLegend().length); Audio_.ui('move'); }
     const a = I.aimVec();
     if (Math.abs(a.y) > 0.2) { M.zoom = clamp(M.zoom * (1 - a.y * dt * 2), 0.5, 8); this.mapDirty = true; }
     if (I.down('fire') && I.device === 'pad') { M.zoom = clamp(M.zoom * (1 + dt * 2), 0.5, 8); this.mapDirty = true; }
     if (I.down('aim') && I.device === 'pad') { M.zoom = clamp(M.zoom * (1 - dt * 2), 0.5, 8); this.mapDirty = true; }
     M.cx = clamp(M.cx, 0, WW); M.cy = clamp(M.cy, 0, WH);
-    if (I.pressed('confirm') && I.device === 'pad') { const [wx, wy] = this.mapToWorld(innerWidth / 2, innerHeight / 2); this.mapSetWaypoint(wx, wy); this.mapDirty = true; }
+    if (I.pressed('confirm') && I.device === 'pad' && M.lg >= 0) { this.mapLegendPick(M.lg); this.mapDirty = true; }
+    else if (I.pressed('confirm') && I.device === 'pad') { const [wx, wy] = this.mapToWorld(innerWidth / 2, innerHeight / 2); this.mapSetWaypoint(wx, wy); this.mapDirty = true; }
     if (I.pressed('alt')) { G.setWaypoint(null); this.mapDirty = true; this.feed(Tr('Hedef kaldırıldı')); }
     if (I.pressed('alt2') && I.device === 'pad') { M.cx = G.player.x / TS; M.cy = G.player.y / TS; this.mapDirty = true; }
     if (I.pressed('back') || I.pressed('map')) { this.pop(m); return; }
@@ -641,7 +687,7 @@ const UI = {
     if (best) html = `<div class="mi-n">${best.n}</div><div class="mi-d">${best.desc || ''}${G.rumored.has(best.id) && !G.discovered.has(best.id) ? Tr(' <i>(söylenti)</i>') : ''}</div>`;
     else html = `<div class="mi-n">${G.world.regionAt(wx, wy)}</div>`;
     if (this._mh !== html) { this._mh = html; $('#map-info').innerHTML = html; }
-    const hint = Tr`${Input.device === 'pad' ? Input.glyph('confirm') + Tr(' Hedef Koy &nbsp; ') + Input.glyph('alt') + Tr(' Hedefi Kaldır &nbsp; ') + Input.padGlyph(PS.R2) + Input.padGlyph(PS.L2) + Tr(' Yakınlaştır &nbsp; ') + Input.glyph('alt2') + Tr(' Konumum') : Tr('Sol Tık: Hedef Koy &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır')} &nbsp; ${Input.glyph('back')} Kapat`;
+    const hint = Tr`${Input.device === 'pad' ? Input.padGlyph(PS.UP) + Input.padGlyph(PS.DOWN) + Tr(' Açıklamalar &nbsp; ') + Input.glyph('confirm') + Tr(' Hedef Koy &nbsp; ') + Input.glyph('alt') + Tr(' Hedefi Kaldır &nbsp; ') + Input.padGlyph(PS.R2) + Input.padGlyph(PS.L2) + Tr(' Yakınlaştır &nbsp; ') + Input.glyph('alt2') + Tr(' Konumum') : Tr('Sol Tık: Hedef Koy &nbsp; Açıklamaya Tık: En Yakın Yer &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır')} &nbsp; ${Input.glyph('back')} Kapat`;
     if (this._mhint !== hint) { this._mhint = hint; $('#map-hint').innerHTML = hint; }
   },
   drawMap() {
@@ -1416,7 +1462,7 @@ const UI = {
     const svc = d.svc;
     const sub = TOWNS.find(t => t.id === b.town);
     this.menu({
-      title: b.name, sub: () => Tr`${sub ? sub.n + ' • ' : ''}${G.timeStr()} • Cüzdan: ${fmtMoney(P.money)}`, cls: 'building',
+      title: b.name, sub: () => Tr`${sub ? sub.n + ' • ' : ''}${G.timeStr()}`, wallet: true, cls: 'building',
       build: () => {
         const it = [];
         const closed = (G.hour < 6 || G.hour > 22) && !['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'cantina', 'gambling', 'warehouse'].includes(b.type);
@@ -1492,7 +1538,7 @@ const UI = {
     const regional = 1;
     this.menu({
       title: title || S.n, cls: 'shop', tabs: [Tr('Satın Al'), Tr('Sat')], side: (it) => it.sideHtml || '',
-      sub: () => Tr`Cüzdan: <b>${fmtMoney(P.money)}</b>`, okLabel: Tr('Al / Sat'),
+      wallet: true, okLabel: Tr('Al / Sat'),
       build: (m) => {
         const items = [];
         if (m.tab === 0) {
@@ -1729,7 +1775,7 @@ const UI = {
   },
   openLand() {
     this.menu({
-      title: Tr('Tapu Dairesi'), sub: Tr('Satılık mülkler'), cls: 'shop', side: (it) => it.sideHtml || '',
+      title: Tr('Tapu Dairesi'), sub: Tr('Satılık mülkler'), cls: 'shop', wallet: true, side: (it) => it.sideHtml || '',
       build: () => PROPERTIES.map(PR => {
         const own = G.props.includes(PR.id);
         const poi = G.world.pois.find(p => p.prop === PR.id);
@@ -1755,7 +1801,7 @@ const UI = {
   openHorseShop(b) {
     const P = G.player;
     this.menu({
-      title: Tr('At Satın Al'), cls: 'shop', side: (it) => it.sideHtml || '', sub: () => Tr`Cüzdan: ${fmtMoney(P.money)}`,
+      title: Tr('At Satın Al'), cls: 'shop', side: (it) => it.sideHtml || '', wallet: true,
       build: () => Object.keys(HORSE_BREEDS).filter(k => HORSE_BREEDS[k].p > 0).map(k => {
         const B = HORSE_BREEDS[k], pr = B.p * G.priceMul(true);
         const bar = (v, mx) => `<div class="statbar"><i style="width:${v / mx * 100}%"></i></div>`;
@@ -1776,7 +1822,7 @@ const UI = {
   openBank() {
     const P = G.player;
     this.menu({
-      title: Tr('Banka'), sub: () => Tr`Hesap: <b>${fmtMoney(G.bank)}</b> • Cüzdan: <b>${fmtMoney(P.money)}</b><br><small>Bankadaki para ölünce kaybolmaz ve yıllık %2 faiz kazanır.</small>`, cls: 'small',
+      title: Tr('Banka'), wallet: true, sub: () => Tr`Hesap: <b>${fmtMoney(G.bank)}</b><br><small>Bankadaki para ölünce kaybolmaz ve yıllık %2 faiz kazanır.</small>`, cls: 'small',
       build: () => {
         const it = [];
         for (const v of [1, 10, 50]) it.push({ label: Tr`${fmtMoney(v)} Yatır`, disabled: P.money < v, fn: () => { P.money -= v; G.bank += v; G.qEvent('deposit', v); } });
@@ -1792,7 +1838,7 @@ const UI = {
     const here = G.world.towns.find(t => t.id === b.town);
     const stations = G.world.towns.filter(t => t.station && t !== here);
     this.menu({
-      title: Tr('Tren Bileti'), sub: Tr`${here.n} İstasyonu`, cls: 'small',
+      title: Tr('Tren Bileti'), sub: Tr`${here.n} İstasyonu`, cls: 'small', wallet: true,
       build: () => stations.map(t => {
         const d = dist(here.cx, here.cy, t.cx, t.cy);
         const pr = Math.max(0.25, d / 5000) * (G.hasPerk('towns') ? 0.5 : 1);
@@ -1824,7 +1870,7 @@ const UI = {
     const dests = Wd.towns.filter(t => t !== here && (G.visited.has(t.id) || dist(here.cx, here.cy, t.cx, t.cy) < 7000))
       .sort((a, c) => dist(here.cx, here.cy, a.cx, a.cy) - dist(here.cx, here.cy, c.cx, c.cy));
     this.menu({
-      title: Tr('Posta Arabası'), sub: Tr`${here.n} Durağı`, cls: 'small',
+      title: Tr('Posta Arabası'), sub: Tr`${here.n} Durağı`, cls: 'small', wallet: true,
       build: () => dests.map(t => {
         const d = dist(here.cx, here.cy, t.cx, t.cy);
         const pr = Math.max(0.4, d / 3600) * (G.hasPerk('towns') ? 0.75 : 1);
@@ -1854,7 +1900,7 @@ const UI = {
   openBarber() {
     const P = G.player, L = P.look;
     this.menu({
-      title: Tr('Berber'), cls: 'small', sub: Tr('Her işlem 15¢'),
+      title: Tr('Berber'), cls: 'small', wallet: true, sub: Tr('Her işlem 15¢'),
       build: () => {
         const it = [{ header: Tr('Saç') }];
         LOOKS.hairStyle.forEach((n, i) => it.push({ label: n + (L.hairStyle === i ? ' ✔' : ''), fn: () => { if (G.spend(0.15)) { L.hairStyle = i; P._lk = null; P.clean = Math.min(100, P.clean + 10); } } }));
@@ -1933,7 +1979,7 @@ const UI = {
   openBuildMenu(lot) {
     const t = G.world.towns.find(tw => tw.id === lot.town);
     this.menu({
-      title: Tr('İnşaat'), sub: () => Tr`${t.n} • ${BUILD_DAYS} günde biter • Cüzdan: ${fmtMoney(G.player.money)}`, cls: 'small', side: (it) => it.side || '',
+      title: Tr('İnşaat'), wallet: true, sub: () => Tr`${t.n} • ${BUILD_DAYS} günde biter`, cls: 'small', side: (it) => it.side || '',
       build: () => G.lotTypes(lot).sort((a, c) => BIZ[a].p - BIZ[c].p).map(k => {
         const pr = G.bizBuildPrice(k, t), B = BIZ[k];
         return { icon: BICON[k] ? Icons.glyph(BICON[k], '#efe6d2') : '🏪', label: BUILDINGS[k].n, right: fmtMoney(pr), disabled: G.player.money < pr, why: Tr('Yeterli paran yok.'),
@@ -1967,7 +2013,7 @@ const UI = {
   openGoods(b) {
     const need = G.goodsNeeded();
     this.menu({
-      title: Tr('Toptan Mal'), sub: () => Tr`${b.name} • Cüzdan: ${fmtMoney(G.player.money)}`, cls: 'small',
+      title: Tr('Toptan Mal'), wallet: true, sub: () => b.name, cls: 'small',
       build: () => {
         const it = [];
         for (const { g, p } of G.goodsAt(b)) {
@@ -1985,7 +2031,7 @@ const UI = {
     const t = G.world.towns.find(x => x.id === b.town) || G.nearestTown(b.door.x, b.door.y);
     const traitSide = (k, name) => `<div class="ps-t">${escapeHtml(name)}</div><div class="ps-d">${HAUL_TRAITS[k].n}</div><div class="ps-e">${HAUL_TRAITS[k].d}<br>${Tr`Peşin ${fmtMoney(HAUL_HIRE)}, günlük maaş ${fmtMoney(HAUL_TRAITS[k].wage)}. Arabası ${HAUL_CAP} sandık taşır.`}</div>`;
     this.menu({
-      title: Tr('Nakliyeciler'), sub: () => Tr`${t.n} • Cüzdan: ${fmtMoney(G.player.money)}`, cls: 'small', side: (it) => it.side || '',
+      title: Tr('Nakliyeciler'), wallet: true, sub: () => t.n, cls: 'small', side: (it) => it.side || '',
       build: () => {
         const it = [];
         if (G.haulers.length) {
@@ -2003,7 +2049,7 @@ const UI = {
   openBizMarket(b) {
     const here = G.world.towns.find(t => t.id === b.town) || G.nearestTown(G.player.x, G.player.y);
     this.menu({
-      title: Tr('Satılık İşletmeler'), sub: () => Tr`Cüzdan: ${fmtMoney(G.player.money)}`, cls: 'small', side: (it) => it.side || '',
+      title: Tr('Satılık İşletmeler'), wallet: true, cls: 'small', side: (it) => it.side || '',
       tabs: [Tr('İşletmeler'), Tr('Arsalar')],
       build: (m) => {
         const towns = G.world.towns.filter(t => t === here || G.visited.has(t.id)).sort((a, c) => dist(here.cx, here.cy, a.cx, a.cy) - dist(here.cx, here.cy, c.cx, c.cy));
@@ -2635,6 +2681,9 @@ const I_WHEEL_HINT = (page) => {
   return page ? Tr`${sel}: seç • ${cyc}: aynı türde değiştir • ${pad ? Input.padGlyph(PS.X) : Input.kbGlyph('Mouse0')} kullan • ${sw} Silahlar` : Tr`${sel}: seç • ${cyc}: aynı türde değiştir • ${Input.glyph('wheel')} bırak: kuşan • ${sw} Eşyalar`;
 };
 const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence', 'bakery', 'smith', 'pharmacy', 'gambling', 'brewery', 'mill', 'county', 'post', 'warehouse', 'cantina']);
+/* Harita açıklamaları: [simge, ad]; MAP_LEGEND_B: simgenin bina türleri */
+const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
+const MAP_LEGEND_B = { store: ['general'], glass: ['saloon', 'cantina', 'gambling'], star: ['sheriff'], cross: ['doctor', 'pharmacy'], gun: ['gunsmith'], horseshoe: ['stable'], bed: ['hotel'], train: ['station'], bank: ['bank'], pick: ['mine', 'smith', 'lumber'] };
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass' };
 const PICON = { camp: 'tent', farm: 'wheat', property: 'house', home: 'hut', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
 const TIPS = [
