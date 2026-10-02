@@ -635,6 +635,7 @@ class Player extends Ent {
         if (dist2(e.x, e.y, h.x + Math.cos(h.ang) * 8, h.y + Math.sin(h.ang) * 8) < 100) {
           if (e.kind === 'npc') {
             // kanun adamına ya da sivile çarpmak ilk iki seferde uyarıdır; üçüncüsü saldırı sayılır
+            if (e.quest === 'sully') continue;   // Sully'ye çarpmak suç değil, at onun yanından geçer
             if (!e.hostile && !e.bound && !['bandit', 'hunter', 'target'].includes(e.role) && G.npcBump(e, h)) continue;
             e.hurt(18, 'player', 'trample'); e.x += Math.cos(h.ang) * 10; e.y += Math.sin(h.ang) * 10;
           }
@@ -884,6 +885,7 @@ class Animal extends Ent {
   get bound() { return this.state === 'lassoed' || this.state === 'tied'; }
   hurt(dmg, by, how) {
     if (this.dead) return;
+    if (this.quest === 'sully') return;   // hikâyenin yaşlı adamı: vurulamaz, suç da yazılmaz
     this.hp -= dmg;
     G.parts.burst('blood', this.x, this.y, 3 + dmg / 15, 35, 0.5, 1.4);
     if (this.def.shape === 'bird') G.parts.burst('feather', this.x, this.y, 5, 30, 1, 1, this.def.col);
@@ -1032,6 +1034,7 @@ class NPC extends Ent {
   get bound() { return this.state === 'lassoed' || this.state === 'tied' || this.state === 'downed'; }
   hurt(dmg, by, how) {
     if (this.dead) return;
+    if (this.quest === 'sully') return;   // hikâyenin yaşlı adamı: vurulamaz, suç da yazılmaz
     this.hp -= dmg;
     if (how !== 'drown') G.parts.burst('blood', this.x, this.y, 3 + Math.min(dmg, 200) / 12, 35, 0.6, 1.4);
     if (by === 'player') {

@@ -16,6 +16,8 @@ const SULLY_LOOK = { sex: 'm', skin: '#d8a880', hair: '#c8c4bc', hairStyle: 0, b
 const JACK_LOOK = { sex: 'm', skin: '#e0b48c', hair: '#a8401a', hairStyle: 4, beard: 4, beardLen: 0.8, hat: 'cowboy', hatCol: '#1a1614', coat: '#2a2622', shirt: '#b04a3a', pants: '#2a2a30', eyes: '#5a7a4a', coatLen: 0.7 };
 const SULLY_HORSE = { col: '#3a2a20', mane: '#1a1410', blanket: '#6a2a20' };
 /* Çiftliğin bulunduğu yerin doğası: sinematiklerin renk ve bitki örtüsü */
+/* Bölüm 5'te satılabilecek çiğ etler (postlar 'animal' türündedir) */
+const STORY_MEAT = ['raw_game', 'raw_big', 'raw_bird'];
 const STORY_ENV = { DESERT: 'desert', REDROCK: 'desert', FOREST: 'forest', SNOW: 'forest', DRY: 'dry', GRASS: 'plains', SWAMP: 'coast' };
 
 const Story = {
@@ -49,11 +51,13 @@ const Story = {
     this.insideB = null; this.exitB = null;
     this.prefetch(true);
   },
-  /* saati ileri sar (aynı gün ya da ertesi günün belli saatine) */
+  /* saati ileri sar (aynı gün ya da ertesi günün belli saatine).
+     minH: bu saatten sonrası (gece yarısını geçip sabah 5'e kadar dahil) zaten uygun sayılır, sarılmaz */
   sSkipTo(h, minH) {
+    if (minH !== undefined && (this.hour >= minH || this.hour < 5)) return;
     const day = Math.floor(this.clock / 1440);
     let tgt = day * 1440 + h * 60;
-    if (tgt <= this.clock) { if (minH !== undefined && this.hour >= minH && this.hour < h + 24) return; tgt += 1440; }
+    if (tgt <= this.clock) tgt += 1440;
     this.advanceClock(tgt - this.clock);
   },
   /* görev noktasına uygun, açık bir yer */
@@ -129,6 +133,10 @@ const Story = {
     if (st.skip && st.skip.call(this, S)) { this.qNext(); return; }
     if (st.on) st.on.call(this, S);
     if (st.talk) this.qSay(st.talk.call(this, S));
+    // konuşma sırasında yapılmış eylemler
+    const pend = this._qPend; this._qPend = null;
+    if (pend && st.ev) for (const [type, d] of pend) { if (this.qStep() !== st || S.wait) break; this.qEvent(type, d); }
+    if (this.qStep() !== st || S.wait) { this.questHud(); return; }
     const m = this.questMark();
     if (st.wp && m && dist(m.x, m.y, this.player.x, this.player.y) > 500) { this.setWaypoint(m.x, m.y); S.wpSet = true; }
     if (st.hint) setTimeout(() => { if (this.qStep() === st && this.state === 'play') UI.help(st.hint.call(this, S), 9); }, 900);
@@ -150,9 +158,11 @@ const Story = {
   /* oyundaki olaylar buraya bildirilir */
   qEvent(type, d) {
     const S = this.story;
-    if (!S || !S.on || S.done || S.wait || this.cine) return;
+    if (!S || !S.on || S.done || this.cine) return;
+    // adım arası konuşma sürerken yapılan eylem kaybolmasın: sıradaki adım bekliyorsa orada sayılır
     const st = this.qStep();
-    if (!st || st.ev !== type || (st.ok && !st.ok.call(this, d, S))) return;
+    if (S.wait || !st) { if (type !== 'talk') { const q = this._qPend || (this._qPend = []); q.push([type, d]); if (q.length > 8) q.shift(); } return; }
+    if (st.ev !== type || (st.ok && !st.ok.call(this, d, S))) return;
     S.n++;
     if (S.n >= (st.n || 1)) this.qDone(); else { this.questHud(); Audio_.tone(520, 0.08, 'triangle', 0.05); }
   },
@@ -206,7 +216,7 @@ const Story = {
   qCine(sc, lines, cap, after) {
     const fin = () => { this.cine = false; this.timeScale = 1; try { if (after) after(); } catch (e) { console.warn(e); } };
     if (window.__testNoCine || typeof Cinema === 'undefined' || !Cinema.has(sc)) { fin(); return; }
-    this.cine = true; Bubbles.clear(); UI.el.sub.classList.add('hidden');
+    this.cine = true; this._qPend = null; Bubbles.clear(); UI.el.sub.classList.add('hidden');
     const L = this.cineLines(lines), h = this.horse, S = this.story;
     Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: SULLY_LOOK, jack: JACK_LOOK, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
   },
@@ -460,7 +470,7 @@ const STORY = [
           ['S', Tr('Birkaç kişiye selam ver. Ben mağazanın önünde olurum.')],
         ],
         done() { const p = this.sDoor(this.sBld('general')); if (p) this.sullyGo(p.x, p.y); } },
-      { t: () => Tr('Kasabalıları selamla'), ev: 'greet', n: 2, ok: (e) => e.quest !== 'sully',
+      { t: () => Tr('Kasabalıları selamla'), ev: 'greet', n: 2, ok: (e, S) => { if (!e || e.quest === 'sully') return false; const g = S.greeted || (S.greeted = []); if (g.includes(e.id)) return false; g.push(e.id); return true; },
         hint: () => Tr`Birine yaklaş, ${Input.glyph('interact')} basılı tut ve <b>Selamla</b>. Selamını alanı unutmazlar; seni selamlayanı da cevapsız bırakma.` },
       { t: () => Tr('Genel mağazaya gir'), ev: 'enter', ok: (b) => b && b.type === 'general', at() { return this.sDoor(this.sBld('general'), 4); },
         hint: () => Tr`Mağazanın kapısından içeri yürü. Binaların içinde dolaşabilirsin.`,
@@ -570,9 +580,9 @@ const STORY = [
   {
     t: () => Tr('Kasabın Terazisi'),
     steps: [
-      { t: () => Tr('Postu ya da eti kasapta sat'), ev: 'sell', at() { return this.sDoor(this.sBld('butcher') || this.sBld('general'), 4); }, wp: true,
+      { t: () => Tr('Postu ya da eti kasapta sat'), ev: 'sell', ok: (d) => !!(d && (d.carried || d.all || (d.id && (STORY_MEAT.includes(d.id) || (ITEMS[d.id] && ITEMS[d.id].c === 'animal'))))), at() { return this.sDoor(this.sBld('butcher') || this.sBld('general'), 4); }, wp: true,
         skip() { return !this.storyHasGoods(); },
-        hint: () => Tr`Kasap ya da genel mağazada <b>Sat</b> sekmesini kullan. Omzundaki ya da eyerdeki postu, dükkânın içinde <b>Getirdiğin Avı Sat</b> ile satarsın.` },
+        hint: () => Tr`Kasap ya da genel mağazada <b>Sat</b> sekmesini kullan. Omzundaki ya da eyerdeki postu, dükkânın içinde <b>Getirdiğin Avı Sat</b> ile satarsın. Dükkânlar 22:00 – 06:00 arası kapalıdır; gece vardıysan sabahı bekle.` },
       { t: () => Tr('Sully\'nin çiftliğine dön'), chk() { const R = this.story.ranch, P = this.player; return dist(P.x, P.y, R.x, R.y) < 140; }, at() { return this.story.ranch; }, wp: true },
     ],
   },
@@ -706,10 +716,14 @@ const STORY = [
       { t: () => Tr('Kızıl Jack\'i etkisiz hâle getir'), chk() { const j = this.jackEnt(); return !!(j && (j.dead || j.bound)); }, at() { return this.jackEnt() || this.story.camp; },
         hint: () => Tr`Nişan alırken ${Input.glyph('deadeye')} ile <b>Odak</b>'ı aç: zaman yavaşlar. Jack'i canlı istiyorsan <b>kementi</b> seç (${Input.glyph('wheel')}), ${Input.glyph('fire')} ile at, sonra yaklaşıp ${Input.glyph('interact')} basılı tutarak bağla.`,
         done() { const j = this.jackEnt(); this.story.alive = !!(j && !j.dead); } },
-      { t: () => Tr('Tapuyu Jack\'in üstünden al'), ev: 'deed', at() { return this.jackEnt(); }, skip() { return this.story.deed; },
+      { t: () => Tr('Tapuyu Jack\'in üstünden al'), ev: 'deed', at() { return this.jackEnt(); }, skip() { return this.story.deed; }, chk() { return this.story.deed; },
         hint: () => Tr`Jack'in yanında ${Input.glyph('interact')} basılı tut: <b>Tapuyu Al</b>.` },
       { t() { return this.story.alive ? Tr('Jack\'i şerife canlı teslim et') : Tr('Jack\'in cesedini şerife götür'); }, ev: 'deliver', ok: (e) => e && e.quest === 'jack', at() { const j = this.jackEnt(), P = this.player; if (j && j !== P.carry && !(this.horse && this.horse.load && this.horse.load.includes(j))) return j; return this.sDoor(this.sBld('sheriff'), 4); }, wp: true,
-        on() { const p = this.sDoor(this.sBld('sheriff'), 22); if (p) this.sullyGo(p.x - 14, p.y); },
+        on(S) {
+          const p = this.sDoor(this.sBld('sheriff'), 22); if (p) this.sullyGo(p.x - 14, p.y);
+          // tapu alınmadan teslim edildiyse bu adım zaten olmuştur
+          if (S.jack === 'delivered') { const st = this.qStep(); setTimeout(() => { if (this.qStep() === st && !S.wait) this.qDone(); }, 60); }
+        },
         hint: () => Tr`Jack'in yanında ${Input.glyph('interact')} ile omzuna al, atının yanında <b>eyere yükle</b>. Şerif ofisinde teslim et.`,
         done() { this.story.jack = 'delivered'; },
         after() { return this.story.alive ? [['W', Tr('Kızıl Jack. Hem de canlı! On yıldır bu masada bunu bekliyordum.')], ['W', Tr('Sully\'ye söyle... Neyse, ben söylerim. Borcum var ona.')]] : [['W', Tr('Kızıl Jack... Keşke canlı olsaydı. Ama bu da bir şey.')]]; } },
@@ -788,7 +802,7 @@ Object.assign(Story, {
   /* satılacak av ürünü var mı (çanta, omuz, eyer) */
   storyHasGoods() {
     const P = this.player;
-    if (Object.keys(P.inv).some(id => ITEMS[id] && ITEMS[id].c === 'animal')) return true;
+    if (Object.keys(P.inv).some(id => ITEMS[id] && (ITEMS[id].c === 'animal' || STORY_MEAT.includes(id)) && P.count(id) > 0)) return true;
     if (P.carry && (P.carry.kind === 'pelt' || P.carry.kind === 'animal')) return true;
     return !!(this.horse && this.horse.load && this.horse.load.some(e => e.kind === 'pelt' || e.kind === 'animal'));
   },
