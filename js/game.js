@@ -519,7 +519,7 @@ const G = {
     T_.amb -= dt;
     if (T_.amb <= 0) {
       T_.amb = 0.25;
-      const env = this.envCache = this.localWeather(P.x, P.y);
+      const env = this.envTick(0.25);
       const b = this.world.biomeAt(P.x, P.y);
       Audio_.ambientTick({ town: !!this.world.townAt(P.x, P.y, 2), indoor: !!this.insideB, storm: !!env.storm, rain: env.rain, wind: Math.max(env.dust, env.snow * 0.6, env.storm ? 0.6 : 0.12), fire: this.nearFire ? 1 : 0, water: this.world.nearWater(P.x, P.y, 40) ? 1 : 0, night: this.isNight, nature: b === 'FOREST' || b === 'GRASS' || b === 'SWAMP' ? 1 : 0.4, wolves: b === 'FOREST' || b === 'SNOW' });
       if (env.storm && Math.random() < 0.02) { this.fx.lightning = 1; Audio_.thunder(); }

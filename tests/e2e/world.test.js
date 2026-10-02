@@ -101,5 +101,72 @@ module.exports = {
       });
       t.eq(r, [[3, 3], [2, 2], [0, 0]], 'oyun ve dünya mevsimi');
     });
+    await t.step('küçük bir zemin lekesi havayı ve ekran rengini değiştirmez, geniş çölde toz fırtınası olur', async () => {
+      const r = await p.evaluate(() => {
+        const W = G.world, P = G.player;
+        // sıcak ama çöl olmayan bir kasaba (eski kodda leke burada kum fırtınası açardı)
+        const tw = W.towns.find(t => W.climateAt(t.spawn.x, t.spawn.y) > 0.55 && W.areaTile(t.spawn.x, t.spawn.y) !== T.DESERT && W.areaTile(t.spawn.x, t.spawn.y) !== T.REDROCK && W.areaTile(t.spawn.x, t.spawn.y) !== T.MESA);
+        TH.goto(tw.spawn.x, tw.spawn.y);
+        // oyuncunun altına 3x3 karoluk bir çöl lekesi koy
+        const tx = P.x >> 4, ty = P.y >> 4, old = [];
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const k = (ty + j) * WW + tx + i; old.push([k, W.tile[k]]); W.tile[k] = T.DESERT; }
+        W._areaC = null;
+        const saved = { ...G.weather };
+        Object.assign(G.weather, { type: 'storm', i: 1 });
+        const patch = { tile: W.tileAtPx(P.x, P.y), area: W.areaTile(P.x, P.y), env: G.localWeather(P.x, P.y) };
+        for (const [k, v] of old) W.tile[k] = v;
+        W._areaC = null;
+        // geniş çöl: çevresi de çöl olan, sıcak bir nokta
+        let desert = null;
+        for (let k = 0; k < 4000 && !desert; k++) {
+          const x = rnd(200, WW * TS - 200), y = rnd(200, WH * TS - 200);
+          if (W.tileAtPx(x, y) === T.DESERT && W.areaFrac(x, y, T.DESERT, T.REDROCK, T.MESA) > 0.7 && W.climateAt(x, y) > 0.6) desert = G.localWeather(x, y);
+        }
+        Object.assign(G.weather, saved);
+        return { patch, desert, town: tw.n };
+      });
+      t.eq(r.patch.tile, 3, 'leke karosu çöl');
+      t.ok(r.patch.area !== 3, 'çevrenin baskın zemini çöl değil', r.patch);
+      t.ok(r.patch.env.dust === 0 && r.patch.env.rain > 0.5, 'lekede kum fırtınası değil yağmur', r.patch.env);
+      t.ok(r.desert && r.desert.dust > 0.5, 'geniş çölde toz fırtınası', r.desert);
+    });
+    await t.step('hava ve sıcaklık bölge sınırında sıçramaz, zamanla yumuşakça değişir', async () => {
+      const r = await p.evaluate(() => {
+        const W = G.world, P = G.player, saved = { ...G.weather };
+        Object.assign(G.weather, { type: 'storm', i: 1 });
+        // rastgele çizgiler boyunca 32 piksellik adımlarla: komşu noktalar arasında büyük sıçrama olmamalı
+        let maxD = 0, maxT = 0, range = 0;
+        for (let l = 0; l < 40; l++) {
+          let x = rnd(600, WW * TS - 3000), y = rnd(600, WH * TS - 600), prev = null, lo = 9, hi = -9;
+          for (let k = 0; k < 70; k++, x += 32) {
+            const e = G.localWeather(x, y), tl = W.tileAtPx(x, y), wet = tl === T.WATER || tl === T.HOTWATER;
+            const tp = G.ambientTemp(x, y);
+            if (prev) {
+              for (const key of ['rain', 'snow', 'dust']) maxD = Math.max(maxD, Math.abs(e[key] - prev.e[key]));
+              if (!wet && !prev.wet) maxT = Math.max(maxT, Math.abs(tp - prev.tp));
+            }
+            lo = Math.min(lo, e.rain); hi = Math.max(hi, e.rain);
+            prev = { e, tp, wet };
+          }
+          range = Math.max(range, hi - lo);
+        }
+        // zamanda: açık havadan fırtınaya geçişte yağmur bir anda gelmez
+        const tw = TH.town('harlow'); TH.goto(tw.spawn.x, tw.spawn.y);
+        G.envCache = null; Object.assign(G.weather, { type: 'clear', i: 0 }); G.envTick(0.25);
+        Object.assign(G.weather, { type: 'storm', i: 1 });
+        const tgt = G.localWeather(P.x, P.y).rain;
+        const a1 = G.envTick(0.25).rain;
+        for (let k = 0; k < 7; k++) G.envTick(0.25);
+        const a2 = G.envTick(0.25).rain;
+        for (let k = 0; k < 120; k++) G.envTick(0.25);
+        const a3 = G.envTick(0.25).rain;
+        Object.assign(G.weather, saved); G.envCache = null;
+        return { maxD, maxT, range, tgt, a1, a2, a3 };
+      });
+      t.ok(r.range > 0.5, 'en az bir çizgi bölge sınırını geçti', r);
+      t.ok(r.maxD < 0.35, 'yağmur/kar/toz komşu noktalar arasında sıçramaz', r);
+      t.ok(r.maxT < 2.5, 'sıcaklık komşu noktalar arasında sıçramaz', r);
+      t.ok(r.tgt > 0.5 && r.a1 < 0.1 && r.a2 > r.a1 && r.a2 < r.tgt * 0.6 && r.a3 > r.tgt * 0.95, 'yağmur birkaç saniyede yavaşça gelir', r);
+    });
   },
 };

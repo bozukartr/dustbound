@@ -152,7 +152,7 @@ const Juice = {
     const rain = env.rain || 0;
     if (rain > 0.15) this.wet = Math.min(1, this.wet + dt * 0.06 * rain); else this.wet = Math.max(0, this.wet - dt * 0.0035);
     if (G.insideB || G.state !== 'play') return;
-    const x0 = C.ox, y0 = C.oy, vw = G.vw, vh = G.vh, biome = W.tileAtPx(P.x, P.y), day = dl > 0.6;
+    const x0 = C.ox, y0 = C.oy, vw = G.vw, vh = G.vh, biome = W.areaTile(P.x, P.y), day = dl > 0.6;
     const dryB = biome === T.DESERT || biome === T.DRY || biome === T.REDROCK || biome === T.SAND || biome === T.MESA;
     // toz şeytanı: kurak arazide, öğleden sonra, rüzgârlı ve kuru havada
     if (dryB && day && hr > 11 && hr < 18 && rain < 0.1 && this.devils.length < 1 && Math.random() < dt * 0.02) {
