@@ -8,6 +8,8 @@ const SET_KEY = 'frontiersend_settings_v1';
 /* Kayıt yuvaları: her yuva ayrı bir hayat; içinde bir otomatik, bir manuel kayıt.
    Yuva bilgileri (ad, yaş, yer, küçük ekran görüntüsü) ayrı bir anahtarda tutulur ki menü büyük kayıtları okumadan listelesin. */
 const SLOTS = 3;
+/* Arayüz (HUD) boyutu seçenekleri; ayarda dizin tutulur */
+const HUD_SCALES = [0.8, 0.9, 1, 1.1, 1.25, 1.4];
 const SLOT_META = 'frontiersend_slots_v1';
 const slotKey = (n, kind) => `frontiersend_slot${n}_${kind}`;
 /* Eski adla (Dustbound) tarayıcıda yapılmış kayıt ve ayarları yeni anahtarlara taşı */
@@ -26,7 +28,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, lang: null, padGlyphs: 0, guideNew: true },
+  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2 },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -127,7 +129,15 @@ const G = {
     this._fxq = S.fxq;
     this.resize();
   },
+  /* Arayüz ölçeği: kullanıcının seçimi × ekran boyuna göre temel; kısa ekranda taşmasın diye sınırlanır */
+  hudScaleApply() {
+    const S = this.settings, w = innerWidth, h = innerHeight;
+    const base = w >= 1500 && h >= 1000 ? 1.2 : w <= 800 ? 0.75 : 1;
+    const hs = Math.min((HUD_SCALES[S.hudScale === undefined ? 2 : S.hudScale] || 1) * base, h / 560);
+    document.documentElement.style.setProperty('--hs', hs.toFixed(3));
+  },
   resize() {
+    this.hudScaleApply();
     const W = window.innerWidth, H = window.innerHeight;
     let s = this.settings.zoom || Math.max(2, Math.round(H / 270));
     if (W / s < 320) s = Math.max(1, Math.floor(W / 320));

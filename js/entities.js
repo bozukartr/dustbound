@@ -94,7 +94,10 @@ class Ent {
   }
   move(dx, dy) {
     const W = G.world;
-    const ok = (x, y) => !W.blocked(x, y, this.r) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)));
+    // noIndoor: bina içine giremez; uzun gövdeliler (at) için burun ve sağrı da denetlenir, baş kapıdan içeri uzanmasın
+    const c = this.len ? Math.cos(this.ang) : 0, s = this.len ? Math.sin(this.ang) : 0;
+    const ok = (x, y) => !W.blocked(x, y, this.r) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)
+      || (this.len && (W.indoorPx(x + c * this.len, y + s * this.len) || W.indoorPx(x - c * this.len * 0.8, y - s * this.len * 0.8)))));
     if (ok(this.x + dx, this.y + dy)) { this.x += dx; this.y += dy; this._slide = 0; return true; }
     const len = Math.hypot(dx, dy);
     if (len < 1e-6) return false;
@@ -142,7 +145,7 @@ class Horse extends Ent {
     this.owner = opts.owner || null;
     this.load = [];             // eyere yüklenmiş cesetler, leşler, postlar
     this.bond = opts.bond || 0;
-    this.r = 5;
+    this.r = 5; this.len = 11;   // len: gövdenin merkezden buruna uzunluğu
     this.spd = 0;
     this.state = 'idle';
     this.t = 0;
@@ -156,9 +159,20 @@ class Horse extends Ent {
     this.bond += v * (G.hasPerk('tamer') ? 2 : 1);
     if (this.bondLv > before) UI.feed(Tr`🐴 ${this.name} ile bağın gelişti: Seviye ${this.bondLv}`);
   }
+  /* Bir şekilde bina içinde kalmışsa (eski kayıt, ışınlanma) kapının dışına çıkar */
+  outdoorCheck() {
+    const W = G.world, c = Math.cos(this.ang) * this.len, s = Math.sin(this.ang) * this.len;
+    const b = W.indoorPx(this.x, this.y) ? W.buildingAtPx(this.x, this.y) : W.indoorPx(this.x + c, this.y + s) ? W.buildingAtPx(this.x + c, this.y + s) : null;
+    if (!b) return;
+    for (let k = 0; k < 12; k++) {
+      const x = b.door.x + rnd(-8, 8), y = b.door.y + 18 + k * 3;
+      if (!W.blocked(x, y, this.r) && !W.indoorPx(x, y) && !W.indoorPx(x, y - this.len)) { this.x = x; this.y = y; this.ang = Math.PI / 2; this.spd = 0; if (this.rider) { this.rider.x = x; this.rider.y = y; } return; }
+    }
+  }
   update(dt) {
     if (this.dead) return;
     this.t -= dt;
+    if ((this.inT = (this.inT || 0) - dt) <= 0) { this.inT = 0.5; this.outdoorCheck(); }
     if (this.rider) { Juice.idle(this, dt, this.spd > 3 || this.rearT > 0); return; }
     const P = G.player;
     if (this.state === 'come') {

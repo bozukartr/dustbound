@@ -1033,7 +1033,7 @@ const GameSystems = {
       const a = Math.random() * TAU, r = rnd(r0, r1);
       const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
       if (x < 40 || y < 40 || x > WW * TS - 40 || y > WH * TS - 40) continue;
-      if (W.blocked(x, y, 6) || W.isWaterPx(x, y)) continue;
+      if (W.blocked(x, y, 6) || W.isWaterPx(x, y) || W.indoorPx(x, y)) continue;
       return [x, y];
     }
     return null;
