@@ -506,7 +506,7 @@ const UI = {
     for (const b of W.buildings) {
       if (Math.abs(b.door.x - P.x) > 900 || Math.abs(b.door.y - P.y) > 900 || (xk > 0.5 && b.town)) continue;   // genişken kasaba adı yeterli
       const ic = BICON[b.type];
-      if (ic && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 12);
+      if (ic && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 15);
     }
     c.font = 'bold 11px serif';
     for (const p of W.pois) {
@@ -706,8 +706,8 @@ const UI = {
       c.strokeStyle = 'rgba(70,44,22,0.7)'; c.lineWidth = 1; c.strokeRect(x - tw / 2 + 2.5, ly - fs * 0.62 + 2.5, tw - 5, fs * 1.24 - 5);
       c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, ly + 1);
       if (M.zoom > 1.8) {
-        for (const l of t.lots || []) { const [lx, ly2] = toS((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS); c.fillStyle = 'rgba(40,90,40,0.85)'; c.beginPath(); c.arc(lx, ly2, 8, 0, TAU); c.fill(); c.fillStyle = '#efe6d2'; c.font = 'bold 11px serif'; c.fillText('$', lx, ly2 + 1); c.font = `${fs}px "IM Fell English SC", serif`; }
-        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 9, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (im.complete) c.drawImage(im, bx - 6.5, by - 6.5, 13, 13); }
+        for (const l of t.lots || []) { const [lx, ly2] = toS((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS); c.fillStyle = 'rgba(40,90,40,0.85)'; c.beginPath(); c.arc(lx, ly2, 10, 0, TAU); c.fill(); c.fillStyle = '#efe6d2'; c.font = 'bold 13px serif'; c.fillText('$', lx, ly2 + 1); c.font = `${fs}px "IM Fell English SC", serif`; }
+        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 12, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (im.complete) c.drawImage(im, bx - 8.5, by - 8.5, 17, 17); }
       }
     }
     // yerler
@@ -1264,11 +1264,12 @@ const UI = {
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, padGlyphs: 0, guideNew: true };
+    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, padGlyphs: 0, guideNew: true, hudScale: 2 };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
       padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')],
       zoom: [Tr('Otomatik'), '1x', '2x', '3x', '4x', '5x'],
+      hudScale: HUD_SCALES.map(v => Math.round(v * 100) + '%'),
     };
     const TABS = [
       { n: Tr('@ayar|Genel'), g: 'gear', rows: [
@@ -1286,6 +1287,7 @@ const UI = {
       { n: Tr('Görüntü'), g: 'eye', rows: [
         ...(Platform.canFullscreen === false ? [] : [['fullscreen', Tr('Tam Ekran'), 'fs', Tr('Oyunu tam ekranda ya da pencerede çalıştırır. Tercih kaydedilir; tarayıcıda tam ekrandan çıkmak için Esc tuşunu basılı tut.')]]),
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
+        ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
         ['fxq', Tr('Görsel Efektler'), 'opt', Tr('Tam: bulut gölgeleri, duman, izler, su halkaları ve renk tonlaması. Sade: zayıf bilgisayarlar için azaltılmış efektler.')],
       ] },
       { n: Tr('Kontroller'), g: 'pad', rows: [

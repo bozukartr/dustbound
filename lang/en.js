@@ -2244,6 +2244,8 @@ I18N.add('en', {
     "Henüz bir işletmen yok. Dükkânların tezgâhında sahibine satın almak istediğini söyleyebilir, ilçe binası ya da tapu dairesinden satılık işletmelere ve arsalara bakabilirsin.": "You don't own a business yet. You can tell a shopkeeper at the counter that you want to buy the place, or check businesses and lots for sale at the County Office or Land Office.",
     "İşletme": "Business",
     "İşletmeci": "Manager",
+    "Arayüz Boyutu": "Interface Size",
+    "Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.": "Size of the on-screen indicators (health rings, radar, money and clock, objective, weapon, notifications, subtitles). Make it bigger on large screens, smaller on small ones.",
     "Yeni Hayatta Rehber": "Guide in New Lives",
     "Her yeni hayatın başında, varış sinematiğinden sonra hoş geldin rehberi açılır. Duraklat menüsünden her zaman açabilirsin.": "The welcome guide opens at the start of every new life, after the arrival cinematic. You can always open it from the Pause menu.",
     "Yeni hayatlarda bu rehberi gösterme": "Don't show this guide in new lives",
