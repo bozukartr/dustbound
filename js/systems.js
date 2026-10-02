@@ -84,38 +84,56 @@ const GameSystems = {
     W.cloud = lerp(W.cloud, W.type === 'clear' ? 0 : W.type === 'fog' ? 0.4 : W.type === 'cloudy' ? 0.5 : 0.8, Math.min(1, dtMin * 0.02));
     W.fogI = lerp(W.fogI || 0, W.type === 'fog' ? 1 : 0, Math.min(1, dtMin * 0.02));
   },
+  /* Bir noktadaki hava: genel hava durumu, çevrenin zemin karışımı ve iklimle harmanlanır.
+     Kar, toz ve yağmur oranları keskin sınır yerine geçiş bölgesinde karışır. */
   localWeather(px, py) {
-    const W = this.weather;
-    const t = this.world.areaTile(px, py);   // tek karo değil, çevrenin baskın zemini
-    const h = this.world.climateAt(px, py);
+    const W = this.weather, Wd = this.world;
+    const h = Wd.climateAt(px, py);
     const out = { rain: 0, snow: 0, dust: 0, fog: 0, cloud: W.cloud, storm: W.type === 'storm' && W.i > 0.6 };
-    const cold = h < 0.24 || (this.season === 3 && h < SNOW_LINE) || t === T.SNOW;
-    const dry = (t === T.DESERT || t === T.REDROCK || t === T.MESA) && h > 0.55;
+    const snowF = Wd.areaFrac(px, py, T.SNOW, T.SNOWCLIFF), dryF = Wd.areaFrac(px, py, T.DESERT, T.REDROCK, T.MESA);
+    // soğuk: iklim eşiğinin çevresinde yumuşak; karlı zemin baskınsa tam
+    const cold = Math.max(clamp((0.27 - h) / 0.06, 0, 1), this.season === 3 ? clamp((SNOW_LINE + 0.03 - h) / 0.06, 0, 1) : 0, clamp(snowF * 2 - 0.2, 0, 1));
+    const dry = clamp(dryF * 2 - 0.2, 0, 1) * clamp((h - 0.52) / 0.06, 0, 1) * (1 - cold);
     if (W.i > 0.05) {
-      if (cold) out.snow = W.i;
-      else if (dry) { out.dust = W.type === 'storm' ? W.i : 0; out.rain = W.type === 'storm' ? 0 : W.i * 0.15; }
-      else out.rain = W.i;
+      const storm = W.type === 'storm' ? 1 : 0;
+      out.snow = W.i * cold;
+      out.dust = W.i * dry * storm;
+      out.rain = W.i * ((1 - cold - dry) + dry * (1 - storm) * 0.15);
     }
     let fog = W.fogI || 0;
     const hr = this.hour;
-    if ((t === T.SWAMP || t === T.MUD) && (hr < 9 || hr > 21)) fog = Math.max(fog, 0.6);
-    if (t === T.FOREST && hr > 5 && hr < 8) fog = Math.max(fog, 0.35);
+    const swampF = clamp(Wd.areaFrac(px, py, T.SWAMP, T.MUD) * 2, 0, 1), forestF = clamp(Wd.areaFrac(px, py, T.FOREST) * 2, 0, 1);
+    if (hr < 9 || hr > 21) fog = Math.max(fog, 0.6 * swampF);
+    if (hr > 5 && hr < 8) fog = Math.max(fog, 0.35 * forestF);
     out.fog = fog;
     return out;
   },
+  /* Oyuncunun havası: hedef havaya birkaç saniyede yumuşakça yaklaşır (ışınlanma ve yüklemede hemen) */
+  envTick(dt) {
+    const P = this.player, tgt = this.localWeather(P.x, P.y), env = this.envCache;
+    const jump = !env || !this._envAt || dist(P.x, P.y, this._envAt[0], this._envAt[1]) > 800;
+    this._envAt = [P.x, P.y];
+    if (jump) return (this.envCache = tgt);
+    const k = 1 - Math.exp(-dt / 5);
+    for (const key of ['rain', 'snow', 'dust', 'fog', 'cloud']) env[key] += (tgt[key] - env[key]) * k;
+    env.storm = tgt.storm;
+    return env;
+  },
   ambientTemp(px, py) {
-    const h = this.world.climateAt(px, py);
-    const t = this.world.tileAtPx(px, py);
+    const Wd = this.world, h = Wd.climateAt(px, py);
+    const t = Wd.tileAtPx(px, py), F = (...ts) => Wd.areaFrac(px, py, ...ts);
     const sun = Math.max(0, Math.sin((this.hour - 6) / 12 * Math.PI));
     let T0 = -4 + h * 36 + sun * 4;
-    if (t === T.ROCK || isCliffT(t)) T0 -= 5;
-    if (t === T.SNOW) T0 -= 5;
+    // zemin etkileri çevrenin karışımıyla orantılı (bölge sınırında sıcaklık yavaşça değişir)
+    T0 -= 5 * F(T.ROCK, T.CLIFF, T.MESA, T.SNOWCLIFF);
+    T0 -= 5 * F(T.SNOW);
+    T0 += 3 * F(T.DESERT, T.REDROCK);
+    // suyun içindeyken: serin su ya da kaplıca
     if (t === T.WATER) T0 -= 2;
-    if (t === T.DESERT || t === T.REDROCK) T0 += 3;
     if (t === T.HOTWATER) T0 += 25;
     T0 += SEASON_TEMP[this.season];
-    const dry = h > 0.6 && (t === T.DESERT || t === T.REDROCK || t === T.SAND || t === T.DRY);
-    T0 -= (1 - this.daylight) * (dry ? 17 : 8);
+    const dry = clamp((h - 0.57) / 0.06, 0, 1) * F(T.DESERT, T.REDROCK, T.SAND, T.DRY);
+    T0 -= (1 - this.daylight) * (8 + 9 * dry);
     const lw = this.envCache || { rain: 0, snow: 0 };
     T0 -= lw.rain * 4 + lw.snow * 6;
     return T0;

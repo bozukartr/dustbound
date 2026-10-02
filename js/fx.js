@@ -90,7 +90,7 @@ const FX = {
     this.cloudOff.x += Math.cos(w.a) * cs * dt; this.cloudOff.y += Math.sin(w.a) * cs * 0.5 * dt;
     // sıcaklık (nefes buharı ve ayaz için)
     this.tempT -= rdt;
-    if (this.tempT <= 0) { this.tempT = 0.5; this.temp = G.ambientTemp(P.x, P.y); }
+    if (this.tempT <= 0) { this.tempT = 0.5; const tt = G.ambientTemp(P.x, P.y); this.temp = !this.tempOk || Math.abs(tt - this.temp) > 25 ? tt : lerp(this.temp, tt, 0.12); this.tempOk = true; }
     const x0 = G.cam.ox - 30, y0 = G.cam.oy - 30, x1 = x0 + G.vw + 60, y1 = y0 + G.vh + 60;
     const inView = e => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1;
     // hareket edenler: izler, su halkaları, nefes
@@ -416,7 +416,6 @@ const FX = {
   post(ctx, dt) {
     const P = G.player, W = G.world, g = this.g, vw = G.vw, vh = G.vh, h = G.hour;
     const env = G.envCache || {};
-    const biome = W.areaTile(P.x, P.y);   // küçük zemin lekeleri ekran rengini değiştirmesin
     const out = G.insideB ? 0.25 : 1;
     // hedefler
     let gold = 0, blue = 0;
@@ -429,10 +428,10 @@ const FX = {
     const tg = {
       gold: gold * out,
       blue: clamp(blue, 0, 1) * out,
-      desert: (biome === T.DESERT || biome === T.REDROCK || biome === T.MESA ? 1 : biome === T.DRY || biome === T.SAND ? 0.45 : 0) * dl * out * (1 - (env.rain || 0)),
+      desert: clamp(W.areaFrac(P.x, P.y, T.DESERT, T.REDROCK, T.MESA) + W.areaFrac(P.x, P.y, T.DRY, T.SAND) * 0.45, 0, 1) * dl * out * (1 - (env.rain || 0)),
       rain: clamp((env.rain || 0) * 1.2 + (env.storm ? 0.3 : 0), 0, 1) * (G.insideB ? 0.35 : 1),
-      cold: clamp((biome === T.SNOW || biome === T.SNOWCLIFF ? 0.8 : 0) + (env.snow || 0) * 0.6 + (W.season === 3 && W.snowyTile(P.x >> 4, P.y >> 4) ? 0.5 : 0), 0, 1) * out,
-      swamp: (biome === T.SWAMP ? 1 : biome === T.MUD ? 0.5 : 0) * out,
+      cold: clamp(W.areaFrac(P.x, P.y, T.SNOW, T.SNOWCLIFF) * 0.8 + (env.snow || 0) * 0.6 + (W.season === 3 && W.snowyTile(P.x >> 4, P.y >> 4) ? 0.5 : 0), 0, 1) * out,
+      swamp: (W.areaFrac(P.x, P.y, T.SWAMP) + W.areaFrac(P.x, P.y, T.MUD) * 0.5) * out,
       hurt: G.state === 'play' || G.state === 'dead' ? clamp((0.42 - P.hp / P.maxHp) / 0.3, 0, 1) : 0,
       drunk: clamp((P.drunk - 22) / 55, 0, 1),
       frost: G.insideB ? 0 : clamp(G.coldness * 1.4 - 0.1, 0, 1),

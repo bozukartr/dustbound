@@ -188,22 +188,31 @@ class World {
   }
   isWaterPx(px, py) { return isWaterT(this.tileAtPx(px, py)); }
   biomeAt(px, py) { return TNAME[this.tileAtPx(px, py)]; }
-  /* Çevrenin baskın biyomu: ±256 piksellik alanda en çok görülen doğal zemin.
-     Hava ve ekran rengi bunu kullanır; kasabadaki küçük bir kum ya da kar
-     lekesinin üstüne basmak havayı değiştirmez. 64 piksellik hücre başına önbellekli. */
-  areaTile(px, py) {
-    const key = (px >> 6) * 100003 + (py >> 6), C = this._areaC || (this._areaC = { key: null, t: 0 });
-    if (C.key === key) return C.t;
-    const n = new Uint16Array(TNAME.length);
-    for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
-      const t = this.tileAtPx(px + i * 64, py + j * 64);
-      if (!AREA_NEUTRAL.has(t)) n[t] += i === 0 && j === 0 ? 2 : 1;
+  /* Çevrenin zemin karışımı: ±512 piksellik alandaki (yakını daha ağır) doğal zeminlerin oranları (toplamı 1)
+     ve en çok görülen zemin. Hava, sıcaklık ve ekran rengi bunu kullanır; böylece kasabadaki
+     küçük bir kum ya da kar lekesi havayı değiştirmez, bölge sınırlarında da geçiş yumuşak olur.
+     64 piksellik hücre başına önbellekli. */
+  areaInfo(px, py) {
+    const key = (px >> 6) * 100003 + (py >> 6), C = this._areaC || (this._areaC = { key: null, mix: new Float32Array(TNAME.length), t: 0 });
+    if (C.key === key) return C;
+    const n = C.mix; n.fill(0);
+    let sum = 0;
+    // iki halka: yakın çevre (±256) ve daha geniş çevre (±512); kasaba ortasında da doğal zemin bulunur
+    for (const st of [64, 128]) for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
+      if (st === 128 && Math.abs(i) <= 2 && Math.abs(j) <= 2) continue;
+      const t = this.tileAtPx(px + i * st, py + j * st), w = i === 0 && j === 0 ? 2 : 1;
+      if (!AREA_NEUTRAL.has(t)) { n[t] += w; sum += w; } else sum += w * 0.35;   // nötr zemin oranları biraz seyreltir
     }
     let best = -1, bn = 0;
     for (let t = 0; t < n.length; t++) if (n[t] > bn) { bn = n[t]; best = t; }
-    C.key = key; C.t = best < 0 ? this.tileAtPx(px, py) : best;
-    return C.t;
+    for (let t = 0; t < n.length; t++) n[t] /= sum;
+    if (best < 0) best = this.tileAtPx(px, py);
+    C.key = key; C.t = best;
+    return C;
   }
+  areaTile(px, py) { return this.areaInfo(px, py).t; }
+  /* Verilen zeminlerin alandaki toplam oranı (0-1) */
+  areaFrac(px, py, ...ts) { const m = this.areaInfo(px, py).mix; let f = 0; for (const t of ts) f += m[t]; return f; }
   /* Kasaba/yol vb. için arka plan biyomu */
   climateAt(px, py) {
     const x = clamp(px >> 4, 0, WW - 1), y = clamp(py >> 4, 0, WH - 1);
