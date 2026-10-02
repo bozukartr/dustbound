@@ -247,6 +247,19 @@ body.modal-open #modals { background: rgba(0, 0, 0, 0.45); }
 .p-head { padding: 18px 24px 10px; border-bottom: 1px solid rgba(201, 164, 92, 0.18); }
 .p-title { font-family: var(--sc); font-size: 30px; letter-spacing: 2px; color: #f6f0e2; }
 .p-sub { font-size: 15px; color: var(--dim); margin-top: 2px; }
+/* cüzdan: alışveriş pencerelerinde sağ üstte büyük para */
+.p-head.has-wallet { position: relative; padding-right: 190px; min-height: 64px; }
+.p-wallet { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: flex-end; line-height: 1;
+  padding: 7px 14px 8px; background: rgba(201, 164, 92, 0.1); border: 1px solid rgba(201, 164, 92, 0.4); }
+.p-wallet span { font-family: var(--sc); font-size: 13px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+.p-wallet b { font-family: var(--sc); font-size: 30px; color: #f0d890; margin-top: 3px; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); }
+.p-wallet.spent b { animation: wal-spent 0.6s ease-out; }
+.p-wallet.gain b { animation: wal-gain 0.6s ease-out; }
+@keyframes wal-spent { 0% { color: #ff8a70; transform: scale(1.12); } 100% { color: #f0d890; transform: scale(1); } }
+@keyframes wal-gain { 0% { color: #a8f090; transform: scale(1.12); } 100% { color: #f0d890; transform: scale(1); } }
+.panel.small .p-head.has-wallet { padding-right: 160px; }
+.panel.small .p-wallet b { font-size: 24px; }
+@media (max-width: 560px) { .p-head.has-wallet { padding-right: 24px; padding-top: 70px; } .p-wallet { top: 12px; transform: none; } }
 .p-tabs { display: flex; align-items: center; gap: 4px; padding: 8px 18px; border-bottom: 1px solid rgba(201, 164, 92, 0.12); flex-wrap: wrap; }
 .tab { font-family: var(--sc); font-size: 17px; padding: 4px 12px; color: var(--dim); cursor: pointer; }
 .tab.on { color: #fff; border-bottom: 2px solid var(--red2); }
@@ -350,6 +363,9 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 #mapcanvas { position: absolute; inset: 0; cursor: crosshair; }
 #map-legend { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); background: rgba(232, 220, 192, 0.92); color: var(--ink); padding: 12px 16px; font-size: 15px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); border: 1px solid #8a6a44; }
 #map-legend div { display: flex; gap: 8px; align-items: center; margin: 2px 0; }
+#map-legend .ml-i { cursor: pointer; padding: 1px 6px; margin: 1px -6px; }
+#map-legend .ml-i:hover { background: rgba(120, 80, 40, 0.18); }
+#map-legend .ml-i.on { background: rgba(140, 40, 140, 0.2); box-shadow: inset 3px 0 0 rgba(140, 40, 140, 0.9); }
 #map-legend span { width: 20px; text-align: center; }
 .ml-t { font-family: var(--sc); font-size: 18px; border-bottom: 1px solid #8a6a44; margin-bottom: 6px !important; }
 #map-info { position: absolute; left: 50%; top: 20px; transform: translateX(-50%); text-align: center; color: var(--ink); background: rgba(232, 220, 192, 0.9); padding: 8px 22px; border: 1px solid #8a6a44; max-width: 520px; pointer-events: none; }

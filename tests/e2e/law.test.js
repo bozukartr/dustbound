@@ -76,5 +76,27 @@ module.exports = {
       const r = await p.evaluate(() => ({ days: G.day - d0, lvl: G.law.level, b: G.law.bounty }));
       t.ok(r.days >= 1, 'en az bir gün geçmeli', r); t.eq(r.b, 0, 'ödül silinmeli'); t.eq(r.lvl, 0, 'aranma bitmeli');
     });
+    await t.step('dörtnala kanun adamına çarpmak: iki kez uyarı, üçüncüsü saldırı', async () => {
+      await setup();
+      const r = await p.evaluate(async () => {
+        TH.clearNpcs();
+        const P = G.player;
+        let h = G.horse; if (!h || h.dead) { h = new Horse(P.x, P.y, 'mustang', { owner: 'player' }); G.addEnt(h); G.setHorse(h); }
+        h.x = P.x; h.y = P.y; P.mount(h, true); P.mountAnim = null;
+        const cop = mk(60, 0, 'law'); cop.state = 'static';
+        const frame = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        const out = [];
+        for (let k = 0; k < 3; k++) {
+          G.playtime += 3;
+          h.ang = 0; h.spd = 200; cop.x = h.x + 12; cop.y = h.y; P.x = h.x; P.y = h.y;
+          await frame(); await frame(); await frame();
+          out.push({ hp: cop.hp, max: cop.maxHp, lvl: G.law.level, bounty: G.law.bounty, assaulted: !!cop.assaulted, hostile: !!cop.hostile, bumps: cop.bumps });
+        }
+        P.dismount(); P.mountAnim = null;
+        return out;
+      });
+      for (const k of [0, 1]) { t.eq(r[k].bumps, k + 1, (k + 1) + '. çarpma sayıldı', r); t.ok(!r[k].assaulted && !r[k].hostile && r[k].hp === r[k].max, (k + 1) + '. çarpma suç değil, hasar yok', r[k]); }
+      t.ok(r[2].assaulted && r[2].hp < r[2].max, 'üçüncü çarpma saldırı sayılır', r[2]);
+    });
   },
 };
