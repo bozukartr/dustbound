@@ -185,7 +185,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - Her kasabada tanışabileceğin biri yaşar. Onunla ilişki kurup evlenebilir, çocuk sahibi olabilirsin.
 
 **Başlangıç**
-- Karakter oluşturma ekranı dört bölümden oluşur: Kimlik, Görünüm, Kıyafet, Hikâye. Ortada çerçeveli portre, sağda seçilen geçmişin kartı (başlangıç kasabası, para, at, yetenekler, eşyalar) görünür. Ekran çözünürlüğe göre ölçeklenir; 1080p ve üstünde yazılar ve portre büyür.
+- Karakter oluşturma ekranı dört bölümden oluşur ve adım adım ilerler: Kimlik, Görünüm, Kıyafet, Hikâye. Her bölümde kısa bir açıklama ve adım çubuğu vardır; ana düğme "İleri: …" diyerek sıradaki bölüme geçer, **Hayata Başla** yalnızca dört bölüm de görüldükten sonra çıkar (bakılmamış bölüm varsa düğme "Sırada: …" der ve oraya götürür). Görülen bölümlerin başlığında ✓ çıkar, görülmeyenlerin numarası yanıp söner. Esc bir önceki bölüme döner. Klavyeyle açılınca isim kutusu hazırdır: yaz, Enter ile bitir. Oyuncunun yazdığı isim cinsiyet değişince ya da Rastgele'ye basınca korunur (zar simgesi yeni isim verir); isimden < > & " işaretleri temizlenir. Ortada çerçeveli portre, sağda seçilen geçmişin kartı (başlangıç kasabası, para, at, yetenekler, eşyalar) görünür. Ekran çözünürlüğe göre ölçeklenir; 1080p ve üstünde yazılar ve portre büyür.
 - **Portre**: sade vektör illüstrasyon (düz renkler, yumuşak gölgeler). Saç modelleri (kısa, uzun, toplu, kazınmış, dalgalı), burma bıyık, keçi sakalı, kirli ve gür sakal (dişli kenarlı), dört şapka türü, palto yakası, yelek, düğümlü bandana ya da ince kravat, kadınlarda yüksek yakalı bluz ve broş. Yaşlandıkça saç ağarır, yüzde çizgiler belirir.
 - Yeni bir hayat, seçilen geçmişe özel kısa bir **3D varış sinematiğiyle** başlar: Harlow'a at arabasıyla, Saint Clement'e buharlı gemiyle, Dust Creek'e gün batımında dörtnala, Fort Redstone'a trenle, Cedar Falls'a sisli ormandan. Her sinematik iki çekimden oluşur (yakın plan, ardından kasabayı gösteren geniş açı). Gökyüzünde akan bulutlar, güneş huzmeleri ve parlaması, yumuşak zemin gölgeleri, sahneye özel renk tonu, vinyet ve film greni vardır; oyunun piksel sanat görünümü (renk kademesi, dither) korunur. Bir tuşla geçilebilir.
 
@@ -315,6 +315,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `world` | kasaba sakinleri, ölüm ve yerine gelen, at arabası, hayvan kementleme, boğulma, göçebeler, mevsimler, küçük zemin lekesinin havayı değiştirmemesi, bölge sınırında ve zamanla yumuşak hava ve sıcaklık geçişi |
 | `controls` | oyun kolu ile menü, yürüme, nişan ve ateş, silah çarkı, binme animasyonu, genişletilmiş radar |
 | `audio` | ses listesi aracı (çeşit, uzantı, bilinmeyen ad), dosya yokken eski seslere dönüş, dosyaların yüklenmesi ve döngüler, konumlu ses (menzil, yön, duvar arkası), mekâna göre yankı ve zemin, silah sesinde kısma, art arda aynı kaydın çalmaması ve eşzamanlı sınır, oyun içi olayların örnekli sesi, seslendirme anahtarı |
+| `create` | karakter ekranında adım adım bölümler, isim yazıp Enter'la oyunun başlamaması, yazılan ismin korunması, bakılmamış bölüme yönlendirme, Esc ile geri, seçimlerin oyuna geçmesi |
 | `debug` | hata ayıklama paneli şifresi ve kilidi |
 | `stress` | 45 sn rastgele tuş ve fare girdisi |
 
