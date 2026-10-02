@@ -634,8 +634,8 @@ class Player extends Ent {
         if (e.dead || e === h || e.kind === 'horse') continue;
         if (dist2(e.x, e.y, h.x + Math.cos(h.ang) * 8, h.y + Math.sin(h.ang) * 8) < 100) {
           if (e.kind === 'npc') {
-            // kanun adamına çarpmak ilk iki seferde uyarıdır; üçüncüsü saldırı sayılır
-            if (e.isLaw && !e.hostile && !e.bound && G.lawBump(e, h)) continue;
+            // kanun adamına ya da sivile çarpmak ilk iki seferde uyarıdır; üçüncüsü saldırı sayılır
+            if (!e.hostile && !e.bound && !['bandit', 'hunter', 'target'].includes(e.role) && G.npcBump(e, h)) continue;
             e.hurt(18, 'player', 'trample'); e.x += Math.cos(h.ang) * 10; e.y += Math.sin(h.ang) * 10;
           }
           else if (e.kind === 'animal') e.hurt(12, 'player');
