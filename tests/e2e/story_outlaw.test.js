@@ -61,6 +61,16 @@ module.exports = {
     await t.step('bölüm 3: av, deri, kampa getir', async () => {
       await p.evaluate(() => { const P = G.player; if (P.riding) { P.dismount(); P.mountAnim = null; } });
       await p.waitForFunction(() => G.ents.some(e => e.storyGame && !e.dead), null, { timeout: 5000 });
+      const herd = await p.evaluate(() => {
+        const R = G.story.ranch, a = G.ents.find(e => e.storyGame && !e.dead);
+        // her yanı kapalı bir yerde sıkışan hayvan her karede dönmemeli (pervane gibi)
+        const b = new Animal(a.x, a.y, a.type); b.move = () => false; b.state = 'wander'; b.t = 9; b.spd = 20;
+        let flips = 0, last = b.ang;
+        for (let f = 0; f < 120; f++) { b.state = 'wander'; b.t = 9; b.update(1 / 60); if (Math.abs(angDiff(b.ang, last)) > 0.5) flips++; last = b.ang; }
+        return { reach: G.storyReach([R.x, R.y], [a.x, a.y]), flips };
+      });
+      t.ok(herd.reach, 'av sürüsü kamptan yürüyerek ulaşılabilir yerde');
+      t.ok(herd.flips <= 5, 'sıkışan hayvan yerinde fır dönmez', herd.flips);
       await p.evaluate(() => { const a = G.ents.find(e => e.storyGame && !e.dead); TH.goto(a.x + 12, a.y); a.hurt(999, 'player'); window.QA = a; });
       await waitStep(2, 1);
       await p.evaluate(() => G.skin(QA));

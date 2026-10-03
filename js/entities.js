@@ -980,13 +980,20 @@ class Animal extends Ent {
       if (d.beh === 'skittish' && this.hp < this.maxHp * 0.5) { this.state = 'flee'; this.t = 8; this.fleeFrom(P); }
     }
     this.spd = lerp(this.spd, target, dt * 4);
+    this.turnCd = (this.turnCd || 0) - dt;
     if (this.spd > 0.5) {
       const vx = Math.cos(this.ang) * this.spd * dt, vy = Math.sin(this.ang) * this.spd * dt;
       const W = G.world;
       const nt = W.tileAtPx(this.x + vx * 4, this.y + vy * 4);
       if ((nt === T.DEEP || (nt === T.WATER && this.type !== 'gator' && this.state !== 'attack')) || !this.move(vx, vy)) {
-        this.ang += (Math.random() < 0.5 ? -1 : 1) * rnd(0.8, 2);
-      }
+        // engelde her karede yön değiştirmek hayvanı pervane gibi döndürür: bir kez yeni yön seç, kısa süre koru
+        this.spd *= 0.5;
+        if (this.turnCd <= 0) {
+          this.ang += (Math.random() < 0.5 ? -1 : 1) * rnd(1.2, 2.4); this.turnCd = 0.6;
+          // sıkışıp kaldıysa bir süre dursun (gezinirken)
+          if ((this.stuckN = (this.stuckN || 0) + 1) > 5 && this.state === 'wander') { this.state = 'idle'; this.t = rnd(2, 4); this.stuckN = 0; }
+        }
+      } else if (this.stuckN && this.turnCd <= 0) this.stuckN = 0;
     }
     this.mv = this.spd / 30;
     this.phase += dt * (2 + this.spd * 0.18);

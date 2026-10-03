@@ -466,7 +466,11 @@ const Story = {
     const key = S.ch + '|' + S.st + '|' + S.n + '|' + S.wait + '|' + txt;
     if (el._k === key) return;
     el._k = key;
-    el.innerHTML = `<div class="hq-t">${Tr`Bölüm ${S.ch + 1}`} · ${c.t()}</div><div class="hq-o ${S.wait ? 'done' : ''}"><i></i>${txt}</div>`;
+    // yeni bir hedef: panel parlayarak kayıp gelir, kısa süre "Yeni Hedef" etiketi görünür
+    const sk = S.ch + '|' + S.st, fresh = st && !S.wait && el._sk !== sk;
+    if (fresh) el._sk = sk;
+    el.innerHTML = `<div class="hq-t">${fresh ? `<span class="hq-new">${Tr`Yeni Hedef`}</span>` : ''}${Tr`Bölüm ${S.ch + 1}`} · ${c.t()}</div><div class="hq-o ${S.wait ? 'done' : ''}"><i></i>${txt}</div>`;
+    if (fresh) { el.classList.remove('hq-pulse'); void el.offsetWidth; el.classList.add('hq-pulse'); }
   },
   /* Günlük: Görevler sekmesi */
   questJournal() {
@@ -925,14 +929,28 @@ Object.assign(Story, {
     const R = S.ranch, b = S.biome || this.storyBiome(R.cx, R.cy);
     S.game = S.game || (b === 'DESERT' || b === 'REDROCK' || b === 'DRY' ? 'pronghorn' : 'deer');
     if (this.ents.some(e => e.storyGame && !e.dead && !e.remove)) return;
-    const a = rnd(0, TAU), cx = R.cx + Math.cos(a) * 520, cy = R.cy + Math.sin(a) * 520;
+    // sürünün yeri: çiftlikten (kamptan) düz yürünerek varılabilen açık bir düzlük; kayalık yükseltinin üstü ya da arkası olmaz
+    let cx = 0, cy = 0, ok = false;
+    for (let k = 0; k < 24 && !ok; k++) {
+      const a = rnd(0, TAU), r = k < 16 ? 520 : 380, s = this.findSpawnPos(R.cx + Math.cos(a) * r, R.cy + Math.sin(a) * r, 0, 60);
+      if (s && !this.world.townAt(s[0], s[1], 20) && !this.world.blocked(s[0], s[1], 26) && this.storyReach([R.x, R.y], s)) { cx = s[0]; cy = s[1]; ok = true; }
+    }
+    if (!ok) { const a = rnd(0, TAU); cx = R.cx + Math.cos(a) * 520; cy = R.cy + Math.sin(a) * 520; }
     let lead = null;
     for (let k = 0; k < 3; k++) {
-      const s = this.sSpot(cx + rnd(-30, 30), cy + rnd(-30, 30), 0, 60);
+      let s = this.sSpot(cx + rnd(-30, 30), cy + rnd(-30, 30), 0, 60);
+      if (ok && !TownPath.walkable([cx, cy], s, 5)) s = [cx + k * 8, cy];
       const g = new Animal(s[0], s[1], S.game); g.storyGame = true; g.keep = true; g.home = { x: cx, y: cy, r: 90 };
       if (lead) g.leader = lead; else lead = g;
       this.addEnt(g);
     }
+  },
+  /* a'dan b'ye yürünerek varılabilir mi: önce düz çizgi, olmazsa iki noktayı kapsayan küçük bir ızgarada A* */
+  storyReach(a, b) {
+    if (TownPath.walkable(a, b, 6)) return true;
+    const x0 = Math.floor(Math.min(a[0], b[0]) / TS) - 6, y0 = Math.floor(Math.min(a[1], b[1]) / TS) - 6;
+    const area = { x: x0, y: y0, w: Math.ceil(Math.max(a[0], b[0]) / TS) - x0 + 6, h: Math.ceil(Math.max(a[1], b[1]) / TS) - y0 + 6 };
+    return !!TownPath.find(area, a[0], a[1], b[0], b[1]);
   },
   /* satılacak av ürünü var mı (çanta, omuz, eyer) */
   storyHasGoods() {
