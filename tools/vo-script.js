@@ -17,7 +17,7 @@ const ROOT = path.join(__dirname, '..'), VO = path.join(ROOT, 'audio', 'vo');
 const key = (text) => { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 // hikâye dosyaları: quests.js (Sully) ve story_*.js; 'S' her dosyanın kendi akıl hocası, 'R' hedef kişi
 const FILES = [['quests.js', { S: 'Dunham Sully', R: 'Kızıl Jack' }]].concat(fs.readdirSync(path.join(ROOT, 'js')).filter(f => /^story_.+\.js$/.test(f)).map(f => [f, null]));
-const MENTOR = { 'story_outlaw.js': { S: 'Hollis Crane', R: 'Silas Vance' } };
+const MENTOR = { 'story_outlaw.js': { S: 'Hollis Crane', R: 'Silas Vance' }, 'story_immigrant.js': { S: 'Greta Halvorsen', R: 'Ambrose Pike', K: 'Anton', M: 'Madenci / Miner' } };
 const COMMON = { P: 'Oyuncu / Player', W: 'Şerif / Sheriff', B: 'Barmen / Bartender' };
 // ['S', Tr('...')] biçimli satırlar (konuşan bir harf ya da doğrudan isim)
 const re = /\[\s*'([A-Z][A-Za-z]*)'\s*,\s*Tr\(\s*(['"])((?:\\.|(?!\2).)*)\2\s*\)\s*\]/g;

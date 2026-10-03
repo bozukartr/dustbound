@@ -1809,7 +1809,7 @@ const UI = {
         return {
           icon: '🐴', label: B.n, right: fmtMoney(pr),
           sideHtml: `<div class="ps-t">${B.n}</div><div class="ps-d">${Tr`Hız${bar(B.spd, 1.3)}Dayanıklılık${bar(B.sta, 170)}Sağlık${bar(B.hp, 190)}`}</div>`,
-          fn: () => { if (G.spend(pr)) { const h = new Horse(b.door.x + 20, b.door.y + 20, k, { owner: 'player' }); h.ang = Math.PI / 2; G.setHorse(h); this.toast(Tr('Yeni At'), Tr`${h.name} (${B.n}) artık senin.`, 'horse'); Audio_.neigh(); } },
+          fn: () => { if (G.spend(pr)) { const h = new Horse(b.door.x + 20, b.door.y + 20, k, { owner: 'player' }); h.ang = Math.PI / 2; G.setHorse(h); this.toast(Tr('Yeni At'), Tr`${h.name} (${B.n}) artık senin.`, 'horse'); Audio_.neigh(); G.qEvent('horse', h); } },
         };
       }),
     });
@@ -1868,7 +1868,7 @@ const UI = {
     const P = G.player, Wd = G.world;
     const here = Wd.towns.find(t => t.id === b.town);
     // gidilebilecek yerler: ziyaret edilmiş kasabalar ve buraya yakın (komşu) kasabalar
-    const dests = Wd.towns.filter(t => t !== here && (G.visited.has(t.id) || dist(here.cx, here.cy, t.cx, t.cy) < 7000))
+    const dests = Wd.towns.filter(t => t !== here && (G.visited.has(t.id) || dist(here.cx, here.cy, t.cx, t.cy) < 7000 || G.storyStageDest(t)))
       .sort((a, c) => dist(here.cx, here.cy, a.cx, a.cy) - dist(here.cx, here.cy, c.cx, c.cy));
     this.menu({
       title: Tr('Posta Arabası'), sub: Tr`${here.n} Durağı`, cls: 'small', wallet: true,
@@ -1891,6 +1891,7 @@ const UI = {
             G.cam.x = P.x; G.cam.y = P.y;
             G.stat('stageRides', 1);
             G.prefetch(true);
+            G.qEvent('stage', t);
             if (late) this.feed(Tr`Yolda bir tekerlek kırıldı; ${late} saat gecikmeyle vardın.`);
           }, Tr`${t.n} yolunda...`);
         } };
