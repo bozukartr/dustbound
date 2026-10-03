@@ -40,7 +40,7 @@ const HomeSystems = {
       const i = y * WW + x, t = W.tile[i], f = W.flags[i];
       if (f & 8) return Tr('Yakında başka bir yapı var.');
       if (f & 2) return Tr('Demiryoluna çok yakın.');
-      if (t === T.ROAD || t === T.BRIDGE || t === T.TOWN || t === T.PLANK) return Tr('Yolun üstüne ya da hemen kenarına yapı kurulamaz.');
+      if (t === T.ROAD || t === T.BRIDGE || t === T.TOWN || t === T.PLANK || isStoneT(t)) return Tr('Yolun üstüne ya da hemen kenarına yapı kurulamaz.');
       if (x < tx || x >= tx + FW || y < ty || y >= ty + FH) continue;
       if (isWaterT(t) || t === T.SWAMP || t === T.MUD || t === T.HOTWATER) return Tr('Zemin su ya da bataklık. Kuru bir yer bul.');
       if (t === T.ROCK || t === T.CLIFF || t === T.SNOWCLIFF || t === T.MESA || t === T.REDROCK) return Tr('Zemin kayalık ve engebeli.');

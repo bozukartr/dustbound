@@ -154,7 +154,7 @@ module.exports = {
     });
 
     await t.step('bölüm 8: kamptan uzaklaş, ödül avcıları çıkar ve püskürtülür, kampa dön', async () => {
-      await p.evaluate(() => { if (G.law.bounty < 20) G.law.bounty = 25; const H = G.story.hideout; let s = null; for (let k = 0; k < 40 && !s; k++) { const c = G.findSpawnPos(H.x, H.y, 650, 820); if (c && dist(c[0], c[1], H.x, H.y) > 560 && !G.world.townAt(c[0], c[1], 4)) s = c; } s = s || [H.x + 700, H.y]; TH.goto(s[0], s[1]); TH.clearNpcs(); G.godMode = true; });
+      await p.evaluate(() => { if (G.law.bounty < 20) G.law.bounty = 25; const H = G.story.hideout, tw = G.sTown(); let s = null, bd = -1; for (let k = 0; k < 40; k++) { const c = G.findSpawnPos(H.x, H.y, 650, 820); if (!c || dist(c[0], c[1], H.x, H.y) < 560 || G.world.townAt(c[0], c[1], 24)) continue; const d = dist(c[0], c[1], tw.cx, tw.cy); if (d > bd) { bd = d; s = c; } } s = s || [H.x + 700, H.y]; TH.goto(s[0], s[1]); TH.clearNpcs(); G.godMode = true; });
       await waitStep(7, 1);
       await p.waitForFunction(() => G.posse && G.story.flags.posse, null, { timeout: 10000 });
       await p.evaluate(() => { for (const e of G.posse.ents) e.hurt(9999, 'player'); });

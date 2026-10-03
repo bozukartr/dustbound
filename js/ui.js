@@ -1536,7 +1536,7 @@ const UI = {
   },
   openShop(shopId, title) {
     const S = SHOPS[shopId], P = G.player;
-    const regional = 1;
+    const regional = S.mul || 1;   // pazar gibi seçkin dükkânlar daha pahalı satar
     this.menu({
       title: title || S.n, cls: 'shop', tabs: [Tr('Satın Al'), Tr('Sat')], side: (it) => it.sideHtml || '',
       wallet: true, okLabel: Tr('Al / Sat'),
