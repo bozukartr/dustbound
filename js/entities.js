@@ -680,6 +680,7 @@ class Player extends Ent {
     const Wp = this.W;
     if (!Wp.clip || this.reloadT > 0) return;
     const have = this.ammo[Wp.ammo];
+    G.qEvent('reload', this.weapon);
     if ((this.clip[this.weapon] || 0) >= Wp.clip || have <= 0) return;
     let t = Wp.reload * (G.hasPerk('gunslinger') ? 0.75 : 1);
     this.reloadT = t;

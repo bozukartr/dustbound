@@ -849,13 +849,14 @@ const TownLifeSystems = {
     this.earn(money, w.stage ? Tr('Posta çantası') : Tr('Araba yükü'));
     this.addHonor(-2);
     Audio_.ui('pick');
+    this.qEvent('loot', w);
   },
 
   /* ---------------- yol trafiği ---------------- */
   trafficTick() {
     const P = this.player, W = this.world;
     const wagons = this.ents.filter(e => e.kind === 'wagon' && e.owner !== 'player');
-    for (const w of this.ents) if (w.kind === 'wagon' && !w.mine && w.rider !== P && dist2(w.x, w.y, P.x, P.y) > (w.owner === 'player' ? 3000 : 1500) ** 2) w.remove = true;
+    for (const w of this.ents) if (w.kind === 'wagon' && !w.mine && !w.storyWagon && w.rider !== P && dist2(w.x, w.y, P.x, P.y) > (w.owner === 'player' ? 3000 : 1500) ** 2) w.remove = true;
     if (wagons.length >= 3 || !chance(0.07)) return;
     // oyuncunun görüş alanının hemen dışındaki yol noktalarından biri
     const cands = [];

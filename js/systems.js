@@ -394,7 +394,7 @@ const GameSystems = {
     let instant = type === 'storerob' || type === 'bankrob';
     const ws = [];
     for (const e of this.ents) {
-      if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'hunter' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
+      if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'gang' || e.role === 'hunter' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
       if (e.state === 'hurt' || e.bound) continue;
       if (e.res && e !== victim && this.opOf(e.res) >= 50 && chance(0.5)) continue;   // oyuncuyu seven sakin bazen görmezden gelir
       const see = e === victim ? dist2(e.x, e.y, x, y) < 60 * 60 : dist2(e.x, e.y, x, y) < 340 * 340 && this.los(e.x, e.y, x, y);
@@ -565,6 +565,7 @@ const GameSystems = {
       Audio_.ui('pick');
       this.unmaskCheck(force);
       P.maskBlown = false;
+      this.qEvent('mask', false);
       return;
     }
     id = id || (P.lastMask && P.has(P.lastMask) ? P.lastMask : ['mask_bandana', 'mask_sack'].find(k => P.has(k)));
@@ -577,12 +578,13 @@ const GameSystems = {
       P.maskBlown = !!this.watcher(90);
       if (P.maskBlown) UI.feed(Tr('Maskeni takarken biri seni gördü. Onun gözünde artık kim olduğun belli.'), 'warn');
     }
+    this.qEvent('mask', true);
   },
   /* Oyuncuyu gören en yakın kişi */
   watcher(r) {
     const P = this.player;
     for (const e of this.ents) {
-      if (e.kind !== 'npc' || e.dead || e.role === 'bandit' || e.state === 'hurt') continue;
+      if (e.kind !== 'npc' || e.dead || e.role === 'bandit' || e.role === 'gang' || e.state === 'hurt') continue;
       const rr = e.isLaw ? r * 2 : r;
       if (Math.abs(e.x - P.x) > rr || Math.abs(e.y - P.y) > rr) continue;
       if (e.canSee(P.x, P.y, rr)) return e;
@@ -1599,7 +1601,7 @@ const GameSystems = {
           const acts = [{ n: Tr('Bin'), fn: () => P.mount(e) }, { n: Tr('Atı Okşa'), fn: () => { e.addBond(3); Audio_.neigh(); UI.feed(Tr`${e.name} mutlu görünüyor.`); } }];
           const st = this.homeStableNear(e.x, e.y);
           if (st) acts.push({ n: Tr('Atını Besle ve Dinlendir'), fn: () => this.homeRestHorse(st) });
-          if (P.has('horse_brush')) acts.push({ n: Tr('Fırçala'), fn: () => { e.addBond(5); e.dirty = 0; UI.feed(Tr`${e.name} tertemiz oldu.`); } });
+          if (P.has('horse_brush')) acts.push({ n: Tr('Fırçala'), fn: () => { e.addBond(5); e.dirty = 0; UI.feed(Tr`${e.name} tertemiz oldu.`); this.qEvent('brush', e); } });
           if (P.has('hay')) acts.push({ n: Tr('Saman Ver'), fn: () => this.consume('hay') });
           if (P.has('horse_tonic')) acts.push({ n: Tr('At Toniği Ver'), fn: () => this.consume('horse_tonic') });
           acts.push({ n: Tr('Heybeyi Aç'), fn: () => UI.openSatchel() });
