@@ -662,7 +662,7 @@ Object.assign(Audio_, {
     switch (t) {
       case T.GRASS: case T.FOREST: case T.FARM: return 'grass';
       case T.SAND: case T.DESERT: return 'sand';
-      case T.ROCK: case T.CLIFF: case T.REDROCK: case T.MESA: case T.SNOWCLIFF: return 'stone';
+      case T.ROCK: case T.CLIFF: case T.REDROCK: case T.MESA: case T.SNOWCLIFF: case T.COBBLE: case T.PAVE: return 'stone';
       case T.PLANK: case T.BRIDGE: return 'wood';
       case T.MUD: case T.SWAMP: return 'mud';
       case T.SNOW: return 'snow';

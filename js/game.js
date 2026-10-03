@@ -159,7 +159,7 @@ const G = {
 
   /* ---------------- Yeni oyun ---------------- */
   async newGame(profile) {
-    setWorldSize(WORLD_NEW);
+    setWorldSize(WORLD_NEW); WGEN = WGEN_NEW;
     this.resetState();
     const seed = (Math.random() * 1e9) | 0;
     this.seed = seed;
@@ -256,7 +256,7 @@ const G = {
     const h = this.horse;
     this.noteBountyState();
     const data = {
-      v: 3, ww: WW, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
+      v: 3, ww: WW, wgen: WGEN, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
       profile: this.profile,
       player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, immuneT: P.immuneT, painT: P.painT, limberT: P.limberT, coolT: P.coolT, canteen: P.canteen, coat: P.coat, mask: P.masked ? P.mask : null, lastMask: P.lastMask || null, lantern: P.lantern, riding: !!P.riding },
       horse: h ? { breed: h.breed, name: h.name, look: h.look, hp: h.hp, bond: h.bond, x: h.x, y: h.y, dead: h.dead } : null,
@@ -360,6 +360,7 @@ const G = {
     try { d = JSON.parse(Platform.get(slotKey(L.n, L.kind))); } catch (e) { d = null; }
     if (!d) return false;
     setWorldSize(d.ww || WORLD_OLD);   // v3 öncesi kayıtlar küçük dünyada kalır
+    WGEN = d.wgen || 1;   // eski kayıtların dünyası eski kurallarla üretilir (bina numaraları korunur)
     this.resetState();
     this.slot = L.n;
     this.seed = d.seed;

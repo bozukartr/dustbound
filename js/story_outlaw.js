@@ -398,7 +398,7 @@ Object.assign(Story, {
     if (S.ch !== 7 || !st || !st.posse || S.flags.posse || S.wait) return;
     const P = this.player;
     if (this.posse) { S.flags.posse = 1; return; }
-    if (this.world.townAt(P.x, P.y, 60) || this.insideB || UI.isModal()) return;
+    if (this.world.townAt(P.x, P.y, 20) || this.insideB || UI.isModal()) return;   // kenar payı karo cinsinden
     if (this.hunterSpawn()) { S.flags.posse = 1; Audio_.chime(); }
   },
 });

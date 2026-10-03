@@ -883,7 +883,7 @@ Object.assign(Story, {
     let best = null, bd = 1e9;
     for (let ty = Math.floor((t.cy - 600) / TS); ty < (t.cy + 600) / TS; ty++) for (let tx = Math.floor((t.cx - 600) / TS); tx < (t.cx + 600) / TS; tx++) {
       const o = W.obj[ty * WW + tx];
-      if (o !== O.WELL && o !== O.PUMP && o !== O.TROUGH) continue;
+      if (o !== O.WELL && o !== O.PUMP && o !== O.TROUGH && o !== O.FOUNTAIN) continue;
       const x = tx * TS + 8, y = ty * TS + 8, d = dist(x, y, P.x, P.y);
       if (d < bd) { bd = d; best = { x, y }; }
     }

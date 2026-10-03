@@ -1655,6 +1655,9 @@ const GameSystems = {
         continue;
       }
       switch (o) {
+        case O.FOUNTAIN:
+          add(ox, oy, Tr('Çeşme'), [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }, { n: Tr('Bozuk Para At'), fn: () => { if (this.spend(0.01)) { P.deCore = Math.min(100, (P.deCore || 0) + 5); UI.feed(Tr('Bir dilek tuttun. İçin biraz ferahladı.')); } } }]);
+          break;
         case O.WELL: case O.PUMP: case O.TROUGH:
           { const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }];
             const hm = o === O.TROUGH ? this.homeAtIdx(i) : null;
@@ -1947,7 +1950,7 @@ const GameSystems = {
     for (let k = 0; k < 50; k++) {
       const x = rndi(60, WW - 60), y = rndi(60, WH - 60);
       const t = W.t(x, y);
-      if (W.solid[y * WW + x] || isWaterT(t) || t === T.TOWN || t === T.ROAD) continue;
+      if (W.solid[y * WW + x] || isWaterT(t) || t === T.TOWN || t === T.ROAD || isStoneT(t)) continue;
       if (W.townAt(x * TS, y * TS, 20)) continue;
       const near = W.pois.slice().sort((a, b) => dist2(a.tx, a.ty, x, y) - dist2(b.tx, b.ty, x, y))[0];
       this.treasure = { x: x * TS + 8, y: y * TS + 8, hint: near ? near.n : W.regionAt(x * TS, y * TS), region: W.regionAt(x * TS, y * TS) };

@@ -31,6 +31,14 @@ const ITEMS = {
   stew:         { n: 'Güveç', c: 'food', p: 0.25, i: '🍲', e: { hunger: 60, thirst: 20, health: 25, warmth: 30 }, max: 5, d: 'Sıcacık, insanın içini ısıtan bir güveç.' },
   coffee:       { n: 'Kahve', c: 'food', p: 0.1, i: '☕', e: { thirst: 10, energy: 12, deadeye: 25, warmth: 15 }, d: 'Sabahların vazgeçilmezi. Odaklanmanı sağlar.' },
   beer:         { n: 'Bira', c: 'food', p: 0.05, i: '🍺', e: { thirst: 14, drunk: 14 }, d: 'Serin bir bira.' },
+  // seçkin mallar (Saint Clement pazarı)
+  oysters:      { n: 'İstiridye', c: 'food', p: 0.6, i: '🦪', e: { hunger: 26, health: 18, thirst: 6 }, max: 10, gift: 8, d: 'Sabah limana gelen taze istiridye. Şehirlilerin sofrası.' },
+  cheese:       { n: 'Olgun Peynir', c: 'food', p: 0.45, i: '🧀', e: { hunger: 34, health: 8, stamina: 20 }, max: 10, d: 'Mahzende aylarca bekletilmiş, kalın kabuklu bir tekerlek peynir.' },
+  pastry:       { n: 'Kremalı Pasta', c: 'food', p: 0.35, i: '🍰', e: { hunger: 20, stamina: 45 }, max: 10, gift: 14, d: 'Pastanenin vitrininden. Kasabada böylesi bulunmaz.' },
+  fine_coffee:  { n: 'İthal Kahve', c: 'food', p: 0.45, i: '☕', e: { thirst: 12, energy: 28, deadeye: 60, warmth: 15 }, max: 10, d: 'Gemiyle gelen çekirdek kahve. Bir fincanı insanı uzun süre uyanık tutar.' },
+  champagne:    { n: 'Şampanya', c: 'food', p: 1.6, i: '🍾', e: { thirst: 12, drunk: 16, deadeye: 30, energy: 8 }, max: 5, gift: 28, d: 'Kutlamaların içkisi. Sevdiğine ikram edersen unutmaz.' },
+  cigar:        { n: 'Puro', c: 'med', p: 0.6, i: '🚬', e: { deadeye: 70, stamina: -3 }, max: 10, gift: 12, d: 'Elde sarılmış kalın bir puro. Odağı uzun süre keskin tutar.' },
+  perfume:      { n: 'Parfüm', c: 'valuable', p: 3, i: '🌸', max: 5, gift: 35, d: 'İnce kristal şişede çiçek kokusu. Kalpleri yumuşatır.' },
   whiskey:      { n: 'Viski', c: 'food', p: 0.25, i: '🥃', e: { thirst: 4, health: 10, drunk: 30, warmth: 20, deadeye: 10 }, d: 'Boğazı yakar, içini ısıtır.' },
   // ---- İlaç
   health_cure:  { n: 'Sağlık İksiri', c: 'med', p: 0.5, i: '🧪', e: { health: 60 }, d: 'Yaraları hızla sarar.' },
@@ -219,7 +227,7 @@ const HORSE_NAMES = ['Boz', 'Rüzgar', 'Kömür', 'Duman', 'Yıldız', 'Tarçın
 const TOWNS = [
   { id: 'harlow',     n: 'Harlow',         px: 0.52, py: 0.40, sz: 'm', xb: ['bakery', 'smith', 'post', 'laundry'], desc: 'Ovanın kalbi. Sığırcılar ve demiryolu işçileriyle dolu.',
     b: ['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'church', 'land', 'barber', 'tailor', 'house', 'house', 'house'] },
-  { id: 'stclement',  n: 'Saint Clement',  px: 0.86, py: 0.55, sz: 'l', xb: ['bakery', 'pharmacy', 'gambling', 'post', 'county', 'laundry', 'warehouse', 'brewery'], desc: 'Doğu kıyısının parıldayan şehri. Bankalar, tiyatrolar ve fırsatlar.',
+  { id: 'stclement',  n: 'Saint Clement',  px: 0.86, py: 0.55, sz: 'l', rich: 1, rb: ['market'], xb: ['bakery', 'pharmacy', 'gambling', 'post', 'county', 'laundry', 'warehouse', 'brewery'], desc: 'Doğu kıyısının parıldayan şehri. Bankalar, tiyatrolar ve fırsatlar.',
     b: ['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'bank', 'church', 'land', 'barber', 'tailor', 'docks', 'saloon', 'house', 'house', 'house', 'house', 'house', 'house'] },
   { id: 'dustcreek',  n: 'Dust Creek',     px: 0.24, py: 0.80, sz: 's', xb: ['smith', 'cantina'], desc: 'Çölün ortasında kavrulmuş bir kasaba. Kanun burada zayıf.',
     b: ['general', 'saloon', 'sheriff', 'stable', 'butcher', 'fence', 'doctor', 'house', 'house'] },
@@ -314,6 +322,8 @@ const BUILDINGS = {
   county:   { n: 'İlçe Binası', w: 10, h: 8, wall: '#b8a888', roof: '#3a3a44', sign: '#e8e0c0', svc: ['property'], brick: 1, tall: 1 },
   post:     { n: 'Posta ve Telgraf', w: 8, h: 6, wall: '#8a9aa0', roof: '#3a4450', sign: '#e0e0e0', svc: ['stage', 'news', 'rumor'] },
   warehouse:{ n: 'Toptancı Ambarı', w: 12, h: 8, wall: '#7a6a58', roof: '#40382e', sign: '#c8b080', svc: ['shop'], shop: 'warehouse' },
+  // zengin şehrin açık hava pazarı: tenteli tezgâhlar, pahalı ama seçkin mallar
+  market:   { n: 'Pazar Yeri', w: 12, h: 5, wall: '#8a6a48', roof: '#6a4a30', sign: '#e8d8a8', svc: ['shop'], shop: 'market', noInt: 1, market: 1 },
   cantina:  { n: 'Cantina', w: 10, h: 8, wall: '#c89a68', roof: '#8a5a38', sign: '#e06040', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon' },
 };
 
@@ -332,6 +342,8 @@ const JOBS = {
 const SHOPS = {
   general: { n: 'Genel Mağaza', sell: ['beans', 'bread', 'jerky', 'peaches', 'corn', 'coffee', 'chocolate', 'health_cure', 'stamina_tonic', 'bandage', 'tobacco', 'cigarette', 'canteen', 'bedroll', 'fishing_rod', 'bait', 'gold_pan', 'pickaxe', 'shovel', 'lantern', 'hay', 'horse_brush', 'horse_tonic', 'region_map', 'wildflower', 'harmonica', 'mask_bandana', 'sarsaparilla', 'liniment', 'binoculars', 'stakes'],
              ammo: ['pistol', 'repeater'], buy: { food: 0.5, herb: 0.6, valuable: 0.5, animal: 0.35, collect: 0.5, tool: 0.4, clothing: 0.4, horse: 0.4 } },
+  // zengin şehrin pazarı: seçkin mallar, fiyatlar %25 yüksek; yiyecek ve otu iyi fiyata alır
+  market:  { n: 'Pazar', mul: 1.25, sell: ['oysters', 'cheese', 'pastry', 'fine_coffee', 'champagne', 'cigar', 'perfume', 'chocolate', 'apple'], buy: { food: 0.75, herb: 0.85, collect: 0.6 } },
   saloon:  { n: 'Bar', sell: ['beer', 'whiskey', 'stew', 'coffee', 'cigarette', 'bread', 'sarsaparilla'], buy: {} },
   doctor:  { n: 'Doktor', sell: ['health_cure', 'bandage', 'antidote', 'snake_oil', 'stamina_tonic', 'herbal_tonic', 'quinine', 'laudanum', 'liniment', 'smelling_salts'], buy: { herb: 1.0, med: 0.5 } },
   gunsmith:{ n: 'Silahçı', weapons: ['knife', 'lasso', 'cattleman', 'schofield', 'repeater', 'winchester', 'rifle', 'shotgun', 'bow'], ammo: ['pistol', 'repeater', 'rifle', 'shotgun', 'arrow'], sell: ['dynamite', 'binoculars'], buy: {} },

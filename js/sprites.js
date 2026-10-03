@@ -10,9 +10,15 @@ const SIGN_TEXT = {
   hotel: 'HOTEL', bank: 'BANK', station: 'STATION', land: 'LAND', barber: 'BARBER', tailor: 'TAILOR', fence: 'TRADER', mine: 'MINING CO',
   lumber: 'LUMBER', docks: 'DOCKS', ranch: 'RANCH', property: 'FOR SALE', cabin: 'FURS', hermit: '', church: '',
   bakery: 'BAKERY', smith: 'BLACKSMITH', pharmacy: 'DRUGS', laundry: 'LAUNDRY', gambling: 'GAMBLING HALL', brewery: 'BREWERY',
-  mill: 'MILL', county: 'COUNTY', post: 'POST & TELEGRAPH', warehouse: 'WHOLESALE', cantina: 'CANTINA',
+  mill: 'MILL', county: 'COUNTY', post: 'POST & TELEGRAPH', warehouse: 'WHOLESALE', cantina: 'CANTINA', market: 'MARKET',
 };
 
+/* Zengin şehrin modern binaları: cephe taşları ve tente renkleri */
+const MODERN_WALLS = [{ c: '#8a3e2e', brick: true }, { c: '#7a4a34', brick: true }, { c: '#964a36', brick: true }, { c: '#b8a27e', brick: false }, { c: '#c8c0b0', brick: false }, { c: '#a89a86', brick: false }];
+const MODERN_TYPE_WALL = { bank: '#cfc6b4', county: '#c8c0ae', hotel: '#d4c8b0', sheriff: '#a8a090', doctor: '#d8d2c4', pharmacy: '#d8d2c4' };
+const MODERN_AWN = ['#a83a2a', '#2e6a4a', '#2e4a7a', '#7a2a5a', '#a8782a'];
+const MODERN_SHOP = new Set(['general', 'tailor', 'bakery', 'pharmacy', 'barber', 'butcher', 'gunsmith', 'saloon', 'gambling', 'laundry', 'brewery', 'fence']);
+const MODERN_SKIP = new Set(['church', 'station', 'stable', 'barn', 'lighthouse', 'mineentrance', 'ruin', 'docks', 'warehouse', 'lot']);
 const AUTUMN_PAL = [['#7a3416', '#a84e1c', '#d07a2a'], ['#8a5a14', '#b88024', '#e0aa3a'], ['#6a3a1a', '#94501e', '#c07030'], ['#8a6a1a', '#b89424', '#e8c040']];
 
 const Spr = {
@@ -335,6 +341,42 @@ const Spr = {
         this.shadow(g, x + 2, y + 3, 9, 2, 0.2);
         g.fillStyle = '#5a3e26'; g.fillRect(x - 8, y - 6, 1.6, 8); g.fillRect(x + 6.5, y - 6, 1.6, 8);
         g.fillStyle = '#7a5836'; g.fillRect(x - 8, y - 6, 16, 1.6);
+        break;
+      }
+      case O.HEDGE: {
+        // budanmış çit: koyu yeşil, üstü yuvarlak tümsekli
+        this.shadow(g, x + 3, y + 5, 9, 3, 0.25);
+        o.fillStyle = '#2e4a24'; o.fillRect(x - 8, y - 9, 16, 14);
+        o.fillStyle = '#3e6230'; for (let k = 0; k < 4; k++) this.circ(o, x - 6 + k * 4, y - 8 + ((k + Math.floor(h * 4)) % 2), 3, '#3e6230');
+        o.fillStyle = '#527a3c'; for (let k = 0; k < 4; k++) o.fillRect(x - 7 + k * 4, y - 10 + (k % 2), 2, 1);
+        if (snowy) { o.fillStyle = 'rgba(236,241,246,0.9)'; o.fillRect(x - 8, y - 11, 16, 3); }
+        break;
+      }
+      case O.FLOWERBED: {
+        this.ell(g, x, y + 1, 7, 4.5, '#4a3220'); this.ell(g, x, y + 0.5, 6, 3.6, '#5a3e26');
+        if (snowy || season === 3) break;
+        const cols = season === 2 ? ['#c87a2a', '#a85a20', '#e0aa3a'] : ['#e04a5a', '#f0d040', '#f0f0f0', '#b060d0', '#f08a3a'];
+        for (let k = 0; k < 9; k++) { const a = k * 2.4 + h * 7, r = 1.5 + (k % 3) * 1.5; this.circ(g, x + Math.cos(a) * r * 1.4, y + Math.sin(a) * r * 0.8, 1.1, cols[(k + Math.floor(h * 5)) % cols.length]); }
+        g.fillStyle = 'rgba(60,110,40,0.7)'; for (let k = 0; k < 6; k++) g.fillRect(x - 5 + k * 2, y + 2 + (k % 2), 1, 1.5);
+        break;
+      }
+      case O.FOUNTAIN: {
+        // taş havuz, içinde su, ortada kademeli sütun
+        this.shadow(g, x + 3, y + 4, 12, 5, 0.3);
+        this.ell(g, x, y + 1, 12, 7.5, '#8a847a'); this.ell(g, x, y, 11, 6.6, '#b4ada2'); this.ell(g, x, y + 0.6, 9, 5.2, '#3e6a80');
+        g.fillStyle = 'rgba(200,230,240,0.45)'; g.fillRect(x - 6, y - 1, 3, 1); g.fillRect(x + 3, y + 2, 3, 1);
+        o.fillStyle = '#a8a196'; o.fillRect(x - 1.5, y - 10, 3, 11); this.ell(o, x, y - 10, 4.5, 2, '#b8b2a8'); this.ell(o, x, y - 10.5, 3.2, 1.3, '#4e7a90');
+        o.fillStyle = 'rgba(210,235,245,0.75)'; o.fillRect(x - 0.5, y - 15, 1, 5); this.circ(o, x - 2.5, y - 8, 0.7, 'rgba(210,235,245,0.75)'); this.circ(o, x + 2.5, y - 8, 0.7, 'rgba(210,235,245,0.75)');
+        if (snowy) { o.fillStyle = 'rgba(236,241,246,0.9)'; this.ell(o, x, y - 10, 4.5, 1.6, 'rgba(236,241,246,0.9)'); }
+        break;
+      }
+      case O.STATUE: {
+        // kaide üstünde bronz bir figür (elini ileri uzatmış kurucu)
+        this.shadow(g, x + 3, y + 3, 7, 3, 0.3);
+        g.fillStyle = '#8a847a'; g.fillRect(x - 6, y - 3, 12, 6); g.fillStyle = '#a8a196'; g.fillRect(x - 6, y - 4, 12, 2);
+        o.fillStyle = '#9a948a'; o.fillRect(x - 4, y - 12, 8, 9); o.fillStyle = '#b4ada2'; o.fillRect(x - 4.5, y - 13, 9, 2);
+        o.fillStyle = '#4e6a5a'; o.fillRect(x - 2, y - 24, 4, 11); this.circ(o, x, y - 26, 2.2, '#5a7a68'); o.fillRect(x + 1.5, y - 22, 5, 1.5); o.fillStyle = '#6a8a78'; o.fillRect(x - 2, y - 24, 1, 10);
+        if (snowy) { o.fillStyle = 'rgba(236,241,246,0.9)'; o.fillRect(x - 4.5, y - 14, 9, 1.5); this.circ(o, x, y - 27.5, 1.2, 'rgba(236,241,246,0.9)'); }
         break;
       }
       case O.BENCH: {
@@ -734,6 +776,8 @@ const Spr = {
       o.fillStyle = '#a02a20'; o.beginPath(); o.moveTo(X + W * 0.18, Y - 30); o.lineTo(X + W / 2, Y - 40); o.lineTo(X + W * 0.82, Y - 30); o.fill();
       return;
     }
+    if (b.type === 'market') { this.market(g, o, b, world); return; }
+    if (b.modern && !MODERN_SKIP.has(b.type)) { this.modernBuilding(g, o, b, world); return; }
     const f = b.enter ? o : g;
     // Ön cephe
     const wallC = b.def.ruin ? '#5a4c3c' : wall;
@@ -836,6 +880,122 @@ const Spr = {
       g.fillStyle = '#5a3e26'; g.fillRect(X + W + 4, Y + H - 2, 1.5, 10);
       g.fillStyle = '#e0d0a0'; g.fillRect(X + W, Y + H - 8, 10, 6);
     }
+  },
+
+  /* ---------- Zengin şehrin binaları ----------
+     Tuğla ya da kesme taş cephe, iki kat, kornişler, beyaz çerçeveli pencereler, çizgili tente,
+     düz çatı ve korkuluk; tabela kapının üstünde koyu levha. */
+  modernBuilding(g, o, b, world) {
+    const d = b.def, X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS;
+    const FW = d.tall ? 40 : 32, wy = Y + H - FW, h = hash2(b.x, b.y, 5);
+    const pal = MODERN_WALLS[Math.floor(hash2(b.x, b.y, 7) * MODERN_WALLS.length)];
+    const wallC = MODERN_TYPE_WALL[b.type] || pal.c, brick = MODERN_TYPE_WALL[b.type] ? false : pal.brick;
+    const f = b.enter ? o : g;
+    g.fillStyle = 'rgba(0,0,0,0.32)'; g.fillRect(X + 6, Y + 4, W, H);
+    // cephe ve dokusu
+    f.fillStyle = wallC; f.fillRect(X, wy, W, FW);
+    if (brick) {
+      f.fillStyle = 'rgba(0,0,0,0.2)';
+      for (let yy = wy; yy < Y + H; yy += 3) { f.fillRect(X, yy, W, 0.7); for (let xx = X + (((yy - wy) / 3) % 2) * 3; xx < X + W; xx += 6) f.fillRect(xx, yy, 0.8, 3); }
+    } else {
+      f.fillStyle = 'rgba(0,0,0,0.13)';
+      for (let yy = wy; yy < Y + H; yy += 5) { f.fillRect(X, yy, W, 0.7); for (let xx = X + (((yy - wy) / 5) % 2) * 5; xx < X + W; xx += 10) f.fillRect(xx, yy, 0.7, 5); }
+    }
+    // kat arası ve üst korniş, alt kaide
+    const mid = wy + FW - 19;
+    f.fillStyle = '#e4dccb'; f.fillRect(X, mid, W, 2); f.fillRect(X - 1, wy, W + 2, 3);
+    f.fillStyle = 'rgba(0,0,0,0.25)'; f.fillRect(X, mid + 2, W, 1); f.fillRect(X - 1, wy + 3, W + 2, 1);
+    f.fillStyle = '#6a645c'; f.fillRect(X, Y + H - 3, W, 3);
+    // kapı: çift kanat, üstünde camlı tepe penceresi
+    const dx = b.door.x;
+    f.fillStyle = '#e4dccb'; f.fillRect(dx - 6, Y + H - 17, 12, 17);
+    f.fillStyle = '#2a1a12'; f.fillRect(dx - 5, Y + H - 15, 10, 15);
+    f.fillStyle = '#4a2e1c'; f.fillRect(dx - 4.5, Y + H - 11, 4, 10); f.fillRect(dx + 0.5, Y + H - 11, 4, 10);
+    f.fillStyle = '#7aa0b8'; f.fillRect(dx - 4.5, Y + H - 14.5, 9, 2.5);
+    f.fillStyle = '#d8b850'; f.fillRect(dx - 1, Y + H - 6, 0.8, 1); f.fillRect(dx + 0.4, Y + H - 6, 0.8, 1);
+    // pencereler: altta geniş vitrinler, üstte kemerli dar pencereler
+    const shop = MODERN_SHOP.has(b.type), nWin = Math.max(2, Math.floor(b.w / 2.5));
+    for (let k = 0; k < nWin; k++) {
+      const cx = X + (k + 0.5) * W / nWin;
+      // üst kat
+      f.fillStyle = '#e4dccb'; f.fillRect(cx - 3.5, wy + 5, 7, 11);
+      f.fillStyle = '#26384a'; f.fillRect(cx - 2.5, wy + 7, 5, 8); this.ell(f, cx, wy + 7, 2.5, 1.6, '#26384a');
+      f.fillStyle = 'rgba(200,225,245,0.3)'; f.fillRect(cx - 2.5, wy + 7, 1.5, 8);
+      f.fillStyle = '#e4dccb'; f.fillRect(cx - 0.4, wy + 7, 0.8, 8); f.fillRect(cx - 4, wy + 15.5, 8, 1.2);
+      if (d.tall) { f.fillStyle = '#26384a'; f.fillRect(cx - 2.5, mid - 6, 5, 4); f.fillStyle = '#e4dccb'; f.fillRect(cx - 3, mid - 2, 6, 1); }
+      // zemin kat
+      if (Math.abs(cx - dx) < 11) continue;
+      if (shop) {
+        f.fillStyle = '#e4dccb'; f.fillRect(cx - 6, Y + H - 15, 12, 11);
+        f.fillStyle = '#2a3e52'; f.fillRect(cx - 5, Y + H - 14, 10, 9);
+        f.fillStyle = 'rgba(200,225,245,0.28)'; f.fillRect(cx - 5, Y + H - 14, 3, 9);
+        f.fillStyle = '#e4dccb'; f.fillRect(cx - 0.4, Y + H - 14, 0.8, 9);
+        // vitrinde mallar
+        for (let q = 0; q < 3; q++) this.circ(f, cx - 3 + q * 3, Y + H - 6.5, 1, ['#c8a040', '#a0402a', '#d8d0c0'][(q + k) % 3]);
+      } else {
+        f.fillStyle = '#e4dccb'; f.fillRect(cx - 3.5, Y + H - 15, 7, 10);
+        f.fillStyle = '#26384a'; f.fillRect(cx - 2.5, Y + H - 14, 5, 8);
+        f.fillStyle = 'rgba(200,225,245,0.3)'; f.fillRect(cx - 2.5, Y + H - 14, 1.5, 8);
+      }
+    }
+    // çizgili tente (dükkânlar) ya da düz saçak
+    if (shop) {
+      const ac = MODERN_AWN[Math.floor(h * MODERN_AWN.length)], ay = Y + H - 18;
+      for (let xx = X - 1, k = 0; xx < X + W + 1; xx += 4, k++) { o.fillStyle = k % 2 ? '#efe8da' : ac; o.fillRect(xx, ay, Math.min(4, X + W + 1 - xx), 5); }
+      o.fillStyle = 'rgba(0,0,0,0.18)'; o.fillRect(X - 1, ay + 4, W + 2, 1);
+      for (let xx = X - 1, k = 0; xx < X + W + 1; xx += 4, k++) { o.fillStyle = k % 2 ? '#efe8da' : ac; o.beginPath(); o.arc(xx + 2, ay + 5, 2, 0, Math.PI); o.fill(); }
+    } else {
+      o.fillStyle = '#5a5650'; o.fillRect(X - 1, Y + H - 3, W + 2, 3);
+    }
+    // düz çatı, korkuluk ve baca
+    const ry0 = Y - 8, rh = wy - ry0;
+    o.fillStyle = '#4e5058'; o.fillRect(X - 2, ry0, W + 4, rh);
+    o.fillStyle = 'rgba(0,0,0,0.12)'; for (let yy = ry0 + 5; yy < ry0 + rh; yy += 6) o.fillRect(X, yy, W, 1);
+    o.fillStyle = '#d4ccbb'; o.fillRect(X - 2, ry0, W + 4, 2.5); o.fillRect(X - 2, ry0, 2.5, rh); o.fillRect(X + W - 0.5, ry0, 2.5, rh); o.fillRect(X - 2, ry0 + rh - 3, W + 4, 3);
+    o.fillStyle = 'rgba(0,0,0,0.3)'; o.fillRect(X - 2, ry0 + rh, W + 4, 1);
+    if (world && world.snowyTile(b.x + (b.w >> 1), b.y + (b.h >> 1))) { o.fillStyle = 'rgba(236,241,246,0.9)'; o.fillRect(X + 1, ry0 + 3, W - 2, rh - 6); }
+    const chx = X + W * (0.18 + h * 0.6);
+    o.fillStyle = '#7a3e2e'; o.fillRect(chx, ry0 + 4, 6, 10); o.fillStyle = '#3a2420'; o.fillRect(chx - 0.5, ry0 + 3, 7, 2);
+    if (d.tall) { o.fillStyle = '#e4dccb'; o.fillRect(X + W / 2 - 10, ry0 - 6, 20, 7); o.fillStyle = '#4e5058'; o.fillRect(X + W / 2 - 8, ry0 - 4, 16, 4); }
+    // tabela: kapının üstünde, kat arası kornişin altında koyu levha
+    const txt = b.type === 'property' ? (b.owned ? 'HOME' : 'FOR SALE') : SIGN_TEXT[b.type];
+    if (txt) {
+      const sw = Math.min(W - 6, txt.length * 4.6 + 8);
+      o.fillStyle = '#1e2a24'; o.fillRect(X + W / 2 - sw / 2, mid - 9, sw, 8);
+      o.fillStyle = '#c8a850'; o.fillRect(X + W / 2 - sw / 2, mid - 9, sw, 0.8); o.fillRect(X + W / 2 - sw / 2, mid - 1.8, sw, 0.8);
+      o.fillStyle = '#ead490'; o.font = 'bold 7px monospace'; o.textAlign = 'center'; o.textBaseline = 'middle';
+      o.fillText(txt, X + W / 2, mid - 4.8);
+    }
+    if (b.type === 'property' && !b.owned) { g.fillStyle = '#5a3e26'; g.fillRect(X + W + 4, Y + H - 2, 1.5, 10); g.fillStyle = '#e0d0a0'; g.fillRect(X + W, Y + H - 8, 10, 6); }
+  },
+  /* Açık hava pazarı: tenteli tezgâhlar, sandıklarda mallar, ortada kemerli tabela */
+  market(g, o, b, world) {
+    const X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS;
+    g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(X + 4, Y + 4, W, H);
+    g.fillStyle = '#b8ac96'; g.fillRect(X, Y, W, H);
+    g.fillStyle = 'rgba(0,0,0,0.1)'; for (let yy = Y; yy < Y + H; yy += 8) g.fillRect(X, yy, W, 0.8);
+    const n = 4, sw = W / n, goods = [['#c03a2a', '#d84a3a', '#a02a20'], ['#e8c850', '#d8b040', '#f0d870'], ['#8aa8b8', '#a8c0cc', '#6a8898'], ['#e06a8a', '#f0e070', '#b070d0']];
+    const awn = ['#a83a2a', '#2e6a4a', '#2e4a7a', '#a8782a'];
+    for (let k = 0; k < n; k++) {
+      const sx = X + k * sw + 3, w = sw - 6;
+      // tezgâh ve mallar
+      g.fillStyle = '#6a4a2c'; g.fillRect(sx, Y + H - 22, w, 10); g.fillStyle = '#8a6440'; g.fillRect(sx, Y + H - 22, w, 2);
+      for (let q = 0; q < 8; q++) this.circ(g, sx + 4 + (q % 4) * (w - 8) / 3, Y + H - 18 + (q >> 2) * 4, 1.6, goods[k][q % 3]);
+      g.fillStyle = '#7a5434'; g.fillRect(sx + 2, Y + H - 10, 7, 6); g.fillRect(sx + w - 9, Y + H - 10, 7, 6);
+      this.circ(g, sx + 5.5, Y + H - 10, 1.4, goods[k][1]); this.circ(g, sx + w - 5.5, Y + H - 10, 1.4, goods[k][0]);
+      // direkler ve çizgili tente
+      g.fillStyle = '#4a3422'; g.fillRect(sx, Y + 6, 1.5, H - 8); g.fillRect(sx + w - 1.5, Y + 6, 1.5, H - 8);
+      for (let xx = sx - 2, q = 0; xx < sx + w + 2; xx += 4, q++) { o.fillStyle = q % 2 ? '#efe8da' : awn[k]; o.fillRect(xx, Y - 4, Math.min(4, sx + w + 2 - xx), H - 20); }
+      o.fillStyle = 'rgba(0,0,0,0.16)'; for (let yy = Y; yy < Y + H - 24; yy += 6) o.fillRect(sx - 2, yy, w + 4, 1);
+      for (let xx = sx - 2, q = 0; xx < sx + w + 2; xx += 4, q++) { o.fillStyle = q % 2 ? '#efe8da' : awn[k]; o.beginPath(); o.arc(xx + 2, Y + H - 24, 2, 0, Math.PI); o.fill(); }
+      if (world && world.snowyTile(b.x + (b.w >> 1), b.y + (b.h >> 1))) { o.fillStyle = 'rgba(236,241,246,0.85)'; o.fillRect(sx - 2, Y - 4, w + 4, 6); }
+    }
+    // ortada kemerli tabela
+    const cx = X + W / 2;
+    o.fillStyle = '#4a3422'; o.fillRect(cx - 22, Y - 14, 2, 14); o.fillRect(cx + 20, Y - 14, 2, 14);
+    o.fillStyle = '#1e2a24'; o.fillRect(cx - 21, Y - 18, 42, 9);
+    o.fillStyle = '#c8a850'; o.fillRect(cx - 21, Y - 18, 42, 1);
+    o.fillStyle = '#ead490'; o.font = 'bold 7px monospace'; o.textAlign = 'center'; o.textBaseline = 'middle'; o.fillText('MARKET', cx, Y - 13.4);
   },
 
   /* ---------- İnsan ---------- */

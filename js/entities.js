@@ -616,7 +616,7 @@ class Player extends Ent {
     else if (mv.m > 0.1 && h.spd < 90) h.brk = false;
     if (h.brk && mv.m <= 0.1 && h.spd < 25) { h.brk = false; if (Math.random() < 0.6) Juice.rear(h); }
     const t = G.world.tileAtPx(h.x, h.y);
-    const sl = t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD ? 1.05 : 1);
+    const sl = t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD || t === T.COBBLE || t === T.PAVE ? 1.05 : 1);
     const vx = Math.cos(h.ang) * h.spd * sl * dt, vy = Math.sin(h.ang) * h.spd * sl * dt;
     const ox = h.x, oy = h.y;
     h.move(vx, vy);

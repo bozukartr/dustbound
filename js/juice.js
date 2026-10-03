@@ -221,7 +221,7 @@ const Juice = {
       const rain = (G.envCache && G.envCache.rain) || 0;
       for (let ty = Math.max(0, y0 >> 4); ty <= Math.min(WH - 1, y1 >> 4); ty++) for (let tx = Math.max(0, x0 >> 4); tx <= Math.min(WW - 1, x1 >> 4); tx++) {
         const i = ty * WW + tx, tl = W.tile[i];
-        if (tl !== T.ROAD && tl !== T.TOWN && tl !== T.MUD && tl !== T.FARM) continue;
+        if (tl !== T.ROAD && tl !== T.TOWN && tl !== T.MUD && tl !== T.FARM && !isStoneT(tl)) continue;
         if (W.flags[i] & 8) continue;
         const h = hash2(tx, ty, 91);
         if (h > 0.07) continue;
@@ -388,7 +388,7 @@ const Juice = {
         for (let ty = (L.y - 50) >> 4; ty <= (L.y + 50) >> 4; ty++) for (let tx = (L.x - 50) >> 4; tx <= (L.x + 50) >> 4; tx++) {
           if (!W.inb(tx, ty)) continue;
           const tl = W.tile[ty * WW + tx];
-          if ((tl !== T.ROAD && tl !== T.TOWN && tl !== T.MUD && tl !== T.FARM) || hash2(tx, ty, 91) > 0.07) continue;
+          if ((tl !== T.ROAD && tl !== T.TOWN && tl !== T.MUD && tl !== T.FARM && !isStoneT(tl)) || hash2(tx, ty, 91) > 0.07) continue;
           const cx = tx * TS + 4 + hash2(tx, ty, 92) * 8, cy = ty * TS + 4 + hash2(tx, ty, 93) * 8, d = dist(cx, cy, L.x, L.y);
           if (d > 55) continue;
           ctx.globalAlpha = (1 - d / 55) * this.wet * 0.55 * (0.85 + Math.sin(t * 3 + tx) * 0.15);

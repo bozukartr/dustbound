@@ -15,11 +15,17 @@ let FW = WW / 4;          // keşif (sis) ızgarası: 4x4 karo başına bir hüc
 function setWorldSize(n) { WW = WH = n; CW = n / CG; CHH = n / CG; FW = n / 4; }
 /* big: 1 işaretli veriler (yeni kasabalar, hatlar, kamplar...) yalnızca büyük dünyada; eski dünyalar birebir aynı kalır */
 const inWorld = d => !d.big || WW > WORLD_OLD;
+/* Dünya üretim sürümü: 2'den itibaren zengin şehir (Saint Clement) taş sokak, park, pazar ve modern binalarla kurulur.
+   Eski kayıtlar kendi sürümüyle yeniden üretilir; binaların sırası ve numaraları değişmez. */
+const WGEN_NEW = 2;
+let WGEN = WGEN_NEW;
 
-const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20 };
+const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20, COBBLE: 21, PAVE: 22 };
 const TNAME = Object.keys(T);
 /* Biyom sayılmayan zeminler (yol, kasaba, köprü, tarla, su): baskın biyom hesabında atlanır */
-const AREA_NEUTRAL = new Set([T.DEEP, T.WATER, T.ROAD, T.TOWN, T.FARM, T.BRIDGE, T.PLANK, T.HOTWATER]);
+const AREA_NEUTRAL = new Set([T.DEEP, T.WATER, T.ROAD, T.TOWN, T.FARM, T.BRIDGE, T.PLANK, T.HOTWATER, T.COBBLE, T.PAVE]);
+/* Taş zemin (zengin şehrin arnavut kaldırımı ve kaldırım taşları) */
+const isStoneT = t => t === T.COBBLE || t === T.PAVE;
 const TINFO = [
   { c: '#2c4b5e', v: 5, solid: 1, map: '#98aca8' },            // DEEP
   { c: '#41707c', v: 5, slow: 0.55, map: '#aebdb2', water: 1 }, // WATER
@@ -42,6 +48,8 @@ const TINFO = [
   { c: '#b4bcc6', v: 9, solid: 1, map: '#d6d4cc', cliff: 1 },   // SNOWCLIFF
   { c: '#86663f', v: 4, map: '#8a6a4a' },                       // PLANK
   { c: '#5a9aa0', v: 5, slow: 0.6, map: '#b8ccc4', water: 1 },  // HOTWATER
+  { c: '#8a847c', v: 9, map: '#8a7c6c' },                       // COBBLE (arnavut kaldırımı)
+  { c: '#b8ac96', v: 5, map: '#a4967e' },                       // PAVE (kaldırım taşı)
 ];
 const TPAL = TINFO.map(t => hexToRgb(t.c));
 /* Mevsim paletleri */
@@ -49,7 +57,7 @@ const SNOWC = hexToRgb('#e6ebf0'), SNOWM = hexToRgb('#d2dae0'), SNOWCL = hexToRg
 const SNOWABLE = new Uint8Array(32), LEAFY = new Uint8Array(32);
 const AUT = [], SUM = [];
 const isCliffT = t => t === T.CLIFF || t === T.MESA || t === T.SNOWCLIFF;
-[T.GRASS, T.DRY, T.FOREST, T.ROCK, T.FARM, T.SAND, T.MUD, T.TOWN, T.ROAD, T.CLIFF, T.SWAMP, T.DESERT, T.REDROCK].forEach(t => (SNOWABLE[t] = 1));
+[T.GRASS, T.DRY, T.FOREST, T.ROCK, T.FARM, T.SAND, T.MUD, T.TOWN, T.ROAD, T.CLIFF, T.SWAMP, T.DESERT, T.REDROCK, T.COBBLE, T.PAVE].forEach(t => (SNOWABLE[t] = 1));
 [T.GRASS, T.DRY, T.FOREST, T.FARM].forEach(t => (LEAFY[t] = 1));
 AUT[T.GRASS] = hexToRgb('#94883e'); AUT[T.DRY] = hexToRgb('#b89a52'); AUT[T.FOREST] = hexToRgb('#6e5a2c'); AUT[T.FARM] = hexToRgb('#8a6c34');
 SUM[T.GRASS] = hexToRgb('#7a9040'); SUM[T.DRY] = hexToRgb('#bca45a'); SUM[T.FOREST] = hexToRgb('#4a6630'); SUM[T.FARM] = hexToRgb('#7a6a30');
@@ -66,13 +74,15 @@ const O = {
   COUNTER: 70, BAR: 71, TABLE: 72, PIANO: 73, CARDTABLE: 74, BED: 75, STOVE: 76, DESK: 77, CELL: 78, PEW: 79, ALTAR: 80, SAFE: 81, TUB: 82, BCHAIR: 83,
   RACK: 84, WORKBENCH: 85, STALL: 86, TICKET: 87, SHELF: 88, CHAIR: 89, PLANT: 90, HOMECHEST: 91, IBLOCK: 92, MANNEQUIN: 93,
   LOTSIGN: 69,
+  // zengin şehir: park ve meydan süsleri
+  FOUNTAIN: 94, HEDGE: 95, FLOWERBED: 96, STATUE: 97,
 };
 const isFurnO = o => o >= 70 && o <= 93;
 const SOLID_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.SAGUARO, O.BOULDER, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.FENCEH, O.FENCEV, O.CRATE, O.BARREL, O.LAMP, O.WELL, O.TROUGH, O.TENT, O.HAY,
   O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP, O.LOTSIGN,
   O.COUNTER, O.BAR, O.TABLE, O.PIANO, O.CARDTABLE, O.BED, O.STOVE, O.DESK, O.CELL, O.PEW, O.ALTAR, O.SAFE, O.TUB, O.BCHAIR, O.RACK, O.WORKBENCH, O.STALL, O.TICKET,
-  O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN].forEach(o => (SOLID_O[o] = 1));
+  O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN, O.FOUNTAIN, O.HEDGE, O.STATUE].forEach(o => (SOLID_O[o] = 1));
 /* Gövdesi ince olan nesneler: tam kare yerine gövde boyutunda yuvarlak çarpışır (solid = 5) */
 const TRUNK_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.LAMP, O.POLE, O.SIGN, O.SAGUARO].forEach(o => (TRUNK_O[o] = 1));
@@ -198,15 +208,22 @@ class World {
     const n = C.mix; n.fill(0);
     let sum = 0;
     // iki halka: yakın çevre (±256) ve daha geniş çevre (±512); kasaba ortasında da doğal zemin bulunur
-    for (const st of [64, 128]) for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
-      if (st === 128 && Math.abs(i) <= 2 && Math.abs(j) <= 2) continue;
+    let nat = 0;
+    const ring = (st) => { for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
+      if (st > 64 && Math.abs(i) <= 2 && Math.abs(j) <= 2) continue;
       const t = this.tileAtPx(px + i * st, py + j * st), w = i === 0 && j === 0 ? 2 : 1;
-      if (!AREA_NEUTRAL.has(t)) { n[t] += w; sum += w; } else sum += w * 0.35;   // nötr zemin oranları biraz seyreltir
-    }
+      if (!AREA_NEUTRAL.has(t)) { n[t] += w; sum += w; if (i || j) nat += w; } else sum += w * 0.35;   // nötr zemin oranları biraz seyreltir
+    } };
+    ring(64); ring(128);
+    // baştan sona taş döşeli büyük şehir: iki halkada da doğal zemin yoksa daha geniş çevreye bak (ayak altındaki leke tek başına belirlemesin)
+    if (nat < 3) ring(256);
+    // çevre hâlâ nötrse (taş döşeli kıyı şehri) ayak altındaki tek leke bölgeyi belirlemez
+    const t0 = this.tileAtPx(px, py);
+    if (nat < 3 && !AREA_NEUTRAL.has(t0)) { n[t0] = Math.max(0, n[t0] - 2); sum -= 1.3; }
     let best = -1, bn = 0;
     for (let t = 0; t < n.length; t++) if (n[t] > bn) { bn = n[t]; best = t; }
     for (let t = 0; t < n.length; t++) n[t] /= sum;
-    if (best < 0) best = this.tileAtPx(px, py);
+    if (best < 0) best = AREA_NEUTRAL.has(t0) ? t0 : T.TOWN;
     C.key = key; C.t = best;
     return C;
   }
@@ -387,11 +404,44 @@ class World {
       this.tile[i] = t; this.obj[i] = 0; this.flags[i] |= 1 | mark;
     }
   }
+  /* Zengin şehrin parkı: çevresi çit, içi çimen; ortada çeşme, kaldırım taşından çapraz yollar,
+     köşelerde ağaç, tarhlarda çiçek, yol kenarında bank ve fener. Ön (alt) kenarın ortası giriştir. */
+  buildPark(bx, by, w, h, k, R, oget, oset, ground) {
+    for (let yy = by - 1; yy <= by + h + 1; yy++) for (let xx = bx - 1; xx <= bx + w; xx++) {
+      if (oget(xx, yy) === 3) continue;
+      if (yy <= by + h) { oset(xx, yy, 2); ground(xx, yy); } else if (oget(xx, yy) !== 5) oset(xx, yy, 5);
+    }
+    const mx = bx + (w >> 1), my = by + (h >> 1);
+    for (let yy = by; yy < by + h; yy++) for (let xx = bx; xx < bx + w; xx++) {
+      const i = yy * WW + xx, edgeX = xx === bx || xx === bx + w - 1, edgeY = yy === by || yy === by + h - 1;
+      this.flags[i] |= 1 | 4; this.obj[i] = 0;
+      const gate = yy === by + h - 1 && Math.abs(xx - mx) <= 1;
+      if ((edgeX || edgeY) && !gate) { this.tile[i] = T.GRASS; this.obj[i] = O.HEDGE; continue; }
+      const path = Math.abs(xx - mx) <= 0 || yy === my;
+      this.tile[i] = path || gate ? T.PAVE : T.GRASS;
+    }
+    // çeşme (ortada) ya da ikinci parkta heykel
+    this.obj[my * WW + mx] = k === 0 ? O.FOUNTAIN : O.STATUE;
+    // köşelerde ağaçlar, tarhlarda çiçekler
+    const inner = [[bx + 2, by + 2], [bx + w - 3, by + 2], [bx + 2, by + h - 3], [bx + w - 3, by + h - 3]];
+    for (const [x, y] of inner) if (!this.obj[y * WW + x] && this.tile[y * WW + x] === T.GRASS) this.obj[y * WW + x] = R.chance(0.5) ? O.OAK : O.BIRCH;
+    for (let yy = by + 1; yy < by + h - 1; yy++) for (let xx = bx + 1; xx < bx + w - 1; xx++) {
+      const i = yy * WW + xx;
+      if (this.obj[i] || this.tile[i] !== T.GRASS) continue;
+      const nearPath = Math.abs(xx - mx) === 1 || Math.abs(yy - my) === 1;
+      if (nearPath && (xx + yy) % 3 === 0) this.obj[i] = O.FLOWERBED;
+    }
+    // yol kenarında banklar ve fenerler
+    const put = (x, y, o) => { const i = y * WW + x; if (this.inb(x, y) && !this.obj[i] && this.tile[i] === T.GRASS) { this.obj[i] = o; return true; } return false; };
+    put(mx - 2, my - 1, O.BENCH); put(mx + 2, my + 1, O.BENCH);
+    for (const [x, y] of [[mx - 1, by + 1], [mx + 1, by + h - 2], [bx + 1, my - 1], [bx + w - 2, my + 1]]) if (put(x, y, O.LAMP)) this.lights.push({ x: x * TS + 8, y: y * TS + 2, r: 55, type: 'lamp' });
+  }
   addBuilding(type, x, y, town, name, extra) {
     const def = BUILDINGS[type];
     const w = (extra && extra.w) || def.w, h = (extra && extra.h) || def.h;
     const b = { id: this.buildings.length, type, x, y, w, h, town: town ? town.id : null, name: name || (town ? town.n + ' ' + def.n : def.n), def };
     b.door = { x: (x + Math.floor(w / 2)) * TS + TS / 2, y: (y + h) * TS + 6 };
+    if (town && town.modern) b.modern = 1;   // zengin şehrin tuğla ve taş cepheli binaları
     if (extra) Object.assign(b, extra);
     b.enter = !def.noInt && w >= 5 && h >= 5;
     b.doorI = (y + h - 1) * WW + x + Math.floor(w / 2);
@@ -403,7 +453,7 @@ class World {
       if (this.tile[i] === T.DEEP || this.tile[i] === T.WATER) this.tile[i] = T.TOWN;
     }
     // veranda
-    for (let xx = x; xx < x + w; xx++) if (this.inb(xx, y + h)) { const i = (y + h) * WW + xx; if (!(this.flags[i] & 8)) { this.tile[i] = T.PLANK; this.flags[i] |= 1; this.obj[i] = 0; } }
+    for (let xx = x; xx < x + w; xx++) if (this.inb(xx, y + h)) { const i = (y + h) * WW + xx; if (!(this.flags[i] & 8)) { this.tile[i] = b.modern ? T.PAVE : T.PLANK; this.flags[i] |= 1; this.obj[i] = 0; } }   // zengin şehirde taş kaldırım
     // pencereler -> gece ışıkları
     if (!def.ruin && type !== 'mineentrance') {
       const n = Math.max(1, Math.floor(w / 3));
@@ -544,10 +594,13 @@ class World {
       return { x: lerp(ax, bx, f), y: lerp(ay, by, f), ang: Math.atan2(by - ay, bx - ax) };
     };
     for (const td of TOWNS.filter(inWorld)) {
-      const rx = RAD[td.sz], ry = Math.round(rx * 0.74);
+      // zengin şehir (dünya sürümü 2+): daha geniş, taş sokaklı, parklı ve pazarlı
+      const rich = !!td.rich && WGEN >= 2;
+      const RT = rich ? T.COBBLE : T.ROAD, GT = rich ? T.PAVE : T.TOWN;
+      const rx = RAD[td.sz] + (rich ? (big ? 8 : 6) : 0), ry = Math.round(rx * 0.74);
       const cx = Math.round(td.px * WW), cy = Math.round(td.py * WH);
       const x0 = cx - rx - 3, y0 = cy - ry - 3, w = (rx + 3) * 2, h = (ry + 3) * 2;
-      const town = { ...td, x: x0, y: y0, w, h, cx: cx * TS, cy: cy * TS, buildings: [], streetPts: [], hitch: [], gates: [], rx, ry };
+      const town = { ...td, x: x0, y: y0, w, h, cx: cx * TS, cy: cy * TS, buildings: [], streetPts: [], hitch: [], gates: [], rx, ry, modern: rich, parks: [] };
       this.towns.push(town);
       const inside = (x, y, m = 0) => { const dx = (x - cx) / (rx + m), dy = (y - cy) / (ry + m); return dx * dx + dy * dy + (nz.v(x * 0.07, y * 0.07) - 0.5) * 0.4 < 1; };
       // zemin hazırlığı: yumuşat, kasaba içindeki su/kaya/orman temizlenir
@@ -560,9 +613,10 @@ class World {
         if (inside(x, y, 3)) {
           this.obj[i] = 0; this.flags[i] |= 4;
           const tt = this.tile[i];
-          if (isWaterT(tt) || tt === T.ROCK || tt === T.SWAMP || tt === T.MUD || tt === T.BRIDGE) this.tile[i] = T.TOWN;
+          if (isWaterT(tt) || tt === T.ROCK || tt === T.SWAMP || tt === T.MUD || tt === T.BRIDGE) this.tile[i] = GT;
           else if (tt === T.FOREST) this.tile[i] = T.GRASS;
-          if (inside(x, y, -4) && nz2.v(x * 0.11, y * 0.11) < 0.42) this.tile[i] = T.TOWN;
+          if (inside(x, y, -4) && nz2.v(x * 0.11, y * 0.11) < 0.42) this.tile[i] = GT;
+          if (rich && inside(x, y, 0)) this.tile[i] = GT;   // zengin şehrin içi baştan sona taş döşeli
         }
       }
       // yerel doluluk ızgarası: 3 yol, 1 yol kenarı, 2 bina, 5 patika/ayrılmış
@@ -570,7 +624,7 @@ class World {
       const occ = new Uint8Array(OW * OH);
       const oget = (x, y) => (x < ox || y < oy || x >= ox + OW || y >= oy + OH) ? 9 : occ[(y - oy) * OW + (x - ox)];
       const oset = (x, y, v) => { if (x >= ox && y >= oy && x < ox + OW && y < oy + OH) occ[(y - oy) * OW + (x - ox)] = v; };
-      const ground = (x, y) => { const i = y * WW + x; if (this.tile[i] !== T.ROAD && this.tile[i] !== T.PLANK) this.tile[i] = T.TOWN; this.flags[i] |= 1 | 4; this.obj[i] = 0; };
+      const ground = (x, y) => { const i = y * WW + x; if (this.tile[i] !== T.ROAD && this.tile[i] !== T.PLANK && this.tile[i] !== RT) this.tile[i] = GT; this.flags[i] |= 1 | 4; this.obj[i] = 0; };
       // ---- sokaklar ----
       const ang = (R.chance(0.5) ? 0 : Math.PI) + R.range(-0.55, 0.55);
       const L = rx * 0.95;
@@ -628,17 +682,17 @@ class World {
           for (let s = 0; s <= n; s++) {
             const x = lerp(ax, bx, s / n), y = lerp(ay, by, s / n);
             this.carveCircle(x, y, st.r + 2.4, (tx, ty, d, idx) => {
-              if (d <= st.r) { this.tile[idx] = T.ROAD; this.flags[idx] |= 1 | 4; this.obj[idx] = 0; oset(tx, ty, 3); }
+              if (d <= st.r) { this.tile[idx] = RT; this.flags[idx] |= 1 | 4; this.obj[idx] = 0; oset(tx, ty, 3); }
               else {
                 if (d <= st.r + 1 && oget(tx, ty) === 0) oset(tx, ty, 1);
-                if (d <= st.r + 1.2 + nz2.v(tx * 0.3, ty * 0.3) && this.tile[idx] !== T.ROAD) ground(tx, ty);
+                if (d <= st.r + 1.2 + nz2.v(tx * 0.3, ty * 0.3) && this.tile[idx] !== RT) ground(tx, ty);
               }
             });
           }
         }
         for (let s = 0; s < 1; s += 0.04) { const p = pointAt(P, s); if (inside(Math.round(p.x), Math.round(p.y), 1)) town.streetPts.push({ x: p.x * TS + 8, y: p.y * TS + 8 }); }
       }
-      this.carveCircle(plaza.x, plaza.y, 4.2, (tx, ty, d, idx) => { if (d < 3.6) { this.tile[idx] = T.ROAD; this.flags[idx] |= 1 | 4; this.obj[idx] = 0; oset(tx, ty, 3); } else { ground(tx, ty); if (oget(tx, ty) === 0) oset(tx, ty, 1); } });
+      this.carveCircle(plaza.x, plaza.y, 4.2, (tx, ty, d, idx) => { if (d < 3.6) { this.tile[idx] = RT; this.flags[idx] |= 1 | 4; this.obj[idx] = 0; oset(tx, ty, 3); } else { ground(tx, ty); if (oget(tx, ty) === 0) oset(tx, ty, 1); } });
       town.spawn = { x: plaza.x * TS + 8, y: (plaza.y + 2) * TS + 8 };
       // ---- binalar ----
       const fits = (bx, by, bw, bh, relax = 0) => {
@@ -700,10 +754,10 @@ class World {
           if (occ[c] !== 3) { ground(x, y); if (occ[c] !== 2) occ[c] = 5; }
         }
       };
-      const queue = [...td.b, ...(big && td.xb ? td.xb : [])];
+      const queue = [...(rich && td.rb ? td.rb : []), ...td.b, ...(big && td.xb ? td.xb : [])];
       queue.sort((a, b) => (a === 'house') - (b === 'house'));
       queue.forEach((type, qi) => {
-        const pull = type === 'house' ? 0.25 : type === 'church' ? 0.5 : 1.6 - qi * 0.08;
+        const pull = type === 'market' ? 2.4 : type === 'house' ? 0.25 : type === 'church' ? 0.5 : 1.6 - qi * 0.08;
         const spot = place(type, Math.max(0.4, pull));
         if (!spot) return;
         const { bx, by } = spot, def = BUILDINGS[type];
@@ -769,6 +823,15 @@ class World {
           pathFrom(bx + (def.w >> 1), by + def.h + 1);
         }
       }
+      // ---- parklar (zengin şehir): çitle çevrili çimen, çiçek tarhları, çeşme, ağaçlar, banklar ----
+      if (rich) for (let k = 0; k < 2; k++) {
+        const def = k === 0 ? { w: 14, h: 9 } : { w: 12, h: 8 };
+        const spot = place('park', 0.9, def);
+        if (!spot) continue;
+        this.buildPark(spot.bx, spot.by, def.w, def.h, k, R, oget, oset, ground);
+        town.parks.push({ x: spot.bx, y: spot.by, w: def.w, h: def.h });
+        pathFrom(spot.bx + (def.w >> 1), spot.by + def.h + 1);
+      }
       // ---- meydan ve sokak lambaları ----
       const putFree = (x, y, o) => {
         const v = oget(x, y);
@@ -780,13 +843,13 @@ class World {
       let placed = 0;
       for (let k = 0; k < 24 && placed < 4; k++) {
         const [x, y] = around(4.8 + (k % 3) * 0.6, pa + Math.PI / 2 + k * 0.9);
-        const o = [O.PUMP, O.TROUGH, O.BENCH, O.WELL][placed];
+        const o = (town.modern ? [O.STATUE, O.BENCH, O.FLOWERBED, O.BENCH] : [O.PUMP, O.TROUGH, O.BENCH, O.WELL])[placed];
         if (putFree(x, y, o)) placed++;
       }
       for (const st of streets) {
         const P = st.pts;
         let side = 1;
-        for (let s = 0.05; s < 1; s += 7 / Math.max(10, P.length * 0.8)) {
+        for (let s = 0.05; s < 1; s += (rich ? 4.5 : 7) / Math.max(10, P.length * 0.8)) {
           const p = pointAt(P, s);
           const d = st.r + 1.4;
           const x = Math.round(p.x - Math.sin(p.ang) * d * side), y = Math.round(p.y + Math.cos(p.ang) * d * side);
@@ -924,7 +987,7 @@ class World {
               else if (isCliffT(t)) this.tile[idx] = T.ROCK;
             } else {
               if (isWaterT(t) || t === T.BRIDGE) this.tile[idx] = T.BRIDGE;
-              else if (t !== T.TOWN && t !== T.PLANK) this.tile[idx] = T.ROAD;
+              else if (t !== T.TOWN && t !== T.PLANK && !isStoneT(t)) this.tile[idx] = T.ROAD;
               this.flags[idx] |= 1;
             }
           } else {
@@ -1014,7 +1077,7 @@ class World {
         for (let k = 3; k <= 9; k += 3) if (this.t(x + k, y) === T.DEEP || this.t(x + k, y) === T.WATER) w++;
         if (!w) return false;
       } else if (bio && !bio.includes(TNAME[t])) return false;
-      if (isWaterT(t) || isCliffT(t) || t === T.ROAD || t === T.TOWN || t === T.PLANK || t === T.BRIDGE) return false;
+      if (isWaterT(t) || isCliffT(t) || t === T.ROAD || t === T.TOWN || t === T.PLANK || t === T.BRIDGE || isStoneT(t)) return false;
       for (const tw of this.towns) if (x > tw.x - 25 && x < tw.x + tw.w + 25 && y > tw.y - 25 && y < tw.y + tw.h + 30) return false;
       for (const p of this.pois) if (dist2(x, y, p.tx, p.ty) < minD * minD) return false;
       let bad = 0;
@@ -1429,7 +1492,7 @@ class World {
       for (let X = 0; X < MW; X++) {
         const x = X >> 1, sx = X & 1, i = y * WW + x, t = tile[i];
         const mc = MC[t]; let r = mc[0], g = mc[1], b = mc[2];
-        if (t === T.TOWN || t === T.ROAD || t === T.BRIDGE || t === T.PLANK) { r = 196; g = 172; b = 132; }   // yollar vektörel çizilir
+        if (t === T.TOWN || t === T.ROAD || t === T.BRIDGE || t === T.PLANK || isStoneT(t)) { r = 196; g = 172; b = 132; }   // yollar vektörel çizilir
         if (winter && SNOWABLE[t] && (sx | sy) === 0 ? (SN[i] = this.snowAmt(i, (hash2(x, y, 71) - 0.5) * 0.8) > 0.25 ? 1 : 0) : winter && SN[i]) { r = 238; g = 236; b = 230; }
         else if (this.season === 2 && LEAFY[t]) { r += 14; g -= 4; b -= 16; }
         const water = sd[i] > 0;
@@ -1584,7 +1647,7 @@ class World {
             const ti = base === t ? rowT + (wx >> 4) : (Math.min(MAXP, Math.max(0, wy + JY[k])) >> 4) * WW + (Math.min(MAXP, Math.max(0, wx + JX[k])) >> 4);
             const sn = (SNOW_LINE - heat[ti] / 255) * 7 + DET[k] * 0.35;
             if (sn > 0.25 && SNOWABLE[t]) {
-              if (t === T.ROAD || t === T.TOWN) { if (sn > 0.25 + (DET[k] + 0.7) * 0.45) col = SNOWC; }
+              if (t === T.ROAD || t === T.TOWN || isStoneT(t)) { if (sn > 0.25 + (DET[k] + 0.7) * 0.45) col = SNOWC; }
               else if (CL[t]) { if (DET[k] > -0.2) col = SNOWCL; }
               else col = sn > 0.4 ? SNOWC : SNOWM;
               if (col === SNOWC || col === SNOWM || col === SNOWCL) v = DET[k] * 6;
@@ -1607,6 +1670,17 @@ class World {
         } else if (t === T.FARM) { if ((wy & 3) === 0) mul = 0.8; }
         else if (t === T.PLANK) { if (wx % 5 === 0) mul = 0.75; if ((wy & 15) === 15) mul = 0.6; }
         else if (t === T.ROAD) { if ((wx + wy * 3) % 9 === 0) v -= 8; }
+        else if (t === T.COBBLE) {
+          // arnavut kaldırımı: sıra sıra kaydırılmış küçük taşlar, aralarında koyu derz
+          const row = (wy / 3) | 0, cxs = wx + (row & 1) * 2;
+          if (wy % 3 === 0 || cxs % 4 === 0) mul = 0.74;
+          else { v = (hash2(cxs >> 2, row, 23) - 0.5) * 22 + DET[k] * 3; if (wy % 3 === 1 && cxs % 4 === 1) v += 9; }
+        } else if (t === T.PAVE) {
+          // kaldırım taşı: büyük kare levhalar
+          const sx = (wx + (((wy >> 3) & 1) << 2)) & 7;
+          if ((wy & 7) === 0 || sx === 0) mul = 0.84;
+          else v = (hash2((wx + (((wy >> 3) & 1) << 2)) >> 3, wy >> 3, 29) - 0.5) * 10 + DET[k] * 2;
+        }
         const i = (py * CPX + px) << 2;
         d[i] = (col[0] + v) * mul;
         d[i + 1] = (col[1] + v) * mul;
