@@ -195,7 +195,7 @@ const CarrySystems = {
     if (e.kind !== 'npc') return 0;
     const B = this.activeBounty;
     if (B && e.bountyId === B.id) return e.dead ? Math.round(B.reward * 0.5) : B.reward;
-    if (e.quest === 'jack') return e.dead ? 12 : 25;
+    if (e.quest === 'rival') return this.rivalValue(e);
     if (e.role === 'bandit' || e.role === 'target') return e.dead ? 2 : 5;
     return 0;
   },
@@ -205,12 +205,13 @@ const CarrySystems = {
     if (!v) { UI.subtitle(Tr('Şerif'), Tr`${e.name} aranan biri değil. Onu buraya neden getirdin?`, 3); return; }
     const alive = !e.dead, target = this.isBountyTarget(e);
     this.takeCarried(it);
-    if (e.quest === 'jack') {
+    if (e.quest === 'rival') {
       this.earn(v, alive ? Tr('Canlı teslim') : Tr('Ceset teslimi')); this.addHonor(alive ? 5 : 2); this.stat('captures', 1); Audio_.ui('cash');
       const S = this.story;
       if (S && S.on && !S.done) {
         // tapuyu almadan getirdiysen şerif Jack'in üstünden çıkarıp sana verir
-        if (!S.deed) { S.deed = true; UI.toast(Tr('Tapu'), Tr('Şerif Jack\'in üstünden çıkan tapuyu sana verdi.'), 'quest'); }
+        const R = this.storyDef().rival;
+        if (!S.deed && R.take) { S.deed = true; UI.toast(R.take.k(), Tr('Şerif Jack\'in üstünden çıkan tapuyu sana verdi.'), 'quest'); }
         if (S.alive === undefined) S.alive = alive;
         S.jack = 'delivered';
       }
@@ -307,7 +308,7 @@ const CarrySystems = {
     }
     if (e.kind !== 'npc') return false;
     // Kızıl Jack: tapuyu üstünden alma eylemi öbür seçeneklerin başına eklenir
-    if (e.quest === 'jack') { const ja = this.jackActions(e); if (ja.length) { const add0 = add; add = (x, y, l, acts, p, tk) => add0(x, y, l, ja.concat(acts), p, tk); } }
+    if (e.quest === 'rival') { const ja = this.rivalActions(e); if (ja.length) { const add0 = add; add = (x, y, l, acts, p, tk) => add0(x, y, l, ja.concat(acts), p, tk); } }
     if (e.dead) {
       if (!e.looted) add(e.x, e.y, e.name, [{ n: Tr('Cesedi Ara'), hold: 0.8, fn: () => this.lootBody(e) }], 0, take);
       else {

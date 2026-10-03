@@ -1069,7 +1069,7 @@ const UI = {
       const pc = $('#jr-portrait', el);
       if (pc) Spr.portrait(pc.getContext('2d'), pc.width, pc.height, G.player.look, G.age);
       const qa = $('[data-qa]', el);
-      if (qa) qa.onclick = () => this.confirm(Tr('Hikâyeyi Bırak'), Tr('Sully\'nin hikâyesini bırakırsan bir daha devam edemezsin. Emin misin?'), () => { G.storyAbandon(); this.closeAll(); });
+      if (qa) qa.onclick = () => this.confirm(Tr('Hikâyeyi Bırak'), Tr`${G.storyDef().title()} hikâyesini bırakırsan bir daha devam edemezsin. Emin misin?`, () => { G.storyAbandon(); this.closeAll(); });
     };
     render();
     this.push(m);
@@ -1175,7 +1175,7 @@ const UI = {
         tips: [['talk', Tr`Sakinlerin adı, mesleği ve huyu var. Seni selamlarlarsa ${g('interact')} ile <b>Selamla</b>: selamı alınmayan bozulur!`], ['mask', Tr('Laf atana karşılık verebilirsin. Ama suç işlersen tanıklar şerife koşar.')], ['star', Tr('İyilik yaparsan ünün artar; dükkânlar indirim yapar, insanlar sana gülümser.')]] },
       { ic: 'book', t: Tr('İşine Yarayacaklar'),
         tips: [['satchel', Tr`${g('satchel')} Çanta: yiyecek, ilaç, giysi ve eşyalar.`], ['book', Tr`${g('journal')} Günlük: karakterin, başarımlar, işlerin ve bu rehber.`], ['gun', Tr`${g('wheel')} Silah çarkı, ${g('aim')} nişan, ${g('fire')} ateş.`], ['gear', Tr`${g('pause')} Duraklat: kaydet, ayarlar, ana menü.`]],
-        b: G.story === null && G._storyNext ? Tr('İyi yolculuklar, kovboy. Gazete ilanını veren <b>Dunham Sully</b> seni kasabada bekliyor; sağ üstteki hedefi izle.') : Tr('İyi yolculuklar, kovboy. Batı seni bekliyor!') },
+        b: G.story === null && G._storyNext && STORIES[STORY_FOR_BG[G.background]] ? STORIES[STORY_FOR_BG[G.background]].welcome() : Tr('İyi yolculuklar, kovboy. Batı seni bekliyor!') },
     ];
     const el = el_('div', 'modal panel welcome');
     let pg = 0;
@@ -2448,7 +2448,7 @@ const UI = {
       { t: 3, k: 'bg', n: Tr('Geçmiş'), opts: BACKGROUNDS.map(b => b.id), lab: v => BACKGROUNDS.find(b => b.id === v).n, prof: 1 },
       { t: 3, k: 'difficulty', n: Tr('Zorluk'), opts: DIFFICULTIES.map(b => b.id), lab: v => DIFFICULTIES.find(b => b.id === v).n, prof: 1 },
       { t: 3, k: 'pace', n: Tr('Yaşlanma Hızı'), opts: LIFE_PACES.map(b => b.id), lab: v => LIFE_PACES.find(b => b.id === v).n, prof: 1 },
-      { t: 3, k: 'story', n: Tr('Hikâyeli Başlangıç'), opts: [true, false], lab: v => (v ? Tr('Açık (önerilir)') : Tr('Kapalı')), prof: 1 },
+      { t: 3, k: 'story', n: Tr('Hikâyeli Başlangıç'), opts: [true, false], lab: v => (!STORY_FOR_BG[prof.bg] ? Tr('Bu geçmiş için yakında') : v ? Tr('Açık (önerilir)') : Tr('Kapalı')), prof: 1 },
     ];
     const BGI = { farm: 'wheat', immigrant: 'anchor', outlaw: 'skull', rail: 'train', trapper: 'fox' };
     let tab = 0;
@@ -2494,7 +2494,7 @@ const UI = {
       $('#cr-desc', el).innerHTML = `
         <div class="cr-card-big"><div class="cr-cb-h">${Icons.glyph(BGI[BG.id] || 'star', '#c9a45c')}<div><div class="cr-cb-k">${Tr`Geçmiş`}</div><div class="cr-cb-n">${BG.n}</div></div></div>
           <p>${BG.d}</p>
-          <div class="cr-facts"><div><span>${Tr`Başlangıç`}</span><b>${town.n}</b></div><div><span>${Tr`Cüzdan`}</span><b>${fmtMoney(BG.money)}</b></div><div><span>${Tr`At`}</span><b>${BG.horse ? HORSE_BREEDS[BG.horse].n : Tr('Yok')}</b></div>${BG.bounty ? `<div><span>${Tr`Ödül`}</span><b class="red">${fmtMoney(BG.bounty)}</b></div>` : ''}</div>
+          <div class="cr-facts"><div><span>${Tr`Başlangıç`}</span><b>${BG.start === 'hideout' ? Tr('Saklı Kamp') : town.n}</b></div><div><span>${Tr`Cüzdan`}</span><b>${fmtMoney(BG.money)}</b></div><div><span>${Tr`At`}</span><b>${BG.horse ? HORSE_BREEDS[BG.horse].n : Tr('Yok')}</b></div>${BG.bounty ? `<div><span>${Tr`Ödül`}</span><b class="red">${fmtMoney(BG.bounty)}</b></div>` : ''}</div>
           <div class="cr-tags">${sk}</div><div class="cr-items">${items}</div></div>
         <div class="cr-mini"><div><span>${Tr`Zorluk`}</span><b>${D.n}</b><p>${D.d}</p></div><div><span>${Tr`Yaşlanma`}</span><b>${L.n}</b><p>${L.d}</p></div></div>`;
     };
@@ -2710,7 +2710,7 @@ const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', '
 const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
 const MAP_LEGEND_B = { store: ['general'], glass: ['saloon', 'cantina', 'gambling'], star: ['sheriff'], cross: ['doctor', 'pharmacy'], gun: ['gunsmith'], horseshoe: ['stable'], bed: ['hotel'], train: ['station'], bank: ['bank'], pick: ['mine', 'smith', 'lumber'] };
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass' };
-const PICON = { camp: 'tent', farm: 'wheat', property: 'house', home: 'hut', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
+const PICON = { hideout: 'tent', camp: 'tent', farm: 'wheat', property: 'house', home: 'hut', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
 const TIPS = [
   'İpucu: Çömelerek hayvanlara daha kolay yaklaşabilirsin.',
   'İpucu: Çiğ et yemek hastalık yapabilir. Kamp ateşinde pişir.',

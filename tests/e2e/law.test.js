@@ -84,6 +84,8 @@ module.exports = {
         let h = G.horse; if (!h || h.dead) { h = new Horse(P.x, P.y, 'mustang', { owner: 'player' }); G.addEnt(h); G.setHorse(h); }
         h.x = P.x; h.y = P.y; P.mount(h, true); P.mountAnim = null;
         const cop = mk(60, 0, role); cop.state = 'static';
+        // sivil dörtnala gelen atlıdan yana sıçrar; çarpmayı ölçmek için bu kişinin algısı kapalı
+        const pv = G.perceive; G.perceive = function (e, dt) { return e === cop ? null : pv.call(this, e, dt); };
         const frame = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
         const out = [];
         for (let k = 0; k < 3; k++) {
@@ -92,7 +94,7 @@ module.exports = {
           await frame(); await frame(); await frame();
           out.push({ hp: cop.hp, max: cop.maxHp, lvl: G.law.level, bounty: G.law.bounty, assaulted: !!cop.assaulted, hostile: !!cop.hostile, bumps: cop.bumps });
         }
-        P.dismount(); P.mountAnim = null;
+        P.dismount(); P.mountAnim = null; G.perceive = pv;
         return out;
       }, role);
       for (const k of [0, 1]) { t.eq(r[k].bumps, k + 1, (k + 1) + '. çarpma sayıldı', r); t.ok(!r[k].assaulted && !r[k].hostile && r[k].hp === r[k].max, (k + 1) + '. çarpma suç değil, hasar yok', r[k]); }

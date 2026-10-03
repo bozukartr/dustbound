@@ -40,7 +40,10 @@ const HunterSystems = {
   },
   hunterSpawn() {
     const L = this.law, P = this.player;
-    const base = this.findSpawnPos(P.x, P.y, 420, 560);
+    // oyuncuya düz yolu açık bir yerden çıkarlar (arada nehir ya da kaya varsa yaklaşamayıp takılırlar)
+    let base = null;
+    for (let k = 0; k < 12 && !base; k++) { const c = this.findSpawnPos(P.x, P.y, 420, 560); if (c && TownPath.walkable(c, [P.x, P.y], 9)) base = c; }
+    if (!base) base = this.findSpawnPos(P.x, P.y, 420, 560);
     if (!base) return false;
     const n = L.bounty < 60 ? 2 : L.bounty < 150 ? 3 : 4;
     const mounted = P.riding ? true : chance(0.5);

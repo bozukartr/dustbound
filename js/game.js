@@ -48,7 +48,7 @@ const G = {
     this.campCleared = {}; this.chestsOpened = {}; this.graves = {}; this.dailyTalk = {}; this.robbed = {}; this.lostItems = []; this.events = [];
     this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
-    this.waypoint = null; this.gps = null; this.camp = null; this.horse = null;
+    this.waypoint = null; this.gps = null; this.camp = null; this.horse = null; this.hideout = null;
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
     if (this.binoc) this.binocOff();
@@ -169,7 +169,9 @@ const G = {
     await this.buildWorld(seed);
     const BG = BACKGROUNDS.find(b => b.id === profile.bg);
     const town = this.world.towns.find(t => t.id === BG.town);
-    const sx = town.spawn.x, sy = town.spawn.y;
+    // kanun kaçağı kasabada değil, çetenin saklı kampında başlar (kanun adamları tanımasın)
+    if (BG.start === 'hideout') this.hideout = this.findHideout(town);
+    const sx = this.hideout ? this.hideout.x : town.spawn.x, sy = this.hideout ? this.hideout.y : town.spawn.y;
     const P = this.player = new Player(sx, sy, profile);
     P.money = BG.money;
     for (const k in BG.skills) this.skills[k].lv += BG.skills[k];
@@ -190,6 +192,7 @@ const G = {
     this.rebuildFog();
     this.revealAt(town.cx, town.cy, 1000);
     this.visited.add(town.id);
+    if (this.hideout) { this.revealAt(this.hideout.x, this.hideout.y, 900); this.placeHideout(); }
     // kasabaya varış sinematiği (5 geçmişe özel, geçilebilir)
     try { await Cinema.play(profile.bg, { look: profile.look, seed }); } catch (e) { console.warn(e); }
     this.unlock('begin');
@@ -197,9 +200,10 @@ const G = {
     // hikâyeli başlangıç: rehber kapanınca Sully'nin ilk bölümü başlar
     const story = this._storyNext = profile.story !== false && !window.__testNoStory;
     const hints = () => {
-      if (story) { this.storyStart(); return; }
+      if (story && this.storyStart()) return;
       UI.help(Tr`<b>${P.name}</b>, 18 yaşındasın ve yıl ${START_YEAR}. Hedefin: <b>80 yaşına kadar hayatta kalmak.</b><br>Aç kalma, susuz kalma, uykusuz kalma. Avlan, çalış, keşfet.`, 12);
-      setTimeout(() => UI.help(Tr`${Input.glyph('map')} Harita &nbsp; ${Input.glyph('satchel')} Çanta &nbsp; ${Input.glyph('journal')} Günlük &nbsp; ${Input.glyph('wheel')} Silah Çarkı &nbsp; ${Input.glyph('pause')} Duraklat`, 10), 13000);
+      if (this.hideout) setTimeout(() => UI.help(Tr`Başında <b>${fmtMoney(this.law.bounty)}</b> ödül var: kasabalarda kanun adamları yüzünü tanır. Kasabaya girmeden önce çantandan <b>Bandana</b>'yı tak ya da şerife teslim olup cezanı öde. Saklı kampın haritada işaretli.`, 12), 13000);
+      setTimeout(() => UI.help(Tr`${Input.glyph('map')} Harita &nbsp; ${Input.glyph('satchel')} Çanta &nbsp; ${Input.glyph('journal')} Günlük &nbsp; ${Input.glyph('wheel')} Silah Çarkı &nbsp; ${Input.glyph('pause')} Duraklat`, 10), this.hideout ? 26000 : 13000);
     };
     // her yeni hayatta sinematikten hemen sonra kısa rehber açılır (Ayarlar'dan ya da rehberden kapatılabilir);
     // kapanınca hikâye ya da ipuçları başlar
@@ -259,7 +263,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      story: this.saveStory(), reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), hideout: this.hideout, reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -393,6 +397,7 @@ const G = {
     this.loadHaul(d.haul);
     // çevredeki dünya kaldığı gibi: NPC'ler, hayvanlar, arabalar, cesetler, yerdeki eşyalar
     try { this.loadEnts(d.world); } catch (e) { console.warn('dünya anlık görüntüsü yüklenemedi', e); }
+    this.hideout = d.hideout || null; this.placeHideout();
     try { this.loadStory(d.story); } catch (e) { console.warn('hikâye yüklenemedi', e); this.story = null; }
     if ((d.v || 1) < 2) this.migrateEconomy();
     Platform.syncAchievements(this.achieved);

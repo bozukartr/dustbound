@@ -88,7 +88,7 @@ module.exports = {
       await p.evaluate(() => { window.__storyFast = true; UI.el.help.classList.add('hidden'); });
       const s = await S();
       t.eq(s.ch, 4, 'bölüm 5'); t.eq(s.st, 0, 'ilk adım');
-      t.ok(await p.evaluate(() => !G.ents.some(e => e.quest === 'sully' && e.res)), 'Sully çift kopya değil');
+      t.ok(await p.evaluate(() => !G.ents.some(e => e.quest === 'mentor' && e.res)), 'Sully çift kopya değil');
     });
 
     await t.step('bölüm 5: postu sat, çiftliğe dön', async () => {

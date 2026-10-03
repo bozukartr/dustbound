@@ -1728,7 +1728,7 @@ const GameSystems = {
   },
   npcActions(e) {
     if (e.role === 'hunter') return this.hunterActions(e);
-    if (e.quest === 'sully') return this.sullyActions(e);
+    if (e.quest === 'mentor') return this.mentorActions(e);
     const P = this.player;
     const acts = [];
     // az önce sana laf attı: karşılık verebilirsin
@@ -2153,6 +2153,32 @@ const GameSystems = {
       const steps = Math.round(hours * 6);
       for (let k = 0; k < steps; k++) { this.advanceClock(10); this.weatherUpdate(10); this.survivalUpdate(10, false); if (this.state !== 'play') return; }
     }, Tr`${hours} saat geçti...`);
+  },
+  /* Kanun kaçağının saklı kampı: kasabanın dışında, haydut kamplarından ve yerlerden uzak, düz ve açık bir yer */
+  findHideout(town) {
+    const W = this.world, R = new RNG((this.seed || 1) + 4111), a0 = R.range(0, TAU);
+    for (const r of [1500, 1300, 1750, 1150, 2000, 2300]) for (let k = 0; k < 16; k++) {
+      const a = a0 + k / 16 * TAU, x = town.cx + Math.cos(a) * r, y = town.cy + Math.sin(a) * r;
+      if (x < 400 || y < 400 || x > WW * TS - 400 || y > WH * TS - 400) continue;
+      const s = this.findSpawnPos(x, y, 0, 90);
+      if (!s || W.townAt(s[0], s[1], 45) || W.blocked(s[0], s[1] + 14, 12) || W.nearWater(s[0], s[1], 30)) continue;
+      if (W.towns.some(t => t !== town && dist(t.cx, t.cy, s[0], s[1]) < 1400)) continue;
+      if (W.pois.some(p => dist(p.x, p.y, s[0], s[1]) < (p.kind === 'camp' ? 1300 : 380))) continue;
+      return { x: s[0], y: s[1] };
+    }
+    const s = this.sSpot(town.cx + 1500, town.cy, 0, 300);
+    return { x: s[0], y: s[1] };
+  },
+  /* saklı kamp haritada işaretli, ateşi yanar (yüklemede de) */
+  placeHideout() {
+    const H = this.hideout, W = this.world;
+    if (!H || !W) return;
+    if (!W.pois.some(p => p.id === 'hideout')) {
+      const town = this.world.towns.find(t => t.id === (BACKGROUNDS.find(b => b.id === this.background) || {}).town) || this.nearestTown(H.x, H.y);
+      W.pois.push({ id: 'hideout', pid: -77, kind: 'hideout', x: H.x, y: H.y, tx: (H.x / TS) | 0, ty: (H.y / TS) | 0, n: Tr('Saklı Kamp'), desc: Tr`Çetenin ${town.n} dışındaki saklı kampı. Burada kasabanın kanunundan uzaktasın.` });
+    }
+    this.discovered.add('hideout');
+    if (!this.camp) { this.camp = new Camp(H.x, H.y + 14); this.camp.hideout = true; this.addEnt(this.camp); }
   },
   setupCamp() {
     const P = this.player, W = this.world;
