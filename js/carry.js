@@ -307,7 +307,7 @@ const CarrySystems = {
       return true;
     }
     if (e.kind !== 'npc') return false;
-    if (e.quest === 'mentor') return false;   // hikâyenin akıl hocası bağlıyken bile taşınmaz, soyulmaz; kendi eylemleri var
+    if (e.quest === 'mentor' || e.quest === 'kin') return false;   // hikâyenin akıl hocası (ve yakını) bağlıyken bile taşınmaz, soyulmaz; kendi eylemleri var
     // Kızıl Jack: tapuyu üstünden alma eylemi öbür seçeneklerin başına eklenir
     if (e.quest === 'rival') { const ja = this.rivalActions(e); if (ja.length) { const add0 = add; add = (x, y, l, acts, p, tk) => add0(x, y, l, ja.concat(acts), p, tk); } }
     if (e.dead) {

@@ -1731,6 +1731,7 @@ const GameSystems = {
   npcActions(e) {
     if (e.role === 'hunter') return this.hunterActions(e);
     if (e.quest === 'mentor') return this.mentorActions(e);
+    if (e.quest === 'kin') return this.kinActions(e);
     const P = this.player;
     const acts = [];
     // az önce sana laf attı: karşılık verebilirsin
@@ -1992,6 +1993,7 @@ const GameSystems = {
     this.crime('trespass', P.x, P.y);
     this.addHonor(-2);
     this.advanceClock(10);
+    this.qEvent('search', b);   // hikâye: aranan evde belge bulunur, çekmeceler boş olsa da
     if (last !== undefined && this.day - last < 7) { UI.feed(Tr('Çekmeceler boş. Burayı yakın zamanda aradın.')); return; }
     this.chestsOpened[k] = this.day;
     const money = rnd(0.25, 2.5) * (this.hasPerk('devil') ? 1.5 : 1);
@@ -2014,8 +2016,9 @@ const GameSystems = {
   },
   exploreMine(b) {
     const P = this.player, k = 'mine' + b.id, last = this.chestsOpened[k];
-    if (last !== undefined && this.day - last < 3) { UI.feed(Tr('Galeriler hâlâ tozlu. Birkaç gün sonra yeniden dene.')); return; }
     if (!P.has('lantern')) { UI.feed(Tr('İçerisi zifiri karanlık. Fenersiz girmek intihar olur.'), 'warn'); return; }
+    this.qEvent('explore', b);   // hikâye: galeriye inmek yeter, bulunan cevher önemli değil
+    if (last !== undefined && this.day - last < 3) { UI.feed(Tr('Galeriler hâlâ tozlu. Birkaç gün sonra yeniden dene.')); return; }
     this.chestsOpened[k] = this.day;
     UI.fade(() => {
       this.advanceClock(120);

@@ -28,7 +28,7 @@ const Story = {
   get storyOn() { const S = this.story; return !!(S && S.on && !S.done); },
   /* oynanan hikâyenin tanımı (eski kayıtlar: Sully) */
   storyDef() { const S = this.story; return STORIES[(S && S.id) || 'sully'] || STORIES.sully; },
-  sName(w) { const D = this.storyDef(); return w === 'S' ? D.mentor.short : w === 'R' ? D.rival.name() : w === 'P' ? this.player.name : w === 'W' ? Tr('Şerif') : w === 'B' ? Tr('Barmen') : w; },
+  sName(w) { const D = this.storyDef(); return w === 'S' ? D.mentor.short : w === 'R' ? D.rival.name() : w === 'K' && D.kin ? D.kin.short.call(this) : D.speakers && D.speakers[w] ? D.speakers[w]() : w === 'P' ? this.player.name : w === 'W' ? Tr('Şerif') : w === 'B' ? Tr('Barmen') : w; },
   sFmt(t) { const S = this.story, T = S && this.world.towns.find(x => x.id === S.town); return String(t).replace(/\{ad\}/g, this.player.name.split(' ')[0]).replace(/\{kasaba\}/g, T ? T.n : '').replace(/\{kamp\}/g, S && S.camp ? S.camp.n : ''); },
   sTown() { return this.world.towns.find(t => t.id === this.story.town); },
   sBld(type) {
@@ -40,6 +40,8 @@ const Story = {
   /* bina kapısının hemen dışı (Sully'nin beklediği yer) */
   sDoor(b, out = 16) { return b ? { x: b.door.x + 8, y: b.door.y + out } : null; },
   mentorEnt() { return this.ents.find(e => e.quest === 'mentor' && !e.remove) || null; },
+  /* hikâyenin ikinci yol arkadaşı (konuşmalarda 'K'; ör. Göçmen'in ağabeyi) */
+  kinEnt() { return this.ents.find(e => e.quest === 'kin' && !e.remove) || null; },
   rivalEnt() {
     const P = this.player, all = this.ents.concat(P.carry ? [P.carry] : [], this.horse && this.horse.load ? this.horse.load : []);
     return all.find(e => e.quest === 'rival' && !e.remove) || null;
@@ -204,7 +206,7 @@ const Story = {
     const me = this.mentorEnt(), vd = Audio_.voice(ln.raw || ln.x, I18N.lang, ln.w === 'S' && me ? { x: me.x, y: me.y, dist: 600 } : {});
     const d = Math.max(this.talkDur(ln.x), vd ? vd + 0.4 : 0);
     UI.subtitle(this.sName(ln.w), ln.x, d - 0.2, ln.w === 'P');
-    const who = ln.w === 'S' ? me : ln.w === 'R' ? this.rivalEnt() : ln.w === 'P' ? this.player : null;
+    const who = ln.w === 'S' ? me : ln.w === 'R' ? this.rivalEnt() : ln.w === 'K' ? this.kinEnt() : ln.w === 'P' ? this.player : null;
     // söz bir kez, altyazıda yazılır; konuşanın üstünde yalnızca konuşma işareti
     if (who && (who === this.player || dist(who.x, who.y, this.player.x, this.player.y) < 300)) Bubbles.add(who, '', d - 0.2, true);
     if (ln.w === 'S' && me && !me.anim && chance(0.4)) this.setAnim(me, pick(['gesture', 'point', 'shrug', 'rub', 'scratch']));
@@ -227,7 +229,7 @@ const Story = {
     this.cine = true; this._qPend = null; Bubbles.clear(); UI.el.sub.classList.add('hidden');
     const L = this.cineLines(lines), h = this.horse, S = this.story;
     const D = this.storyDef();
-    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: cast === 'rival' ? D.rival.look : D.mentor.look, jack: D.rival.look, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
+    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: cast === 'rival' ? D.rival.look : cast === 'kin' && D.kin ? Object.assign({}, D.kin.look, S.kinLook || {}) : D.mentor.look, jack: D.rival.look, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
   },
 
   /* ---------------- her kare ---------------- */
@@ -249,6 +251,7 @@ const Story = {
   /* Akıl hocası: istenen yere yürür ya da atla gider; uzaktaysa görünmeden yerini alır */
   storyMentor(dt) {
     const S = this.story, g = S.sully, P = this.player;
+    this.storyKin();
     let e = this.mentorEnt();
     if (!g) { if (e) e.remove = true; return; }
     const M = this.storyDef().mentor;
@@ -264,10 +267,23 @@ const Story = {
       this.addEnt(e);
     } else if (dist(e.x, e.y, P.x, P.y) > 1700) e.remove = true;
   },
+  /* Yol arkadaşı (S.kin hedefinde durur, yürür; bağlıyken kıpırdamaz) */
+  storyKin() {
+    const S = this.story, g = S.kin, K = this.storyDef().kin, P = this.player;
+    let e = this.kinEnt();
+    if (!g || !K) { if (e) e.remove = true; return; }
+    if (!e) {
+      if (dist(P.x, P.y, g.x, g.y) > 1100) return;
+      const s = g.tied ? [g.x, g.y] : this.sSpot(g.x, g.y, 0, 30);
+      e = new NPC(s[0], s[1], 'mentor', { name: K.name.call(this), look: Object.assign({}, K.look, S.kinLook || {}), hp: 9999 });
+      e.quest = 'kin'; e.keep = true; e.weapon = null; e.money = 0; e.ang = Math.atan2(P.y - e.y, P.x - e.x);
+      this.addEnt(e);
+    } else if (dist(e.x, e.y, P.x, P.y) > 1700) e.remove = true;
+  },
   /* NPC.update'ten çağrılır: true dönerse olağan davranış atlanır */
   questNpc(e, dt) {
-    if (e.quest !== 'mentor') return false;
-    const S = this.story, g = S && S.sully, P = this.player, MH = this.storyDef().mentor.horse;
+    if (e.quest !== 'mentor' && e.quest !== 'kin') return false;
+    const S = this.story, g = S && (e.quest === 'kin' ? S.kin : S.sully), P = this.player, MH = this.storyDef().mentor.horse;
     e.hp = e.maxHp = 9999; e.hostile = false; e.witness = null;
     if (!g) { e.mv = 0; return true; }
     if (g.tied) { e.state = 'tied'; e.mv = 0; e.spd = 0; e.mounted = null; if (dist(e.x, e.y, g.x, g.y) > 4) { e.x = g.x; e.y = g.y; } return true; }
@@ -342,7 +358,7 @@ const Story = {
     const S = this.story, acts = [], M = this.storyDef().mentor;
     const st = this.qStep();
     const work = M.work && (() => UI.openWork(M.work, M.place()));
-    if (S && S.on && !S.done && st && st.ev === 'talk' && !S.wait) acts.push({ n: Tr('Konuş'), fn: () => this.qTalkSully(e) });
+    if (S && S.on && !S.done && st && st.ev === 'talk' && st.who !== 'kin' && !S.wait) acts.push({ n: Tr('Konuş'), fn: () => this.qTalkSully(e) });
     else if (S && S.on && !S.done && st && st.ev === 'work' && work) acts.push({ n: JOBS[M.work].n, fn: work });
     else acts.push({ n: Tr('Sohbet Et'), fn: () => this.sullyChat(e) });
     if (S && S.done && work && M.home && dist(e.x, e.y, M.home.call(this, S).x, M.home.call(this, S).y) < 300) acts.push({ n: JOBS[M.work].n, fn: work });
@@ -350,6 +366,20 @@ const Story = {
     if (D.mentorActions && S && S.on && !S.done) return D.mentorActions.call(this, e, S, acts) || acts;
     return acts;
   },
+  /* yol arkadaşı: adım onunla konuşmayı bekliyorsa Konuş, bağlıysa İplerini Kes */
+  kinActions(e) {
+    const S = this.story, K = this.storyDef().kin, st = this.qStep();
+    if (!S || !K) return [];
+    if (S.kin && S.kin.tied) return [{ n: Tr('İplerini Kes'), hold: 0.8, fn: () => { S.kin = { x: e.x, y: e.y }; Audio_.play('rope'); this.qEvent('free', e); } }];
+    if (S.on && !S.done && st && st.ev === 'talk' && st.who === 'kin' && !S.wait) return [{ n: Tr('Konuş'), fn: () => this.qTalkSully(e) }];
+    return [{ n: Tr('Sohbet Et'), fn: () => {
+      const x = this.sFmt(pick(S.done ? K.chatDone() : K.chatBusy()));
+      UI.subtitle(K.short.call(this), x, 3.5); Bubbles.add(e, '', 3.5, true);
+      e.ang = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+    } }];
+  },
+  /* posta arabasının hikâye için gidebildiği uzak kasaba */
+  storyStageDest(t) { const S = this.story; return !!(S && S.on && !S.done && S.stageTo && S.stageTo === t.id); },
   /* bina menüsüne hikâyenin eklediği seçenekler (ör. şerifte teslim olmak) */
   storyBuildingActions(b) {
     const S = this.story, D = this.storyDef();
@@ -393,9 +423,11 @@ const Story = {
   storyRumor() {
     const S = this.story, st = this.qStep(), D = this.storyDef();
     if (!S || !st || st.ev !== 'rumor' || S.wait) return false;
-    S.campKnown = true; this.storyApplyWorld();
-    const cp = S.camp && this.world.pois.find(p => p.pid === S.camp.pid);
-    if (cp) this.rumored.add(cp.id);
+    if (D.rumorCamp !== false) {
+      S.campKnown = true; this.storyApplyWorld();
+      const cp = S.camp && this.world.pois.find(p => p.pid === S.camp.pid);
+      if (cp) this.rumored.add(cp.id);
+    }
     if (D.rumor) D.rumor.call(this, S);
     this.qEvent('rumor');
     return true;
@@ -416,7 +448,7 @@ const Story = {
     const S = this.story;
     if (!S) return;
     S.on = false; S.talkQ = null; S.talkCb = null;
-    const e = this.mentorEnt(); if (e) e.remove = true;
+    for (const e of [this.mentorEnt(), this.kinEnt()]) if (e) e.remove = true;
     if (S.wpSet) this.setWaypoint(null);
     UI.feed(Tr('Hikâyeyi bıraktın. Dünya seni bekliyor.'));
     this.questHud();
@@ -831,8 +863,8 @@ const STORIES = {
     chapters: STORY_SULLY,
   },
 };
-/* Geçmiş → hikâye. Kanun Kaçağı'nın kendi hikâyesi yazılana dek hikâyesi yoktur
-   (kasabada tanınacağı için Sully'nin hikâyesi ona uymaz). */
+/* Geçmiş → hikâye. Kendi hikâyesi yazılmamış geçmişler Sully'nin hikâyesini oynar;
+   story_*.js dosyaları kendi geçmişlerini buraya ekler. */
 const STORY_FOR_BG = { farm: 'sully', immigrant: 'sully', rail: 'sully', trapper: 'sully' };
 
 /* Bölüm yardımcıları (Story'ye eklenir) */
