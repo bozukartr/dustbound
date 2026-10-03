@@ -1088,6 +1088,10 @@ const Spr = {
       ctx.fillStyle = '#c8b48a'; ctx.beginPath(); ctx.ellipse(0, 0.5, 4.6, 3.6, 0, 0, TAU); ctx.fill();
       ctx.fillStyle = '#a8946a'; ctx.fillRect(-1, -4, 2, 2);
       ctx.fillStyle = '#e0cfa4'; ctx.beginPath(); ctx.ellipse(-1.2, -0.5, 2.2, 1.4, 0, 0, TAU); ctx.fill();
+    } else if (look === 'ties') {
+      // travers demeti: üst üste iki kalın kalas
+      for (let k = 0; k < 2; k++) { ctx.fillStyle = k ? '#7a5634' : '#6a4a2c'; ctx.fillRect(-6, 1 - k * 3.2, 12, 3); ctx.fillStyle = '#9a7448'; ctx.fillRect(-6, 1 - k * 3.2, 12, 0.9); }
+      ctx.fillStyle = '#3a2a1a'; ctx.fillRect(-3, -2.4, 0.8, 6.4); ctx.fillRect(2.4, -2.4, 0.8, 6.4);
     } else if (look === 'bale') {
       ctx.fillStyle = '#8a6a8a'; ctx.fillRect(-4.5, -3, 9, 6); ctx.fillStyle = '#a888a8'; ctx.fillRect(-4.5, -3, 9, 1.6);
       ctx.fillStyle = '#4a3a2a'; ctx.fillRect(-2, -3, 0.8, 6); ctx.fillRect(1.6, -3, 0.8, 6);

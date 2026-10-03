@@ -1473,6 +1473,28 @@ class Prop extends Ent {
       Spr.shadow(ctx, x + 1, y + 2, 9, 2.5, 0.25); ctx.fillStyle = '#6a4428'; ctx.fillRect(x - 9, y - 2, 18, 4); ctx.fillStyle = '#8a6040'; ctx.fillRect(x - 9, y - 2, 18, 1); Spr.circ(ctx, x + 9, y, 2, '#b08a5a');
     } else if (this.type === 'sluice') {
       ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x - 10, y - 3, 20, 5); ctx.fillStyle = '#5a7a8a'; ctx.fillRect(x - 9, y - 2, 18, 2); ctx.fillStyle = '#4a3020'; for (let k = -8; k < 10; k += 4) ctx.fillRect(x + k, y - 3, 1, 5);
+    } else if (this.type === 'rock' || this.type === 'boulder') {
+      // raya düşmüş kaya: küçüğü kazmayla, büyüğü dinamitle kırılır
+      const s = this.type === 'boulder' ? 1.9 : 1;
+      Spr.shadow(ctx, x + 1.5 * s, y + 2.5 * s, 7 * s, 2.6 * s, 0.3);
+      ctx.fillStyle = '#6a6460'; ctx.beginPath(); ctx.moveTo(x - 7 * s, y + 2 * s); ctx.lineTo(x - 5 * s, y - 4 * s); ctx.lineTo(x + 1 * s, y - 7 * s); ctx.lineTo(x + 6 * s, y - 3 * s); ctx.lineTo(x + 7 * s, y + 2 * s); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#8a847c'; ctx.beginPath(); ctx.moveTo(x - 5 * s, y - 4 * s); ctx.lineTo(x + 1 * s, y - 7 * s); ctx.lineTo(x + 2 * s, y - 2 * s); ctx.lineTo(x - 3 * s, y - 1 * s); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#4a4440'; ctx.fillRect(x + 2 * s, y - 1 * s, 4 * s, 1); ctx.fillRect(x - 4 * s, y + 0.5 * s, 3 * s, 1);
+    } else if (this.type === 'chest') {
+      Spr.shadow(ctx, x + 1, y + 2.5, 7, 2.4, 0.3);
+      ctx.fillStyle = '#4a3020'; ctx.fillRect(x - 6, y - 4, 12, 7); ctx.fillStyle = '#6a4628'; ctx.fillRect(x - 6, y - 5.5, 12, 2.5);
+      ctx.fillStyle = '#9a8a5a'; ctx.fillRect(x - 6, y - 1.5, 12, 1); ctx.fillRect(x - 0.8, y - 3, 1.6, 3); ctx.fillStyle = '#d8c070'; ctx.fillRect(x - 0.5, y - 2.4, 1, 1.4);
+    } else if (this.type === 'tracks') {
+      // nal izleri: birkaç çift hilal
+      ctx.strokeStyle = 'rgba(60,40,24,0.55)'; ctx.lineWidth = 0.9;
+      const c = Math.cos(this.ang), s = Math.sin(this.ang);
+      for (let k = -1; k <= 1; k++) for (const o of [-2.2, 2.2]) {
+        const px = x + c * k * 6 - s * o, py = y + s * k * 6 + c * o;
+        ctx.beginPath(); ctx.arc(px, py, 1.5, this.ang + 0.6, this.ang + TAU - 0.6); ctx.stroke();
+      }
+    } else if (this.type === 'ties') {
+      Spr.shadow(ctx, x + 1, y + 3, 10, 2.6, 0.28);
+      for (let k = 0; k < 3; k++) { ctx.fillStyle = k & 1 ? '#6a4a2c' : '#7a5634'; ctx.fillRect(x - 10 + k, y - 1 - k * 2.4, 20 - k * 2, 2.6); ctx.fillStyle = '#9a7448'; ctx.fillRect(x - 10 + k, y - 1 - k * 2.4, 20 - k * 2, 0.8); }
     }
   }
 }

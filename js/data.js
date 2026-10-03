@@ -321,6 +321,7 @@ const BUILDINGS = {
 const JOBS = {
   mine:   { n: 'Madende Çalış', hours: 5, pay: [1.6, 2.8], energy: 28, hunger: 18, thirst: 20, skill: 'strength', xp: 20, bonus: [['iron_ore', 0.5], ['silver_ore', 0.25]], desc: 'Kazma sallayarak cevher çıkar.' },
   lumber: { n: 'Kereste Kes', hours: 4, pay: [1.3, 2.2], energy: 24, hunger: 15, thirst: 15, skill: 'strength', xp: 18, desc: 'Tomrukları testere ile biç.' },
+  rail:   { n: 'Ray Döşe', hours: 4, pay: [1.4, 2.4], energy: 24, hunger: 15, thirst: 17, skill: 'strength', xp: 18, desc: 'Travers diz, ray çek, çivi çak.' },
   docks:  { n: 'Limanda Yük Taşı', hours: 4, pay: [1.3, 2.4], energy: 22, hunger: 14, thirst: 16, skill: 'strength', xp: 16, desc: 'Gemilerden sandık indir.' },
   brewery:{ n: 'İmalathanede Çalış', hours: 4, pay: [1.2, 2.0], energy: 18, hunger: 12, thirst: 18, skill: 'strength', xp: 14, bonus: [['beer', 0.5]], desc: 'Arpa çuvalları taşı, fıçıları doldur.' },
   mill:   { n: 'Değirmende Çalış', hours: 4, pay: [1.0, 1.7], energy: 18, hunger: 14, thirst: 14, skill: 'strength', xp: 14, bonus: [['bread', 0.5]], desc: 'Tahıl çuvallarını taşı, taşları çevir.' },
@@ -452,6 +453,8 @@ const GOODS = {
   cloth: { n: 'Kumaş Balyası', p: 2.0, look: 'bale', src: [['warehouse', 1], ['docks', 1.05], ['general', 1.5]] },
   iron:  { n: 'Demir Sandığı', p: 2.4, look: 'crate', src: [['mine', 1], ['warehouse', 1.15], ['smith', 1.5]] },
   meds:  { n: 'İlaç Sandığı', p: 3.0, look: 'crate', src: [['warehouse', 1], ['doctor', 1.5]] },
+  // satılmaz: Demiryolu hikâyesinde kesim yerinden ray kampına taşınan traversler
+  ties:  { n: 'Travers Demeti', p: 0.8, look: 'ties', src: [] },
 };
 const BIZ = {
   barber:   { tier: 1, p: 85, inc: 0.9 },
@@ -490,6 +493,7 @@ const ACHIEVEMENTS = [
   { id: 'begin',     n: 'Yeni Bir Hayat',        d: 'Batıda yeni bir hayata başla.', perk: '' },
   { id: 'story',     n: 'Sully\'nin Senedi',      d: 'Hikâyeli başlangıcı tamamla ve tapuyu sahibine geri ver.', perk: '' },
   { id: 'story_outlaw', n: 'Son İş',             d: 'Kanun Kaçağı\'nın hikâyesini tamamla ve çeteyle hesabını kapat.', perk: '' },
+  { id: 'story_rail', n: 'Raylar ve Toz',      d: 'Demiryolu İşçisi\'nin hikâyesini tamamla ve ekibin maaşını geri getir.', perk: '' },
   { id: 'story_immigrant', n: 'Ağabeyin Mektupları', d: 'Göçmen\'in hikâyesini tamamla ve ağabeyinle kendi dükkânınızı açın.', perk: '' },
   { id: 'hunt1',     n: 'İlk Av',                d: 'İlk hayvanını avla.', perk: 'Deri yüzünce +1 et şansı', s: 'animals', v: 1 },
   { id: 'hunt25',    n: 'Avcı',                  d: '25 hayvan avla.', perk: 'Post satış fiyatları +%15', s: 'animals', v: 25 },
