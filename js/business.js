@@ -181,6 +181,7 @@ const BizSystems = {
     if (toP) parts.push(Tr`${toP} omzuna`);
     if (toG) parts.push(Tr`${toG} kapının önüne`);
     UI.feed(Tr`📦 ${n} ${GOODS[g].n}: ${parts.join(', ')}.`);
+    this.qEvent('goods', { g, n, b, wagon: toW });
     Audio_.thud(0.25);
     this.hintOnce('crate', Tr`Sandığı kendi işletmenin kapısına ya da tezgâhına götür ve <b>Teslim Et</b>. Atın 2, yük araban ${WAGON_CAP} sandık taşır; araba ahırdan alınır.`, 10);
   },

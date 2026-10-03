@@ -967,6 +967,7 @@ const GameSystems = {
     }
     Juice.explosion(x, y);
     this.noise(x, y, 900, 'gun');
+    this.qEvent('blast', { x, y, owner });
   },
   noise(x, y, r, type) {
     if (type === 'gun') this.townNote(x, y, 'gunfire');
@@ -1618,6 +1619,8 @@ const GameSystems = {
         continue;
       }
       if (e.kind === 'camp') { add(e.x, e.y, Tr('Kamp'), [{ n: Tr('Kamp Menüsü'), fn: () => UI.openCamp() }], 4); continue; }
+      // hikâyenin yerleştirdiği nesneler (kaya, sandık vb.)
+      if (e.kind === 'prop' && e.storyAct) { const acts = this.storyPropActions(e); if (acts.length) add(e.x, e.y, e.label || e.type, acts, e.big ? 1 : 4); continue; }
       if (e.kind === 'wagon') { this.wagonActions(e, add); continue; }
       if (e.kind === 'npc') {
         if (e.dead) continue;
@@ -1732,6 +1735,7 @@ const GameSystems = {
     if (e.role === 'hunter') return this.hunterActions(e);
     if (e.quest === 'mentor') return this.mentorActions(e);
     if (e.quest === 'kin') return this.kinActions(e);
+    if (e.storyNpc) { const a = this.storyNpcActions(e); if (a) return a; }
     const P = this.player;
     const acts = [];
     // az önce sana laf attı: karşılık verebilirsin

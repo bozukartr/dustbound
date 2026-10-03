@@ -1858,6 +1858,7 @@ const UI = {
             G.cam.x = P.x; G.cam.y = P.y;
             G.stat('trainRides', 1);
             G.prefetch(true);
+            G.qEvent('train', t);
           }, Tr`${t.n} yolunda...`);
         } };
       }),
@@ -2712,7 +2713,7 @@ const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', '
 const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
 const MAP_LEGEND_B = { store: ['general'], glass: ['saloon', 'cantina', 'gambling'], star: ['sheriff'], cross: ['doctor', 'pharmacy'], gun: ['gunsmith'], horseshoe: ['stable'], bed: ['hotel'], train: ['station'], bank: ['bank'], pick: ['mine', 'smith', 'lumber'] };
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass' };
-const PICON = { hideout: 'tent', camp: 'tent', farm: 'wheat', property: 'house', home: 'hut', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
+const PICON = { hideout: 'tent', railcamp: 'train', camp: 'tent', farm: 'wheat', property: 'house', home: 'hut', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
 const TIPS = [
   'İpucu: Çömelerek hayvanlara daha kolay yaklaşabilirsin.',
   'İpucu: Çiğ et yemek hastalık yapabilir. Kamp ateşinde pişir.',

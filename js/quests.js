@@ -378,6 +378,9 @@ const Story = {
       e.ang = Math.atan2(this.player.y - e.y, this.player.x - e.x);
     } }];
   },
+  /* hikâyenin yerleştirdiği nesnelerin ve kişilerin eylemleri (tanımdaki propActions / npcActions) */
+  storyPropActions(e) { const S = this.story, D = this.storyDef(); return S && S.on && !S.done && D.propActions ? D.propActions.call(this, e, S) || [] : []; },
+  storyNpcActions(e) { const S = this.story, D = this.storyDef(); return S && S.on && !S.done && D.npcActions ? D.npcActions.call(this, e, S) : null; },
   /* posta arabasının hikâye için gidebildiği uzak kasaba */
   storyStageDest(t) { const S = this.story; return !!(S && S.on && !S.done && S.stageTo && S.stageTo === t.id); },
   /* bina menüsüne hikâyenin eklediği seçenekler (ör. şerifte teslim olmak) */
