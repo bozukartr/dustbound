@@ -3562,5 +3562,6 @@ I18N.add('en', {
     "Dükkân Sizin": "The Store Is Yours",
     "{0} artık senin. Anton işletmeci olarak tezgâhta.": "{0} is now yours. Anton runs it from behind the counter.",
     "Göçmen'in hikâyesini tamamla ve ağabeyinle kendi dükkânınızı açın.": "Complete the Immigrant's story and open a store of your own with your brother.",
+    "Yeni Hedef": "New Objective",
   },
 });

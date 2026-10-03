@@ -894,10 +894,17 @@ body.binoc-on #hud-help, body.binoc-on #hud-tr, body.binoc-on #hud-bl, body.bino
 .cn-line .cl-n.self { color: #a8d0ff; }
 
 /* Hikâye: sağ üstte bölüm ve hedef */
-#hud-quest { margin-top: 10px; max-width: 340px; margin-left: auto; padding: 8px 12px 9px; background: linear-gradient(270deg, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0)); border-right: 2px solid var(--gold); }
-#hud-quest .hq-t { font-family: var(--sc); font-size: 13px; letter-spacing: 2px; color: var(--gold); text-transform: uppercase; }
-#hud-quest .hq-o { font-size: 17px; color: #f2e8d4; margin-top: 2px; display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
-#hud-quest .hq-o i { order: 2; width: 9px; height: 9px; transform: rotate(45deg); border: 2px solid var(--gold); flex: none; }
+/* parlak zeminde (çöl, kar) de okunsun: koyu, belirgin bir panel; yeni hedefte parlayıp kayarak gelir */
+#hud-quest { margin-top: 12px; max-width: 380px; margin-left: auto; padding: 9px 14px 10px 22px; background: linear-gradient(270deg, rgba(18, 12, 6, 0.86) 0%, rgba(18, 12, 6, 0.74) 70%, rgba(18, 12, 6, 0) 100%); border-right: 3px solid var(--gold); box-shadow: 4px 0 14px rgba(0, 0, 0, 0.35); }
+#hud-quest .hq-t { font-family: var(--sc); font-size: 14px; letter-spacing: 2px; color: var(--gold); text-transform: uppercase; display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+#hud-quest .hq-o { font-size: 19px; color: #fff4dc; margin-top: 3px; display: flex; gap: 9px; align-items: center; justify-content: flex-end; }
+#hud-quest .hq-o i { order: 2; width: 10px; height: 10px; transform: rotate(45deg); border: 2px solid var(--gold); flex: none; }
+#hud-quest .hq-new { font-family: var(--sc); font-size: 11px; letter-spacing: 1px; color: #1a1208; background: var(--gold); padding: 1px 6px; border-radius: 2px; text-shadow: none; animation: hqnew 4.5s forwards; }
+#hud-quest.hq-pulse { animation: hqpulse 2.6s ease-out; }
+#hud-quest.hq-pulse .hq-o i { animation: hqdia 0.65s ease-in-out 4; }
+@keyframes hqpulse { 0% { transform: translateX(46px); opacity: 0; } 14% { transform: none; opacity: 1; box-shadow: 0 0 0 2px var(--gold), 0 0 26px rgba(226, 182, 74, 0.75); } 40% { box-shadow: 0 0 0 1px var(--gold), 0 0 14px rgba(226, 182, 74, 0.45); } 65% { box-shadow: 0 0 0 2px var(--gold), 0 0 22px rgba(226, 182, 74, 0.6); } 100% { box-shadow: 4px 0 14px rgba(0, 0, 0, 0.35); } }
+@keyframes hqdia { 50% { background: var(--gold); transform: rotate(45deg) scale(1.35); } }
+@keyframes hqnew { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 #hud-quest .hq-o.done { color: #b8ad98; text-decoration: line-through; }
 #hud-quest .hq-o.done i { background: var(--gold); }
 #hud-quest .hq-n { color: var(--gold); }
