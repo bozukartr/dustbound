@@ -635,7 +635,7 @@ class Player extends Ent {
         if (dist2(e.x, e.y, h.x + Math.cos(h.ang) * 8, h.y + Math.sin(h.ang) * 8) < 100) {
           if (e.kind === 'npc') {
             // kanun adamına ya da sivile çarpmak ilk iki seferde uyarıdır; üçüncüsü saldırı sayılır
-            if (e.quest === 'sully') continue;   // Sully'ye çarpmak suç değil, at onun yanından geçer
+            if (e.quest === 'mentor') continue;   // hikâyenin akıl hocasına çarpmak suç değil, at onun yanından geçer
             if (!e.hostile && !e.bound && !['bandit', 'hunter', 'target'].includes(e.role) && G.npcBump(e, h)) continue;
             e.hurt(18, 'player', 'trample'); e.x += Math.cos(h.ang) * 10; e.y += Math.sin(h.ang) * 10;
           }
@@ -885,7 +885,7 @@ class Animal extends Ent {
   get bound() { return this.state === 'lassoed' || this.state === 'tied'; }
   hurt(dmg, by, how) {
     if (this.dead) return;
-    if (this.quest === 'sully') return;   // hikâyenin yaşlı adamı: vurulamaz, suç da yazılmaz
+    if (this.quest === 'mentor') return;   // hikâyenin akıl hocası: vurulamaz, suç da yazılmaz
     this.hp -= dmg;
     G.parts.burst('blood', this.x, this.y, 3 + dmg / 15, 35, 0.5, 1.4);
     if (this.def.shape === 'bird') G.parts.burst('feather', this.x, this.y, 5, 30, 1, 1, this.def.col);
@@ -1034,7 +1034,7 @@ class NPC extends Ent {
   get bound() { return this.state === 'lassoed' || this.state === 'tied' || this.state === 'downed'; }
   hurt(dmg, by, how) {
     if (this.dead) return;
-    if (this.quest === 'sully') return;   // hikâyenin yaşlı adamı: vurulamaz, suç da yazılmaz
+    if (this.quest === 'mentor') return;   // hikâyenin akıl hocası: vurulamaz, suç da yazılmaz
     this.hp -= dmg;
     if (how !== 'drown') G.parts.burst('blood', this.x, this.y, 3 + Math.min(dmg, 200) / 12, 35, 0.6, 1.4);
     if (by === 'player') {
@@ -1057,7 +1057,7 @@ class NPC extends Ent {
       const ko = how === 'melee';
       if (this.state === 'downed' || this.state === 'tied') {
         if (ko) { this.hp = 1; if (this.state === 'downed') this.downT = Math.max(this.downT, 20); return; }
-      } else if (ko || (this.role === 'target' && dmg < 90 && chance(0.65)) || (this.quest === 'jack' && dmg < 130 && chance(0.75))) {
+      } else if (ko || (this.role === 'target' && dmg < 90 && chance(0.65)) || (this.quest === 'rival' && dmg < 130 && chance(0.75))) {
         this.hp = 1;
         this.down(ko ? rnd(30, 45) : rnd(70, 100), ko);
         return;
@@ -1136,7 +1136,7 @@ class NPC extends Ent {
     if (this.bound) { this.boundUpdate(dt); if (!this.dead) this.waterTick(dt); return; }
     if (this.hide) { if (this.job) G.jobUpdate(this, dt); return; }   // dükkânın içinde (sandık taşıyor)
     G.animTick(this, dt);
-    if (this.quest && G.questNpc(this, dt)) return;   // hikâye kişisi (Sully) kendi yolunu izler
+    if (this.quest && G.questNpc(this, dt)) return;   // hikâyenin akıl hocası kendi yolunu izler
     this.t -= dt; this.cool -= dt;
     const P = G.player;
     const pd = dist(this.x, this.y, P.x, P.y);

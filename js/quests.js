@@ -1,7 +1,10 @@
 'use strict';
 /* ==========================================================
-   FRONTIER'S END — hikâyeli başlangıç: "Sully'nin Senedi"
-   On bölümlük, oynayarak öğreten bir başlangıç. Yaşlı çiftçi
+   FRONTIER'S END — hikâyeli başlangıçlar
+   Her geçmişin kendi on bölümlük hikâyesi olur (STORIES; geçmiş → hikâye:
+   STORY_FOR_BG). Motor ortaktır: bir akıl hocası (konuşma satırlarında 'S'),
+   bir hedef kişi (rival), bölümler ve adımlar hikâye tanımından okunur.
+   İlk hikâye "Sully'nin Senedi": on bölümlük, oynayarak öğreten bir başlangıç. Yaşlı çiftçi
    Dunham Sully'nin gazete ilanıyla kasabaya gelen oyuncu; selamlaşmayı,
    alışverişi, yemeyi, su doldurmayı, ata binmeyi, avı, deri yüzmeyi,
    satışı, çalışmayı, bankayı, şerifi, söylentiyi, dürbünü, kampı,
@@ -23,7 +26,9 @@ const STORY_ENV = { DESERT: 'desert', REDROCK: 'desert', FOREST: 'forest', SNOW:
 const Story = {
   /* ---------------- yardımcılar ---------------- */
   get storyOn() { const S = this.story; return !!(S && S.on && !S.done); },
-  sName(w) { return w === 'S' ? 'Sully' : w === 'P' ? this.player.name : w === 'W' ? Tr('Şerif') : w === 'B' ? Tr('Barmen') : w; },
+  /* oynanan hikâyenin tanımı (eski kayıtlar: Sully) */
+  storyDef() { const S = this.story; return STORIES[(S && S.id) || 'sully'] || STORIES.sully; },
+  sName(w) { const D = this.storyDef(); return w === 'S' ? D.mentor.short : w === 'R' ? D.rival.name() : w === 'P' ? this.player.name : w === 'W' ? Tr('Şerif') : w === 'B' ? Tr('Barmen') : w; },
   sFmt(t) { const S = this.story, T = S && this.world.towns.find(x => x.id === S.town); return String(t).replace(/\{ad\}/g, this.player.name.split(' ')[0]).replace(/\{kasaba\}/g, T ? T.n : '').replace(/\{kamp\}/g, S && S.camp ? S.camp.n : ''); },
   sTown() { return this.world.towns.find(t => t.id === this.story.town); },
   sBld(type) {
@@ -34,11 +39,14 @@ const Story = {
   },
   /* bina kapısının hemen dışı (Sully'nin beklediği yer) */
   sDoor(b, out = 16) { return b ? { x: b.door.x + 8, y: b.door.y + out } : null; },
-  sullyEnt() { return this.ents.find(e => e.quest === 'sully' && !e.remove) || null; },
-  jackEnt() {
+  mentorEnt() { return this.ents.find(e => e.quest === 'mentor' && !e.remove) || null; },
+  rivalEnt() {
     const P = this.player, all = this.ents.concat(P.carry ? [P.carry] : [], this.horse && this.horse.load ? this.horse.load : []);
-    return all.find(e => e.quest === 'jack' && !e.remove) || null;
+    return all.find(e => e.quest === 'rival' && !e.remove) || null;
   },
+  // eski adlar (Sully hikâyesi ve testler)
+  sullyEnt() { return this.mentorEnt(); },
+  jackEnt() { return this.rivalEnt(); },
   hasGun() { const P = this.player; return [...P.weapons].some(w => WEAPONS[w] && WEAPONS[w].ammo && w !== 'bow'); },
   sGlyph(a) { return Input.glyph(a); },
   /* Oyuncuyu (ve atını) bir yere taşı: sinematik geçişlerinde */
@@ -64,51 +72,35 @@ const Story = {
   sSpot(x, y, r0 = 0, r1 = 80) { return this.findSpawnPos(x, y, r0, r1) || [x, y]; },
 
   /* ---------------- başlangıç ---------------- */
-  storyStart() {
+  storyStart(id) {
     const P = this.player, BG = BACKGROUNDS.find(b => b.id === this.background) || BACKGROUNDS[0];
+    id = id || STORY_FOR_BG[BG.id];
+    const D = STORIES[id];
+    if (!D) return false;
     const town = this.world.towns.find(t => t.id === BG.town);
-    const S = this.story = { on: true, ch: -1, st: -1, n: 0, town: town.id, jack: 'free', deed: false, flags: {} };
-    // Sully'nin çiftliği: kasabaya en yakın çiftlik
-    let best = null, bd = 1e9;
-    for (const p of this.world.pois) if (p.kind === 'farm') { const d = dist(p.x, p.y, town.spawn.x, town.spawn.y); if (d < bd) { bd = d; best = p; } }
-    if (best) { const b = this.world.buildings[best.building]; S.ranch = { pid: best.pid, x: b.door.x, y: b.door.y + 18, cx: best.x, cy: best.y }; }
-    else { const s = this.sSpot(town.spawn.x + 1400, town.spawn.y, 0, 300); S.ranch = { pid: -1, x: s[0], y: s[1], cx: s[0], cy: s[1] }; }
-    // Kızıl Jack'in kampı: çiftliğe en yakın haydut kampı
-    best = null; bd = 1e9;
-    for (const p of this.world.pois) if (p.kind === 'camp') { const d = dist(p.x, p.y, S.ranch.cx, S.ranch.cy) + dist(p.x, p.y, town.cx, town.cy) * 0.5; if (d < bd) { bd = d; best = p; } }
-    S.camp = best ? { pid: best.pid, id: best.id, x: best.x, y: best.y, n: best.n } : { pid: -1, x: S.ranch.cx + 2000, y: S.ranch.cy, n: Tr('Kızıl Kamp') };
-    // kampa varmadan önce gece geçirilecek yer: kamptan kasabaya doğru ~750 piksel
-    const a = Math.atan2(town.cy - S.camp.y, town.cx - S.camp.x), W = this.world;
-    for (const da of [0, 0.5, -0.5, 1, -1, 1.6, -1.6, Math.PI]) {
-      for (const r of [760, 640, 880, 540]) {
-        const s = this.findSpawnPos(S.camp.x + Math.cos(a + da) * r, S.camp.y + Math.sin(a + da) * r, 0, 120);
-        if (s && !W.townAt(s[0], s[1], 34) && !W.blocked(s[0], s[1] + 14, 8)) { S.site = { x: s[0], y: s[1] }; break; }
-      }
-      if (S.site) break;
-    }
-    if (!S.site) { const s = this.sSpot(S.camp.x + Math.cos(a) * 760, S.camp.y + Math.sin(a) * 760, 0, 160); S.site = { x: s[0], y: s[1] }; }
-    S.biome = this.storyBiome(S.ranch.cx, S.ranch.cy);
+    const S = this.story = { id, on: true, ch: -1, st: -1, n: 0, town: town.id, jack: 'free', deed: false, flags: {} };
+    D.setup.call(this, S, town);
+    S.biome = S.biome || this.storyBiome(S.ranch ? S.ranch.cx : town.cx, S.ranch ? S.ranch.cy : town.cy);
     S.env = STORY_ENV[S.biome] || 'plains';
-    const sp = this.sSpot(town.spawn.x + 34, town.spawn.y + 6, 0, 40);
-    S.sully = { x: sp[0], y: sp[1] };
     this.storyApplyWorld();
     this.qChapter(0);
     this.saveGame(true);
+    return true;
   },
   /* yüklemede ve başlangıçta dünyaya işlenen ayrıntılar */
   storyApplyWorld() {
     const S = this.story;
     if (!S) return;
-    const rp = S.ranch && this.world.pois.find(p => p.pid === S.ranch.pid);
-    if (rp) { rp.n = Tr('Sully Çiftliği'); rp.sully = true; this.discovered.add(rp.id); }
+    const D = this.storyDef();
+    if (D.apply) D.apply.call(this, S);
     if (S.camp && S.campKnown) { const cp = this.world.pois.find(p => p.pid === S.camp.pid); if (cp && !this.discovered.has(cp.id)) this.rumored.add(cp.id); }
   },
 
   /* ---------------- bölüm ve adım akışı ---------------- */
-  qCh() { const S = this.story; return S && STORY[S.ch]; },
+  qCh() { const S = this.story; return S && this.storyDef().chapters[S.ch]; },
   qStep() { const c = this.qCh(), S = this.story; return c && c.steps[S.st]; },
   qChapter(i) {
-    const S = this.story, c = STORY[i];
+    const S = this.story, c = this.storyDef().chapters[i];
     S.ch = i; S.st = -1; S.n = 0; S.wait = true;
     if (!c) { this.storyFinish(); return; }
     const go = () => {
@@ -193,13 +185,13 @@ const Story = {
     const ln = S.talkQ.shift();
     if (!ln) { const cb = S.talkCb; S.talkCb = null; S.talkQ = null; if (cb) cb(); return; }
     // seslendirme varsa satır sesin süresi kadar ekranda kalır
-    const vd = Audio_.voice(ln.raw || ln.x, I18N.lang, ln.w === 'S' && this.sullyEnt() ? { x: this.sullyEnt().x, y: this.sullyEnt().y, dist: 600 } : {});
+    const me = this.mentorEnt(), vd = Audio_.voice(ln.raw || ln.x, I18N.lang, ln.w === 'S' && me ? { x: me.x, y: me.y, dist: 600 } : {});
     const d = Math.max(this.talkDur(ln.x), vd ? vd + 0.4 : 0);
     UI.subtitle(this.sName(ln.w), ln.x, d - 0.2, ln.w === 'P');
-    const who = ln.w === 'S' ? this.sullyEnt() : ln.w === 'P' ? this.player : null;
+    const who = ln.w === 'S' ? me : ln.w === 'R' ? this.rivalEnt() : ln.w === 'P' ? this.player : null;
     // söz bir kez, altyazıda yazılır; konuşanın üstünde yalnızca konuşma işareti
     if (who && (who === this.player || dist(who.x, who.y, this.player.x, this.player.y) < 300)) Bubbles.add(who, '', d - 0.2, true);
-    if (ln.w === 'S') { const e = this.sullyEnt(); if (e && !e.anim && chance(0.4)) this.setAnim(e, pick(['gesture', 'point', 'shrug', 'rub', 'scratch'])); }
+    if (ln.w === 'S' && me && !me.anim && chance(0.4)) this.setAnim(me, pick(['gesture', 'point', 'shrug', 'rub', 'scratch']));
     S.talkT = d;
   },
 
@@ -218,7 +210,8 @@ const Story = {
     if (window.__testNoCine || typeof Cinema === 'undefined' || !Cinema.has(sc)) { fin(); return; }
     this.cine = true; this._qPend = null; Bubbles.clear(); UI.el.sub.classList.add('hidden');
     const L = this.cineLines(lines), h = this.horse, S = this.story;
-    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: SULLY_LOOK, jack: JACK_LOOK, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
+    const D = this.storyDef();
+    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: D.mentor.look, jack: D.rival.look, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
   },
 
   /* ---------------- her kare ---------------- */
@@ -226,8 +219,8 @@ const Story = {
     const S = this.story;
     if (!S || !S.on) return;
     this.storyTalkTick(dt);
-    this.storySully(dt);
-    if (!S.done) this.storyJack();
+    this.storyMentor(dt);
+    if (!S.done) this.storyRival();
     if ((S.chkT = (S.chkT || 0) - dt) > 0) return;
     S.chkT = 0.25;
     const st = this.qStep();
@@ -235,37 +228,38 @@ const Story = {
     if (st && st.tick) st.tick.call(this, S, 0.25);
     this.questHud();
   },
-  /* Sully: istenen yere yürür ya da atla gider; uzaktaysa görünmeden yerini alır */
-  storySully(dt) {
+  /* Akıl hocası: istenen yere yürür ya da atla gider; uzaktaysa görünmeden yerini alır */
+  storyMentor(dt) {
     const S = this.story, g = S.sully, P = this.player;
-    let e = this.sullyEnt();
+    let e = this.mentorEnt();
     if (!g) { if (e) e.remove = true; return; }
+    const M = this.storyDef().mentor;
     const pd = dist(P.x, P.y, g.x, g.y);
     if (!e) {
       // atlıyken önden gider: uzaktaysa oyuncunun önünde, hedef yönünde belirir
       const at = g.ride && pd > 400 ? this.sAhead(g) : g;
       if (dist(P.x, P.y, at.x, at.y) > 1200) return;
       const s = this.sSpot(at.x, at.y, 0, 30);
-      e = new NPC(s[0], s[1], 'sully', { name: 'Dunham Sully', look: Object.assign({}, SULLY_LOOK), hp: 9999 });
-      e.quest = 'sully'; e.keep = true; e.weapon = null; e.money = 0; e.ang = Math.atan2(P.y - e.y, P.x - e.x);
-      if (g.ride) e.mounted = Object.assign({}, SULLY_HORSE);
+      e = new NPC(s[0], s[1], 'mentor', { name: M.name, look: Object.assign({}, M.look), hp: 9999 });
+      e.quest = 'mentor'; e.keep = true; e.weapon = null; e.money = 0; e.ang = Math.atan2(P.y - e.y, P.x - e.x);
+      if (g.ride) e.mounted = Object.assign({}, M.horse);
       this.addEnt(e);
     } else if (dist(e.x, e.y, P.x, P.y) > 1700) e.remove = true;
   },
   /* NPC.update'ten çağrılır: true dönerse olağan davranış atlanır */
   questNpc(e, dt) {
-    if (e.quest !== 'sully') return false;
-    const S = this.story, g = S && S.sully, P = this.player;
+    if (e.quest !== 'mentor') return false;
+    const S = this.story, g = S && S.sully, P = this.player, MH = this.storyDef().mentor.horse;
     e.hp = e.maxHp = 9999; e.hostile = false; e.witness = null;
     if (!g) { e.mv = 0; return true; }
     if (e.state !== 'idle' && e.state !== 'walk') e.state = 'idle';
     const d = dist(e.x, e.y, g.x, g.y), pd = dist(e.x, e.y, P.x, P.y);
     if (d > 8) {
       // ekran dışında ve uzaktaysa doğrudan yerini alır
-      if (g.ride && d > 300 && pd > 450 && !this.onScreen(e.x, e.y, 40)) { const a = this.sAhead(g), s = this.sSpot(a.x, a.y, 0, 30); e.x = s[0]; e.y = s[1]; e.nav = null; e.mounted = e.mounted || Object.assign({}, SULLY_HORSE); return true; }
-      if (!g.ride && d > 220 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; e.mv = 0; e.mounted = g.ride ? e.mounted || Object.assign({}, SULLY_HORSE) : null; return true; }
+      if (g.ride && d > 300 && pd > 450 && !this.onScreen(e.x, e.y, 40)) { const a = this.sAhead(g), s = this.sSpot(a.x, a.y, 0, 30); e.x = s[0]; e.y = s[1]; e.nav = null; e.mounted = e.mounted || Object.assign({}, MH); return true; }
+      if (!g.ride && d > 220 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; e.mv = 0; e.mounted = g.ride ? e.mounted || Object.assign({}, MH) : null; return true; }
       if (g.ride) {
-        e.mounted = e.mounted || Object.assign({}, SULLY_HORSE);
+        e.mounted = e.mounted || Object.assign({}, MH);
         if (d < 400 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; return true; }
         // oyuncu geride kalırsa bekler
         if (pd > 380 && dist(P.x, P.y, g.x, g.y) > d) { e.mv = 0; e.spd = 0; e.ang = turnTo(e.ang, Math.atan2(P.y - e.y, P.x - e.x), dt * 2); return true; }
@@ -290,17 +284,17 @@ const Story = {
   /* atlı Sully için oyuncunun önünde, hedef yönünde bir nokta */
   sAhead(g) { const P = this.player, d = dist(P.x, P.y, g.x, g.y), k = Math.min(1, 260 / Math.max(1, d)); return { x: P.x + (g.x - P.x) * k, y: P.y + (g.y - P.y) * k }; },
   sullyGo(x, y, ride, ang) { this.story.sully = { x, y, ride: !!ride, ang }; },
-  /* Kızıl Jack: kampta belirir; bağlıysa kaçmaz, kayıttan dönüşte yerinde bekler */
-  storyJack() {
-    const S = this.story, P = this.player;
-    if (S.ch < 9 || !S.camp || S.jack === 'delivered') return;
-    let j = this.jackEnt();
+  /* Hedef kişi (Sully'de Kızıl Jack): kampta belirir; bağlıysa kaçmaz, kayıttan dönüşte yerinde bekler */
+  storyRival() {
+    const S = this.story, P = this.player, R = this.storyDef().rival;
+    if (!R || R.fromCh === undefined || S.ch < R.fromCh || !S.camp || S.jack === 'delivered') return;
+    let j = this.rivalEnt();
     if (!j) {
       if (S.jack === 'carried') { S.jack = 'bound'; }   // taşınırken kaybolduysa bıraktığın yerde
       const jx = S.jx || S.camp.x + 10, jy = S.jy || S.camp.y - 12;
       if (dist(P.x, P.y, jx, jy) > 900) return;
-      j = new NPC(jx, jy, 'bandit', { hostile: S.jack === 'free', name: Tr('Kızıl Jack'), look: Object.assign({}, JACK_LOOK), hp: 150, weapon: 'repeater', home: { x: S.camp.x, y: S.camp.y, r: 40 }, money: 2.5 });
-      j.quest = 'jack'; j.keep = true;
+      j = new NPC(jx, jy, 'bandit', { hostile: S.jack === 'free', name: R.name(), look: Object.assign({}, R.look), hp: R.hp || 150, weapon: R.weapon || 'repeater', home: { x: S.camp.x, y: S.camp.y, r: 40 }, money: R.money || 2.5 });
+      j.quest = 'rival'; j.keep = true;
       if (S.jack === 'dead') { j.dead = true; j.hp = 0; j.state = 'dead'; j.deadT = 0; }
       else if (S.jack === 'bound') { j.state = 'tied'; j.tieT = 9999; j.hp = 40; j.hostile = true; }
       this.addEnt(j);
@@ -324,15 +318,17 @@ const Story = {
   },
 
   /* ---------------- etkileşimler ---------------- */
-  sullyActions(e) {
-    const S = this.story, acts = [];
+  mentorActions(e) {
+    const S = this.story, acts = [], M = this.storyDef().mentor;
     const st = this.qStep();
+    const work = M.work && (() => UI.openWork(M.work, M.place()));
     if (S && S.on && !S.done && st && st.ev === 'talk' && !S.wait) acts.push({ n: Tr('Konuş'), fn: () => this.qTalkSully(e) });
-    else if (S && S.on && !S.done && st && st.ev === 'work') acts.push({ n: JOBS.ranch.n, fn: () => UI.openWork('ranch', Tr('Sully Çiftliği')) });
+    else if (S && S.on && !S.done && st && st.ev === 'work' && work) acts.push({ n: JOBS[M.work].n, fn: work });
     else acts.push({ n: Tr('Sohbet Et'), fn: () => this.sullyChat(e) });
-    if (S && S.done && dist(e.x, e.y, S.ranch.x, S.ranch.y) < 300) acts.push({ n: JOBS.ranch.n, fn: () => UI.openWork('ranch', Tr('Sully Çiftliği')) });
+    if (S && S.done && work && M.home && dist(e.x, e.y, M.home.call(this, S).x, M.home.call(this, S).y) < 300) acts.push({ n: JOBS[M.work].n, fn: work });
     return acts;
   },
+  sullyActions(e) { return this.mentorActions(e); },
   qTalkSully(e) {
     const st = this.qStep();
     e.ang = Math.atan2(this.player.y - e.y, this.player.x - e.x);
@@ -340,51 +336,51 @@ const Story = {
     else this.qEvent('talk', e);
   },
   sullyChat(e) {
-    const S = this.story;
-    const L = S && S.done ? [
-      Tr('Kahve buldum bu sefer. Gerçek kahve. Martha görse inanmazdı.'), Tr('Çit hâlâ yarım. Ama artık kimse onu benden almaya kalkmıyor.'),
-      Tr("Kızıl Jack'in davası gelecek ay. Gidip en ön sıraya oturacağım."), Tr('Tavuklar seni sordu. Yalan değil, gıdakladılar.'),
-      Tr('Yorgun görünüyorsun, {ad}. Otur biraz, toprak kaçmaz.'), Tr('Ne zaman istersen gel. Ahırda yer var, sofrada da.'),
-    ] : [Tr('Şimdi değil, evlat. Önce işimizi bitirelim.'), Tr('Bir şey mi unuttun? Ben de çok unuturum, yaştan.'), Tr('Konuşacak çok vaktimiz olacak. Hadi.')];
+    const S = this.story, M = this.storyDef().mentor;
+    const L = S && S.done ? M.chatDone() : M.chatBusy();
     const x = this.sFmt(pick(L));
-    UI.subtitle('Sully', x, 3.5); Bubbles.add(e, '', 3.5, true);
+    UI.subtitle(M.short, x, 3.5); Bubbles.add(e, '', 3.5, true);
     e.ang = Math.atan2(this.player.y - e.y, this.player.x - e.x);
   },
-  jackActions(e) {
-    const S = this.story, acts = [];
-    if (S && S.on && !S.deed && (e.dead || e.bound)) acts.push({ n: Tr('Tapuyu Al'), hold: 0.6, fn: () => { S.deed = true; UI.toast(Tr('Tapu'), Tr('Sully\'nin tapusu artık sende.'), 'quest'); Audio_.ui('pick'); this.qEvent('deed', e); } });
+  rivalActions(e) {
+    const S = this.story, acts = [], R = this.storyDef().rival;
+    if (S && S.on && !S.deed && R.take && (e.dead || e.bound)) acts.push({ n: R.take.n(), hold: 0.6, fn: () => { S.deed = true; UI.toast(R.take.k(), R.take.msg(), 'quest'); Audio_.ui('pick'); this.qEvent('deed', e); } });
     return acts;
   },
+  jackActions(e) { return this.rivalActions(e); },
+  /* hedef kişinin şerifteki değeri (0: hikâyenin hedefi değil) */
+  rivalValue(e) { const R = this.storyDef().rival; return R && R.reward ? (e.dead ? R.reward[1] : R.reward[0]) : 0; },
   /* Şerif ofisi ilan panosunun üstündeki afiş */
   storyPoster() {
-    const S = this.story;
-    if (!S || !S.on || S.done || S.ch < 6 || S.jack === 'delivered') return '';
+    const S = this.story, D = this.storyDef();
+    if (!S || !S.on || S.done || S.jack === 'delivered' || !D.poster) return '';
+    return D.poster.call(this, S);
+  },
+  /* Sully: şerif ofisi panosunda Kızıl Jack afişi */
+  sullyPoster(S) {
+    if (S.ch < 6) return '';
     return `<div class="poster story"><div class="po-w">${Tr`ARANIYOR`}</div><div class="po-n">${Tr('Kızıl Jack')}</div><div class="po-c">${Tr`Yol kesme, soygun, at hırsızlığı`}</div><div class="po-r">${fmtMoney(25)}</div><div class="po-l">${Tr`Canlı teslime tam ödül.`}</div></div>`;
   },
   /* Barmenin fısıldadığı söz: kampın yeri */
   storyRumor() {
-    const S = this.story, st = this.qStep();
+    const S = this.story, st = this.qStep(), D = this.storyDef();
     if (!S || !st || st.ev !== 'rumor' || S.wait) return false;
     S.campKnown = true; this.storyApplyWorld();
-    const cp = this.world.pois.find(p => p.pid === S.camp.pid);
+    const cp = S.camp && this.world.pois.find(p => p.pid === S.camp.pid);
     if (cp) this.rumored.add(cp.id);
-    UI.info(Tr('Barmen Fısıldıyor'), `<p class="quote">${this.sFmt(Tr('"Kızıl Jack mi? Sesini alçalt... Geçen hafta adamlarından biri burada sızdı kaldı. Sabaha kadar {kamp} diye sayıkladı, bir de kızıl sakallının payından. Ben bir şey söylemedim, tamam mı?"'))}</p><p>${this.sFmt(Tr('<b>{kamp}</b> haritanda işaretlendi.'))}</p>`);
+    if (D.rumor) D.rumor.call(this, S);
     this.qEvent('rumor');
     return true;
   },
 
   /* ---------------- bitiş ve bırakma ---------------- */
   storyFinish() {
-    const S = this.story, P = this.player;
+    const S = this.story, D = this.storyDef();
     S.done = true; S.wait = false;
-    const alive = S.alive;
-    this.earn(alive ? 10 : 6, Tr('Sully\'nin teşekkürü'));
-    if (!P.weapons.has('repeater')) { P.giveWeapon('repeater'); P.ammo.repeater = Math.min(AMMO.repeater.max, (P.ammo.repeater || 0) + 24); UI.feed(Tr`Sully'nin eski tüfeği artık senin: ${WEAPONS.repeater.n}`); }
-    this.addHonor(5);
-    this.unlock('story');
-    UI.toast(Tr('Hikâye Tamamlandı'), Tr('Sully\'nin Senedi'), 'quest');
-    this.sullyGo(S.ranch.x + 6, S.ranch.y - 4);
-    setTimeout(() => UI.help(Tr`Hikâye bitti ama hayat sürüyor. Artık ne yapacağın sana kalmış: avlan, çalış, ev kur, âşık ol ya da kanunun öbür yanına geç. <b>Hedefin hâlâ 80 yaşına kadar yaşamak.</b> Sully'nin çiftliğinin kapısı sana hep açık.`, 14), 1500);
+    if (D.finish) D.finish.call(this, S);
+    this.unlock(D.ach || 'story');
+    UI.toast(Tr('Hikâye Tamamlandı'), D.title(), 'quest');
+    if (D.epilogue) setTimeout(() => UI.help(D.epilogue.call(this, S), 14), 1500);
     this.questHud();
     this.saveGame(true);
   },
@@ -392,7 +388,7 @@ const Story = {
     const S = this.story;
     if (!S) return;
     S.on = false; S.talkQ = null; S.talkCb = null;
-    const e = this.sullyEnt(); if (e) e.remove = true;
+    const e = this.mentorEnt(); if (e) e.remove = true;
     if (S.wpSet) this.setWaypoint(null);
     UI.feed(Tr('Hikâyeyi bıraktın. Dünya seni bekliyor.'));
     this.questHud();
@@ -402,7 +398,7 @@ const Story = {
   questHud() {
     const el = document.getElementById('hud-quest');
     if (!el) return;
-    const S = this.story, c = S && S.on && !S.done && STORY[S.ch], st = c && this.qStep();
+    const S = this.story, c = S && S.on && !S.done && this.storyDef().chapters[S.ch], st = c && this.qStep();
     if (!c) { el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
     const n = st && st.n > 1 ? ` <span class="hq-n">${S.n}/${st.n}</span>` : '';
@@ -416,15 +412,16 @@ const Story = {
   questJournal() {
     const S = this.story;
     if (!S) return `<p class="jr-note">${Tr`Bu hayatta hikâyeli başlangıç kapalı. Yeni bir hayata başlarken "Hikâyeli Başlangıç"ı açabilirsin.`}</p>`;
-    let h = `<div class="qj"><div class="qj-h">${Tr`Sully'nin Senedi`}</div><p class="jr-note">${Tr`Yaşlı çiftçi Dunham Sully'nin gazete ilanıyla geldin. Çiftliğin tapusu çalınmış; Sully'ye yardım et.`}</p><ol class="qj-l">`;
-    STORY.forEach((c, i) => {
+    const D = this.storyDef();
+    let h = `<div class="qj"><div class="qj-h">${D.title()}</div><p class="jr-note">${D.intro()}</p><ol class="qj-l">`;
+    D.chapters.forEach((c, i) => {
       const cls = S.done || i < S.ch ? 'ok' : i === S.ch && S.on ? 'on' : '';
       h += `<li class="${cls}"><b>${Tr`Bölüm ${i + 1}`}</b> ${i <= S.ch || S.done ? c.t() : '???'}`;
       if (i === S.ch && S.on && !S.done) h += `<ul>${c.steps.map((st, k) => k < S.st ? `<li class="ok">${st.t.call(this, S)}</li>` : k === S.st ? `<li class="on">${st.t.call(this, S)}</li>` : '').join('')}</ul>`;
       h += '</li>';
     });
     h += '</ol>';
-    if (S.done) h += `<p class="qj-end">${Tr`Hikâye tamamlandı. Sully'nin çiftliği seni bekliyor.`}</p>`;
+    if (S.done) h += `<p class="qj-end">${D.outro()}</p>`;
     else if (S.on) h += `<p><button class="st-btn" data-qa="1">${Tr`Hikâyeyi Bırak`}</button></p>`;
     else h += `<p class="qj-end">${Tr`Hikâyeyi bıraktın.`}</p>`;
     return h + '</div>';
@@ -433,13 +430,14 @@ const Story = {
   loadStory(d) {
     if (!d) { this.story = null; return; }
     this.story = d; d.wait = false;
+    if (!d.id || !STORIES[d.id]) d.id = 'sully';   // eski kayıtlar
     this.storyApplyWorld();
     if (d.on && !d.done) {
       // yarıda kalan bölüm başını yeniden kur (konuşmalar geri gelmez)
       if (d.st < 0) { d.ch = Math.max(0, d.ch); this.qChapter(d.ch); return; }
       // adım bitmiş, sonrası (konuşma ya da sinematik) sürerken kaydedilmiş
       if (d.fin === d.st) { this.qNext(); return; }
-      const c = STORY[d.ch];
+      const c = this.storyDef().chapters[d.ch];
       if (c && c.resume) c.resume.call(this, d);
       const st = this.qStep();
       if (st && st.on && st.reOn) st.on.call(this, d);
@@ -452,7 +450,7 @@ const Story = {
    wp (uzaksa rota), hint (ipucu), on (başlarken), say (Sully'ye konuşunca),
    talk (başlarken konuşma), after (bitince konuşma), cine (bitince sinematik)
    ========================================================== */
-const STORY = [
+const STORY_SULLY = [
   /* 1 — Yeni Kasaba: tanış, selamlaş, mağazaya gir */
   {
     t: () => Tr('Yeni Kasaba'),
@@ -470,7 +468,7 @@ const STORY = [
           ['S', Tr('Birkaç kişiye selam ver. Ben mağazanın önünde olurum.')],
         ],
         done() { const p = this.sDoor(this.sBld('general')); if (p) this.sullyGo(p.x, p.y); } },
-      { t: () => Tr('Kasabalıları selamla'), ev: 'greet', n: 2, ok: (e, S) => { if (!e || e.quest === 'sully') return false; const g = S.greeted || (S.greeted = []); if (g.includes(e.id)) return false; g.push(e.id); return true; },
+      { t: () => Tr('Kasabalıları selamla'), ev: 'greet', n: 2, ok: (e, S) => { if (!e || e.quest === 'mentor') return false; const g = S.greeted || (S.greeted = []); if (g.includes(e.id)) return false; g.push(e.id); return true; },
         hint: () => Tr`Birine yaklaş, ${Input.glyph('interact')} basılı tut ve <b>Selamla</b>. Selamını alanı unutmazlar; seni selamlayanı da cevapsız bırakma.` },
       { t: () => Tr('Genel mağazaya gir'), ev: 'enter', ok: (b) => b && b.type === 'general', at() { return this.sDoor(this.sBld('general'), 4); },
         hint: () => Tr`Mağazanın kapısından içeri yürü. Binaların içinde dolaşabilirsin.`,
@@ -718,7 +716,7 @@ const STORY = [
         done() { const j = this.jackEnt(); this.story.alive = !!(j && !j.dead); } },
       { t: () => Tr('Tapuyu Jack\'in üstünden al'), ev: 'deed', at() { return this.jackEnt(); }, skip() { return this.story.deed; }, chk() { return this.story.deed; },
         hint: () => Tr`Jack'in yanında ${Input.glyph('interact')} basılı tut: <b>Tapuyu Al</b>.` },
-      { t() { return this.story.alive ? Tr('Jack\'i şerife canlı teslim et') : Tr('Jack\'in cesedini şerife götür'); }, ev: 'deliver', ok: (e) => e && e.quest === 'jack', at() { const j = this.jackEnt(), P = this.player; if (j && j !== P.carry && !(this.horse && this.horse.load && this.horse.load.includes(j))) return j; return this.sDoor(this.sBld('sheriff'), 4); }, wp: true,
+      { t() { return this.story.alive ? Tr('Jack\'i şerife canlı teslim et') : Tr('Jack\'in cesedini şerife götür'); }, ev: 'deliver', ok: (e) => e && e.quest === 'rival', at() { const j = this.jackEnt(), P = this.player; if (j && j !== P.carry && !(this.horse && this.horse.load && this.horse.load.includes(j))) return j; return this.sDoor(this.sBld('sheriff'), 4); }, wp: true,
         on(S) {
           const p = this.sDoor(this.sBld('sheriff'), 22); if (p) this.sullyGo(p.x - 14, p.y);
           // tapu alınmadan teslim edildiyse bu adım zaten olmuştur
@@ -742,6 +740,72 @@ const STORY = [
   },
 ];
 
+/* ==========================================================
+   Hikâye tanımları. Her tanım: title/intro/outro (günlük), mentor (akıl
+   hocası: isim, görünüş, at, iş, sohbet), rival (hedef kişi), setup (dünyada
+   yerleri seçer), apply (yüklemede dünyaya işler), poster, rumor, finish,
+   epilogue ve chapters (on bölüm).
+   ========================================================== */
+const STORIES = {
+  sully: {
+    id: 'sully', ach: 'story',
+    title: () => Tr('Sully\'nin Senedi'),
+    intro: () => Tr`Yaşlı çiftçi Dunham Sully'nin gazete ilanıyla geldin. Çiftliğin tapusu çalınmış; Sully'ye yardım et.`,
+    outro: () => Tr`Hikâye tamamlandı. Sully'nin çiftliği seni bekliyor.`,
+    welcome: () => Tr('İyi yolculuklar, kovboy. Gazete ilanını veren <b>Dunham Sully</b> seni kasabada bekliyor; sağ üstteki hedefi izle.'),
+    mentor: {
+      name: 'Dunham Sully', short: 'Sully', look: SULLY_LOOK, horse: SULLY_HORSE, work: 'ranch',
+      place: () => Tr('Sully Çiftliği'),
+      home(S) { return S.ranch; },
+      chatDone: () => [
+        Tr('Kahve buldum bu sefer. Gerçek kahve. Martha görse inanmazdı.'), Tr('Çit hâlâ yarım. Ama artık kimse onu benden almaya kalkmıyor.'),
+        Tr("Kızıl Jack'in davası gelecek ay. Gidip en ön sıraya oturacağım."), Tr('Tavuklar seni sordu. Yalan değil, gıdakladılar.'),
+        Tr('Yorgun görünüyorsun, {ad}. Otur biraz, toprak kaçmaz.'), Tr('Ne zaman istersen gel. Ahırda yer var, sofrada da.'),
+      ],
+      chatBusy: () => [Tr('Şimdi değil, evlat. Önce işimizi bitirelim.'), Tr('Bir şey mi unuttun? Ben de çok unuturum, yaştan.'), Tr('Konuşacak çok vaktimiz olacak. Hadi.')],
+    },
+    rival: {
+      name: () => Tr('Kızıl Jack'), look: JACK_LOOK, hp: 150, weapon: 'repeater', money: 2.5, fromCh: 9, reward: [25, 12],
+      take: { n: () => Tr('Tapuyu Al'), k: () => Tr('Tapu'), msg: () => Tr('Sully\'nin tapusu artık sende.') },
+    },
+    setup(S, town) {
+      // Sully'nin çiftliği: kasabaya en yakın çiftlik
+      let best = null, bd = 1e9;
+      for (const p of this.world.pois) if (p.kind === 'farm') { const d = dist(p.x, p.y, town.spawn.x, town.spawn.y); if (d < bd) { bd = d; best = p; } }
+      if (best) { const b = this.world.buildings[best.building]; S.ranch = { pid: best.pid, x: b.door.x, y: b.door.y + 18, cx: best.x, cy: best.y }; }
+      else { const s = this.sSpot(town.spawn.x + 1400, town.spawn.y, 0, 300); S.ranch = { pid: -1, x: s[0], y: s[1], cx: s[0], cy: s[1] }; }
+      // Kızıl Jack'in kampı: çiftliğe en yakın haydut kampı
+      best = null; bd = 1e9;
+      for (const p of this.world.pois) if (p.kind === 'camp') { const d = dist(p.x, p.y, S.ranch.cx, S.ranch.cy) + dist(p.x, p.y, town.cx, town.cy) * 0.5; if (d < bd) { bd = d; best = p; } }
+      S.camp = best ? { pid: best.pid, id: best.id, x: best.x, y: best.y, n: best.n } : { pid: -1, x: S.ranch.cx + 2000, y: S.ranch.cy, n: Tr('Kızıl Kamp') };
+      // kampa varmadan önce gece geçirilecek yer: kamptan kasabaya doğru ~750 piksel
+      S.site = this.storySite(S.camp, town);
+      const sp = this.sSpot(town.spawn.x + 34, town.spawn.y + 6, 0, 40);
+      S.sully = { x: sp[0], y: sp[1] };
+    },
+    apply(S) {
+      const rp = S.ranch && this.world.pois.find(p => p.pid === S.ranch.pid);
+      if (rp) { rp.n = Tr('Sully Çiftliği'); rp.sully = true; this.discovered.add(rp.id); }
+    },
+    poster(S) { return this.sullyPoster(S); },
+    rumor(S) {
+      UI.info(Tr('Barmen Fısıldıyor'), `<p class="quote">${this.sFmt(Tr('"Kızıl Jack mi? Sesini alçalt... Geçen hafta adamlarından biri burada sızdı kaldı. Sabaha kadar {kamp} diye sayıkladı, bir de kızıl sakallının payından. Ben bir şey söylemedim, tamam mı?"'))}</p><p>${this.sFmt(Tr('<b>{kamp}</b> haritanda işaretlendi.'))}</p>`);
+    },
+    finish(S) {
+      const P = this.player;
+      this.earn(S.alive ? 10 : 6, Tr('Sully\'nin teşekkürü'));
+      if (!P.weapons.has('repeater')) { P.giveWeapon('repeater'); P.ammo.repeater = Math.min(AMMO.repeater.max, (P.ammo.repeater || 0) + 24); UI.feed(Tr`Sully'nin eski tüfeği artık senin: ${WEAPONS.repeater.n}`); }
+      this.addHonor(5);
+      this.sullyGo(S.ranch.x + 6, S.ranch.y - 4);
+    },
+    epilogue: () => Tr`Hikâye bitti ama hayat sürüyor. Artık ne yapacağın sana kalmış: avlan, çalış, ev kur, âşık ol ya da kanunun öbür yanına geç. <b>Hedefin hâlâ 80 yaşına kadar yaşamak.</b> Sully'nin çiftliğinin kapısı sana hep açık.`,
+    chapters: STORY_SULLY,
+  },
+};
+/* Geçmiş → hikâye. Kanun Kaçağı'nın kendi hikâyesi yazılana dek hikâyesi yoktur
+   (kasabada tanınacağı için Sully'nin hikâyesi ona uymaz). */
+const STORY_FOR_BG = { farm: 'sully', immigrant: 'sully', rail: 'sully', trapper: 'sully' };
+
 /* Bölüm yardımcıları (Story'ye eklenir) */
 Object.assign(Story, {
   /* kasabanın en yakın kuyusu ya da yalağı */
@@ -756,6 +820,16 @@ Object.assign(Story, {
       if (d < bd) { bd = d; best = { x, y }; }
     }
     return (S.well = best);
+  },
+  /* bir kampa varmadan önce gece geçirilecek yer: kamptan kasabaya doğru ~750 piksel */
+  storySite(camp, town) {
+    const a = Math.atan2(town.cy - camp.y, town.cx - camp.x), W = this.world;
+    for (const da of [0, 0.5, -0.5, 1, -1, 1.6, -1.6, Math.PI]) for (const r of [760, 640, 880, 540]) {
+      const s = this.findSpawnPos(camp.x + Math.cos(a + da) * r, camp.y + Math.sin(a + da) * r, 0, 120);
+      if (s && !W.townAt(s[0], s[1], 34) && !W.blocked(s[0], s[1] + 14, 8)) return { x: s[0], y: s[1] };
+    }
+    const s = this.sSpot(camp.x + Math.cos(a) * 760, camp.y + Math.sin(a) * 760, 0, 160);
+    return { x: s[0], y: s[1] };
   },
   /* çevrenin baskın doğası (çiftliğin düzlenmiş toprağı sayılmaz) */
   storyBiome(x, y) {
