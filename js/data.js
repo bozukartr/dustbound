@@ -489,6 +489,7 @@ const HAUL_HIRE = 10, HAUL_CAP = 6, HAUL_MAX = 4;
 const ACHIEVEMENTS = [
   { id: 'begin',     n: 'Yeni Bir Hayat',        d: 'Batıda yeni bir hayata başla.', perk: '' },
   { id: 'story',     n: 'Sully\'nin Senedi',      d: 'Hikâyeli başlangıcı tamamla ve tapuyu sahibine geri ver.', perk: '' },
+  { id: 'story_outlaw', n: 'Son İş',             d: 'Kanun Kaçağı\'nın hikâyesini tamamla ve çeteyle hesabını kapat.', perk: '' },
   { id: 'hunt1',     n: 'İlk Av',                d: 'İlk hayvanını avla.', perk: 'Deri yüzünce +1 et şansı', s: 'animals', v: 1 },
   { id: 'hunt25',    n: 'Avcı',                  d: '25 hayvan avla.', perk: 'Post satış fiyatları +%15', s: 'animals', v: 25 },
   { id: 'hunt100',   n: 'Vahşi Batı\'nın Avcısı', d: '100 hayvan avla.', perk: 'Hayvanlar seni %30 daha geç fark eder', s: 'animals', v: 100 },

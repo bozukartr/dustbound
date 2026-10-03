@@ -4,16 +4,18 @@ module.exports = {
   name: 'Kanun kaçağı başlangıcı',
   async run(t) {
     const p = await t.page({ story: true });
-    await t.step('karakter ekranında Kanun Kaçağı: başlangıç saklı kamp, hikâye yakında', async () => {
+    await t.step('karakter ekranında Kanun Kaçağı: başlangıç saklı kamp; hikâye kapalı da seçilebilir', async () => {
       await t.sleep(300); await p.keyboard.press('Enter'); await t.sleep(500);
       const r = await p.evaluate(() => {
         document.querySelectorAll('.cr-tab')[3].click();
         const card = [...document.querySelectorAll('.cr-card')].find(n => n.dataset.bg === 'outlaw'); card.click();
-        const facts = document.querySelector('.cr-facts').textContent, story = [...document.querySelectorAll('.opt')].find(n => /Hikâyeli/.test(n.textContent)).textContent;
-        return { facts, story };
+        const facts = document.querySelector('.cr-facts').textContent;
+        const row = () => [...document.querySelectorAll('.opt')].find(n => /Hikâyeli/.test(n.textContent));
+        const on = row().textContent; row().click();
+        return { facts, on, story: row().textContent };
       });
       t.ok(/Saklı Kamp/.test(r.facts), 'başlangıç: saklı kamp', r.facts);
-      t.ok(/yakında/.test(r.story), 'kanun kaçağı hikâyesi yakında', r.story);
+      t.ok(/Açık/.test(r.on), 'kanun kaçağının hikâyesi var', r.on); t.ok(/Kapalı/.test(r.story), 'hikâye kapatıldı', r.story);
       await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 });
       await t.sleep(600); await t.helpers(p);
@@ -32,7 +34,7 @@ module.exports = {
       t.ok(r.camp, 'kamp ateşi yanında'); t.ok(r.poi, 'haritada Saklı Kamp');
       t.eq(r.bounty, 20, 'ödül duruyor'); t.ok(r.mask && r.bed, 'bandana ve uyku tulumu');
       t.ok(r.horse, 'atı yanında'); t.ok(r.campNear > 1200, 'haydut kamplarından uzak', r.campNear);
-      t.eq(r.story, null, 'hikâyesi henüz yok, Sully başlamaz');
+      t.eq(r.story, null, 'hikâye kapalı: kampta yine başlar');
     });
     await t.step('kampta beklerken kimse tanımaz; kasabada bandanayla da tanınmaz', async () => {
       const r = await p.evaluate(async () => {

@@ -111,7 +111,7 @@ const Story = {
       const next = () => this.qNext();
       if (c.talk) this.qSay(c.talk.call(this, S), next, c.talkDelay); else next();
     };
-    const cine = () => { const k = c.cine.call(this, S); this.qCine(k.sc, k.lines, { k: Tr`Bölüm ${i + 1}`, n: c.t(), s: k.sub || '' }, () => { if (k.after) k.after.call(this, S); go(); }); };
+    const cine = () => { const k = c.cine.call(this, S); this.qCine(k.sc, k.lines, { k: Tr`Bölüm ${i + 1}`, n: c.t(), s: k.sub || '' }, () => { if (k.after) k.after.call(this, S); go(); }, k.cast); };
     if (c.cine && c.pre) this.qSay(c.pre.call(this, S), cine);
     else if (c.cine) cine();
     else go();
@@ -124,7 +124,8 @@ const Story = {
     if (!st) { if (c.end) c.end.call(this, S); this.saveGame(true); setTimeout(() => { if (this.story === S && S.on) this.qChapter(S.ch + 1); }, 1200); S.wait = true; this.questHud(); return; }
     if (st.skip && st.skip.call(this, S)) { this.qNext(); return; }
     if (st.on) st.on.call(this, S);
-    if (st.talk) this.qSay(st.talk.call(this, S));
+    if (st.talk) this.qSay(st.talk.call(this, S), st.choice ? () => this.storyChoice(st) : null);
+    else if (st.choice) this.storyChoice(st);
     // konuşma sırasında yapılmış eylemler
     const pend = this._qPend; this._qPend = null;
     if (pend && st.ev) for (const [type, d] of pend) { if (this.qStep() !== st || S.wait) break; this.qEvent(type, d); }
@@ -143,14 +144,29 @@ const Story = {
     Audio_.tone(660, 0.12, 'triangle', 0.06); Audio_.tone(880, 0.16, 'triangle', 0.05, null, 0.1);
     const go = () => { if (this.story === S && S.on) this.qNext(); };
     const after = () => { if (st.after) this.qSay(st.after.call(this, S), go); else go(); };
-    if (st.cine) { const k = st.cine.call(this, S); this.qCine(k.sc, k.lines, k.cap || {}, () => { if (k.after) k.after.call(this, S); after(); }); }
+    if (st.cine) { const k = st.cine.call(this, S); this.qCine(k.sc, k.lines, k.cap || {}, () => { if (k.after) k.after.call(this, S); after(); }, k.cast); }
     else setTimeout(after, 500);
     this.questHud();
+  },
+  /* Seçim adımı: oyuncu bir yol seçer (S.choice); sonraki adımlar skip ile ayrılır */
+  storyChoice(st) {
+    const S = this.story;
+    if (!S || this.qStep() !== st || S.wait || S.choice) return;
+    if (UI.isModal()) { setTimeout(() => this.storyChoice(st), 400); return; }
+    const opts = st.choice.call(this, S);
+    UI.menu({
+      title: st.t.call(this, S), cls: 'small story-choice', sub: st.choiceSub ? st.choiceSub.call(this, S) : '', onBack: () => {},
+      footer: () => Tr`${Input.glyph('confirm')} Seç`,
+      items: (opts.some(o => o.d) ? [{ html: opts.map(o => `<p><b>${o.n}</b> — ${o.d}</p>`).join('') }] : []).concat(opts.map(o => ({ label: o.n, fn: () => { UI.closeAll(); S.choice = o.k; this.qDone(); } }))),
+    });
   },
   /* oyundaki olaylar buraya bildirilir */
   qEvent(type, d) {
     const S = this.story;
-    if (!S || !S.on || S.done || this.cine) return;
+    if (!S || !S.on || S.done) return;
+    const D = this.storyDef();
+    if (D.onEvent) D.onEvent.call(this, type, d, S);
+    if (this.cine) return;
     // adım arası konuşma sürerken yapılan eylem kaybolmasın: sıradaki adım bekliyorsa orada sayılır
     const st = this.qStep();
     if (S.wait || !st) { if (type !== 'talk') { const q = this._qPend || (this._qPend = []); q.push([type, d]); if (q.length > 8) q.shift(); } return; }
@@ -205,13 +221,13 @@ const Story = {
     }
     return { lines: out, dur: t + 1.2 };
   },
-  qCine(sc, lines, cap, after) {
+  qCine(sc, lines, cap, after, cast) {
     const fin = () => { this.cine = false; this.timeScale = 1; try { if (after) after(); } catch (e) { console.warn(e); } };
     if (window.__testNoCine || typeof Cinema === 'undefined' || !Cinema.has(sc)) { fin(); return; }
     this.cine = true; this._qPend = null; Bubbles.clear(); UI.el.sub.classList.add('hidden');
     const L = this.cineLines(lines), h = this.horse, S = this.story;
     const D = this.storyDef();
-    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: D.mentor.look, jack: D.rival.look, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
+    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: cast === 'rival' ? D.rival.look : D.mentor.look, jack: D.rival.look, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
   },
 
   /* ---------------- her kare ---------------- */
@@ -221,6 +237,8 @@ const Story = {
     this.storyTalkTick(dt);
     this.storyMentor(dt);
     if (!S.done) this.storyRival();
+    const D = this.storyDef();
+    if (D.tick && !S.done) D.tick.call(this, S, dt);
     if ((S.chkT = (S.chkT || 0) - dt) > 0) return;
     S.chkT = 0.25;
     const st = this.qStep();
@@ -252,6 +270,8 @@ const Story = {
     const S = this.story, g = S && S.sully, P = this.player, MH = this.storyDef().mentor.horse;
     e.hp = e.maxHp = 9999; e.hostile = false; e.witness = null;
     if (!g) { e.mv = 0; return true; }
+    if (g.tied) { e.state = 'tied'; e.mv = 0; e.spd = 0; e.mounted = null; if (dist(e.x, e.y, g.x, g.y) > 4) { e.x = g.x; e.y = g.y; } return true; }
+    if (e.state === 'tied') e.state = 'idle';
     if (e.state !== 'idle' && e.state !== 'walk') e.state = 'idle';
     const d = dist(e.x, e.y, g.x, g.y), pd = dist(e.x, e.y, P.x, P.y);
     if (d > 8) {
@@ -326,7 +346,15 @@ const Story = {
     else if (S && S.on && !S.done && st && st.ev === 'work' && work) acts.push({ n: JOBS[M.work].n, fn: work });
     else acts.push({ n: Tr('Sohbet Et'), fn: () => this.sullyChat(e) });
     if (S && S.done && work && M.home && dist(e.x, e.y, M.home.call(this, S).x, M.home.call(this, S).y) < 300) acts.push({ n: JOBS[M.work].n, fn: work });
+    const D = this.storyDef();
+    if (D.mentorActions && S && S.on && !S.done) return D.mentorActions.call(this, e, S, acts) || acts;
     return acts;
+  },
+  /* bina menüsüne hikâyenin eklediği seçenekler (ör. şerifte teslim olmak) */
+  storyBuildingActions(b) {
+    const S = this.story, D = this.storyDef();
+    if (!S || !S.on || S.done || !D.buildingActions) return [];
+    return D.buildingActions.call(this, b, S) || [];
   },
   sullyActions(e) { return this.mentorActions(e); },
   qTalkSully(e) {
@@ -441,6 +469,7 @@ const Story = {
       if (c && c.resume) c.resume.call(this, d);
       const st = this.qStep();
       if (st && st.on && st.reOn) st.on.call(this, d);
+      if (st && st.choice && !d.choice) setTimeout(() => this.storyChoice(st), 1500);
     }
   },
 };

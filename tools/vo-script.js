@@ -15,12 +15,17 @@
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const ROOT = path.join(__dirname, '..'), VO = path.join(ROOT, 'audio', 'vo');
 const key = (text) => { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
-const SPEAKER = { S: 'Dunham Sully', P: 'Oyuncu / Player', W: 'Şerif / Sheriff', B: 'Barmen / Bartender' };
-// quests.js içindeki ['S', Tr('...')] biçimli satırlar
-const src = fs.readFileSync(path.join(ROOT, 'js', 'quests.js'), 'utf8');
-const re = /\[\s*'([SPWB])'\s*,\s*Tr\(\s*(['"])((?:\\.|(?!\2).)*)\2\s*\)\s*\]/g;
+// hikâye dosyaları: quests.js (Sully) ve story_*.js; 'S' her dosyanın kendi akıl hocası, 'R' hedef kişi
+const FILES = [['quests.js', { S: 'Dunham Sully', R: 'Kızıl Jack' }]].concat(fs.readdirSync(path.join(ROOT, 'js')).filter(f => /^story_.+\.js$/.test(f)).map(f => [f, null]));
+const MENTOR = { 'story_outlaw.js': { S: 'Hollis Crane', R: 'Silas Vance' } };
+const COMMON = { P: 'Oyuncu / Player', W: 'Şerif / Sheriff', B: 'Barmen / Bartender' };
+// ['S', Tr('...')] biçimli satırlar (konuşan bir harf ya da doğrudan isim)
+const re = /\[\s*'([A-Z][A-Za-z]*)'\s*,\s*Tr\(\s*(['"])((?:\\.|(?!\2).)*)\2\s*\)\s*\]/g;
 const lines = [];
-for (let m; (m = re.exec(src));) lines.push({ w: m[1], tr: m[3].replace(/\\(['"\\])/g, '$1') });
+for (const [f, sp] of FILES) {
+  const src = fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), who = Object.assign({}, COMMON, sp || MENTOR[f] || {});
+  for (let m; (m = re.exec(src));) lines.push({ w: who[m[1]] || m[1], tr: m[3].replace(/\\(['"\\])/g, '$1') });
+}
 // İngilizce karşılıklar
 const ctx = { I18N: { add: (code, o) => { ctx.dict = o.t || {}; } } };
 vm.createContext(ctx);
@@ -35,7 +40,7 @@ for (const lang of ['tr', 'en']) {
     const text = lang === 'tr' ? l.tr : en[l.tr];
     if (!text || seen.has(text)) continue;
     seen.add(text);
-    rows.push([key(text), SPEAKER[l.w], text].map(csv).join(','));
+    rows.push([key(text), l.w, text].map(csv).join(','));
   }
   fs.writeFileSync(path.join(VO, `script_${lang}.csv`), rows.join('\n') + '\n');
   console.log(`audio/vo/script_${lang}.csv — ${rows.length - 1} satır`);

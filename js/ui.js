@@ -1474,6 +1474,7 @@ const UI = {
           if (svc.includes('robbank')) it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) });
           return it;
         }
+        it.push(...G.storyBuildingActions(b));
         const z = G.bizOf(b);
         if (z) it.push(...this.bizItems(b, z));
         else if (G.bizForSale(b)) it.push({ icon: '📜', label: Tr('Bu İşletmeyi Satın Al'), right: fmtMoney(G.bizPrice(b)), fn: () => this.confirmBuyBiz(b) });
@@ -1554,7 +1555,7 @@ const UI = {
             items.push({ header: Tr('Mühimmat') });
             for (const a of S.ammo) {
               const A = AMMO[a], pr = A.p * G.priceMul(true);
-              items.push({ icon: Icons.glyph('ammo', '#d9c8a4'), label: `${A.n} (x${A.box})`, right: `${fmtMoney(pr)} <small>[${P.ammo[a]}]</small>`, disabled: P.ammo[a] >= A.max, why: Tr('Taşıyabileceğin en fazla mühimmat bu.'), sideHtml: `<div class="ps-t">${A.n}</div><div class="ps-d">${Tr`Kutu başına ${A.box} adet. Taşıma sınırı: ${A.max}`}</div>`, fn: () => { if (G.spend(pr)) { P.ammo[a] = Math.min(A.max, P.ammo[a] + A.box); Audio_.ui('cash'); } } });
+              items.push({ icon: Icons.glyph('ammo', '#d9c8a4'), label: `${A.n} (x${A.box})`, right: `${fmtMoney(pr)} <small>[${P.ammo[a]}]</small>`, disabled: P.ammo[a] >= A.max, why: Tr('Taşıyabileceğin en fazla mühimmat bu.'), sideHtml: `<div class="ps-t">${A.n}</div><div class="ps-d">${Tr`Kutu başına ${A.box} adet. Taşıma sınırı: ${A.max}`}</div>`, fn: () => { if (G.spend(pr)) { P.ammo[a] = Math.min(A.max, P.ammo[a] + A.box); Audio_.ui('cash'); G.qEvent('buy', { id: 'ammo_' + a, ammo: a, shop: shopId }); } } });
             }
           }
           if (S.sell && S.sell.length) {
