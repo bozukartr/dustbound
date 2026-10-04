@@ -3753,5 +3753,9 @@ I18N.add('en', {
     "İnce kristal şişede çiçek kokusu. Kalpleri yumuşatır.": "A floral scent in a fine crystal bottle. It softens hearts.",
     "Pazar Yeri": "Marketplace",
     "Pazar": "Market",
+    "Doğal": "Natural",
+    "Canlı": "Vivid",
+    "Görüntü Tonu": "Color Tone",
+    "Doğal: gerçeğe yakın, yumuşak renkler ve daha düşük kontrast; uzun oyunda gözü yormaz. Canlı: daha doygun, parlak renkler.": "Natural: true-to-life, softer colors and lower contrast; easy on the eyes over long sessions. Vivid: more saturated, brighter colors.",
   },
 });

@@ -181,20 +181,22 @@ class Horse extends Ent {
       const a = Math.atan2(P.y - this.y, P.x - this.x);
       this.ang = turnTo(this.ang, a, 3.5 * dt);
       const target = d > 200 ? 150 * this.def.spd : d > 80 ? 90 : 45;
-      this.spd = lerp(this.spd, target, dt * 2);
+      this.spd = lerp(this.spd, target, 1 - Math.exp(-dt * (target > this.spd ? 1.2 : 2.5)));
       if (!this.move(Math.cos(this.ang) * this.spd * dt * this.slow(), Math.sin(this.ang) * this.spd * dt * this.slow())) {
         this.ang += (Math.random() - 0.5) * 2;
       }
     } else if (this.state === 'flee') {
-      this.spd = lerp(this.spd, 130, dt * 2);
+      this.spd = lerp(this.spd, 130, 1 - Math.exp(-dt * 1.5));
       this.move(Math.cos(this.ang) * this.spd * dt, Math.sin(this.ang) * this.spd * dt);
       if (this.t <= 0) this.state = 'idle';
     } else {
-      this.spd = lerp(this.spd, 0, dt * 3);
+      // otlarken birkaç adım yürür: hız yavaşça çıkar, yavaşça iner
+      if ((this.ambleT = (this.ambleT || 0) - dt) > 0) this.spd = lerp(this.spd, 20, 1 - Math.exp(-dt * 2));
+      else this.spd = lerp(this.spd, 0, 1 - Math.exp(-dt * 2.2));
       if (this.spd > 1) this.move(Math.cos(this.ang) * this.spd * dt, Math.sin(this.ang) * this.spd * dt);
       if (this.t <= 0) {
         this.t = rnd(3, 8);
-        if (chance(0.4) && !this.hitch) { this.ang += rnd(-1.2, 1.2); this.spd = 20; }
+        if (chance(0.4) && !this.hitch) { this.ang += rnd(-1.2, 1.2); this.ambleT = rnd(0.8, 1.6); }
       }
       this.graze = this.spd < 3;
     }
@@ -230,6 +232,7 @@ class Player extends Ent {
     super(x, y);
     this.kind = 'player';
     this.r = 3.6;
+    this.vx = 0; this.vy = 0;   // yaya hız vektörü (yumuşak ivmelenme)
     this.name = profile.name;
     this.look = profile.look;
     this.sex = profile.look.sex;
@@ -558,12 +561,23 @@ class Player extends Ent {
     if (this.reloadT > 0) speed *= 0.8;
     let dx = mv.x * mv.m, dy = mv.y * mv.m;
     if (this.drunk > 20) { const w = Math.sin(G.t * 2.3) * this.drunk / 100; const c = Math.cos(w), s = Math.sin(w); const nx = dx * c - dy * s; dy = dx * s + dy * c; dx = nx; }
-    this.move(dx * speed * dt, dy * speed * dt);
-    this.mv = mv.m * speed / 58;
-    if (mv.m > 0.1) {
-      this.phase += dt * speed * 0.2;
-      if (!this.aiming && !this.rsAim) this.ang = turnTo(this.ang, Math.atan2(mv.y, mv.x), dt * 12);
-      this.stepT -= dt * speed;
+    // Hız bir anda değişmez: kalkışta yumuşak ivmelenme, koşuya geçerken daha ağır hızlanma,
+    // bırakınca kısa bir yavaşlama; yön değişirken gövde biraz süzülür (ağırlık hissi)
+    const tvx = dx * speed, tvy = dy * speed, cur = Math.hypot(this.vx, this.vy), tgt = Math.hypot(tvx, tvy);
+    const rate = tgt < cur - 1 ? (tgt < 1 ? 9 : 6) : (cur > 62 ? 2.6 : 6.5);
+    const kk = 1 - Math.exp(-dt * rate);
+    this.vx += (tvx - this.vx) * kk; this.vy += (tvy - this.vy) * kk;
+    if (tgt === 0 && Math.hypot(this.vx, this.vy) < 1.5) this.vx = this.vy = 0;
+    const ox = this.x, oy = this.y;
+    this.move(this.vx * dt, this.vy * dt);
+    // engele dayanınca hız birikmesin: gerçekleşen harekete doğru çekilir
+    if (dt > 0) { const ax = (this.x - ox) / dt, ay = (this.y - oy) / dt; if (Math.hypot(ax, ay) < Math.hypot(this.vx, this.vy) * 0.6) { this.vx += (ax - this.vx) * 0.5; this.vy += (ay - this.vy) * 0.5; } }
+    const vs = Math.hypot(this.vx, this.vy);
+    this.mv = vs / 58;
+    if (vs > 4) {
+      this.phase += dt * vs * 0.2;
+      if (!this.aiming && !this.rsAim) this.ang = turnTo(this.ang, mv.m > 0.1 ? Math.atan2(mv.y, mv.x) : Math.atan2(this.vy, this.vx), dt * 12);
+      this.stepT -= dt * vs;
       if (this.stepT <= 0) {
         this.stepT = 22;
         Audio_.step(this.crouch ? 0.03 : this.sprinting ? 0.09 : 0.05);
@@ -578,6 +592,7 @@ class Player extends Ent {
   }
   updateRiding(dt, mv) {
     const I = Input, h = this.riding;
+    this.vx = this.vy = 0;   // yaya hızı attan inince sıfırdan başlar
     if (h.dead) { this.dismount(true); return; }
     const B = h.def;
     let target = 0;
@@ -609,8 +624,11 @@ class Player extends Ent {
     if (this.aiming) target = Math.min(target, 70);
     if (h.load && h.load.length) target *= 1 - 0.035 * G.loadWeight(h.load);
     if (h.sta < 5) target = Math.min(target, 60);
-    const acc = target > h.spd ? 90 : 180;
-    h.spd += clamp(target - h.spd, -acc * dt, acc * dt);
+    // ivme de bir anda değişmez: kalkışta yavaş başlar, hız oturdukça açılır, hedefe yaklaşırken söner
+    const want = clamp((target - h.spd) * 2, -160, target > h.spd ? (h.spd < 40 ? 80 : 100) : 0);
+    h.acc = (h.acc || 0) + (want - (h.acc || 0)) * (1 - Math.exp(-dt * (want < (h.acc || 0) ? 6 : 4.5)));
+    h.spd = Math.max(0, h.spd + h.acc * dt);
+    if (target === 0 && h.spd < 2) { h.spd = 0; h.acc = 0; }
     // dörtnaldan sert duruş: at bazen şahlanır
     if (h.spd > 120) h.brk = true;
     else if (mv.m > 0.1 && h.spd < 90) h.brk = false;
@@ -979,7 +997,9 @@ class Animal extends Ent {
       if (this.t <= 0 || pd > 420) { this.state = 'idle'; this.t = 3; }
       if (d.beh === 'skittish' && this.hp < this.maxHp * 0.5) { this.state = 'flee'; this.t = 8; this.fleeFrom(P); }
     }
-    this.spd = lerp(this.spd, target, dt * 4);
+    // hız yumuşak değişir: kaçışta birkaç sıçrayışta hızlanır, gezinirken ağır ağır kalkar ve durur
+    const ar = target > this.spd ? (this.state === 'flee' || this.state === 'attack' ? 3 : 1.6) : 2.4;
+    this.spd = lerp(this.spd, target, 1 - Math.exp(-dt * ar));
     this.turnCd = (this.turnCd || 0) - dt;
     if (this.spd > 0.5) {
       const vx = Math.cos(this.ang) * this.spd * dt, vy = Math.sin(this.ang) * this.spd * dt;
@@ -1256,7 +1276,13 @@ class NPC extends Ent {
      Atlının atı yan yan gitmez: at, hedef yöne sınırlı hızla döner ve hep burnunun baktığı yöne ilerler. */
   walk(dt, sp, dir) {
     const ox = this.x, oy = this.y;
-    let a = dir === undefined ? this.ang : dir, s = sp * this.slow();
+    // hız bir anda değişmez: durduktan sonra yeniden yürüyen sıfırdan kalkar; atlılar daha ağır hızlanır
+    const now = G.t;
+    if (this.wT === undefined || now - this.wT > 0.25) this.wspd = 0;
+    this.wT = now;
+    const wr = sp < this.wspd ? (this.mounted ? 2.6 : 7) : (this.mounted ? 1.4 : 4.5);
+    this.wspd += (sp - this.wspd) * (1 - Math.exp(-dt * wr));
+    let a = dir === undefined ? this.ang : dir, s = this.wspd * this.slow();
     if (this.mounted) {
       this.hAng = turnTo(this.hAng === undefined ? this.ang : this.hAng, a, dt * (s > 100 ? 2.2 : 3));
       s *= Math.max(0.3, Math.cos(angDiff(this.hAng, a)));

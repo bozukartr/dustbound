@@ -19,9 +19,13 @@
 html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--txt); font-family: var(--serif); user-select: none; -webkit-user-select: none; }
 .hidden { display: none !important; }
 #app { position: fixed; inset: 0; overflow: hidden; }
-#game { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; transition: filter 0.4s; }
-body.deadeye #game { filter: sepia(0.85) saturate(1.8) contrast(1.2) hue-rotate(-12deg) brightness(0.95); }
-body.drunk #game { filter: blur(0.5px); }
+/* Görüntü tonu: Doğal (varsayılan) renkleri biraz yumuşatır, kontrastı ve parlak yüzeyleri indirir; göz yormaz.
+   Canlı, eski doygun görünüm. Odak ve sarhoşluk süzgeçleri tonun üstüne eklenir. */
+:root { --tone: saturate(0.93) contrast(0.96); }
+body.vivid { --tone: saturate(1); }
+#game { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; transition: filter 0.4s; filter: var(--tone); }
+body.deadeye #game { filter: var(--tone) sepia(0.85) saturate(1.8) contrast(1.2) hue-rotate(-12deg) brightness(0.95); }
+body.drunk #game { filter: var(--tone) blur(0.5px); }
 #fx-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%); }
 #fx-hurt { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(150, 0, 0, 0.85) 100%); }
 #fx-deadeye { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s; background: radial-gradient(ellipse at center, transparent 30%, rgba(90, 30, 0, 0.5) 100%); }
