@@ -104,6 +104,13 @@ class Heap {
 
 /* 1890 doları: bir doların altındaki tutarlar sent olarak (25¢), üstü $1.50 biçiminde */
 const fmtMoney = v => { const c = Math.round(v * 100); return Math.abs(c) < 100 && c !== 0 ? c + '¢' : '$' + (c / 100).toFixed(2); };
+/* Dünya uzaklığı (piksel; 1 piksel ≈ 3.2 m, haritadaki ölçekle aynı): kısa mesafe yarda, uzun mesafe mil */
+const fmtDist = px => {
+  const mi = px / 502.8;
+  if (mi < 0.2) return Tr`${Math.max(10, Math.round(px * 3.5 / 10) * 10)} yarda`;
+  const v = mi < 10 ? mi.toFixed(1) : String(Math.round(mi));
+  return Tr`${typeof I18N !== 'undefined' && I18N.lang === 'tr' ? v.replace('.', ',') : v} mil`;
+};
 const pad2 = n => (n < 10 ? '0' : '') + n;
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));

@@ -222,15 +222,31 @@ const UI = {
       if (f.t <= 0) { f.e.remove(); this.feedItems.splice(i, 1); }
     }
   },
+  /* Duyurular sırayla gelir: ekranda en fazla iki pankart; kuyruk doluysa her biri daha kısa kalır.
+     Aynı duyuru ekranda ya da kuyrukta zaten varsa yeniden eklenmez. */
   toast(title, sub, kind) {
-    const e = el_('div', 'toast tk-' + (kind || 'none'), `<div class="t-k">${{ ach: Tr('BAŞARIM'), skill: Tr('YETENEK'), year: Tr('YAŞ'), family: Tr('AİLE'), bounty: Tr('ÖDÜL'), horse: Tr('AT'), ok: '' }[kind] || ''}</div><div class="t-t">${Icons.iconize(title)}</div><div class="t-s">${Icons.iconize(sub || '')}</div>`);
-    this.el.toasts.appendChild(e);
-    setTimeout(() => e.classList.add('out'), 5200);
-    setTimeout(() => e.remove(), 6000);
+    const Q = this.toastQ || (this.toastQ = []), key = title + '|' + (sub || '');
+    if (Q.some(t => t.key === key) || [...this.el.toasts.children].some(e => e._key === key && !e.classList.contains('out'))) return;
+    Q.push({ title, sub, kind, key });
+    this.toastPump();
+  },
+  toastPump() {
+    const Q = this.toastQ;
+    while (Q && Q.length && this.el.toasts.querySelectorAll('.toast:not(.out)').length < 2) {
+      const { title, sub, kind, key } = Q.shift();
+      const e = el_('div', 'toast tk-' + (kind || 'none'), `<div class="t-k">${{ ach: Tr('BAŞARIM'), skill: Tr('YETENEK'), year: Tr('YAŞ'), family: Tr('AİLE'), bounty: Tr('ÖDÜL'), horse: Tr('AT'), ok: '' }[kind] || ''}</div><div class="t-t">${Icons.iconize(title)}</div><div class="t-s">${Icons.iconize(sub || '')}</div>`);
+      e._key = key;
+      this.el.toasts.appendChild(e);
+      const dur = Q.length ? 3600 : 5200;
+      setTimeout(() => { e.classList.add('out'); this.toastPump(); }, dur);
+      setTimeout(() => e.remove(), dur + 800);
+    }
   },
   help(html, dur = 6) {
     const h = this.el.help;
     h.innerHTML = Icons.iconize(html); h.classList.remove('hidden');
+    // alttaki pirinç çizgi kalan süreyi gösterir
+    h.style.setProperty('--dur', dur + 's'); h.classList.remove('tick'); void h.offsetWidth; h.classList.add('tick');
     clearTimeout(this._helpT);
     this._helpT = setTimeout(() => h.classList.add('hidden'), dur * 1000);
   },
@@ -303,15 +319,14 @@ const UI = {
     Audio_.ui('move');
   },
   hudXInfo() {
-    const P = G.player, W = G.world, env = G.envCache || {};
+    const P = G.player, W = G.world;
     const t = W.townAt(P.x, P.y, 20);
     const place = t ? t.n : W.regionAt(P.x, P.y);
-    const wt = G.weather.type, sn = (env.snow || 0) > 0.3, du = (env.dust || 0) > 0.3;
-    const wn = du ? Tr('Kum fırtınası') : sn ? Tr('Karlı') : ({ clear: Tr('Açık hava'), cloudy: Tr('Bulutlu'), rain: Tr('Yağmurlu'), storm: Tr('Fırtınalı'), fog: Tr('Sisli') })[wt] || '';
+    const wn = this.weatherName();
     const h = G.honor, hn = h > 50 ? Tr('Saygın') : h > 15 ? Tr('İyi') : h < -50 ? Tr('Kötü Şöhretli') : h < -15 ? Tr('Şüpheli') : Tr('Nötr');
     const pct = v => Math.round(clamp(v, 0, 100));
     return `<div class="xi-place">${place}</div>
-      <div class="xi-row">${Icons.glyph('sun', '#efe6d2')}${wn} • ${Math.round(G.feltTemp)}°</div>
+      <div class="xi-row">${Icons.glyph(this.weatherGlyph(), '#efe6d2')}${wn} • ${Math.round(G.feltTemp)}°</div>
       <div class="xi-row">${Icons.glyph('star', '#efe6d2')}${Tr`Onur: ${hn}`}</div>
       <div class="xi-grid"><span>${Tr`Sağlık`}</span><b>${pct(P.hp / P.maxHp * 100)}</b><span>${Tr`Dayanıklılık`}</span><b>${pct(P.sta / Math.max(1, P.maxSta) * 100)}</b><span>${Tr`Odak`}</span><b>${pct(P.de)}</b>
       <span>${Tr`Açlık`}</span><b>${pct(P.hunger)}</b><span>${Tr`Susuzluk`}</span><b>${pct(P.thirst)}</b><span>${Tr`Uyku`}</span><b>${pct(P.energy)}</b></div>`;
@@ -328,14 +343,20 @@ const UI = {
     this.setText('hud-time', G.timeStr());
     this.setText('hud-date', G.dateStr());
     this.setText('hud-age', Tr`${P.name} • ${G.age} yaşında`);
-    // sıcaklık
-    const ft = Math.round(G.feltTemp);
-    const tg = this.cache.tg || (this.cache.tg = $('#temp-gauge'));
-    if (tg._k !== ft + '' + (G.coldness > 0) + (G.hotness > 0)) {
-      tg._k = ft + '' + (G.coldness > 0) + (G.hotness > 0);
-      $('#temp-val').textContent = ft + '°';
-      $('#temp-fill').style.height = clamp((ft + 15) / 60, 0, 1) * 100 + '%';
-      tg.classList.toggle('cold', G.coldness > 0); tg.classList.toggle('hot', G.hotness > 0);
+    // hava ve hissedilen sıcaklık: saatin yanında küçük rozet (gece ay, yağmurda bulut)
+    const ft = Math.round(G.feltTemp), cold = G.coldness > 0, hot = G.hotness > 0, wg = this.weatherGlyph();
+    const ev = this.cache.env || (this.cache.env = $('#hud-env')), ek = wg + ft + cold + hot;
+    if (ev._k !== ek) {
+      ev._k = ek;
+      ev.innerHTML = Icons.glyph(wg, cold ? '#b8d6ff' : hot ? '#ffbe82' : '#f2ead8') + ft + '°';
+      ev.classList.toggle('cold', cold); ev.classList.toggle('hot', hot);
+      ev.title = cold ? Tr('Üşüyorsun') : hot ? Tr('Sıcak çarpıyor') : Tr('Hissedilen sıcaklık');
+    }
+    // görev izleyicide hedefe uzaklık
+    const hq = this.cache.hq || (this.cache.hq = $('#hud-quest'));
+    if (!hq.classList.contains('hidden')) {
+      const de = hq.querySelector('.hq-d'), qm = G.questMark();
+      if (de) { const d = qm ? dist(P.x, P.y, qm.x, qm.y) : 0, t = d > 70 ? fmtDist(d) : ''; if (de._t !== t) { de._t = t; de.textContent = t; } }
     }
     // aranma
     const L = G.law;
@@ -386,11 +407,15 @@ const UI = {
     this.setText('status-icons', st.join(''));
     // silah
     const W = P.W;
-    let ammo = '';
-    if (W.clip) ammo = `${P.clip[P.weapon] || 0}<small>/${P.ammo[W.ammo]}</small>`;
-    else if (W.throw) ammo = `${P.count('dynamite')}`;
+    let ammo = '', pips = '';
+    if (W.clip) {
+      const n = P.clip[P.weapon] || 0;
+      ammo = `${n}<small>/${P.ammo[W.ammo]}</small>`;
+      // şarjördeki fişekler: dolu ve boş yuvalar
+      if (W.clip > 1 && W.clip <= 14) for (let k = 0; k < W.clip; k++) pips += k < n ? '<i></i>' : '<i class="e"></i>';
+    } else if (W.throw) ammo = `${P.count('dynamite')}`;
     else if (P.weapon === 'bow') ammo = `${P.ammo.arrow}`;
-    this.setText('w-icon', Icons.weapon(P.weapon)); this.setText('w-name', W.n + (P.reloadT > 0 ? Tr(' <em>dolduruluyor…</em>') : '')); this.setText('w-ammo', (P.reloadT > 0 ? CYL_SVG : '') + ammo);
+    this.setText('w-icon', Icons.weapon(P.weapon)); this.setText('w-name', W.n + (P.reloadT > 0 ? Tr(' <em>dolduruluyor…</em>') : '')); this.setText('w-ammo', (P.reloadT > 0 ? CYL_SVG : '') + ammo); this.setText('w-pips', pips);
     // efektler
     document.body.classList.toggle('deadeye', !!P.deadeye);
     document.body.classList.toggle('lowhp', P.hp < P.maxHp * 0.25 && G.state === 'play');
@@ -459,22 +484,26 @@ const UI = {
   },
 
   /* ================= RADAR ================= */
+  /* Pirinç kadranlı minimap: 224 px (iki kat çözünürlükte çizilir), harita dairesi r=100,
+     dışında deri bant: yön harfleri, derece çentikleri ve dairenin dışında kalan önemli hedefler
+     (görev, hedef işareti, ödül, atın, yük araban) bandın üzerinde, doğru yönde gösterilir. */
   drawRadar() {
     const c = this.rctx, W = G.world, P = G.player;
     if (!W || !P) return;
-    const S = 200, R = 100;
+    const L = 224, C = 112, R = 100;
     const xk = this.hudXk || 0;                                   // genişletilmiş radar (D-pad ↓): daha geniş alan
     const z = (P.riding ? 1.35 : 1.8) * lerp(1, 0.42, xk); // px / karo
     const tx = P.x / TS, ty = P.y / TS;
+    c.setTransform(2, 0, 0, 2, 0, 0);
+    c.clearRect(0, 0, L, L);
     c.save();
-    c.clearRect(0, 0, S, S);
-    c.beginPath(); c.arc(R, R, R - 2, 0, TAU); c.clip();
-    c.fillStyle = '#c9b48a'; c.fillRect(0, 0, S, S);
+    c.beginPath(); c.arc(C, C, R, 0, TAU); c.clip();
+    c.fillStyle = '#c9b48a'; c.fillRect(0, 0, L, L);
     c.imageSmoothingEnabled = z < 1.6;
-    const span = S / z, ms = W.mapScale || 1;
-    c.drawImage(W.mapCanvas, (tx - span / 2) * ms, (ty - span / 2) * ms, span * ms, span * ms, 0, 0, S, S);
+    const span = 2 * R / z, ms = W.mapScale || 1;
+    c.drawImage(W.mapCanvas, (tx - span / 2) * ms, (ty - span / 2) * ms, span * ms, span * ms, C - R, C - R, 2 * R, 2 * R);
     c.imageSmoothingEnabled = true;
-    const toR = (wx, wy) => [R + (wx / TS - tx) * z, R + (wy / TS - ty) * z];
+    const toR = (wx, wy) => [C + (wx / TS - tx) * z, C + (wy / TS - ty) * z];
     // yollar ve demiryolu (vektörel)
     const lim = span * TS * 0.75;
     const poly = (pts, step) => { c.beginPath(); let on = false; for (let k = 0; k < pts.length; k += step) { const q = pts[k]; if (Math.abs(q[0] - P.x) > lim || Math.abs(q[1] - P.y) > lim) { on = false; continue; } const [x, y] = toR(q[0], q[1]); if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; } } c.stroke(); };
@@ -482,7 +511,10 @@ const UI = {
     for (const r of W.roads) { c.strokeStyle = 'rgba(92,62,36,0.85)'; c.lineWidth = r.spur ? 1.6 : 2.6; poly(r.pts, 2); c.strokeStyle = 'rgba(214,190,140,0.9)'; c.lineWidth = r.spur ? 0.6 : 1.1; poly(r.pts, 2); }
     c.strokeStyle = 'rgba(30,24,20,0.8)'; c.lineWidth = 1.2;
     for (const l of W.lines) poly(l.pts, 2);
-    c.drawImage(G.fogCanvas, (tx - span / 2) / 4, (ty - span / 2) / 4, span / 4, span / 4, 0, 0, S, S);
+    c.drawImage(G.fogCanvas, (tx - span / 2) / 4, (ty - span / 2) / 4, span / 4, span / 4, C - R, C - R, 2 * R, 2 * R);
+    // gece: kâğıt mürekkep mavisine kararır (göz yormaz)
+    const night = 1 - G.daylight;
+    if (night > 0.02) { c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.62 * night; c.fillStyle = '#48527a'; c.fillRect(C - R, C - R, 2 * R, 2 * R); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
     // aranma alanı
     if (G.law.level > 0) {
       const [lx, ly] = toR(G.law.lastX, G.law.lastY);
@@ -496,43 +528,45 @@ const UI = {
       let started = false;
       let bestI = 0, bd = 1e18;
       for (let i = 0; i < G.gps.length; i++) { const d = dist2(G.gps[i][0], G.gps[i][1], P.x, P.y); if (d < bd) { bd = d; bestI = i; } }
-      c.moveTo(R, R);
+      c.moveTo(C, C);
       for (let i = bestI; i < G.gps.length; i++) { const [x, y] = toR(G.gps[i][0], G.gps[i][1]); c.lineTo(x, y); started = true; }
       if (started) c.stroke();
     }
-    // simgeler
-    c.font = 'bold 11px serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    const icon = (wx, wy, g, col, bg, sz = 13) => {
-      let [x, y] = toR(wx, wy);
-      const dx = x - R, dy = y - R, d = Math.hypot(dx, dy);
-      if (d > R - 10) { if (!bg) return; x = R + dx / d * (R - 10); y = R + dy / d * (R - 10); }
+    // simgeler; edge: daire dışındaysa kadran bandında gösterilir
+    const edges = [];
+    const icon = (wx, wy, g, col, bg, sz = 13, edge) => {
+      const [x, y] = toR(wx, wy);
+      const dx = x - C, dy = y - C, d = Math.hypot(dx, dy);
+      if (d > R - 8) { if (edge) edges.push({ a: Math.atan2(dy, dx), g, col: col || '#fff', bg: bg || 'rgba(26,18,12,0.95)', q: edge === 'quest' }); return; }
       c.fillStyle = bg || 'rgba(26,18,12,0.85)'; c.beginPath(); c.arc(x, y, sz * 0.62, 0, TAU); c.fill();
       const im = Icons.img(g, col || '#efe6d2', 32);
       if (im && im.complete) c.drawImage(im, x - sz * 0.42, y - sz * 0.42, sz * 0.84, sz * 0.84);
     };
-    c.font = '10px serif';
     for (const b of W.buildings) {
       if (Math.abs(b.door.x - P.x) > 900 || Math.abs(b.door.y - P.y) > 900 || (xk > 0.5 && b.town)) continue;   // genişken kasaba adı yeterli
       const ic = BICON[b.type];
       if (ic && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 15);
     }
-    c.font = 'bold 11px serif';
     for (const p of W.pois) {
       if (!G.discovered.has(p.id) && !G.rumored.has(p.id)) continue;
       icon(p.x, p.y, G.rumored.has(p.id) && !G.discovered.has(p.id) ? 'question' : (PICON[p.kind === 'landmark' ? p.type : p.kind] || 'eye'), '#efe6d2', p.kind === 'camp' ? 'rgba(130,20,14,0.9)' : null);
     }
     if (G.camp) icon(G.camp.x, G.camp.y, 'tent', '#efe6d2');
-    if (G.myWagon && P.riding !== G.myWagon) icon(G.myWagon.x, G.myWagon.y, 'bag', '#f0d8a8', 'rgba(60,36,20,0.9)');
+    if (G.myWagon && P.riding !== G.myWagon) icon(G.myWagon.x, G.myWagon.y, 'bag', '#f0d8a8', 'rgba(60,36,20,0.95)', 13, true);
     if (G.nomads) for (const nc of G.nomads) if (nc.era >= 0 && G.discovered.has(G.nomadId(nc))) icon(nc.x, nc.y, 'tent', '#f0e4c8', 'rgba(120,80,20,0.9)', 13);
-    if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') icon(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', '#fff', 'rgba(150,20,20,0.9)', 15);
-    if (G.waypoint) icon(G.waypoint.x, G.waypoint.y, 'waypoint', '#fff', 'rgba(140,40,140,0.9)', 15);
+    if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') icon(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', '#fff', 'rgba(150,20,20,0.95)', 15, true);
+    if (G.waypoint) icon(G.waypoint.x, G.waypoint.y, 'waypoint', '#fff', 'rgba(140,40,140,0.95)', 15, true);
     const qm = G.questMark();
-    if (qm) icon(qm.x, qm.y, 'star', '#fff', 'rgba(190,140,20,0.95)', 15);
+    if (qm) {
+      const [qx, qy] = toR(qm.x, qm.y);
+      if (Math.hypot(qx - C, qy - C) <= R - 8) { const pr = 9 + (Math.sin(G.t * 4) * 0.5 + 0.5) * 4; c.strokeStyle = 'rgba(240,200,90,0.75)'; c.lineWidth = 1.5; c.beginPath(); c.arc(qx, qy, pr, 0, TAU); c.stroke(); }
+      icon(qm.x, qm.y, 'star', '#fff', 'rgba(190,140,20,0.98)', 15, 'quest');
+    }
     // canlılar
     for (const e of G.ents) {
       if (e.dead) continue;
       const [x, y] = toR(e.x, e.y);
-      if (Math.hypot(x - R, y - R) > R - 4) continue;
+      if (Math.hypot(x - C, y - C) > R - 4) { if (e === G.horse && !P.riding && !e.rider) icon(e.x, e.y, 'horse', '#f0d8a8', 'rgba(60,36,20,0.95)', 13, true); continue; }
       if (e.kind === 'npc') {
         if (e.witness && !e.witness.done) { const im = Icons.img('witness', '#fff4dc', 32); c.fillStyle = 'rgba(200,120,20,0.95)'; c.beginPath(); c.arc(x, y, 6, 0, TAU); c.fill(); if (im.complete) c.drawImage(im, x - 4.5, y - 4.5, 9, 9); }
         else if (e.hostile && (e.aggro || e.isLaw)) { c.fillStyle = e.isLaw ? '#e0e0ff' : '#e02020'; c.beginPath(); c.arc(x, y, 3, 0, TAU); c.fill(); c.strokeStyle = e.isLaw ? '#2040c0' : '#400'; c.lineWidth = 1; c.stroke(); }
@@ -543,7 +577,7 @@ const UI = {
       else if (e.kind === 'animal' && P.crouch) { c.fillStyle = 'rgba(255,255,255,0.8)'; c.fillRect(x - 1.5, y - 1.5, 3, 3); }
       else if (e === G.horse) { icon(e.x, e.y, 'horse', '#f0d8a8', 'rgba(60,36,20,0.9)', 13); }
     }
-    for (const tr of G.trains) if (tr.pos[0]) { const [x, y] = toR(tr.pos[0][0], tr.pos[0][1]); if (Math.hypot(x - R, y - R) < R - 4) { c.fillStyle = '#222'; c.fillRect(x - 3, y - 3, 6, 6); } }
+    for (const tr of G.trains) if (tr.pos[0]) { const [x, y] = toR(tr.pos[0][0], tr.pos[0][1]); if (Math.hypot(x - C, y - C) < R - 4) { c.fillStyle = '#222'; c.fillRect(x - 3, y - 3, 6, 6); } }
     // genişletilmiş radarda kasaba adları
     if (xk > 0.3) {
       c.globalAlpha = Math.min(1, (xk - 0.3) * 2);
@@ -551,19 +585,63 @@ const UI = {
       for (const t of W.towns) {
         if (!G.visited.has(t.id) && !G.reveal[((t.cy / TS / 4) | 0) * FW + ((t.cx / TS / 4) | 0)]) continue;
         const [x, y] = toR(t.cx, t.cy);
-        if (Math.hypot(x - R, y - R) > R - 16) continue;
+        if (Math.hypot(x - C, y - C) > R - 16) continue;
         c.lineWidth = 3; c.strokeStyle = 'rgba(236,224,196,0.9)'; c.strokeText(t.n, x, y - 10); c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, y - 10);
       }
       c.globalAlpha = 1;
     }
-    // oyuncu oku
-    c.translate(R, R); c.rotate(P.riding ? P.riding.ang : P.ang);
-    c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 1.5;
-    c.beginPath(); c.moveTo(8, 0); c.lineTo(-6, -5.5); c.lineTo(-3, 0); c.lineTo(-6, 5.5); c.closePath(); c.fill(); c.stroke();
+    // kubbe gölgesi: kenarlara doğru koyulaşan kâğıt
+    const vg = c.createRadialGradient(C, C, R * 0.58, C, C, R);
+    vg.addColorStop(0, 'rgba(40,24,10,0)'); vg.addColorStop(1, 'rgba(40,24,10,0.42)');
+    c.fillStyle = vg; c.fillRect(C - R, C - R, 2 * R, 2 * R);
+    // oyuncu: önündeki bakış konisi ve ok
+    c.translate(C, C); c.rotate(P.riding ? P.riding.ang : P.ang);
+    const cone = c.createRadialGradient(0, 0, 3, 0, 0, 46);
+    cone.addColorStop(0, 'rgba(255,248,226,0.5)'); cone.addColorStop(1, 'rgba(255,248,226,0)');
+    c.fillStyle = cone; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 46, -0.5, 0.5); c.closePath(); c.fill();
+    c.fillStyle = '#fffaf0'; c.strokeStyle = '#1a120b'; c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(9, 0); c.lineTo(-6, -6); c.lineTo(-2.5, 0); c.lineTo(-6, 6); c.closePath(); c.fill(); c.stroke();
     c.restore();
-    // çerçeve
-    c.strokeStyle = 'rgba(20,14,8,0.85)'; c.lineWidth = 4; c.beginPath(); c.arc(R, R, R - 2, 0, TAU); c.stroke();
-    c.strokeStyle = 'rgba(230,215,180,0.6)'; c.lineWidth = 1.5; c.beginPath(); c.arc(R, R, R - 5, 0, TAU); c.stroke();
+    this.drawBezel(c, C, R, edges);
+  },
+  /* Radarın deri ve pirinç kadranı: çentikler, yön harfleri, bant üzerindeki uzak hedefler */
+  drawBezel(c, C, R, edges) {
+    const R2 = 111;
+    c.save();
+    const bg = c.createLinearGradient(0, C - R2, 0, C + R2);
+    bg.addColorStop(0, '#33251a'); bg.addColorStop(0.5, '#1d150e'); bg.addColorStop(1, '#100b07');
+    c.fillStyle = bg; c.beginPath(); c.arc(C, C, R2, 0, TAU); c.arc(C, C, R + 0.5, 0, TAU, true); c.fill();
+    // çentikler: her 10°, her 30° uzun
+    c.lineCap = 'round';
+    for (let d = 0; d < 360; d += 10) {
+      if (d % 90 === 0) continue;
+      const a = d * Math.PI / 180 - Math.PI / 2, long = d % 30 === 0, r0 = R + 3, r1 = R + (long ? 8.5 : 5.5);
+      c.strokeStyle = long ? 'rgba(232,206,150,0.75)' : 'rgba(201,164,92,0.45)'; c.lineWidth = long ? 1.2 : 0.8;
+      c.beginPath(); c.moveTo(C + Math.cos(a) * r0, C + Math.sin(a) * r0); c.lineTo(C + Math.cos(a) * r1, C + Math.sin(a) * r1); c.stroke();
+    }
+    // pirinç kenarlar: dışta kalın, içte ince; ışığı sol üstten alan metal
+    const mg = c.createLinearGradient(C - R2, C - R2, C + R2, C + R2);
+    mg.addColorStop(0, '#f6dc96'); mg.addColorStop(0.3, '#9a7230'); mg.addColorStop(0.55, '#e6c47a'); mg.addColorStop(0.8, '#7a5420'); mg.addColorStop(1, '#c9a45c');
+    c.strokeStyle = mg; c.lineWidth = 2.4; c.beginPath(); c.arc(C, C, R2 - 0.9, 0, TAU); c.stroke();
+    c.lineWidth = 1.5; c.beginPath(); c.arc(C, C, R + 0.6, 0, TAU); c.stroke();
+    c.strokeStyle = 'rgba(0,0,0,0.8)'; c.lineWidth = 1; c.beginPath(); c.arc(C, C, R2 + 0.4, 0, TAU); c.stroke();
+    // yön harfleri
+    const lt = [Tr('@pusula|K'), Tr('@pusula|D'), Tr('@pusula|G'), Tr('@pusula|B')];
+    c.font = 'bold 9px "IM Fell English SC", serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    lt.forEach((t, i) => {
+      const a = i * Math.PI / 2 - Math.PI / 2, x = C + Math.cos(a) * (R + 5.6), y = C + Math.sin(a) * (R + 5.6);
+      if (i === 0) { c.fillStyle = '#8e1b12'; c.beginPath(); c.arc(x, y, 5.6, 0, TAU); c.fill(); c.strokeStyle = 'rgba(240,212,135,0.9)'; c.lineWidth = 0.8; c.stroke(); }
+      c.fillStyle = i === 0 ? '#fff3d6' : 'rgba(236,216,172,0.92)'; c.fillText(t, x, y + 0.4);
+    });
+    // uzaktaki hedefler bandın üzerinde
+    for (const e of edges) {
+      const x = C + Math.cos(e.a) * (R + 5.6), y = C + Math.sin(e.a) * (R + 5.6), r = e.q ? 7 + Math.sin(G.t * 5) * 0.8 : 6.2;
+      c.fillStyle = e.bg; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+      c.strokeStyle = e.q ? 'rgba(255,236,170,0.95)' : 'rgba(240,212,135,0.75)'; c.lineWidth = 1; c.stroke();
+      const im = Icons.img(e.g, e.col, 32);
+      if (im && im.complete) c.drawImage(im, x - r * 0.68, y - r * 0.68, r * 1.36, r * 1.36);
+    }
+    c.restore();
   },
 
   /* ================= HARİTA ================= */
@@ -581,7 +659,9 @@ const UI = {
     this.mapDirty = true;
     this.map.lg = -1; this.map.lgPick = null;
     const lg = $('#map-legend');
-    lg.innerHTML = `<div class="ml-t">${Tr`Açıklamalar`}</div>` + mapLegend().map(([a, b], i) => `<div class="ml-i" data-i="${i}"><span>${Icons.glyph(a, '#2a1a0e')}</span>${b}</div>`).join('');
+    const lbg = { tent: 'radial-gradient(circle at 40% 35%, #a02418, #5a0e08)', waypoint: 'radial-gradient(circle at 40% 35%, #a03aa0, #5a145a)', question: 'radial-gradient(circle at 40% 35%, #6a5a3a, #2a2014)' };
+    lg.innerHTML = `<div class="ml-t">${Tr`Açıklamalar`}</div>` + mapLegend().map(([a, b], i) => `<div class="ml-i" data-i="${i}"><span${lbg[a] ? ` style="background:${lbg[a]}"` : ''}>${Icons.glyph(a, '#f0e4c8')}</span>${b}</div>`).join('');
+    this._mme = null; this.mapMeT = 0;
     $$('.ml-i', lg).forEach(n => { n.onclick = (e) => { e.stopPropagation(); this.mapLegendPick(+n.dataset.i); }; });
   },
   /* Açıklamadaki bir türün haritada bilinen yerleri (oyuncuya yakından uzağa) */
@@ -673,6 +753,7 @@ const UI = {
     if (I.pressed('alt2') && I.device === 'pad') { M.cx = G.player.x / TS; M.cy = G.player.y / TS; this.mapDirty = true; }
     if (I.pressed('back') || I.pressed('map')) { this.pop(m); return; }
     $('#map-cursor').style.display = I.device === 'pad' ? 'block' : 'none';
+    if ((this.mapMeT -= dt) <= 0) { this.mapMeT = 0.5; const h = this.mapMe(); if (this._mme !== h) { this._mme = h; $('#map-me').innerHTML = h; } }
     this.mapHover();
     this.drawMap();
   },
@@ -718,8 +799,15 @@ const UI = {
       c.strokeStyle = 'rgba(28,22,18,0.9)'; c.lineWidth = Math.max(1.2, M.zoom * 0.5); poly(l.pts, st);
       c.lineWidth = Math.max(4, M.zoom * 2); c.setLineDash([1.2, Math.max(4, M.zoom * 3)]); poly(l.pts, st); c.setLineDash([]);
     }
+    // enlem-boylam ızgarası: iki milde bir (uzaktan bakınca dört)
+    const gstep = (M.zoom * 62.8 < 46 ? 125.6 : 62.8) * M.zoom;
+    c.strokeStyle = 'rgba(96,62,30,0.13)'; c.lineWidth = 1;
+    c.beginPath();
+    for (let x = ox + gstep; x < ox + mw; x += gstep) if (x > -2 && x < w + 2) { c.moveTo(Math.round(x) + 0.5, Math.max(oy, 0)); c.lineTo(Math.round(x) + 0.5, Math.min(oy + mh, h)); }
+    for (let y = oy + gstep; y < oy + mh; y += gstep) if (y > -2 && y < h + 2) { c.moveTo(Math.max(ox, 0), Math.round(y) + 0.5); c.lineTo(Math.min(ox + mw, w), Math.round(y) + 0.5); }
+    c.stroke();
     c.imageSmoothingEnabled = true;
-    c.drawImage(G.fogCanvas, ox, oy, mw, mh);
+    this.drawMapFog(c, ox, oy, mw, mh, w, h);
     // kenar gölgesi ve çift çerçeve
     c.strokeStyle = 'rgba(60,36,18,0.85)'; c.lineWidth = 2; c.strokeRect(ox - 6, oy - 6, mw + 12, mh + 12);
     c.strokeStyle = 'rgba(60,36,18,0.5)'; c.lineWidth = 1; c.strokeRect(ox - 10, oy - 10, mw + 20, mh + 20);
@@ -793,28 +881,86 @@ const UI = {
     if (G.horse && !G.horse.dead) badge(G.horse.x, G.horse.y, 'horse', 'rgba(60,36,20,0.9)', '#f0d8a8');
     if (G.waypoint) badge(G.waypoint.x, G.waypoint.y, 'waypoint', 'rgba(140,40,140,0.95)');
     const qm = G.questMark();
-    if (qm) badge(qm.x, qm.y, 'star', 'rgba(190,140,20,0.95)', '#fff', 11);
-    // oyuncu
+    const pulse = Math.sin(performance.now() / 260) * 0.5 + 0.5;
+    if (qm) { const [qx, qy] = toS(qm.x, qm.y); c.strokeStyle = `rgba(190,140,20,${0.8 - pulse * 0.5})`; c.lineWidth = 2; c.beginPath(); c.arc(qx, qy, 14 + pulse * 7, 0, TAU); c.stroke(); badge(qm.x, qm.y, 'star', 'rgba(190,140,20,0.95)', '#fff', 11); }
+    // oyuncu: koyu rozet, pirinç kenar, nabız gibi atan halka ve yön oku
     const P = G.player;
     const [px, py] = toS(P.x, P.y);
+    c.strokeStyle = `rgba(255,250,235,${0.85 - pulse * 0.6})`; c.lineWidth = 2; c.beginPath(); c.arc(px, py, 15 + pulse * 9, 0, TAU); c.stroke();
+    c.fillStyle = 'rgba(20,13,8,0.92)'; c.beginPath(); c.arc(px, py, 12, 0, TAU); c.fill();
+    c.strokeStyle = '#e6c47a'; c.lineWidth = 2; c.stroke();
     c.save(); c.translate(px, py); c.rotate(P.riding ? P.riding.ang : P.ang);
-    c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 2;
-    c.beginPath(); c.moveTo(11, 0); c.lineTo(-8, -7); c.lineTo(-4, 0); c.lineTo(-8, 7); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#fffaf0'; c.beginPath(); c.moveTo(8, 0); c.lineTo(-5.5, -5.5); c.lineTo(-2.5, 0); c.lineTo(-5.5, 5.5); c.closePath(); c.fill();
     c.restore();
     // çerçeve gölgesi
     const g = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(40,20,5,0.55)');
     c.fillStyle = g; c.fillRect(0, 0, w, h);
-    this.drawCompass(c, w - 96, h - 150, 58);
+    this.drawCompass(c, w - 104, h - 168, 58);
     // ölçek çubuğu: 1 mil ≈ 31 karo (yürüme istatistiğiyle aynı ölçek)
     const mile = 1609 / 3.2 / TS * M.zoom, miles = mile < 40 ? 5 : mile < 90 ? 2 : 1, bw = mile * miles;
-    const sx = 40, sy = h - 88;
+    const sx = w - 44 - bw, sy = h - 56;
     c.fillStyle = 'rgba(236,224,196,0.85)'; c.fillRect(sx - 10, sy - 24, bw + 20, 36);
     c.strokeStyle = '#2a1a0e'; c.lineWidth = 1; c.strokeRect(sx - 10, sy - 24, bw + 20, 36);
     for (let k = 0; k < 4; k++) { c.fillStyle = k % 2 ? '#efe2c0' : '#2a1a0e'; c.fillRect(sx + bw / 4 * k, sy, bw / 4, 5); }
     c.strokeRect(sx, sy, bw, 5);
     c.fillStyle = '#2a1a0e'; c.font = 'italic 13px "IM Fell English", serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
     c.fillText(Tr`${miles} mil`, sx + bw / 2, sy - 7);
+  },
+  /* Keşfedilmemiş alan: taranmış eski kâğıt; açılan yerlerin kıyısına mürekkep gölgesi düşer.
+     Katman yalnızca görünüm değişince yeniden kurulur (sürükleme ve yakınlaştırma). */
+  drawMapFog(c, ox, oy, mw, mh, w, h) {
+    const d = this.mapDPR || 1, key = [ox, oy, mw, w, h, d].map(v => Math.round(v * 10)).join('|') + '|' + (G.fogVer || 0);
+    const mk = (n) => this[n] || (this[n] = document.createElement('canvas'));
+    const L = mk('fogLayer'), A = mk('fogMask'), B = mk('fogBlur');
+    if (L._k !== key) {
+      L._k = key;
+      for (const cv of [L, A]) if (cv.width !== Math.round(w * d) || cv.height !== Math.round(h * d)) { cv.width = Math.round(w * d); cv.height = Math.round(h * d); }
+      const a = A.getContext('2d');
+      a.setTransform(d, 0, 0, d, 0, 0); a.globalCompositeOperation = 'source-over'; a.clearRect(0, 0, w, h);
+      a.imageSmoothingEnabled = true; a.drawImage(G.fogCanvas, ox, oy, mw, mh);
+      a.globalCompositeOperation = 'source-in'; a.fillStyle = a.createPattern(this.fogTex(), 'repeat'); a.fillRect(0, 0, w, h);
+      a.globalCompositeOperation = 'source-over';
+      // gölge: sisin küçültülmüş (bulanık) koyu kopyası
+      const k = 6, bw = Math.ceil(w / k), bh = Math.ceil(h / k);
+      if (B.width !== bw || B.height !== bh) { B.width = bw; B.height = bh; }
+      const b = B.getContext('2d');
+      b.globalCompositeOperation = 'source-over'; b.clearRect(0, 0, bw, bh); b.imageSmoothingEnabled = true;
+      b.drawImage(G.fogCanvas, ox / k, oy / k, mw / k, mh / k);
+      b.globalCompositeOperation = 'source-in'; b.fillStyle = 'rgba(70,40,16,0.7)'; b.fillRect(0, 0, bw, bh);
+      const f = L.getContext('2d');
+      f.setTransform(d, 0, 0, d, 0, 0); f.clearRect(0, 0, w, h); f.imageSmoothingEnabled = true;
+      f.drawImage(B, -k * 1.5, -k * 1.5, w + k * 3, h + k * 3);
+      f.drawImage(A, 0, 0, w, h);
+    }
+    c.drawImage(L, 0, 0, w, h);
+  },
+  fogTex() {
+    if (this._fogTex) return this._fogTex;
+    const n = 192, T = document.createElement('canvas'); T.width = T.height = n;
+    const t = T.getContext('2d'), R = new RNG(19);
+    t.fillStyle = '#c2a97c'; t.fillRect(0, 0, n, n);
+    for (let k = 0; k < 2400; k++) { const v = R.range(-1, 1); t.fillStyle = v > 0 ? `rgba(255,240,210,${(v * 0.14).toFixed(3)})` : `rgba(80,52,24,${(-v * 0.14).toFixed(3)})`; t.fillRect(R.range(0, n), R.range(0, n), R.range(1, 3), R.range(1, 3)); }
+    t.strokeStyle = 'rgba(96,64,32,0.17)'; t.lineWidth = 1;
+    for (let k = -n; k < n; k += 8) { t.beginPath(); t.moveTo(k, 0); t.lineTo(k + n, n); t.stroke(); }
+    return (this._fogTex = T);
+  },
+  weatherName() {
+    const env = G.envCache || {}, wt = G.weather.type;
+    return (env.dust || 0) > 0.3 ? Tr('Kum fırtınası') : (env.snow || 0) > 0.3 ? Tr('Karlı') : ({ clear: Tr('Açık hava'), cloudy: Tr('Bulutlu'), rain: Tr('Yağmurlu'), storm: Tr('Fırtınalı'), fog: Tr('Sisli') })[wt] || '';
+  },
+  weatherGlyph() {
+    const env = G.envCache || {}, wt = G.weather.type;
+    return (env.snow || 0) > 0.3 ? 'snow' : wt === 'rain' || wt === 'storm' ? 'rain' : wt === 'cloudy' || wt === 'fog' ? 'cloud' : G.daylight < 0.35 ? 'moon' : 'sun';
+  },
+  /* Harita: sol alttaki konum kartı */
+  mapMe() {
+    const P = G.player, W = G.world, t = W.townAt(P.x, P.y, 20), reg = W.regionAt(P.x, P.y);
+    const qm = G.questMark(), st = G.storyOn && qm ? G.qStep() : null;
+    let q = '';
+    if (st) q = `<div class="mme-q"><i></i>${st.t.call(G, G.story)}<span>${fmtDist(dist(P.x, P.y, qm.x, qm.y))}</span></div>`;
+    else if (G.waypoint) q = `<div class="mme-q"><i></i>${Tr('Hedef işareti')}<span>${fmtDist(dist(P.x, P.y, G.waypoint.x, G.waypoint.y))}</span></div>`;
+    return `<div class="mme-k">${Tr('Konumun')}</div><div class="mme-p">${t ? t.n : reg}</div>${t ? `<div class="mme-r">${reg}</div>` : ''}<div class="mme-t">${Icons.glyph(this.weatherGlyph(), '#efe6d2')}${this.weatherName()} • ${Math.round(G.feltTemp)}° • ${G.timeStr()} • ${G.dateStr()}</div>${q}`;
   },
   /* Süslü pusula gülü (harita köşesi) */
   drawCompass(c, x, y, r) {
@@ -1286,24 +1432,72 @@ const UI = {
 
 
   /* ================= DURAKLAT ================= */
+  /* Duraklatma: tam ekran; solda menü, sağda karakterin kayıt defteri kartı (portre, onur, hayat hedefi,
+     konum, zaman, hava, para, at, oynama süresi ve süren hedef). Oyun arkada bulanıklaşır. */
   openPause() {
     Audio_.ui('ok');
+    document.body.classList.add('paused');
+    const ic = (g) => Icons.glyph(g, '#d9c8a4'), card = this.pauseDossier();
     this.menu({
       title: Tr('Duraklatıldı'), cls: 'pause', sub: () => Tr`${G.player.name} • ${G.age} yaşında • ${G.dateStr()}`,
+      side: () => card, onClose: () => document.body.classList.remove('paused'),
       items: [
-        { label: Tr('Devam Et'), fn: () => this.pop() },
-        { label: Tr('Harita'), fn: () => { this.pop(); this.openMap(); } },
-        { label: Tr('Çanta'), fn: () => { this.pop(); this.openSatchel(); } },
-        { label: Tr('Günlük'), fn: () => { this.pop(); this.openJournal(); } },
-        { label: Tr('Rehber'), fn: () => { this.pop(); this.openWelcome(); } },
-        { label: G.difficulty === 'hard' ? Tr('Oyunu Kaydet') : Tr`Oyunu Kaydet (${G.slot}. yuva)`, fn: () => G.saveGame() },
-        { label: Tr('Kayıt Yükle'), fn: () => this.openSlots('load') },
-        { label: Tr('Ayarlar'), fn: () => this.openSettings() },
-        { label: Tr('Tuş Atamaları'), fn: () => this.openControls() },
-        ...(Platform.canQuit ? [{ label: Tr('Oyundan Çık'), fn: () => this.confirm(Tr('Oyundan Çık'), Tr('Oyun kaydedilip kapatılsın mı?'), () => { G.saveGame(true); Platform.quit(); }, Tr('Vazgeç'), Tr('Kaydet ve Çık')) }] : []),
-        { label: Tr('Ana Menüye Dön'), fn: () => this.confirm(Tr('Ana Menü'), Tr('Kaydedilmemiş ilerleme kaybolabilir. Kaydedip çıkılsın mı?'), () => { G.saveGame(true); this.closeAll(); this.showMainMenu(); }, Tr('Vazgeç'), Tr('Kaydet ve Çık')) },
+        { icon: ic('check'), label: Tr('Devam Et'), fn: () => this.pop() },
+        { icon: ic('map'), label: Tr('Harita'), fn: () => { this.pop(); this.openMap(); } },
+        { icon: ic('satchel'), label: Tr('Çanta'), fn: () => { this.pop(); this.openSatchel(); } },
+        { icon: ic('book'), label: Tr('Günlük'), fn: () => { this.pop(); this.openJournal(); } },
+        { icon: ic('question'), label: Tr('Rehber'), fn: () => { this.pop(); this.openWelcome(); } },
+        { icon: ic('quill'), label: G.difficulty === 'hard' ? Tr('Oyunu Kaydet') : Tr`Oyunu Kaydet (${G.slot}. yuva)`, fn: () => G.saveGame() },
+        { icon: ic('hourglass'), label: Tr('Kayıt Yükle'), fn: () => this.openSlots('load') },
+        { icon: ic('gear'), label: Tr('Ayarlar'), fn: () => this.openSettings() },
+        { icon: ic('pad'), label: Tr('Tuş Atamaları'), fn: () => this.openControls() },
+        ...(Platform.canQuit ? [{ icon: ic('door'), label: Tr('Oyundan Çık'), fn: () => this.confirm(Tr('Oyundan Çık'), Tr('Oyun kaydedilip kapatılsın mı?'), () => { G.saveGame(true); Platform.quit(); }, Tr('Vazgeç'), Tr('Kaydet ve Çık')) }] : []),
+        { icon: ic('back'), label: Tr('Ana Menüye Dön'), fn: () => this.confirm(Tr('Ana Menü'), Tr('Kaydedilmemiş ilerleme kaybolabilir. Kaydedip çıkılsın mı?'), () => { G.saveGame(true); this.closeAll(); this.showMainMenu(); }, Tr('Vazgeç'), Tr('Kaydet ve Çık')) },
       ],
     });
+  },
+  /* Portre görseli (kayıt defteri kartı için; görünüş ve yaş değişmedikçe önbellekten) */
+  portraitURL(look, age, w = 200, h = 240) {
+    const k = JSON.stringify(look) + age + w;
+    if (this._ptK === k) return this._ptU;
+    const c = makeCanvas(w, h);
+    try { Spr.portrait(c.getContext('2d'), w, h, look, age); this._ptU = c.toDataURL('image/png'); } catch (e) { this._ptU = ''; }
+    this._ptK = k;
+    return this._ptU;
+  },
+  pauseDossier() {
+    const P = G.player, W = G.world, t = W.townAt(P.x, P.y, 20), reg = W.regionAt(P.x, P.y);
+    const bg = BACKGROUNDS.find(b => b.id === G.background), df = DIFFICULTIES.find(d => d.id === G.difficulty);
+    const h = G.horse && !G.horse.dead ? G.horse : null, hon = G.honor;
+    const hn = hon > 50 ? Tr('Saygın') : hon > 15 ? Tr('İyi') : hon < -50 ? Tr('Kötü Şöhretli') : hon < -15 ? Tr('Şüpheli') : Tr('Nötr');
+    const life = clamp((G.age - START_AGE) / (80 - START_AGE), 0, 1);
+    const sec = G.playtime || 0, ph = Math.floor(sec / 3600), pm = Math.floor(sec / 60) % 60;
+    const row = (g, k, v) => `<div class="pz-row">${Icons.glyph(g, '#d9c8a4')}<div><span>${k}</span><b>${v}</b></div></div>`;
+    // süren hedef: hikâye bölümü, ödül avı ya da haritadaki işaret
+    let ok = '', ot = '', od = '';
+    const S = G.story, st = G.storyOn && G.qStep(), qm = G.questMark();
+    if (st) { const c = G.storyDef().chapters[S.ch]; ok = Tr`Bölüm ${S.ch + 1}` + (c ? ' · ' + c.t() : ''); ot = st.t.call(G, S); if (qm) od = fmtDist(dist(P.x, P.y, qm.x, qm.y)); }
+    else if (G.activeBounty && !G.activeBounty.done) { const B = G.activeBounty; ok = Tr('Ödül Avı'); ot = escapeHtml(B.name || ''); od = fmtDist(dist(P.x, P.y, B.bx || B.x, B.by || B.y)); }
+    else if (G.waypoint) { ok = Tr('Hedef'); ot = Tr('Hedef işareti'); od = fmtDist(dist(P.x, P.y, G.waypoint.x, G.waypoint.y)); }
+    const law = G.law.level > 0 || G.law.bounty > 0 ? row('skull', Tr('Başındaki Ödül'), fmtMoney(G.law.bounty)) : '';
+    return `<div class="pz-card">
+      <div class="pz-top"><div class="pz-frame">${this.portraitURL(P.look, G.age) ? `<img src="${this.portraitURL(P.look, G.age)}" alt="">` : ''}</div>
+        <div class="pz-id"><div class="pz-k">${Tr('Kayıt Defteri')}</div><div class="pz-n">${escapeHtml(P.name)}</div>
+          <div class="pz-s">${Tr`${G.age} yaşında`}${bg ? ' • ' + bg.n : ''}</div><div class="pz-s dim">${df ? df.n : ''}</div>
+          <div class="pz-bars"><div class="pz-bar"><span>${Tr('Onur')}</span><i class="hon"><b style="left:${(clamp((hon + 100) / 200, 0, 1) * 100).toFixed(1)}%"></b></i><em>${hn}</em></div>
+          <div class="pz-bar"><span>${Tr('Hayat')}</span><i class="life"><b style="width:${(life * 100).toFixed(1)}%"></b></i><em>${G.age} / 80</em></div></div>
+        </div></div>
+      <div class="pz-rows">
+        ${row('pin', Tr('Konum'), t ? `${t.n}, ${reg}` : reg)}
+        ${row('hourglass', Tr('Zaman'), `${G.timeStr()} • ${G.dateStr()}`)}
+        ${row(this.weatherGlyph(), Tr('Hava'), `${this.weatherName()} • ${Math.round(G.feltTemp)}°`)}
+        ${row('coin', Tr('Para'), `${fmtMoney(P.money)} • ${Tr('Banka')}: ${fmtMoney(G.bank)}`)}
+        ${row('horse', Tr('At'), h ? `${escapeHtml(h.name)} • ${Tr`Bağ ${h.bondLv}/4`}` : Tr('Atın yok'))}
+        ${row('quill', Tr('Oynama'), ph ? Tr`${ph} sa ${pm} dk` : Tr`${pm} dk`)}
+        ${law}
+      </div>
+      ${ok ? `<div class="pz-obj"><div class="pz-ok">${ok}</div><div class="pz-ot"><i></i><b>${ot}</b>${od ? `<span>${od}</span>` : ''}</div></div>` : ''}
+    </div>`;
   },
   /* Ayarlar: sekmeli (Genel / Ses / Görüntü / Kontroller). Her satırın kendi denetimi var:
      ses için dilimli kaydırıcı, açık/kapalı için anahtar, seçenekler için düğme dizisi.
@@ -2290,9 +2484,10 @@ const UI = {
   showDeath() {
     const el = el_('div', 'modal deathscreen');
     const hard = G.difficulty === 'hard';
-    el.innerHTML = `<div class="ds-inner"><div class="ds-t">${Tr`ÖLDÜN`}</div><div class="ds-c">${Tr`Ölüm sebebi: ${G.deathCause}`}</div><div class="ds-a">${Tr`${G.player.name}, ${G.age} yaşında`}</div>
+    el.innerHTML = `<div class="ds-inner"><div class="ds-t">${Tr`ÖLDÜN`}</div><div class="ds-rule"></div><div class="ds-c">${Tr`Ölüm sebebi: ${G.deathCause}`}</div><div class="ds-a">${Tr`${G.player.name}, ${G.age} yaşında`}</div>
       <div class="ds-items"><div class="p-item nav pref" id="ds-cont">${hard ? Tr('Hayatının Özeti') : Tr('Devam Et (Doktor)')}</div>${!hard ? `<div class="p-item nav" id="ds-legacy">${Tr`Bu Hayatı Bitir`}</div>` : ''}<div class="p-item nav" id="ds-menu">${Tr`Ana Menü`}</div></div></div>`;
-    const m = this.makeModal(el, { onBack: () => {} });
+    document.body.classList.add('dying');
+    const m = this.makeModal(el, { onBack: () => {}, onClose: () => document.body.classList.remove('dying') });
     this.push(m);
     $('#ds-cont', el).onclick = () => { this.pop(m); if (hard) { G.deleteSave(); this.showLegacy(false); } else G.respawn(); };
     const lg = $('#ds-legacy', el);
@@ -2323,8 +2518,13 @@ const UI = {
 
   /* ================= EKRANLAR ================= */
   hideScreens() { $$('.screen').forEach(s => s.classList.add('hidden')); },
-  showLoading(on) { $('#loading').classList.toggle('hidden', !on); if (on) $('#ld-tip').textContent = pick(TIPS); },
-  loading(msg, p) { $('#ld-msg').textContent = msg; $('#ld-fill').style.width = Math.round(p * 100) + '%'; },
+  showLoading(on) {
+    $('#loading').classList.toggle('hidden', !on);
+    if (!on) return;
+    $('#ld-tip').textContent = pick(TIPS).replace(/^[^:]{2,14}:\s*/, '');   // "İpucu:" başlığı kutunun üstünde
+    $('#ld-rider').innerHTML = Icons.glyph('horse', '#ecd9b2');
+  },
+  loading(msg, p) { $('#ld-msg').textContent = msg; const v = Math.round(p * 100) + '%'; $('#ld-fill').style.width = v; $('#ld-rider').style.left = v; },
   showMainMenu() {
     G.state = 'menu';
     this.closeAll();
@@ -2341,9 +2541,19 @@ const UI = {
     items.push(['new', Tr('Yeni Hayat'), Tr('Bir karakter yarat ve 18 yaşında başla')]);
     items.push(['set', Tr('Ayarlar'), ''], ['ctrl', Tr('Kontroller'), ''], ['about', Tr('Hakkında'), '']);
     if (Platform.canQuit) items.push(['quit', Tr('Masaüstüne Çık'), '']);
-    $('#mm-items').innerHTML = items.map(([id, n, s]) => `<div class="mm-item nav" data-id="${id}"><div class="mm-n">${n}</div>${s ? `<div class="mm-s">${s}</div>` : ''}</div>`).join('');
-    $('#mm-foot').innerHTML = Tr`${Input.glyph('confirm')} Seç &nbsp;&nbsp; Oyun kolu desteklenir`;
-    const m = this.makeModal(mm, { keepEl: true, transparent: true, onBack: () => {} });
+    $('#mm-items').innerHTML = items.map(([id, n, s], i) => `<div class="mm-item nav" data-id="${id}" style="--i:${i}"><div class="mm-n">${n}</div>${s ? `<div class="mm-s">${s}</div>` : ''}</div>`).join('');
+    $('#mm-foot').innerHTML = Tr`${Input.glyph('confirm')} Seç &nbsp;&nbsp; Oyun kolu desteklenir` + `<span class="mm-ver">v${GAME_VERSION}</span>`;
+    // son hayatın kartı: ekran görüntüsü, isim, yer, oynama süresi
+    const card = $('#mm-card');
+    if (info) {
+      const hm = (sec) => { const h = Math.floor(sec / 3600), mi = Math.floor(sec / 60) % 60; return h ? Tr`${h} sa ${mi} dk` : Tr`${mi} dk`; };
+      const bg = BACKGROUNDS.find(b => b.id === info.bg);
+      card.innerHTML = `${info.thumb ? `<img src="${info.thumb}" alt="">` : '<div class="mmc-noimg"></div>'}<div class="mmc-k">${Tr('Son Hayat')}</div><div class="mmc-n">${escapeHtml(info.name)}</div>
+        <div class="mmc-r">${Tr`${info.age} yaşında`}${bg ? ' • ' + bg.n : ''}${info.place ? ' • ' + escapeHtml(info.place) : ''}</div>
+        <div class="mmc-r dim">${Tr`Yıl ${info.year || ''}`} • ${fmtMoney(info.money)} • ${Tr`Oynama: ${hm(info.playtime || 0)}`}</div>`;
+      card.classList.remove('hidden');
+    } else card.classList.add('hidden');
+    const m = this.makeModal(mm, { keepEl: true, transparent: true, onBack: () => {}, onFocus: (n) => card.classList.toggle('off', !!info && n.dataset.id !== 'cont' && n.dataset.id !== 'load') });
     $$('.mm-item', mm).forEach(n => {
       n.onmouseenter = () => m.setFocus(n, true);
       n.onclick = () => {
@@ -2702,6 +2912,7 @@ const UI = {
 };
 
 const el_ = el;
+const GAME_VERSION = '0.9.0';
 const I_WHEEL_HINT = (page) => {
   const pad = Input.device === 'pad';
   const sw = pad ? Input.padGlyph(PS.R1) : `${Input.kbGlyph('KeyQ')}${Input.kbGlyph('KeyE')}`;

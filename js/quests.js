@@ -474,7 +474,7 @@ const Story = {
     // yeni bir hedef: panel parlayarak kayıp gelir, kısa süre "Yeni Hedef" etiketi görünür
     const sk = S.ch + '|' + S.st, fresh = st && !S.wait && el._sk !== sk;
     if (fresh) el._sk = sk;
-    el.innerHTML = `<div class="hq-t">${fresh ? `<span class="hq-new">${Tr`Yeni Hedef`}</span>` : ''}${Tr`Bölüm ${S.ch + 1}`} · ${c.t()}</div><div class="hq-o ${S.wait ? 'done' : ''}"><i></i>${txt}</div>`;
+    el.innerHTML = `<div class="hq-t">${fresh ? `<span class="hq-new">${Tr`Yeni Hedef`}</span>` : ''}${Tr`Bölüm ${S.ch + 1}`} · ${c.t()}</div><div class="hq-o ${S.wait ? 'done' : ''}"><i></i>${txt}</div><div class="hq-d"></div>`;
     if (fresh) { el.classList.remove('hq-pulse'); void el.offsetWidth; el.classList.add('hq-pulse'); }
   },
   /* Günlük: Görevler sekmesi */
