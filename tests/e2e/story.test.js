@@ -20,6 +20,23 @@ module.exports = {
       t.ok(s && s.d < 120, 'Sully oyuncunun yanında', s);
     });
 
+    await t.step('açılış: toprağını kaybetmiş Harlow\'lu genç; gazete ilanı yok', async () => {
+      await p.waitForFunction(() => /Harlow/.test(document.getElementById('hud-help').textContent), null, { timeout: 10000 });
+      const r = await p.evaluate(() => {
+        const D = STORIES.sully, C = D.chapters[0], all = [];
+        // bütün bölümlerin konuşma satırları (koşullu satırlar dahil değil, sabit olanlar)
+        for (const ch of D.chapters) for (const st of ch.steps) for (const k of ['say', 'talk', 'after']) if (typeof st[k] === 'function') { try { const L = st[k].call(G, G.story); if (Array.isArray(L)) all.push(...L.map(x => x[1])); } catch (e) {} }
+        return { bg: G.background, town: G.sTown().id, help: document.getElementById('hud-help').textContent, title: C.t(), intro: D.intro(), welcome: D.welcome(), say: C.steps[0].say().map(x => x[1]).join(' '), stale: all.filter(x => /gazete|ilana|ilanda/i.test(x)) };
+      });
+      t.eq([r.bg, r.town], ['farm', 'harlow'], 'Çiftçi Çocuğu Harlow\'da başlar');
+      t.ok(/toprağına el koydu/.test(r.help) && /Dunham Sully/.test(r.help) && !/gazete|ilan/i.test(r.help), 'açılış yardımı: kaybedilen toprak, babanın komşusu', r.help);
+      t.eq(r.title, 'Tanıdık Yüzler', 'bölüm adı');
+      t.ok(/toprağına el koydu/.test(r.intro) && !/gazete|ilan/i.test(r.intro + r.welcome), 'günlük ve rehber metni', [r.intro, r.welcome]);
+      t.ok(/Banka kapınıza/.test(r.say) && /İş arıyorum/.test(r.say), 'Sully oyuncuyu tanır, oyuncu iş ister', r.say);
+      t.eq(r.stale, [], 'hiçbir satır gazete ilanından söz etmez');
+      await p.evaluate(() => UI.el.help.classList.add('hidden'));
+    });
+
     await t.step('konuş, iki kişiyi selamla, mağazaya gir', async () => {
       t.ok(await talk(), 'Konuş seçeneği var');
       await waitStep(0, 1);

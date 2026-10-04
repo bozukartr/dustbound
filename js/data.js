@@ -503,7 +503,7 @@ const HAUL_HIRE = 10, HAUL_CAP = 6, HAUL_MAX = 4;
 /* ---- Başarımlar (perk içerir) ---- */
 const ACHIEVEMENTS = [
   { id: 'begin',     n: 'Yeni Bir Hayat',        d: 'Batıda yeni bir hayata başla.', perk: '' },
-  { id: 'story',     n: 'Sully\'nin Senedi',      d: 'Hikâyeli başlangıcı tamamla ve tapuyu sahibine geri ver.', perk: '' },
+  { id: 'story',     n: 'Sully\'nin Senedi',      d: 'Çiftçi Çocuğu\'nun hikâyesini tamamla ve tapuyu sahibine geri ver.', perk: '' },
   { id: 'story_outlaw', n: 'Son İş',             d: 'Kanun Kaçağı\'nın hikâyesini tamamla ve çeteyle hesabını kapat.', perk: '' },
   { id: 'story_rail', n: 'Raylar ve Toz',      d: 'Demiryolu İşçisi\'nin hikâyesini tamamla ve ekibin maaşını geri getir.', perk: '' },
   { id: 'story_trapper', n: 'Babamın Tuzakları', d: 'Tuzakçı\'nın hikâyesini tamamla ve babanı eve getir.', perk: '' },
