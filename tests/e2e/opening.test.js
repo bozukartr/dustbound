@@ -65,6 +65,15 @@ module.exports = {
       await t.helpers(q);
       await q.evaluate(() => { const w = document.querySelector('.modal.welcome'); if (w) UI.closeAll(); });
       await q.waitForFunction(() => G.story && G.story.on && G.story.id === 'sully', null, { timeout: 20000 });
+      // sinematik kasabalar haritadaki kasabadan kurulur: aynı binalar, aynı türler
+      const w = await q.evaluate(() => {
+        const K = Cinema.kit, L = { dir: [0, 1, 0], amb: 1, dif: 0.5, ambC: [1, 1, 1], sunC: [1, 1, 1] };
+        return ['harlow', 'stclement', 'dustcreek', 'fortmercy', 'cedarfalls'].map(id => {
+          const W = K.worldTown(new K.Mesh(L), new K.Mesh(L), id, {}), real = G.world.buildings.filter(b => b.town === id);
+          return { id, n: W ? W.buildings.length : -1, real: real.length, types: W && W.buildings.map(b => b.type).sort().join() === real.map(b => b.type).sort().join() };
+        });
+      });
+      for (const r of w) t.ok(r.n === r.real && r.n > 5 && r.types, `${r.id}: haritadaki bütün binalar`, r);
     });
   },
 };

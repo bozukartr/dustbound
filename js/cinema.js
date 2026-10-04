@@ -267,10 +267,11 @@ const Cinema = (() => {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, RW, RH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, RW, RH);
+    // derinlik: DEPTH_STENCIL pratikte 24 bit verir (16 bitte uzak kasabalarda zemin ve yol titreşir)
+    const rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_STENCIL, RW, RH);
     fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fbTex, 0);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, rb);
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); fb = null; }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     // yumuşak zemin gölgesi: merkezi koyu, kenarı açık halkalar (yarı saydam çizilir)
@@ -356,6 +357,99 @@ const Cinema = (() => {
     for (let k = 0; k < 3; k++) { const hh = h / 3; m.box(x, y, z, ww, hh, dd, cols[k % 3], '#c8703a'); y += hh; ww *= 0.9; dd *= 0.9; }
   }
 
+  /* ---------------- Dünyadaki gerçek kasaba ----------------
+     Haritadaki kasaba 3D kurulur: binalar karo konumu, boyutu, türü ve renkleriyle,
+     zemin oyundaki karo renkleriyle (sokak, kaldırım, tahta, çimen), üstüne ağaç, fener,
+     kuyu, yalak, çit, sandık ve fıçılar. 1 karo = 1 birim; dünyanın güneyi (+y) varsayılan
+     olarak sahnenin +z'sidir, rot ile döndürülür (dünyanın +x'i (cos rot, sin rot) yönüne düşer).
+     Dünya yoksa (ana menüde deneme) null döner; sahne o zaman kendi kasabasını çizer. */
+  function worldTown(m, g, id, o = {}) {
+    const W = typeof G !== 'undefined' && G.world;
+    const T = W && W.towns.find(t => t.id === id);
+    if (!T) return null;
+    const rot = o.rot || 0, cr = Math.cos(rot), sr = Math.sin(rot), Y = o.y || 0;
+    const ax = o.anchor ? o.anchor[0] : T.cx, ay = o.anchor ? o.anchor[1] : T.cy, at = o.at || [0, 0, 0];
+    const P = (px, py) => { const dx = (px - ax) / TS, dy = (py - ay) / TS; return [at[0] + cr * dx - sr * dy, at[2] + sr * dx + cr * dy]; };
+    const tileC = TINFO.map(t => C(t.c));
+    // zemin: kasaba elipsinin içindeki karolar (su hariç)
+    const inT = (tx, ty, k = 1.12) => { const dx = (tx - T.cx / TS) / (T.rx + 2), dy = (ty - T.cy / TS) / (T.ry + 2); return dx * dx + dy * dy < k; };
+    for (let ty = T.y - 4; ty < T.y + T.h + 4; ty++) for (let tx = T.x - 4; tx < T.x + T.w + 4; tx++) {
+      if (!inT(tx, ty) || !W.inb(tx, ty)) continue;
+      const tt = W.tile[ty * WW + tx]; if (TINFO[tt].water) continue;
+      const c = tileC[tt], j = (hash2(tx, ty, 61) - 0.5) * 0.05, col = [c[0] + j, c[1] + j, c[2] + j];
+      const a = P(tx * TS, ty * TS), b = P((tx + 1) * TS, ty * TS), cc = P((tx + 1) * TS, (ty + 1) * TS), d = P(tx * TS, (ty + 1) * TS), yy = Y + 0.1;
+      m.face([[a[0], yy, a[1]], [d[0], yy, d[1]], [cc[0], yy, cc[1]], [b[0], yy, b[1]]], [0, 1, 0], col);
+    }
+    // eşyalar (binaların içindekiler hariç)
+    const R = new RNG(id.length * 97 + (T.x | 0));
+    for (let ty = T.y - 2; ty < T.y + T.h + 2; ty++) for (let tx = T.x - 2; tx < T.x + T.w + 2; tx++) {
+      if (!inT(tx, ty, 1.05) || !W.inb(tx, ty)) continue;
+      const i = ty * WW + tx, ob = W.obj[i]; if (!ob || (W.flags[i] & 8)) continue;
+      const [x, z] = P(tx * TS + 8, ty * TS + 8);
+      if (ob === O.OAK || ob === O.BIRCH || ob === O.APPLE) tree(m, x, z, Y, R.range(0.55, 0.75), 'oak', R);
+      else if (ob === O.PINE || ob === O.SNOWPINE || ob === O.CYPRESS) tree(m, x, z, Y, R.range(0.55, 0.75), 'pine', R);
+      else if (ob === O.SAGUARO || ob === O.CACTUS) tree(m, x, z, Y, 0.6, 'saguaro', R);
+      else if (ob === O.LAMP) { m.box(x, Y, z, 0.12, 2.4, 0.12, '#2a2a2a'); m.box(x, Y + 2.4, z, 0.36, 0.08, 0.36, '#2a2a2a'); (o.night ? g : m).box(x, Y + 2.1, z, 0.26, 0.3, 0.26, o.night ? '#ffd080' : '#d8d0a0'); }
+      else if (ob === O.WELL) { m.cyl(x, Y, z, 0.6, 0.8, 8, '#8a8070', 'y', '#2a3a4a'); m.box(x, Y + 0.8, z, 0.1, 1.3, 0.1, '#5a3a22'); m.box(x, Y + 2.0, z, 1.2, 0.12, 0.12, '#5a3a22'); }
+      else if (ob === O.TROUGH) m.box(x, Y, z, 1.4, 0.55, 0.6, '#6a5040');
+      else if (ob === O.FENCEH || ob === O.FENCEV) { const v = ob === O.FENCEV; m.box(x, Y, z, 0.12, 1.0, 0.12, '#6a5038'); m.at(x, Y, z, rot + (v ? Math.PI / 2 : 0), () => { m.box(0, 0.7, 0, 1, 0.08, 0.06, '#7a5a3a'); m.box(0, 0.35, 0, 1, 0.08, 0.06, '#7a5a3a'); }); }
+      else if (ob === O.CRATE) m.box(x, Y, z, 0.6, 0.6, 0.6, '#8a6a40');
+      else if (ob === O.BARREL) m.cyl(x, Y, z, 0.3, 0.75, 8, '#7a5432', 'y', '#5a3a22');
+      else if (ob === O.HITCH) { m.box(x - 0.6, Y, z, 0.1, 1.0, 0.1, '#5a3a22'); m.box(x + 0.6, Y, z, 0.1, 1.0, 0.1, '#5a3a22'); m.box(x, Y + 0.9, z, 1.3, 0.08, 0.08, '#5a3a22'); }
+      else if (ob === O.BENCH) m.box(x, Y + 0.35, z, 1.2, 0.1, 0.4, '#6a4a2a');
+      else if (ob === O.FOUNTAIN) { m.cyl(x, Y, z, 1.4, 0.5, 10, '#a8a090', 'y', '#5a8aa0'); m.cyl(x, Y + 0.5, z, 0.25, 1.2, 8, '#a8a090'); }
+      else if (ob === O.STATUE) { m.box(x, Y, z, 0.9, 1.0, 0.9, '#9a9488'); m.box(x, Y + 1, z, 0.35, 1.3, 0.35, '#7a8a80'); }
+      else if (ob === O.HEDGE) m.box(x, Y, z, 1, 0.8, 1, '#4a6a34');
+      else if (ob === O.WINDMILL) { m.box(x, Y, z, 0.6, 7, 0.6, '#7a6a54'); m.box(x, Y + 7, z, 3.2, 0.3, 0.1, '#d0c8b8'); m.box(x, Y + 5.6, z, 0.1, 3.2, 0.3, '#d0c8b8'); }
+    }
+    // binalar
+    const out = { town: T, P, y: Y, rot, buildings: [], r: Math.max(T.rx, T.ry) + 4 };
+    for (const b of W.buildings) {
+      if (b.town !== id) continue;
+      const def = b.def || BUILDINGS[b.type]; if (!def) continue;
+      const [x, z] = P((b.x + b.w / 2) * TS, (b.y + b.h / 2) * TS), [dx, dz] = P(b.door.x, b.door.y);
+      out.buildings.push({ b, type: b.type, x, z, door: [dx, dz], w: b.w, d: b.h });
+      m.at(x, Y, z, -rot, () => { const o2 = g.T; g.T = m.T; build3d(m, g, b, def, !!o.night, R); g.T = o2; });
+    }
+    out.find = (type) => out.buildings.find(q => q.type === type) || null;
+    return out;
+  }
+  /* tek bina: yerel eksenlerde ön yüz +z (güney), taban 0 */
+  function build3d(m, g, b, def, night, R) {
+    const w = b.w, d = b.h, brick = def.brick || b.modern, wall = brick ? (def.brick ? def.wall : '#8a5a48') : def.wall, roofC = def.roof;
+    const H = def.tall ? 6.4 : def.church ? 5 : 3.6 + (w >= 10 ? 0.5 : 0), win = night ? g : m, wc = (k) => night ? (k % 3 ? '#ffc870' : '#ffb060') : '#5a7a90';
+    const fz = d / 2;
+    if (def.ruin) { for (const [a, c2] of [[-w / 2, 0], [w / 2, 0]]) m.box(a + (a < 0 ? 0.2 : -0.2), 0, c2, 0.4, R.range(1, 2.4), d * 0.8, '#5a4a3a'); m.box(0, 0, -fz + 0.2, w * 0.7, 1.6, 0.4, '#5a4a3a'); return; }
+    if (b.type === 'lighthouse') { m.cyl(0, 0, 0, 1.6, 13, 12, def.wall); m.cyl(0, 4, 0, 1.65, 1.2, 12, '#b0302a', 'y', false); m.cyl(0, 9, 0, 1.65, 1.2, 12, '#b0302a', 'y', false); (night ? g : m).cyl(0, 13, 0, 1.0, 1.2, 10, '#ffe8a0'); m.cone(0, 14.2, 0, 1.4, 1.5, 10, def.roof); return; }
+    if (b.type === 'mineentrance') { rock(m, R, 0, 0, -0.5, 2.2, '#6a6058'); m.box(0, 0, fz - 0.2, 2.6, 2.6, 0.5, '#2a2018'); for (const s of [-1.2, 1.2]) m.box(s, 0, fz, 0.25, 2.6, 0.25, '#6a4a2a'); m.box(0, 2.6, fz, 2.8, 0.25, 0.25, '#6a4a2a'); return; }
+    if (b.type === 'market') { for (let k = 0; k < 3; k++) { const x = -w / 2 + (k + 0.5) * w / 3; for (const [a, c2] of [[-1.4, -1], [1.4, -1], [-1.4, 1], [1.4, 1]]) m.box(x + a, 0, c2, 0.12, 2.2, 0.12, '#5a3a22'); m.box(x, 0.9, 0, 3, 0.1, 1.8, '#7a5a3a'); m.roof(x, 2.2, 0, 3.2, 0.6, 2.6, ['#c84a3a', '#e8d8a8', '#4a7aa0'][k], 0.1); } return; }
+    if (def.home || b.type === 'house' || b.type === 'ranch' || b.type === 'cabin' || b.type === 'hermit' || b.type === 'barn' || b.type === 'stable' || def.church || b.type === 'station' || b.type === 'lumber' || b.type === 'mill' || b.type === 'warehouse' || b.type === 'docks') {
+      // beşik çatılı yapılar (mahya z boyunca)
+      m.box(0, 0, 0, w, H, d, wall);
+      m.roof(0, H, 0, w, def.church ? 3 : Math.min(2.6, w * 0.28), d, roofC, 0.4);
+      if (def.church) { m.box(0, 0, fz - 1.2, 2.4, H + 5, 2.4, wall); m.cone(0, H + 5, fz - 1.2, 1.8, 3.6, 4, roofC); m.box(0, H + 8.6, fz - 1.2, 0.12, 1.2, 0.12, '#d8c080'); m.box(0, H + 9.2, fz - 1.2, 0.7, 0.12, 0.12, '#d8c080'); }
+      if (b.type === 'station') { m.box(0, 2.9, fz + 1.2, w + 1, 0.15, 2.6, roofC); for (const sx of [-w / 2, -w / 6, w / 6, w / 2]) m.box(sx, 0, fz + 2.3, 0.15, 2.9, 0.15, '#4a3a2a'); m.box(0, H + 0.4, fz + 0.06, Math.min(5, w - 2), 0.8, 0.08, def.sign || '#e0e0d0'); }
+      if (b.type === 'barn' || b.type === 'stable') { m.box(0, 0, fz + 0.03, Math.min(3.4, w - 2), 3, 0.06, shadeHex(wall, -0.3)); m.box(0, 0, fz + 0.06, 0.12, 3, 0.04, '#d8d0c0'); }
+      else m.box(0, 0.05, fz + 0.04, 1.1, 2.1, 0.06, '#2a1c12');
+      for (const sx of [-w / 3.2, w / 3.2]) if (w >= 6) win.box(sx, 1.2, fz + 0.04, 1.1, 1.0, 0.06, wc(sx > 0 ? 1 : 2));
+      if (b.type !== 'barn' && b.type !== 'stable' && b.type !== 'station') { m.box(0, 0, fz + 0.5, w, 0.2, 1.0, '#7a5a3a'); m.box(0, H * 0.72, fz + 0.6, w + 0.2, 0.15, 1.4, roofC); for (const sx of [-w / 2 + 0.2, w / 2 - 0.2]) m.box(sx, 0, fz + 1.1, 0.15, H * 0.72, 0.15, '#4a3422'); }
+      return;
+    }
+    // ticari yapı: sahte cephe, tabela, saçaklı veranda
+    m.box(0, 0, 0, w, H, d, wall, roofC);
+    m.box(0, H, -0.2, w, 0.25, d - 0.4, roofC);
+    const fh = H + 1.2 + (def.tall ? 0.6 : R.range(0, 0.8));
+    m.box(0, 0, fz + 0.12, w, fh, 0.25, shadeHex(wall, 0.05));                                   // sahte cephe
+    if (brick) for (let y = 0.6; y < fh; y += 0.6) m.box(0, y, fz + 0.26, w, 0.03, 0.02, shadeHex(wall, -0.18));
+    m.box(0, fh - 0.15, fz + 0.2, w + 0.3, 0.25, 0.45, shadeHex(roofC, -0.1));                   // korniş
+    (night ? g : m).box(0, fh - 1.15, fz + 0.27, Math.min(w - 1, 5.5), 0.75, 0.06, def.sign || '#d8c080');   // tabela
+    m.box(0, 0.05, fz + 0.27, 1.2, 2.2, 0.06, '#2a1c12');
+    const nw = Math.max(1, Math.floor((w - 2) / 2.6));
+    for (let k = 0; k < nw; k++) { const sx = -w / 2 + 1 + (k + 0.5) * (w - 2) / nw; if (Math.abs(sx) < 1) continue; win.box(sx, 1.0, fz + 0.27, 1.2, 1.2, 0.05, wc(k)); }
+    if (def.tall) { for (let k = 0; k < nw + 1; k++) { const sx = -w / 2 + 0.9 + (k + 0.5) * (w - 1.8) / (nw + 1); win.box(sx, 3.9, fz + 0.27, 1.0, 1.1, 0.05, wc(k + 1)); } m.box(0, 3.1, fz + 0.9, w, 0.15, 1.3, '#5a3a22'); for (let x = -w / 2; x <= w / 2; x += 0.5) m.box(x, 3.25, fz + 1.5, 0.06, 0.6, 0.06, '#5a3a22'); }
+    m.box(0, 2.75, fz + 1.15, w + 0.2, 0.15, 1.9, roofC);                                        // saçak
+    for (const sx of [-w / 2 + 0.2, -w / 6, w / 6, w / 2 - 0.2]) m.box(sx, 0, fz + 2.0, 0.16, 2.75, 0.16, '#4a3422');
+  }
   /* Karakter ve at: parçalar ayrı çizilir (bacaklar oynar) */
   function horseParts(L, col, look) {
     const body = new Mesh(L), leg = new Mesh(L);
@@ -549,7 +643,7 @@ const Cinema = (() => {
       const shotAt = (t) => { let a = 0; for (const sh of shots) { if (t < a + sh.d || sh === shots[shots.length - 1]) return sh.cam(t, cl01((t - a) / sh.d)); a += sh.d; } };
       const G = Object.assign({ lift: [0, 0, 0], gain: [1, 1, 1], sat: 1, con: 1 }, S.grade || {});
       // gölge: düşük grafik ayarında küçük harita; sahne kapatabilir (S.shadow === false)
-      const lowQ = typeof window !== 'undefined' && window.G && G.settings && G.settings.fxq;
+      const lowQ = typeof G !== 'undefined' && G.settings && G.settings.fxq;
       const shadowOn = !!(DP && S.shadow !== false && shadowTargets(lowQ ? 1024 : 2048));
       const nearH = S.shadowN || 26, farH = S.shadowR || 240, LD = V.norm(S.L.dir);
       let farM = null;
@@ -708,7 +802,7 @@ const Cinema = (() => {
   }
   /* Başka dosyalardaki sahneler (hikâye sinematikleri) aynı yapı taşlarını kullanır */
   const kit = {
-    M4, V, C, ease, cl01, flatW, Mesh, building, town, tree, mountain, mesa, horseParts, rider, personParts, drawHorse, tufts, rock,
+    M4, V, C, ease, cl01, flatW, Mesh, building, town, tree, mountain, mesa, horseParts, rider, personParts, drawHorse, tufts, rock, worldTown,
     build: (m) => m.build(gl), blob: () => blob,
   };
   function addScene(id, fn) { SCENES[id] = fn; }

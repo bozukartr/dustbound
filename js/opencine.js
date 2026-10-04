@@ -139,6 +139,22 @@
   function gullParts(L) { const b = new Mesh(L), w = new Mesh(L); b.box(0, 0, 0, 0.14, 0.12, 0.5, '#f4f4f0'); b.box(0, 0.02, 0.28, 0.05, 0.04, 0.1, '#e0a030'); w.box(0.35, 0, 0, 0.7, 0.03, 0.22, '#e8e8e4'); w.box(0.68, 0, -0.02, 0.1, 0.03, 0.18, '#2a2a2a'); return { b: K.build(b), w: K.build(w) }; }
   function drawGull(D, G, x, y, z, ang, t) { const base = M4.chain(M4.tr(x, y, z), M4.ry(ang)), f = Math.sin(t * 9) * 0.6; D.push([G.b, base]); D.push([G.w, M4.chain(base, M4.rz(f))]); D.push([G.w, M4.chain(base, M4.ry(Math.PI), M4.rz(f))]); }
 
+  /* dünyadaki kasabanın sahnedeki yarıçapı (karo) ve ana caddesinin açısı; dünya yoksa varsayılan */
+  function townGeo(id) {
+    const W = typeof G !== 'undefined' && G.world, T = W && W.towns.find(t => t.id === id);
+    if (!T) return { r: 34, ang: 0, T: null };
+    const g0 = T.gates[0], g1 = T.gates[T.gates.length - 1];
+    return { r: Math.max(T.rx, T.ry) + 6, ang: g0 && g1 ? Math.atan2(g1.y - g0.y, g1.x - g0.x) : 0, T };
+  }
+  /* kasabanın oturduğu düzlük: merkez çevresinde zemin y'ye yaslanır */
+  const flatAt = (h, x, z, cx, cz, r, y) => { const d = Math.hypot(x - cx, z - cz), k = cl01((d - r) / 26); return y + (h - y) * k * k * (3 - 2 * k); };
+  /* gerçek kasabayı kur; dünya yoksa eski sokak dizisi */
+  function placeTown(m, g, R, id, at, rot, y, night, fallback, anchor) {
+    const WT = K.worldTown(m, g || new Mesh(GLOW), id, { at: [at[0], 0, at[2]], rot, y, night, anchor });
+    if (!WT && fallback) fallback();
+    return WT;
+  }
+
   /* ortak gök/ışık kurulumu */
   function scene(L, sky, fog, fogD, extra) { return Object.assign({ L, static: [], sky, fog, fogD }, extra || {}); }
   function done(S, meshes) { for (const m of meshes) if (m && m.v.length) S.static.push(K.build(m)); return S; }
@@ -148,8 +164,9 @@
     o = o || {};
     const L = LIGHT([0.9, 0.24, 0.22], 0.52, 0.85, '#a8b0d0', '#ffc890');
     const m = new Mesh(L), g = new Mesh(GLOW);
-    const RZ = 16;   // yol: x ekseni boyunca
-    const hf = (x, z) => { const h = Math.sin(x * 0.018) * Math.cos(z * 0.021) * 6 + Math.sin(x * 0.05 + z * 0.03) * 1.4 + Math.max(0, -z - 80) * 0.05; return h * Math.min(1, Math.abs(z - RZ) / 16) * flatW(x, z, -40, 46, -34, 30, 30); };
+    const RZ = 16, HX = -150, HG = townGeo('harlow');   // yol: x ekseni boyunca; Harlow batıda, yolun sonunda
+    const hf0 = (x, z) => { const h = Math.sin(x * 0.018) * Math.cos(z * 0.021) * 6 + Math.sin(x * 0.05 + z * 0.03) * 1.4 + Math.max(0, -z - 80) * 0.05; return h * Math.min(1, Math.abs(z - RZ) / 16) * flatW(x, z, -40, 46, -34, 30, 30); };
+    const hf = (x, z) => flatAt(hf0(x, z), x, z, HX, RZ, HG.r, 0);
     const field = (x, z) => x > 9 && x < 44 && z > -30 && z < 8;
     const plains = ground(['#9a8a4a', '#b0965a', '#c4a466', '#b89c5c', '#a89a58']);
     m.terrain(-330, -260, 330, 280, 5, hf, (x, z) => {
@@ -197,8 +214,8 @@
     m.box(5.42, 0.26, 13.24, 0.12, 0.14, 0.1, '#5a5a60');                                                               // asma kilit
     deadTree(m, R, 9, hf(9, 18.5), 18.5, 1.3);
     // uzak: Harlow batıda, yolun sonunda; çevrede ağaç, dağ
-    m.at(-150, hf(-150, RZ), RZ, Math.PI / 2, () => K.town(m, R, 0, -22, 26, { street: 6, gable: 0.4, tower: false }));
-    for (let k = 0; k < 40; k++) { const x = R.range(-300, 300), z = R.range(-240, 260); if ((Math.abs(z - RZ) < 10) || (x > -45 && x < 50 && z > -40 && z < 30) || (x < -120 && x > -190 && Math.abs(z - RZ) < 40)) continue; K.tree(m, x, z, hf(x, z), R.range(0.9, 1.5), R.chance(0.5) ? 'dry' : 'oak', R); }
+    placeTown(m, g, R, 'harlow', [HX, 0, RZ], -HG.ang, 0, false, () => m.at(HX, 0, RZ, Math.PI / 2, () => K.town(m, R, 0, -22, 26, { street: 6, gable: 0.4, tower: false })));
+    for (let k = 0; k < 40; k++) { const x = R.range(-300, 300), z = R.range(-240, 260); if ((Math.abs(z - RZ) < 10) || (x > -45 && x < 50 && z > -40 && z < 30) || Math.hypot(x - HX, z - RZ) < HG.r + 8) continue; K.tree(m, x, z, hf(x, z), R.range(0.9, 1.5), R.chance(0.5) ? 'dry' : 'oak', R); }
     for (let k = 0; k < 7; k++) K.mountain(m, -420 + k * 140 + R.range(-30, 30), -320 - R.range(0, 90), R.range(90, 130), R.range(45, 80), '#8a90a0', '#e8ecf0');
     K.tufts(m, R, 900, -40, -10, 40, 30, hf, ['#b8a060', '#a89450', '#c8b070', '#8a8a48'], (x, z) => Math.abs(z - RZ) < 2.6 || field(x, z) || (x > -11 && x < -1 && z > -4 && z < 6), 1.1);
     for (let k = 0; k < 14; k++) { const x = R.range(-40, 40), z = R.range(21, 42); K.rock(m, R, x, hf(x, z), z, R.range(0.3, 0.8), '#8a7a62'); }
@@ -247,14 +264,16 @@
     const L = LIGHT([0.92, 0.2, -0.3], 0.52, 0.9, '#9a88b0', '#ffb070');
     const m = new Mesh(L), g = new Mesh(GLOW);
     // kaya cebi: kamp çukurda, doğuya (güneşe ve kasabaya) açık
-    const hf = (x, z) => { const r = Math.hypot(x, z), a = Math.atan2(z, x), open = Math.max(0, Math.cos(a)) ** 3;
+    const DX = 150, DZ = -26, DG = townGeo('dustcreek');
+    const hf0 = (x, z) => { const r = Math.hypot(x, z), a = Math.atan2(z, x), open = Math.max(0, Math.cos(a)) ** 3;
       const wall = Math.max(0, r - 16) * 0.55 * (1 - open * 0.92); return Math.min(wall, 14) + (Math.sin(x * 0.04 + z * 0.03) * 2 + Math.sin(z * 0.07) * 0.8) * flatW(x, z, -14, 14, -14, 14, 20); };
+    const hf = (x, z) => flatAt(hf0(x, z), x, z, DX, DZ, DG.r, 0);
     const sand = ground(['#a85a38', '#c0703f', '#cc8048', '#b86a40', '#d08a52'], 0.035, 21);
     m.terrain(-300, -260, 340, 260, 5, hf, (x, z) => hf(x, z) > 5 ? (hash2(x | 0, z | 0, 3) < 0.5 ? '#9a4a30' : '#a85634') : sand(x, z));
     // kaya duvarları ve sütunlar
     for (let k = 0; k < 8; k++) { const a = R.range(1.2, TAU - 1.2), r = R.range(10, 14), x = Math.cos(a) * r, z = Math.sin(a) * r, sz = R.range(0.8, 1.6); K.rock(m, R, x, hf(x, z), z, sz, R.pick(['#b8603a', '#a85634', '#c0703f'])); }
     for (let k = 0; k < 9; k++) { const s = k % 2 ? 1 : -1; K.mesa(m, R.range(-260, 120), s * R.range(70, 220), R.range(30, 70), R.range(25, 55), R.range(18, 40), R); }
-    for (let k = 0; k < 40; k++) { const x = R.range(-150, 260), z = R.range(-200, 200); if (Math.hypot(x, z) < 20) continue; K.tree(m, x, z, hf(x, z), R.range(0.8, 1.4), R.chance(0.6) ? 'saguaro' : 'dry', R); }
+    for (let k = 0; k < 40; k++) { const x = R.range(-150, 260), z = R.range(-200, 200); if (Math.hypot(x, z) < 20 || Math.hypot(x - DX, z - DZ) < DG.r + 6) continue; K.tree(m, x, z, hf(x, z), R.range(0.8, 1.4), R.chance(0.6) ? 'saguaro' : 'dry', R); }
     K.tufts(m, R, 500, -24, -24, 40, 24, hf, ['#8a7a48', '#9a8a50', '#7a6a40'], (x, z) => Math.hypot(x, z) < 3.2, 0.9);
     // kamp
     campfire(m, g, 0, 0, 0);
@@ -270,7 +289,7 @@
     for (const x of [5.5, 10]) m.box(x, 0, -3.5, 0.16, 1.4, 0.16, '#5a3a22');
     m.box(7.75, 1.2, -3.5, 4.5, 0.04, 0.04, '#8a7a5a');                                                      // at ipi
     // uzakta, gün doğumunun önünde Dust Creek
-    m.at(210, hf(210, -40), -40, -Math.PI / 2, () => K.town(m, R, 0, -24, 24, { street: 6, gable: 0.1, church: false }));
+    placeTown(m, g, R, 'dustcreek', [DX, 0, DZ], Math.PI / 2 - DG.ang, 0, false, () => m.at(DX, 0, DZ, -Math.PI / 2, () => K.town(m, R, 0, -24, 24, { street: 6, gable: 0.1, church: false })));
     const S = scene(L, { top: '#3a3a6a', hor: '#f4a060', sun: [0.95, 0.1, -0.3], sunC: '#ffd890', sunR: 0.065 }, '#e09a70', 0.0046, { fogH: 2, shadowC: [0, 0, 0], shadowR: 60, shadowN: 14 });
     S.grade = { lift: [0.05, 0.02, 0.05], gain: [1.1, 0.97, 0.88], sat: 1.1, con: 1.08 };
     S.cloud = 0.36; S.cloudC = '#f8b090';
@@ -334,7 +353,9 @@
     const L = LIGHT([0.45, 0.55, 0.7], 0.58, 0.72, '#b8c8e0', '#fff0d8');
     const m = new Mesh(L), g = new Mesh(GLOW);
     const SH = -18;   // kıyı çizgisi
-    const hf = (x, z) => { const sh = SH + Math.sin(x * 0.04) * 4; if (z > sh) return -2 - (z - sh) * 0.08; const d = sh - z; return Math.min(1.2, d * 0.3) + Math.max(0, d - 14) * 0.18 * (1 + Math.sin(x * 0.03) * 0.3) + Math.sin(x * 0.07 + z * 0.05) * 0.6 * Math.min(1, d / 10); };
+    const SG = townGeo('stclement'), SR = SG.T ? SG.T.rx : 30, SX0 = -6, SZ0 = SH - 6 - SR, SY = 1.6;
+    const hf0 = (x, z) => { const sh = SH + Math.sin(x * 0.04) * 4; if (z > sh) return -2 - (z - sh) * 0.08; const d = sh - z; return Math.min(1.2, d * 0.3) + Math.max(0, d - 14) * 0.18 * (1 + Math.sin(x * 0.03) * 0.3) + Math.sin(x * 0.07 + z * 0.05) * 0.6 * Math.min(1, d / 10); };
+    const hf = (x, z) => { const h = hf0(x, z), k = cl01((SH - 2 - z) / 8); return k > 0 ? h + (flatAt(h, x, z, SX0, SZ0, SG.r, SY) - h) * k : h; };
     const grass = ground(['#6a8a48', '#7a9a50', '#86a458', '#70904a'], 0.04, 31);
     m.terrain(-300, -260, 300, -4, 4, hf, (x, z) => { const y = hf(x, z); return y < 0.4 ? '#c8b888' : y < 1.3 && z > SH - 6 ? '#b8a878' : grass(x, z); });
     // iskele: kıyıdan denize, kazıklar üstünde
@@ -345,18 +366,19 @@
     crate(m, -1.2, PY, -6, 0.2, 0.9); crate(m, -1.4, PY + 0.9, -5.9, 0.6, 0.6); crate(m, -0.9, PY, -4.9, 0.1, 0.7, '#7a5a3a'); barrel(m, 1.2, PY, -2, '#6a4a2a'); barrel(m, 1.4, PY, -1.1);
     for (let k = 0; k < 6; k++) m.box(-1.5 + R.range(-0.3, 0.3), PY, 2 + k * 0.7, 0.6, 0.35, 0.5, '#c8b890');                     // çuvallar
     // vinç direği
-    m.at(-1.6, PY, 20, 0, () => { m.box(0, 0, 0, 0.3, 6, 0.3, '#5a3a22'); m.at(0, 5.6, 0, 0, () => { m.T = M4.mul(m.T, M4.rz(-1.1)); m.box(0, 0, 0, 0.2, 5, 0.2, '#6a4a2a'); }); m.box(2.8, 1.6, 0, 0.03, 3.4, 0.03, '#2a2a2a'); crate(m, 2.8, 1.0, 0, 0.3, 0.7); });
+    m.at(-1.6, PY, 27, 0, () => { m.box(0, 0, 0, 0.3, 6, 0.3, '#5a3a22'); m.at(0, 5.6, 0, 0, () => { m.T = M4.mul(m.T, M4.rz(-1.1)); m.box(0, 0, 0, 0.2, 5, 0.2, '#6a4a2a'); }); m.box(2.8, 1.6, 0, 0.03, 3.4, 0.03, '#2a2a2a'); crate(m, 2.8, 1.0, 0, 0.3, 0.7); });
     // liman binaları ve tepedeki kasaba; Greta'nın pansiyonu iskelenin başında
-    m.at(-12, hf(-12, -30), -30, 0, () => { m.box(0, 0, 0, 9, 7.6, 7, '#d8c8a8'); m.roof(0, 7.6, 0, 9, 2.4, 7, '#5a3a32', 0.4); m.box(0, 0, 3.6, 9.2, 0.25, 2.2, '#7a6a52'); m.box(0, 3.0, 3.7, 9.4, 0.2, 2.4, '#5a3a32');
+    const WT = placeTown(m, g, R, 'stclement', [SX0, 0, SZ0], Math.PI / 2, SY, false, () => m.at(-6, hf(-6, -70), -70, 0, () => K.town(m, R, 0, -10, 40, { street: 7, gable: 0.4, tower: false })));
+    const HOT = WT && WT.find('hotel'), HP0 = HOT ? [HOT.door[0], SY + 3, HOT.door[1]] : [-10, 4, -32];
+    if (!WT) m.at(-12, hf(-12, -30), -30, 0, () => { m.box(0, 0, 0, 9, 7.6, 7, '#d8c8a8'); m.roof(0, 7.6, 0, 9, 2.4, 7, '#5a3a32', 0.4); m.box(0, 0, 3.6, 9.2, 0.25, 2.2, '#7a6a52'); m.box(0, 3.0, 3.7, 9.4, 0.2, 2.4, '#5a3a32');
       for (const sx of [-3, 0, 3]) for (const yy of [1.2, 4.2]) m.box(sx, yy, 3.51, 1.1, 1.3, 0.06, '#3a4a5a'); m.box(0, 0.2, 3.52, 1.2, 2.2, 0.06, '#4a2e1e');
       m.box(0, 6.2, 3.56, 5.4, 0.9, 0.08, '#2a3a4a'); m.box(0, 6.25, 3.6, 4.8, 0.7, 0.02, '#e8dcb8');
       for (let k = 0; k < 7; k++) m.box(-2.0 + k * 0.62, 6.5, 3.62, 0.36, 0.3, 0.01, '#2a2a3a'); });
-    m.at(14, hf(14, -26), -26, 0, () => { m.box(0, 0, 0, 12, 5, 8, '#8a7a6a'); m.roof(0, 5, 0, 12, 2, 8, '#4a4a50', 0.3); m.box(0, 0, 4.02, 4, 3.6, 0.06, '#2a2016'); });   // ambar
-    m.at(-6, hf(-6, -70), -70, 0, () => K.town(m, R, 0, -10, 40, { street: 7, gable: 0.4, tower: false }));
+    if (!WT) m.at(14, hf(14, -26), -26, 0, () => { m.box(0, 0, 0, 12, 5, 8, '#8a7a6a'); m.roof(0, 5, 0, 12, 2, 8, '#4a4a50', 0.3); m.box(0, 0, 4.02, 4, 3.6, 0.06, '#2a2016'); });   // ambar
     // deniz feneri ve kayalık
     m.at(-58, 0, -14, 0, () => { for (let k = 0; k < 6; k++) K.rock(m, R, R.range(-4, 4), -1.2, R.range(-3, 3), R.range(1.5, 2.6), '#7a7a74'); m.cyl(0, 0.5, 0, 2.1, 14, 12, '#e8e0d8'); m.cyl(0, 5.5, 0, 2.15, 1.5, 12, '#b0302a', 'y', false); m.cyl(0, 10.5, 0, 2.15, 1.5, 12, '#b0302a', 'y', false); m.cyl(0, 14.5, 0, 1.4, 1.6, 10, '#3a3a3a'); m.cone(0, 16.1, 0, 1.9, 1.8, 10, '#a02a20'); });
     g.cyl(-58, 15.0, -14, 1.2, 1.0, 10, '#ffe8a0');
-    for (let k = 0; k < 30; k++) { const x = R.range(-280, 280), z = R.range(-240, -50); if (Math.abs(x + 6) < 34 && z > -130) continue; K.tree(m, x, z, hf(x, z), R.range(1, 1.7), 'oak', R); }
+    for (let k = 0; k < 30; k++) { const x = R.range(-280, 280), z = R.range(-240, -50); if ((Math.abs(x + 6) < 34 && z > -130) || Math.hypot(x - SX0, z - SZ0) < SG.r + 6) continue; K.tree(m, x, z, hf(x, z), R.range(1, 1.7), 'oak', R); }
     for (let k = 0; k < 5; k++) K.mountain(m, -380 + k * 170 + R.range(-30, 30), -330 - R.range(0, 60), R.range(100, 140), R.range(50, 85), '#7a8a98', '#eef2f4');
     K.tufts(m, R, 300, -60, -60, 60, -16, hf, ['#5a7a3a', '#6a8a44', '#7a9a50'], (x, z) => hf(x, z) < 0.6 || (Math.abs(x + 12) < 6 && Math.abs(z + 30) < 6), 1);
     const S = scene(L, { top: '#3a7ac0', hor: '#d8e8f0', sun: [0.45, 0.5, 0.75], sunC: '#fff8e8', sunR: 0.045 }, '#c8d8e4', 0.0032, { shadowC: [0, 0, 0], shadowR: 80, shadowN: 26 });
@@ -399,7 +421,7 @@
       // iskeleden yan: gemi yanaşır, bacalardan duman; iskelede bekleyen kadın
       { d: T2 - T1, cam: (t, u) => { const z = sz(t); return { e: [-3.5 - u * 1.5, 2.6, 2 + u * 1.5], c: [SX * 0.6, 3, Math.max(z, 14) + 2] }; } },
       // iskelede alçaktan: oyuncu iskele tahtasından iner; vinç yükselir, pansiyon ve kasaba
-      { d: 6.2, cam: (t, u) => { const p = walkP(t), k = ease(cl01((u - 0.45) / 0.55)); return { e: V.lerp([-1.1, PY + 1.7, -0.8], [5, 10, 9], k), c: V.lerp([p[0], p[1] + 1.1, p[2]], [-10, 4, -32], k) }; } },
+      { d: 6.2, cam: (t, u) => { const p = walkP(t), k = ease(cl01((u - 0.45) / 0.55)); return { e: V.lerp([-1.1, PY + 1.7, -0.8], [5, 10, 9], k), c: V.lerp([p[0], p[1] + 1.1, p[2]], HP0, k) }; } },
     ];
     S.capAt = T2 + 0.8; S.lineAt = 0.8;
     S.cap = { s: Tr('Yeni bir dünya, yeni bir hayat.') };
@@ -441,7 +463,11 @@
     const L = LIGHT([-0.88, 0.22, -0.4], 0.52, 0.85, '#a0a8c8', '#ffc898');
     const m = new Mesh(L), g = new Mesh(GLOW);
     const RE = -12, TZ = 170;   // ray başı; Fort Redstone istasyonu
-    const hf = (x, z) => (Math.sin(x * 0.02) * Math.cos(z * 0.02) * 4 + Math.sin(x * 0.06 + z * 0.02) * 1) * Math.min(1, Math.abs(x) / 26) * flatW(x, z, -50, 40, -40, 30, 30) * flatW(x, z, -60, 12, TZ - 50, TZ + 70, 30);
+    const FG = townGeo('fortmercy'), FT = FG.T, RP = FT && FT.railPt ? [FT.railPt.x * TS + 8, FT.railPt.y * TS + 8] : null;
+    const hf0 = (x, z) => (Math.sin(x * 0.02) * Math.cos(z * 0.02) * 4 + Math.sin(x * 0.06 + z * 0.02) * 1) * Math.min(1, Math.abs(x) / 26) * flatW(x, z, -50, 40, -40, 30, 30);
+    // kasaba merkezi: istasyonun ray noktasından (rayın batısında) kasaba merkezine
+    const TC = FT && RP ? [(FT.cy - RP[1]) / TS, TZ - (FT.cx - RP[0]) / TS] : [-40, TZ];
+    const hf = (x, z) => flatAt(hf0(x, z), x, z, TC[0], TC[1], FG.r, 0) * flatW(x, z, -60, 12, TZ - 50, TZ + 70, 30);
     const prairie = ground(['#9a9048', '#b0a05a', '#a89a50', '#bcaa64', '#8a8a44'], 0.03, 41);
     m.terrain(-280, -220, 280, 380, 5, hf, (x, z) => Math.abs(x) < 2.2 && z > RE - 12 ? '#8a7a5a' : prairie(x, z));
     // ray yolu: traversler, raylar (ray başında biter), ötesi tesviye edilmiş toprak
@@ -458,12 +484,13 @@
     m.at(14, 0, 3.5, 0.2, () => { m.box(0, 0.75, 0, 2.4, 0.08, 1, '#7a5a3a'); for (const [a, b] of [[-1, -0.4], [1, -0.4], [-1, 0.4], [1, 0.4]]) m.box(a, 0, b, 0.1, 0.75, 0.1, '#5a3a22'); m.cyl(-0.6, 0.8, 0, 0.1, 0.12, 6, '#7a7a80'); m.cyl(0.3, 0.8, 0.1, 0.1, 0.12, 6, '#7a7a80'); });
     bedroll(m, 8.6, 0.02, 2.6, 1.2, '#5a3a2a'); barrel(m, 6.5, 0, -5.5, '#6a4a2a'); crate(m, 7.2, 0, -6.5, 0.3, 0.8);
     m.at(16, 0, 6, 0, () => { for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) m.box(a * 1.4, 0, b * 1.4, 0.3, 6, 0.3, '#5a3a22'); m.cyl(0, 6, 0, 2.2, 2.4, 12, '#7a5a3a', 'y', '#6a4a2a'); m.cone(0, 8.4, 0, 2.4, 1.1, 12, '#5a4030'); });   // su deposu
-    // Fort Redstone: istasyon, peron, kasaba
-    m.box(-4.4, 0, TZ, 4, 0.7, 40, '#7a5a3a');
-    m.at(-10, 0, TZ, Math.PI / 2, () => { m.box(0, 0, 0, 16, 4.2, 7, '#7a6a50'); m.roof(0, 4.2, 0, 16, 1.6, 7, '#3a4a5a', 0.3); m.box(0, 2.5, 5.2, 18, 0.2, 3.4, '#3a4a5a'); for (const sx of [-7.5, -2.5, 2.5, 7.5]) m.box(sx, 0, 6.6, 0.18, 2.5, 0.18, '#4a3a2a'); m.box(0, 5.6, 3.6, 6, 0.9, 0.1, '#e0e0d0'); m.box(0, 0.2, 3.52, 1.2, 2.2, 0.06, '#3a2a1a'); });
-    for (let k = 0; k < 4; k++) barrel(m, -3.2, 0.7, TZ - 12 + k * 0.8, '#6a4a2a');
-    m.at(-40, 0, TZ, 0, () => K.town(m, R, 0, -30, 40, { street: 7 }));
-    for (let k = 0; k < 30; k++) { const x = R.range(-250, 250), z = R.range(-200, 360); if (Math.abs(x) < 14 || (x < -15 && x > -75 && Math.abs(z - TZ) < 60) || (x > 4 && x < 22 && z > -12 && z < 12)) continue; K.tree(m, x, z, hf(x, z), R.range(0.9, 1.4), R.chance(0.4) ? 'dry' : 'oak', R); }
+    // Fort Redstone: haritadaki kasaba; istasyonun önündeki ray noktası sahnedeki raya oturur
+    const WT = RP ? placeTown(m, g, R, 'fortmercy', [0, 0, TZ], -Math.PI / 2, 0, false, null, RP) : null;
+    if (!WT) m.box(-4.4, 0, TZ, 4, 0.7, 40, '#7a5a3a');
+    if (!WT) m.at(-10, 0, TZ, Math.PI / 2, () => { m.box(0, 0, 0, 16, 4.2, 7, '#7a6a50'); m.roof(0, 4.2, 0, 16, 1.6, 7, '#3a4a5a', 0.3); m.box(0, 2.5, 5.2, 18, 0.2, 3.4, '#3a4a5a'); for (const sx of [-7.5, -2.5, 2.5, 7.5]) m.box(sx, 0, 6.6, 0.18, 2.5, 0.18, '#4a3a2a'); m.box(0, 5.6, 3.6, 6, 0.9, 0.1, '#e0e0d0'); m.box(0, 0.2, 3.52, 1.2, 2.2, 0.06, '#3a2a1a'); });
+    if (!WT) m.at(-40, 0, TZ, 0, () => K.town(m, R, 0, -30, 40, { street: 7 }));
+    const ST = WT && WT.find('station'), SXs = ST ? ST.x : -10;
+    for (let k = 0; k < 30; k++) { const x = R.range(-250, 250), z = R.range(-200, 360); if (Math.abs(x) < 14 || Math.hypot(x - TC[0], z - TC[1]) < FG.r + 8 || (x > 4 && x < 22 && z > -12 && z < 12)) continue; K.tree(m, x, z, hf(x, z), R.range(0.9, 1.4), R.chance(0.4) ? 'dry' : 'oak', R); }
     for (let k = 0; k < 6; k++) K.mountain(m, -420 + k * 160, -360 - R.range(0, 80), R.range(110, 150), R.range(60, 95), '#8a92a0', '#eef0f2');
     K.tufts(m, R, 700, -20, -30, 30, 30, hf, ['#a89a50', '#b8aa60', '#8a8a44'], (x, z) => Math.abs(x) < 2.4 || (x > 9.5 && x < 13 && Math.abs(z - 2.2) < 1.6), 1);
     const S = scene(L, { top: '#4a68a0', hor: '#f0c8a0', sun: [-0.9, 0.12, -0.4], sunC: '#ffe0b0', sunR: 0.06 }, '#e0c8b0', 0.0045, { fogH: 3, shadowC: [6, 0, 0], shadowR: 70, shadowN: 20 });
@@ -521,7 +548,9 @@
     const L = LIGHT([0.35, 0.62, 0.55], 0.66, 0.42, '#b8c4d4', '#f4f0e8');
     const m = new Mesh(L);
     // açıklık kulübenin önünde; arazi güneydoğuya, vadideki kasabaya doğru iner
-    const hf = (x, z) => (Math.sin(x * 0.05) * Math.cos(z * 0.04) * 2.2 + Math.sin(x * 0.11 + z * 0.07) * 0.6) * flatW(x, z, -12, 10, -8, 10, 14) - Math.max(0, z - 16) * 0.16 - Math.max(0, z - 90) * 0.12;
+    const CX = 26, CG = townGeo('cedarfalls'), CZ = 104 + CG.r * 0.4;
+    const hf0 = (x, z) => (Math.sin(x * 0.05) * Math.cos(z * 0.04) * 2.2 + Math.sin(x * 0.11 + z * 0.07) * 0.6) * flatW(x, z, -12, 10, -8, 10, 14) - Math.max(0, z - 16) * 0.16 - Math.max(0, z - 90) * 0.12;
+    const VY = hf0(CX, CZ - CG.r * 0.6), hf = (x, z) => flatAt(hf0(x, z), x, z, CX, CZ, CG.r, VY);
     const snow = ground(['#d0d8e4', '#dce4ee', '#e8eef4', '#f0f4f8'], 0.05, 51);
     const trail = (x, z) => z < 2 && Math.abs(z + 2 - (x + 8) * 0.15) < 1.2 && x < -6;
     m.terrain(-260, -220, 260, 320, 4, hf, (x, z) => trail(x, z) ? '#c4ccd8' : snow(x, z));
@@ -533,12 +562,11 @@
     m.at(-2.5, 0, 6, 0.7, () => { m.box(0, 0.25, 0, 0.9, 0.08, 2.2, '#7a5a3a'); for (const sx of [-0.4, 0.4]) m.box(sx, 0, 0, 0.06, 0.25, 2.4, '#5a3a22'); m.box(0, 0.33, 0.2, 0.8, 0.12, 1.4, '#eef2f6'); });
     m.box(-0.2, 0, 3.15, 1.6, 0.3, 0.9, '#eef2f6');                                                               // kapı önü kar birikintisi
     // çam ormanı (kar yüklü); açıklık ve iz boş kalır
-    for (let k = 0; k < 230; k++) { const x = R.range(-200, 200), z = R.range(-200, 120); if (Math.hypot(x, z - 2) < 14 || trail(x, z) || (x > -1 && x < 12 && z > 4 && z < 100)) continue; snowPine(m, x, hf(x, z), z, R.range(1.0, 2.2)); }
+    for (let k = 0; k < 230; k++) { const x = R.range(-200, 200), z = R.range(-200, 120); if (Math.hypot(x, z - 2) < 14 || trail(x, z) || (x > -1 && x < 12 && z > 4 && z < 100) || Math.hypot(x - CX, z - CZ) < CG.r + 6) continue; snowPine(m, x, hf(x, z), z, R.range(1.0, 2.2)); }
     for (let k = 0; k < 7; k++) K.mountain(m, -420 + k * 140, -300 - R.range(0, 80), R.range(100, 140), R.range(90, 130), '#6a7a88', '#eef2f6');
     // vadide Cedar Falls: kasaba, nehir, bacalardan duman
-    const VY = hf(26, 112);
-    m.at(26, VY, 112, 0.2, () => K.town(m, R, 0, -30, 30, { street: 7, gable: 0.8, tower: false }));
-    m.box(26, VY - 0.8, 150, 260, 0.6, 9, '#5a7a90');
+    placeTown(m, null, R, 'cedarfalls', [CX, 0, CZ], Math.PI / 2 - CG.ang, VY, false, () => m.at(CX, VY, CZ, 0.2, () => K.town(m, R, 0, -30, 30, { street: 7, gable: 0.8, tower: false })));
+    m.box(CX, VY - 0.8, CZ + CG.r + 10, 260, 0.6, 9, '#5a7a90');
     K.tufts(m, R, 200, -14, -6, 14, 14, hf, ['#8a9070', '#a0a088'], (x, z) => Math.abs(x) < 4.5 && Math.abs(z) < 4, 0.7);
     const S = scene(L, { top: '#8a9aac', hor: '#d8dfe4', sun: [0.35, 0.55, 0.55], sunC: '#f4f4ee', sunR: 0.03 }, '#c8d2da', 0.0056, { fogH: 4, shadowC: [0, 0, 4], shadowR: 60, shadowN: 18 });
     S.grade = { lift: [0.02, 0.03, 0.05], gain: [0.96, 1.0, 1.04], sat: 0.84, con: 1.04 };
@@ -557,7 +585,7 @@
       // açıklığın kıyısında oyuncu, babasının gittiği karla kapanmış iz
       { d: T2 - T1, cam: (t, u) => ({ e: [-4.4 + u * 0.3, 1.8, 5.4], c: [-22, 1.4, -0.5 - u * 0.5], shake: 0.008 }) },
       // atla vadiye iniş; vinç kasabayı ve dumanı gösterir
-      { d: 6, cam: (t, u) => { const p = rp(t), k = ease(u); return { e: V.lerp([p[0] - 2.4, hf(p[0], p[2]) + 2.4, p[2] - 6.5], [p[0] - 8, hf(p[0], p[2]) + 13, p[2] - 18], k), c: V.lerp([p[0], hf(p[0], p[2]) + 1.8, p[2] + 2], [26, VY, 112], ease(cl01((u - 0.2) / 0.8))) }; } },
+      { d: 6, cam: (t, u) => { const p = rp(t), k = ease(u); return { e: V.lerp([p[0] - 2.4, hf(p[0], p[2]) + 2.4, p[2] - 6.5], [p[0] - 8, hf(p[0], p[2]) + 13, p[2] - 18], k), c: V.lerp([p[0], hf(p[0], p[2]) + 1.8, p[2] + 2], [CX, VY, CZ], ease(cl01((u - 0.2) / 0.8))) }; } },
     ];
     S.capAt = T2 + 0.8; S.lineAt = 1.0;
     S.cap = { s: Tr('Ocak soğudu. İz karla kapandı.') };
@@ -565,7 +593,7 @@
       const c = t < T2 ? [0, 0, 3] : rp(t);
       for (let k = 0; k < 7; k++) add([c[0] + R.range(-22, 22), hf(c[0], c[2]) + R.range(3, 12), c[2] + R.range(-22, 14)], [R.range(-0.3, 0.3) + 0.25, R.range(-1.4, -0.8), R.range(-0.2, 0.2)], [1, 1, 1, 0.95], -R.range(1.2, 2.2), 9);
       if (Math.random() < 0.08) add([-7.2 + R.range(-0.05, 0.05), 1.85, 3.4], [-0.25, 0.15, 0], [0.95, 0.96, 1, 0.45], 0.35, 1.2);   // nefes
-      if (Math.random() < 0.15) for (let k = 0; k < 3; k++) add([26 + R.range(-20, 20), VY + 8, 112 + R.range(-25, 25)], [0.4, 1.2, 0], [0.7, 0.72, 0.75, 0.45], 3, 6);   // kasaba dumanı
+      if (Math.random() < 0.15) for (let k = 0; k < 3; k++) add([CX + R.range(-20, 20), VY + 8, CZ + R.range(-25, 25)], [0.4, 1.2, 0], [0.7, 0.72, 0.75, 0.45], 3, 6);   // kasaba dumanı
     };
     return S;
   });

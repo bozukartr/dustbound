@@ -239,7 +239,7 @@ const Story = {
     this.cine = true; this._qPend = null; Bubbles.clear(); UI.el.sub.classList.add('hidden');
     const L = this.cineLines(lines), h = this.horse, S = this.story;
     const D = this.storyDef();
-    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: cast === 'rival' ? D.rival.look : cast === 'kin' && D.kin ? Object.assign({}, D.kin.look, S.kinLook || {}) : D.mentor.look, jack: D.rival ? D.rival.look : null, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
+    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, town: S.town, sully: cast === 'rival' ? D.rival.look : cast === 'kin' && D.kin ? Object.assign({}, D.kin.look, S.kinLook || {}) : D.mentor.look, jack: D.rival ? D.rival.look : null, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
   },
 
   /* ---------------- her kare ---------------- */
