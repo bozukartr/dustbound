@@ -1062,7 +1062,7 @@ class NPC extends Ent {
   get bound() { return this.state === 'lassoed' || this.state === 'tied' || this.state === 'downed'; }
   hurt(dmg, by, how) {
     if (this.dead) return;
-    if (this.quest === 'mentor' || this.quest === 'kin') return;   // hikâyenin akıl hocası (ve yakını): vurulamaz, suç da yazılmaz
+    if (this.quest === 'mentor' || this.quest === 'kin' || this.quest === 'ward') return;   // hikâyenin akıl hocası, yakını ve taşınan yaralısı: vurulamaz, suç da yazılmaz
     this.hp -= dmg;
     if (how !== 'drown') G.parts.burst('blood', this.x, this.y, 3 + Math.min(dmg, 200) / 12, 35, 0.6, 1.4);
     if (by === 'player') {
@@ -1521,6 +1521,44 @@ class Prop extends Ent {
     } else if (this.type === 'ties') {
       Spr.shadow(ctx, x + 1, y + 3, 10, 2.6, 0.28);
       for (let k = 0; k < 3; k++) { ctx.fillStyle = k & 1 ? '#6a4a2c' : '#7a5634'; ctx.fillRect(x - 10 + k, y - 1 - k * 2.4, 20 - k * 2, 2.6); ctx.fillStyle = '#9a7448'; ctx.fillRect(x - 10 + k, y - 1 - k * 2.4, 20 - k * 2, 0.8); }
+    } else if (this.type === 'paw') {
+      // hayvan izi: geyikte çatal toynak, ayıda iri pençe (this.big)
+      const c = Math.cos(this.ang), s = Math.sin(this.ang), b = this.big ? 1.8 : 1;
+      ctx.fillStyle = 'rgba(48,32,20,0.62)';
+      for (let k = -1; k <= 1; k++) for (const o of [-2.4 * b, 2.4 * b]) {
+        const px = x + c * (k * 7 * b + (o > 0 ? 2 : 0)) - s * o, py = y + s * (k * 7 * b + (o > 0 ? 2 : 0)) + c * o;
+        if (this.big) {
+          ctx.beginPath(); ctx.ellipse(px, py, 2.2, 1.6, this.ang, 0, TAU); ctx.fill();
+          for (let t = -1; t <= 1; t++) ctx.fillRect(px + c * 2.8 - s * t * 1.3 - 0.4, py + s * 2.8 + c * t * 1.3 - 0.4, 0.9, 0.9);
+        } else { ctx.fillRect(px - s * 0.7 - 0.6, py + c * 0.7 - 0.6, 1.8, 1.3); ctx.fillRect(px + s * 0.7 - 0.6, py - c * 0.7 - 0.6, 1.8, 1.3); }
+      }
+    } else if (this.type === 'trap') {
+      Spr.shadow(ctx, x + 1, y + 1.5, 5, 1.6, 0.25);
+      ctx.strokeStyle = '#4a4a4c'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(x, y, 4.5, 2.6, 0, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = '#6a6a6c'; ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y); ctx.stroke();
+      ctx.fillStyle = '#3a3a3c'; for (let k = -3; k <= 3; k += 1.5) ctx.fillRect(x + k - 0.3, y - 1.2, 0.6, 0.9);
+      ctx.strokeStyle = '#5a5048'; ctx.beginPath(); ctx.moveTo(x + 4.5, y); ctx.quadraticCurveTo(x + 8, y + 2, x + 9, y - 1); ctx.stroke();
+    } else if (this.type === 'note') {
+      // kütüğün üstünde bir defter
+      Spr.shadow(ctx, x + 1, y + 2, 5, 1.8, 0.25);
+      ctx.fillStyle = '#6a4a2c'; ctx.fillRect(x - 4, y - 2, 8, 4); ctx.fillStyle = '#8a6440'; ctx.fillRect(x - 4, y - 3, 8, 1.5);
+      ctx.fillStyle = '#e8dcc0'; ctx.fillRect(x - 3, y - 5.5, 6, 3); ctx.fillStyle = '#3a2a1e'; ctx.fillRect(x - 0.3, y - 5.5, 0.6, 3);
+      ctx.fillStyle = 'rgba(60,50,40,0.6)'; ctx.fillRect(x - 2.4, y - 4.6, 1.8, 0.4); ctx.fillRect(x + 0.6, y - 4.6, 1.8, 0.4); ctx.fillRect(x - 2.4, y - 3.6, 1.6, 0.4);
+    } else if (this.type === 'ash') {
+      // sönmüş ateş: kömürleşmiş odun ve kül
+      for (let k = 0; k < 7; k++) { const a = k / 7 * TAU; Spr.circ(ctx, x + Math.cos(a) * 5, y + Math.sin(a) * 3.5, 1.5, '#6a6660'); }
+      ctx.fillStyle = 'rgba(70,66,62,0.8)'; ctx.beginPath(); ctx.ellipse(x, y, 3.6, 2.4, 0, 0, TAU); ctx.fill();
+      Spr.line(ctx, x - 3, y - 1, x + 3, y + 1, '#2a2420', 1.6); Spr.line(ctx, x - 3, y + 1, x + 2, y - 1, '#2a2420', 1.6);
+    } else if (this.type === 'shack') {
+      // küçük kütük kulübe: sırtı kuzeye, kapısı güneye
+      Spr.shadow(ctx, x + 4, y + 3, 20, 5, 0.3);
+      ctx.fillStyle = '#5a3c24'; ctx.fillRect(x - 16, y - 14, 32, 16);
+      for (let k = 0; k < 5; k++) { ctx.fillStyle = k & 1 ? '#6a4a2e' : '#7a5636'; ctx.fillRect(x - 16, y - 13 + k * 3, 32, 2.4); Spr.circ(ctx, x - 16, y - 12 + k * 3, 1.3, '#9a7a52'); Spr.circ(ctx, x + 16, y - 12 + k * 3, 1.3, '#9a7a52'); }
+      ctx.fillStyle = '#3a2a1c'; ctx.beginPath(); ctx.moveTo(x - 19, y - 13); ctx.lineTo(x, y - 26); ctx.lineTo(x + 19, y - 13); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#4a3624'; ctx.beginPath(); ctx.moveTo(x - 19, y - 13); ctx.lineTo(x, y - 26); ctx.lineTo(x, y - 13); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = this.col === 'snow' ? 'rgba(236,240,246,0.85)' : 'rgba(0,0,0,0)'; ctx.fillRect(x - 17, y - 15, 34, 2);
+      ctx.fillStyle = '#2a1c12'; ctx.fillRect(x - 3, y - 8, 6, 10); ctx.fillStyle = '#5a4a3a'; ctx.fillRect(x + 7, y - 9, 4, 3);
+      ctx.fillStyle = '#4a4440'; ctx.fillRect(x + 9, y - 30, 3, 8);
     }
   }
 }

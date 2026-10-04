@@ -993,6 +993,7 @@ const GameSystems = {
     if (a.def.owned) this.crime('livestock', a.x, a.y, a);
     const d = dist(this.player.x, this.player.y, a.x, a.y);
     if (d > 400) this.stat('longKills', 1);
+    a.how = how;   // hikâye: ör. yayla avlanmış mı
     this.qEvent('kill', a);
   },
   onNpcKill(n, how) {

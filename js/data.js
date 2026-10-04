@@ -506,6 +506,7 @@ const ACHIEVEMENTS = [
   { id: 'story',     n: 'Sully\'nin Senedi',      d: 'Hikâyeli başlangıcı tamamla ve tapuyu sahibine geri ver.', perk: '' },
   { id: 'story_outlaw', n: 'Son İş',             d: 'Kanun Kaçağı\'nın hikâyesini tamamla ve çeteyle hesabını kapat.', perk: '' },
   { id: 'story_rail', n: 'Raylar ve Toz',      d: 'Demiryolu İşçisi\'nin hikâyesini tamamla ve ekibin maaşını geri getir.', perk: '' },
+  { id: 'story_trapper', n: 'Babamın Tuzakları', d: 'Tuzakçı\'nın hikâyesini tamamla ve babanı eve getir.', perk: '' },
   { id: 'story_immigrant', n: 'Ağabeyin Mektupları', d: 'Göçmen\'in hikâyesini tamamla ve ağabeyinle kendi dükkânınızı açın.', perk: '' },
   { id: 'hunt1',     n: 'İlk Av',                d: 'İlk hayvanını avla.', perk: 'Deri yüzünce +1 et şansı', s: 'animals', v: 1 },
   { id: 'hunt25',    n: 'Avcı',                  d: '25 hayvan avla.', perk: 'Post satış fiyatları +%15', s: 'animals', v: 25 },
