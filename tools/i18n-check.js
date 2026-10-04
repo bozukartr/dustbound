@@ -9,9 +9,10 @@
      node tools/i18n-check.js            → İngilizce için eksik/fazla anahtar raporu
      node tools/i18n-check.js de         → başka bir dil dosyası için
      node tools/i18n-check.js en --skel  → eksikleri dosyaya yapıştırılacak biçimde yazdır
+     --unused <dosya>                    → kullanılmayan anahtarları JSON olarak yaz
    ========================================================== */
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const ROOT = path.join(__dirname, '..');
+const ROOT = process.env.FE_ROOT ? path.resolve(process.env.FE_ROOT) : path.join(__dirname, '..');   // FE_ROOT: başka bir kopyayı denetle (demo paketi)
 const code = process.argv[2] && !process.argv[2].startsWith('-') ? process.argv[2] : 'en';
 const skel = process.argv.includes('--skel');
 
@@ -100,3 +101,4 @@ if (skel) {
   process.exitCode = missCode.length || missTable.length || badPh.length ? 1 : 0;
 }
 if (process.argv.includes('--dump')) fs.writeFileSync(process.argv[process.argv.indexOf('--dump') + 1], JSON.stringify([...missCode, ...missTable], null, 0));
+if (process.argv.includes('--unused')) fs.writeFileSync(process.argv[process.argv.indexOf('--unused') + 1], JSON.stringify(unused));

@@ -76,7 +76,7 @@ async function runFile(file, browser, url) {
       // ses örneklerini yalnızca ses testi yükler (öbür testler prosedürel sesle hızlı kalır)
       if (!o.sfx) await p.addInitScript(() => { window.__testNoSfx = true; });
       if (o.init) await p.addInitScript(o.init);
-      await p.goto(url + 'index.html');
+      await p.goto(url + (o.path || 'index.html'));   // path: başka bir sayfa (ör. demo paketi)
       await p.waitForFunction(() => typeof G !== 'undefined' && G.state === 'menu', null, { timeout: 30000 });
       return p;
     },
