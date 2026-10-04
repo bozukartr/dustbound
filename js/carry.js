@@ -264,9 +264,9 @@ const CarrySystems = {
   /* Oyuncu bir şey taşırken etkileşim tuşu yalnızca yükle ilgilidir */
   carryInteraction() {
     const P = this.player, e = P.carry, W = this.world;
-    const acts = [];
+    const acts = this.storyCarryActions(e);   // hikâye: ör. yaralıyı doktora teslim et
     const sh = this.shopHere('sheriff');
-    if (sh && e.kind === 'npc') {
+    if (sh && e.kind === 'npc' && e.quest !== 'ward') {
       const v = this.wantedValue(e);
       acts.push({ n: v ? Tr`Şerife Teslim Et (${fmtMoney(v)})` : Tr('Şerife Göster'), fn: () => this.deliverToSheriff({ e, h: null }) });
     }
@@ -308,6 +308,8 @@ const CarrySystems = {
     }
     if (e.kind !== 'npc') return false;
     if (e.quest === 'mentor' || e.quest === 'kin') return false;   // hikâyenin akıl hocası (ve yakını) bağlıyken bile taşınmaz, soyulmaz; kendi eylemleri var
+    // hikâyenin yaralısı (ör. Tuzakçı'nın babası): bağlanmaz, soyulmaz; omuza alınır, eyere yüklenir
+    if (e.quest === 'ward' && !e.dead) { add(e.x, e.y, Tr`${e.name} (yaralı)`, this.storyNpcActions(e) || [take], 2); return true; }   // hikâye eylem verirse (ör. önce yarayı sar) yalnızca onlar
     // Kızıl Jack: tapuyu üstünden alma eylemi öbür seçeneklerin başına eklenir
     if (e.quest === 'rival') { const ja = this.rivalActions(e); if (ja.length) { const add0 = add; add = (x, y, l, acts, p, tk) => add0(x, y, l, ja.concat(acts), p, tk); } }
     if (e.dead) {
@@ -360,7 +362,7 @@ const CarrySystems = {
     }
     // omuzda taşınan ceset ya da bağlı biri görülürse
     const c = P.carry;
-    if (c && c.kind === 'npc' && !c.seenCarry && (c.evidence || (!c.dead && !c.hostile && c.role !== 'bandit' && c.role !== 'target'))) {
+    if (c && c.kind === 'npc' && c.quest !== 'ward' && !c.seenCarry && (c.evidence || (!c.dead && !c.hostile && c.role !== 'bandit' && c.role !== 'target'))) {
       const n = seer(P.x, P.y, night ? 50 : 100);
       if (n) {
         c.seenCarry = true;
@@ -387,6 +389,7 @@ const CarrySystems = {
     if (d.bountyId) { n.bountyId = d.bountyId; n.keep = true; }
     if (d.quest) { n.quest = d.quest; n.keep = true; }
     if (d.dead) { n.dead = true; n.hp = 0; n.state = 'dead'; } else { n.state = 'tied'; n.tieT = d.tieT || 120; n.hp = Math.max(1, n.maxHp * 0.3); }
+    if (d.quest === 'ward' && !d.dead) { n.state = 'downed'; n.downT = 9999; }   // hikâyenin yaralısı bağlı değil, baygın
     return n;
   },
   saveCarry() {

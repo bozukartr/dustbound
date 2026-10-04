@@ -206,7 +206,7 @@ const Story = {
     const me = this.mentorEnt(), vd = Audio_.voice(ln.raw || ln.x, I18N.lang, ln.w === 'S' && me ? { x: me.x, y: me.y, dist: 600 } : {});
     const d = Math.max(this.talkDur(ln.x), vd ? vd + 0.4 : 0);
     UI.subtitle(this.sName(ln.w), ln.x, d - 0.2, ln.w === 'P');
-    const who = ln.w === 'S' ? me : ln.w === 'R' ? this.rivalEnt() : ln.w === 'K' ? this.kinEnt() : ln.w === 'P' ? this.player : null;
+    const who = ln.w === 'S' ? me : ln.w === 'R' ? this.rivalEnt() : ln.w === 'K' ? this.kinEnt() || this.ents.find(e => e.quest === 'ward' && !e.remove) : ln.w === 'P' ? this.player : null;
     // söz bir kez, altyazıda yazılır; konuşanın üstünde yalnızca konuşma işareti
     if (who && (who === this.player || dist(who.x, who.y, this.player.x, this.player.y) < 300)) Bubbles.add(who, '', d - 0.2, true);
     if (ln.w === 'S' && me && !me.anim && chance(0.4)) this.setAnim(me, pick(['gesture', 'point', 'shrug', 'rub', 'scratch']));
@@ -229,7 +229,7 @@ const Story = {
     this.cine = true; this._qPend = null; Bubbles.clear(); UI.el.sub.classList.add('hidden');
     const L = this.cineLines(lines), h = this.horse, S = this.story;
     const D = this.storyDef();
-    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: cast === 'rival' ? D.rival.look : cast === 'kin' && D.kin ? Object.assign({}, D.kin.look, S.kinLook || {}) : D.mentor.look, jack: D.rival.look, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
+    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: cast === 'rival' ? D.rival.look : cast === 'kin' && D.kin ? Object.assign({}, D.kin.look, S.kinLook || {}) : D.mentor.look, jack: D.rival ? D.rival.look : null, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
   },
 
   /* ---------------- her kare ---------------- */
@@ -381,6 +381,8 @@ const Story = {
   /* hikâyenin yerleştirdiği nesnelerin ve kişilerin eylemleri (tanımdaki propActions / npcActions) */
   storyPropActions(e) { const S = this.story, D = this.storyDef(); return S && S.on && !S.done && D.propActions ? D.propActions.call(this, e, S) || [] : []; },
   storyNpcActions(e) { const S = this.story, D = this.storyDef(); return S && S.on && !S.done && D.npcActions ? D.npcActions.call(this, e, S) : null; },
+  /* taşınan yük için hikâyenin eylemleri (tanımdaki carryActions; ör. yaralıyı doktora teslim etmek) */
+  storyCarryActions(e) { const S = this.story, D = this.storyDef(); return S && S.on && !S.done && D.carryActions ? D.carryActions.call(this, e, S) || [] : []; },
   /* posta arabasının hikâye için gidebildiği uzak kasaba */
   storyStageDest(t) { const S = this.story; return !!(S && S.on && !S.done && S.stageTo && S.stageTo === t.id); },
   /* bina menüsüne hikâyenin eklediği seçenekler (ör. şerifte teslim olmak) */
