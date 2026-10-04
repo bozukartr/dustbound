@@ -126,6 +126,8 @@ function makeCanvas(w, h) {
   return c;
 }
 function hexToRgb(h) {
+  // shadeHex çıktısı ("rgb(r,g,b)") da kabul edilir; yoksa koyulaştırılmış renkler siyaha düşer
+  if (h.charCodeAt(0) === 114) { const m = h.match(/\d+/g); return [+m[0], +m[1], +m[2]]; }
   const n = parseInt(h.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }

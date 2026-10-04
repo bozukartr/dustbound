@@ -1,5 +1,5 @@
 'use strict';
-/* Demiryolu İşçisi hikâyesi "Raylar ve Toz": Fort Mercy ve ray kampı, on bölüm, kayıt/yükleme */
+/* Demiryolu İşçisi hikâyesi "Raylar ve Toz": Fort Redstone ve ray kampı, on bölüm, kayıt/yükleme */
 module.exports = {
   name: 'Demiryolu hikâyesi',
   timeout: 400000,
@@ -10,7 +10,7 @@ module.exports = {
     const toCamp = () => p.evaluate(() => { const R = G.story.rc; UI.closeAll(); TH.goto(R.x + 10, R.y + 30); });
     const noon = () => p.evaluate(() => { if (G.hour < 8 || G.hour > 13) G.sSkipTo(9); const P = G.player; P.energy = 100; P.hunger = 100; P.thirst = 100; });
 
-    await t.step('Demiryolu İşçisi hikâyeyle başlar: Fort Mercy, Boone, ray kampı', async () => {
+    await t.step('Demiryolu İşçisi hikâyeyle başlar: Fort Redstone, Boone, ray kampı', async () => {
       await t.sleep(300); await p.keyboard.press('Enter'); await t.sleep(500);
       const lab = await p.evaluate(() => {
         document.querySelectorAll('.cr-tab')[3].click();
@@ -30,7 +30,7 @@ module.exports = {
           rocks: S.rocks.length, dest: S.dest !== S.town && !!G.world.towns.find(x => x.id === S.dest).station, hotel: B[S.hotel] && B[S.hotel].town === S.dest, bank: B[S.bank] && B[S.bank].type, trail: S.trail.length, camp: !!S.camp };
       });
       t.eq(r.id, 'rail', 'hikâye: Raylar ve Toz'); t.eq(r.name, 'Walt Boone', 'akıl hocası Boone'); t.ok(r.d < 120, 'Boone yanında', r.d);
-      t.eq(r.town, 'fortmercy', 'kasaba Fort Mercy'); t.ok(!r.rcTown && r.rcD < 1700, 'ray kampı kasabanın dışında, yakında', r.rcD); t.ok(r.poi, 'kamp haritada');
+      t.eq(r.town, 'fortmercy', 'kasaba Fort Redstone'); t.ok(!r.rcTown && r.rcD < 1700, 'ray kampı kasabanın dışında, yakında', r.rcD); t.ok(r.poi, 'kamp haritada');
       t.eq(r.rocks, 4, 'heyelanda dört kaya'); t.ok(r.dest && r.hotel, 'tren durağı ve Hale\'in oteli', r); t.eq(r.bank, 'bank', 'banka'); t.eq(r.trail, 6, 'nal izleri'); t.ok(r.camp, 'sığınak');
     });
 

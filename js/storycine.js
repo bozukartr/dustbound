@@ -303,6 +303,7 @@
       { d: 5, cam: (t, u) => ({ e: [-1.6, 1.4, 3.0 - u * 0.3], c: [2.3, 1.2, -0.3] }) },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    S.lights = [{ p: [0, 0.8, 0], c: '#ff8a3a', i: 1.1, r: 7, flick: true }];
     S.particles = (t, add) => { stars(S, R, add); fireParts(R, add, 0, 0, 0, 1.6); };
     return S;
   });
@@ -332,6 +333,7 @@
       { d: 5, cam: (t, u) => ({ e: [0.3 - u * 0.3, 1.7, -6.4 + u * 0.6], c: [1.6, 1.65, -2.4] }) },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    S.lights = [{ p: [0, 0.8, 0], c: '#ff8a3a', i: 0.8, r: 6, flick: true }];
     S.particles = (t, add) => { fireParts(R, add, 0, 0, 0, 0.5); if (Math.random() < 0.12) add([R.range(-60, 60), R.range(0.5, 3), R.range(-60, 30)], [0.4, 0, 0], [0.95, 0.9, 0.85, 0.35], 6, 6); };
     return S;
   });
