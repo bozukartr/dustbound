@@ -5,7 +5,7 @@
    STORY_FOR_BG). Motor ortaktır: bir akıl hocası (konuşma satırlarında 'S'),
    bir hedef kişi (rival), bölümler ve adımlar hikâye tanımından okunur.
    İlk hikâye "Sully'nin Senedi": on bölümlük, oynayarak öğreten bir başlangıç. Yaşlı çiftçi
-   Dunham Sully'nin gazete ilanıyla kasabaya gelen oyuncu; selamlaşmayı,
+   Dunham Sully'nin yanında iş bulan, ailesinin toprağını kaybetmiş Harlow'lu genç; selamlaşmayı,
    alışverişi, yemeyi, su doldurmayı, ata binmeyi, avı, deri yüzmeyi,
    satışı, çalışmayı, bankayı, şerifi, söylentiyi, dürbünü, kampı,
    pişirmeyi, uykuyu, gizlenmeyi, odağı, kementi ve teslimi öğrenir.
@@ -521,20 +521,21 @@ const Story = {
    talk (başlarken konuşma), after (bitince konuşma), cine (bitince sinematik)
    ========================================================== */
 const STORY_SULLY = [
-  /* 1 — Yeni Kasaba: tanış, selamlaş, mağazaya gir */
+  /* 1 — Tanıdık Yüzler: Sully'den iş iste, selamlaş, mağazaya gir */
   {
-    t: () => Tr('Yeni Kasaba'),
-    start() { setTimeout(() => UI.help(Tr`Bir gazete ilanı seni buraya getirdi: <i>"Çiftliğe el aranıyor. Yatak ve yemek verilir. — D. Sully"</i><br>İlanı veren adam seni bekliyor olmalı.`, 10), 600); },
+    t: () => Tr('Tanıdık Yüzler'),
+    start() { setTimeout(() => UI.help(Tr`Harlow ovalarında büyüdün. İki kurak yaz üst üste gelince borç birikti; banka ailenin toprağına el koydu, ailen de doğudaki akrabaların yanına gitti.<br>Sen kaldın. Babanın eski komşusu <b>Dunham Sully</b> kasabada; belki ona bir el lazımdır.`, 12), 600); },
     resume(S) { if (S.st >= 1) { const b = this.sBld('general'), p = this.sDoor(b); if (p) this.sullyGo(p.x, p.y); } },
     steps: [
       { t: () => Tr('Dunham Sully ile konuş'), ev: 'talk', at() { const e = this.sullyEnt(); return e || this.story.sully; },
         hint: () => Tr`Yaşlı adama yaklaş ve ${Input.glyph('interact')} ile <b>Konuş</b>.`,
         say: () => [
-          ['S', Tr('İlana bakan sen misin? Gazeteyi öyle sıkı tutuyorsun ki kaçacak sandım.')],
-          ['P', Tr('{ad}. İlanda yatak ve yemek yazıyordu.')],
-          ['S', Tr('Yazıyordu. Yatak biraz gıcırdar, yemeği de ben pişiririm. Kararını ona göre ver.')],
-          ['S', Tr('Dunham Sully. Herkes Sully der.')],
-          ['S', Tr('Çiftliğe çıkmadan kasabayı bir tanı. Buralarda yüzünü bilmedikleri adama ne iş verirler ne veresiye.')],
+          ['S', Tr('Bak sen... {ad}! Banka kapınıza kilit vurduğundan beri kasabada yüzünü gören olmadı.')],
+          ['P', Tr('Gösterecek yüzüm kalmamıştı, Sully.')],
+          ['S', Tr('Saçma. Kuraklık kimseyi seçmedi; o yaz ovanın yarısı battı.')],
+          ['P', Tr('İş arıyorum. Ne olursa.')],
+          ['S', Tr('Çiftlikte bana bir el lazım. Yatak biraz gıcırdar, yemeği de ben pişiririm. Kararını ona göre ver.')],
+          ['S', Tr('Ama çıkmadan önce kasabaya yüzünü göster. Seni soran çok oldu; sessizce kaybolursan dedikodunun sonu gelmez.')],
           ['S', Tr('Birkaç kişiye selam ver. Ben mağazanın önünde olurum.')],
         ],
         done() { const p = this.sDoor(this.sBld('general')); if (p) this.sullyGo(p.x, p.y); } },
@@ -594,7 +595,7 @@ const STORY_SULLY = [
         done() { const R = this.story.ranch; this.sullyGo(R.x - 30, R.y + 10, true); } },
       { t: () => Tr('Sully\'nin peşinden çiftliğe git'), chk() { const R = this.story.ranch, P = this.player; return dist(P.x, P.y, R.x, R.y) < 150; }, at() { return this.story.ranch; }, wp: true,
         hint: () => Tr`Sully'nin ardından sür. ${Input.glyph('sprint')} ile hızlan, basılı tutarsan dörtnala gidersin. ${Input.glyph('map')} Harita'da rota görünür.`,
-        talk: () => [['S', Tr('Arkamdan gel. Yol çatallanınca sağa... ya da sola. Atına güven, o bilir.')]],
+        talk: () => [['S', Tr('Arkamdan gel. Gerçi bu yolları benden iyi bilirsin; çatalda şaşırırsam sen düzeltirsin.')]],
         cine: () => ({ sc: 'q_ride', lines: [
           ['S', Tr('Otuz bir yıl oldu bu yolu ilk sürdüğüm.')],
           ['S', Tr('Martha arabanın üstündeydi, ben yanında yürüyordum. At alacak paramız yoktu.')],
@@ -803,8 +804,8 @@ const STORY_SULLY = [
           ['P', Tr('Ama bağlandın.')],
           ['S', Tr('Bağlandım. Ama kâğıda değil.')],
           ['S', Tr('Bu çiftliğin kapısı sana hep açık, {ad}. Ne zaman istersen gel. Bu sefer kahve de alırım.')],
-          ['P', Tr('Belki bir gün kendi toprağım olur.')],
-          ['S', Tr('Olur. Ama önce çit tamir etmeyi öğren.')],
+          ['P', Tr('Belki bir gün yine kendi toprağım olur.')],
+          ['S', Tr('Olur. Yalnız tapunu benim gibi cebinde gezdirme.')],
         ], after() { const R = this.story.ranch; this.sSkipTo(18.5, 17); const s = this.sSpot(R.x + 20, R.y + 24, 0, 40); this.sTeleport(s[0], s[1]); this.sullyGo(R.x + 6, R.y - 4); const e = this.sullyEnt(); if (e) { e.x = R.x + 6; e.y = R.y - 4; } } }) },
     ],
   },
@@ -820,9 +821,9 @@ const STORIES = {
   sully: {
     id: 'sully', ach: 'story',
     title: () => Tr('Sully\'nin Senedi'),
-    intro: () => Tr`Yaşlı çiftçi Dunham Sully'nin gazete ilanıyla geldin. Çiftliğin tapusu çalınmış; Sully'ye yardım et.`,
+    intro: () => Tr`Banka ailenin toprağına el koydu; sen ovada kaldın. Babanın eski komşusu, yaşlı çiftçi Dunham Sully'nin de tapusu çalınmış; Sully'ye yardım et.`,
     outro: () => Tr`Hikâye tamamlandı. Sully'nin çiftliği seni bekliyor.`,
-    welcome: () => Tr('İyi yolculuklar, kovboy. Gazete ilanını veren <b>Dunham Sully</b> seni kasabada bekliyor; sağ üstteki hedefi izle.'),
+    welcome: () => Tr('Harlow\'dasın. Babanın eski komşusu, yaşlı çiftçi <b>Dunham Sully</b> kasabada; ondan iş iste. Sağ üstteki hedefi izle.'),
     mentor: {
       name: 'Dunham Sully', short: 'Sully', look: SULLY_LOOK, horse: SULLY_HORSE, work: 'ranch',
       place: () => Tr('Sully Çiftliği'),
@@ -872,9 +873,9 @@ const STORIES = {
     chapters: STORY_SULLY,
   },
 };
-/* Geçmiş → hikâye. Kendi hikâyesi yazılmamış geçmişler Sully'nin hikâyesini oynar;
-   story_*.js dosyaları kendi geçmişlerini buraya ekler. */
-const STORY_FOR_BG = { farm: 'sully', immigrant: 'sully', rail: 'sully', trapper: 'sully' };
+/* Geçmiş → hikâye. Çiftçi Çocuğu Sully'nin hikâyesini oynar; öteki geçmişleri
+   story_*.js dosyaları ekler. Hikâye kimliği olmayan eski kayıtlar Sully'yle sürer (storyDef). */
+const STORY_FOR_BG = { farm: 'sully' };
 
 /* Bölüm yardımcıları (Story'ye eklenir) */
 Object.assign(Story, {
