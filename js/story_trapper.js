@@ -22,6 +22,10 @@ STORIES.trapper = {
   title: () => Tr('Babamın Tuzakları'),
   intro: () => Tr`Baban altı hafta önce kuzey ormanlarındaki tuzak hattına gitti ve dönmedi. Eski dostu, yaşlı tuzakçı Elias Crowe seni Cedar Falls'ta bekliyor.`,
   outro: () => Tr`Hikâye tamamlandı. Baban eve döndü; Elias'ın kampında iyileşiyor. Kuzey ormanları artık senin de av sahan.`,
+  opening: () => [
+    ['P', Tr('Altı hafta oldu, baba. Kulübe sensiz çok sessiz.')],
+    ['P', Tr('Elias Crowe kasabaya inmiş. Seni bulacaksa o bulur.')],
+  ],
   welcome: () => Tr('Cedar Falls\'tasın. Babanın eski dostu, yaşlı tuzakçı <b>Elias Crowe</b> seni kasabada bekliyor; sağ üstteki hedefi izle.'),
   mentor: {
     name: 'Elias Crowe', short: 'Elias', look: ELIAS_LOOK, horse: ELIAS_HORSE,

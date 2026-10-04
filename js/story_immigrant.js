@@ -21,6 +21,10 @@ STORIES.immigrant = {
   title: () => Tr('Ağabeyin Mektupları'),
   intro: () => Tr`Saint Clement limanına ayak bastın. Ağabeyin Anton'un mektupları dört ay önce kesildi; mektuplarında adı geçen pansiyoncu Greta Halvorsen seni bekliyor.`,
   outro: () => Tr`Hikâye tamamlandı. Anton'la birlikte kendi dükkânınız var; Greta'nın pansiyonunun kapısı da hep açık.`,
+  opening: () => [
+    ['P', Tr('Dört ay oldu, Anton. Bu senin son mektubun.')],
+    ['P', Tr('"Saint Clement\'a varınca Greta Halvorsen\'i bul. O sana yardım eder."')],
+  ],
   welcome: () => Tr('Saint Clement limanındasın. Ağabeyinin mektuplarında adı geçen pansiyoncu <b>Greta Halvorsen</b> seni bekliyor; sağ üstteki hedefi izle.'),
   mentor: {
     name: 'Greta Halvorsen', short: 'Greta', look: GRETA_LOOK, horse: GRETA_HORSE,

@@ -197,8 +197,15 @@ const G = {
     this.revealAt(town.cx, town.cy, 1000);
     this.visited.add(town.id);
     if (this.hideout) { this.revealAt(this.hideout.x, this.hideout.y, 900); this.placeHideout(); }
-    // kasabaya varış sinematiği (5 geçmişe özel, geçilebilir)
-    try { await Cinema.play(profile.bg, { look: profile.look, seed }); } catch (e) { console.warn(e); }
+    // açılış sinematiği (5 geçmişe özel, geçilebilir); hikâye açıkken akıl hocası görünür, açılış satırları oynar
+    const SD = profile.story !== false && !window.__testNoStory ? STORIES[STORY_FOR_BG[profile.bg]] : null;
+    // testler açılışı yalnızca opening testinde çizer (yazılım GL'de ağırdır); öbürlerinde eski
+    // varış sinematiğinin süresi kadar beklenir, böylece oyunun ilk saniyelerindeki zamanlama aynı kalır
+    if (window.__testNoCine) await new Promise(r => setTimeout(r, 7800));
+    else try {
+      await Cinema.play(profile.bg, { look: profile.look, seed, story: !!SD, sully: SD && SD.mentor.look, horseCol: this.horse && this.horse.look && this.horse.look.col,
+        lines: SD && SD.opening ? this.openingLines(SD) : null, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) });
+    } catch (e) { console.warn(e); }
     this.unlock('begin');
     this.startPlay();
     // hikâyeli başlangıç: rehber kapanınca Sully'nin ilk bölümü başlar

@@ -1,7 +1,7 @@
 'use strict';
 /* ==========================================================
    FRONTIER'S END — Demiryolu İşçisi'nin hikâyesi: "Raylar ve Toz"
-   Fort Mercy dışındaki ray kampında ustabaşı Walt Boone'un ekibindesin.
+   Fort Redstone dışındaki ray kampında ustabaşı Walt Boone'un ekibindesin.
    İşçilerin maaşı her ay biraz daha "kayboluyor". Ray döşeme, kazma ve
    dinamit, tren, travers taşıma, maaş günü ve banka, soyulan maaş
    sandığı ve tanık, şirketin yük arabası, nal izleri, kanyondaki sığınak
@@ -18,9 +18,14 @@ const RAIL_CREW = ['Mick', 'Sven', 'Tomas'];
 STORIES.rail = {
   id: 'rail', ach: 'story_rail',
   title: () => Tr('Raylar ve Toz'),
-  intro: () => Tr`Fort Mercy dışındaki ray kampında ustabaşı Walt Boone'un ekibindesin. İşçilerin maaşı her ay biraz daha "kayboluyor".`,
+  intro: () => Tr`Fort Redstone dışındaki ray kampında ustabaşı Walt Boone'un ekibindesin. İşçilerin maaşı her ay biraz daha "kayboluyor".`,
   outro: () => Tr`Hikâye tamamlandı. Maaş sandığı ekibe döndü; şirketin yük arabası artık senin.`,
-  welcome: () => Tr('Fort Mercy\'desin. Ray ekibinin ustabaşı <b>Walt Boone</b> seni kasabada bekliyor; sağ üstteki hedefi izle.'),
+  opening: () => [
+    ['S', Tr('Kalkın! Raylar kendi kendine döşenmiyor!')],
+    ['Mick', Tr('Güneş daha doğmadı, Boone.')],
+    ['S', Tr('Doğmadan kalkan, batmadan biter. Bugün ekibe yeni biri katılıyor; ona iyi örnek olun.')],
+  ],
+  welcome: () => Tr('Fort Redstone\'dasın. Ray ekibinin ustabaşı <b>Walt Boone</b> seni kasabada bekliyor; sağ üstteki hedefi izle.'),
   mentor: {
     name: 'Walt Boone', short: 'Boone', look: BOONE_LOOK, horse: BOONE_HORSE, work: 'rail',
     place: () => Tr('Ray Kampı'),
@@ -167,7 +172,7 @@ STORIES.rail = {
     /* 1 — Ray Kampı: Boone ile tanış, kampa yürü, ray döşe, ye */
     {
       t: () => Tr('Ray Kampı'),
-      start() { setTimeout(() => UI.help(Tr`Ustabaşı Boone'un telgrafı cebinde: <i>"Ekipte yer var. Fort Mercy'de karşılarım. Elleri nasırlı birini arıyorum. — W. Boone"</i>`, 10), 600); },
+      start() { setTimeout(() => UI.help(Tr`Ustabaşı Boone'un telgrafı cebinde: <i>"Ekipte yer var. Fort Redstone'da karşılarım. Elleri nasırlı birini arıyorum. — W. Boone"</i>`, 10), 600); },
       steps: [
         { t: () => Tr('Walt Boone ile konuş'), ev: 'talk', at() { return this.mentorEnt() || this.story.sully; },
           hint: () => Tr`İri yarı adama yaklaş ve ${Input.glyph('interact')} ile <b>Konuş</b>.`,
@@ -241,18 +246,18 @@ STORIES.rail = {
       steps: [
         { t() { return Tr`Trenle ${this.rlDest().n} kasabasına git`; }, chk() { const P = this.player, D = this.rlDest(), t = this.world.townAt(P.x, P.y, 2); return !!(t && t.id === D.id) || !!(D.station && dist(P.x, P.y, D.station.door.x, D.station.door.y) < 300); },   // istasyon kasabanın dışında kalabilir
           at() { const t = this.world.townAt(this.player.x, this.player.y, 30), st = t && t.id === this.story.town && this.sBld('station'); return st ? this.sDoor(st, 4) : this.rlDest().spawn; }, wp: true,
-          hint: () => Tr`Fort Mercy istasyonunda gişeye git ve <b>Tren Bileti Al</b>. Tren hızlı ve ucuzdur; aranırken seni almazlar.` },
+          hint: () => Tr`Fort Redstone istasyonunda gişeye git ve <b>Tren Bileti Al</b>. Tren hızlı ve ucuzdur; aranırken seni almazlar.` },
         { t: () => Tr('Hale\'e Boone\'un mektubunu ver'), ev: 'letter', at() { const b = this.world.buildings[this.story.hotel]; return b ? this.sDoor(b, 4) : null; }, wp: true,
           hint: () => Tr`Hale otelde kalıyor. İçeri gir, resepsiyonda <b>Boone'un Mektubunu Ver</b>'i seç.`,
           after: () => [
             ['R', Tr('Boone yine mi yazmış? Adam mektupla nefes alıyor.')],
             ['R', Tr('"Maaşlar eksik" diyor. Eksik değil, efendim; işçileriniz savurgan. Viskiye, kumara...')],
             ['P', Tr('Ekip kampta viski bile içmiyor.')],
-            ['R', Tr('O zaman tasarruf ediyorlardır. Söyle Boone\'a: sandık cuma günü trenle gelir, Fort Mercy\'den arabayla kampa gider. Her zamanki gibi.')],
+            ['R', Tr('O zaman tasarruf ediyorlardır. Söyle Boone\'a: sandık cuma günü trenle gelir, Fort Redstone\'dan arabayla kampa gider. Her zamanki gibi.')],
             ['P', Tr('...Her zamanki gibi.')],
           ] },
         { t: () => Tr('Ray kampına dön'), chk() { const R = this.story.rc, P = this.player; return dist(P.x, P.y, R.x, R.y) < 140; }, at() { return this.story.rc; }, wp: true,
-          hint: () => Tr`İstasyondan Fort Mercy'ye bilet al, sonra kampa yürü.`,
+          hint: () => Tr`İstasyondan Fort Redstone'a bilet al, sonra kampa yürü.`,
           after: () => [['P', Tr('Hale savurgan olduğumuzu söylüyor.')], ['S', Tr('Savurgan. Mick\'in tek gömleği var, onu da Sven\'den ödünç aldı.')]] },
       ],
     },
@@ -313,7 +318,7 @@ STORIES.rail = {
             ['D', Tr('Ama sandığın anahtarı birindeydi. Kırmadılar bile, açtılar. Anahtar yalnızca şirkette olur.')],
             ['D', Tr('Biri "acele etme, tren cumaya" dedi. Şehirli konuşuyordu. Kasabaya, saloona sor; böyleleri orada içer.')],
           ] },
-        { t: () => Tr('Fort Mercy saloonunda söylenti dinle'), ev: 'rumor', at() { return this.sDoor(this.sBld(['saloon', 'cantina']), 4); }, wp: true,
+        { t: () => Tr('Fort Redstone saloonunda söylenti dinle'), ev: 'rumor', at() { return this.sDoor(this.sBld(['saloon', 'cantina']), 4); }, wp: true,
           hint: () => Tr`Barmenle konuş ve <b>Söylenti Dinle</b>. Birkaç kuruşa bildiklerini anlatır.`,
           after: () => [['P', Tr('Şehirli konuşan biri... ve şirketin anahtarı. Boone\'a anlatmalıyım.')]] },
       ],
@@ -324,7 +329,7 @@ STORIES.rail = {
       talk(S) {
         return [
           ['S', Tr('Bunu Hale\'e söylersek kanıt ister. Kanıtımız yok, erzakımız da yok. Önce ekibi doyuralım.')],
-          ['S', S.flags.wagon ? Tr('Şirketin yük arabasını al. Fort Mercy\'deki mağazadan iki sandık erzak getir. Parası benden.') : Tr('Arabana bin, Fort Mercy\'deki mağazadan iki sandık erzak getir. Parası benden.')],
+          ['S', S.flags.wagon ? Tr('Şirketin yük arabasını al. Fort Redstone\'daki mağazadan iki sandık erzak getir. Parası benden.') : Tr('Arabana bin, Fort Redstone\'daki mağazadan iki sandık erzak getir. Parası benden.')],
         ];
       },
       start(S) {
@@ -348,7 +353,7 @@ STORIES.rail = {
     {
       t: () => Tr('Şirketin Adamı'),
       talk: () => [
-        ['S', Tr('Anahtar şirkette olur, şehirli konuşur... Hale bu sabah Fort Mercy\'ye inmiş, at kiralamış.')],
+        ['S', Tr('Anahtar şirkette olur, şehirli konuşur... Hale bu sabah Fort Redstone\'a inmiş, at kiralamış.')],
         ['S', Tr('Soygun yerinden dağa doğru taze nal izleri var. Sür izi; yakalanma. Uzaktan bak, yeter.')],
       ],
       start(S) { S.ti = S.ti || 0; if (!this.player.has('binoculars')) { this.player.addItem('binoculars', 1, true); S.flags.binoc = 1; } },
@@ -390,7 +395,7 @@ STORIES.rail = {
           done() { const j = this.rivalEnt(); this.story.alive = !!(j && !j.dead); } },
         { t: () => Tr('Maaş sandığını al'), ev: 'chest', at() { return this.ents.find(e => e.rlKey === 'chest' && !e.remove) || this.story.camp; },
           hint: () => Tr`Sandığın yanında ${Input.glyph('interact')} basılı tut: <b>Maaş Sandığını Al</b>.`,
-          after: () => [['S', Tr('Ağır. İyi. Ağır olması gerekiyordu zaten, her ay.')], ['S', Tr('Hale\'i Fort Mercy şerifine götür. Ben sandığı kampa taşırım.')]] },
+          after: () => [['S', Tr('Ağır. İyi. Ağır olması gerekiyordu zaten, her ay.')], ['S', Tr('Hale\'i Fort Redstone şerifine götür. Ben sandığı kampa taşırım.')]] },
       ],
     },
     /* 10 — Şerif Masası: Hale'i teslim et, Boone'la vedalaş */
@@ -401,7 +406,7 @@ STORIES.rail = {
         { t() { return this.story.alive ? Tr('Hale\'i şerife canlı teslim et') : Tr('Hale\'in cesedini şerife götür'); }, ev: 'deliver', ok: (e) => e && e.quest === 'rival',
           at() { const j = this.rivalEnt(), P = this.player; if (j && j !== P.carry && !(this.horse && this.horse.load && this.horse.load.includes(j)) && !(this.myWagon && P.riding === this.myWagon)) return j; return this.sDoor(this.sBld('sheriff'), 4); }, wp: true,
           on(S) { if (S.jack === 'delivered') { const st = this.qStep(); setTimeout(() => { if (this.qStep() === st && !S.wait) this.qDone(); }, 60); } },
-          hint: () => Tr`Hale'i omzuna al (${Input.glyph('interact')}), atın varsa <b>eyere yükle</b> ve Fort Mercy şerif ofisinde teslim et.`,
+          hint: () => Tr`Hale'i omzuna al (${Input.glyph('interact')}), atın varsa <b>eyere yükle</b> ve Fort Redstone şerif ofisinde teslim et.`,
           done() { this.story.jack = 'delivered'; },
           after() {
             return this.story.alive

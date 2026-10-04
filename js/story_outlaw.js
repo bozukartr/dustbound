@@ -20,6 +20,10 @@ STORIES.outlaw = {
   title: () => Tr('Son İş'),
   intro: () => Tr`Çetenin saklı kampında uyandın. Yaşlı tetikçi Hollis Crane artık bırakmak istiyor; lider Silas Vance ise son bir büyük iş peşinde.`,
   outro: () => Tr`Hikâye tamamlandı. Çeteyle hesabın kapandı; artık nereye gideceğine sen karar veriyorsun.`,
+  opening: () => [
+    ['S', Tr('Otuz yıl. Her sabah aynı ateş, aynı kahve.')],
+    ['S', Tr('Bir sabah da başka bir yerde uyanmak isterdim.')],
+  ],
   welcome: () => Tr('Çetenin saklı kampındasın. Ateşin başındaki yaşlı adam, <b>Hollis Crane</b>, seninle konuşmak istiyor; sağ üstteki hedefi izle.'),
   mentor: {
     name: 'Hollis Crane', short: 'Hollis', look: HOLLIS_LOOK, horse: HOLLIS_HORSE,

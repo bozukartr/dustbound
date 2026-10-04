@@ -223,13 +223,23 @@ const Story = {
     }
     return { lines: out, dur: t + 1.2 };
   },
+  /* açılış sinematiğinin satırları: hikâye henüz kurulmadan (S yok) isimler tanımdan çözülür */
+  openingLines(D) {
+    const nm = (w) => w === 'P' ? this.player.name : w === 'S' ? D.mentor.short : D.speakers && D.speakers[w] ? D.speakers[w]() : w;
+    let t = 0;
+    return D.opening().map(([w, x0]) => {
+      Audio_.voPreload(x0, I18N.lang);
+      const x = this.sFmt(x0), vd = Audio_.voDur(x0, I18N.lang), d = Math.max(this.talkDur(x) * 0.95, vd ? vd + 0.3 : 0);
+      const o = { t, d, w: nm(w), x, raw: x0, self: w === 'P' }; t += d + 0.3; return o;
+    });
+  },
   qCine(sc, lines, cap, after, cast) {
     const fin = () => { this.cine = false; this.timeScale = 1; try { if (after) after(); } catch (e) { console.warn(e); } };
     if (window.__testNoCine || typeof Cinema === 'undefined' || !Cinema.has(sc)) { fin(); return; }
     this.cine = true; this._qPend = null; Bubbles.clear(); UI.el.sub.classList.add('hidden');
     const L = this.cineLines(lines), h = this.horse, S = this.story;
     const D = this.storyDef();
-    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, sully: cast === 'rival' ? D.rival.look : cast === 'kin' && D.kin ? Object.assign({}, D.kin.look, S.kinLook || {}) : D.mentor.look, jack: D.rival ? D.rival.look : null, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
+    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, town: S.town, sully: cast === 'rival' ? D.rival.look : cast === 'kin' && D.kin ? Object.assign({}, D.kin.look, S.kinLook || {}) : D.mentor.look, jack: D.rival ? D.rival.look : null, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
   },
 
   /* ---------------- her kare ---------------- */
@@ -824,6 +834,14 @@ const STORIES = {
     intro: () => Tr`Banka ailenin toprağına el koydu; sen ovada kaldın. Babanın eski komşusu, yaşlı çiftçi Dunham Sully'nin de tapusu çalınmış; Sully'ye yardım et.`,
     outro: () => Tr`Hikâye tamamlandı. Sully'nin çiftliği seni bekliyor.`,
     welcome: () => Tr('Harlow\'dasın. Babanın eski komşusu, yaşlı çiftçi <b>Dunham Sully</b> kasabada; ondan iş iste. Sağ üstteki hedefi izle.'),
+    // açılış sinematiği: aile doğuya gider, oyuncu ovada kalır
+    speakers: { F: () => Tr('Baban') },
+    opening: () => [
+      ['F', Tr('Son kez soruyorum, {ad}. Doğuda akrabaların yanında hepimize iş var.')],
+      ['P', Tr('Ben bu ovadan başka yer bilmem, baba.')],
+      ['F', Tr('Bilirim. Ben de bilmezdim.')],
+      ['F', Tr('Kasabada Sully\'ye uğra. Seni sorar.')],
+    ],
     mentor: {
       name: 'Dunham Sully', short: 'Sully', look: SULLY_LOOK, horse: SULLY_HORSE, work: 'ranch',
       place: () => Tr('Sully Çiftliği'),

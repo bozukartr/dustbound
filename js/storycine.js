@@ -222,10 +222,19 @@
     const hf = (x, z) => (Math.sin(x * 0.03) * Math.cos(z * 0.02) * 4) * Math.min(1, Math.abs(x) / 12) * flatW(x, z, -40, 40, -80, 40);
     const S = base(R, o, 'day', hf, [-240, -200, 240, 220], (x, z) => Math.abs(x) < 50 && z < 60);
     const m = S.m;
-    K.town(m, R, 0, -70, 30, { street: 6, gable: o.env === 'forest' ? 0.7 : 0.25, church: o.env !== 'desert' });
-    for (let z = -80; z < 200; z += 2) m.box(0, 0.02, z, 6, 0.05, 2.2, S.E.road);
-    // sokakta birkaç kişi
-    for (let k = 0; k < 7; k++) { const L = randomLook(R.chance(0.5) ? 'm' : 'f', R); figure(m, L, R.pick([-4.6, 4.6]) + R.range(-0.4, 0.4), 0, R.range(-60, 20), R.range(0, TAU), 'stand'); }
+    // haritadaki kasaba: atlılar ana caddenin kapısından girer (cadde -z yönüne döner)
+    const T = o.town && typeof G !== 'undefined' && G.world && G.world.towns.find(t => t.id === o.town);
+    const g0 = T && T.gates[0], g1 = T && T.gates[T.gates.length - 1];
+    const WT = g0 && g1 ? K.worldTown(m, new Mesh(GLOW), T.id, { anchor: [g0.x * TS + 8, g0.y * TS + 8], at: [0, 0, 30], rot: -Math.PI / 2 - Math.atan2(g1.y - g0.y, g1.x - g0.x) }) : null;
+    if (!WT) {
+      K.town(m, R, 0, -70, 30, { street: 6, gable: o.env === 'forest' ? 0.7 : 0.25, church: o.env !== 'desert' });
+      for (let z = -80; z < 30; z += 2) m.box(0, 0.02, z, 6, 0.05, 2.2, S.E.road);
+    }
+    for (let z = 30; z < 200; z += 2) m.box(0, 0.02, z, 6, 0.05, 2.2, S.E.road);
+    // sokakta birkaç kişi (gerçek kasabada cadde noktalarında)
+    for (let k = 0; k < 7; k++) { const L = randomLook(R.chance(0.5) ? 'm' : 'f', R);
+      if (WT && T.streetPts.length) { const sp = R.pick(T.streetPts), [x, z] = WT.P(sp.x, sp.y); figure(m, L, x + R.range(-1, 1), 0.1, z, R.range(0, TAU), 'stand'); }
+      else figure(m, L, R.pick([-4.6, 4.6]) + R.range(-0.4, 0.4), 0, R.range(-60, 20), R.range(0, TAU), 'stand'); }
     finish(S);
     const hp = K.horseParts(S.L, o.horseCol || '#6a4a2e', look), hs = K.horseParts(S.L, '#3a2a20', o.sully);
     const pz = (t) => 64 - t * 2.9;
@@ -245,10 +254,13 @@
     const hf = (x, z) => (Math.sin(x * 0.03) * Math.cos(z * 0.02) * 4) * Math.min(1, Math.abs(x) / 12) * flatW(x, z, -40, 40, -80, 40);
     const S = base(R, o, 'night', hf, [-240, -200, 240, 200], (x, z) => Math.abs(x) < 50 && z < 60);
     const m = S.m, g = new Mesh(GLOW);
-    K.town(m, R, 0, -60, 10, { street: 6, gable: 0.2, church: false, tower: false });
-    for (let z = -70; z < 120; z += 2) m.box(0, 0.02, z, 6, 0.05, 2.2, S.E.road);
-    // saloon: yan sokakta, cepheye bakar
-    at2(m, g, 12, 0, 22, -Math.PI / 2, () => {
+    // haritadaki kasabanın saloonu: kapısı sahnede (6.6, 22), cephesi -x'e bakar
+    const T = o.town && typeof G !== 'undefined' && G.world && G.world.towns.find(t => t.id === o.town);
+    const SB0 = T && G.world.buildings.find(b => b.town === T.id && (b.type === 'saloon' || b.type === 'cantina'));
+    const WT = SB0 ? K.worldTown(m, g, T.id, { anchor: [SB0.door.x, SB0.door.y], at: [6.6, 0, 22], rot: Math.PI / 2, night: true }) : null;
+    if (!WT) { K.town(m, R, 0, -60, 10, { street: 6, gable: 0.2, church: false, tower: false }); for (let z = -70; z < 120; z += 2) m.box(0, 0.02, z, 6, 0.05, 2.2, S.E.road); }
+    // saloon: yan sokakta, cepheye bakar (gerçek kasaba yoksa)
+    if (!WT) at2(m, g, 12, 0, 22, -Math.PI / 2, () => {
       m.box(0, 0, 0, 12, 6, 9, '#7a4f33'); m.box(0, 0, 4.6, 12, 8.2, 0.3, '#86593a');
       m.box(0, 3.4, 5.6, 12.4, 0.2, 2.2, '#46291c'); m.box(0, 0, 5.6, 12, 0.22, 2.2, '#6a4a2e');
       for (const sx of [-5.8, -2, 2, 5.8]) m.box(sx, 0, 6.6, 0.2, 3.4, 0.2, '#3a2416');
@@ -263,17 +275,17 @@
     const hp = K.horseParts(S.L, o.horseCol || '#6a4a2e', null), hs = K.horseParts(S.L, '#3a2a20', null);
     const pm = new Mesh(warm(0.5)); figure(pm, look, 0, 0, 0, 0, 'stand'); const PB = K.build(pm);
     const sm = new Mesh(warm(0.5)); figure(sm, o.sully, 0, 0, 0, 0, 'stand'); const SB = K.build(sm);
-    const wz = (t) => 44 - Math.min(t, 11) * 1.7;
+    const wz = (t) => 44 - Math.min(t, 11) * 1.7, WX = WT ? 2.2 : 0, HX = WT ? 4.6 : 3.4;
     S.dyn = (t, D) => {
-      K.drawHorse(D, hp, 3.4, 0, 25, Math.PI / 2, 0.4, false); K.drawHorse(D, hs, 3.4, 0, 27.5, Math.PI / 2, 1.8, false);
+      K.drawHorse(D, hp, HX, 0, 25, Math.PI / 2, 0.4, false); K.drawHorse(D, hs, HX, 0, 27.5, Math.PI / 2, 1.8, false);
       const z = wz(t), sw = Math.sin(t * 6) * 0.05;
-      D.push([PB, M4.chain(M4.tr(-0.9, sw, z), M4.ry(Math.PI))]); D.push([SB, M4.chain(M4.tr(0.9, -sw, z - 0.3), M4.ry(Math.PI))]);
-      S.focus = [0, 1.6, z];
+      D.push([PB, M4.chain(M4.tr(WX - 0.9, sw, z), M4.ry(Math.PI))]); D.push([SB, M4.chain(M4.tr(WX + 0.9, -sw, z - 0.3), M4.ry(Math.PI))]);
+      S.focus = [WX, 1.6, z];
     };
     S.shots = [
       { d: 5.2, cam: (t, u) => { const k = ease(u); return { e: V.lerp([-5, 7, 40], [-4, 3.5, 32], k), c: [10, 3, 22] }; } },
-      { d: 5, cam: (t, u) => { const z = wz(t); return { e: [-3.6, 1.8, z - 5], c: [0, 1.6, z] }; } },
-      { d: 5, cam: (t, u) => { const z = wz(t); return { e: [-2.2, 2.1, z + 5 - u], c: [9, 2.4, 22] }; } },
+      { d: 5, cam: (t, u) => { const z = wz(t); return { e: [WX - 3.6, 1.8, z - 5], c: [WX, 1.6, z] }; } },
+      { d: 5, cam: (t, u) => { const z = wz(t); return { e: [WX - 2.2, 2.1, z + 5 - u], c: [9, 2.4, 22] }; } },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
     S.particles = (t, add) => { stars(S, R, add); if (Math.random() < 0.3) add([13 + R.range(-0.3, 0.3), 9, 18], [R.range(-0.2, 0.2), 1, 0], [0.3, 0.3, 0.34, 0.5], 1, 2.5); };
@@ -303,6 +315,7 @@
       { d: 5, cam: (t, u) => ({ e: [-1.6, 1.4, 3.0 - u * 0.3], c: [2.3, 1.2, -0.3] }) },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    S.lights = [{ p: [0, 0.8, 0], c: '#ff8a3a', i: 1.1, r: 7, flick: true }];
     S.particles = (t, add) => { stars(S, R, add); fireParts(R, add, 0, 0, 0, 1.6); };
     return S;
   });
@@ -332,6 +345,7 @@
       { d: 5, cam: (t, u) => ({ e: [0.3 - u * 0.3, 1.7, -6.4 + u * 0.6], c: [1.6, 1.65, -2.4] }) },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    S.lights = [{ p: [0, 0.8, 0], c: '#ff8a3a', i: 0.8, r: 6, flick: true }];
     S.particles = (t, add) => { fireParts(R, add, 0, 0, 0, 0.5); if (Math.random() < 0.12) add([R.range(-60, 60), R.range(0.5, 3), R.range(-60, 30)], [0.4, 0, 0], [0.95, 0.9, 0.85, 0.35], 6, 6); };
     return S;
   });

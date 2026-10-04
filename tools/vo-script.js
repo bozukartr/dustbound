@@ -16,7 +16,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 const ROOT = path.join(__dirname, '..'), VO = path.join(ROOT, 'audio', 'vo');
 const key = (text) => { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 // hikâye dosyaları: quests.js (Sully) ve story_*.js; 'S' her dosyanın kendi akıl hocası, 'R' hedef kişi
-const FILES = [['quests.js', { S: 'Dunham Sully', R: 'Kızıl Jack' }]].concat(fs.readdirSync(path.join(ROOT, 'js')).filter(f => /^story_.+\.js$/.test(f)).map(f => [f, null]));
+const FILES = [['quests.js', { S: 'Dunham Sully', R: 'Kızıl Jack', F: 'Baba / Father' }]].concat(fs.readdirSync(path.join(ROOT, 'js')).filter(f => /^story_.+\.js$/.test(f)).map(f => [f, null]));
 const MENTOR = { 'story_outlaw.js': { S: 'Hollis Crane', R: 'Silas Vance' }, 'story_rail.js': { S: 'Walt Boone', R: 'Cyrus Hale', D: 'Arabacı / Driver' }, 'story_immigrant.js': { S: 'Greta Halvorsen', R: 'Ambrose Pike', K: 'Anton', M: 'Madenci / Miner' }, 'story_trapper.js': { S: 'Elias Crowe', K: 'Abel (baba / father)', T: 'Kürk Tüccarı / Fur Trader', D: 'Doktor / Doctor' } };
 const COMMON = { P: 'Oyuncu / Player', W: 'Şerif / Sheriff', B: 'Barmen / Bartender' };
 // ['S', Tr('...')] biçimli satırlar (konuşan bir harf ya da doğrudan isim)
