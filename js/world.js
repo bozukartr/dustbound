@@ -59,8 +59,21 @@ const AUT = [], SUM = [];
 const isCliffT = t => t === T.CLIFF || t === T.MESA || t === T.SNOWCLIFF;
 [T.GRASS, T.DRY, T.FOREST, T.ROCK, T.FARM, T.SAND, T.MUD, T.TOWN, T.ROAD, T.CLIFF, T.SWAMP, T.DESERT, T.REDROCK, T.COBBLE, T.PAVE].forEach(t => (SNOWABLE[t] = 1));
 [T.GRASS, T.DRY, T.FOREST, T.FARM].forEach(t => (LEAFY[t] = 1));
-AUT[T.GRASS] = hexToRgb('#94883e'); AUT[T.DRY] = hexToRgb('#b89a52'); AUT[T.FOREST] = hexToRgb('#6e5a2c'); AUT[T.FARM] = hexToRgb('#8a6c34');
-SUM[T.GRASS] = hexToRgb('#7a9040'); SUM[T.DRY] = hexToRgb('#bca45a'); SUM[T.FOREST] = hexToRgb('#4a6630'); SUM[T.FARM] = hexToRgb('#7a6a30');
+const SEAS_VIVID = { aut: { GRASS: '#94883e', DRY: '#b89a52', FOREST: '#6e5a2c', FARM: '#8a6c34' }, sum: { GRASS: '#7a9040', DRY: '#bca45a', FOREST: '#4a6630', FARM: '#7a6a30' } };
+/* Doğal ton: gerçeğe yakın, daha az doygun zemin renkleri (zeytin yeşili çimen, kum beji çöl, gözü almayan kar) */
+const TONE_NAT = {
+  DEEP: '#2e4a5a', WATER: '#436e78', SAND: '#d3c398', DESERT: '#d0a674', DRY: '#a99c62', GRASS: '#68874a', FOREST: '#45633a', SWAMP: '#4b5839', MUD: '#665138',
+  ROCK: '#878075', CLIFF: '#5d554c', SNOW: '#d8dde2', ROAD: '#957c5a', TOWN: '#a28a66', FARM: '#6b6236', REDROCK: '#ac6b48', MESA: '#824d36', SNOWCLIFF: '#abb2ba', HOTWATER: '#589498',
+};
+const SEAS_NAT = { aut: { GRASS: '#8e8446', DRY: '#b09856', FOREST: '#6a5934', FARM: '#826a38' }, sum: { GRASS: '#72894a', DRY: '#b2a05e', FOREST: '#4a6338', FARM: '#746834' } };
+/* Görüntü tonu: zemin paletini (mevsim renkleriyle birlikte) doğal ya da canlı seçer; çizilmiş chunk'lar yenilenmeli */
+function setTerrainTone(natural) {
+  TINFO.forEach((t, i) => { TPAL[i] = hexToRgb(natural && TONE_NAT[TNAME[i]] ? TONE_NAT[TNAME[i]] : t.c); });
+  const S = natural ? SEAS_NAT : SEAS_VIVID;
+  for (const k in S.aut) AUT[T[k]] = hexToRgb(S.aut[k]);
+  for (const k in S.sum) SUM[T[k]] = hexToRgb(S.sum[k]);
+}
+setTerrainTone(true);
 const isWaterT = t => t === T.DEEP || t === T.WATER || t === T.HOTWATER;
 const SNOW_LINE = 0.6; // kışın bu sıcaklığın altı karla kaplanır
 

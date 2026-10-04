@@ -446,7 +446,7 @@ const FX = {
     this.tint(ctx, 'soft-light', '#ff8a3a', g.gold * 0.5);
     this.tint(ctx, 'source-over', 'rgb(255,128,48)', g.gold * 0.06);
     this.tint(ctx, 'soft-light', '#3450a8', g.blue * 0.5);
-    this.tint(ctx, 'soft-light', '#ffb060', g.desert * 0.34);
+    this.tint(ctx, 'soft-light', '#ffb060', g.desert * (G.settings.tone === 1 ? 0.34 : 0.17));   // doğal tonda çöl turuncuya boğulmaz
     this.tint(ctx, 'saturation', '#808080', g.rain * 0.4);
     this.tint(ctx, 'soft-light', '#5a78a4', g.rain * 0.32);
     this.tint(ctx, 'soft-light', '#a8ccff', g.cold * 0.36);
