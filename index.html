@@ -23,7 +23,7 @@
 
       <div id="hud-tr">
         <div id="hud-money">$0.00</div>
-        <div id="hud-clock"><span id="hud-time">08:00</span><span id="hud-date"></span></div>
+        <div id="hud-clock"><span id="hud-env"></span><span id="hud-time">08:00</span><span id="hud-date"></span></div>
         <div id="hud-age"></div>
         <div id="hud-wanted" class="hidden">
           <div class="wanted-title" data-i18n="ARANIYOR">ARANIYOR</div>
@@ -36,33 +36,32 @@
         <div id="hud-quest" class="hidden"></div>
       </div>
 
+      <!-- Sol alt: pirinç kadranlı radar, çevresinde yay boyunca çekirdekler (sağda oyuncu, solda at), sağ altta ihtiyaçlar -->
       <div id="hud-bl">
+        <div id="radar-wrap">
+          <canvas id="radar" width="448" height="448"></canvas>
+        </div>
         <div id="cores">
           <div class="core" id="core-hp"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="heart"></span></div>
           <div class="core" id="core-sta"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="bolt"></span></div>
           <div class="core" id="core-de"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="deadeye"></span></div>
-        </div>
-        <div id="needs">
-          <div class="need" id="need-hunger" data-i18n-title="Açlık"><span data-g="meat"></span><i></i></div>
-          <div class="need" id="need-thirst" data-i18n-title="Susuzluk"><span data-g="drop"></span><i></i></div>
-          <div class="need" id="need-energy" data-i18n-title="Uyku"><span data-g="moon"></span><i></i></div>
-          <div class="need" id="need-clean" data-i18n-title="Temizlik"><span data-g="soap"></span><i></i></div>
-        </div>
-        <div id="radar-wrap">
-          <canvas id="radar" width="200" height="200"></canvas>
-          <div id="radar-n" data-i18n="@pusula|K">K</div>
-          <div id="temp-gauge"><div id="temp-fill"></div><span id="temp-val">20°</span></div>
         </div>
         <div id="horse-cores" class="hidden">
           <div class="core small" id="core-hhp"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="horse"></span></div>
           <div class="core small" id="core-hsta"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="bolt"></span></div>
         </div>
         <div id="status-icons"></div>
+        <div id="needs">
+          <div class="need" id="need-hunger" data-i18n-title="Açlık"><span data-g="meat"></span><i></i></div>
+          <div class="need" id="need-thirst" data-i18n-title="Susuzluk"><span data-g="drop"></span><i></i></div>
+          <div class="need" id="need-energy" data-i18n-title="Uyku"><span data-g="moon"></span><i></i></div>
+          <div class="need" id="need-clean" data-i18n-title="Temizlik"><span data-g="soap"></span><i></i></div>
+        </div>
         <div id="hud-xinfo"></div>
       </div>
 
       <div id="hud-br">
-        <div id="weapon-hud"><span id="w-icon"></span><span id="w-name"></span><span id="w-ammo"></span></div>
+        <div id="weapon-hud"><span id="w-icon"></span><span id="w-info"><span id="w-name"></span><span id="w-pips"></span></span><span id="w-ammo"></span></div>
         <div id="prompts"></div>
       </div>
 
@@ -81,33 +80,41 @@
     <!-- Harita -->
     <div id="mapscreen" class="hidden">
       <canvas id="mapcanvas"></canvas>
+      <div id="map-frame"></div>
       <div id="map-legend"></div>
       <div id="map-info"></div>
+      <div id="map-me"></div>
       <div id="map-hint"></div>
       <div id="map-cursor"></div>
     </div>
 
-    <!-- Ana menü -->
+    <!-- Ana menü: piksel gün batımı, film greni, süslü başlık, odak işaretli menü, son hayat kartı -->
     <div id="mainmenu" class="screen hidden">
       <canvas id="menubg"></canvas>
+      <div class="mm-shade"></div>
+      <div class="mm-grain"></div>
       <div class="mm-inner">
         <div class="mm-title">
           <div class="mm-pre" data-i18n="— Amerika, 1890 —">— Amerika, 1890 —</div>
           <h1>FRONTIER'S END</h1>
+          <div class="mm-rule"></div>
           <div class="mm-sub" data-i18n="Bir Batılının Hayatı">Bir Batılının Hayatı</div>
         </div>
         <div class="mm-items" id="mm-items"></div>
         <div class="mm-foot" id="mm-foot"></div>
       </div>
+      <div class="mm-card hidden" id="mm-card"></div>
     </div>
 
-    <!-- Yükleniyor -->
+    <!-- Yükleniyor: ray üstünde ilerleyen atlı -->
     <div id="loading" class="screen hidden">
+      <div class="mm-grain"></div>
       <div class="ld-inner">
         <div class="ld-title">FRONTIER'S END</div>
-        <div class="ld-bar"><i id="ld-fill"></i></div>
+        <div class="mm-rule"></div>
+        <div class="ld-track"><div class="ld-bar"><i id="ld-fill"></i></div><span class="ld-rider" id="ld-rider"></span></div>
         <div class="ld-msg" id="ld-msg">...</div>
-        <div class="ld-tip" id="ld-tip"></div>
+        <div class="ld-tipbox"><div class="ld-tk" data-i18n="İpucu">İpucu</div><div class="ld-tip" id="ld-tip"></div></div>
       </div>
     </div>
 
