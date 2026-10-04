@@ -13,6 +13,8 @@ Kurulum ya da derleme adımı yok. İki yol var:
 
 **Masaüstü ve Steam:** `desktop/` klasöründe Electron + steamworks.js paketi var: `cd desktop && npm install && npm start`. Steam başarımları, bulut kayıt, Rich Presence, overlay, tam ekran ve kol simgeleri için bkz. [desktop/README.md](desktop/README.md).
 
+**Demo paketi (itch.io):** `npm install && npm run build:demo` → `dist-demo/` ve yüklemeye hazır `dist-demo.zip`. Betik ([tools/build-demo.js](tools/build-demo.js)) oyunun dosyalarına dokunmaz; oyunu `dist-demo/` altına kopyalar, öbür dört hikâyeyi, açılış sahnelerini, çevirilerini ve geliştirici aracını çıkarır, kodu küçültür ve [demo/demo.js](demo/demo.js) katmanını ekler: yalnızca Çiftçi Çocuğu ve Sully'nin Senedi'nin ilk dört bölümü; beşinci bölüm başlarken (hikâye bırakılırsa üçüncü, sürerse yedinci oyun gününün sonunda) demo biter. Demo kayıtları tam oyununkilerden ayrı tutulur. Sınırlar ve "Tam Sürümü Takip Et" bağlantısı `demo/demo.js` başındaki `DEMO` nesnesinden değiştirilir.
+
 Chrome, Edge ve Firefox'un güncel sürümleri desteklenir. PlayStation, Xbox ve Steam Deck kolları USB ya da Bluetooth ile bağlanıp herhangi bir tuşa basınca algılanır; ekrandaki tuş simgeleri bağlı kola göre değişir (Ayarlar > Kol Simgeleri ile elle de seçilebilir).
 
 ## Diller
@@ -347,6 +349,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `story_immigrant` | Göçmen hikâyesi baştan sona: Saint Clement'ta Greta, on bölüm, kayıt/yükleme, liman işi, satış, at alma, posta arabasıyla maden kasabası, galeri, maymuncukla borç defteri, Anton'u kurtarma, Pike'ı teslim, dükkânın tapusu |
 | `backgrounds` | beş geçmişin genel kontrolü: her geçmiş kendi hikâyesine ve başarımına bağlı, günlük metinleri iki dilde tam; hikâyesiz başlangıç her geçmişte kendi kasabasında (Kanun Kaçağı saklı kampta) açılır ve hikâye kişisi çıkmaz; hikâye kimliği olmayan eski kayıt Sully'yle sürer |
 | `opening` | açılış sinematikleri: beş sahne üç anda çizilir (boş değil, gölge açık, GL hatası yok), hikâye satırları altyazıda, son çekimde yer adı ve alt başlık; hikâye kapalıyken satırsız; İngilizce başlık; yeni oyunda Çiftçi açılışı babanın sözüyle oynar, geçilince Sully'nin hikâyesi başlar; beş kasabanın sinematik hâli haritadaki bütün binaları aynı türleriyle içerir |
+| `demo` | demo paketi: `npm run build:demo` ile kurulur; pakette öbür hikâyeler, geliştirici aracı ve okunabilir kaynak yok, tam oyunun dosyaları yerinde; menüde DEMO işareti (iki dilde), yalnızca Çiftçi Çocuğu ve Sully; Çiftçi açılışı oynar, kayıt anahtarları `demo_` ile başlar; beşinci bölüm başlarken demo sonu açılır, Enter ile menüye dönülür, kayıt yeniden yüklenince yine biter; hikâye bırakılırsa üçüncü günün sonunda biter |
 | `outlaw` | Kanun Kaçağı'nın saklı kampta başlaması (kasaba dışı, ateş, harita işareti, bandana, tulum, at), kampta tanınmama, bandanayla kasabada tanınmama, kayıt/yüklemede kampın korunması |
 | `create` | karakter ekranında adım adım bölümler, isim yazıp Enter'la oyunun başlamaması, yazılan ismin korunması, bakılmamış bölüme yönlendirme, Esc ile geri, seçimlerin oyuna geçmesi |
 | `debug` | hata ayıklama paneli şifresi ve kilidi |

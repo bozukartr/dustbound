@@ -2,3 +2,5 @@ node_modules/
 .DS_Store
 *.log
 tests/output/
+dist-demo/
+dist-demo.zip
