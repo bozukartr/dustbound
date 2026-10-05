@@ -300,7 +300,7 @@ const Audio_ = {
     this.loops.gallop = mk('lowpass', 300);
   },
   /* ortam döngüsü seviyesi: örnekli döngü hazırsa o çalar, prosedürel olan susar */
-  LOOPGAIN: { wind: 1.6, rain: 1.5, fire: 2.2, water: 2.0, crickets: 1.2, crowd: 1.0, storm: 1.2 },
+  LOOPGAIN: { wind: 0.95, rain: 1.6, fire: 3.9, water: 2.0, crickets: 1.28, crowd: 1.8, storm: 1.2 },
   setLoop(name, v) {
     const S = this.sloops && this.sloops[name], L = this.loops[name], t = this.ctx.currentTime;
     if (S) { S.g.gain.setTargetAtTime(v * (this.LOOPGAIN[name] || 1), t, 0.6); if (L) L.g.gain.setTargetAtTime(0, t, 0.2); return; }
