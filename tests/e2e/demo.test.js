@@ -61,7 +61,8 @@ module.exports = {
 
       // sekizinci bölüm oynanır, dokuzuncu (kamp ve final) başlarken demo sonu
       t.eq(await p.evaluate(() => DEMO.lastCh), 8, 'sınır sekiz bölüm');
-      await p.evaluate(() => G.qChapter(4));
+      // bölüm atlamalarında geçiş sinematikleri açılmasın (açılırsa Enter sinematiği geçer, demo sonuna gitmez)
+      await p.evaluate(() => { window.__testNoCine = true; G.qChapter(4); });
       t.ok(await p.evaluate(() => G.story.ch === 4 && !document.getElementById('demo-end')), 'beşinci bölüm artık demoda');
       await p.evaluate(() => G.qChapter(7));
       t.ok(await p.evaluate(() => G.story.ch === 7 && !document.getElementById('demo-end')), 'sekizinci bölüm oynanır');
