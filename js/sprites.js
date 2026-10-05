@@ -1124,22 +1124,46 @@ const Spr = {
     } else if (mk === 'sack') {
       this.ell(ctx, -4.4, 0, 1.8, 1.1, '#b89860'); ctx.fillStyle = '#6a4a28'; ctx.fillRect(-3.6, -1.4, 0.7, 2.8);
     }
-    if (look.sex === 'f' && look.hairStyle !== 3 && mk !== 'sack') this.ell(ctx, -2.6, 0, 2.3, 2.6, hc);
+    if (mk !== 'sack') this.hairTop(ctx, look, hc);
     if (mk === 'sack') { this.circ(ctx, 0, 0, 3.4, '#8a6a3a'); this.circ(ctx, 0, 0, 3, '#c8a870'); ctx.fillStyle = '#9a7a48'; ctx.fillRect(-2, -0.3, 1.2, 0.6); ctx.fillRect(-0.4, -2.2, 0.6, 1.2); ctx.fillStyle = '#1a1008'; ctx.fillRect(1.6, -1.7, 1.2, 1.1); ctx.fillRect(1.6, 0.6, 1.2, 1.1); }
     if (look.hat && look.hat !== 'none') {
-      const br = (look.hat === 'wide' ? 5.6 : look.hat === 'bowler' ? 3.8 : look.hat === 'flat' ? 3.4 : 4.8) * (1 + (st.hatK || 0) * 0.14);
-      this.ell(ctx, (st.hatK || 0) * 0.8, 0, br, br * 0.95, look.hatCol);
-      if (look.hat === 'flat') this.ell(ctx, 2.6, 0, 2, 2.6, shadeHex(look.hatCol, -0.2));
-      this.ell(ctx, -0.2, 0, 2.7, 2.5, shadeHex(look.hatCol, -0.28));
-      if (look.hat === 'cowboy' || look.hat === 'wide') { ctx.fillStyle = shadeHex(look.hatCol, 0.25); ctx.fillRect(-0.8, -2.4, 1, 4.8); }
+      this.hatTop(ctx, look.hat, look.hatCol, st.hatK || 0);
       if ((st.hatK || 0) > 0.15) this.circ(ctx, 2.4, -3.2, 1.1, look.skin);   // şapkayı düzelten el
     } else if (mk !== 'sack') {
-      this.circ(ctx, 0, 0, 2.9, hc);
+      if (look.hairStyle === 7) for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; this.circ(ctx, Math.cos(a) * 2.6 - 0.3, Math.sin(a) * 2.6, 1.1, shadeHex(hc, i % 2 ? -0.2 : 0.05)); }   // kıvırcık
+      this.circ(ctx, 0, 0, look.hairStyle === 7 ? 3.1 : 2.9, hc);
+      if (look.hairStyle === 9 && look.sex !== 'f') this.ell(ctx, 1.2, 0, 1.3, 1.6, shadeHex(look.skin, -0.05));   // açık alın
+      if (look.sex === 'f' && (look.hairStyle === 2 || look.hairStyle === 6)) { this.circ(ctx, -0.3, 0, look.hairStyle === 6 ? 1.7 : 1.4, shadeHex(hc, -0.25)); this.circ(ctx, -0.6, -0.4, 0.6, shadeHex(hc, 0.2)); }   // topuz
       this.ell(ctx, 1.9, 0, 1.2, 1.9, look.skin);
       if (mk === 'bandana') { this.ell(ctx, 2.2, 0, 1, 2.1, '#a8281f'); ctx.fillStyle = '#e8d8c0'; ctx.fillRect(2.4, -1, 0.6, 0.6); ctx.fillRect(2.4, 0.6, 0.6, 0.6); }
     }
     if (st.anim && !st.hold) this.gesture(ctx, look, st, sw, 1);   // yüze götürülen el, şapkadaki el
     ctx.restore();
+  },
+  /* Başın arkasında/omuzda kalan saç (üstten): uzun saç, at kuyruğu, ense topuzu, örgüler */
+  hairTop(ctx, look, hc) {
+    const hs = look.hairStyle | 0, f = look.sex === 'f';
+    const long = f ? [0, 1, 4, 5, 7].includes(hs) : [1, 4, 7].includes(hs);
+    if (long) this.ell(ctx, f ? -2.6 : -2.2, 0, f ? 2.3 : 1.9, f ? 2.6 : 2.4, hc);
+    if (!f && hs === 2) this.ell(ctx, -3.4, 0, 1.3, 0.8, shadeHex(hc, -0.15));                 // at kuyruğu
+    if (f && hs === 3) this.circ(ctx, -3, 0, 1.3, shadeHex(hc, -0.15));                        // ense topuzu
+    const br = hs === 8 ? [-1] : f && hs === 9 ? [-1, 1] : [];                                    // örgüler omuzdan öne
+    for (const k of br) for (let i = 0; i < 3; i++) this.circ(ctx, -1.6 + i * 1.3, k * (2.4 + i * 0.5), 0.75, shadeHex(hc, i % 2 ? -0.2 : 0));
+  },
+  /* Şapka, üstten: kenar, tepe, kasket siperi, kovboy çatısı. k = şapkayı düzeltme jesti (0–1) */
+  hatTop(ctx, hat, col, k = 0) {
+    const S = LOOKS.hatShape[hat] || LOOKS.hatShape.cowboy, c = hatColor(hat, col), br = S.br * (1 + k * 0.14);
+    if (hat === 'bonnet') {
+      this.ell(ctx, -0.8, 0, 3.6, 3.3, c); this.ell(ctx, 1.4, 0, 1.3, 2.9, shadeHex(c, 0.18)); this.ell(ctx, -1.4, 0, 2, 2.2, shadeHex(c, -0.2));
+      return;
+    }
+    this.ell(ctx, k * 0.8, 0, br, br * 0.95, c);
+    if (hat === 'flat') this.ell(ctx, 2.6, 0, 2, 2.6, shadeHex(c, -0.2));
+    if (hat === 'fur') { this.ell(ctx, -0.2, 0, 3, 2.9, shadeHex(c, 0.12)); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; this.circ(ctx, Math.cos(a) * 2.9, Math.sin(a) * 2.8, 0.7, shadeHex(c, i % 2 ? -0.25 : 0.2)); } return; }
+    if (hat === 'top') { this.ell(ctx, -0.2, 0, 2.5, 2.4, shadeHex(c, 0.1)); this.ell(ctx, -0.6, -0.5, 1, 0.9, shadeHex(c, 0.35)); return; }
+    this.ell(ctx, -0.2, 0, 2.7, 2.5, shadeHex(c, -0.28));
+    if (hat === 'cowboy' || hat === 'wide' || hat === 'straw') { ctx.fillStyle = shadeHex(c, 0.25); ctx.fillRect(-0.8, -2.4, 1, 4.8); }
+    if (hat === 'straw') { ctx.strokeStyle = shadeHex(c, -0.25); ctx.lineWidth = 0.3; ctx.beginPath(); ctx.ellipse(0, 0, br * 0.75, br * 0.72, 0, 0, TAU); ctx.stroke(); }
   },
   /* NPC jestleri, üstten görünüş (gövde çerçevesi: x ileri, y sağ).
      layer 0: kollar ve eldekiler (true dönerse varsayılan kollar çizilmez); layer 1: başın üstünde kalanlar */

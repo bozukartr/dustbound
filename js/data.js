@@ -132,6 +132,11 @@ const ITEMS = {
   hat_bowler:    { n: 'Melon Şapka', c: 'clothing', p: 2.5, i: '🎩', max: 1, hat: 'bowler' },
   hat_flat:      { n: 'Kasket', c: 'clothing', p: 0.75, i: '🧢', max: 1, hat: 'flat' },
   hat_wide:      { n: 'Geniş Kenarlı Şapka', c: 'clothing', p: 4, i: '👒', max: 1, hat: 'wide', d: 'Çölde hayat kurtarır.' },
+  hat_boss:      { n: 'Ova Şapkası', c: 'clothing', p: 5, i: '🤠', max: 1, hat: 'boss', d: 'Düz kenarlı, yüksek tepeli keçe şapka.' },
+  hat_straw:     { n: 'Hasır Şapka', c: 'clothing', p: 0.5, i: '👒', max: 1, hat: 'straw', d: 'Hafif ve serin; tarlada çalışanların şapkası.' },
+  hat_top:       { n: 'Silindir Şapka', c: 'clothing', p: 6, i: '🎩', max: 1, hat: 'top' },
+  hat_fur:       { n: 'Kürk Başlık', c: 'clothing', p: 3, i: '🧢', max: 1, hat: 'fur', d: 'Dağın ayazına karşı.' },
+  hat_bonnet:    { n: 'Bone', c: 'clothing', p: 1.5, i: '👒', max: 1, hat: 'bonnet', d: 'Yüzü güneşten koruyan kumaş başlık.' },
   mask_bandana:  { n: 'Bandana', c: 'clothing', p: 0.15, i: '🎭', max: 1, mask: 'bandana', d: 'Yüzünün alt yarısını örter. Maskeliyken işlenen suçlar sana yazılmaz — ama maskeyi birileri görürken çıkarma.' },
   mask_sack:     { n: 'Çuval Maske', c: 'clothing', p: 0.05, i: '🎭', max: 1, mask: 'sack', d: 'Göz delikleri açılmış bir un çuvalı. Kimse yüzünü göremez; ama herkes sana bakar.' },
   // ---- Patlayıcı
@@ -348,7 +353,7 @@ const SHOPS = {
   doctor:  { n: 'Doktor', sell: ['health_cure', 'bandage', 'antidote', 'snake_oil', 'stamina_tonic', 'herbal_tonic', 'quinine', 'laudanum', 'liniment', 'smelling_salts'], buy: { herb: 1.0, med: 0.5 } },
   gunsmith:{ n: 'Silahçı', weapons: ['knife', 'lasso', 'cattleman', 'schofield', 'repeater', 'winchester', 'rifle', 'shotgun', 'bow'], ammo: ['pistol', 'repeater', 'rifle', 'shotgun', 'arrow'], sell: ['dynamite', 'binoculars'], buy: {} },
   butcher: { n: 'Kasap', sell: ['cooked_game', 'cooked_big', 'jerky', 'raw_game', 'bait'], buy: { animal: 1.0, food: 0.7 } },
-  tailor:  { n: 'Terzi', sell: ['coat_duster', 'coat_sheep', 'coat_fur', 'coat_poncho', 'coat_linen', 'hat_cowboy', 'hat_bowler', 'hat_flat', 'hat_wide', 'mask_bandana'], buy: { clothing: 0.5 } },
+  tailor:  { n: 'Terzi', sell: ['coat_duster', 'coat_sheep', 'coat_fur', 'coat_poncho', 'coat_linen', 'hat_cowboy', 'hat_bowler', 'hat_flat', 'hat_wide', 'hat_boss', 'hat_straw', 'hat_top', 'hat_fur', 'hat_bonnet', 'mask_bandana'], buy: { clothing: 0.5 } },
   fence:   { n: 'Kaçakçı', sell: ['dynamite', 'snake_oil', 'whiskey', 'tobacco', 'mask_bandana', 'mask_sack', 'lockpick', 'laudanum'], buy: { valuable: 1.0, collect: 0.9, clothing: 0.6 } },
   nomad_traders: { n: 'Kervan', sell: ['coffee', 'tobacco', 'snake_oil', 'bandage', 'harmonica', 'lantern', 'mask_bandana', 'canteen', 'bedroll', 'chocolate', 'whiskey', 'quinine', 'binoculars'], buy: { animal: 0.7, valuable: 0.75, collect: 1.1, herb: 0.6 } },
   nomad_drovers: { n: 'Sığırtmaçlar', sell: ['cooked_big', 'jerky', 'coffee', 'beans', 'hay', 'horse_tonic', 'horse_brush'], buy: { food: 0.6, animal: 0.6 } },
@@ -586,16 +591,27 @@ const LIFE_PACES = [
 const LOOKS = {
   skin: ['#f2d3b3', '#e0b48c', '#c8956a', '#a8734c', '#7a5236', '#5a3a26'],
   hair: ['#1a1410', '#3a2618', '#6a4424', '#a0682c', '#c89a58', '#8a3a1a', '#e0d0a0'],
-  hairStyle: ['Kısa', 'Uzun', 'Toplu', 'Kazınmış', 'Dalgalı'],
-  beard: ['Yok', 'Bıyık', 'Keçi Sakalı', 'Kirli Sakal', 'Gür Sakal'],
-  hat: ['cowboy', 'bowler', 'flat', 'wide', 'none'],
-  hatN: { cowboy: 'Kovboy', bowler: 'Melon', flat: 'Kasket', wide: 'Geniş Kenar', none: 'Şapkasız' },
-  hatCol: ['#3a2a1e', '#6a5038', '#1a1614', '#8a7a64', '#c0a880', '#4a3a3a'],
+  // saç stili: aynı sırayla erkek ve kadın adları (hairStyleN(look) doğru listeyi verir)
+  hairStyle: ['Kısa', 'Uzun', 'Toplu', 'Kazınmış', 'Dalgalı', 'Yana Taralı', 'Arkaya Taralı', 'Kıvırcık', 'Örgülü', 'Açık Alın'],
+  hairStyleF: ['Kısa', 'Uzun', 'Topuz', 'Sıkı Toplu', 'Dalgalı', 'Yana Taralı', 'Kabarık Topuz', 'Kıvırcık', 'Tek Örgü', 'İki Örgü'],
+  beard: ['Yok', 'Bıyık', 'Keçi Sakalı', 'Kirli Sakal', 'Gür Sakal', 'Favori', 'Pala Bıyık', 'Çene Sakalı', 'Kısa Sakal'],
+  hat: ['cowboy', 'boss', 'wide', 'straw', 'bowler', 'top', 'flat', 'fur', 'bonnet', 'none'],
+  hatF: ['bonnet'],   // yalnızca kadınlar
+  hatN: { cowboy: 'Kovboy', boss: 'Ova Şapkası', wide: 'Geniş Kenar', straw: 'Hasır', bowler: 'Melon', top: 'Silindir', flat: 'Kasket', fur: 'Kürk Başlık', bonnet: 'Bone', none: 'Şapkasız' },
+  // kuşbakışı ve 3D çizim için şapka biçimi: br = kenar yarıçapı (kuşbakışı), w3 = 3D kenar, h3 = 3D tepe yüksekliği
+  hatShape: { cowboy: { br: 4.8, w3: 0.42, h3: 0.2 }, boss: { br: 4.9, w3: 0.44, h3: 0.24 }, wide: { br: 5.6, w3: 0.5, h3: 0.18 }, straw: { br: 5.4, w3: 0.48, h3: 0.16 },
+    bowler: { br: 3.8, w3: 0.3, h3: 0.2 }, top: { br: 3.6, w3: 0.28, h3: 0.36 }, flat: { br: 3.4, w3: 0.24, h3: 0.12 }, fur: { br: 3.5, w3: 0.22, h3: 0.16 }, bonnet: { br: 3.4, w3: 0.2, h3: 0.14 } },
+  hatCol: ['#3a2a1e', '#6a5038', '#1a1614', '#8a7a64', '#c0a880', '#4a3a3a', '#4a4e56', '#2e3a2c', '#7a3a2a', '#d8c8a8'],
   coat: ['#5a4a3a', '#2e3a4a', '#6a3a2a', '#3a4a32', '#7a6a58', '#4a2a3a', '#2a2622'],
   shirt: ['#d8cdb4', '#8a9ab0', '#b04a3a', '#e8e4dc', '#6a7a5a'],
   pants: ['#3a3024', '#2a2a30', '#5a4a3a', '#4a3a2e'],
   eyes: ['#3a2a1a', '#4a6a8a', '#5a7a4a', '#6a5030'],
 };
+
+/* Görünüme göre saç stili adı (kadın ve erkek adları ayrı) */
+const hairStyleN = (look, i = look.hairStyle) => (look.sex === 'f' ? LOOKS.hairStyleF : LOOKS.hairStyle)[i] || LOOKS.hairStyle[0];
+/* Şapkanın görünen rengi: hasır kendi renginde, öbürleri seçilen renkte */
+const hatColor = (hat, col) => (hat === 'straw' ? '#d4ba7a' : col);
 
 const NAMES = {
   m: ['John', 'Arthur', 'William', 'Samuel', 'Thomas', 'Jesse', 'Wyatt', 'Levi', 'Eli', 'Jacob', 'Henry', 'Charles', 'Amos', 'Silas', 'Caleb', 'Virgil', 'Clay', 'Hosea', 'Otis', 'Walter', 'Isaac', 'Frank', 'Hank', 'Buck', 'Jeb', 'Luther', 'Ezra', 'Morgan'],

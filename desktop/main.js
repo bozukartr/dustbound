@@ -118,6 +118,10 @@ ipcMain.on('steam:info', (e) => {
 });
 ipcMain.on('steam:achievement', (e, api) => { steamCall(() => { if (!steam.achievement.isActivated(api)) steam.achievement.activate(api); }); });
 ipcMain.on('steam:presence', (e, key, value) => { steamCall(() => steam.localplayer.setRichPresence(key, value || null)); });
+// Steam Deck / Big Picture: yazı kutusu odaklanınca yüzen ekran klavyesi (kutu alanı pencere pikselleriyle)
+ipcMain.on('steam:keyboard', (e, x, y, w, h) => {
+  steamCall(() => { const p = steam.utils.showFloatingGamepadTextInput(0, x, y, w, h); if (p && p.catch) p.catch(err => console.warn('[steam] klavye:', err.message)); });
+});
 ipcMain.on('win:isFullscreen', (e) => { e.returnValue = !!(win && win.isFullScreen()); });
 ipcMain.on('win:fullscreen', (e, on) => { if (win) win.setFullScreen(!!on); });
 ipcMain.on('app:quit', () => { allowClose = true; app.quit(); });

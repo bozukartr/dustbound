@@ -529,22 +529,40 @@ const Cinema = (() => {
         m.box(s * 0.147, 0.98, 0, 0.03, 0.08, 0.06, skd);                         // kulaklar
       }
       m.box(0, 0.905, 0.142, 0.09, 0.02, 0.01, shadeHex(sk, -0.32));             // ağız
-      if (look.sex === 'f' && look.hairStyle !== 3) { m.box(0, 0.72, -0.12, 0.34, 0.46, 0.12, hair); for (const s of [-1, 1]) m.box(s * 0.155, 0.84, 0.0, 0.04, 0.3, 0.22, hair); }
-      m.box(0, 0.98, -0.045, 0.3, 0.24, 0.22, hair);                              // ense ve yanlar
-      m.box(0, 1.16, 0.005, 0.3, 0.06, 0.29, hair);                               // tepe
-      if (look.beard > 0) {
-        const bl = 0.08 + (look.beardLen || 0.4) * 0.12;
-        m.box(0, 0.94, 0.15, 0.13, 0.03, 0.02, hair);                             // bıyık
-        if (look.beard > 1) m.box(0, 0.88 - bl + 0.06, 0.12, 0.26, bl, 0.06, hair);
+      const hs = look.hairStyle | 0, fem = look.sex === 'f', hat = look.hat && look.hat !== 'none' && LOOKS.hatShape[look.hat] ? look.hat : null;
+      if (hat !== 'bonnet') {
+        const long = fem ? [0, 1, 4, 5, 7].includes(hs) : [1, 4, 7].includes(hs);
+        if (long) { const ln = fem ? (hs === 0 ? 0.26 : 0.46) : hs === 1 ? 0.36 : 0.24; m.box(0, 0.96 - ln, -0.12, fem ? 0.34 : 0.32, ln, 0.12, hair); for (const s of [-1, 1]) m.box(s * 0.155, 0.98 - ln * 0.6, 0.0, 0.04, ln * 0.6, 0.22, hair); }
+        if (!fem && hs === 2) m.box(0, 0.74, -0.17, 0.07, 0.24, 0.06, hair);                         // at kuyruğu
+        if (fem && hs === 3) m.box(0, 0.88, -0.17, 0.14, 0.12, 0.08, hair);                          // ense topuzu
+        if (fem && (hs === 2 || hs === 6) && !hat) m.box(0, 1.22, -0.03, hs === 6 ? 0.18 : 0.14, 0.12, hs === 6 ? 0.18 : 0.14, hair);   // tepe topuzu
+        for (const s of hs === 8 ? [-1] : fem && hs === 9 ? [-1, 1] : []) m.box(s * 0.13, 0.66, 0.1, 0.06, 0.32, 0.06, hair);   // omuzdan öne örgü
       }
-      if (look.hat && look.hat !== 'none') {
-        const wide = look.hat === 'wide' ? 0.5 : look.hat === 'bowler' ? 0.3 : look.hat === 'flat' ? 0.24 : 0.42, br = shadeHex(hc, -0.12);
-        m.cyl(0, 1.13, 0, wide, 0.035, 12, br);
-        if (look.hat === 'cowboy') for (const s of [-1, 1]) m.box(s * (wide - 0.06), 1.15, 0, 0.1, 0.05, wide * 1.3, br);   // kenarları kalkık
-        if (look.hat === 'bowler') m.cyl(0, 1.16, 0, 0.19, 0.2, 10, hc);
-        else if (look.hat === 'flat') m.box(0, 1.16, 0, 0.3, 0.12, 0.3, hc);
-        else { m.box(0, 1.16, 0, 0.31, 0.12, 0.31, hc); m.box(0, 1.28, 0, 0.27, 0.08, 0.28, hc); if (look.hat === 'cowboy') m.box(0, 1.33, 0, 0.07, 0.04, 0.22, shadeHex(hc, -0.25)); }
-        m.box(0, 1.165, 0, 0.31, 0.05, 0.31, '#2a1a10');                          // şerit
+      m.box(0, 0.98, -0.045, 0.3, 0.24, 0.22, hair);                              // ense ve yanlar
+      m.box(0, 1.16, hs === 9 && !fem ? -0.03 : 0.005, 0.3, hs === 7 ? 0.09 : 0.06, hs === 9 && !fem ? 0.22 : 0.29, hair);   // tepe
+      if (!fem && look.beard > 0) {
+        const b = look.beard, bl = 0.08 + (look.beardLen || 0.4) * 0.12, stub = mixHex(hair, sk, 0.5);
+        if ([1, 2, 4, 5, 8].includes(b)) m.box(0, 0.94, 0.15, 0.13, 0.03, 0.02, hair);                   // bıyık
+        if (b === 6) m.box(0, 0.925, 0.15, 0.16, 0.05, 0.03, hair);                                          // pala bıyık
+        if (b === 4 || b === 8) m.box(0, 0.88 - (b === 8 ? 0.06 : bl) + 0.06, 0.12, 0.26, b === 8 ? 0.06 : bl, 0.06, hair);   // gür / kısa sakal
+        if (b === 2) m.box(0, 0.84, 0.14, 0.07, 0.07, 0.04, hair);                                           // keçi sakalı
+        if (b === 3) m.box(0, 0.87, 0.125, 0.25, 0.08, 0.04, stub);                                          // kirli sakal
+        if (b === 5) for (const s of [-1, 1]) m.box(s * 0.12, 0.92, 0.08, 0.05, 0.16, 0.12, hair);          // favori
+        if (b === 7) { m.box(0, 0.8, 0.1, 0.26, 0.03, 0.06, hair); for (const s of [-1, 1]) m.box(s * 0.135, 0.9, 0.06, 0.03, 0.16, 0.08, hair); }   // çene sakalı
+      }
+      if (hat) {
+        const S = LOOKS.hatShape[hat], c = hatColor(hat, hc), wide = S.w3, br = shadeHex(c, -0.12);
+        if (hat === 'bonnet') { m.box(0, 1.06, -0.04, 0.34, 0.26, 0.3, c); m.box(0, 1.02, 0.14, 0.38, 0.32, 0.03, shadeHex(c, 0.12)); m.box(0, 0.84, 0.12, 0.2, 0.02, 0.02, shadeHex(c, -0.2)); }
+        else if (hat === 'fur') { m.box(0, 1.17, 0, 0.33, 0.16, 0.33, c); for (const s of [-1, 1]) m.box(s * 0.16, 0.98, 0, 0.04, 0.18, 0.18, c); }
+        else {
+          m.cyl(0, 1.13, 0, wide, 0.035, 12, br);
+          if (hat === 'cowboy') for (const s of [-1, 1]) m.box(s * (wide - 0.06), 1.15, 0, 0.1, 0.05, wide * 1.3, br);   // kenarları kalkık
+          if (hat === 'bowler') m.cyl(0, 1.16, 0, 0.19, 0.2, 10, c);
+          else if (hat === 'top') m.cyl(0, 1.16, 0, 0.17, S.h3 + 0.04, 12, c);
+          else if (hat === 'flat') m.box(0, 1.16, 0, 0.3, 0.12, 0.3, c);
+          else { m.box(0, 1.16, 0, 0.31, 0.12, 0.31, c); m.box(0, 1.28, 0, 0.27, S.h3 - 0.12, 0.28, c); if (hat === 'cowboy') m.box(0, 1.33, 0, 0.07, 0.04, 0.22, shadeHex(c, -0.25)); }
+          m.box(0, 1.165, 0, 0.31, 0.05, 0.31, hat === 'straw' ? shadeHex(hc, -0.1) : '#2a1a10');   // şerit
+        }
       }
     });
   }

@@ -12,9 +12,10 @@ npm run dev            # geliştirici modu: F12 geliştirici araçları
 npm run dist:win       # Windows paketi → dist/win-unpacked/
 npm run dist:linux     # Linux / Steam Deck paketi → dist/linux-unpacked/
 npm run achievements   # steam/achievements.csv ve .md listesini yeniden üret
+npm run steam-assets   # başarım simgeleri + Steam istemci/topluluk simgeleri (build/icon.png'den)
 ```
 
-`npm start` ve `dist:*` önce `scripts/prepare.js` ile oyun dosyalarını `desktop/app/` içine kopyalar. Bu klasör ve `dist/` git'e girmez.
+`npm start` ve `dist:*` önce `scripts/prepare.js` ile oyun dosyalarını `desktop/app/` içine kopyalar. Bu klasör ve `dist/` git'e girmez. Her paket yalnızca kendi platformunun Steam kütüphanesini taşır (Windows'ta `steam_api64.dll`, Linux'ta `libsteam_api.so`).
 
 ## Steam AppID
 
@@ -30,28 +31,31 @@ Paketlenmiş sürüm Steam dışından açılırsa `restartAppIfNecessary` oyunu
 
 | Özellik | Nasıl |
 |---|---|
-| **Başarımlar** | Oyunda bir başarım kazanılınca `ACH_<KİMLİK>` API adıyla Steam'e işlenir. Kayıt yüklenince daha önce kazanılanlar da eşitlenir. Liste: `steam/achievements.md` / `.csv`. Simgeler: `steam/achievement-icons/` (64×64 JPG; `ACH_X.jpg` kazanılmış, `ACH_X_locked.jpg` kilitli). Farklı boyut için `tools/steam-assets.html` sayfasını tarayıcıda aç. |
+| **Başarımlar** | Oyunda bir başarım kazanılınca `ACH_<KİMLİK>` API adıyla Steam'e işlenir. Kayıt yüklenince daha önce kazanılanlar da eşitlenir. Liste: `steam/achievements.md` / `.csv`. Simgeler: `steam/achievement-icons/` (64×64 JPG; `ACH_X.jpg` kazanılmış, `ACH_X_locked.jpg` kilitli), `npm run steam-assets` ile üretilir. Farklı boyut için `tools/steam-assets.html` sayfasını yerel bir sunucudan aç (depo kökünde `npx http-server .` → `/desktop/tools/steam-assets.html`). |
 | **Bulut kayıt** | Kayıt ve ayarlar kullanıcı klasörüne JSON dosyası olarak yazılır: Windows `%APPDATA%\Frontier's End\saves\`, Linux `~/.config/Frontier's End/saves/`, macOS `~/Library/Application Support/Frontier's End/saves/`. Her yazım önce geçici dosyaya yapılır, bir önceki kayıt `.bak` olarak saklanır. |
 | **Rich Presence** | Arkadaş listesinde "In the main menu" ya da "Age 34 · Harlow". Çeviri dosyaları: `steam/rich_presence_english.vdf`, `steam/rich_presence_turkish.vdf`. |
 | **Overlay** | `electronEnableSteamOverlay()` ile Shift+Tab çalışır. Pencere odağı kaybedilince oyun duraklar. |
 | **Dil** | İlk açılışta Steam'in oyun dili kullanılır (Türkçe ya da İngilizce). Sonra Ayarlar > Dil / Language. |
 | **Pencere** | Varsayılan olarak tam ekran açılır; F11 ya da Ayarlar > Tam Ekran ile değişir ve tercih hatırlanır. Menülerde "Masaüstüne Çık". Pencere kapatılırken oyun kaydedilir. |
+| **Ekran klavyesi** | Steam Deck'te (ya da Big Picture'da kolla oynarken) karakter adı kutusu seçilince Steam'in yüzen ekran klavyesi kutunun yanında açılır; Enter yazmayı bitirir. Deck'te isim kutusu kendiliğinden odaklanmaz. |
+| **Simge** | Uygulama simgesi `build/icon.png` (1024×1024). Windows .exe, Linux pencere simgesi ve Mac paketi bundan üretilir. Steamworks için küçük boyutlar `steam/icons/` altında: `client_icon.ico` (16–256) ve `community_icon.jpg` (184×184). |
 | **Kollar** | Xbox, PlayStation ve Steam Deck tuş simgeleri. Bağlı kola ya da Steam Deck'e göre otomatik seçilir; Ayarlar > Kol Simgeleri ile elle de seçilebilir. |
 
 ## Steamworks panelinde yapılacaklar
 
-1. **Stats & Achievements:** `steam/achievements.csv` içindeki 40 başarımı API adları, İngilizce ve Türkçe ad/açıklamalarıyla gir. Simgeleri `steam/achievement-icons/` klasöründen yükle ve **Publish** et.
-2. **Steam Cloud → Auto-Cloud:** Kotayı ayarla (örn. 10 MB, 20 dosya). Kök yolları ekle:
+1. **Stats & Achievements:** `steam/achievements.csv` içindeki 45 başarımı API adları, İngilizce ve Türkçe ad/açıklamalarıyla gir. Simgeleri `steam/achievement-icons/` klasöründen yükle ve **Publish** et.
+2. **Simgeler:** App Admin > Community Assets bölümüne `steam/icons/community_icon.jpg` (Community Icon) ve `steam/icons/client_icon.ico` (Client Icon) dosyalarını yükle.
+3. **Steam Cloud → Auto-Cloud:** Kotayı ayarla (örn. 10 MB, 20 dosya). Kök yolları ekle:
    - Windows: Root `WinAppDataRoaming`, Subdirectory `Frontier's End/saves`, Pattern `*.json`
    - Linux: Root `LinuxXdgConfigHome`, Subdirectory `Frontier's End/saves`, Pattern `*.json`
    - macOS: Root `MacAppSupport`, Subdirectory `Frontier's End/saves`, Pattern `*.json`
-3. **Rich Presence:** Community > Rich Presence Localization bölümüne iki `.vdf` dosyasını yükle.
-4. **Başlatma seçenekleri (Installation > General):** Windows `Frontier's End.exe`; Linux `frontiers-end` (yürütülebilir dosya adı `dist/linux-unpacked` içindekiyle aynı olmalı).
-5. **SteamPipe yükleme:** `npm run dist:win` ve `npm run dist:linux`, ardından Steamworks SDK'daki steamcmd ile:
+4. **Rich Presence:** Community > Rich Presence Localization bölümüne iki `.vdf` dosyasını yükle.
+5. **Başlatma seçenekleri (Installation > General):** Windows `Frontier's End.exe`; Linux `frontiers-end` (yürütülebilir dosya adı `dist/linux-unpacked` içindekiyle aynı olmalı).
+6. **SteamPipe yükleme:** `npm run dist:win` ve `npm run dist:linux`, ardından Steamworks SDK'daki steamcmd ile:
    ```
    steamcmd +login <kullanıcı> +run_app_build <depo>/desktop/steam/scripts/app_build.vdf +quit
    ```
-6. **İçerik anketi / yapay zekâ beyanı:** Oyundaki müzikler (Suno, ücretli plan) ile yapay zekâ yardımıyla yazılmış metinler ve çeviri beyan edilmeli.
+7. **İçerik anketi / yapay zekâ beyanı:** Oyundaki müzikler (Suno, ücretli plan) ile yapay zekâ yardımıyla yazılmış metinler ve çeviri beyan edilmeli.
 
 ## Güvenlik notları
 
@@ -59,6 +63,5 @@ Oyun sayfası `contextIsolation` ve `sandbox` açıkken çalışır; Node erişi
 
 ## Bilinen eksikler
 
-- Steam Deck'te karakter adı yazarken Steam'in ekran klavyesi otomatik açılmıyor. Kullanıcı Steam + X ile açabilir; ad rastgele de seçilebilir.
 - macOS paketi imzasız. Mac için Apple Developer imzası ve notarization gerekir.
 - Mağaza ekran görüntüleri `steam/screenshots/en/` altında (yeniden çekmek için `node tools/steam-shots.js`). Kapsül resimleri ve fragman henüz yok.

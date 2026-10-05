@@ -10,9 +10,9 @@ function randomLook(sex, R) {
   sex = sex || (Math.random() < 0.55 ? 'm' : 'f');
   return {
     sex,
-    skin: p(LOOKS.skin), hair: p(LOOKS.hair), hairStyle: sex === 'f' ? p([1, 2, 4, 0]) : p([0, 0, 3, 4, 1]),
-    beard: sex === 'm' ? p([0, 1, 2, 3, 4, 0]) : 0, beardLen: 0.6,
-    hat: p(sex === 'f' ? ['none', 'none', 'wide', 'bowler', 'cowboy'] : ['cowboy', 'cowboy', 'bowler', 'flat', 'wide', 'none']),
+    skin: p(LOOKS.skin), hair: p(LOOKS.hair), hairStyle: sex === 'f' ? p([1, 2, 4, 0, 3, 5, 6, 7, 8, 9, 2, 1]) : p([0, 0, 3, 4, 1, 5, 6, 7, 2, 8, 9, 0]),
+    beard: sex === 'm' ? p([0, 1, 2, 3, 4, 0, 5, 6, 7, 8, 0, 3]) : 0, beardLen: 0.6,
+    hat: p(sex === 'f' ? ['none', 'none', 'wide', 'bowler', 'cowboy', 'bonnet', 'bonnet', 'straw'] : ['cowboy', 'cowboy', 'bowler', 'flat', 'wide', 'none', 'boss', 'straw', 'boss', 'fur', 'top']),
     hatCol: p(LOOKS.hatCol), coat: p(LOOKS.coat), shirt: p(LOOKS.shirt), pants: p(LOOKS.pants), eyes: p(LOOKS.eyes), coatLen: Math.random() < 0.3 ? 0.7 : 0,
   };
 }

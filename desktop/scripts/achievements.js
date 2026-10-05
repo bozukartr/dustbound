@@ -27,6 +27,6 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'achievements.csv'),
   ['api_name,name_english,description_english,name_turkish,description_turkish', ...rows.map(r => [r.api, r.nameEn, r.descEn, r.nameTr, r.descTr].map(csv).join(','))].join('\n') + '\n');
 fs.writeFileSync(path.join(OUT, 'achievements.md'),
-  `# Başarımlar (${rows.length})\n\nSteamworks > Stats & Achievements sayfasına bu API adlarıyla girilir. Simgeler: \`steam/achievement-icons/\` (<api>.png kazanılmış, <api>_locked.png kilitli).\n\n| API adı | English | Türkçe |\n|---|---|---|\n` +
+  `# Başarımlar (${rows.length})\n\nSteamworks > Stats & Achievements sayfasına bu API adlarıyla girilir. Simgeler: \`steam/achievement-icons/\` (<api>.jpg kazanılmış, <api>_locked.jpg kilitli; 64×64, \`npm run steam-assets\` ile üretilir).\n\n| API adı | English | Türkçe |\n|---|---|---|\n` +
   rows.map(r => `| \`${r.api}\` | **${r.nameEn}** — ${r.descEn} | **${r.nameTr}** — ${r.descTr} |`).join('\n') + '\n');
 console.log(`${rows.length} başarım yazıldı → steam/achievements.csv, steam/achievements.md`);

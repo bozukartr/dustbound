@@ -256,11 +256,7 @@ const Juice = {
       if (h.x < x0 - 20 || h.x > x1 + 20 || h.y < y0 - 20 || h.y > y1 + 20) continue;
       Spr.shadow(ctx, h.x + 0.5, h.y + 1, 4, 2.4, 0.18);
       ctx.save(); ctx.translate(h.x, h.y - h.z); ctx.rotate(h.rot);
-      const br = h.hat === 'wide' ? 5.6 : h.hat === 'bowler' ? 3.8 : h.hat === 'flat' ? 3.4 : 4.8;
-      Spr.ell(ctx, 0, 0, br, br * 0.95, h.col);
-      if (h.hat === 'flat') Spr.ell(ctx, 2.6, 0, 2, 2.6, shadeHex(h.col, -0.2));
-      Spr.ell(ctx, -0.2, 0, 2.7, 2.5, shadeHex(h.col, -0.28));
-      if (h.hat === 'cowboy' || h.hat === 'wide') { ctx.fillStyle = shadeHex(h.col, 0.25); ctx.fillRect(-0.8, -2.4, 1, 4.8); }
+      Spr.hatTop(ctx, h.hat, h.col);
       ctx.restore();
     }
     // şahin gölgesi
