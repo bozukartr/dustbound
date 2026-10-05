@@ -13,7 +13,8 @@
     "dist:win": "npm run prepare-app && electron-builder --win --x64",
     "dist:linux": "npm run prepare-app && electron-builder --linux --x64",
     "dist:mac": "npm run prepare-app && electron-builder --mac --universal",
-    "achievements": "node scripts/achievements.js"
+    "achievements": "node scripts/achievements.js",
+    "steam-assets": "node scripts/steam-assets.js"
   },
   "dependencies": {
     "steamworks.js": "^0.4.0"
@@ -26,10 +27,10 @@
     "appId": "com.frontiersend.game",
     "productName": "Frontier's End",
     "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "package.json", "app/**/*"],
+    "files": ["main.js", "preload.js", "package.json", "build/icon.png", "app/**/*"],
     "asarUnpack": ["node_modules/steamworks.js/**/*"],
-    "win": { "target": "dir", "icon": "build/icon.png" },
-    "linux": { "target": "dir", "icon": "build/icon.png", "category": "Game" },
-    "mac": { "target": "dir", "icon": "build/icon.png", "category": "public.app-category.role-playing-games" }
+    "win": { "target": "dir", "icon": "build/icon.png", "files": ["build/icon.png", "!node_modules/steamworks.js/dist/{linux64,osx}/**", "!node_modules/steamworks.js/dist/win64/*.lib"] },
+    "linux": { "target": "dir", "icon": "build/icon.png", "category": "Game", "files": ["build/icon.png", "!node_modules/steamworks.js/dist/{win64,osx}/**"] },
+    "mac": { "target": "dir", "icon": "build/icon.png", "category": "public.app-category.role-playing-games", "files": ["build/icon.png", "!node_modules/steamworks.js/dist/{win64,linux64}/**"] }
   }
 }

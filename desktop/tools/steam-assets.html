@@ -15,7 +15,8 @@
 </head>
 <body>
 <h1>Frontier's End — Steam görselleri</h1>
-<p>Uygulama simgesi ve başarım simgeleri (kazanılmış + kilitli) oyunun kendi glif setinden üretilir.
+<p>Steam simgeleri <code>build/icon.png</code> çiziminden küçültülür; başarım simgeleri (kazanılmış + kilitli) oyunun kendi glif setinden üretilir.
+Hepsini dosyalara yazmak için: <code>cd desktop &amp;&amp; npm run steam-assets</code>.
 Steamworks başarım simgeleri 64×64 JPG ister; simge boyutu aşağıdan değiştirilebilir.</p>
 <button id="dl">Hepsini indir</button> <label>Başarım boyutu <input id="sz" type="number" value="64" min="32" max="512" step="32"></label>
 <div class="grid" id="grid"></div>
@@ -26,7 +27,7 @@ Steamworks başarım simgeleri 64×64 JPG ister; simge boyutu aşağıdan deği�
 'use strict';
 /* Başarım → glif */
 const ACH_GLYPH = {
-  begin: 'star', hunt1: 'paw', hunt25: 'fox', hunt100: 'trophy', bear: 'paw', explore5: 'map', explore20: 'waypoint', towns: 'train',
+  begin: 'star', story: 'scroll', story_outlaw: 'satchel', story_rail: 'wheel', story_trapper: 'axe', story_immigrant: 'quill', hunt1: 'paw', hunt25: 'fox', hunt100: 'trophy', bear: 'paw', explore5: 'map', explore20: 'waypoint', towns: 'train',
   rider: 'horseshoe', walker: 'feet', eater: 'meat', herbs: 'wheat', fisher: 'anchor', longshot: 'eye', gunslinger: 'gun', rich: 'bag',
   tycoon: 'bank', worker: 'pick', samaritan: 'heart', outlaw: 'mask', saint: 'church', devil: 'skull', home: 'house', married: 'heartp',
   parent: 'candle', gambler: 'cards', arm: 'fist', desert: 'sun', cold: 'snow', gold: 'coin', collector: 'chest', tamer: 'horse',
@@ -52,18 +53,15 @@ async function badge(size, glyph, locked) {
   const s = size * 0.5; g.globalAlpha = locked ? 0.8 : 1; g.drawImage(im, r - s / 2, r - s / 2, s, s);
   return c;
 }
+/* Uygulama simgesi: build/icon.png (kaynak çizim). Steam'in istediği boyutlar ondan küçültülür. */
+const srcIcon = new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = '../build/icon.png'; });
 async function appIcon(size) {
-  const c = document.createElement('canvas'); c.width = c.height = size;
-  const g = c.getContext('2d'), r = size / 2;
-  const bg = g.createLinearGradient(0, 0, 0, size);
-  bg.addColorStop(0, '#3a1a10'); bg.addColorStop(0.55, '#b3471f'); bg.addColorStop(1, '#2a120a');
-  g.fillStyle = bg; g.beginPath(); g.roundRect(size * 0.04, size * 0.04, size * 0.92, size * 0.92, size * 0.18); g.fill();
-  g.fillStyle = 'rgba(255,214,140,0.9)'; g.beginPath(); g.arc(r, size * 0.62, size * 0.2, Math.PI, 0); g.fill();
-  g.fillStyle = '#1a0c06'; g.fillRect(size * 0.04, size * 0.62, size * 0.92, size * 0.34);
-  g.beginPath(); g.roundRect(size * 0.04, size * 0.62, size * 0.92, size * 0.34, [0, 0, size * 0.18, size * 0.18]); g.fill();
-  g.fillStyle = '#f0e2c4'; g.font = `${Math.round(size * 0.34)}px Rye`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('FE', r, size * 0.8);
-  g.lineWidth = size * 0.03; g.strokeStyle = '#c9a45c'; g.beginPath(); g.roundRect(size * 0.04, size * 0.04, size * 0.92, size * 0.92, size * 0.18); g.stroke();
+  const im = await srcIcon, c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  // büyük oranlı küçültmede adım adım yarıla: ince çerçeve çizgileri kaybolmasın
+  let cur = im, w = im.width;
+  while (w / 2 >= size * 1.5) { w = Math.round(w / 2); const t = document.createElement('canvas'); t.width = t.height = w; const tg = t.getContext('2d'); tg.imageSmoothingQuality = 'high'; tg.drawImage(cur, 0, 0, w, w); cur = t; }
+  g.drawImage(cur, 0, 0, size, size);
   return c;
 }
 const files = [];
@@ -77,7 +75,9 @@ const add = (name, canvas, type = 'image/png', q) => {
 async function build() {
   files.length = 0; document.getElementById('grid').innerHTML = '';
   await document.fonts.load('40px Rye');
-  add('icon.png', await appIcon(512));
+  // Steamworks > Store Assets / Community: topluluk simgesi 184×184 JPG; istemci simgesi .ico (scripts/steam-assets.js bu PNG'lerden paketler)
+  add('community_icon.jpg', await appIcon(184), 'image/jpeg', 0.92);
+  for (const z of [16, 24, 32, 48, 64, 128, 256]) add(`client_icon_${z}.png`, await appIcon(z));
   const sz = +document.getElementById('sz').value || 64;
   for (const A of ACHIEVEMENTS) {
     const api = 'ACH_' + A.id.toUpperCase(), gl = ACH_GLYPH[A.id] || 'star';

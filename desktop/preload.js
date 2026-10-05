@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('native', {
   steamInfo: () => ipcRenderer.sendSync('steam:info'),
   achievement: (api) => ipcRenderer.send('steam:achievement', api),
   presence: (key, value) => ipcRenderer.send('steam:presence', key, value),
+  keyboard: (x, y, w, h) => ipcRenderer.send('steam:keyboard', x, y, w, h),
   isFullscreen: () => ipcRenderer.sendSync('win:isFullscreen'),
   setFullscreen: (on) => ipcRenderer.send('win:fullscreen', on),
   quit: () => ipcRenderer.send('app:quit'),

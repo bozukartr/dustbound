@@ -2777,8 +2777,9 @@ const UI = {
     m.update = () => { if (this.frame % 2 === 0) drawTop(); };
     this.push(m);
     const go = $('#cr-go', el); m.setFocus(go, true);
-    // klavyeyle oynayan doğrudan ismini yazabilsin (Enter yazmayı bitirir, ikinci Enter ileri götürür)
-    if (Input.device !== 'pad') { const ni = $('#cr-name', el); if (ni) { ni.focus(); ni.select(); } }
+    // klavyeyle oynayan doğrudan ismini yazabilsin (Enter yazmayı bitirir, ikinci Enter ileri götürür);
+    // Steam Deck'te kendiliğinden odaklanmaz: ekran klavyesi yalnızca isim satırı seçilince açılır
+    if (Input.device !== 'pad' && !Platform.deck) { const ni = $('#cr-name', el); if (ni) { ni.focus(); ni.select(); } }
   },
 
   /* Ana menü arka planı: gün batımında çöl (paralaks, döngüsel) */

@@ -14,6 +14,7 @@
      rich presence   → Steam arkadaş listesinde "18 yaşında · Harlow"
      çıkış/tam ekran → pencereyi kapat / tam ekran; web'de Fullscreen API
      dil             → Steam istemcisinin oyun dili
+     ekran klavyesi  → Steam Deck'te yazı kutusu odaklanınca Steam klavyesi
    ========================================================== */
 const Platform = {
   native: (typeof window !== 'undefined' && window.native) || null,
@@ -91,6 +92,17 @@ const Platform = {
      (Chromium) Esc oyuna yönlendirilir: tam ekrandan çıkmak için Esc basılı tutulur. */
   lockEsc() { try { if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock(['Escape']).catch(() => {}); } catch (e) {} },
   unlockEsc() { try { if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock(); } catch (e) {} },
+  /* Steam Deck / Big Picture: bir yazı kutusu odaklanınca Steam'in ekran klavyesini kutunun yanında aç */
+  watchKeyboard() {
+    if (!this.native || !this.native.keyboard) return;
+    document.addEventListener('focusin', (e) => {
+      const el = e.target;
+      if (!this.steam || !el || el.tagName !== 'INPUT' || !/^(text|search|)$/.test(el.type || '')) return;
+      if (!this.deck && !(typeof Input !== 'undefined' && Input.device === 'pad')) return;
+      const r = el.getBoundingClientRect(), k = window.devicePixelRatio || 1;
+      try { this.native.keyboard(Math.round(r.left * k), Math.round(r.top * k), Math.round(r.width * k), Math.round(r.height * k)); } catch (err) {}
+    });
+  },
   /* Tam ekran tercihi kalıcıdır: tarayıcı kendiliğinden çıkarırsa (Esc) ilk tıklama ya da tuşta geri döner */
   watchFullscreen(want) {
     if (this.native) { if (want()) this.setFullscreen(true); return; }

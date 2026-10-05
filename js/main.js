@@ -12,6 +12,7 @@ window.addEventListener('load', () => {
   // F11: tam ekran (tarayıcıda ve masaüstünde)
   window.addEventListener('keydown', (e) => { if (e.code === 'F11') { e.preventDefault(); G.setFullscreenPref(!Platform.isFullscreen()); } });
   Platform.watchFullscreen(() => !!G.settings.fullscreen);
+  Platform.watchKeyboard();
   // pencere odağı kaybedince (Alt+Tab, Steam arayüzü) oyunu duraklat
   window.addEventListener('blur', () => { if (G.state === 'play' && !UI.isModal()) UI.openPause(); });
   // masaüstü: pencere kapatılırken oyunu kaydet
