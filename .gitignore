@@ -4,3 +4,4 @@ node_modules/
 tests/output/
 dist-demo/
 dist-demo.zip
+.sfx-cache/

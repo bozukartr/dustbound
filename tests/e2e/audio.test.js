@@ -16,7 +16,8 @@ module.exports = {
       t.ok(man.amb_wind.loop && man.gun_pistol.dist === CATALOG.gun_pistol[1].dist, 'ayarlar listeden gelir');
       t.eq(unknown, ['foo_bar.ogg'], 'bilinmeyen dosya bildirilir');
     });
-    const p = await t.newGame({ sfx: true });
+    // dosya yokken davranışı: gerçek manifest gizlenir (depoda artık CC0 ses dosyaları var)
+    const p = await t.newGame({ sfx: true, init: () => { const real = window.fetch; window.fetch = (u, o) => String(u).endsWith('audio/sfx/manifest.json') ? Promise.resolve(new Response('', { status: 404 })) : real(u, o); } });
     await t.step('dosya yokken eski sesler çalar, hata vermez', async () => {
       const r = await p.evaluate(async () => {
         await new Promise(res => setTimeout(res, 800));
@@ -127,6 +128,25 @@ module.exports = {
       const [k, , text] = csv.match(/"((?:[^"]|"")*)"/g).map(s => s.slice(1, -1).replace(/""/g, '"'));
       const r = await p.evaluate((text) => ({ k: Audio_.voiceKey(text), d: Audio_.voice(text, 'tr') }), text);
       t.eq(r.k, k, 'aynı anahtar'); t.eq(r.d, 0, 'kayıt yok → 0 sn');
+    });
+    await t.step('gerçek CC0 ses dosyaları: hepsi yüklenir ve çözülür, kaynakları kayıtlı', async () => {
+      const fs = require('fs'), path = require('path');
+      const dir = path.join(__dirname, '..', '..', 'audio', 'sfx');
+      const man = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
+      const files = Object.values(man).flatMap(m => m.files);
+      const credits = fs.readFileSync(path.join(dir, 'KAYNAKLAR.md'), 'utf8');
+      const names = Object.keys(man);
+      t.eq(names.length, 65, 'kataloğun bütün sesleri dosyalı');
+      t.ok(files.every(f => fs.existsSync(path.join(dir, f))), 'manifestteki dosyalar var');
+      t.ok(names.every(n => credits.includes('`' + n + '`')), 'her ses KAYNAKLAR.md içinde');
+      t.ok(!/\| (?!CC0 1\.0)[^|]+ \|\s*$/m.test(credits.split('|---|---|---|---|')[1] || ''), 'bütün kaynaklar CC0');
+      const q = await t.page({ sfx: true });
+      await q.evaluate(() => Audio_.unlock());
+      await q.waitForFunction((n) => Object.values(Audio_.bank).reduce((a, B) => a + B.bufs.length, 0) >= n, files.length, { timeout: 90000 });
+      const r = await q.evaluate(() => ({ names: Object.keys(Audio_.bank).length, loops: Object.keys(Audio_.sloops).length, short: Object.entries(Audio_.bank).filter(([n, B]) => B.bufs.some(b => b.duration < 0.015)).map(([n]) => n) }));
+      t.eq(r.names, 65, 'bütün sesler bankada');
+      t.ok(r.loops >= 6, 'ortam döngüleri kuruldu', r);
+      t.eq(r.short, [], 'boş/bozuk dosya yok');
     });
   },
 };
