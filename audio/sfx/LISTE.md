@@ -31,7 +31,7 @@ Dosyası olmayan ses, oyunun kodla ürettiği eski sesle çalar. Döngülerin ba
 | `step_water` | Ayak sesi: sığ su | 6 |
 | `hoof_dirt` | Toynak sesi: toprak (başka zeminin dosyası yoksa bu çalar) | 8 |
 | `hoof_grass` | Toynak sesi: çimen | 8 |
-| `hoof_sand` | Toynak sesi: kum | 6 |
+| `hoof_sand` | Toynak sesi: kum | 8 |
 | `hoof_stone` | Toynak sesi: taş | 8 |
 | `hoof_wood` | Toynak sesi: tahta (bina içi dahil) | 5 |
 | `hoof_mud` | Toynak sesi: çamur | 6 |

@@ -491,7 +491,9 @@
    "hoof_sand_03.ogg",
    "hoof_sand_04.ogg",
    "hoof_sand_05.ogg",
-   "hoof_sand_06.ogg"
+   "hoof_sand_06.ogg",
+   "hoof_sand_07.ogg",
+   "hoof_sand_08.ogg"
   ],
   "alt": {
    "hoof_sand_01.ogg": "hoof_sand_01.mp3",
@@ -499,7 +501,9 @@
    "hoof_sand_03.ogg": "hoof_sand_03.mp3",
    "hoof_sand_04.ogg": "hoof_sand_04.mp3",
    "hoof_sand_05.ogg": "hoof_sand_05.mp3",
-   "hoof_sand_06.ogg": "hoof_sand_06.mp3"
+   "hoof_sand_06.ogg": "hoof_sand_06.mp3",
+   "hoof_sand_07.ogg": "hoof_sand_07.mp3",
+   "hoof_sand_08.ogg": "hoof_sand_08.mp3"
   }
  },
  "hoof_snow": {

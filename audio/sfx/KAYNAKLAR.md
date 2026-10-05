@@ -9,7 +9,6 @@ Dosyalar kırpıldı, tekil darbelere bölündü, perdesi/süzgeci ayarlandı, s
 | `drink` (1) | [Gulp.mp3 by EchoCinematics](https://freesound.org/people/EchoCinematics/sounds/133977/) | EchoCinematics | CC0 1.0 |
 | `growl` (1) | [growl.wav by wingz](https://freesound.org/people/wingz/sounds/13789/) | wingz | CC0 1.0 |
 | `ricochet` (1) | [ricochet.mp3 by cedarstudios](https://freesound.org/people/cedarstudios/sounds/148840/) | cedarstudios | CC0 1.0 |
-| `hoof_dirt` (4) | [Horse Galloping.wav by Max_Headroom](https://freesound.org/people/Max_Headroom/sounds/175356/) | Max_Headroom | CC0 1.0 |
 | `reload_pistol` (1) | [Clean Revolver Reload by Dredile](https://freesound.org/people/Dredile/sounds/177863/) | Dredile | CC0 1.0 |
 | `reload_shotgun` (1) | [Shotgun Cock Reload Layered (Powerful) by Paul368](https://freesound.org/people/Paul368/sounds/200966/) | Paul368 | CC0 1.0 |
 | `thunder` (1) | [sudden_thunder.aif by Heigh-hoo](https://freesound.org/people/Heigh-hoo/sounds/21733/) | Heigh-hoo | CC0 1.0 |
@@ -57,9 +56,8 @@ Dosyalar kırpıldı, tekil darbelere bölündü, perdesi/süzgeci ayarlandı, s
 | `hit_flesh` (1) | [Pound of Flesh 2 by magnuswaker](https://freesound.org/people/magnuswaker/sounds/528263/) | magnuswaker | CC0 1.0 |
 | `gun_bow` (1) | [Bow Release Hit by EminYILDIRIM](https://freesound.org/people/EminYILDIRIM/sounds/536068/) | EminYILDIRIM | CC0 1.0 |
 | `coyote_howl` (1) | [dogs-howling-yelping-distance-far-04.wav by Gerent](https://freesound.org/people/Gerent/sounds/558725/) | Gerent | CC0 1.0 |
-| `hoof_grass` (8) | [Wild Horses Galopp by D4XX](https://freesound.org/people/D4XX/sounds/564626/) | D4XX | CC0 1.0 |
 | `thunder` (1) | [Distant Thunder 3 by Fission9](https://freesound.org/people/Fission9/sounds/581124/) | Fission9 | CC0 1.0 |
-| `hoof_dirt` (4) | [SFX - Horse - Walk.wav by MrFizzywig](https://freesound.org/people/MrFizzywig/sounds/581833/) | MrFizzywig | CC0 1.0 |
+| `hoof_dirt`, `hoof_grass`, `hoof_sand` (24) | [SFX - Horse - Walk.wav by MrFizzywig](https://freesound.org/people/MrFizzywig/sounds/581833/) | MrFizzywig | CC0 1.0 |
 | `eat` (1) | [Apple Bite by AntumDeluge](https://freesound.org/people/AntumDeluge/sounds/584290/) | AntumDeluge | CC0 1.0 |
 | `amb_rain` (1) | [Soft Rain Loop by _lynks](https://freesound.org/people/_lynks/sounds/595717/) | _lynks | CC0 1.0 |
 | `explosion` (1) | [Grenade Explosion SFX (medium-sized, meaty, realistic) by unfa](https://freesound.org/people/unfa/sounds/609587/) | unfa | CC0 1.0 |
@@ -72,7 +70,7 @@ Dosyalar kırpıldı, tekil darbelere bölündü, perdesi/süzgeci ayarlandı, s
 | `train_whistle` (1) | [Steam Whistle.mp3 by Bidone](https://freesound.org/people/Bidone/sounds/71778/) | Bidone | CC0 1.0 |
 | `lasso` (1) | [Lasso rope being spun, spinning through air then throw by zapsplat.com](https://freesound.org/people/zapsplat.com/sounds/719638/) | zapsplat.com | CC0 1.0 |
 | `reload_pistol` (1) | [Revolver Reload Break 2 by tkane0512](https://freesound.org/people/tkane0512/sounds/722902/) | tkane0512 | CC0 1.0 |
-| `hoof_sand`, `step_sand` (12) | [sand_footsteps by RNAn_SoundDesign](https://freesound.org/people/RNAn_SoundDesign/sounds/725875/) | RNAn_SoundDesign | CC0 1.0 |
+| `step_sand` (6) | [sand_footsteps by RNAn_SoundDesign](https://freesound.org/people/RNAn_SoundDesign/sounds/725875/) | RNAn_SoundDesign | CC0 1.0 |
 | `amb_wind` (1) | [wind 8 by ZIP.Creates](https://freesound.org/people/ZIP.Creates/sounds/726319/) | ZIP.Creates | CC0 1.0 |
 | `amb_crickets` (1) | [Night crickets by Vrymaa](https://freesound.org/people/Vrymaa/sounds/734642/) | Vrymaa | CC0 1.0 |
 | `hawk` (1) | [hawk_cry by loganzsound](https://freesound.org/people/loganzsound/sounds/774252/) | loganzsound | CC0 1.0 |
