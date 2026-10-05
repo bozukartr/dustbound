@@ -5,7 +5,10 @@
   "vol": 1,
   "files": [
    "amb_crickets_01.ogg"
-  ]
+  ],
+  "alt": {
+   "amb_crickets_01.ogg": "amb_crickets_01.mp3"
+  }
  },
  "amb_crowd": {
   "bus": "amb",
@@ -13,7 +16,10 @@
   "vol": 1,
   "files": [
    "amb_crowd_01.ogg"
-  ]
+  ],
+  "alt": {
+   "amb_crowd_01.ogg": "amb_crowd_01.mp3"
+  }
  },
  "amb_fire": {
   "bus": "amb",
@@ -21,7 +27,10 @@
   "vol": 1,
   "files": [
    "amb_fire_01.ogg"
-  ]
+  ],
+  "alt": {
+   "amb_fire_01.ogg": "amb_fire_01.mp3"
+  }
  },
  "amb_rain": {
   "bus": "amb",
@@ -29,7 +38,10 @@
   "vol": 1,
   "files": [
    "amb_rain_01.ogg"
-  ]
+  ],
+  "alt": {
+   "amb_rain_01.ogg": "amb_rain_01.mp3"
+  }
  },
  "amb_river": {
   "bus": "amb",
@@ -37,7 +49,10 @@
   "vol": 1,
   "files": [
    "amb_river_01.ogg"
-  ]
+  ],
+  "alt": {
+   "amb_river_01.ogg": "amb_river_01.mp3"
+  }
  },
  "amb_wind": {
   "bus": "amb",
@@ -45,7 +60,10 @@
   "vol": 1,
   "files": [
    "amb_wind_01.ogg"
-  ]
+  ],
+  "alt": {
+   "amb_wind_01.ogg": "amb_wind_01.mp3"
+  }
  },
  "amb_wind_strong": {
   "bus": "amb",
@@ -53,7 +71,10 @@
   "vol": 1,
   "files": [
    "amb_wind_strong_01.ogg"
-  ]
+  ],
+  "alt": {
+   "amb_wind_strong_01.ogg": "amb_wind_strong_01.mp3"
+  }
  },
  "bird": {
   "bus": "amb",
@@ -65,7 +86,12 @@
    "bird_01.ogg",
    "bird_02.ogg",
    "bird_03.ogg"
-  ]
+  ],
+  "alt": {
+   "bird_01.ogg": "bird_01.mp3",
+   "bird_02.ogg": "bird_02.mp3",
+   "bird_03.ogg": "bird_03.mp3"
+  }
  },
  "chime": {
   "bus": "ui",
@@ -74,7 +100,10 @@
   "vol": 0.42,
   "files": [
    "chime_01.ogg"
-  ]
+  ],
+  "alt": {
+   "chime_01.ogg": "chime_01.mp3"
+  }
  },
  "coins": {
   "bus": "ui",
@@ -84,7 +113,11 @@
   "files": [
    "coins_01.ogg",
    "coins_02.ogg"
-  ]
+  ],
+  "alt": {
+   "coins_01.ogg": "coins_01.mp3",
+   "coins_02.ogg": "coins_02.mp3"
+  }
  },
  "cougar": {
   "dist": 700,
@@ -94,7 +127,11 @@
   "files": [
    "cougar_01.ogg",
    "cougar_02.ogg"
-  ]
+  ],
+  "alt": {
+   "cougar_01.ogg": "cougar_01.mp3",
+   "cougar_02.ogg": "cougar_02.mp3"
+  }
  },
  "coyote_howl": {
   "bus": "amb",
@@ -105,7 +142,11 @@
   "files": [
    "coyote_howl_01.ogg",
    "coyote_howl_02.ogg"
-  ]
+  ],
+  "alt": {
+   "coyote_howl_01.ogg": "coyote_howl_01.mp3",
+   "coyote_howl_02.ogg": "coyote_howl_02.mp3"
+  }
  },
  "discover": {
   "bus": "ui",
@@ -114,7 +155,10 @@
   "vol": 0.44,
   "files": [
    "discover_01.ogg"
-  ]
+  ],
+  "alt": {
+   "discover_01.ogg": "discover_01.mp3"
+  }
  },
  "door_open": {
   "dist": 350,
@@ -126,7 +170,13 @@
    "door_open_02.ogg",
    "door_open_03.ogg",
    "door_open_04.ogg"
-  ]
+  ],
+  "alt": {
+   "door_open_01.ogg": "door_open_01.mp3",
+   "door_open_02.ogg": "door_open_02.mp3",
+   "door_open_03.ogg": "door_open_03.mp3",
+   "door_open_04.ogg": "door_open_04.mp3"
+  }
  },
  "drink": {
   "dist": 200,
@@ -136,7 +186,11 @@
   "files": [
    "drink_01.ogg",
    "drink_02.ogg"
-  ]
+  ],
+  "alt": {
+   "drink_01.ogg": "drink_01.mp3",
+   "drink_02.ogg": "drink_02.mp3"
+  }
  },
  "eat": {
   "dist": 200,
@@ -146,7 +200,11 @@
   "files": [
    "eat_01.ogg",
    "eat_02.ogg"
-  ]
+  ],
+  "alt": {
+   "eat_01.ogg": "eat_01.mp3",
+   "eat_02.ogg": "eat_02.mp3"
+  }
  },
  "explosion": {
   "dist": 2600,
@@ -158,7 +216,12 @@
    "explosion_01.ogg",
    "explosion_02.ogg",
    "explosion_03.ogg"
-  ]
+  ],
+  "alt": {
+   "explosion_01.ogg": "explosion_01.mp3",
+   "explosion_02.ogg": "explosion_02.mp3",
+   "explosion_03.ogg": "explosion_03.mp3"
+  }
  },
  "growl": {
   "dist": 600,
@@ -168,7 +231,11 @@
   "files": [
    "growl_01.ogg",
    "growl_02.ogg"
-  ]
+  ],
+  "alt": {
+   "growl_01.ogg": "growl_01.mp3",
+   "growl_02.ogg": "growl_02.mp3"
+  }
  },
  "growl_bear": {
   "dist": 800,
@@ -178,7 +245,11 @@
   "files": [
    "growl_bear_01.ogg",
    "growl_bear_02.ogg"
-  ]
+  ],
+  "alt": {
+   "growl_bear_01.ogg": "growl_bear_01.mp3",
+   "growl_bear_02.ogg": "growl_bear_02.mp3"
+  }
  },
  "gun_bow": {
   "dist": 500,
@@ -188,7 +259,11 @@
   "files": [
    "gun_bow_01.ogg",
    "gun_bow_02.ogg"
-  ]
+  ],
+  "alt": {
+   "gun_bow_01.ogg": "gun_bow_01.mp3",
+   "gun_bow_02.ogg": "gun_bow_02.mp3"
+  }
  },
  "gun_pistol": {
   "dist": 1600,
@@ -201,7 +276,13 @@
    "gun_pistol_02.ogg",
    "gun_pistol_03.ogg",
    "gun_pistol_04.ogg"
-  ]
+  ],
+  "alt": {
+   "gun_pistol_01.ogg": "gun_pistol_01.mp3",
+   "gun_pistol_02.ogg": "gun_pistol_02.mp3",
+   "gun_pistol_03.ogg": "gun_pistol_03.mp3",
+   "gun_pistol_04.ogg": "gun_pistol_04.mp3"
+  }
  },
  "gun_repeater": {
   "dist": 1700,
@@ -212,7 +293,11 @@
   "files": [
    "gun_repeater_01.ogg",
    "gun_repeater_02.ogg"
-  ]
+  ],
+  "alt": {
+   "gun_repeater_01.ogg": "gun_repeater_01.mp3",
+   "gun_repeater_02.ogg": "gun_repeater_02.mp3"
+  }
  },
  "gun_rifle": {
   "dist": 2200,
@@ -224,7 +309,12 @@
    "gun_rifle_01.ogg",
    "gun_rifle_02.ogg",
    "gun_rifle_03.ogg"
-  ]
+  ],
+  "alt": {
+   "gun_rifle_01.ogg": "gun_rifle_01.mp3",
+   "gun_rifle_02.ogg": "gun_rifle_02.mp3",
+   "gun_rifle_03.ogg": "gun_rifle_03.mp3"
+  }
  },
  "gun_shotgun": {
   "dist": 1600,
@@ -236,7 +326,12 @@
    "gun_shotgun_01.ogg",
    "gun_shotgun_02.ogg",
    "gun_shotgun_03.ogg"
-  ]
+  ],
+  "alt": {
+   "gun_shotgun_01.ogg": "gun_shotgun_01.mp3",
+   "gun_shotgun_02.ogg": "gun_shotgun_02.mp3",
+   "gun_shotgun_03.ogg": "gun_shotgun_03.mp3"
+  }
  },
  "hawk": {
   "bus": "amb",
@@ -247,7 +342,11 @@
   "files": [
    "hawk_01.ogg",
    "hawk_02.ogg"
-  ]
+  ],
+  "alt": {
+   "hawk_01.ogg": "hawk_01.mp3",
+   "hawk_02.ogg": "hawk_02.mp3"
+  }
  },
  "hit_dirt": {
   "dist": 500,
@@ -259,7 +358,13 @@
    "hit_dirt_02.ogg",
    "hit_dirt_03.ogg",
    "hit_dirt_04.ogg"
-  ]
+  ],
+  "alt": {
+   "hit_dirt_01.ogg": "hit_dirt_01.mp3",
+   "hit_dirt_02.ogg": "hit_dirt_02.mp3",
+   "hit_dirt_03.ogg": "hit_dirt_03.mp3",
+   "hit_dirt_04.ogg": "hit_dirt_04.mp3"
+  }
  },
  "hit_flesh": {
   "dist": 500,
@@ -271,7 +376,13 @@
    "hit_flesh_02.ogg",
    "hit_flesh_03.ogg",
    "hit_flesh_04.ogg"
-  ]
+  ],
+  "alt": {
+   "hit_flesh_01.ogg": "hit_flesh_01.mp3",
+   "hit_flesh_02.ogg": "hit_flesh_02.mp3",
+   "hit_flesh_03.ogg": "hit_flesh_03.mp3",
+   "hit_flesh_04.ogg": "hit_flesh_04.mp3"
+  }
  },
  "hit_wood": {
   "dist": 500,
@@ -283,7 +394,13 @@
    "hit_wood_02.ogg",
    "hit_wood_03.ogg",
    "hit_wood_04.ogg"
-  ]
+  ],
+  "alt": {
+   "hit_wood_01.ogg": "hit_wood_01.mp3",
+   "hit_wood_02.ogg": "hit_wood_02.mp3",
+   "hit_wood_03.ogg": "hit_wood_03.mp3",
+   "hit_wood_04.ogg": "hit_wood_04.mp3"
+  }
  },
  "hoof_dirt": {
   "dist": 420,
@@ -300,7 +417,17 @@
    "hoof_dirt_06.ogg",
    "hoof_dirt_07.ogg",
    "hoof_dirt_08.ogg"
-  ]
+  ],
+  "alt": {
+   "hoof_dirt_01.ogg": "hoof_dirt_01.mp3",
+   "hoof_dirt_02.ogg": "hoof_dirt_02.mp3",
+   "hoof_dirt_03.ogg": "hoof_dirt_03.mp3",
+   "hoof_dirt_04.ogg": "hoof_dirt_04.mp3",
+   "hoof_dirt_05.ogg": "hoof_dirt_05.mp3",
+   "hoof_dirt_06.ogg": "hoof_dirt_06.mp3",
+   "hoof_dirt_07.ogg": "hoof_dirt_07.mp3",
+   "hoof_dirt_08.ogg": "hoof_dirt_08.mp3"
+  }
  },
  "hoof_grass": {
   "dist": 420,
@@ -317,7 +444,17 @@
    "hoof_grass_06.ogg",
    "hoof_grass_07.ogg",
    "hoof_grass_08.ogg"
-  ]
+  ],
+  "alt": {
+   "hoof_grass_01.ogg": "hoof_grass_01.mp3",
+   "hoof_grass_02.ogg": "hoof_grass_02.mp3",
+   "hoof_grass_03.ogg": "hoof_grass_03.mp3",
+   "hoof_grass_04.ogg": "hoof_grass_04.mp3",
+   "hoof_grass_05.ogg": "hoof_grass_05.mp3",
+   "hoof_grass_06.ogg": "hoof_grass_06.mp3",
+   "hoof_grass_07.ogg": "hoof_grass_07.mp3",
+   "hoof_grass_08.ogg": "hoof_grass_08.mp3"
+  }
  },
  "hoof_mud": {
   "dist": 420,
@@ -332,7 +469,15 @@
    "hoof_mud_04.ogg",
    "hoof_mud_05.ogg",
    "hoof_mud_06.ogg"
-  ]
+  ],
+  "alt": {
+   "hoof_mud_01.ogg": "hoof_mud_01.mp3",
+   "hoof_mud_02.ogg": "hoof_mud_02.mp3",
+   "hoof_mud_03.ogg": "hoof_mud_03.mp3",
+   "hoof_mud_04.ogg": "hoof_mud_04.mp3",
+   "hoof_mud_05.ogg": "hoof_mud_05.mp3",
+   "hoof_mud_06.ogg": "hoof_mud_06.mp3"
+  }
  },
  "hoof_sand": {
   "dist": 420,
@@ -347,7 +492,15 @@
    "hoof_sand_04.ogg",
    "hoof_sand_05.ogg",
    "hoof_sand_06.ogg"
-  ]
+  ],
+  "alt": {
+   "hoof_sand_01.ogg": "hoof_sand_01.mp3",
+   "hoof_sand_02.ogg": "hoof_sand_02.mp3",
+   "hoof_sand_03.ogg": "hoof_sand_03.mp3",
+   "hoof_sand_04.ogg": "hoof_sand_04.mp3",
+   "hoof_sand_05.ogg": "hoof_sand_05.mp3",
+   "hoof_sand_06.ogg": "hoof_sand_06.mp3"
+  }
  },
  "hoof_snow": {
   "dist": 420,
@@ -361,7 +514,14 @@
    "hoof_snow_03.ogg",
    "hoof_snow_04.ogg",
    "hoof_snow_05.ogg"
-  ]
+  ],
+  "alt": {
+   "hoof_snow_01.ogg": "hoof_snow_01.mp3",
+   "hoof_snow_02.ogg": "hoof_snow_02.mp3",
+   "hoof_snow_03.ogg": "hoof_snow_03.mp3",
+   "hoof_snow_04.ogg": "hoof_snow_04.mp3",
+   "hoof_snow_05.ogg": "hoof_snow_05.mp3"
+  }
  },
  "hoof_stone": {
   "dist": 420,
@@ -378,7 +538,17 @@
    "hoof_stone_06.ogg",
    "hoof_stone_07.ogg",
    "hoof_stone_08.ogg"
-  ]
+  ],
+  "alt": {
+   "hoof_stone_01.ogg": "hoof_stone_01.mp3",
+   "hoof_stone_02.ogg": "hoof_stone_02.mp3",
+   "hoof_stone_03.ogg": "hoof_stone_03.mp3",
+   "hoof_stone_04.ogg": "hoof_stone_04.mp3",
+   "hoof_stone_05.ogg": "hoof_stone_05.mp3",
+   "hoof_stone_06.ogg": "hoof_stone_06.mp3",
+   "hoof_stone_07.ogg": "hoof_stone_07.mp3",
+   "hoof_stone_08.ogg": "hoof_stone_08.mp3"
+  }
  },
  "hoof_water": {
   "dist": 420,
@@ -393,7 +563,15 @@
    "hoof_water_04.ogg",
    "hoof_water_05.ogg",
    "hoof_water_06.ogg"
-  ]
+  ],
+  "alt": {
+   "hoof_water_01.ogg": "hoof_water_01.mp3",
+   "hoof_water_02.ogg": "hoof_water_02.mp3",
+   "hoof_water_03.ogg": "hoof_water_03.mp3",
+   "hoof_water_04.ogg": "hoof_water_04.mp3",
+   "hoof_water_05.ogg": "hoof_water_05.mp3",
+   "hoof_water_06.ogg": "hoof_water_06.mp3"
+  }
  },
  "hoof_wood": {
   "dist": 420,
@@ -407,7 +585,14 @@
    "hoof_wood_03.ogg",
    "hoof_wood_04.ogg",
    "hoof_wood_05.ogg"
-  ]
+  ],
+  "alt": {
+   "hoof_wood_01.ogg": "hoof_wood_01.mp3",
+   "hoof_wood_02.ogg": "hoof_wood_02.mp3",
+   "hoof_wood_03.ogg": "hoof_wood_03.mp3",
+   "hoof_wood_04.ogg": "hoof_wood_04.mp3",
+   "hoof_wood_05.ogg": "hoof_wood_05.mp3"
+  }
  },
  "horse_neigh": {
   "dist": 900,
@@ -417,7 +602,11 @@
   "files": [
    "horse_neigh_01.ogg",
    "horse_neigh_02.ogg"
-  ]
+  ],
+  "alt": {
+   "horse_neigh_01.ogg": "horse_neigh_01.mp3",
+   "horse_neigh_02.ogg": "horse_neigh_02.mp3"
+  }
  },
  "lasso": {
   "dist": 400,
@@ -427,7 +616,11 @@
   "files": [
    "lasso_01.ogg",
    "lasso_02.ogg"
-  ]
+  ],
+  "alt": {
+   "lasso_01.ogg": "lasso_01.mp3",
+   "lasso_02.ogg": "lasso_02.mp3"
+  }
  },
  "owl": {
   "bus": "amb",
@@ -438,7 +631,11 @@
   "files": [
    "owl_01.ogg",
    "owl_02.ogg"
-  ]
+  ],
+  "alt": {
+   "owl_01.ogg": "owl_01.mp3",
+   "owl_02.ogg": "owl_02.mp3"
+  }
  },
  "punch": {
   "dist": 500,
@@ -450,7 +647,13 @@
    "punch_02.ogg",
    "punch_03.ogg",
    "punch_04.ogg"
-  ]
+  ],
+  "alt": {
+   "punch_01.ogg": "punch_01.mp3",
+   "punch_02.ogg": "punch_02.mp3",
+   "punch_03.ogg": "punch_03.mp3",
+   "punch_04.ogg": "punch_04.mp3"
+  }
  },
  "reload_pistol": {
   "dist": 300,
@@ -460,7 +663,11 @@
   "files": [
    "reload_pistol_01.ogg",
    "reload_pistol_02.ogg"
-  ]
+  ],
+  "alt": {
+   "reload_pistol_01.ogg": "reload_pistol_01.mp3",
+   "reload_pistol_02.ogg": "reload_pistol_02.mp3"
+  }
  },
  "reload_repeater": {
   "dist": 300,
@@ -470,7 +677,11 @@
   "files": [
    "reload_repeater_01.ogg",
    "reload_repeater_02.ogg"
-  ]
+  ],
+  "alt": {
+   "reload_repeater_01.ogg": "reload_repeater_01.mp3",
+   "reload_repeater_02.ogg": "reload_repeater_02.mp3"
+  }
  },
  "reload_shotgun": {
   "dist": 300,
@@ -480,7 +691,11 @@
   "files": [
    "reload_shotgun_01.ogg",
    "reload_shotgun_02.ogg"
-  ]
+  ],
+  "alt": {
+   "reload_shotgun_01.ogg": "reload_shotgun_01.mp3",
+   "reload_shotgun_02.ogg": "reload_shotgun_02.mp3"
+  }
  },
  "ricochet": {
   "dist": 600,
@@ -490,7 +705,11 @@
   "files": [
    "ricochet_01.ogg",
    "ricochet_02.ogg"
-  ]
+  ],
+  "alt": {
+   "ricochet_01.ogg": "ricochet_01.mp3",
+   "ricochet_02.ogg": "ricochet_02.mp3"
+  }
  },
  "rope": {
   "dist": 300,
@@ -499,7 +718,10 @@
   "vol": 0.45,
   "files": [
    "rope_01.ogg"
-  ]
+  ],
+  "alt": {
+   "rope_01.ogg": "rope_01.mp3"
+  }
  },
  "saloon_door": {
   "dist": 400,
@@ -509,7 +731,11 @@
   "files": [
    "saloon_door_01.ogg",
    "saloon_door_02.ogg"
-  ]
+  ],
+  "alt": {
+   "saloon_door_01.ogg": "saloon_door_01.mp3",
+   "saloon_door_02.ogg": "saloon_door_02.mp3"
+  }
  },
  "skin": {
   "dist": 300,
@@ -520,7 +746,12 @@
    "skin_01.ogg",
    "skin_02.ogg",
    "skin_03.ogg"
-  ]
+  ],
+  "alt": {
+   "skin_01.ogg": "skin_01.mp3",
+   "skin_02.ogg": "skin_02.mp3",
+   "skin_03.ogg": "skin_03.mp3"
+  }
  },
  "step_dirt": {
   "dist": 280,
@@ -535,7 +766,15 @@
    "step_dirt_04.ogg",
    "step_dirt_05.ogg",
    "step_dirt_06.ogg"
-  ]
+  ],
+  "alt": {
+   "step_dirt_01.ogg": "step_dirt_01.mp3",
+   "step_dirt_02.ogg": "step_dirt_02.mp3",
+   "step_dirt_03.ogg": "step_dirt_03.mp3",
+   "step_dirt_04.ogg": "step_dirt_04.mp3",
+   "step_dirt_05.ogg": "step_dirt_05.mp3",
+   "step_dirt_06.ogg": "step_dirt_06.mp3"
+  }
  },
  "step_grass": {
   "dist": 280,
@@ -549,7 +788,14 @@
    "step_grass_03.ogg",
    "step_grass_04.ogg",
    "step_grass_05.ogg"
-  ]
+  ],
+  "alt": {
+   "step_grass_01.ogg": "step_grass_01.mp3",
+   "step_grass_02.ogg": "step_grass_02.mp3",
+   "step_grass_03.ogg": "step_grass_03.mp3",
+   "step_grass_04.ogg": "step_grass_04.mp3",
+   "step_grass_05.ogg": "step_grass_05.mp3"
+  }
  },
  "step_mud": {
   "dist": 280,
@@ -564,7 +810,15 @@
    "step_mud_04.ogg",
    "step_mud_05.ogg",
    "step_mud_06.ogg"
-  ]
+  ],
+  "alt": {
+   "step_mud_01.ogg": "step_mud_01.mp3",
+   "step_mud_02.ogg": "step_mud_02.mp3",
+   "step_mud_03.ogg": "step_mud_03.mp3",
+   "step_mud_04.ogg": "step_mud_04.mp3",
+   "step_mud_05.ogg": "step_mud_05.mp3",
+   "step_mud_06.ogg": "step_mud_06.mp3"
+  }
  },
  "step_sand": {
   "dist": 280,
@@ -579,7 +833,15 @@
    "step_sand_04.ogg",
    "step_sand_05.ogg",
    "step_sand_06.ogg"
-  ]
+  ],
+  "alt": {
+   "step_sand_01.ogg": "step_sand_01.mp3",
+   "step_sand_02.ogg": "step_sand_02.mp3",
+   "step_sand_03.ogg": "step_sand_03.mp3",
+   "step_sand_04.ogg": "step_sand_04.mp3",
+   "step_sand_05.ogg": "step_sand_05.mp3",
+   "step_sand_06.ogg": "step_sand_06.mp3"
+  }
  },
  "step_snow": {
   "dist": 280,
@@ -593,7 +855,14 @@
    "step_snow_03.ogg",
    "step_snow_04.ogg",
    "step_snow_05.ogg"
-  ]
+  ],
+  "alt": {
+   "step_snow_01.ogg": "step_snow_01.mp3",
+   "step_snow_02.ogg": "step_snow_02.mp3",
+   "step_snow_03.ogg": "step_snow_03.mp3",
+   "step_snow_04.ogg": "step_snow_04.mp3",
+   "step_snow_05.ogg": "step_snow_05.mp3"
+  }
  },
  "step_stone": {
   "dist": 280,
@@ -607,7 +876,14 @@
    "step_stone_03.ogg",
    "step_stone_04.ogg",
    "step_stone_05.ogg"
-  ]
+  ],
+  "alt": {
+   "step_stone_01.ogg": "step_stone_01.mp3",
+   "step_stone_02.ogg": "step_stone_02.mp3",
+   "step_stone_03.ogg": "step_stone_03.mp3",
+   "step_stone_04.ogg": "step_stone_04.mp3",
+   "step_stone_05.ogg": "step_stone_05.mp3"
+  }
  },
  "step_water": {
   "dist": 280,
@@ -622,7 +898,15 @@
    "step_water_04.ogg",
    "step_water_05.ogg",
    "step_water_06.ogg"
-  ]
+  ],
+  "alt": {
+   "step_water_01.ogg": "step_water_01.mp3",
+   "step_water_02.ogg": "step_water_02.mp3",
+   "step_water_03.ogg": "step_water_03.mp3",
+   "step_water_04.ogg": "step_water_04.mp3",
+   "step_water_05.ogg": "step_water_05.mp3",
+   "step_water_06.ogg": "step_water_06.mp3"
+  }
  },
  "step_wood": {
   "dist": 280,
@@ -636,7 +920,14 @@
    "step_wood_03.ogg",
    "step_wood_04.ogg",
    "step_wood_05.ogg"
-  ]
+  ],
+  "alt": {
+   "step_wood_01.ogg": "step_wood_01.mp3",
+   "step_wood_02.ogg": "step_wood_02.mp3",
+   "step_wood_03.ogg": "step_wood_03.mp3",
+   "step_wood_04.ogg": "step_wood_04.mp3",
+   "step_wood_05.ogg": "step_wood_05.mp3"
+  }
  },
  "thud": {
   "dist": 400,
@@ -647,7 +938,12 @@
    "thud_01.ogg",
    "thud_02.ogg",
    "thud_03.ogg"
-  ]
+  ],
+  "alt": {
+   "thud_01.ogg": "thud_01.mp3",
+   "thud_02.ogg": "thud_02.mp3",
+   "thud_03.ogg": "thud_03.mp3"
+  }
  },
  "thunder": {
   "bus": "amb",
@@ -658,7 +954,12 @@
    "thunder_01.ogg",
    "thunder_02.ogg",
    "thunder_03.ogg"
-  ]
+  ],
+  "alt": {
+   "thunder_01.ogg": "thunder_01.mp3",
+   "thunder_02.ogg": "thunder_02.mp3",
+   "thunder_03.ogg": "thunder_03.mp3"
+  }
  },
  "train_whistle": {
   "bus": "amb",
@@ -668,7 +969,10 @@
   "vol": 0.4,
   "files": [
    "train_whistle_01.ogg"
-  ]
+  ],
+  "alt": {
+   "train_whistle_01.ogg": "train_whistle_01.mp3"
+  }
  },
  "ui_back": {
   "bus": "ui",
@@ -678,7 +982,11 @@
   "files": [
    "ui_back_01.ogg",
    "ui_back_02.ogg"
-  ]
+  ],
+  "alt": {
+   "ui_back_01.ogg": "ui_back_01.mp3",
+   "ui_back_02.ogg": "ui_back_02.mp3"
+  }
  },
  "ui_error": {
   "bus": "ui",
@@ -688,7 +996,11 @@
   "files": [
    "ui_error_01.ogg",
    "ui_error_02.ogg"
-  ]
+  ],
+  "alt": {
+   "ui_error_01.ogg": "ui_error_01.mp3",
+   "ui_error_02.ogg": "ui_error_02.mp3"
+  }
  },
  "ui_move": {
   "bus": "ui",
@@ -698,7 +1010,11 @@
   "files": [
    "ui_move_01.ogg",
    "ui_move_02.ogg"
-  ]
+  ],
+  "alt": {
+   "ui_move_01.ogg": "ui_move_01.mp3",
+   "ui_move_02.ogg": "ui_move_02.mp3"
+  }
  },
  "ui_ok": {
   "bus": "ui",
@@ -708,7 +1024,11 @@
   "files": [
    "ui_ok_01.ogg",
    "ui_ok_02.ogg"
-  ]
+  ],
+  "alt": {
+   "ui_ok_01.ogg": "ui_ok_01.mp3",
+   "ui_ok_02.ogg": "ui_ok_02.mp3"
+  }
  },
  "ui_pick": {
   "bus": "ui",
@@ -718,7 +1038,11 @@
   "files": [
    "ui_pick_01.ogg",
    "ui_pick_02.ogg"
-  ]
+  ],
+  "alt": {
+   "ui_pick_01.ogg": "ui_pick_01.mp3",
+   "ui_pick_02.ogg": "ui_pick_02.mp3"
+  }
  },
  "whistle": {
   "dist": 900,
@@ -728,7 +1052,11 @@
   "files": [
    "whistle_01.ogg",
    "whistle_02.ogg"
-  ]
+  ],
+  "alt": {
+   "whistle_01.ogg": "whistle_01.mp3",
+   "whistle_02.ogg": "whistle_02.mp3"
+  }
  },
  "wolf_howl": {
   "bus": "amb",
@@ -738,6 +1066,9 @@
   "vol": 0.45,
   "files": [
    "wolf_howl_01.ogg"
-  ]
+  ],
+  "alt": {
+   "wolf_howl_01.ogg": "wolf_howl_01.mp3"
+  }
  }
 }

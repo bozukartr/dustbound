@@ -211,6 +211,11 @@ def write(name, k, y, keys, quality=4):
     p = subprocess.run([FF, '-v', 'error', '-y', '-f', 'f32le', '-ar', str(SR), '-ac', '1', '-i', '-', '-c:a', 'libvorbis', '-q:a', str(quality), os.path.join(OUT, fn)],
                        input=y.astype(np.float32).tobytes())
     if p.returncode: raise SystemExit('ffmpeg hata ' + fn)
+    # Safari .ogg açamaz: aynı adla mp3 yedeği (oyun hangisini açabiliyorsa onu yükler)
+    mp = fn[:-4] + '.mp3'
+    p = subprocess.run([FF, '-v', 'error', '-y', '-f', 'f32le', '-ar', str(SR), '-ac', '1', '-i', '-', '-c:a', 'libmp3lame', '-q:a', '5' if quality >= 4 else '6', os.path.join(OUT, mp)],
+                       input=y.astype(np.float32).tobytes())
+    if p.returncode: raise SystemExit('ffmpeg hata ' + mp)
     CREDITS.append((fn, keys))
 
 # ---------- tarif ----------
@@ -364,7 +369,7 @@ if __name__ == '__main__':
         sys.exit(0)
     only = set(sys.argv[1:]) or None
     if only is None:
-        for f in glob.glob(os.path.join(OUT, '*.ogg')): os.remove(f)
+        for f in glob.glob(os.path.join(OUT, '*.ogg')) + glob.glob(os.path.join(OUT, '*.mp3')): os.remove(f)
     build(only)
     if only is None: credits()
     print('yazıldı:', len(CREDITS), 'dosya')

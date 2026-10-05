@@ -79,13 +79,19 @@ const EXT = ['ogg', 'mp3', 'wav', 'm4a', 'flac', 'webm'];
 
 function build(dir = SFX) {
   fs.mkdirSync(dir, { recursive: true });
-  const files = fs.readdirSync(dir).filter(f => EXT.includes(f.split('.').pop().toLowerCase())).sort();
+  const all = fs.readdirSync(dir).filter(f => EXT.includes(f.split('.').pop().toLowerCase())).sort();
+  // aynı adlı .ogg ve .mp3 tek çeşittir: .ogg asıl, .mp3 onu açamayan tarayıcının (Safari) yedeği
+  const has = new Set(all);
+  const files = all.filter(f => !(/\.mp3$/i.test(f) && has.has(f.replace(/\.mp3$/i, '.ogg'))));
   const man = {}, unknown = [];
   for (const f of files) {
     const base = f.slice(0, f.lastIndexOf('.'));
     const name = CATALOG[base] ? base : base.replace(/_\d+$/, '');
     if (!CATALOG[name]) { unknown.push(f); continue; }
-    (man[name] || (man[name] = { ...CATALOG[name][1], files: [] })).files.push(f);
+    const M = man[name] || (man[name] = { ...CATALOG[name][1], files: [] });
+    M.files.push(f);
+    const mp3 = base + '.mp3';
+    if (/\.ogg$/i.test(f) && has.has(mp3)) (M.alt || (M.alt = {}))[f] = mp3;
   }
   fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(man, null, 1) + '\n');
   const md = ['# Ses dosyaları', '',

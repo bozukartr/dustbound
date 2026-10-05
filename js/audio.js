@@ -597,13 +597,17 @@ Object.assign(Audio_, {
       const pri = ['ui_', 'step_', 'hoof_', 'gun_', 'amb_'];
       const names = Object.keys(m).sort((x, y) => (pri.findIndex(p => x.startsWith(p)) + 1 || 9) - (pri.findIndex(p => y.startsWith(p)) + 1 || 9));
       const queue = [];
-      for (const nm of names) for (const f of m[nm].files || []) if (this.canOgg || !/\.ogg$/i.test(f)) queue.push([nm, f]);
+      // Safari .ogg açamaz: aynı adlı .mp3 yedeği varsa o yüklenir
+      for (const nm of names) for (const f of m[nm].files || []) {
+        const g = /\.ogg$/i.test(f) && !this.canOgg ? (m[nm].alt || {})[f] : f;
+        if (g) queue.push([nm, g]);
+      }
       let busy = 0;
       const next = () => {
         while (busy < 4 && queue.length) {
           const [nm, f] = queue.shift(); busy++;
           fetch('audio/sfx/' + encodeURIComponent(f)).then(r => r.arrayBuffer()).then(ab => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
-            .then(buf => { const B = this.bank[nm] || (this.bank[nm] = { bufs: [], last: -1 }); B.bufs.push(buf); if (m[nm].loop) this.loopReady(nm); })
+            .then(buf => { if (m[nm].loop && /\.mp3$/i.test(f)) buf = this.trimPad(buf); const B = this.bank[nm] || (this.bank[nm] = { bufs: [], last: -1 }); B.bufs.push(buf); if (m[nm].loop) this.loopReady(nm); })
             .catch(() => {}).finally(() => { busy--; next(); });
         }
       };
@@ -611,6 +615,18 @@ Object.assign(Audio_, {
     }).catch(() => {});
   },
   has(name) { const B = this.bank[name]; return !!(B && B.bufs.length); },
+  /* MP3 kodlayıcısı başa ve sona birkaç milisaniyelik sessizlik ekler; döngüde bu bir tıkırtı/boşluk olur.
+     Baştaki ve sondaki neredeyse sessiz örnekler (en çok ~70 ms) kırpılır. */
+  trimPad(buf) {
+    const d = buf.getChannelData(0), n = d.length, lim = Math.min(3000, n >> 3), th = 0.0015;
+    let a = 0, b = n;
+    while (a < lim && Math.abs(d[a]) < th) a++;
+    while (n - b < lim && Math.abs(d[b - 1]) < th) b--;
+    if (a === 0 && b === n) return buf;
+    const out = this.ctx.createBuffer(buf.numberOfChannels, b - a, buf.sampleRate);
+    for (let c = 0; c < buf.numberOfChannels; c++) out.getChannelData(c).set(buf.getChannelData(c).subarray(a, b));
+    return out;
+  },
   /* Dinleyici: oyuncu (yoksa kamera) */
   listener() { return typeof G !== 'undefined' && G.player ? G.player : null; },
   /* Bir örneği çal. o: { x, y (dünya konumu), vol, rate, bus, when, loop, dist, rev, muffle }

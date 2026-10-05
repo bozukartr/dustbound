@@ -148,5 +148,24 @@ module.exports = {
       t.ok(r.loops >= 6, 'ortam döngüleri kuruldu', r);
       t.eq(r.short, [], 'boş/bozuk dosya yok');
     });
+    await t.step('Safari (.ogg açamayan tarayıcı): mp3 yedekleri yüklenir, kodla üretilen rüzgâr susar', async () => {
+      const fs = require('fs'), path = require('path');
+      const man = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'audio', 'sfx', 'manifest.json'), 'utf8'));
+      const n = Object.values(man).reduce((a, m) => a + m.files.length, 0);
+      t.eq(Object.values(man).reduce((a, m) => a + Object.keys(m.alt || {}).length, 0), n, 'her .ogg dosyasının mp3 yedeği var');
+      const q = await t.newGame({ sfx: true, init: () => { const c = HTMLMediaElement.prototype.canPlayType; HTMLMediaElement.prototype.canPlayType = function (x) { return /ogg/i.test(x) ? '' : c.call(this, x); }; } });
+      await q.evaluate(() => Audio_.unlock());
+      await q.waitForFunction((n) => Object.values(Audio_.bank).reduce((a, B) => a + B.bufs.length, 0) >= n, n, { timeout: 90000 });
+      await t.sleep(1500);
+      const r = await q.evaluate(() => ({ canOgg: Audio_.canOgg, names: Object.keys(Audio_.bank).length, loops: Object.keys(Audio_.sloops).length,
+        procWind: Audio_.loops.wind.g.gain.value, procRain: Audio_.loops.rain.g.gain.value,
+        // döngü başı ve sonu: kodlayıcı dolgusu kırpıldı mı (ilk/son örnek sessiz değil)
+        edges: ['amb_wind', 'amb_rain', 'amb_fire', 'amb_crickets'].map(nm => { const d = Audio_.bank[nm].bufs[0].getChannelData(0); return Math.max(Math.abs(d[0]), Math.abs(d[d.length - 1])) > 0.0005; }) }));
+      t.ok(!r.canOgg, 'ogg açılamıyor sayıldı');
+      t.eq(r.names, 65, 'bütün sesler mp3 ile bankada');
+      t.ok(r.loops >= 6, 'döngüler kuruldu', r);
+      t.ok(r.procWind === 0 && r.procRain === 0, 'kodla üretilen rüzgâr ve yağmur sessiz', r);
+      t.ok(r.edges.every(Boolean), 'mp3 döngülerinin başı ve sonu kırpıldı', r.edges);
+    });
   },
 };
