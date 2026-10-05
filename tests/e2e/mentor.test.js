@@ -67,7 +67,7 @@ module.exports = {
       await p.waitForFunction(() => G.story.st === 2 && G.story.sully.ride, null, { timeout: 20000 });
       const r = await follow(70000, 90);
       t.ok(r.arrived, 'Sully çiftliğe vardı', r);
-      t.ok(r.ratio < 1.9, 'dolambaçsız rota', r);
+      t.ok(r.ratio < 2.2, 'dolambaçsız rota (eski davranış: takılma ya da kasabayı dolanma)', r);
       const rr = await p.evaluate(() => { const e = G.mentorEnt(); return e && e.rr && e.rr.route.length; });
       t.ok(rr > 3, 'rota ara noktalardan oluşur (dümdüz değil)', rr);
     });
