@@ -21,9 +21,11 @@ const fail = (m) => { console.error('demo paketi: ' + m); process.exit(1); };
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.rmSync(ZIP, { force: true });
 fs.mkdirSync(OUT, { recursive: true });
-for (const it of ['index.html', 'css', 'js', 'lang', 'audio', 'fonts']) fs.cpSync(path.join(ROOT, it), path.join(OUT, it), { recursive: true });
+for (const it of ['index.html', 'css', 'js', 'lang', 'audio', 'fonts', 'video']) if (fs.existsSync(path.join(ROOT, it))) fs.cpSync(path.join(ROOT, it), path.join(OUT, it), { recursive: true });
 for (const f of DROP_JS) fs.rmSync(path.join(OUT, 'js', f));
 for (const f of fs.readdirSync(path.join(OUT, 'audio', 'vo'))) if (f.endsWith('.csv')) fs.rmSync(path.join(OUT, 'audio', 'vo', f));
+// video klasöründen yalnızca videolar pakete girer
+if (fs.existsSync(path.join(OUT, 'video'))) for (const f of fs.readdirSync(path.join(OUT, 'video'))) if (!/\.(mp4|webm)$/i.test(f)) fs.rmSync(path.join(OUT, 'video', f), { recursive: true });
 fs.mkdirSync(path.join(OUT, 'demo'));
 fs.copyFileSync(path.join(ROOT, 'demo', 'demo.js'), path.join(OUT, 'demo', 'demo.js'));
 

@@ -4,7 +4,7 @@
    böylece tarayıcı sürümü ve masaüstü sürümü aynı kaynaktan çıkar. */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..', '..'), OUT = path.join(__dirname, '..', 'app');
-const ITEMS = ['index.html', 'css', 'js', 'lang', 'audio', 'fonts'];
+const ITEMS = ['index.html', 'css', 'js', 'lang', 'audio', 'fonts', 'video'];
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 let n = 0;

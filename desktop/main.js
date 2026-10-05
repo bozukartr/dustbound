@@ -80,6 +80,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       backgroundThrottling: false,
+      autoplayPolicy: 'no-user-gesture-required',   // açılış videosu sesli başlasın
       devTools: DEV,
     },
   });
