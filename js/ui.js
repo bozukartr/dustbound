@@ -2697,9 +2697,14 @@ const UI = {
       <div class="cr-right" id="cr-desc"></div>
       <div class="cr-foot"><div class="cr-keys">${Tr`${Input.glyph('up')}${Input.glyph('down')} Seç &nbsp; ◀ ▶ Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Bölüm &nbsp; ${Input.glyph('back')} Geri`}</div>
         <div class="cr-btns"><div class="p-item nav" id="cr-rand">${Tr`${Icons.glyph('dice', '#e8dcc6')} Rastgele`}</div>${tab > 0 ? `<div class="p-item nav" id="cr-prev">${Tr`◂ Geri`}</div>` : ''}<div class="p-item nav pref ${tab === TABS.length - 1 && allSeen() ? 'go' : 'next'}" id="cr-go">${tab < TABS.length - 1 ? Tr`İleri: ${TABS[tab + 1].n} ▸` : !allSeen() ? Tr`Sırada: ${TABS[TABS.findIndex((t, i) => !seen.has(i))].n} ▸` : Tr`Hayata Başla`} ${Input.glyph('confirm')}</div></div></div>`;
-    let m;
+    let m, ptQ = false;
+    // portre bir sonraki karede çizilir: ok tuşu basılı tutulunca art arda değişiklikler tek çizimde birleşir
+    const drawPortrait = () => {
+      if (ptQ) return; ptQ = true;
+      requestAnimationFrame(() => { ptQ = false; const c = $('#cr-portrait', el); if (c) Spr.portrait(c.getContext('2d'), 400, 480, look, 18); });
+    };
     const refresh = () => {
-      Spr.portrait($('#cr-portrait', el).getContext('2d'), 400, 480, look, 18);
+      drawPortrait();
       const BG = BACKGROUNDS.find(b => b.id === prof.bg), D = DIFFICULTIES.find(d => d.id === prof.difficulty), L = LIFE_PACES.find(p => p.id === prof.pace);
       const town = TOWNS.find(t => t.id === BG.town);
       $('#cr-pn', el).textContent = prof.name || '—';
