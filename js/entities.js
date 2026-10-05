@@ -293,7 +293,7 @@ class Player extends Ent {
       this.weapons.add(w);
       const W = WEAPONS[w];
       if (W.clip) this.clip[w] = W.clip;
-      if (!silent) UI.feed(Tr`${Icons.weapon(w, 'ic wpn inl')} Yeni silah: ${W.n}`);
+      if (!silent) { UI.feed(Tr`${Icons.weapon(w, 'ic wpn inl')} Yeni silah: ${W.n}`); setTimeout(() => UI.coachWheel(), 1500); }
     }
   }
   get maxHp() {
@@ -674,7 +674,11 @@ class Player extends Ent {
     }
     if (I.pressed('reload') && !(UI.curInteract && UI.curInteract.alt)) this.startReload();
     if (Wp.melee) {
-      if ((I.pressed('melee') || (I.pressed('fire') && !this.riding)) && this.meleeCd <= 0) this.melee();
+      if ((I.pressed('melee') || (I.pressed('fire') && !this.riding)) && this.meleeCd <= 0) {
+        this.melee();
+        // yumrukla dövüşüyor ama heybesinde silah var: çark hatırlatılır
+        if (I.pressed('fire') && [...this.weapons].some(w => !WEAPONS[w].melee)) UI.coachWheel();
+      }
       return;
     }
     if (Wp.lasso) {
@@ -729,6 +733,9 @@ class Player extends Ent {
     let spread = Wp.spread * (1 - lvl * 0.05) * (this.aiming ? 1 : this.rsAim ? 1.7 : 2.6) * (this.riding && this.riding.spd > 60 ? 1.8 : 1) * (this.drunk > 30 ? 1.8 : 1);
     if (this.deadeye) spread *= 0.1;
     spread *= 1 - 0.45 * clamp((this.aimSteady || 0) / 0.7, 0, 1);   // nişan oturdukça dağılım daralır
+    // nişan almadan ateş eden oyuncuya sağ tık (kolda L2) hatırlatılır; nişanla ateş edince öğrenilmiş sayılır
+    if (this.aiming || this.deadeye) UI.coachLearn('aim');
+    else if ((this.hipN = (this.hipN || 0) + 1) === 1 || this.hipN % 3 === 0) UI.coachAim();
     const n = Wp.pellets || 1;
     const sa = this.shotAng();
     const ox = this.x + Math.cos(sa) * 8, oy = this.y + Math.sin(sa) * 8;

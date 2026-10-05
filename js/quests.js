@@ -136,7 +136,13 @@ const Story = {
     if (this.qStep() !== st || S.wait) { this.questHud(); return; }
     const m = this.questMark();
     if (st.wp && m && dist(m.x, m.y, this.player.x, this.player.y) > 500) { this.setWaypoint(m.x, m.y); S.wpSet = true; }
-    if (st.hint) setTimeout(() => { if (this.qStep() === st && this.state === 'play') UI.help(st.hint.call(this, S), 9); }, 900);
+    if (st.hint) setTimeout(() => {
+      if (this.qStep() !== st || this.state !== 'play') return;
+      const h = st.hint.call(this, S);
+      UI.help(h, 9);
+      // adım çarktan bir şey seçmeyi istiyorsa (kement, yay, dinamit) ve çark hiç açılmadıysa ortada da hatırlatılır
+      if (h.includes(Input.glyph('wheel'))) UI.coachWheel();
+    }, 900);
     this.questHud();
   },
   qDone() {

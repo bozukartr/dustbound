@@ -28,7 +28,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2 },
+  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2 },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -91,7 +91,14 @@ const G = {
     requestAnimationFrame(t => this.frame(t));
   },
   loadSettings() {
-    try { const s = JSON.parse(Platform.get(SET_KEY)); if (s) Object.assign(this.settings, s); } catch (e) {}
+    try {
+      const s = JSON.parse(Platform.get(SET_KEY));
+      if (s) {
+        // eski varsayılan ses seviyeleri (fazla yüksekti) yeni varsayılanlara iner; oyuncunun kendi seçtiği değer korunur
+        if (!s.mixV) { const D = { master: [0.8, 0.7], sfx: [0.8, 0.7], music: [0.5, 0.4], amb: [0.6, 0.5] }; for (const k in D) if (s[k] === D[k][0]) s[k] = D[k][1]; s.mixV = 2; }
+        Object.assign(this.settings, s);
+      }
+    } catch (e) {}
     Input.setBinds(this.settings.binds);
     this.applySettings();
   },

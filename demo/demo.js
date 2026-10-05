@@ -6,12 +6,12 @@
    birkaç fonksiyonun etrafına sarılan küçük katmanlarla eklenir. Depodaki
    tam oyun bu dosyayı hiç yüklemez.
      - Yalnızca Çiftçi Çocuğu, hikâyeli başlangıç hep açık
-     - Sully'nin Senedi'nin ilk dört bölümü; beşinci bölüm başlarken demo biter
-     - Hikâye bırakılırsa üçüncü, sürerse yedinci oyun gününün sonunda demo biter
+     - Sully'nin Senedi'nin ilk sekiz bölümü; dokuzuncu bölüm (kamp ve Kızıl Jack finali) başlarken demo biter
+     - Hikâye bırakılırsa sekizinci, sürerse on altıncı oyun gününün sonunda demo biter
      - Kayıtlar ve ayarlar tam oyununkilerden ayrı tutulur
    ========================================================== */
 (() => {
-  const DEMO = { lastCh: 4, freeDays: 3, days: 7, url: '' };
+  const DEMO = { lastCh: 8, freeDays: 8, days: 16, url: '' };
   window.DEMO = DEMO;
   const T = (tr, en) => (typeof I18N !== 'undefined' && I18N.lang === 'en' ? en : tr);
 
@@ -23,13 +23,13 @@
   const newGame = G.newGame;
   G.newGame = function (profile) { return newGame.call(this, Object.assign({}, profile, { bg: 'farm', story: true })); };
 
-  /* sınırlar: beşinci bölümün başı ya da gün sınırı */
+  /* sınırlar: dokuzuncu bölümün başı ya da gün sınırı */
   let ended = false;
   const qChapter = G.qChapter;
   G.qChapter = function (i) {
     const S = this.story;
     if (i >= DEMO.lastCh && S && (S.id || 'sully') === 'sully') {
-      // kayıt beşinci bölümün başında dursun: yeniden yüklenince demo sonu yine açılır
+      // kayıt dokuzuncu bölümün başında dursun: yeniden yüklenince demo sonu yine açılır
       S.ch = i; S.st = -1; S.wait = true;
       demoEnd(); return;
     }
@@ -81,7 +81,7 @@
     const v = document.querySelector('#mm-foot .mm-ver'); if (v && !/DEMO/.test(v.textContent)) v.textContent += ' · DEMO';
     const s = document.querySelector('#mainmenu .mm-sub');
     if (s && !document.getElementById('demo-tag')) s.insertAdjacentHTML('afterend', '<div id="demo-tag" class="mm-pre" style="margin-top:6px"></div>');
-    const tag = document.getElementById('demo-tag'); if (tag) tag.textContent = T('Demo — Çiftçi Çocuğu, ilk dört bölüm', 'Demo — Farm Kid, first four chapters');
+    const tag = document.getElementById('demo-tag'); if (tag) tag.textContent = T('Demo — Çiftçi Çocuğu, ilk sekiz bölüm', 'Demo — Farm Kid, first eight chapters');
     return r;
   };
 })();
