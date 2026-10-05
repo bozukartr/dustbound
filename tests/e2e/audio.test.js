@@ -167,5 +167,45 @@ module.exports = {
       t.ok(r.procWind === 0 && r.procRain === 0, 'kodla üretilen rüzgâr ve yağmur sessiz', r);
       t.ok(r.edges.every(Boolean), 'mp3 döngülerinin başı ve sonu kırpıldı', r.edges);
     });
+    await t.step('at toynakları yürüyüş biçimine göre: adım 4, tırıs 2, eşkin 3, dörtnala 4 vuruşluk döngü', async () => {
+      const r = await p.evaluate(() => {
+        const st = Audio_.step, calls = [];
+        let now = 0;
+        Audio_.step = (v, hoof) => { if (hoof) calls.push([now, v]); };
+        const run = (spd, sec) => { const e = {}; calls.length = 0; for (now = 0; now < sec; now += 1 / 60) Audio_.hoofTick(e, 1 / 60, spd); return calls.map(c => c.slice()); };
+        const per = (c, sec) => c.length / sec;
+        const walk = run(36, 6), trot = run(95, 6), canter = run(140, 6), gallop = run(170, 6), stop = run(3, 2);
+        Audio_.step = st;
+        // dörtnala: vuruşlar kümelenir (yuvarlanma), sonra havada geçen boşluk
+        const gaps = gallop.slice(1).map((c, i) => c[0] - gallop[i][0]);
+        return { walk: per(walk, 6), trot: per(trot, 6), canter: per(canter, 6), gallop: per(gallop, 6), stop: stop.length,
+          gMin: Math.min(...gaps), gMax: Math.max(...gaps), accent: gallop[3][1] > gallop[0][1] };
+      });
+      t.ok(r.walk > 3 && r.walk < 4.5, 'adım: saniyede ~3,5 vuruş', r);
+      t.ok(r.trot > 2.8 && r.trot < 3.8, 'tırıs: saniyede ~3 vuruş', r);
+      t.ok(r.canter > 5 && r.canter < 6.2, 'eşkin: saniyede ~5,5 vuruş', r);
+      t.ok(r.gallop > 8 && r.gallop < 10, 'dörtnala: saniyede ~9 vuruş', r);
+      t.ok(r.gMax > r.gMin * 2.5, 'dörtnala ritmi düzensiz (yuvarlanma + boşluk)', r);
+      t.ok(r.accent, 'dörtnalada son vuruş vurgulu', r);
+      t.eq(r.stop, 0, 'duran at ses çıkarmaz');
+    });
+    await t.step('ıslık spamı: 3 sn içinde tekrar ıslık ve kişneme olmaz', async () => {
+      const r = await p.evaluate(async () => {
+        const w = Audio_.whistle, n = Audio_.neigh; let W = 0, N = 0;
+        Audio_.whistle = () => { W++; }; Audio_.neigh = () => { N++; };
+        const P = G.player, h = G.horse; if (P.riding) P.dismount(true);
+        G._whistleT = undefined; h._neighT = undefined;
+        for (let k = 0; k < 6; k++) { h.x = P.x + 300; h.y = P.y; G.whistle(); }
+        await new Promise(res => setTimeout(res, 700));
+        const first = [W, N];
+        G.t += 3.5; h.x = P.x + 300; G.whistle();
+        await new Promise(res => setTimeout(res, 700));
+        const after = [W, N];
+        Audio_.whistle = w; Audio_.neigh = n;
+        return { first, after };
+      });
+      t.eq(r.first, [1, 1], 'altı basışta bir ıslık, bir kişneme');
+      t.eq(r.after, [2, 1], '3 sn sonra ıslık yine çalar; kişneme 10 sn dolmadan tekrarlanmaz');
+    });
   },
 };

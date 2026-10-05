@@ -137,10 +137,14 @@ def onsets(x, min_gap=0.12, rel_db=-18):
         if above[i] and not above[i - 1] and i - last >= gap:
             idx.append(i); last = i
     return idx
-def slices(x, n=None, length=0.25, min_gap=0.12, rel_db=-18, fade=0.04):
-    """tekil darbeleri ayır (adım, toynak, çoklu atış dosyası)"""
+def slices(x, n=None, length=0.25, min_gap=0.12, rel_db=-18, fade=0.04, iso=0):
+    """tekil darbeleri ayır (adım, toynak, çoklu atış dosyası).
+       iso: önündeki ve ardındaki darbeye en az bu kadar (sn) uzak olanlar — üst üste binmiş vuruşlar alınmaz"""
     out = []
     ons = onsets(x, min_gap, rel_db)
+    if iso:
+        g = int(iso * SR)
+        ons = [o for i, o in enumerate(ons) if (i == 0 or o - ons[i - 1] >= g) and (i + 1 == len(ons) or ons[i + 1] - o >= g)]
     for i, o in enumerate(ons):
         a = max(0, o - int(0.006 * SR)); b = min(len(x), a + int(length * SR))
         if i + 1 < len(ons): b = min(b, ons[i + 1] - int(0.004 * SR))
@@ -254,12 +258,12 @@ def one(name, keys, prep=lambda x: trim(x), maxn=None):
             got.append((kk, y))
     if maxn: got = got[:maxn]
     for k, ((kk, _), y) in enumerate(zip(got, norm_group([y for _, y in got], target(name))), 1): write(name, k, y, [kk])
-def hits(name, keys, n_each=4, length=0.25, prep=lambda x: x, post=lambda y: y, total=8, rel_db=-18, min_gap=0.12):
+def hits(name, keys, n_each=4, length=0.25, prep=lambda x: x, post=lambda y: y, total=8, rel_db=-18, min_gap=0.12, iso=0, fade=0.04):
     """kaynaklardan tekil darbeleri ayır"""
     pool = []
     for key in keys:
         for kk, x in src(key):
-            for y in slices(prep(x), n_each, length, min_gap, rel_db): pool.append((kk, post(y)))
+            for y in slices(prep(x), n_each, length, min_gap, rel_db, fade, iso): pool.append((kk, post(y)))
     pool = pool[:total]
     for k, ((kk, _), y) in enumerate(zip(pool, norm_group([y for _, y in pool], target(name))), 1): write(name, k, y, [kk])
 def amb(name, key, length=20, start=1.0, prep=lambda x: x, rms=-20, ceil=-3):
@@ -297,15 +301,17 @@ def build(only=None):
     if T('step_mud'): hits('step_mud', ['fs:488069', 'fs:488068'], n_each=3, length=0.4, total=6)
     if T('step_sand'): hits('step_sand', ['fs:725875'], n_each=6, length=0.35, total=6)
     if T('step_water'): hits('step_water', ['fs:861369'], n_each=6, length=0.45, total=6, min_gap=0.2)
-    # toynaklar
-    if T('hoof_dirt'): hits('hoof_dirt', ['fs:175356', 'fs:581833'], n_each=4, length=0.22, total=8)
-    if T('hoof_stone'): hits('hoof_stone', ['fs:479689'], n_each=8, length=0.22, total=8)
-    if T('hoof_grass'): hits('hoof_grass', ['fs:564626'], n_each=8, length=0.22, total=8, post=lambda y: filt(y, 'low', 3500))
-    if T('hoof_wood'): hits('hoof_wood', ['k:impact-sounds/impactWood_heavy_00[0-4].ogg'], n_each=1, length=0.25, total=5, post=lambda y: filt(pitch(y, 0.8), 'low', 2500))
-    if T('hoof_snow'): hits('hoof_snow', ['k:impact-sounds/footstep_snow_00[0-4].ogg'], n_each=1, length=0.3, total=5, post=lambda y: pitch(y, 0.72))
-    if T('hoof_mud'): hits('hoof_mud', ['fs:488069'], n_each=6, length=0.35, total=6, post=lambda y: pitch(y, 0.82))
-    if T('hoof_water'): hits('hoof_water', ['fs:861369'], n_each=6, length=0.4, total=6, min_gap=0.2, post=lambda y: pitch(y, 0.85))
-    if T('hoof_sand'): hits('hoof_sand', ['fs:725875'], n_each=6, length=0.3, total=6, post=lambda y: filt(pitch(y, 0.78), 'low', 3000))
+    # toynaklar: yürüyüş kayıtlarındaki yalıtılmış tekil vuruşlar (dörtnala kayıtlarında vuruşlar iç içe geçer);
+    # kısa (≈0,15 sn) ve hızlı sönen kesitler: oyundaki yürüyüş ritmi (adım, tırıs, eşkin, dörtnala) bunlardan kurulur
+    HOOF = dict(n_each=10, length=0.16, total=8, iso=0.18, fade=0.06, rel_db=-20)
+    if T('hoof_dirt'): hits('hoof_dirt', ['fs:581833'], **HOOF)
+    if T('hoof_stone'): hits('hoof_stone', ['fs:479689'], **HOOF)
+    if T('hoof_grass'): hits('hoof_grass', ['fs:581833'], post=lambda y: filt(pitch(y, 0.94), 'low', 2800), **HOOF)
+    if T('hoof_sand'): hits('hoof_sand', ['fs:581833'], post=lambda y: filt(pitch(y, 0.85), 'low', 2200), **HOOF)
+    if T('hoof_wood'): hits('hoof_wood', ['k:impact-sounds/impactWood_heavy_00[0-4].ogg'], n_each=1, length=0.2, total=5, fade=0.06, post=lambda y: filt(pitch(y, 0.8), 'low', 2500))
+    if T('hoof_snow'): hits('hoof_snow', ['k:impact-sounds/footstep_snow_00[0-4].ogg'], n_each=1, length=0.22, total=5, fade=0.06, post=lambda y: pitch(y, 0.72))
+    if T('hoof_mud'): hits('hoof_mud', ['fs:488069'], n_each=6, length=0.22, total=6, fade=0.06, post=lambda y: pitch(y, 0.82))
+    if T('hoof_water'): hits('hoof_water', ['fs:861369'], n_each=6, length=0.3, total=6, min_gap=0.2, fade=0.08, post=lambda y: pitch(y, 0.85))
     # at ve hayvanlar
     if T('horse_neigh'): one('horse_neigh', ['fs:269571', 'fs:826753'])
     if T('whistle'): one('whistle', ['fs:320140', 'fs:617012'])

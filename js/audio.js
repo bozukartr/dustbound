@@ -412,11 +412,39 @@ const Audio_ = {
     if (d > 40 || d < 0.01) return;      // ışınlanma ya da duruş
     const hoof = e.kind === 'horse' || e.kind === 'wagon' || !!e.mounted, sp = d / Math.max(dt, 0.001);
     if (!this.has(hoof ? 'hoof_dirt' : 'step_dirt')) return;   // örneği yoksa uzaktaki adımlar sessiz
+    // atlar: hız kare kare oynar, yumuşatılmış hızla yürüyüş ritmi (adım, tırıs, eşkin, dörtnala)
+    if (hoof) { e._sps = (e._sps || sp) + (sp - (e._sps || sp)) * Math.min(1, dt * 6); this.hoofTick(e, dt, e._sps, e.x, e.y, 0.7); return; }
     e._fa += d;
     const stride = hoof ? (sp > 110 ? 30 : 20) : (sp > 60 ? 16 : 12);
     if (e._fa < stride) return;
     e._fa = 0;
     this.step(hoof ? 0.05 + Math.min(0.06, sp / 3000) : 0.035 + Math.min(0.03, sp / 3000), hoof, e.x, e.y);
+  },
+  /* At yürüyüş ritmi. Hızdan yürüyüş biçimi seçilir; her döngüde o biçimin vuruşları kendi zamanlamasıyla,
+     kendi ağırlığıyla çalar (gerçek atta olduğu gibi):
+       adım     — dört eşit aralıklı, yumuşak vuruş ("tık-tak-tık-tak")
+       tırıs    — iki net vuruş (çapraz bacaklar birlikte basar)
+       eşkin    — üç vuruş ve kısa bir boşluk ("ta-ta-tam ... ")
+       dörtnala — dört vuruşluk hızlı yuvarlanma, en sonuncusu vurgulu, ardından havada geçen boşluk
+     Döngü süresi biçimin içinde hızla kısalır. Döner: bu karede çalan vuruş sayısı (toz efekti için). */
+  GAITS: [
+    { max: 52,  cyc: [1.2, 0.9],   beats: [[0, 0.8], [0.25, 0.55], [0.5, 0.75], [0.75, 0.55]] },
+    { max: 125, cyc: [0.7, 0.54],  beats: [[0, 1], [0.5, 0.85]] },
+    { max: 152, cyc: [0.58, 0.5],  beats: [[0, 0.75], [0.17, 0.85], [0.34, 1]] },
+    { max: 1e9, cyc: [0.47, 0.4],  beats: [[0, 0.7], [0.12, 0.78], [0.24, 0.86], [0.4, 1]] },
+  ],
+  hoofTick(e, dt, spd, x, y, gain = 1) {
+    if (spd < 8) { e._gait = null; e._gp = 0; e._gb = 0; return 0; }   // durunca döngü baştan başlar
+    const Gs = this.GAITS, gi = Gs.findIndex(g => spd < g.max), Gt = Gs[gi];
+    const lo = gi ? Gs[gi - 1].max : 8, hi = Gt.max < 1e8 ? Gt.max : 200;
+    const cyc = lerp(Gt.cyc[0], Gt.cyc[1], clamp((spd - lo) / (hi - lo), 0, 1));
+    if (e._gait !== Gt) { e._gait = Gt; e._gp = 0; e._gb = 0; }
+    e._gp += dt / cyc;
+    let n = 0;
+    const base = (0.055 + Math.min(0.07, spd / 2600)) * gain;
+    while (e._gb < Gt.beats.length && e._gp >= Gt.beats[e._gb][0]) { this.step(base * Gt.beats[e._gb][1], true, x, y); e._gb++; n++; }
+    if (e._gp >= 1) { e._gp -= 1; e._gb = 0; }
+    return n;
   },
   /* silah adından ses türü */
   gunKind(w) { return w === 'rifle' ? 'rifle' : w === 'shotgun' ? 'shotgun' : w === 'repeater' || w === 'winchester' ? 'repeater' : w === 'bow' ? 'bow' : 'pistol'; },

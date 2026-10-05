@@ -1027,6 +1027,9 @@ const GameSystems = {
   /* ================= AT ================= */
   whistle() {
     const P = this.player, h = this.horse;
+    // art arda basılırsa (3 sn içinde) ne ıslık çalar ne at yeniden çağrılır: ses spam olmasın
+    if (this.t - (this._whistleT === undefined ? -99 : this._whistleT) < 3) return;
+    this._whistleT = this.t;
     Audio_.whistle();
     this.qEvent('whistle');
     if (P.riding) return;
@@ -1037,7 +1040,8 @@ const GameSystems = {
       const pos = this.findSpawnPos(P.x, P.y, 200, 280, true);
       if (pos) { h.x = pos[0]; h.y = pos[1]; }
     }
-    if (d > 26) { h.state = 'come'; h.t = 30; setTimeout(() => Audio_.neigh(h.x, h.y), 500); }
+    // at çağrıya kişneyerek karşılık verir; ama 10 sn içinde bir kez (ıslık tekrarında kişneme yığılmaz)
+    if (d > 26) { h.state = 'come'; h.t = 30; if (this.t - (h._neighT === undefined ? -99 : h._neighT) > 10) { h._neighT = this.t; setTimeout(() => Audio_.neigh(h.x, h.y), 500); } }
   },
   setHorse(h, silent) {
     if (this.horse && this.horse !== h && !this.horse.dead) {

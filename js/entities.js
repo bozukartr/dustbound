@@ -642,10 +642,8 @@ class Player extends Ent {
     if (actual < Math.hypot(vx, vy) * 0.3 && h.spd > 100) { h.spd *= 0.3; G.fx.shake = 3; Audio_.thud(0.3); h.brk = false; Juice.rear(h, true); }
     h.mv = h.spd / 60;
     h.phase += dt * (3 + h.spd * 0.1);
-    if (h.spd > 40) {
-      this.stepT -= dt * h.spd;
-      if (this.stepT <= 0) { this.stepT = 26; Audio_.step(0.07 + h.spd / 2500, true); Juice.hoof(h, t); }
-    }
+    // toynak sesi yürüyüş biçimine göre (adım, tırıs, eşkin, dörtnala); her vuruşta toz
+    if (Audio_.hoofTick(h, dt, h.spd)) Juice.hoof(h, t);
     // atla çarpma (NPC ve hayvanlara)
     if (h.spd > 110) {
       for (const e of G.ents) {
