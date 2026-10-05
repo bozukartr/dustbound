@@ -140,8 +140,10 @@ const Story = {
       if (this.qStep() !== st || this.state !== 'play') return;
       const h = st.hint.call(this, S);
       UI.help(h, 9);
-      // adım çarktan bir şey seçmeyi istiyorsa (kement, yay, dinamit) ve çark hiç açılmadıysa ortada da hatırlatılır
-      if (h.includes(Input.glyph('wheel'))) UI.coachWheel();
+      // ateş etmeyi isteyen adım (ilk çakallar, kurtlar...): nişan ipucu daha ilk atıştan önce, adım başlarken gelir;
+      // elde silah yoksa önce çark (bkz. UI.coachStep). Çarktan bir şey seçmeyi isteyen adımda çark hatırlatılır.
+      if (h.includes(Input.glyph('aim'))) UI.coachFor = { k: 'aim', st };
+      else if (h.includes(Input.glyph('wheel'))) UI.coachWheel();
     }, 900);
     this.questHud();
   },

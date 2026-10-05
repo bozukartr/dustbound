@@ -276,7 +276,15 @@ const UI = {
   },
   coachHide() { const el = $('#coach'); if (el) el.classList.remove('show'); this._coachK = null; clearTimeout(this._coachTO); },
   coachWheel() { return this.coach('wheel', Tr`<b>Silah Çarkı</b> için ${Input.glyph('wheel')} basılı tut — silahını, kementi, yayı buradan seç`, 6); },
-  coachAim() { return this.coach('aim', Tr`<b>Nişan almak</b> için ${Input.glyph('aim')} basılı tut — atışların çok daha isabetli olur`, 5); },
+  coachAim(dur = 5) { return this.coach('aim', Tr`<b>Nişan almak</b> için ${Input.glyph('aim')} basılı tut — atışların çok daha isabetli olur`, dur); },
+  /* görev adımı ateş etmeyi istiyor: önce silahı eline almak (çark), sonra nişan ipucu; adım değişince vazgeçilir */
+  coachStep() {
+    const C = this.coachFor, P = G.player;
+    if (!C || !P || G.state !== 'play') return;
+    if (G.qStep() !== C.st || this.coachLearned(C.k)) { this.coachFor = null; return; }
+    if (P.W.clip || P.weapon === 'bow') { if (this.coachAim(7)) this.coachFor = null; }
+    else if (!this.coachLearned('wheel')) this.coachWheel();
+  },
   subtitle(name, text, dur = 3, self) {
     const s = this.el.sub;
     s.innerHTML = `<span class="sn ${self ? 'self' : ''}">${escapeHtml(name)}:</span> ${escapeHtml(text)}`;
@@ -447,6 +455,7 @@ const UI = {
     this.setText('w-key', `${Input.glyph('wheel')} ${Tr('Çark')}`);
     const wl = !this.coachLearned('wheel') && P.weapons.size > 1;
     if (this._wl !== wl) { this._wl = wl; $('#weapon-hud').classList.toggle('learn', wl); }
+    this.coachStep();
     // ilk oyunda: bir süre sonra çark bir kez hatırlatılır
     if (wl && !this._coachW0 && G.state === 'play' && (this._coachPlay = (this._coachPlay || 0) + 0.1) > 45) { this._coachW0 = true; this.coachWheel(); }
     // efektler

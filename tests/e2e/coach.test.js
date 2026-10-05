@@ -56,6 +56,24 @@ module.exports = {
       t.ok(r.learned && r.again === false && !r.prompt, 'nişan öğrenildi', r);
     });
 
+    await t.step('ateş etmeyi isteyen ilk görevde nişan ipucu ilk atıştan önce gelir (elde silah yoksa önce çark)', async () => {
+      const q = await t.newGame({ story: true });
+      await q.evaluate(() => { window.__storyFast = true; });
+      await q.waitForFunction(() => G.story && G.story.ch === 0 && G.story.st === 0 && !G.story.wait, null, { timeout: 20000 });
+      await q.evaluate(() => { G.player.weapon = 'fists'; G.qChapter(3); });
+      await q.waitForFunction(() => G.story.ch === 3 && G.story.st === 0 && !G.story.wait, null, { timeout: 20000 });
+      // elde yumruk: önce çark
+      await q.waitForFunction(() => document.getElementById('coach').classList.contains('show'), null, { timeout: 8000 });
+      const w = await q.evaluate(() => document.getElementById('coach').textContent);
+      t.ok(/Silah Çarkı/.test(w), 'önce çark ipucu', w);
+      // tabancayı eline alınca, daha ateş etmeden nişan ipucu
+      await q.evaluate(() => { const P = G.player; P.weapon = P.weapons.has('cattleman') ? 'cattleman' : [...P.weapons].find(x => WEAPONS[x].clip); });
+      await q.waitForFunction(() => /Nişan almak/.test(document.getElementById('coach').textContent) && document.getElementById('coach').classList.contains('show'), null, { timeout: 5000 });
+      const r = await q.evaluate(() => ({ shots: Object.values(G.player.spent || {}).reduce((a, b) => a + b, 0), wanted: G.player.wanted || 0, pend: !!UI.coachFor }));
+      t.eq(r.shots, 0, 'ipucu ilk atıştan önce');
+      t.ok(!r.pend, 'görev ipucu bir kez gösterildi', r);
+    });
+
     await t.step('ses: yeni varsayılanlar ve eski varsayılanların taşınması', async () => {
       const r = await p.evaluate(() => {
         const fresh = { master: 0.7, sfx: 0.7, music: 0.4, amb: 0.5 };
