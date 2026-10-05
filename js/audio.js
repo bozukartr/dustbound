@@ -17,7 +17,7 @@
 const Audio_ = {
   ctx: null, master: null, sfx: null, music: null, amb: null,
   noise: null, plucks: new Map(),
-  vol: { master: 0.8, sfx: 0.8, music: 0.5, amb: 0.6 },
+  vol: { master: 0.7, sfx: 0.7, music: 0.4, amb: 0.5 },
   loops: {},
   seq: null,
 
@@ -88,24 +88,40 @@ const Audio_ = {
       return;
     }
     if (kind === 'repeater') kind = 'pistol';
-    if (x !== undefined) { const L = this.listener(); if (L) v *= Math.max(0.1, 1 - Math.hypot(x - L.x, y - L.y) / 900); }
-    const c = this.ctx, t = c.currentTime;
-    const n = this.noiseSrc(); n.playbackRate.value = kind === 'rifle' ? 0.7 : 1;
-    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = kind === 'shotgun' ? 2600 : kind === 'bow' ? 5000 : 3600;
-    const g = c.createGain();
-    n.connect(f); f.connect(g); g.connect(this.sfx);
-    if (kind === 'bow') { this.env(g, t, 0.005, 0.25 * v, 0.12); n.start(t); n.stop(t + 0.2); return; }
-    const dur = kind === 'shotgun' ? 0.55 : kind === 'rifle' ? 0.7 : 0.38;
-    this.env(g, t, 0.002, 0.9 * v, dur);
-    n.start(t, Math.random()); n.stop(t + dur + 0.1);
+    let far = 0;
+    if (x !== undefined) { const L = this.listener(); if (L) { const dd = Math.hypot(x - L.x, y - L.y); v *= Math.max(0.1, 1 - dd / 900); far = clamp(dd / 700, 0, 1); } }
+    const c = this.ctx, t = c.currentTime, out = c.createGain();
+    // uzaktaki atış tizini yitirir
+    const air = c.createBiquadFilter(); air.type = 'lowpass'; air.frequency.value = 9000 - far * 6500;
+    out.connect(air); air.connect(this.sfx);
+    if (this.revIn) { const sg = c.createGain(); sg.gain.value = 0.35 + far * 0.4; air.connect(sg); sg.connect(this.revIn); }
+    const burst = (type, freq, q, a, peak, dcy, rate = 1, off = 0) => {
+      const n = this.noiseSrc(); n.playbackRate.value = rate;
+      const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq; if (q) f.Q.value = q;
+      const g = c.createGain(); this.env(g, t + off, a, peak, dcy);
+      n.connect(f); f.connect(g); g.connect(out); n.start(t + off, Math.random() * 1.5); n.stop(t + off + a + dcy + 0.05);
+    };
+    if (kind === 'bow') {
+      // kirişin tok "tunk"u ve okun hışırtısı
+      const o = c.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(110, t + 0.12);
+      const og = c.createGain(); this.env(og, t, 0.003, 0.16 * v, 0.14); o.connect(og); og.connect(out); o.start(t); o.stop(t + 0.2);
+      burst('bandpass', 2600, 1.2, 0.02, 0.05 * v, 0.16, 1, 0.02);
+      return;
+    }
+    const P = { pistol: { crack: 3200, body: 1100, boom: 120, tail: 0.45, k: 2.3 }, rifle: { crack: 2600, body: 850, boom: 95, tail: 0.75, k: 2.5 }, shotgun: { crack: 1900, body: 650, boom: 80, tail: 0.6, k: 2.6 } }[kind] || { crack: 3200, body: 1100, boom: 120, tail: 0.45, k: 2.3 };
+    v *= P.k;
+    // 1) çatırtı: çok kısa, tiz patlama
+    burst('highpass', P.crack, 0.7, 0.0008, 0.5 * v * (1 - far * 0.7), 0.025);
+    // 2) gövde: barutun orta frekanslı "pat"ı
+    burst('bandpass', P.body, 0.9, 0.001, 0.55 * v, 0.09, 0.8);
+    // 3) gümbürtü: göğse vuran alçak darbe
     const o = c.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(kind === 'rifle' ? 90 : 130, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.2);
-    const og = c.createGain(); this.env(og, t, 0.002, 0.8 * v, 0.25);
-    o.connect(og); og.connect(this.sfx); o.start(t); o.stop(t + 0.3);
-    // yankı
-    const d = c.createDelay(); d.delayTime.value = 0.18 + Math.random() * 0.08;
-    const dg = c.createGain(); dg.gain.value = 0.25;
-    g.connect(d); d.connect(dg); dg.connect(this.sfx);
+    o.frequency.setValueAtTime(P.boom, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.22);
+    const og = c.createGain(); this.env(og, t, 0.002, 0.5 * v, 0.24); o.connect(og); og.connect(out); o.start(t); o.stop(t + 0.3);
+    // 4) kuyruk: açık havada yuvarlanan, koyu yankı
+    burst('lowpass', 700, 0.5, 0.02, 0.16 * v, P.tail, 0.5, 0.01);
+    const L = this.listener(), dd = x !== undefined && L ? Math.hypot(x - L.x, y - L.y) : 0;
+    if (dd < 500) this.duck(0.35 * (1 - dd / 500) * v, 0.12, 1.4);
   },
   boom(v = 1, x, y) {
     if (!this.ctx) return;
@@ -114,7 +130,11 @@ const Audio_ = {
     const n = this.noiseSrc(); n.playbackRate.value = 0.4;
     const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
     const g = c.createGain(); n.connect(f); f.connect(g); g.connect(this.sfx);
-    this.env(g, t, 0.005, 1.2 * v, 1.6); n.start(t); n.stop(t + 1.8);
+    if (this.revIn) { const sg = c.createGain(); sg.gain.value = 0.4; g.connect(sg); sg.connect(this.revIn); }
+    this.env(g, t, 0.005, 0.8 * v, 1.6); n.start(t); n.stop(t + 1.8);
+    const o = c.createOscillator(); o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(28, t + 0.6);
+    const og = c.createGain(); this.env(og, t, 0.004, 0.7 * v, 0.7); o.connect(og); og.connect(this.sfx); o.start(t); o.stop(t + 0.8);
+    this.duck(0.6 * v, 0.3, 2.2);
   },
   thunder() {
     if (!this.ctx) return;
@@ -132,8 +152,14 @@ const Audio_ = {
     const c = this.ctx, t = c.currentTime + when;
     const o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
     if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
-    const g = c.createGain(); this.env(g, t, 0.01, v, dur);
-    o.connect(g); g.connect(bus || this.sfx); o.start(t); o.stop(t + dur + 0.05);
+    // kare ve testere dalgasının sert üst harmonikleri kırpılır: bip yerine yumuşak bir tını
+    const harsh = type === 'square' || type === 'sawtooth';
+    const g = c.createGain(); this.env(g, t, 0.01, harsh ? v * 0.65 : v, dur);
+    if (harsh) {
+      const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = Math.min(3200, Math.max(freq, slide || 0) * 2.2); f.Q.value = 0.5;
+      o.connect(f); f.connect(g);
+    } else o.connect(g);
+    g.connect(bus || this.sfx); o.start(t); o.stop(t + dur + 0.05);
   },
   thud(v = 0.6, x, y) {
     if (!this.ctx) return;
@@ -174,20 +200,20 @@ const Audio_ = {
     else if (kind === 'ok') { this.tone(660, 0.08, 'triangle', 0.08); this.tone(990, 0.1, 'triangle', 0.06, null, 0.05); }
     else if (kind === 'back') this.tone(440, 0.08, 'triangle', 0.06, null, 0, 330);
     else if (kind === 'error') this.tone(180, 0.2, 'square', 0.05);
-    else if (kind === 'cash') { this.tone(1760, 0.12, 'square', 0.04); this.tone(2349, 0.25, 'square', 0.04, null, 0.07); }
+    else if (kind === 'cash') { this.tone(1568, 0.1, 'triangle', 0.035, this.uiBus); this.tone(2093, 0.22, 'sine', 0.03, this.uiBus, 0.07); }
     else if (kind === 'pick') this.tone(1200, 0.06, 'sine', 0.08, null, 0, 1600);
   },
   chime() {
     if (!this.ctx) return;
     if (this.play('chime')) return;
-    [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.9, 'sine', 0.12, null, i * 0.09));
-    [1047, 1319].forEach((f, i) => this.tone(f, 1.2, 'triangle', 0.05, null, 0.4 + i * 0.1));
+    [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.9, 'sine', 0.05, this.uiBus, i * 0.09));
+    [1047, 1319].forEach((f, i) => this.tone(f, 1.2, 'sine', 0.02, this.uiBus, 0.4 + i * 0.1));
   },
   discover() {
     if (!this.ctx) return;
     if (this.play('discover')) return;
-    [220, 330, 440].forEach((f, i) => this.pluck(f, 0.25, i * 0.12));
-    this.pluck(554, 0.2, 0.42);
+    [220, 330, 440].forEach((f, i) => this.pluck(f, 0.12, i * 0.12, this.uiBus));
+    this.pluck(554, 0.1, 0.42, this.uiBus);
   },
   whistle() {
     if (!this.ctx) return;
@@ -267,7 +293,7 @@ const Audio_ = {
       const g = c.createGain(); g.gain.value = 0; n.connect(f); f.connect(g); g.connect(this.amb); n.start();
       return { g, f };
     };
-    this.loops.rain = mk('highpass', 1800);
+    this.loops.rain = mk('bandpass', 2600, 0.45);
     this.loops.wind = mk('bandpass', 420, 0.8);
     this.loops.fire = mk('bandpass', 2400, 0.5);
     this.loops.water = mk('bandpass', 700, 0.6);
@@ -282,9 +308,9 @@ const Audio_ = {
   },
   ambientTick(env) {
     if (!this.ctx) return;
-    this.setLoop('rain', env.rain * 0.35);
+    this.setLoop('rain', env.rain * (this.sloops.rain ? 0.35 : 0.075));
     this.setLoop('wind', env.wind * 0.3);
-    this.setLoop('fire', env.fire * 0.12);
+    this.setLoop('fire', env.fire * (this.sloops.fire ? 0.12 : 0.06));
     this.setLoop('water', env.water * 0.12);
     this.loops.wind.f.frequency.setTargetAtTime(300 + Math.sin(this.ctx.currentTime * 0.3) * 150, this.ctx.currentTime, 1);
     this.setLoop('storm', env.storm ? 0.25 : Math.max(0, env.wind - 0.5) * 0.3);

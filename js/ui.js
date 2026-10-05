@@ -6,6 +6,8 @@
 
 /* silah doldururken dönen tambur */
 const CYL_SVG = '<svg class="w-cyl" viewBox="-10 -10 20 20"><circle r="9.2" fill="#8a8a92" stroke="#2a2a2e" stroke-width="1"/><circle cx="5.30" cy="0.00" r="2.1" fill="#16161a"/><circle cx="2.65" cy="4.59" r="2.1" fill="#16161a"/><circle cx="-2.65" cy="4.59" r="2.1" fill="#16161a"/><circle cx="-5.30" cy="0.00" r="2.1" fill="#16161a"/><circle cx="-2.65" cy="-4.59" r="2.1" fill="#16161a"/><circle cx="2.65" cy="-4.59" r="2.1" fill="#16161a"/><circle r="1.7" fill="#4a4a52"/></svg>';
+/* koç ipuçlarının susması için gereken kullanım sayısı (çarkı iki kez aç, nişanla üç kez ateş et) */
+const COACH_NEED = { wheel: 2, aim: 3 };
 
 const UI = {
   stack: [],
@@ -250,6 +252,39 @@ const UI = {
     clearTimeout(this._helpT);
     this._helpT = setTimeout(() => h.classList.add('hidden'), dur * 1000);
   },
+  /* Koç ipuçları: oyuncu bir mekaniği kaçırınca (çarkı hiç açmadan yumrukla dövüşmek, nişan almadan
+     ateş etmek) ekranın ortasında tek satır belirir. Öğrenilince (çark açılınca, nişanla ateş edilince)
+     kalıcı olarak susar; ilerleme ayarlarla birlikte saklanır, bütün kayıtlarda geçerlidir. */
+  coachLearned(k) { const C = G.settings.coach || {}; return (C[k] || 0) >= (COACH_NEED[k] || 1); },
+  coachLearn(k) {
+    if (this.coachLearned(k)) return;
+    const C = G.settings.coach || (G.settings.coach = {});
+    C[k] = (C[k] || 0) + 1;
+    try { Platform.set(SET_KEY, JSON.stringify(G.settings)); } catch (e) {}
+    if (this._coachK === k) this.coachHide();
+  },
+  coach(k, html, dur = 5) {
+    if (this.coachLearned(k) || G.state !== 'play' || G.cine) return false;
+    const now = performance.now() / 1000, T = this._coachT || (this._coachT = {});
+    if (T[k] !== undefined && now - T[k] < 20) return false;
+    T[k] = now;
+    const el = $('#coach');
+    el.innerHTML = html; el.classList.add('show'); this._coachK = k;
+    clearTimeout(this._coachTO); this._coachTO = setTimeout(() => this.coachHide(), dur * 1000);
+    Audio_.ui('hover');
+    return true;
+  },
+  coachHide() { const el = $('#coach'); if (el) el.classList.remove('show'); this._coachK = null; clearTimeout(this._coachTO); },
+  coachWheel() { return this.coach('wheel', Tr`<b>Silah Çarkı</b> için ${Input.glyph('wheel')} basılı tut — silahını, kementi, yayı buradan seç`, 6); },
+  coachAim(dur = 5) { return this.coach('aim', Tr`<b>Nişan almak</b> için ${Input.glyph('aim')} basılı tut — atışların çok daha isabetli olur`, dur); },
+  /* görev adımı ateş etmeyi istiyor: önce silahı eline almak (çark), sonra nişan ipucu; adım değişince vazgeçilir */
+  coachStep() {
+    const C = this.coachFor, P = G.player;
+    if (!C || !P || G.state !== 'play') return;
+    if (G.qStep() !== C.st || this.coachLearned(C.k)) { this.coachFor = null; return; }
+    if (P.W.clip || P.weapon === 'bow') { if (this.coachAim(7)) this.coachFor = null; }
+    else if (!this.coachLearned('wheel')) this.coachWheel();
+  },
   subtitle(name, text, dur = 3, self) {
     const s = this.el.sub;
     s.innerHTML = `<span class="sn ${self ? 'self' : ''}">${escapeHtml(name)}:</span> ${escapeHtml(text)}`;
@@ -305,7 +340,7 @@ const UI = {
       if (!this.moneyRoll) { this.moneyRoll = true; e.classList.remove('gain', 'loss'); e.classList.add(d > 0 ? 'gain' : 'loss'); }
       this.moneyV += d * Math.min(1, dt * 6);
       if (Math.abs(P.money - this.moneyV) < 0.02 || !Juice.motion) this.moneyV = P.money;
-      if ((this.coinT = (this.coinT || 0) - dt) <= 0) { this.coinT = 0.065; Audio_.tone(d > 0 ? rnd(2300, 2700) : rnd(1500, 1800), 0.03, 'square', 0.012); }
+      if ((this.coinT = (this.coinT || 0) - dt) <= 0) { this.coinT = 0.085; Audio_.tone(d > 0 ? rnd(1900, 2200) : rnd(1300, 1500), 0.025, 'triangle', 0.01, Audio_.uiBus); }
     } else if (this.moneyRoll) { this.moneyRoll = false; this.moneyV = P.money; setTimeout(() => { if (!this.moneyRoll) e.classList.remove('gain', 'loss'); }, 350); }
     this.setText('hud-money', fmtMoney(this.moneyV));
   },
@@ -416,6 +451,13 @@ const UI = {
     } else if (W.throw) ammo = `${P.count('dynamite')}`;
     else if (P.weapon === 'bow') ammo = `${P.ammo.arrow}`;
     this.setText('w-icon', Icons.weapon(P.weapon)); this.setText('w-name', W.n + (P.reloadT > 0 ? Tr(' <em>dolduruluyor…</em>') : '')); this.setText('w-ammo', (P.reloadT > 0 ? CYL_SVG : '') + ammo); this.setText('w-pips', pips);
+    // çark tuşu silah kartında hep yazar; çark hiç açılmadıysa kart nazikçe parlar
+    this.setText('w-key', `${Input.glyph('wheel')} ${Tr('Çark')}`);
+    const wl = !this.coachLearned('wheel') && P.weapons.size > 1;
+    if (this._wl !== wl) { this._wl = wl; $('#weapon-hud').classList.toggle('learn', wl); }
+    this.coachStep();
+    // ilk oyunda: bir süre sonra çark bir kez hatırlatılır
+    if (wl && !this._coachW0 && G.state === 'play' && (this._coachPlay = (this._coachPlay || 0) + 0.1) > 45) { this._coachW0 = true; this.coachWheel(); }
     // efektler
     document.body.classList.toggle('deadeye', !!P.deadeye);
     document.body.classList.toggle('lowhp', P.hp < P.maxHp * 0.25 && G.state === 'play');
@@ -466,6 +508,8 @@ const UI = {
       if (hasMenu) lines.push(`<div class="prompt dim">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`}</span></div>`);
       if (shown.alt) lines.push(`<div class="prompt">${I.glyph('reload')}<span>${shown.alt.n}</span></div>`);
     }
+    // nişan almayı henüz öğrenmediyse, ateşli silah elindeyken istemlerde hatırlatılır
+    if (P.W.clip && !P.aiming && !P.deadeye && !P.carry && !this.coachLearned('aim')) lines.push(`<div class="prompt dim">${I.glyph('aim')}<span>${Tr`Nişan Al <em>(basılı tut)</em>`}</span></div>`);
     if (P.rope && !shown) lines.push(`<div class="prompt dim">${I.glyph('fire')}<span>${Tr('Kementi Bırak')}</span></div>`);
     if (P.aiming && P.isArmed && !P.deadeye && P.de > 12) lines.push(`<div class="prompt dim">${I.glyph('deadeye')}<span>${Tr('Odak')}</span></div>`);
     if (P.riding) lines.push(`<div class="prompt dim">${I.glyph('sprint')}<span>${Tr`Dörtnala`}</span></div>`);
@@ -1031,6 +1075,7 @@ const UI = {
     this.wheelSelP = this.wheelSelP || [0, 0];
     this.wheelSelP[0] = Math.max(0, WHEEL_SLOTS.findIndex(sl => sl.w.includes(P.weapon)));
     this.wheelOpenT = 0;
+    this.coachLearn('wheel');
     Audio_.tone(500, 0.1, 'sine', 0.05);
     this.renderWheel();
   },

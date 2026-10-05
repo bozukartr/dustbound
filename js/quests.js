@@ -136,7 +136,15 @@ const Story = {
     if (this.qStep() !== st || S.wait) { this.questHud(); return; }
     const m = this.questMark();
     if (st.wp && m && dist(m.x, m.y, this.player.x, this.player.y) > 500) { this.setWaypoint(m.x, m.y); S.wpSet = true; }
-    if (st.hint) setTimeout(() => { if (this.qStep() === st && this.state === 'play') UI.help(st.hint.call(this, S), 9); }, 900);
+    if (st.hint) setTimeout(() => {
+      if (this.qStep() !== st || this.state !== 'play') return;
+      const h = st.hint.call(this, S);
+      UI.help(h, 9);
+      // ateş etmeyi isteyen adım (ilk çakallar, kurtlar...): nişan ipucu daha ilk atıştan önce, adım başlarken gelir;
+      // elde silah yoksa önce çark (bkz. UI.coachStep). Çarktan bir şey seçmeyi isteyen adımda çark hatırlatılır.
+      if (h.includes(Input.glyph('aim'))) UI.coachFor = { k: 'aim', st };
+      else if (h.includes(Input.glyph('wheel'))) UI.coachWheel();
+    }, 900);
     this.questHud();
   },
   qDone() {
