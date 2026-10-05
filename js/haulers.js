@@ -19,22 +19,28 @@ const HAUL_SPD = 16;   // oyun dakikası başına piksel (≈ yol arabası hız�
 const HaulSystems = {
   /* ---------------- rota ---------------- */
   /* İki nokta arası: kasaba içinde sokaklardan, kasabalar arasında kaba A* ile (yolları tercih eder) */
-  haulRoute(x0, y0, x1, y1) {
+  /* o (isteğe bağlı): r → kasaba içi rota genişliği; ride → atlı yolcu: kapı, giriş ve çıkış toplamı en kısa
+     olandan seçilir, yollar yalnızca hafifçe tercih edilir (araba gibi yol uğruna uzun dolanmaz) */
+  haulRoute(x0, y0, x1, y1, o = {}) {
     const W = this.world;
     const t0 = W.townAt(x0, y0, 4), t1 = W.townAt(x1, y1, 4);
-    const inTown = (t, ax, ay, bx, by) => (t && TownPath.find(t, ax, ay, bx, by)) || [[bx, by]];
+    const inTown = (t, ax, ay, bx, by) => (t && TownPath.find(t, ax, ay, bx, by, o.r)) || [[bx, by]];
     if (t0 && t0 === t1) return inTown(t0, x0, y0, x1, y1);
-    const gate = (t, tx, ty) => {
+    const gate = (t, tx, ty, fx, fy) => {
       let best = [t.cx, t.cy], bd = 1e18;
-      for (const g of t.gates) { const gx = g.x * TS + 8, gy = g.y * TS + 8, d = dist2(gx, gy, tx, ty); if (d < bd) { bd = d; best = [gx, gy]; } }
+      const cands = t.gates.map(g => [g.x * TS + 8, g.y * TS + 8, 1]);
+      // atlı/yaya kasabayı yalnızca yol kapısından değil, hedefe bakan kenarından da terk edebilir
+      if (o.ride) { const G_ = TownPath.grid(t); cands.push([clamp(tx, (G_.x0 + 2) * TS, (G_.x0 + G_.w - 3) * TS), clamp(ty, (G_.y0 + 2) * TS, (G_.y0 + G_.h - 3) * TS), 1.12]); }
+      for (const [gx, gy, k] of cands) { const d = o.ride ? (dist(gx, gy, tx, ty) + dist(gx, gy, fx, fy)) * k : dist2(gx, gy, tx, ty); if (d < bd) { bd = d; best = [gx, gy]; } }
       return best;
     };
     const out = [];
     let ax = x0, ay = y0, bx = x1, by = y1;
-    if (t0) { const g = gate(t0, x1, y1); out.push(...inTown(t0, x0, y0, g[0], g[1])); ax = g[0]; ay = g[1]; }
-    if (t1) { const g = gate(t1, ax, ay); bx = g[0]; by = g[1]; }
+    if (t0) { const g = gate(t0, x1, y1, x0, y0); out.push(...inTown(t0, x0, y0, g[0], g[1])); ax = g[0]; ay = g[1]; }
+    if (t1) { const g = gate(t1, ax, ay, x1, y1); bx = g[0]; by = g[1]; }
     const C = W.cost, cell = (v, m) => clamp((v / TS / CG) | 0, 0, m - 1);
-    const path = C && W.astar(cell(ax, CW), cell(ay, CHH), cell(bx, CW), cell(by, CHH), (ni) => { const c = C[ni]; return c >= 1e5 ? 30 : c > 20 ? 40 : c; });
+    const cost = o.ride ? (ni) => { const c = C[ni]; return c >= 1e5 ? 40 : c > 20 ? 60 : 0.7 + c * 0.35; } : (ni) => { const c = C[ni]; return c >= 1e5 ? 30 : c > 20 ? 40 : c; };
+    const path = C && W.astar(cell(ax, CW), cell(ay, CHH), cell(bx, CW), cell(by, CHH), cost);
     if (path && path.length > 2) out.push(...World.chaikin(path.map(p => [p[0] * TS + 8, p[1] * TS + 8]), 2));
     out.push([bx, by]);
     if (t1) out.push(...inTown(t1, bx, by, x1, y1));

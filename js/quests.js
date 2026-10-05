@@ -17,6 +17,8 @@
 
 const SULLY_LOOK = { sex: 'm', skin: '#d8a880', hair: '#c8c4bc', hairStyle: 0, beard: 4, beardLen: 0.7, hat: 'wide', hatCol: '#6a5038', coat: '#5a4630', shirt: '#d8cdb4', pants: '#3a3024', eyes: '#4a6a8a', coatLen: 0.7 };
 const JACK_LOOK = { sex: 'm', skin: '#e0b48c', hair: '#a8401a', hairStyle: 4, beard: 4, beardLen: 0.8, hat: 'cowboy', hatCol: '#1a1614', coat: '#2a2622', shirt: '#b04a3a', pants: '#2a2a30', eyes: '#5a7a4a', coatLen: 0.7 };
+/* atlı akıl hocasının rota genişliği (atın gövdesi duvara sürtmesin) */
+const RIDE_R = 6.5;
 const SULLY_HORSE = { col: '#3a2a20', mane: '#1a1410', blanket: '#6a2a20' };
 /* Çiftliğin bulunduğu yerin doğası: sinematiklerin renk ve bitki örtüsü */
 /* Bölüm 5'te satılabilecek çiğ etler (postlar 'animal' türündedir) */
@@ -126,7 +128,7 @@ const Story = {
     if (!st) { if (c.end) c.end.call(this, S); this.saveGame(true); setTimeout(() => { if (this.story === S && S.on) this.qChapter(S.ch + 1); }, 1200); S.wait = true; this.questHud(); return; }
     if (st.skip && st.skip.call(this, S)) { this.qNext(); return; }
     if (st.on) st.on.call(this, S);
-    if (st.talk) this.qSay(st.talk.call(this, S), st.choice ? () => this.storyChoice(st) : null);
+    if (st.talk) this.qSay(st.talk.call(this, S), st.choice ? () => this.storyChoice(st) : null, 0, st);
     else if (st.choice) this.storyChoice(st);
     // konuşma sırasında yapılmış eylemler
     const pend = this._qPend; this._qPend = null;
@@ -141,6 +143,7 @@ const Story = {
     const S = this.story, st = this.qStep();
     if (!st || S.wait) return;
     S.wait = true; S.fin = S.st;
+    this.qCut(st);
     if (S.wpSet) { this.setWaypoint(null); S.wpSet = false; }
     if (st.done) st.done.call(this, S);
     Audio_.tone(660, 0.12, 'triangle', 0.06); Audio_.tone(880, 0.16, 'triangle', 0.05, null, 0.1);
@@ -179,8 +182,8 @@ const Story = {
 
   /* ---------------- konuşma ---------------- */
   /* satırlar: [kim, söz]; S = Sully, P = oyuncu, W = şerif, B = barmen */
-  qSay(lines, cb, delay = 0) {
-    const S = this.story, L = (lines || []).filter(Boolean).map(([w, x]) => ({ w, x: this.sFmt(x), raw: x }));
+  qSay(lines, cb, delay = 0, tag) {
+    const S = this.story, L = (lines || []).filter(Boolean).map(([w, x]) => ({ w, x: this.sFmt(x), raw: x, tag }));
     for (const l of L) Audio_.voPreload(l.raw, I18N.lang);   // seslendirme dosyası varsa önceden yüklenir
     // süren bir konuşma varsa arkasına eklenir (bekleyen geri çağrı kaybolmaz)
     if (S.talkQ && (S.talkQ.length || S.talkCb)) {
@@ -192,6 +195,11 @@ const Story = {
     S.talkQ = L;
     S.talkT = -delay; S.talkCb = cb || null;
     if (!S.talkQ.length) { S.talkCb = null; if (cb) cb(); }
+  },
+  /* hedef tamamlanınca o adımın konuşmasından kalan satırlar söylenmez (ekrandaki satır biter) */
+  qCut(tag) {
+    const S = this.story;
+    if (S && S.talkQ && tag) S.talkQ = S.talkQ.filter(l => l.tag !== tag);
   },
   storyTalking() { const S = this.story; return !!(S && S.talkQ && (S.talkQ.length || S.talkCb)); },
   talkDur(x) { return window.__storyFast ? 0.05 : clamp(1.5 + x.length * 0.052, 2.2, 6.5); },
@@ -302,20 +310,19 @@ const Story = {
     const d = dist(e.x, e.y, g.x, g.y), pd = dist(e.x, e.y, P.x, P.y);
     if (d > 8) {
       // ekran dışında ve uzaktaysa doğrudan yerini alır
-      if (g.ride && d > 300 && pd > 450 && !this.onScreen(e.x, e.y, 40)) { const a = this.sAhead(g), s = this.sSpot(a.x, a.y, 0, 30); e.x = s[0]; e.y = s[1]; e.nav = null; e.mounted = e.mounted || Object.assign({}, MH); return true; }
-      if (!g.ride && d > 220 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; e.mv = 0; e.mounted = g.ride ? e.mounted || Object.assign({}, MH) : null; return true; }
+      if (g.ride && d > 300 && pd > 450 && !this.onScreen(e.x, e.y, 40)) { const a = this.sAhead(g), s = this.sSpot(a.x, a.y, 0, 30); e.x = s[0]; e.y = s[1]; e.nav = null; e.rr = null; e.mounted = e.mounted || Object.assign({}, MH); return true; }
+      if (!g.ride && d > 220 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; e.rr = null; e.mv = 0; e.mounted = g.ride ? e.mounted || Object.assign({}, MH) : null; return true; }
       if (g.ride) {
         e.mounted = e.mounted || Object.assign({}, MH);
-        if (d < 400 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; return true; }
+        if (d < 400 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; e.rr = null; return true; }
         // oyuncu geride kalırsa bekler
         if (pd > 380 && dist(P.x, P.y, g.x, g.y) > d) { e.mv = 0; e.spd = 0; e.ang = turnTo(e.ang, Math.atan2(P.y - e.y, P.x - e.x), dt * 2); return true; }
-        const a = Math.atan2(g.y - e.y, g.x - e.x);
-        e.ang = turnTo(e.ang, a + (e.dodge || 0), dt * 3);
-        const ox = e.x, oy = e.y;
-        e.walk(dt, pd < 120 ? 120 : 100);
-        if (Math.hypot(e.x - ox, e.y - oy) < 0.2) { e.dodge = (e.dodge || 0) + (chance(0.5) ? 0.6 : -0.6); if (Math.abs(e.dodge) > 2) e.dodge = 0; } else if (e.dodge) e.dodge *= 0.98;
-        return true;
+        return this.mentorFollow(e, g, dt, pd < 120 ? 120 : 100);
       }
+      // yaya: hedef başka bir yerdeyse (kasaba dışı, başka kasaba) rota izlenir; kasaba içinde sokak gezinmesi
+      const W = this.world;
+      const tE = W.townAt(e.x, e.y, 10);
+      if (d > 120 && (!tE || tE !== W.townAt(g.x, g.y, 10))) return this.mentorFollow(e, g, dt, pd < 60 ? 26 : 34);
       const r = this.navStep(e, g.x, g.y, dt, pd < 60 ? 26 : 34);
       if (r === 'fail' && !this.onScreen(e.x, e.y, 20)) { e.x = g.x; e.y = g.y; e.nav = null; }
       return true;
@@ -327,8 +334,58 @@ const Story = {
     else this.standTick(e, dt, 0.25);
     return true;
   },
-  /* atlı Sully için oyuncunun önünde, hedef yönünde bir nokta */
-  sAhead(g) { const P = this.player, d = dist(P.x, P.y, g.x, g.y), k = Math.min(1, 260 / Math.max(1, d)); return { x: P.x + (g.x - P.x) * k, y: P.y + (g.y - P.y) * k }; },
+  /* akıl hocası rotayı izler: kasabada sokaklardan kapıya, dışarıda yolları seçerek (duvara doğru dümdüz gitmez) */
+  mentorFollow(e, g, dt, sp) {
+    const R = this.mentorRoute(e, g);
+    while (R.ri < R.route.length - 1 && dist2(e.x, e.y, R.route[R.ri][0], R.route[R.ri][1]) < R.near * R.near) R.ri++;
+    const wp = R.route[R.ri], a = Math.atan2(wp[1] - e.y, wp[0] - e.x);
+    // keskin dönüşte yavaşlar, köşeyi kavisle alır
+    const turn = Math.abs(angDiff(e.ang, a));
+    e.ang = turnTo(e.ang, a + (e.dodge || 0), dt * (e.mounted ? 3 : 5));
+    const ox = e.x, oy = e.y;
+    e.walk(dt, sp * (turn > 1.2 ? 0.45 : turn > 0.6 ? 0.75 : 1));
+    if (Math.hypot(e.x - ox, e.y - oy) < 0.2) { e.dodge = (e.dodge || 0) + (chance(0.5) ? 0.6 : -0.6); if (Math.abs(e.dodge) > 2) e.dodge = 0; } else if (e.dodge) e.dodge *= 0.9;
+    // ilerleme yoksa (bir şeye takıldıysa) bulunduğu yerden dolanır
+    const wd = dist(e.x, e.y, wp[0], wp[1]);
+    if (R.ri !== R.bi) { R.bi = R.ri; R.best = wd; R.stuckT = 0; }
+    else if (wd < R.best - 2) { R.best = wd; R.stuckT = 0; } else if ((R.stuckT += dt) > 1.5) this.mentorUnstick(e, R);
+    return true;
+  },
+  mentorRoute(e, g) {
+    const R = e.rr, rr = g.ride ? RIDE_R : 4.5;
+    if (R && R.gx === g.x && R.gy === g.y && R.r === rr) return R;
+    let route = this.haulRoute(e.x, e.y, g.x, g.y, { r: rr, ride: true });
+    // son yaklaşma: kaba ızgara çiftlik evini, çiti görmez; son ~300 px karo ölçeğinde
+    if (!this.world.townAt(g.x, g.y, 4)) {
+      let k = route.length - 1;
+      while (k >= 0 && dist(route[k][0], route[k][1], g.x, g.y) < 300) k--;
+      const from = k >= 0 ? route[k] : [e.x, e.y], loc = TownPath.local(from[0], from[1], g.x, g.y, rr);
+      if (loc) route = route.slice(0, k + 1).concat(loc);
+    }
+    return (e.rr = { gx: g.x, gy: g.y, r: rr, near: g.ride ? 26 : 14, route: route.length ? route : [[g.x, g.y]], ri: 0, bi: -1, best: Infinity, stuckT: 0 });
+  },
+  /* atlı takıldı: bulunduğu yerden rotanın ~200 px ilerisine karo ölçeğinde dolanır */
+  mentorUnstick(e, R) {
+    let j = R.ri;
+    while (j < R.route.length - 1 && dist(e.x, e.y, R.route[j][0], R.route[j][1]) < 200) j++;
+    const to = R.route[j], loc = TownPath.local(e.x, e.y, to[0], to[1], R.r);
+    if (loc) { R.route = loc.concat(R.route.slice(j + 1)); R.ri = 0; R.bi = -1; R.best = Infinity; R.stuckT = 0; }
+    else e.rr = null;
+  },
+  /* atlı Sully için oyuncunun önünde bir nokta: oyuncudan hedefe giden rotanın 260 px ilerisi */
+  sAhead(g) {
+    const P = this.player, c = this._sAhead;
+    if (c && c.gx === g.x && c.gy === g.y && dist(c.px, c.py, P.x, P.y) < 60 && this.t - c.t < 2) return c.pt;
+    const R = this.haulRoute(P.x, P.y, g.x, g.y, { r: RIDE_R, ride: true });
+    let left = 260, px = P.x, py = P.y, pt = { x: g.x, y: g.y };
+    for (const q of R) {
+      const L = dist(px, py, q[0], q[1]);
+      if (L >= left) { pt = { x: px + (q[0] - px) * left / L, y: py + (q[1] - py) * left / L }; break; }
+      left -= L; px = q[0]; py = q[1];
+    }
+    this._sAhead = { gx: g.x, gy: g.y, px: P.x, py: P.y, t: this.t, pt };
+    return pt;
+  },
   sullyGo(x, y, ride, ang) { this.story.sully = { x, y, ride: !!ride, ang }; },
   /* Hedef kişi (Sully'de Kızıl Jack): kampta belirir; bağlıysa kaçmaz, kayıttan dönüşte yerinde bekler */
   storyRival() {
@@ -545,8 +602,7 @@ const STORY_SULLY = [
           ['S', Tr('Saçma. Kuraklık kimseyi seçmedi; o yaz ovanın yarısı battı.')],
           ['P', Tr('İş arıyorum. Ne olursa.')],
           ['S', Tr('Çiftlikte bana bir el lazım. Yatak biraz gıcırdar, yemeği de ben pişiririm. Kararını ona göre ver.')],
-          ['S', Tr('Ama çıkmadan önce kasabaya yüzünü göster. Seni soran çok oldu; sessizce kaybolursan dedikodunun sonu gelmez.')],
-          ['S', Tr('Birkaç kişiye selam ver. Ben mağazanın önünde olurum.')],
+          ['S', Tr('Ama önce kasabaya yüzünü göster; birkaç kişiye selam ver. Ben mağazanın önünde olurum.')],
         ],
         done() { const p = this.sDoor(this.sBld('general')); if (p) this.sullyGo(p.x, p.y); } },
       { t: () => Tr('Kasabalıları selamla'), ev: 'greet', n: 2, ok: (e, S) => { if (!e || e.quest === 'mentor') return false; const g = S.greeted || (S.greeted = []); if (g.includes(e.id)) return false; g.push(e.id); return true; },
@@ -637,7 +693,7 @@ const STORY_SULLY = [
     resume(S) { if (S.st === 0) this.storyCoyotes(S); if (S.st === 1) this.storyGame(S); },
     steps: [
       { t: () => Tr('Çakalları kümesten uzaklaştır'), n: 3, chk() { return this.storyCoyCount() >= 3; },
-        tick(S) { const n = this.storyCoyCount(); if (n !== S.n) { S.n = n; if (n === 1) this.qSay([['S', Tr('Biri gitti! Devam et!')]]); } },
+        tick(S) { const n = this.storyCoyCount(); if (n !== S.n) { S.n = n; if (n === 1) this.qSay([['S', Tr('Biri gitti! Devam et!')]], null, 0, this.qStep()); } },
         at() { const R = this.story.ranch; let best = null, bd = 1e9; for (const e of this.ents) if (e.storyCoy && !e.dead && !e.remove) { const d = dist(e.x, e.y, R.cx, R.cy); if (d < bd) { bd = d; best = e; } } return best; },
         hint: () => Tr`${Input.glyph('aim')} ile nişan al, ${Input.glyph('fire')} ile ateş et. Tavukları vurma, Sully'nin siniri bozulur.`,
         after: () => [['S', Tr('Fena değil. Ben senin yaşında iki atışta bir tavuk vururdum.')], ['S', Tr('Kiler de bomboş, onu da söyleyeyim. Tepenin ardında av olur. Akşam karanlığında yaklaşmak daha kolay.')]] },
