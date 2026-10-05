@@ -694,7 +694,7 @@ const Cinema = (() => {
         el.querySelector('.cn-cap').style.opacity = clamp((t - capAt) * 1.4, 0, 1) * clamp((Math.min(total, capEnd) - t) * 2, 0, 1);
         // altyazı: alttaki siyah şeritte konuşan kişinin adı ve sözü
         const ln = lines.find(l => t >= l.t && t < l.t + l.d) || null;
-        if (ln !== curLine) { curLine = ln; if (ln && opts.onLine) try { opts.onLine(ln); } catch (e) {} lineEl.innerHTML = ln ? `<span class="cl-n ${ln.self ? 'self' : ''}">${escapeHtml(ln.w)}</span> ${escapeHtml(ln.x)}` : ''; lineEl.classList.toggle('on', !!ln); }
+        if (ln !== curLine) { curLine = ln; if (ln && opts.onLine) try { opts.onLine(ln); } catch (e) {} lineEl.innerHTML = ln ? `<span class="cl-box"><span class="cl-n ${ln.self ? 'self' : ''}">${escapeHtml(ln.w)}</span> ${escapeHtml(ln.x)}</span>` : ''; lineEl.classList.toggle('on', !!ln); }
         const D = [];
         S.dyn(t, D);
         const cam = shotAt(t);

@@ -117,7 +117,6 @@ STORIES.immigrant = {
           say: () => [
             ['S', Tr('Sen... Anton\'un kardeşisin. Aynı kaşlar. Aynı "nereye düştüm ben" bakışı.')],
             ['P', Tr('{ad}. Anton\'u arıyorum. Dört aydır mektup gelmiyor.')],
-            ['S', Tr('Bana da gelmiyor. Üç haftalık kirası da gelmiyor ama onu boş ver.')],
             ['S', Tr('Greta Halvorsen. Pansiyon benim; kocam öldüğünden beri kiracılarım ailem oldu.')],
             ['S', Tr('Önce buraya alış. Bu şehir yabancıyı sever ama önce bir yüzünü görmek ister. Birkaç kişiye selam ver.')],
           ],

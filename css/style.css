@@ -188,7 +188,7 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .prompt.holding .btn { background: conic-gradient(#fff calc(var(--p) * 360deg), #181818 0); color: #111; }
 
 /* Altyazı: parlak zeminde de okunsun diye yumuşak koyu bant */
-#subtitle { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); max-width: 70%; text-align: center; font-size: 21px; padding: 6px 64px 8px; background: linear-gradient(90deg, rgba(8, 5, 3, 0), rgba(8, 5, 3, 0.55) 18%, rgba(8, 5, 3, 0.55) 82%, rgba(8, 5, 3, 0)); text-shadow: 0 0 4px #000, 0 2px 3px #000; }
+#subtitle { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); max-width: 70%; text-align: center; font-size: 21px; line-height: 1.35; padding: 7px 22px 9px; background: rgba(12, 8, 5, 0.58); border-radius: 6px; box-shadow: 0 0 18px 6px rgba(12, 8, 5, 0.28); text-shadow: 0 1px 2px #000; }
 #subtitle .sn { color: #ffd890; font-family: var(--sc); letter-spacing: 0.5px; }
 #subtitle .sn.self { color: #a8d0ff; }
 /* Konum başlığı: süs çizgili büyük ad */
@@ -1101,6 +1101,7 @@ body.binoc-on #hud-help, body.binoc-on #hud-tr, body.binoc-on #hud-bl, body.bino
 .wl-btns .st-btn:hover, .wl-btns .st-btn.focus { filter: brightness(1.15); box-shadow: 0 0 0 2px #e2b64a; }
 .cn-line { position: absolute; left: 8%; right: 8%; bottom: 0; height: 11%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: clamp(14px, 1.6vw, 24px); color: #f2e8d4; opacity: 0; transition: opacity 0.25s; line-height: 1.25; }
 .cn-line.on { opacity: 1; }
+.cn-line > .cl-box { padding: 5px 18px 7px; background: rgba(12, 8, 5, 0.58); border-radius: 6px; box-shadow: 0 0 16px 5px rgba(12, 8, 5, 0.25); }
 .cn-line .cl-n { color: var(--gold); margin-right: 8px; font-family: var(--sc); letter-spacing: 1px; }
 .cn-line .cl-n.self { color: #a8d0ff; }
 

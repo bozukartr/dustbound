@@ -117,7 +117,6 @@ STORIES.outlaw = {
             ['S', Tr('Uyandın demek. Vance\'in çocukları gibi öğlene kadar yatarsın sandım.')],
             ['P', Tr('Vance nerede?')],
             ['S', Tr('Kasabada. "Büyük iş" kokusu almış. Her sene bir büyük iş kokusu alır.')],
-            ['S', Tr('Ben otuz yıldır bu ateşin başındayım, {ad}. Kokusunu aldığım tek şey kendi kahvem.')],
             ['S', Tr('Neyse. Çantanda et var, ateş yanıyor. Önce karnını doyur; aç adam yanlış yere ateş eder.')],
           ] },
         { t: () => Tr('Ateşte et pişir'), ev: 'cook', skip() { return !this.player.has('raw_game') && !this.player.has('raw_big'); }, at() { return this.camp; },

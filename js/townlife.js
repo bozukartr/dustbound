@@ -101,7 +101,11 @@ const TownPath = {
       g.cache.set(key, raw);
     }
     if (!raw) return null;
-    const pts = [[ax, ay], ...raw, [bx, by]], out = [];
+    return this.simplify([[ax, ay], ...raw, [bx, by]], r);
+  },
+  /* rota sadeleştirme: gövdeyle (r) düz gidilebilen ara noktalar atlanır */
+  simplify(pts, r) {
+    const out = [];
     let a = 0;
     while (a < pts.length - 1) {
       let b = Math.min(pts.length - 1, a + 28);
@@ -110,14 +114,33 @@ const TownPath = {
     }
     return out;
   },
-  astar(g, s, e) {
+  /* Kasaba dışında, iki nokta çevresindeki küçük bir bölgede karo ölçeğinde yol (çiftlik evi, çit,
+     kaya gibi kaba ızgaranın görmediği engellerin etrafından). Bölge çok büyükse ya da yol yoksa null. */
+  local(ax, ay, bx, by, r = 4.2, pad = 10) {
+    const W = G.world;
+    const x0 = Math.max(0, Math.min(ax, bx) / TS - pad | 0), y0 = Math.max(0, Math.min(ay, by) / TS - pad | 0);
+    const x1 = Math.min(WW - 1, Math.max(ax, bx) / TS + pad | 0), y1 = Math.min(WH - 1, Math.max(ay, by) / TS + pad | 0);
+    const w = x1 - x0 + 1, h = y1 - y0 + 1;
+    if (w < 2 || h < 2 || w * h > 110 * 110) return null;
+    const pass = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const px = (x0 + x) * TS + 8, py = (y0 + y) * TS + 8;
+      pass[y * w + x] = !W.blocked(px, py, r) && !W.indoorPx(px, py) && !W.isWaterPx(px, py) ? 1 : 0;
+    }
+    const g = { x0, y0, w, h, pass };
+    const s = this.near(g, (ax >> 4) - x0, (ay >> 4) - y0), e = this.near(g, (bx >> 4) - x0, (by >> 4) - y0);
+    if (!s || !e) return null;
+    const raw = this.astar(g, s, e, 30000);
+    return raw ? this.simplify([[ax, ay], ...raw, [bx, by]], r) : null;
+  },
+  astar(g, s, e, cap = 8000) {
     const W = g.w, N = g.w * g.h, si = s[1] * W + s[0], ei = e[1] * W + e[0];
     const gs = new Float32Array(N).fill(1e9), came = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
     const open = [si]; gs[si] = 0;
     const hf = (i) => { const dx = Math.abs(i % W - e[0]), dy = Math.abs(((i / W) | 0) - e[1]); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
     const fs = new Float32Array(N); fs[si] = hf(si);
     let found = false, iter = 0;
-    while (open.length && iter++ < 8000) {
+    while (open.length && iter++ < cap) {
       let bi = 0; for (let k = 1; k < open.length; k++) if (fs[open[k]] < fs[open[bi]]) bi = k;
       const cur = open[bi]; open[bi] = open[open.length - 1]; open.pop();
       if (cur === ei) { found = true; break; }
