@@ -85,7 +85,12 @@ const IK = {
     const d = shadeHex(t, -0.3);
     if (kind === 'bowler') return OUT(_e(16, 22, 12, 3.5, t) + _p('M8 22 Q8 9 16 9 Q24 9 24 22Z', t) + _r(8.5, 18, 15, 2.8, d, 0, NS));
     if (kind === 'flat') return OUT(_p('M4 21 Q4 10 16 10 Q27 10 27 19 L29 22 Q18 25 4 21Z', t) + _s('M8 19 Q16 17 26 19', d, 1));
+    if (kind === 'top') return OUT(_e(16, 24, 12, 3, t) + _r(9.5, 6, 13, 18, t, 1) + _e(16, 6, 6.5, 1.8, shadeHex(t, 0.15), 0, NS) + _r(9.5, 19, 13, 3, d, 0, NS) + _r(11, 8, 2, 10, 'rgba(255,255,255,0.18)', 1, NS));
+    if (kind === 'fur') return OUT(_p('M7 21 Q6 8 16 8 Q26 8 25 21Z', t) + _p('M6 22 Q16 15 26 22 L26 25 Q16 19 6 25Z', shadeHex(t, 0.15)) + _p('M6 22 L5 28 Q7 30 9 28 L9 22Z', t) + _p('M26 22 L27 28 Q25 30 23 28 L23 22Z', t) + _s('M10 12 l1 2 M15 10 l0 2 M20 11 l-1 2 M12 17 l1 1 M19 16 l-1 1', d, 0.9));
+    if (kind === 'bonnet') return OUT(_p('M5 24 Q3 6 16 5 Q29 6 27 24 Q24 17 23 13 Q16 8 9 13 Q8 17 5 24Z', t) + _s('M9 13 Q16 8 23 13', shadeHex(t, 0.35), 1.6) + _s('M8 23 Q12 28 16 27 M24 23 Q20 28 16 27', d, 1.2));
+    if (kind === 'straw') return OUT(_e(16, 22, 15, 4, t) + _p('M9 22 Q8 10 13 10 Q16 12 19 10 Q24 10 23 22Z', t) + _r(9, 18, 14, 2.6, d, 0, NS) + _s('M10 14 H22 M9.5 17 H22.5 M3 22 Q16 26 29 22', shadeHex(t, -0.18), 0.6));
     const w = kind === 'wide' ? 15 : 13;
+    if (kind === 'boss') return OUT(_e(16, 22, 13, 3.4, t) + _p('M9 22 Q8 7 16 7 Q24 7 23 22Z', t) + _r(9, 18, 14, 2.6, d, 0, NS));
     return OUT(_e(16, 22, w, 4, t) + _p('M9 22 Q8 9 13 9 Q16 11 19 9 Q24 9 23 22Z', t) + _r(9, 18, 14, 2.6, d, 0, NS) + _s('M16 10.5 V17', d, 1));
   },
   dynamite: () => `<g transform="rotate(-20 16 16)">${OUT(_r(6, 9, 6, 19, IC.red, 1) + _r(13, 9, 6, 19, '#c8402c', 1) + _r(20, 9, 6, 19, IC.red, 1) + _r(5.5, 13, 21, 2.5, IC.B, 0) + _r(5.5, 22, 21, 2.5, IC.B, 0))}${_s('M16 9 Q16 4 20 3', IC.P, 1.3)}${_c(20.5, 3, 1.8, '#ffd060', NS)}</g>`,
@@ -121,7 +126,7 @@ const ITEM_ICON = {
   coat_duster: () => IK.coat('#6b5a44'), coat_sheep: () => IK.coat('#8a6a4a'), coat_fur: () => IK.coat('#4a3a2c'), coat_poncho: () => IK.poncho('#9a4a2a'), coat_linen: () => IK.shirt('#d8cdb4'),
   mask_bandana: () => OUT(_p('M4 10 Q16 7 28 10 L26 15 Q22 26 16 28 Q10 26 6 15Z', '#a8281f') + _p('M4 10 Q16 7 28 10 L27.4 12.5 Q16 9.5 4.6 12.5Z', '#7e1c16', NS) + [[10, 16], [16, 15], [22, 16], [13, 21], [19, 21], [16, 25]].map(([x, y]) => _c(x, y, 1, IC.L, NS)).join('') + _p('M27 11 L31 8.5 L30 13Z', '#a8281f')),
   mask_sack: () => OUT(_p('M7 27 Q4 14 8 8 Q16 1 24 8 Q28 14 25 27Z', '#c8a870') + _e(12, 14, 2.4, 2, IC.D, 0, NS) + _e(20, 14, 2.4, 2, IC.D, 0, NS) + _s('M7 24 Q16 21 25 24', '#7a5a30', 1.6) + _s('M10 9 l1 2 M18 7 l1 2 M22 19 l1 2 M11 20 l1 1', '#9a7a48', 0.9)),
-  hat_cowboy: () => IK.hat('cowboy', '#6a4a30'), hat_bowler: () => IK.hat('bowler', '#2a2420'), hat_flat: () => IK.hat('flat', '#5a5048'), hat_wide: () => IK.hat('wide', '#a08a64'),
+  hat_cowboy: () => IK.hat('cowboy', '#6a4a30'), hat_bowler: () => IK.hat('bowler', '#2a2420'), hat_flat: () => IK.hat('flat', '#5a5048'), hat_wide: () => IK.hat('wide', '#a08a64'), hat_boss: () => IK.hat('boss', '#7a6a54'), hat_straw: () => IK.hat('straw', '#d4ba7a'), hat_top: () => IK.hat('top', '#26222a'), hat_fur: () => IK.hat('fur', '#7a5a3a'), hat_bonnet: () => IK.hat('bonnet', '#8a6a7a'),
   dynamite: IK.dynamite,
 };
 

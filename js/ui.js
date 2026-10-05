@@ -2101,7 +2101,7 @@ const UI = {
       title: Tr('Berber'), cls: 'small', wallet: true, sub: Tr('Her işlem 15¢'),
       build: () => {
         const it = [{ header: Tr('Saç') }];
-        LOOKS.hairStyle.forEach((n, i) => it.push({ label: n + (L.hairStyle === i ? ' ✔' : ''), fn: () => { if (G.spend(0.15)) { L.hairStyle = i; P._lk = null; P.clean = Math.min(100, P.clean + 10); } } }));
+        LOOKS.hairStyle.forEach((_, i) => it.push({ label: hairStyleN(L, i) + (L.hairStyle === i ? ' ✔' : ''), fn: () => { if (G.spend(0.15)) { L.hairStyle = i; P._lk = null; P.clean = Math.min(100, P.clean + 10); } } }));
         if (L.sex === 'm') {
           it.push({ header: Tr('Sakal') });
           LOOKS.beard.forEach((n, i) => it.push({ label: n + (L.beard === i ? ' ✔' : ''), fn: () => { if (G.spend(0.15)) { L.beard = i; L.beardLen = 0.2; P._lk = null; } } }));
@@ -2652,9 +2652,10 @@ const UI = {
       { t: 0, k: 'skin', n: Tr('Ten Rengi'), opts: LOOKS.skin, sw: 1 },
       { t: 0, k: 'eyes', n: Tr('Göz Rengi'), opts: LOOKS.eyes, sw: 1 },
       { t: 1, k: 'hair', n: Tr('Saç Rengi'), opts: LOOKS.hair, sw: 1 },
-      { t: 1, k: 'hairStyle', n: Tr('Saç Stili'), opts: [0, 1, 2, 3, 4], lab: v => LOOKS.hairStyle[v] },
-      { t: 1, k: 'beard', n: Tr('Sakal'), opts: [0, 1, 2, 3, 4], lab: v => LOOKS.beard[v], male: 1 },
-      { t: 2, k: 'hat', n: Tr('Şapka'), opts: LOOKS.hat, lab: v => LOOKS.hatN[v] },
+      { t: 1, k: 'hairStyle', n: Tr('Saç Stili'), opts: LOOKS.hairStyle.map((_, i) => i), lab: v => hairStyleN(look, v) },
+      { t: 1, k: 'beard', n: Tr('Sakal'), opts: LOOKS.beard.map((_, i) => i), lab: v => LOOKS.beard[v], male: 1 },
+      // bone yalnızca kadınlarda; seçenek listesi cinsiyete göre
+      { t: 2, k: 'hat', n: Tr('Şapka'), get opts() { return look.sex === 'f' ? LOOKS.hat : LOOKS.hat.filter(h => !LOOKS.hatF.includes(h)); }, lab: v => LOOKS.hatN[v] },
       { t: 2, k: 'hatCol', n: Tr('Şapka Rengi'), opts: LOOKS.hatCol, sw: 1 },
       { t: 2, k: 'coat', n: Tr('Ceket'), opts: LOOKS.coat, sw: 1 },
       { t: 2, k: 'shirt', n: Tr('Gömlek'), opts: LOOKS.shirt, sw: 1 },
@@ -2745,7 +2746,7 @@ const UI = {
         const r = rows[+n.dataset.i];
         const setV = (v) => {
           if (r.prof) prof[r.k] = v; else look[r.k] = v;
-          if (r.k === 'sex') { if (v === 'f') { look.beard = 0; if (look.hairStyle === 3) look.hairStyle = 1; } if (!customName) prof.name = rndName(v); }
+          if (r.k === 'sex') { if (v === 'f') look.beard = 0; else if (LOOKS.hatF.includes(look.hat)) look.hat = 'cowboy'; if (!customName) prof.name = rndName(v); }
           const i = +n.dataset.i; build(); const back = $(`.opt[data-i="${i}"]`, el); if (back) m.setFocus(back, true);
         };
         n._lr = (d) => { const i = r.opts.indexOf(get(r)); setV(r.opts[(i + d + r.opts.length) % r.opts.length]); };
