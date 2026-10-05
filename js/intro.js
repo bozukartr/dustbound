@@ -17,7 +17,7 @@ const Intro = {
     const srcs = window.__introSrc ? [window.__introSrc] : this.SRC.slice();
     const root = document.createElement('div');
     root.id = 'intro';
-    root.setAttribute('style', 'position:fixed;inset:0;z-index:900;background:#000;display:flex;align-items:center;justify-content:center;cursor:none');
+    root.setAttribute('style', 'position:fixed;inset:0;z-index:900;background:#080808;display:flex;align-items:center;justify-content:center;cursor:none');
     const v = document.createElement('video');
     v.setAttribute('playsinline', ''); v.preload = 'auto';
     v.setAttribute('style', 'width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity 0.6s');

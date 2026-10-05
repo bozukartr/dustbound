@@ -57,6 +57,14 @@ module.exports = {
       await p.waitForFunction(() => G.state === 'menu' && !document.getElementById('intro'), null, { timeout: 5000 });
     });
 
+    await t.step('gerçek açılış videosu (video/intro.mp4, gerekirse WebM yedeği) oynar ve biter', async () => {
+      const p = await open(null);
+      await p.waitForFunction(() => { const v = document.querySelector('#intro video'); return v && v.currentTime > 0.5; }, null, { timeout: 20000 });
+      const r = await p.evaluate(() => { const v = document.querySelector('#intro video'); return { src: v.currentSrc.split('/').pop(), w: v.videoWidth, h: v.videoHeight, d: v.duration }; });
+      t.ok(/^intro\.(mp4|webm)$/.test(r.src) && r.w >= 1280 && r.h >= 720 && r.d > 3, 'video dosyası açıldı', r);
+      await p.waitForFunction(() => G.state === 'menu' && !document.getElementById('intro'), null, { timeout: 20000 });
+    });
+
     await t.step('video dosyası yoksa menü doğrudan açılır', async () => {
       const p = await open(`window.__introSrc = 'video/yok.mp4';`);
       await p.waitForFunction(() => G.state === 'menu' && !document.getElementById('intro'), null, { timeout: 10000 });
