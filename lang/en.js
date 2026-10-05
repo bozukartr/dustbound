@@ -3997,5 +3997,7 @@ I18N.add('en', {
     "Kısa Sakal": "Short Beard",
     "Hasır": "Straw",
     "Silindir": "Top Hat",
+    "Geçmek için bir tuşa bas": "Press any key to skip",
+    "Başlamak için bir tuşa bas": "Press any key to start",
   },
 });

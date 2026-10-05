@@ -73,11 +73,13 @@ async function runFile(file, browser, url) {
       // hikâyeli başlangıç ve sinematikleri yalnızca onları sınayan testler açar
       if (!o.story) await p.addInitScript(() => { window.__testNoStory = true; });
       if (!o.cine) await p.addInitScript(() => { window.__testNoCine = true; });
+      if (!o.intro) await p.addInitScript(() => { window.__testNoIntro = true; });
       // ses örneklerini yalnızca ses testi yükler (öbür testler prosedürel sesle hızlı kalır)
       if (!o.sfx) await p.addInitScript(() => { window.__testNoSfx = true; });
       if (o.init) await p.addInitScript(o.init);
       await p.goto(url + (o.path || 'index.html'));   // path: başka bir sayfa (ör. demo paketi)
-      await p.waitForFunction(() => typeof G !== 'undefined' && G.state === 'menu', null, { timeout: 30000 });
+      // wait: false → menüyü bekleme (açılış videosu testi)
+      await p.waitForFunction((w) => typeof G !== 'undefined' && (!w || G.state === 'menu'), o.wait !== false, { timeout: 30000 });
       return p;
     },
     /* Ana menüden yeni hayat başlat (karakter ekranında varsayılanlarla) */

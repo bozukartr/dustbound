@@ -8,7 +8,8 @@ window.addEventListener('load', () => {
   UI.init();
   G.resetState();
   G.init();
-  UI.showMainMenu();
+  // her açılışta önce açılış videosu (video/intro.mp4), sonra ana menü
+  Intro.play(() => UI.showMainMenu());
   // F11: tam ekran (tarayıcıda ve masaüstünde)
   window.addEventListener('keydown', (e) => { if (e.code === 'F11') { e.preventDefault(); G.setFullscreenPref(!Platform.isFullscreen()); } });
   Platform.watchFullscreen(() => !!G.settings.fullscreen);
