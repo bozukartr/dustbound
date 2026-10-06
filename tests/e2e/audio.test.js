@@ -167,6 +167,37 @@ module.exports = {
       t.ok(r.procWind === 0 && r.procRain === 0, 'kodla üretilen rüzgâr ve yağmur sessiz', r);
       t.ok(r.edges.every(Boolean), 'mp3 döngülerinin başı ve sonu kırpıldı', r.edges);
     });
+    await t.step('kasaba uğultusu: hafif, boğuk ve kısık (eski hâlinden en az 8 dB alçak, tizleri süzülmüş)', async () => {
+      const q = await t.page({ sfx: true });
+      await q.evaluate(() => Audio_.unlock());
+      await q.waitForFunction(() => Audio_.has('amb_crowd') && Audio_.sloops.crowd, null, { timeout: 90000 });
+      const r = await q.evaluate(async () => {
+        const SR = 44100, RealAC = window.AudioContext;
+        const saved = { ctx: Audio_.ctx, sloops: Audio_.sloops, loops: Audio_.loops, loadBank: Audio_.loadBank, gain: Audio_.LOOPGAIN.crowd, filt: Audio_.LOOPFILT, vol: Object.assign({}, Audio_.vol) };
+        const meas = async (old) => {
+          const off = new OfflineAudioContext(1, SR * 4, SR);
+          window.AudioContext = function () { return off; };
+          Audio_.ctx = null; Audio_.sloops = {}; Audio_.loops = {}; Audio_.loadBank = () => {};
+          if (old) { Audio_.LOOPGAIN.crowd = 1.8; Audio_.LOOPFILT = {}; }
+          Object.assign(Audio_.vol, { master: 0.7, sfx: 0.7, music: 0.4, amb: 0.5 });
+          Audio_.unlock();
+          const rnd = Math.random; Math.random = () => 0;
+          Audio_.loopReady('amb_crowd');
+          Math.random = rnd;
+          Audio_.ambientTick({ town: 1, night: 0, rain: 0, wind: 0, fire: 0, water: 0, nature: 0 });
+          const d = (await off.startRendering()).getChannelData(0), a = SR * 2;
+          let e = 0, hf = 0;
+          for (let i = a; i < d.length; i++) { e += d[i] * d[i]; const df = d[i] - d[i - 1]; hf += df * df; }
+          Audio_.LOOPGAIN.crowd = saved.gain; Audio_.LOOPFILT = saved.filt;
+          return { db: 10 * Math.log10(e / (d.length - a) || 1e-12), bright: e ? hf / e : 0 };
+        };
+        try { return { old: await meas(true), now: await meas(false) }; }
+        finally { window.AudioContext = RealAC; Object.assign(Audio_, { ctx: saved.ctx, sloops: saved.sloops, loops: saved.loops, loadBank: saved.loadBank }); Object.assign(Audio_.vol, saved.vol); }
+      });
+      t.ok(r.now.db < r.old.db - 8, 'eskisinden en az 8 dB alçak', r);
+      t.ok(r.now.db > -80, 'yine de duyulur (sessiz değil)', r);
+      t.ok(r.now.bright < r.old.bright * 0.35, 'tizler süzülmüş: boğuk', r);
+    });
     await t.step('at toynakları yürüyüş biçimine göre: adım 4, tırıs 2, eşkin 3, dörtnala 4 vuruşluk döngü', async () => {
       const r = await p.evaluate(() => {
         const st = Audio_.step, calls = [];

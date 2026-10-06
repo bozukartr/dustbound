@@ -300,7 +300,9 @@ const Audio_ = {
     this.loops.gallop = mk('lowpass', 300);
   },
   /* ortam döngüsü seviyesi: örnekli döngü hazırsa o çalar, prosedürel olan susar */
-  LOOPGAIN: { wind: 0.95, rain: 1.6, fire: 3.9, water: 2.0, crickets: 1.28, crowd: 1.8, storm: 1.2 },
+  LOOPGAIN: { wind: 0.95, rain: 1.6, fire: 3.9, water: 2.0, crickets: 1.28, crowd: 0.5, storm: 1.2 },
+  /* döngüye özel süzgeç: kasaba uğultusu uzaktan, duvar ardından gelir gibi boğuk (sözler seçilmez) */
+  LOOPFILT: { crowd: { type: 'lowpass', f: 620, q: 0.5 } },
   setLoop(name, v) {
     const S = this.sloops && this.sloops[name], L = this.loops[name], t = this.ctx.currentTime;
     if (S) { S.g.gain.setTargetAtTime(v * (this.LOOPGAIN[name] || 1), t, 0.6); if (L) L.g.gain.setTargetAtTime(0, t, 0.2); return; }
@@ -748,9 +750,12 @@ Object.assign(Audio_, {
     if (!key) return;
     if (this.sloops[key]) return;
     const c = this.ctx, src = c.createBufferSource(); src.buffer = this.bank[nm].bufs[0]; src.loop = true;
-    const g = c.createGain(); g.gain.value = 0; src.connect(g); g.connect(this.amb);
+    const g = c.createGain(); g.gain.value = 0; g.connect(this.amb);
+    const F = this.LOOPFILT[key];
+    let f = null;
+    if (F) { f = c.createBiquadFilter(); f.type = F.type; f.frequency.value = F.f; f.Q.value = F.q; src.connect(f); f.connect(g); } else src.connect(g);
     try { src.start(c.currentTime, Math.random() * src.buffer.duration); } catch (e) { src.start(); }
-    this.sloops[key] = { src, g };
+    this.sloops[key] = { src, g, f };
     if (this.loops[key]) this.loops[key].g.gain.value = 0;
   },
 
