@@ -437,6 +437,7 @@ const G = {
       UI.update(dt);
       if (this.world && this.player && (this.state === 'play' || this.state === 'dead')) this.render(dt);
       else if (this.state === 'menu') { if (FX.drunkCss) FX.clearCss(); UI.menuBg(dt); }
+      UI.menuVid(this.state === 'menu' && !$('#mainmenu').classList.contains('hidden'));
     } catch (e) {
       console.error(e);
       if (!this._errShown) { this._errShown = true; UI.feed(Tr('Hata: ') + e.message, 'warn'); }
