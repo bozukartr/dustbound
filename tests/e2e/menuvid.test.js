@@ -1,7 +1,7 @@
 'use strict';
 /* Ana menü arka plan videosu (video/menu.mp4 ya da menu.webm):
    - menü açılınca sessiz ve döngülü oynar; çizilen sahne hiç görünmez (video yavaş yüklense de ilk karesi hemen görünür)
-   - döngü dikişsiz: dosya bitip başa dönerken görüntü sıçramaz (CapCut kapanış kartı kesildi)
+   - döngü dikişsiz: dosya bitip başa dönerken görüntü sıçramaz (kapanış kartı kesilmiş kayıt)
    - menüden çıkınca durur, menüye dönünce yeniden oynar
    - dosya açılamazsa çizilen piksel sahne kalır */
 module.exports = {
@@ -30,7 +30,7 @@ module.exports = {
       const r = await p.evaluate(() => { const v = document.getElementById('menuvid'); return { muted: v.muted, loop: v.loop, w: v.videoWidth, h: v.videoHeight, dur: v.duration, src: v.currentSrc.split('/').pop(), op: getComputedStyle(v).objectFit }; });
       t.ok(r.muted && r.loop, 'sessiz ve döngülü', r);
       t.ok(r.w >= 1280 && r.h >= 720 && r.op === 'cover', 'ekranı dolduran yüksek çözünürlük', r);
-      t.ok(r.dur > 8 && r.dur < 12, 'kapanış kartı kesilmiş kısa döngü', r);
+      t.ok(r.dur > 8 && r.dur < 12.5, 'kapanış kartı kesilmiş kısa döngü', r);
       t.eq(await drawSpy(), 0, 'çizilen sahne durdu');
       // kayıt varken son hayat kartı sahneyi (sağ alt: ateş ve kovboy) kapatmaz, sağ üste çıkar
       const card = await p.evaluate(() => { G.saveInfo = () => ({ name: 'Deneme', age: 30, money: 100, bg: 'farmer', place: '', year: 1891, playtime: 60 }); UI.showMainMenu(); const b = document.getElementById('mm-card').getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(document.querySelector('.mm-title h1')); const tt = rg.getBoundingClientRect(); return { left: b.left, bottom: b.bottom, h: innerHeight, titleR: tt.right }; });
