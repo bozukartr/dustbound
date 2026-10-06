@@ -2857,7 +2857,38 @@ const UI = {
       birds: Array.from({ length: 5 }, (_, i) => [W * 0.62 + i * 9, hor * 0.34 + (i % 2) * 6 + i * 2, R.range(0, 6)]),
     };
   },
+  /* Ana menü arka plan videosu (video/menu.mp4, yoksa menu.webm): sessiz döngü.
+     Menü görünürken oynar, menüden çıkınca durur. Dosya yoksa ya da açılamazsa çizilen sahne kalır;
+     video oynarken çizilen sahne hiç çizilmez. */
+  MENUVID: ['video/menu.mp4', 'video/menu.webm'],
+  menuVid(on) {
+    const v = document.getElementById('menuvid');
+    if (!v || this._mvOn === on) return;
+    this._mvOn = on;
+    if (!on) { if (!v.paused) v.pause(); return; }
+    if (this._mvFail || window.__testNoMenuVid) return;
+    if (!v.dataset.ready) {
+      v.dataset.ready = '1';
+      v.muted = true;
+      v.addEventListener('playing', () => { v.classList.add('on'); $('#mainmenu').classList.add('vid'); });
+      // kaynakların hepsi açılamazsa çizilen sahneye dön
+      const fail = () => { this._mvFail = true; v.classList.remove('on'); $('#mainmenu').classList.remove('vid'); };
+      for (const src of window.__menuVidSrc || this.MENUVID) {
+        const s = document.createElement('source');
+        s.src = src; s.type = src.endsWith('.webm') ? 'video/webm' : 'video/mp4';
+        v.appendChild(s);
+      }
+      const last = v.querySelector('source:last-child');
+      if (last) last.addEventListener('error', fail);
+      v.addEventListener('error', fail);
+      v.load();
+    }
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {});
+  },
   menuBg(dt) {
+    const mv = document.getElementById('menuvid');
+    if (mv && mv.classList.contains('on') && !mv.paused) return;
     const c = this.bgctx;
     if (!this.bg || this.bg.W !== this.menuCanvas.width || Math.abs(this.bg.H - clamp(Math.round(480 * innerHeight / Math.max(1, innerWidth)), 200, 420)) > 4) this.initMenuBg();
     const B = this.bg, W = B.W, H = B.H, hor = B.hor, L = B.L;

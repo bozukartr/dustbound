@@ -505,6 +505,13 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 .screen { position: fixed; inset: 0; z-index: 30; }
 #mainmenu { background: #000; }
 #menubg { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+/* arka plan videosu: oynamaya başlayınca çizilen sahnenin üstüne yumuşakça gelir */
+#menuvid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+#menuvid.on { opacity: 1; }
+/* video sahnesinde ateş ve kovboy sağ altta: son hayat kartı küçülür (ekran görüntüsüz) ve boş gökyüzüne, sağ üst köşeye çıkar */
+#mainmenu.vid .mm-card { top: 4vh; right: 3vw; bottom: auto; width: 260px; padding: 10px 12px 12px; }
+#mainmenu.vid .mm-card img, #mainmenu.vid .mm-card .mmc-noimg { display: none; }
+#mainmenu.vid .mmc-k { margin-top: 0; }
 .mm-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(6, 3, 2, 0.82) 0%, rgba(6, 3, 2, 0.55) 30%, rgba(6, 3, 2, 0.08) 58%, transparent 75%), radial-gradient(ellipse at 50% 55%, transparent 55%, rgba(0, 0, 0, 0.55) 100%); }
 /* film greni: hafifçe titreyen doku */
 .mm-grain { position: absolute; inset: -40px; pointer-events: none; background: var(--grain); background-size: 220px 220px; opacity: 0.55; mix-blend-mode: overlay; animation: grain 0.9s steps(4) infinite; }

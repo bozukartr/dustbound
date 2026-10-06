@@ -76,6 +76,8 @@ async function runFile(file, browser, url) {
       if (!o.intro) await p.addInitScript(() => { window.__testNoIntro = true; });
       // ses örneklerini yalnızca ses testi yükler (öbür testler prosedürel sesle hızlı kalır)
       if (!o.sfx) await p.addInitScript(() => { window.__testNoSfx = true; });
+      // ana menü arka plan videosunu yalnızca onu sınayan test açar
+      if (!o.menuvid) await p.addInitScript(() => { window.__testNoMenuVid = true; });
       if (o.init) await p.addInitScript(o.init);
       await p.goto(url + (o.path || 'index.html'));   // path: başka bir sayfa (ör. demo paketi)
       // wait: false → menüyü bekleme (açılış videosu testi)
