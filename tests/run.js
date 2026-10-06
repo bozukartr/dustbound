@@ -79,6 +79,7 @@ async function runFile(file, browser, url) {
       // ana menü arka plan videosunu yalnızca onu sınayan test açar
       if (!o.menuvid) await p.addInitScript(() => { window.__testNoMenuVid = true; });
       if (o.init) await p.addInitScript(o.init);
+      if (o.before) await o.before(p);   // ör. ağ isteklerini geciktirme (page.route)
       await p.goto(url + (o.path || 'index.html'));   // path: başka bir sayfa (ör. demo paketi)
       // wait: false → menüyü bekleme (açılış videosu testi)
       await p.waitForFunction((w) => typeof G !== 'undefined' && (!w || G.state === 'menu'), o.wait !== false, { timeout: 30000 });
