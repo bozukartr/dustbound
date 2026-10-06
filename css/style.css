@@ -509,7 +509,11 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 #menuvid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
 #menuvid.on { opacity: 1; }
 /* video sahnesinde ateş ve kovboy sağ altta: son hayat kartı küçülür (ekran görüntüsüz) ve boş gökyüzüne, sağ üst köşeye çıkar */
-#mainmenu.vid .mm-card { top: 4vh; right: 3vw; bottom: auto; width: 260px; padding: 10px 12px 12px; }
+#mainmenu.vid .mm-card { top: 4vh; right: 3vw; bottom: auto; width: 300px; padding: 12px 15px 14px; }
+#mainmenu.vid .mmc-k { font-size: 13px; }
+#mainmenu.vid .mmc-n { font-size: 29px; }
+#mainmenu.vid .mmc-r { font-size: 16px; }
+#mainmenu.vid .mmc-r.dim { font-size: 15px; }
 #mainmenu.vid .mm-card img, #mainmenu.vid .mm-card .mmc-noimg { display: none; }
 #mainmenu.vid .mmc-k { margin-top: 0; }
 .mm-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(6, 3, 2, 0.82) 0%, rgba(6, 3, 2, 0.55) 30%, rgba(6, 3, 2, 0.08) 58%, transparent 75%), radial-gradient(ellipse at 50% 55%, transparent 55%, rgba(0, 0, 0, 0.55) 100%); }
