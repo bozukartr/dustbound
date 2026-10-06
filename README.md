@@ -166,6 +166,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
   - Yoldaki yayaya seslenir, yaya kenara çekilir.
   - Kasabada dükkân önlerindeki ayrı park yerlerine park ederler; iki araba asla üst üste binmez.
 - **Yol trafiği**: Kasabalar arası yollarda yük arabaları ve posta arabaları gider. Kasabaya varan araba mağazanın ya da otelin önünde bir süre durur, sonra geri döner. Önüne çıkarsan durup bağırırlar. Sürücüyü vurabilir, kementle çekebilir ya da araba dururken zorla indirebilirsin; sürücüsüz arabayı at gibi sürer, yükünü ya da posta çantasını arayabilirsin (at hırsızlığı ve soygun sayılır). Araba bir tır dorsesi gibi hareket eder: önce atlar döner, gövde çeki okundan arkadan izler; ön tekerlekler dönüşe göre kırılır.
+- **Demiryolu güvenliği**: Trenle kimse üst üste geçmez; herkes yaklaşan trenden kaçınır. Lokomotifin önünde birkaç saniyede geçeceği ray ve vagonların altı tehlike koridorudur. Raydaki yaya ya da atlı NPC dik yönde kenara çekilir ("Tren geliyor!"), rayı geçmek üzere olan tren geçene kadar kenarda bekler. Hayvanlar raydan kaçar, raya doğru gidiyorsa yön değiştirir; ıslıkla çağrılan at rayın kenarında bekler. Yük ve posta arabaları geçitten önce durur, zaten raydaysa hızla karşıya geçer; oyuncunun nakliyecileri de bekler. Tren rayda duran bir araba görünce düdük çalıp önünde durur, yol açılınca devam eder. Duran ya da giden trenin vagonları katıdır: yayalar, hayvanlar, atlar ve oyuncu içlerinden geçemez. Arabalar da hayvanlar ve atlar için katıdır. Yoldaki hayvan yaklaşan arabadan ürküp kenara kaçar, araba onu ezmez.
 - **Göçebe kampları**: tüccar kervanları, sığırtmaçlar, altın arayıcıları, kürkçüler ve seyyar bir kumpanya kasabaların dışında kamp kurar. Takas yapabilir, ateş başında dinlenip hikâye dinleyebilirsin. Her kamp 5–10 yılda bir başka bir yere göç eder.
 - Kasabaları bağlayan yollar, köprüler ve istasyonlar arasında gidip gelen **trenler** (bilet alıp seyahat edebilirsin).
 - 25 keşfedilecek önemli yer: göktaşı krateri, bin yıllık sekoya, hayalet kasaba, terk edilmiş maden, sıcak kaynaklar, dinozor kemikleri, karaya oturmuş gemi, gözetleme tepeleri. Bunlara haydut kampları, çiftlikler ve satılık mülkler eklenir.
@@ -360,6 +361,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `city` | zengin şehir: arnavut kaldırımı ve taş kaldırım, iki park (çeşme, çit, çiçek), pazar yeri ve %25 pahalı seçkin mallar, modern binalar, çeşmeden su, eski dünya sürümünün değişmemesi ve kayıtta korunması |
 | `business` | işletme satın alma, yük arabası, toptan mal, teslimat, gelir, arsaya inşaat, kayıt |
 | `haulers` | nakliyeci, sefer, yoldaki araba, baskın, maaş, kayıt |
+| `rails` | demiryolu güvenliği: raydaki yaya ve geyik kenara çekilip sağ kalır, rayı geçecek yaya ve at arabası geçitte bekleyip tren geçince karşıya geçer, tren rayda duran arabanın önünde durup yol açılınca devam eder, duran trenin vagonları katıdır, yoldaki hayvan arabadan ürküp kaçar |
 | `homestead` | yer uygunluğu (kasaba, su, yol), kazık ve plan menüsü, tapu alma, tapulu inşaat, şantiyede çalışma, aşamalar, iç eşyalar, ekler ve yemlik, kaçak yapı ihbarı/mühür/tapuya bağlama, iç tasarımlar, kayıt |
 | `items` | yeni ilaçların etkileri, kas merhemiyle koşu, süreli etkilerin kaydı, maymuncuk (ev, dükkân, kırılma), dürbün (görüş, etiket, yer işaretleme, indirme) |
 | `poker` | el değerlendirme, masadaki yerler, klavye ve fareyle bir el, çekilme, masadan kalkma, günlük rakipler, kayıt, yüz okuma |
@@ -433,6 +435,7 @@ js/homestead.js  kendi yapın: arazi seçimi, tapulu/kaçak inşaat, aşamalar, 
 js/binoculars.js dürbün: uzağa bakma, etiketler, uzaktaki yerleri haritada işaretleme
 js/poker.js     poker: el değerlendirme, rakip yapay zekâsı, sabit limitli bahis, masa arayüzü
 js/hunters.js   ödül avcıları: kasaba dışında çıkan grup, bekleyiş, teslim olma, parayla kurtulma, çatışma
+js/rails.js     demiryolu güvenliği: trenin tehlike koridoru, raydan çekilme ve geçitte bekleme, trenin arabaya fren yapması, katı vagonlar, hayvanlar için katı arabalar
 tests/run.js    test çalıştırıcı (npm test); tests/lib.js yardımcılar; tests/e2e/*.test.js testler
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar
 js/cinema.js    sinematik çizici (kütüphanesiz WebGL: gölge haritası, nokta ışık, su, son işlem)

@@ -329,12 +329,18 @@ class Wagon extends Ent {
       if (o.kind === 'wagon') { chk(o.x, o.y, 5.5, o, 46); chk(o.bx, o.by, 7, o, 46); }
       else if (o.kind === 'horse' && !o.dead) chk(o.x, o.y, 5, o, 26);
       else if (o.kind === 'npc' && !o.dead) chk(o.x, o.y, 3, o, 26);
+      else if (o.kind === 'animal' && !o.dead) chk(o.x, o.y, o.r || 3, o, 26);
     }
     if (!P.riding || P.riding !== this) chk(P.x, P.y, P.riding ? 6 : 3, P, 26);
     return { o: near, d: nd };
   }
   /* Yoldaki yaya kenara çekilir (sürücü seslenir) */
   clearWay(o) {
+    // yoldaki hayvan ürker, yana kaçar (saldırgan olanın önünde araba bekler)
+    if (o && o.kind === 'animal' && !o.dead && !o.bound && o.def.beh !== 'hostile') {
+      if (o.state !== 'flee') { const side = Math.sign(-Math.sin(this.ang) * (o.x - this.x) + Math.cos(this.ang) * (o.y - this.y)) || 1; o.state = 'flee'; o.t = rnd(1.2, 2); o.ang = this.ang + side * (Math.PI / 2 + rnd(-0.3, 0.3)); }
+      return;
+    }
     if (!o || o.kind !== 'npc' || o.dead || o.bound || o.hostile || o.isLaw || o.state === 'sit' || o.dodgeT > 0) return;
     const side = Math.sign(-Math.sin(this.ang) * (o.x - this.x) + Math.cos(this.ang) * (o.y - this.y)) || 1;
     o.talk = null; o.pauseT = 0; o.dodgeT = 0.7; o.dodgeA = this.ang + side * Math.PI / 2;
@@ -399,14 +405,23 @@ class Wagon extends Ent {
         if (A.d < 20) { block = true; this.clearWay(ob); }
         // yoldan çekilmeyen biri (oyuncu, duran atlı) için bir süre sonra etrafından dolaşır
         if (this.spd < 3) {
+          // kıpırdamayacağı belli engel (yola bağlanmış at, oturan, bağlı biri): beklemeden yanından dolaşır
+          const still = ob !== P && (ob.hitch || ob.bound || ob.state === 'sit' || ob.state === 'static' || ob.state === 'sleep');
           this.waitP = (this.waitP || 0) + dt; this.waitLong = (this.waitLong || 0) + dt;
-          if (this.waitP > 4) { this.passT = 5; this.waitP = 0; }
-          // hiç kıpırdamayan engel (bağlı at, oturan biri): sonunda yanından sıyrılıp geçer
-          if (this.waitLong > 10 && ob !== P) { this.ignoreO = ob; this.ignoreT = 4; this.waitLong = 0; }
+          if (this.waitP > (still ? 1.2 : 4)) { this.passT = 5; this.waitP = 0; }
+          // hiç kıpırdamayan engel: sonunda yanından sıyrılıp geçer
+          if (this.waitLong > (still ? 4 : 10) && ob !== P) { this.ignoreO = ob; this.ignoreT = 4; this.waitLong = 0; }
         }
       }
     } else { this.shy = Math.max(0, (this.shy || 0) - dt * 3); this.waitLong = 0; this.waitP = 0; }
     if (!ob || ob.kind !== 'wagon') this.waitW = 0;
+    // demiryolu geçidi: tren yaklaşıyorsa (ya da rayda tren duruyorsa) geçitten önce dur; raydaysan hızla karşıya geç
+    const rail = G.railWagon(this);
+    if (rail === 'stop') {
+      target = 0; this.railWaitT = (this.railWaitT || 0) + dt;
+      if (this.railWaitT > 1 && !(this.railSayT > G.t) && chance(0.4)) { this.railSayT = G.t + 15; Bubbles.add(this, pick([Tr('Tren geçsin, bekleyelim.'), Tr('Hooop! Tren var.'), Tr('Önce tren geçsin.')]), 2); }
+    } else if (rail === 'cross' && !(ob && A.d < 10)) { target = Math.max(target, this.max * 1.2); this.railWaitT = 0; }
+    else this.railWaitT = 0;
     this.ang = turnTo(this.ang, a, dt * 2.6);
     this.spd += clamp(target - this.spd, -90 * dt, 30 * dt);
     // son güvence: bu adım başka bir arabayla üst üste binmeyi artırıyorsa atma

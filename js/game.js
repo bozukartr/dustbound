@@ -501,6 +501,9 @@ const G = {
     this.updateProjectiles(sdt);
     this.ambientLife(sdt);
     for (const tr of this.trains) tr.update(sdt);
+    // demiryolu: tehlike koridorları (herkes yaklaşan trenden kaçınır), raya girmiş araba kenara itilir
+    this.railTick();
+    for (const tr of this.trains) this.trainShove(tr);
     this.parts.update(sdt);
     FX.update(sdt, dt);
     Juice.update(sdt);
@@ -1158,6 +1161,7 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcActs));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(WorldSave));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(RailSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(PokerSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BinocSystems));
