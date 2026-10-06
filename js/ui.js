@@ -30,6 +30,8 @@ const UI = {
     $$('[data-g]').forEach(n => { n.innerHTML = Icons.glyph(n.dataset.g, n.closest('.core') ? (n.dataset.g === 'deadeye' ? '#7a1a10' : '#1a1612') : '#efe6d2'); });
     this.setupMapMouse();
     this.menuVidInit();
+    // karakter belgesinin yazı tipleri önceden yüklenir: ekran açılınca yedek yazı tipinden geçiş görünmesin
+    if (document.fonts) for (const f of ["400 1em 'Old Standard TT'", "italic 400 1em 'Old Standard TT'", "700 1em 'Playfair Display'", "900 1em 'Playfair Display'", "400 1em 'Playfair Display SC'", "700 1em 'Playfair Display SC'", "400 1em 'Pinyon Script'"]) document.fonts.load(f, 'AaİıŞşĞğ').catch(() => {});
   },
   isModal() { return this.stack.length > 0; },
   top() { return this.stack[this.stack.length - 1]; },
@@ -2726,7 +2728,13 @@ const UI = {
         if (r.t !== tab || (r.male && look.sex !== 'm')) return;
         h += `<div class="cr-row nav opt ${r.sw ? 'sw' : ''}" data-i="${i}" data-lr><span class="cr-l">${r.n}</span><span class="cr-v"><b class="arr">◀</b>${valHtml(r)}<b class="arr">▶</b></span></div>`;
       });
-      if (tab === 3) h += `<div class="cr-cards">${BACKGROUNDS.map(b => `<div class="cr-card ${b.id === prof.bg ? 'on' : ''}" data-bg="${b.id}">${Icons.glyph(BGI[b.id] || 'star', b.id === prof.bg ? '#fff' : '#c9a45c')}<span>${b.n}</span></div>`).join('')}</div>`;
+      if (tab === 0) {
+        const BG = BACKGROUNDS.find(b => b.id === prof.bg);
+        const place = BG.start === 'hideout' ? Tr('Saklı Kamp') : TOWNS.find(t => t.id === BG.town).n;
+        h += `<div class="cr-row cr-fix"><span class="cr-l">${Tr`Doğum Yılı`}</span><span class="v">${START_YEAR - 18}</span></div>`;
+        h += `<div class="cr-row cr-fix"><span class="cr-l">${Tr`Veriliş`}</span><span class="v">${Tr`${place}, 18 Nisan ${START_YEAR}`}</span></div>`;
+      }
+      if (tab === 3) h += `<div class="cr-cards">${BACKGROUNDS.map(b => `<div class="cr-card ${b.id === prof.bg ? 'on' : ''}" data-bg="${b.id}">${Icons.glyph(BGI[b.id] || 'star', b.id === prof.bg ? '#f0d890' : '#6a4a24')}<span>${b.n}</span></div>`).join('')}</div>`;
       return h;
     };
     const html = () => `
@@ -2734,11 +2742,12 @@ const UI = {
         <div class="cr-title"><div class="p-title">${Tr`Yeni Bir Hayat`}</div><div class="cr-sub">${Tr`Amerika, ${START_YEAR} • 18 yaşındasın`}</div></div>
         <div class="cr-tabs">${Input.glyph('tabL')}${TABS.map((t, i) => `<span class="cr-tab ${i === tab ? 'on' : ''} ${seen.has(i) ? 'seen' : 'new'}" data-t="${i}"><em class="cr-tn">${seen.has(i) && i !== tab ? '✓' : i + 1}</em>${Icons.glyph(t.g, i === tab ? '#fff' : '#a89c88')}${t.n}</span>`).join('')}${Input.glyph('tabR')}</div>
       </div>
+      <div class="cr-side a">${Tr`Ön Yüz`}</div><div class="cr-side b">${Tr`Arka Yüz`}</div>
       <div class="cr-left"><div class="cr-sec">${Tr`Adım ${tab + 1}/${TABS.length}`} · ${TABS[tab].n}</div><div class="cr-steps">${TABS.map((t, i) => `<i class="${i === tab ? 'on' : seen.has(i) ? 'ok' : ''}"></i>`).join('')}</div><p class="cr-guide">${TABS[tab].d}</p><div class="cr-list">${rowsHtml()}</div></div>
       <div class="cr-stage">
-        <div class="cr-frame"><canvas id="cr-portrait" width="400" height="480"></canvas><i class="cr-c tl"></i><i class="cr-c tr"></i><i class="cr-c bl"></i><i class="cr-c br"></i></div>
-        <div class="cr-under"><div class="cr-plate"><div class="cr-pn" id="cr-pn"></div><div class="cr-ps" id="cr-ps"></div></div>
-        <div class="cr-ped"><canvas id="cr-top" width="96" height="96"></canvas></div></div>
+        <div class="cd-band">${Tr`Seyahat Belgesi`}<small>${Tr`Batı Toprakları`}</small></div>
+        <div class="cd-row"><div class="cr-frame"><canvas id="cr-portrait" width="400" height="480"></canvas></div>
+        <div class="cr-under"><div class="cr-plate"><div class="cr-pk">${Tr`Hamil`}</div><div class="cr-pn" id="cr-pn"></div><div class="cr-ps" id="cr-ps"></div></div></div></div>
       </div>
       <div class="cr-right" id="cr-desc"></div>
       <div class="cr-foot"><div class="cr-keys">${Tr`${Input.glyph('up')}${Input.glyph('down')} Seç &nbsp; ◀ ▶ Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Bölüm &nbsp; ${Input.glyph('back')} Geri`}</div>
@@ -2749,29 +2758,37 @@ const UI = {
       if (ptQ) return; ptQ = true;
       requestAnimationFrame(() => { ptQ = false; const c = $('#cr-portrait', el); if (c) Spr.portrait(c.getContext('2d'), 400, 480, look, 18); });
     };
+    const fitName = () => {
+      // isim kutusu da uzun isimde küçülür: yazılan isim kutuda kaymadan bütünüyle görünür
+      const inp = $('#cr-name', el);
+      if (inp) for (let s = 20; s >= 12; s -= 1) { inp.style.fontSize = `calc(var(--u) * ${s})`; if (inp.scrollWidth <= inp.clientWidth + 1) break; }
+      const pn = $('#cr-pn', el), box = $('.cr-under', el); if (!pn || !box) return;
+      // önce kelimeler bölünmeden sığdırılır; en küçük boyda da sığmayan tek uzun kelime harf aralarından kırılır
+      pn.style.overflowWrap = 'normal';
+      for (let s = 36; s >= 16; s -= 2) {
+        pn.style.fontSize = `calc(var(--u) * ${s})`;
+        if (box.scrollHeight <= box.clientHeight + 1 && pn.scrollWidth <= pn.clientWidth + 1) return;
+      }
+      pn.style.overflowWrap = 'anywhere';
+    };
     const refresh = () => {
       drawPortrait();
       const BG = BACKGROUNDS.find(b => b.id === prof.bg), D = DIFFICULTIES.find(d => d.id === prof.difficulty), L = LIFE_PACES.find(p => p.id === prof.pace);
       const town = TOWNS.find(t => t.id === BG.town);
       $('#cr-pn', el).textContent = prof.name || '—';
       $('#cr-ps', el).textContent = Tr`${look.sex === 'm' ? Tr('Erkek') : Tr('Kadın')} • 18 yaşında • ${BG.n}`;
-      const sk = Object.keys(BG.skills).map(k => `<span class="cr-tag">${SKILLS[k].n} +${BG.skills[k]}</span>`).join('');
+      fitName();
+      const place = BG.start === 'hideout' ? Tr('Saklı Kamp') : town.n;
+      const sk = Object.keys(BG.skills).map(k => `<span class="cr-tag">${SKILLS[k].n} +${BG.skills[k]}</span>`).join(' · ');
       const items = Object.keys(BG.items).map(id => `<span class="cr-it" title="${ITEMS[id].n}">${Icons.item(id)}</span>`).join('') + BG.weapons.filter(w => w !== 'knife').map(w => `<span class="cr-it wpn" title="${WEAPONS[w].n}">${Icons.weapon(w, 'ic wpn')}</span>`).join('');
+      // arka yüz: geçmişin belgeye işlenmiş hâli ve tasdik damgaları
+      const F = (k, v, cls = '') => `<div class="bk-f ${cls}"><span>${k}</span><b>${v}</b></div>`;
       $('#cr-desc', el).innerHTML = `
-        <div class="cr-card-big"><div class="cr-cb-h">${Icons.glyph(BGI[BG.id] || 'star', '#c9a45c')}<div><div class="cr-cb-k">${Tr`Geçmiş`}</div><div class="cr-cb-n">${BG.n}</div></div></div>
-          <p>${BG.d}</p>
-          <div class="cr-facts"><div><span>${Tr`Başlangıç`}</span><b>${BG.start === 'hideout' ? Tr('Saklı Kamp') : town.n}</b></div><div><span>${Tr`Cüzdan`}</span><b>${fmtMoney(BG.money)}</b></div><div><span>${Tr`At`}</span><b>${BG.horse ? HORSE_BREEDS[BG.horse].n : Tr('Yok')}</b></div>${BG.bounty ? `<div><span>${Tr`Ödül`}</span><b class="red">${fmtMoney(BG.bounty)}</b></div>` : ''}</div>
-          <div class="cr-tags">${sk}</div><div class="cr-items">${items}</div></div>
-        <div class="cr-mini"><div><span>${Tr`Zorluk`}</span><b>${D.n}</b><p>${D.d}</p></div><div><span>${Tr`Yaşlanma`}</span><b>${L.n}</b><p>${L.d}</p></div></div>`;
-    };
-    const drawTop = () => {
-      const c = $('#cr-top', el); if (!c) return;
-      const tc = c.getContext('2d');
-      tc.setTransform(1, 0, 0, 1, 0, 0); tc.clearRect(0, 0, 96, 96);
-      tc.imageSmoothingEnabled = false;
-      tc.setTransform(5, 0, 0, 5, 48, 50);
-      Spr.human(tc, 0, 0, -Math.PI / 2 + Math.sin(performance.now() / 900) * 0.5, look, { walk: performance.now() / 150, mv: 0.6 });
-      tc.setTransform(1, 0, 0, 1, 0, 0);
+        <div class="bk-band">${Tr`Tasdik`}<small>${Tr`Hamilin geçmişi ve beyanı`}</small></div>
+        <div class="cr-facts">${F(Tr`Geçmiş`, BG.n, 'full')}${F(Tr`Başlangıç`, place)}${F(Tr`Cüzdan`, fmtMoney(BG.money))}${F(Tr`At`, BG.horse ? HORSE_BREEDS[BG.horse].n : Tr('Yok'))}${BG.bounty ? F(Tr`Ödül`, fmtMoney(BG.bounty), 'red') : ''}
+          ${F(Tr`Beceriler`, sk, 'full')}${F(Tr`Zorluk`, `${D.n}<i>${D.d}</i>`, 'full')}${F(Tr`Yaşlanma`, `${L.n}<i>${L.d}</i>`, 'full')}</div>
+        <div class="bk-low"><div class="bk-lt"><p class="bk-d">${BG.d}</p><div class="cr-items">${items}</div></div>
+          <div class="bk-st"><div class="bk-stamp">${town.n}<b>★</b>${Tr`18 Nis ${START_YEAR}`}</div><div class="bk-stamp2">${Tr`Geçerlidir`}</div></div></div>`;
     };
     const setTab = (t, focusRows) => { tab = (t + TABS.length) % TABS.length; seen.add(tab); build(); if (focusRows) { const f = $('.cr-list .nav', el); if (f) m.setFocus(f, true); } else m.setFocus($('#cr-go', el), true); Audio_.ui('move'); };
     const build = () => {
@@ -2782,7 +2799,7 @@ const UI = {
       if (nameIn) {
         nameIn.onfocus = () => (Input.textFocus = true);
         nameIn.onblur = () => (Input.textFocus = false);
-        nameIn.oninput = () => { prof.name = nameIn.value; $('#cr-pn', el).textContent = prof.name || '—'; };
+        nameIn.oninput = () => { prof.name = nameIn.value; $('#cr-pn', el).textContent = prof.name || '—'; fitName(); };
         nameIn.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); nameIn.blur(); } };
         $('#cr-name-row', el).onclick = () => nameIn.focus();
         nameIn.addEventListener('input', () => { customName = !!nameIn.value.trim(); });
@@ -2822,11 +2839,12 @@ const UI = {
         G.deleteSlot(prof.slot);
         G.newGame({ name: prof.name, look, bg: prof.bg, difficulty: prof.difficulty, pace: prof.pace, story: prof.story, slot: prof.slot });
       };
-      refresh(); drawTop();
+      refresh();
     };
     m = this.makeModal(el, { onBack: () => { if (tab > 0) { setTab(tab - 1); return; } this.pop(m); this.showMainMenu(); }, onTab: (d) => setTab(tab + d, true) });
     build();
-    m.update = () => { if (this.frame % 2 === 0) drawTop(); };
+    // pencere boyu değişince ya da yazı tipleri yüklenince imza yeniden sığdırılır
+    m.update = () => { const w = innerWidth + 'x' + innerHeight + (document.fonts ? document.fonts.status : ''); if (w !== m.crSize) { m.crSize = w; fitName(); } };
     this.push(m);
     const go = $('#cr-go', el); m.setFocus(go, true);
     // klavyeyle oynayan doğrudan ismini yazabilsin (Enter yazmayı bitirir, ikinci Enter ileri götürür);
