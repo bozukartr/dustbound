@@ -96,7 +96,9 @@ class Ent {
     const W = G.world;
     // noIndoor: bina içine giremez; uzun gövdeliler (at) için burun ve sağrı da denetlenir, baş kapıdan içeri uzanmasın
     const c = this.len ? Math.cos(this.ang) : 0, s = this.len ? Math.sin(this.ang) : 0;
-    const ok = (x, y) => !W.blocked(x, y, this.r) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)
+    // trenin vagonları ve arabalar katıdır; içinde kalmış biri (çarpışma anı, üstüne gelen araba) dışarı çıkabilir
+    const inSolid = G.solidAt ? G.solidAt(this.x, this.y, this.r, this) : null;
+    const ok = (x, y) => !W.blocked(x, y, this.r) && (inSolid || !G.solidAt || !G.solidAt(x, y, this.r, this)) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)
       || (this.len && (W.indoorPx(x + c * this.len, y + s * this.len) || W.indoorPx(x - c * this.len * 0.8, y - s * this.len * 0.8)))));
     if (ok(this.x + dx, this.y + dy)) { this.x += dx; this.y += dy; this._slide = 0; return true; }
     const len = Math.hypot(dx, dy);
@@ -175,6 +177,9 @@ class Horse extends Ent {
     if ((this.inT = (this.inT || 0) - dt) <= 0) { this.inT = 0.5; this.outdoorCheck(); }
     if (this.rider) { Juice.idle(this, dt, this.spd > 3 || this.rearT > 0); return; }
     const P = G.player;
+    // yaklaşan tren: raydan kaçar; çağrıldıysa rayın kenarında bekler
+    const rail = G.railShy(this);
+    if (rail === 'wait') { this.spd = lerp(this.spd, 0, 1 - Math.exp(-dt * 4)); this.mv = this.spd / 60; this.phase += dt * 4; Juice.idle(this, dt, false); return; }
     if (this.state === 'come') {
       const d = this.dTo(P);
       if (d < 26) { this.state = 'idle'; this.spd = 0; this.mv = 0; return; }
@@ -188,7 +193,7 @@ class Horse extends Ent {
     } else if (this.state === 'flee') {
       this.spd = lerp(this.spd, 130, 1 - Math.exp(-dt * 1.5));
       this.move(Math.cos(this.ang) * this.spd * dt, Math.sin(this.ang) * this.spd * dt);
-      if (this.t <= 0) this.state = 'idle';
+      if (this.t <= 0) { this.state = this.after || 'idle'; this.after = null; }
     } else {
       // otlarken birkaç adım yürür: hız yavaşça çıkar, yavaşça iner
       if ((this.ambleT = (this.ambleT || 0) - dt) > 0) this.spd = lerp(this.spd, 20, 1 - Math.exp(-dt * 2));
@@ -964,7 +969,8 @@ class Animal extends Ent {
     if (this.storyCoy && G.storyAnimal(this, dt)) return;   // hikâye çakalı tavuğa koşar
     const P = G.player, d = this.def;
     const pd = dist(this.x, this.y, P.x, P.y);
-    this.t -= dt; this.atkCd -= dt;
+    this.t -= dt; this.atkCd -= dt; this.railT = (this.railT || 0) - dt;
+    G.railShy(this);   // yaklaşan tren: raydan kaçar, raya doğru gidiyorsa yön değiştirir
     let sense = d.sense * (P.crouch ? 0.5 : 1) * (P.sprinting ? 1.3 : 1) * (P.riding ? 1.2 : 1) * (G.hasPerk('hunt100') ? 0.7 : 1) * (1 - G.skill('hunting') * 0.03);
     if (G.isNight) sense *= 0.8;
     if (d.tame && P.crouch && !P.riding) sense = 16;
@@ -983,7 +989,7 @@ class Animal extends Ent {
     else if (this.state === 'flee') {
       target = d.spd;
       if (this.t <= 0) { this.state = 'idle'; this.t = 2; }
-      if (pd < sense * 1.2 && pd > 1) this.ang = turnTo(this.ang, Math.atan2(this.y - P.y, this.x - P.x), dt * 3);
+      if (pd < sense * 1.2 && pd > 1 && !(this.railT > 0)) this.ang = turnTo(this.ang, Math.atan2(this.y - P.y, this.x - P.x), dt * 3);
     } else if (this.state === 'attack') {
       const tgt = P;
       const a = Math.atan2(tgt.y - this.y, tgt.x - this.x);
@@ -1169,6 +1175,7 @@ class NPC extends Ent {
     if (this.bound) { this.boundUpdate(dt); if (!this.dead) this.waterTick(dt); return; }
     if (this.hide) { if (this.job) G.jobUpdate(this, dt); return; }   // dükkânın içinde (sandık taşıyor)
     G.animTick(this, dt);
+    if (G.railDodge(this, dt)) return;   // yaklaşan tren: raydan çekil ya da geçmeden bekle
     if (this.quest && G.questNpc(this, dt)) return;   // hikâyenin akıl hocası kendi yolunu izler
     this.t -= dt; this.cool -= dt;
     const P = G.player;
@@ -1431,6 +1438,18 @@ class Train {
       const toStop = next ? Math.abs(next.d - this.s) : 1e9;
       const target = toStop < 160 ? Math.max(8, toStop * 0.6) : maxS;
       this.spd = lerp(this.spd, target, dt * 0.6);
+      // rayda duran araba: düdük çalar, önünde duracak biçimde fren yapar; yol açılınca yeniden hızlanır
+      const ob = G.trainObstacle(this);
+      if (ob) {
+        this.spd = Math.min(this.spd, Math.sqrt(Math.max(0, 2 * 70 * (ob.d - 24))));
+        this.blockT = (this.blockT || 0) + dt;
+        if (!(this.honkT > 0)) {
+          this.honkT = 6;
+          if (this.pos[0] && dist(G.player.x, G.player.y, this.pos[0][0], this.pos[0][1]) < 600) Audio_.train();
+          if (ob.o.driver && !ob.o.rider) Bubbles.add(ob.o, pick([Tr('Tren! Çabuk, çekilin!'), Tr('Deh! Raydan çıkın!')]), 2);
+        }
+      } else this.blockT = 0;
+      this.honkT = (this.honkT || 0) - dt;
       this.s += this.spd * this.dir * dt;
       if (next && toStop < 3) { this.s = next.d; this.wait = 12; this.stopAt = next.town; }
       if (this.s <= 0) { this.s = 0; this.wait = 12; this.dir = 1; }

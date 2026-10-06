@@ -146,6 +146,8 @@ const HaulSystems = {
     h.storm = false;
     if (!inTown && h.trait === 'fast' && chance(m / 900)) { const cur = h.state; h.state = 'wait'; h.waitT = rnd(30, 60); h.why = 'break'; h.next = cur; return; }
     if (!inTown && h.cargo.length && chance(m / 60 * 0.03 * HAUL_TRAITS[h.trait].risk * this.haulDanger(h.x, h.y))) { this.haulStartRaid(h); return; }
+    // tren geçidi: tren yaklaşıyorsa geçitten önce bekler
+    if (h.ent && this.railWagon(h.ent) === 'stop') return;
     // oyuncu arabanın önündeyse bekler
     if (h.ent && dist2(h.ent.x + Math.cos(h.ent.ang) * 12, h.ent.y + Math.sin(h.ent.ang) * 12, this.player.x, this.player.y) < 16 * 16) return;
     if (this.haulMove(h, m)) this.haulArrive(h);
