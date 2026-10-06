@@ -505,9 +505,9 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 .screen { position: fixed; inset: 0; z-index: 30; }
 #mainmenu { background: #000; }
 #menubg { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-/* arka plan videosu: oynamaya başlayınca çizilen sahnenin üstüne yumuşakça gelir */
-#menuvid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
-#menuvid.on { opacity: 1; }
+/* arka plan videosu: menü açılır açılmaz görünür (yüklenirken ilk karesi); açılamazsa gizlenir, çizilen sahne kalır */
+#menuvid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; display: none; background: #050302; }
+#mainmenu.vid #menuvid { display: block; }
 /* video sahnesinde ateş ve kovboy sağ altta: son hayat kartı küçülür (ekran görüntüsüz) ve boş gökyüzüne, sağ üst köşeye çıkar */
 #mainmenu.vid .mm-card { top: 4vh; right: 3vw; bottom: auto; width: 300px; padding: 12px 15px 14px; }
 #mainmenu.vid .mmc-k { font-size: 13px; }

@@ -29,6 +29,7 @@ const UI = {
     this.map = { zoom: 1, cx: 512, cy: 512, drag: null };
     $$('[data-g]').forEach(n => { n.innerHTML = Icons.glyph(n.dataset.g, n.closest('.core') ? (n.dataset.g === 'deadeye' ? '#7a1a10' : '#1a1612') : '#efe6d2'); });
     this.setupMapMouse();
+    this.menuVidInit();
   },
   isModal() { return this.stack.length > 0; },
   top() { return this.stack[this.stack.length - 1]; },
@@ -2858,37 +2859,43 @@ const UI = {
     };
   },
   /* Ana menü arka plan videosu (video/menu.mp4, yoksa menu.webm): sessiz döngü.
-     Menü görünürken oynar, menüden çıkınca durur. Dosya yoksa ya da açılamazsa çizilen sahne kalır;
-     video oynarken çizilen sahne hiç çizilmez. */
+     Oyun açılırken (açılış videosu sürerken) önden yüklenir; menü açılır açılmaz ilk karesi (menu.jpg)
+     görünür, video hazır olunca kesintisiz oynamaya başlar. Çizilen piksel sahne yalnızca video
+     açılamazsa çizilir. Menüden çıkınca durur, menüye dönünce yeniden oynar. */
   MENUVID: ['video/menu.mp4', 'video/menu.webm'],
+  MENUPOSTER: 'video/menu.jpg',
+  menuVidInit() {
+    const v = document.getElementById('menuvid');
+    if (!v || v.dataset.ready || window.__testNoMenuVid) return;
+    v.dataset.ready = '1';
+    v.muted = true;
+    v.poster = window.__menuVidPoster || this.MENUPOSTER;
+    v.addEventListener('playing', () => v.classList.add('on'));
+    // kaynakların hepsi açılamazsa çizilen sahneye dön
+    const fail = () => { this._mvFail = true; v.classList.remove('on'); $('#mainmenu').classList.remove('vid'); };
+    for (const src of window.__menuVidSrc || this.MENUVID) {
+      const s = document.createElement('source');
+      s.src = src; s.type = src.endsWith('.webm') ? 'video/webm' : 'video/mp4';
+      v.appendChild(s);
+    }
+    const last = v.querySelector('source:last-child');
+    if (last) last.addEventListener('error', fail);
+    v.addEventListener('error', fail);
+    $('#mainmenu').classList.add('vid');
+    v.load();
+  },
   menuVid(on) {
     const v = document.getElementById('menuvid');
     if (!v || this._mvOn === on) return;
     this._mvOn = on;
     if (!on) { if (!v.paused) v.pause(); return; }
-    if (this._mvFail || window.__testNoMenuVid) return;
-    if (!v.dataset.ready) {
-      v.dataset.ready = '1';
-      v.muted = true;
-      v.addEventListener('playing', () => { v.classList.add('on'); $('#mainmenu').classList.add('vid'); });
-      // kaynakların hepsi açılamazsa çizilen sahneye dön
-      const fail = () => { this._mvFail = true; v.classList.remove('on'); $('#mainmenu').classList.remove('vid'); };
-      for (const src of window.__menuVidSrc || this.MENUVID) {
-        const s = document.createElement('source');
-        s.src = src; s.type = src.endsWith('.webm') ? 'video/webm' : 'video/mp4';
-        v.appendChild(s);
-      }
-      const last = v.querySelector('source:last-child');
-      if (last) last.addEventListener('error', fail);
-      v.addEventListener('error', fail);
-      v.load();
-    }
+    if (this._mvFail || !v.dataset.ready) return;
     const p = v.play();
     if (p && p.catch) p.catch(() => {});
   },
   menuBg(dt) {
-    const mv = document.getElementById('menuvid');
-    if (mv && mv.classList.contains('on') && !mv.paused) return;
+    // video (ya da yüklenirken ilk karesi) görünüyorsa çizilen sahne çizilmez
+    if ($('#mainmenu').classList.contains('vid')) return;
     const c = this.bgctx;
     if (!this.bg || this.bg.W !== this.menuCanvas.width || Math.abs(this.bg.H - clamp(Math.round(480 * innerHeight / Math.max(1, innerWidth)), 200, 420)) > 4) this.initMenuBg();
     const B = this.bg, W = B.W, H = B.H, hor = B.hor, L = B.L;

@@ -1,6 +1,6 @@
 'use strict';
 /* Ana menü arka plan videosu (video/menu.mp4 ya da menu.webm):
-   - menü açılınca sessiz ve döngülü oynar, belirince çizilen sahne çizilmez
+   - menü açılınca sessiz ve döngülü oynar; çizilen sahne hiç görünmez (video yavaş yüklense de ilk karesi hemen görünür)
    - döngü dikişsiz: dosya bitip başa dönerken görüntü sıçramaz (CapCut kapanış kartı kesildi)
    - menüden çıkınca durur, menüye dönünce yeniden oynar
    - dosya açılamazsa çizilen piksel sahne kalır */
@@ -76,6 +76,25 @@ module.exports = {
       await p.evaluate(() => UI.showMainMenu());
       await p.waitForFunction(() => { const v = document.getElementById('menuvid'); return !v.paused && v.classList.contains('on'); }, null, { timeout: 5000 });
       t.ok(true, 'menüde yeniden oynuyor');
+    });
+
+    await t.step('video yavaş yüklense de menü doğrudan videonun ilk karesiyle açılır (önce çizilen sahne görünmez)', async () => {
+      const q = await t.page({ menuvid: true, before: async (pg) => {
+        await pg.route(/video\/menu\.(mp4|webm)/, async (route) => { await new Promise(r => setTimeout(r, 3000)); await route.continue(); });
+      } });
+      const r = await q.evaluate(async () => {
+        const v = document.getElementById('menuvid'), c = UI.bgctx, f = c.fillRect; let n = 0;
+        c.fillRect = function () { n++; return f.apply(this, arguments); };
+        await new Promise(r => setTimeout(r, 600));
+        c.fillRect = f;
+        const img = new Image(); img.src = v.poster; await img.decode().catch(() => {});
+        return { draws: n, shown: getComputedStyle(v).display !== 'none', playing: v.classList.contains('on'), poster: v.poster.split('/').pop(), posterW: img.naturalWidth };
+      });
+      t.ok(!r.playing, 'video henüz yüklenmedi (yavaş ağ)', r);
+      t.eq(r.draws, 0, 'çizilen sahne çizilmedi');
+      t.ok(r.shown && r.poster === 'menu.jpg' && r.posterW >= 1280, 'videonun ilk karesi görünüyor', r);
+      await q.waitForFunction(() => document.getElementById('menuvid').classList.contains('on'), null, { timeout: 20000 });
+      t.ok(true, 'video yüklenince oynamaya başladı');
     });
 
     await t.step('dosya açılamazsa çizilen piksel sahne kalır', async () => {

@@ -11,6 +11,12 @@ Herhangi bir tuş, tıklama ya da kol tuşu videoyu geçer; dosya yoksa oyun do�
 
 Ana menünün arka planında `menu.mp4` (yoksa `menu.webm`) sessiz döngü olarak oynar. Dosya yoksa ya da açılamazsa menü çizilen piksel sahneyle açılır.
 
+`menu.jpg` videonun ilk karesidir: video henüz yüklenmemişken menüde o görünür. Videoyu değiştirirsen ilk karesini de yeniden çıkar:
+
+```
+ffmpeg -i menu.mp4 -frames:v 1 -q:v 4 menu.jpg
+```
+
 - Biçim: MP4 (H.264, sessiz) ve WebM (VP9, sessiz) yedeği; 1080p, 30 kare/sn. Ses izi yoktur (menünün müziği oyundan gelir).
 - Döngü dikişsiz olmalı: dosyanın sonu başına karışmalı. Mevcut dosya, kaydın ilk 12 saniyesinden (sondaki uygulama kapanış kartı kesildi) son 1,5 saniyeyi başın üzerine karıştırarak üretildi:
 
