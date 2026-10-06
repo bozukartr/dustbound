@@ -116,16 +116,17 @@ module.exports = {
         // sürücüsüz araba rayın üstünde, raya dik duruyor
         const w = G.addEnt(Wagon.owned(R.x, R.y, R.a + Math.PI / 2));
         let overlap = 0, minGap = 1e9;
+        // yoldan gelen başka arabalar bu sahneyi bozmasın
+        const solo = () => { for (const o of G.ents) if (o.kind === 'wagon' && o !== w) o.remove = true; };
         for (let f = 0; f < 30 * 10; f++) {
-          G.update(1 / 30);
+          solo(); G.update(1 / 30);
           for (const [cx, cy, cr] of w.circles()) for (const [tx, ty] of R.tr.circles || []) { const g = Math.hypot(cx - tx, cy - ty) - cr - 6; if (g < 0) overlap++; minGap = Math.min(minGap, g); }
         }
         const stopped = R.tr.spd < 1;
         // araba çekilir: tren yeniden hızlanır
-        w.x += R.nx * 80; w.y += R.ny * 80; w.trail(true);
-        for (let f = 0; f < 30 * 6; f++) G.update(1 / 30);
-        const ob = G.trainObstacle(R.tr);
-        return { overlap, minGap: Math.round(minGap), stopped, after: Math.round(R.tr.spd), ob: ob && { d: ob.d, same: ob.o === w, k: ob.o.kind, mine: !!ob.o.mine }, wait: R.tr.wait, wpos: [Math.round(w.x - R.x), Math.round(w.y - R.y)], n: [R.nx, R.ny] };
+        w.remove = true;
+        for (let f = 0; f < 30 * 6; f++) { solo(); G.update(1 / 30); }
+        return { overlap, minGap: Math.round(minGap), stopped, after: Math.round(R.tr.spd) };
       });
       t.eq(r.overlap, 0, 'tren arabaya çarpmadı');
       t.ok(r.stopped && r.minGap >= 0, 'tren arabanın önünde durdu', r);

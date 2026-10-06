@@ -529,8 +529,8 @@ const NpcMind = {
     const P = this.player;
     if (e.dead || e.bound || e.hostile || e.role === 'law' || e.role === 'hunter' || e.role === 'bandit' || e.role === 'target') return false;
     if (e.dodgeT > 0) {
-      // atlıdan ya da arabadan kaçış sıçraması: o yan duvarsa öbür yana, ikisi de kapalıysa olduğu yerde kalır
-      const W = this.world, free = (a) => !W.blocked(e.x + Math.cos(a) * 7, e.y + Math.sin(a) * 7, e.r);
+      // atlıdan ya da arabadan kaçış sıçraması: o yan duvar (ya da araba, vagon) ise öbür yana, ikisi de kapalıysa olduğu yerde kalır
+      const W = this.world, free = (a) => { const x = e.x + Math.cos(a) * 7, y = e.y + Math.sin(a) * 7; return !W.blocked(x, y, e.r) && !this.solidAt(x, y, e.r, e); };
       if (!free(e.dodgeA)) { if (free(e.dodgeA + Math.PI)) e.dodgeA += Math.PI; else { e.dodgeT = 0; return false; } }
       e.dodgeT -= dt; e.ang = e.dodgeA; e.walk(dt, 90); return true;
     }

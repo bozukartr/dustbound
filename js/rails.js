@@ -47,13 +47,14 @@ const RailSystems = {
       tr.circles = cc; tr.box = [bx0 - 20, by0 - 20, bx1 + 20, by1 + 20];
     }
     this.railZones = zones;
-    // katı arabalar (yayalar, hayvanlar, atlar ve oyuncu içlerinden geçemez)
+    // katı arabalar: hayvanlar ve sahipsiz atlar içlerinden geçemez (yayalar ve oyuncu kasaba içinde
+    // park etmiş arabaların arasından geçebilir; arabalar onlar için zaten durur, onlar da arabadan kaçar)
     this.wagonsNow = this.ents.filter(o => o.kind === 'wagon' && !o.remove && !o.hide);
   },
-  /* (x, y, r) bir arabanın gövdesine ya da atlarına giriyor mu (kendisi, sürdüğü ya da bindiği araba hariç) */
+  /* (x, y, r) bir arabanın gövdesine ya da atlarına giriyor mu: yalnızca hayvanlar ve atlar için */
   wagonBlock(x, y, r, self) {
     const L = this.wagonsNow;
-    if (!L) return null;
+    if (!L || !self || (self.kind !== 'animal' && self.kind !== 'horse')) return null;
     const P = this.player;
     for (const o of L) {
       if (o === self || Math.abs(o.x - x) > 34 || Math.abs(o.y - y) > 34) continue;
@@ -110,8 +111,9 @@ const RailSystems = {
     // rayın kenarında: önündeki yol raya giriyorsa tren geçene kadar bekle
     const c = Math.cos(e.ang), s = Math.sin(e.ang), look = e.mounted ? 26 : 18;
     const A = this.railDanger(e.x + c * look, e.y + s * look, e.r + 4);
-    // yalnızca rayı geçecekse (rayın yanında boylamasına yürüyen beklemez)
-    if (A && (A.moving ? A.eta < RAIL_WARN : true) && Math.abs(Math.sin(e.ang - A.tang)) > 0.4) {
+    // yalnızca yaklaşan tren için ve rayı geçecekse (rayın yanında boylamasına yürüyen beklemez;
+    // istasyonda duran trenin vagonları katıdır, yaya onların yanından dolaşır)
+    if (A && A.moving && A.eta < RAIL_WARN && Math.abs(Math.sin(e.ang - A.tang)) > 0.4) {
       e.mv = 0; e.railT = 1.2;
       if (A.moving) e.lookAt = Math.atan2(A.tr.pos[0][1] - e.y, A.tr.pos[0][0] - e.x);
       if (!(e.railSayT > this.t) && chance(0.25)) { e.railSayT = this.t + 12; Bubbles.add(e, pick([Tr('Treni bekleyelim.'), Tr('Önce tren geçsin.')]), 1.8); }
@@ -130,13 +132,13 @@ const RailSystems = {
     }
     const look = 14 + (e.spd || 0) * 0.4, c = Math.cos(e.ang), s = Math.sin(e.ang);
     const A = this.railDanger(e.x + c * look, e.y + s * look, r + 4);
-    if (A && (A.moving ? A.eta < RAIL_WARN : true)) {
+    if (A && A.moving && A.eta < RAIL_WARN) {
       // sahibine gelen at rayın kenarında tren geçene kadar bekler
       if (e.state === 'come') return 'wait';
-      // raya doğru gidiyor: sırtını raya dönüp uzaklaşır (duran trenin gövdesinden de)
+      // raya doğru gidiyor: sırtını raya dönüp uzaklaşır
       e.ang = this.railAway(e, A) + rnd(-0.4, 0.4);
-      if (A.moving) { e.state = 'flee'; e.t = rnd(1.5, 2.5); e.railT = e.t; }
-      return A.moving;
+      e.state = 'flee'; e.t = rnd(1.5, 2.5); e.railT = e.t;
+      return true;
     }
     return false;
   },

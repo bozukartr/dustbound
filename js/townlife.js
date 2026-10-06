@@ -405,10 +405,12 @@ class Wagon extends Ent {
         if (A.d < 20) { block = true; this.clearWay(ob); }
         // yoldan çekilmeyen biri (oyuncu, duran atlı) için bir süre sonra etrafından dolaşır
         if (this.spd < 3) {
+          // kıpırdamayacağı belli engel (yola bağlanmış at, oturan, bağlı biri): beklemeden yanından dolaşır
+          const still = ob !== P && (ob.hitch || ob.bound || ob.state === 'sit' || ob.state === 'static' || ob.state === 'sleep');
           this.waitP = (this.waitP || 0) + dt; this.waitLong = (this.waitLong || 0) + dt;
-          if (this.waitP > 4) { this.passT = 5; this.waitP = 0; }
-          // hiç kıpırdamayan engel (bağlı at, oturan biri): sonunda yanından sıyrılıp geçer
-          if (this.waitLong > 10 && ob !== P) { this.ignoreO = ob; this.ignoreT = 4; this.waitLong = 0; }
+          if (this.waitP > (still ? 1.2 : 4)) { this.passT = 5; this.waitP = 0; }
+          // hiç kıpırdamayan engel: sonunda yanından sıyrılıp geçer
+          if (this.waitLong > (still ? 4 : 10) && ob !== P) { this.ignoreO = ob; this.ignoreT = 4; this.waitLong = 0; }
         }
       }
     } else { this.shy = Math.max(0, (this.shy || 0) - dt * 3); this.waitLong = 0; this.waitP = 0; }

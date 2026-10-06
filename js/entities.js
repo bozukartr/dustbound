@@ -1443,6 +1443,8 @@ class Train {
       if (ob) {
         this.spd = Math.min(this.spd, Math.sqrt(Math.max(0, 2 * 70 * (ob.d - 24))));
         this.blockT = (this.blockT || 0) + dt;
+        // uzun süre kıpırdamayan, görünmeyen NPC arabası: yoluna gitmiş sayılır (sonsuz bekleyiş olmasın)
+        if (this.blockT > 25 && !ob.o.mine && !ob.o.keep && !ob.o.rider && !G.onScreen(ob.o.x, ob.o.y, 60)) { ob.o.remove = true; this.blockT = 0; }
         if (!(this.honkT > 0)) {
           this.honkT = 6;
           if (this.pos[0] && dist(G.player.x, G.player.y, this.pos[0][0], this.pos[0][1]) < 600) Audio_.train();
