@@ -9,8 +9,9 @@ module.exports = {
       const tw = TH.town('harlow'), s = TH.openSpot(tw.cx + 1400, tw.cy + 300, 120); TH.goto(s[0], s[1]); TH.clearNpcs();
       Object.assign(G.law, { level: 0, bounty, maskBounty: 0, hunterNext: G.clock - 1 }); G.reports = [];
       const P = G.player; P.hp = P.maxHp; P.money = 200; G.godMode = true;
-      // olasılık zarını hileyle at: ilk kontrolde grup çıksın
-      G._huntChk = 0; const r = Math.random; Math.random = () => 0.001; G.hunterTick(0.016); Math.random = r;
+      // olasılık zarını hileyle at: ilk kontrolde grup çıksın (yalnızca ilk zar; çıkış yeri gerçek rastgele seçilir,
+      // yoksa her seferinde oyuncunun tam doğusu denenir ve orası su ya da kayaysa grup hiç çıkamaz)
+      G._huntChk = 0; const r = Math.random; let n = 0; Math.random = () => (n++ === 0 ? 0.001 : r()); G.hunterTick(0.016); Math.random = r;
       return G.posse ? { n: G.posse.ents.length, phase: G.posse.phase } : null;
     }, bounty);
     await t.step('ödül düşükse ya da kasabadaysan avcı çıkmaz', async () => {
