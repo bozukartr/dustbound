@@ -315,9 +315,12 @@ class Wagon extends Ent {
   }
   /* Önündeki en yakın engel (araba, at, insan, oyuncu): mesafe ve kendisi */
   scanAhead() {
-    const c = Math.cos(this.ang), s = Math.sin(this.ang), fx = this.x + c * 5, fy = this.y + s * 5, P = G.player;
+    const c = Math.cos(this.ang), s = Math.sin(this.ang), fx = this.x + c * 5, fy = this.y + s * 5, P = G.player, W = G.world;
     let near = null, nd = 99;
+    // dışarıdaki araba duvarın ardındakini (bina içindekini) engel saymaz
+    const outside = !W.indoorPx(this.x, this.y);
     const chk = (x, y, r, o, reach) => {
+      if (outside && W.indoorPx(x, y)) return;
       const dx = x - fx, dy = y - fy, fwd = dx * c + dy * s;
       if (fwd < -4 || fwd > reach) return;
       const lat = -dx * s + dy * c;

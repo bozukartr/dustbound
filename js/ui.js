@@ -288,9 +288,9 @@ const UI = {
     if (P.W.clip || P.weapon === 'bow') { if (this.coachAim(7)) this.coachFor = null; }
     else if (!this.coachLearned('wheel')) this.coachWheel();
   },
-  subtitle(name, text, dur = 3, self) {
+  subtitle(name, text, dur = 3, self, hint) {
     const s = this.el.sub;
-    s.innerHTML = `<span class="sn ${self ? 'self' : ''}">${escapeHtml(name)}:</span> ${escapeHtml(text)}`;
+    s.innerHTML = `<span class="sn ${self ? 'self' : ''}">${escapeHtml(name)}:</span> ${escapeHtml(text)}${hint ? `<span class="sub-skip">${hint}</span>` : ''}`;
     s.classList.remove('hidden');
     clearTimeout(this._subT);
     this._subT = setTimeout(() => s.classList.add('hidden'), dur * 1000);

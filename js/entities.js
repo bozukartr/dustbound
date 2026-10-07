@@ -1322,27 +1322,71 @@ class NPC extends Ent {
     this.arrT = (this.arrT || 0) - dt;
     if (this.arrT <= 0 && pd < 220) { this.arrT = rnd(4, 7); this.say(pick(LINES.arrest), 2.5); }
   }
+  /* Silahlı NPC'nin mermisi sınırlıdır: şarjör silahın kapasitesi kadardır, yedek şarjörleri biter. */
+  ammoInit() {
+    const W = WEAPONS[this.weapon] || WEAPONS.cattleman;
+    this.mag = W.clip || 6;
+    this.spare = this.isLaw ? 8 : this.role === 'hunter' || this.role === 'target' ? 5 : rndi(2, 4);
+  }
+  npcReload(W) {
+    this.reloadT = (W.reload || 2) * rnd(1.15, 1.6);
+    Audio_.play('reload_' + (this.weapon === 'shotgun' ? 'shotgun' : W.kind === 'long' ? 'repeater' : 'pistol'), { x: this.x, y: this.y, vol: 0.9 });
+    if (chance(0.6)) this.say(pick([Tr('Şarjör!'), Tr('Doldurmam lazım!'), Tr('Örtün beni!'), Tr('Mermi!')]), 1.6);
+  }
   fight(dt, pd) {
-    const P = G.player;
-    const a = Math.atan2(P.y - this.y, P.x - this.x);
+    const P = G.player, W = WEAPONS[this.weapon] || WEAPONS.cattleman;
+    if (this.mag === undefined) this.ammoInit();
+    // görüş: oyuncunun yerini ancak onu görürken bilir; göremeyince son gördüğü yere yönelir ve orayı gözetler
+    // (bina içindeki oyuncuyu duvarın ardından görüp nişan almaz)
+    if ((this.seeT = (this.seeT || 0) - dt) <= 0) {
+      this.seeT = 0.2;
+      this.sees = pd < 900 && G.los(this.x, this.y, P.x, P.y);
+      if (this.sees || !this.lkp) this.lkp = { x: P.x, y: P.y };
+    }
+    this.lostT = this.sees ? 0 : (this.lostT || 0) + dt;
+    const tx = this.sees ? P.x : this.lkp.x, ty = this.sees ? P.y : this.lkp.y, td = dist(this.x, this.y, tx, ty);
+    const a = Math.atan2(ty - this.y, tx - this.x);
+    // şarjör değiştirme: boşalınca (ya da hedefi göremezken yarıdan azsa) doldurur; yedeği bitince kaçar
+    const clip = W.clip || 6;
+    if (this.reloadT > 0) { if ((this.reloadT -= dt) <= 0) { this.mag = clip; this.spare--; } }
+    else if (this.spare > 0 && (this.mag <= 0 || (!this.sees && this.mag < clip / 2))) this.npcReload(W);
+    else if (this.mag <= 0 && this.spare <= 0) {
+      if (!this.dry) { this.dry = true; this.say(pick([Tr('Mermim bitti!'), Tr('Lanet olsun, mermi yok!'), Tr('Boş! Geri çekilin!')]), 2); }
+      this.ang = turnTo(this.ang, Math.atan2(this.y - P.y, this.x - P.x), dt * 4);
+      if (this.mounted) this.walk(dt, 140); else G.fleeStep(this, P.x, P.y, dt, 80);
+      return;
+    }
+    const reloading = this.reloadT > 0;
     this.ang = turnTo(this.ang, a, dt * 6);
+    if (!this.sees) {
+      // son görüldüğü yere gider (kapının önü gibi); varınca orayı gözetler, ateş etmez
+      if (td > 36) {
+        if (this.mounted) this.walk(dt, 90, a);
+        else if (G.navStep(this, tx, ty, dt, 46, { near: 30 }) === 'fail') this.walk(dt, 40, a);
+      } else this.mv = 0;
+      this.ang = turnTo(this.ang, a, dt * 4);
+      return;
+    }
+    this.nav = null;
     const pref = this.weapon === 'shotgun' ? 60 : this.mounted ? 110 : 120;
     let mx = 0, my = 0;
-    if (pd > pref + 50) { mx = Math.cos(a); my = Math.sin(a); }
+    if (reloading) { mx = -Math.cos(a); my = -Math.sin(a); }   // doldururken geri çekilir
+    else if (pd > pref + 50) { mx = Math.cos(a); my = Math.sin(a); }
     else if (pd < pref - 40) { mx = -Math.cos(a); my = -Math.sin(a); }
     this.strafeT -= dt;
     // atlı, oyuncunun çevresinde geniş daireler çizer; yön değiştirmesi seyrek olur
     if (this.strafeT <= 0) { this.strafe = chance(0.5) ? 1 : -1; this.strafeT = this.mounted ? rnd(4, 7) : rnd(1, 2.5); }
     const tw = this.mounted ? 1.1 : 0.7;
     mx += -Math.sin(a) * tw * this.strafe; my += Math.cos(a) * tw * this.strafe;
-    this.walk(dt, this.mounted ? 120 : 48, Math.atan2(my, mx));
+    this.walk(dt, (this.mounted ? 120 : 48) * (reloading ? 0.8 : 1), Math.atan2(my, mx));
     if (this.stuck > 0.25) { this.strafe *= -1; this.stuck = 0; }
     this.ang = turnTo(this.ang, a, dt * 8);
     if (!this.mounted) { this.mv = 1; this.phase += dt * 10; }
-    const W = WEAPONS[this.weapon] || WEAPONS.cattleman;
-    if (this.cool <= 0 && pd < W.range * 0.85) {
-      if (!G.los(this.x, this.y, P.x, P.y)) { this.cool = 0.4; return; }
+    if (!reloading && this.mag > 0 && this.cool <= 0 && pd < W.range * 0.85) {
+      // tetiği çekmeden önce bir kez daha bakar: hedef az önce duvarın ardına geçtiyse ateş etmez
+      if (!G.los(this.x, this.y, P.x, P.y)) { this.sees = false; this.seeT = 0.2; this.cool = 0.3; return; }
       this.cool = W.rate * rnd(3, 5.5) + (this.isLaw ? 0 : 0.3);
+      this.mag--;
       const acc = (this.isLaw ? 0.08 : 0.11) + (P.sprinting || (P.riding && P.riding.spd > 80) ? 0.07 : 0) + (P.crouch ? 0.03 : 0);
       const n = W.pellets ? 4 : 1;
       const dmg = this.weapon === 'shotgun' ? 7 : this.weapon === 'repeater' ? 13 : this.weapon === 'rifle' ? 22 : 11;

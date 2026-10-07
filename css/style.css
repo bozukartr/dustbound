@@ -202,6 +202,8 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 #subtitle { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); max-width: 70%; text-align: center; font-size: 21px; line-height: 1.35; padding: 7px 22px 9px; background: rgba(12, 8, 5, 0.58); border-radius: 6px; box-shadow: 0 0 18px 6px rgba(12, 8, 5, 0.28); text-shadow: 0 1px 2px #000; }
 #subtitle .sn { color: #ffd890; font-family: var(--sc); letter-spacing: 0.5px; }
 #subtitle .sn.self { color: #a8d0ff; }
+#subtitle .sub-skip { display: block; margin-top: 3px; font-size: 13px; color: rgba(232, 214, 176, 0.7); font-family: var(--sc); letter-spacing: 0.5px; }
+#subtitle .sub-skip .key, #subtitle .sub-skip .pad { transform: scale(0.85); }
 /* Konum başlığı: süs çizgili büyük ad */
 #loc-title { position: absolute; left: 0; right: 0; top: 33%; text-align: center; opacity: 0; transition: opacity 1.2s; pointer-events: none; }
 #loc-title.show { opacity: 1; }
