@@ -832,7 +832,7 @@ class Player extends Ent {
       if (d > reach + (e.r || 4)) continue;
       const da = Math.abs(angDiff(ang, Math.atan2(e.y - this.y, e.x - this.x)));
       if (da > 1.1) continue;
-      if (e.hurt) e.hurt(dmg, 'player', this.weapon === 'knife' && !bash ? 'knife' : 'melee');
+      if (e.hurt) e.hurt(dmg, 'player', this.weapon === 'knife' && !bash ? 'knife' : this.weapon === 'fists' && !bash ? 'fist' : 'melee');
       e.x += Math.cos(ang) * 5; e.y += Math.sin(ang) * 5;
       hitAny = true;
       break;
@@ -1077,13 +1077,15 @@ class NPC extends Ent {
     this.hp -= dmg;
     if (how !== 'drown') G.parts.burst('blood', this.x, this.y, 3 + Math.min(dmg, 200) / 12, 35, 0.6, 1.4);
     if (by === 'player') {
+      // yumruk kavgası: kasabalıya yumruk hemen suç sayılmaz, karakterine göre karşılık verir (brawl.js)
+      const fair = (how === 'fist' && G.brawlHit(this)) || (this.fistOK && how === 'melee' && this.state === 'fightFist');
       if (this.role === 'hunter') G.hunterFight();   // ödül avcısını vurmak suç değildir
-      else if (!this.hostile && this.role !== 'bandit' && !(this.fistOK && how === 'melee')) {
+      else if (!this.hostile && this.role !== 'bandit' && !fair) {
         if (this.hp > 0 && !this.assaulted) { this.assaulted = true; G.crime(this.isLaw ? 'assaultLaw' : 'assault', this.x, this.y, this); }
       }
       if (this.isLaw) this.hostile = true;
       if (this.role === 'bandit' || this.role === 'target') this.hostile = true;
-      if (!this.hostile && this.hp > 0 && !this.bound && !(this.fistOK && how === 'melee')) { this.state = this.witness ? 'report' : 'flee'; this.t = 10; this.say(pick(LINES.flee)); }
+      if (!this.hostile && this.hp > 0 && !this.bound && !fair) { this.state = this.witness ? 'report' : 'flee'; this.t = 10; this.say(pick(LINES.flee)); }
     }
     if (this.mounted && (dmg > 25 || this.hp <= 0)) {
       const h = new Horse(this.x + 6, this.y, 'mustang', { look: this.mounted, owner: 'npc' }); h.ang = this.hAng === undefined ? this.ang : this.hAng;
@@ -1093,7 +1095,7 @@ class NPC extends Ent {
     }
     // yumrukla bayılır; ödül hedefi ağır yaralanınca çoğunlukla ölmez, yere yığılır (canlı yakalanabilsin)
     if (this.hp <= 0 && by === 'player') {
-      const ko = how === 'melee';
+      const ko = how === 'melee' || how === 'fist';
       if (this.state === 'downed' || this.state === 'tied') {
         if (ko) { this.hp = 1; if (this.state === 'downed') this.downT = Math.max(this.downT, 20); return; }
       } else if (ko || (this.role === 'target' && dmg < 90 && chance(0.65)) || (this.quest === 'rival' && dmg < 130 && chance(0.75))) {
@@ -1119,6 +1121,7 @@ class NPC extends Ent {
   recover() {
     this.wrig = 0;
     if (this.role === 'bandit' || this.role === 'target' || this.isLaw && this.hostile) { this.state = 'idle'; this.hostile = true; this.aggro = true; }
+    else if (this.brawl && this.brawl.fought && !this.brawl.crime && this.state === 'downed') { this.brawl.yielded = true; this.state = 'glare'; this.t = 5; this.say(pick([Tr('Başım... Neyle vurdun sen?'), Tr('Tamam, kazandın.')]), 2); }
     else { this.state = 'flee'; this.t = 10; this.say(pick(LINES.flee), 2); }
   }
   boundUpdate(dt) {
@@ -1209,6 +1212,7 @@ class NPC extends Ent {
     }
     if (this.state === 'robbed') { this.mv = 0; if (this.t <= 0) { this.state = this.witness ? 'report' : 'flee'; this.t = 8; } return; }
     if (this.state === 'fightFist') { this.fistFight(dt, pd); return; }
+    if (this.state === 'glare') { G.glareTick(this, dt, pd); return; }
     if (this.role !== 'law' && G.perceive(this, dt)) return;   // atlıdan kaç, silaha el kaldır, bak
     if (this.job) { G.jobUpdate(this, dt); return; }             // araba sürücüsü, yolcu
     if (this.res) { G.drive(this, dt); return; }   // kasaba sakini: günlük programını izler
@@ -1355,10 +1359,16 @@ class NPC extends Ent {
     const a = Math.atan2(P.y - this.y, P.x - this.x);
     this.ang = turnTo(this.ang, a, dt * 6);
     if (pd > 14) this.walk(dt, 50);
-    else if (this.cool <= 0) { this.cool = rnd(0.8, 1.4); this.swing = 1; Juice.hurtFrom(this.x, this.y); P.hurt(rndi(5, 9), 'fist'); Audio_.thud(0.4); }
+    else if (this.cool <= 0) {
+      this.cool = rnd(0.8, 1.4); this.swing = 1; Juice.hurtFrom(this.x, this.y); Audio_.thud(0.4);
+      // yumruk kavgasında kimse ölmez: oyuncu yere serilince kavga biter
+      const d = rndi(5, 9);
+      if (P.hp - d <= 10) { P.hurt(Math.max(0, P.hp - 8), 'fist'); G.brawlWin(this); return; }
+      P.hurt(d, 'fist');
+    }
     if (this.swing > 0) this.swing -= dt * 4;
-    if (this.hp < this.maxHp * 0.4) { this.state = 'flee'; this.t = 8; this.say(Tr('Tamam, tamam! Yeter!')); G.addHonor(-1); }
-    if (pd > 250) this.state = 'idle';
+    if (this.hp < this.maxHp * 0.4) { G.brawlYield(this); return; }
+    if (G.brawlCalm(this, dt, pd)) return;
   }
   draw(ctx) {
     if (this.hide) return;

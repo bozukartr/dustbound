@@ -1746,6 +1746,8 @@ const GameSystems = {
     if (e.storyNpc) { const a = this.storyNpcActions(e); if (a) return a; }
     const P = this.player;
     const acts = [];
+    // yumruk kavgasından sonra özür dilenebilir
+    if (this.canApologize(e)) acts.push({ n: Tr('Özür Dile'), fn: () => this.apologize(e) });
     // az önce sana laf attı: karşılık verebilirsin
     if (e.teased && this.t - e.teased.rt < 8 && !e.hostile && !e.dead) acts.push({ n: Tr('Karşılık Ver'), fn: () => this.retort(e) });
     const ev = e.event;
@@ -1827,7 +1829,7 @@ const GameSystems = {
     UI.subtitle(this.player.name, pick([Tr('Ne bakıyorsun öyle?'), Tr('Kıyafetlerin çok komik.'), Tr('Yolumdan çekil!'), Tr('Korkak herif.')]), 1.5, true);
     this.addHonor(-0.5);
     if (e.role === 'traveler' || e.role === 'town') {
-      if (e.sex === 'm' && chance(0.45)) { e.say(pick(LINES.antag)); e.state = 'fightFist'; e.fistOK = true; e.cool = 1; }
+      if (e.sex === 'm' && chance(0.45)) { e.say(pick(LINES.antag)); e.state = 'fightFist'; e.fistOK = true; e.cool = 1; e.calmT = 0; }
       else { e.say(pick([Tr('Bırak beni!'), Tr('Delisin sen!'), Tr('Seni şerife şikayet edeceğim!')])); e.state = 'flee'; e.t = 6; }
     } else e.say(pick(LINES.antag));
   },
