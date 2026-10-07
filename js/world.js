@@ -15,9 +15,10 @@ let FW = WW / 4;          // keşif (sis) ızgarası: 4x4 karo başına bir hüc
 function setWorldSize(n) { WW = WH = n; CW = n / CG; CHH = n / CG; FW = n / 4; }
 /* big: 1 işaretli veriler (yeni kasabalar, hatlar, kamplar...) yalnızca büyük dünyada; eski dünyalar birebir aynı kalır */
 const inWorld = d => !d.big || WW > WORLD_OLD;
-/* Dünya üretim sürümü: 2'den itibaren zengin şehir (Saint Clement) taş sokak, park, pazar ve modern binalarla kurulur.
-   Eski kayıtlar kendi sürümüyle yeniden üretilir; binaların sırası ve numaraları değişmez. */
-const WGEN_NEW = 2;
+/* Dünya üretim sürümü: 2'den itibaren zengin şehir (Saint Clement) taş sokak, park, pazar ve modern binalarla kurulur;
+   3'ten itibaren çiftlik, mülk, kamp ve simgesel yerler yolun, rayın ve başka yapıların üstüne kurulmaz, patikalar binaların
+   etrafından dolanır. Eski kayıtlar kendi sürümüyle yeniden üretilir; binaların sırası ve numaraları değişmez. */
+const WGEN_NEW = 3;
 let WGEN = WGEN_NEW;
 
 const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20, COBBLE: 21, PAVE: 22 };
@@ -131,7 +132,7 @@ class World {
     this.heat = new Uint8Array(N);
     this.elev = new Uint8Array(N);
     this.buildings = [];
-    this.bmap = new Int16Array(CW * CHH).fill(-1); // kaba hücre -> bina (etkileşim araması için değil, çizim için)
+    this.bcell = new Uint8Array(CW * CHH);  // kaba hücre: 1 bina ya da çiftlik alanı (patikalar bunların etrafından dolanır)
     this.towns = [];
     this.pois = [];
     this.roads = [];
@@ -282,6 +283,7 @@ class World {
     this.genRails();
     await step(Tr('Keşfedilecek yerler saklanıyor...'), 0.6);
     this.genPOIs();
+    this.routeAroundBuildings();
     await step(Tr('Ormanlar büyüyor...'), 0.72);
     this.genObjects();
     this.clearDoorways();
@@ -459,6 +461,7 @@ class World {
     b.enter = !def.noInt && w >= 5 && h >= 5;
     b.doorI = (y + h - 1) * WW + x + Math.floor(w / 2);
     this.buildings.push(b);
+    this.markCells(x - 1, y - 1, x + w, y + h + 1, 1);
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
       if (!this.inb(xx, yy)) continue;
       const i = yy * WW + xx;
@@ -1098,17 +1101,36 @@ class World {
         const tt = this.t(x + xx, y + yy);
         if (isCliffT(tt) || tt === T.DEEP || (this.flags[(y + yy) * WW + x + xx] & 14)) bad++;
       }
-      return bad < 3;
+      return bad < 3 && (!foot || this.footClear(x, y, foot));
     };
-    for (let r = 0; r < 110; r += 2) {
-      const n = Math.max(1, Math.round(r * 1.5));
-      for (let k = 0; k < n; k++) {
-        const a = (k / n) * TAU + r;
-        const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
-        if (ok(x, y)) return [x, y];
+    // önce yapının bütün alanı boş olan bir yer aranır; bulunamazsa eski kural (yalnız merkez)
+    let foot = WGEN >= 3 ? opts.foot : null;
+    for (let pass = 0; pass < (foot ? 2 : 1); pass++) {
+      for (let r = 0; r < 110; r += 2) {
+        const n = Math.max(1, Math.round(r * 1.5));
+        for (let k = 0; k < n; k++) {
+          const a = (k / n) * TAU + r;
+          const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
+          if (ok(x, y)) return [x, y];
+        }
       }
+      foot = null;
     }
     return [cx, cy];
+  }
+  /* Yapının kaplayacağı alan [dx0, dy0, dx1, dy1] (karo): yol, köprü, ray, kasaba, bina ve tarla yok */
+  footClear(x, y, f) {
+    for (let yy = y + f[1]; yy <= y + f[3]; yy++) for (let xx = x + f[0]; xx <= x + f[2]; xx++) {
+      if (!this.inb(xx, yy)) return false;
+      const i = yy * WW + xx, t = this.tile[i];
+      if (t === T.ROAD || t === T.BRIDGE || t === T.TOWN || t === T.PLANK || t === T.FARM || isStoneT(t) || (this.flags[i] & 14)) return false;
+    }
+    return true;
+  }
+  /* kaba hücre işareti (karo dikdörtgeni) */
+  markCells(x0, y0, x1, y1, v) {
+    for (let cy = Math.max(0, Math.floor(y0 / CG)); cy <= Math.min(CHH - 1, Math.floor(y1 / CG)); cy++)
+      for (let cx = Math.max(0, Math.floor(x0 / CG)); cx <= Math.min(CW - 1, Math.floor(x1 / CG)); cx++) this.bcell[cy * CW + cx] = v;
   }
   addPOI(p) {
     p.x = p.tx * TS + 8; p.y = p.ty * TS + 8;
@@ -1129,12 +1151,12 @@ class World {
   genPOIs() {
     const R = this.rng;
     for (const L of LANDMARKS) {
-      const [x, y] = this.findSpot(L.near, L.bio, { coast: L.coast });
+      const [x, y] = this.findSpot(L.near, L.bio, { coast: L.coast, foot: [-12, -12, 12, 12] });
       const p = this.addPOI({ id: L.id, n: L.n, type: L.type, desc: L.desc, tx: x, ty: y, kind: 'landmark' });
       this.stampLandmark(p, R);
     }
     for (const C of CAMPS.filter(inWorld)) {
-      const [x, y] = this.findSpot(C.near, null, { minD: 25 });
+      const [x, y] = this.findSpot(C.near, null, { minD: 25, foot: [-9, -9, 9, 9] });
       const p = this.addPOI({ id: 'camp_' + this.pois.length, n: C.n, type: 'camp', tx: x, ty: y, kind: 'camp', desc: Tr('Haydut kampı. Dikkatli ol.') });
       this.clearArea(x, y, 7, T.MUD);
       this.setObj(x, y, O.CAMPFIRE); this.lights.push({ x: p.x, y: p.y, r: 70, type: 'fire' });
@@ -1143,7 +1165,7 @@ class World {
       this.addChest(x + 1, y + 3, 'camp');
     }
     for (const F of FARMS.filter(inWorld)) {
-      const [x, y] = this.findSpot(F.near, ['GRASS', 'DRY', 'FOREST'], { minD: 22 });
+      const [x, y] = this.findSpot(F.near, ['GRASS', 'DRY', 'FOREST'], { minD: 22, foot: [-14, -10, 15, 12] });
       const p = this.addPOI({ id: 'farm_' + this.pois.length, n: F.n, type: 'farm', tx: x, ty: y, kind: 'farm', desc: Tr('Burada iş bulabilirsin.') });
       this.clearArea(x, y, 12, T.DRY);
       this.flatten(x - 12, y - 6, 26, 16, T.DRY, 0);
@@ -1158,10 +1180,11 @@ class World {
       for (let yy = y + 2; yy < y + 9; yy++) { this.setObj(x - 11, yy, O.FENCEV); this.setObj(x + 12, yy, O.FENCEV); }
       this.setObj(x - 11, y + 5, 0);
       this.setObj(x + 6, y - 3, O.WELL); this.setObj(x + 8, y - 1, O.HAY); this.setObj(x + 9, y - 3, O.HAY); this.setObj(x + 11, y - 2, O.TROUGH);
+      this.markCells(x - 12, y - 8, x + 13, y + 10, 1);   // çiftliğin bütün alanı (tarla ve çit dahil): patikalar etrafından dolanır
       this.connectToRoad(x - 8, y + 11);
     }
     for (const P of PROPERTIES) {
-      const [x, y] = this.findSpot(P.near, ['GRASS', 'DRY', 'FOREST', 'SWAMP', 'SAND'], { minD: 18 });
+      const [x, y] = this.findSpot(P.near, ['GRASS', 'DRY', 'FOREST', 'SWAMP', 'SAND'], { minD: 18, foot: [-8, -7, 9, 8] });
       const p = this.addPOI({ id: 'prop_' + P.id, n: P.n, type: 'property', tx: x, ty: y, kind: 'property', prop: P.id, desc: P.perks });
       this.clearArea(x, y, 8);
       this.flatten(x - 5, y - 4, 12, 10, T.DRY, 0);
@@ -1172,6 +1195,177 @@ class World {
       this.connectToRoad(x, y + 6);
     }
   }
+  /* Yolların ve rayların içinden geçtiği kasaba dışı yapılar (çiftlik, mülk, maden girişi...): hat yapının
+     çevresinden yumuşak bir kavisle dolaştırılır. Noktaların sayısı değişmez (kayıtlardaki yol indeksleri korunur),
+     yalnızca yerleri kayar. Eski dünyalarda yapılar yolun üstüne kurulmuş olabilir; yeni dünyalarda yalnızca güvencedir. */
+  routeAroundBuildings() {
+    const obs = [];
+    const fp = (x0, y0, x1, y1) => obs.push([x0 * TS, y0 * TS, x1 * TS, y1 * TS]);
+    for (const p of this.pois) {
+      if (p.kind === 'farm') fp(p.tx - 12, p.ty - 8, p.tx + 14, p.ty + 11);
+      else if (p.kind === 'property') fp(p.tx - 6, p.ty - 5, p.tx + 8, p.ty + 7);
+    }
+    for (const b of this.buildings) if (!b.town) fp(b.x, b.y, b.x + b.w, b.y + b.h + 1);
+    // yedek rota (A*) için kapalı kaba hücreler: engel, su, köprü, uçurum, kasaba ve bina
+    const blocked = new Uint8Array(CW * CHH), PX = CG * TS;
+    for (const o of obs) for (let cy = Math.max(0, Math.floor((o[1] - 16) / PX)); cy <= Math.min(CHH - 1, Math.floor((o[3] + 16) / PX)); cy++)
+      for (let cx = Math.max(0, Math.floor((o[0] - 16) / PX)); cx <= Math.min(CW - 1, Math.floor((o[2] + 16) / PX)); cx++) blocked[cy * CW + cx] = 1;
+    for (let cy = 0; cy < CHH; cy++) for (let cx = 0; cx < CW; cx++) {
+      if (blocked[cy * CW + cx]) continue;
+      let rl = 0;
+      for (let y = 0; y < CG && blocked[cy * CW + cx] !== 1; y++) for (let x = 0; x < CG; x++) {
+        const i = (cy * CG + y) * WW + cx * CG + x, t = this.tile[i];
+        if (isWaterT(t) || t === T.BRIDGE || isCliffT(t) || (this.flags[i] & 12)) { blocked[cy * CW + cx] = 1; break; }
+        if (this.flags[i] & 2) rl = 1;
+      }
+      if (rl && !blocked[cy * CW + cx]) blocked[cy * CW + cx] = 2;   // ray geçen hücre: kapalı değil, yalnızca pahalı
+    }
+    for (const r of this.roads) if (!r.spur) this.routeAround(r.pts, obs, 14, false, blocked);
+    for (const l of this.lines) {
+      if (!this.routeAround(l.pts, obs, 12, true, blocked)) continue;
+      l.cum = [0];
+      for (let i = 1; i < l.pts.length; i++) l.cum.push(l.cum[i - 1] + dist(l.pts[i - 1][0], l.pts[i - 1][1], l.pts[i][0], l.pts[i][1]));
+      l.len = l.cum[l.cum.length - 1];
+      for (const s of l.stops) s.d = l.cum[s.i];
+    }
+  }
+  routeAround(pts, obs, M, rail, blocked) {
+    const n = pts.length;
+    if (n < 8) return false;
+    const R = obs.map(o => [o[0] - M, o[1] - M, o[2] + M, o[3] + M]);
+    // doğru parçası dikdörtgene giriyor mu (4 px aralıkla örnekleyerek)
+    const segHit = (a, b, r) => {
+      if (Math.max(a[0], b[0]) < r[0] || Math.min(a[0], b[0]) > r[2] || Math.max(a[1], b[1]) < r[1] || Math.min(a[1], b[1]) > r[3]) return false;
+      const k = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 4));
+      for (let j = 0; j <= k; j++) { const x = a[0] + (b[0] - a[0]) * j / k, y = a[1] + (b[1] - a[1]) * j / k; if (x > r[0] && x < r[2] && y > r[1] && y < r[3]) return true; }
+      return false;
+    };
+    // dikdörtgenin içindeki bir noktanın u yönünde dışarı çıkması için gereken yol
+    const exitD = (x, y, ux, uy, r) => {
+      if (!(x > r[0] && x < r[2] && y > r[1] && y < r[3])) return 0;
+      const tx = ux > 1e-6 ? (r[2] - x) / ux : ux < -1e-6 ? (x - r[0]) / -ux : Infinity;
+      const ty = uy > 1e-6 ? (r[3] - y) / uy : uy < -1e-6 ? (y - r[1]) / -uy : Infinity;
+      return Math.min(tx, ty);
+    };
+    const sm = t => t * t * (3 - 2 * t);
+    // hattın değişmemesi gereken noktaları: köprü, su ve kasaba (kavis bunlara uzanmaz)
+    const fixed = pts.map(p => { const x = p[0] >> 4, y = p[1] >> 4; if (!this.inb(x, y)) return true; const i = y * WW + x, t = this.tile[i]; return isWaterT(t) || t === T.BRIDGE || !!(this.flags[i] & 4); });
+    const tryBulge = (cum, a, b, r, sg, extra, pad) => {
+      const pa = pts[Math.max(0, a - 3)], pb = pts[Math.min(n - 1, b + 3)];
+      let dx = pb[0] - pa[0], dy = pb[1] - pa[1];
+      const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+      const ux = -dy * sg, uy = dx * sg;
+      let D = 0;
+      for (let k = a; k < b; k++) {
+        const A = pts[k], B = pts[k + 1], m = Math.max(1, Math.ceil(dist(A[0], A[1], B[0], B[1]) / 4));
+        for (let j = 0; j <= m; j++) D = Math.max(D, exitD(A[0] + (B[0] - A[0]) * j / m, A[1] + (B[1] - A[1]) * j / m, ux, uy, r));
+      }
+      D += 6 + extra;
+      if (D > 520) return null;
+      const sA = cum[a] - pad, sB = cum[b] + pad;
+      // iki yandaki geçiş uzunluğu ayrı ayrı: köprüye, kasabaya ya da hattın ucuna varmadan biter
+      let fa = 0, fb = n - 1;
+      for (let k = a; k >= 0; k--) if (fixed[k] || k === 0) { fa = k; break; }
+      for (let k = b; k < n; k++) if (fixed[k] || k === n - 1) { fb = k; break; }
+      if (cum[fa] + 8 > sA || cum[fb] - 8 < sB) return null;
+      const want = clamp(D * 2.5, 80, 360), minL = Math.max(40, D * 0.6);
+      const La = Math.min(want, sA - cum[fa] - 8), Lb = Math.min(want, cum[fb] - 8 - sB);
+      if (La < minL || Lb < minL) return null;
+      const P2 = pts.map(p => p.slice());
+      let k0 = -1, k1 = -1;
+      for (let k = 1; k < n - 1; k++) {
+        const s = cum[k];
+        const w = s >= sA && s <= sB ? 1 : s > sA - La && s < sA ? sm((s - sA + La) / La) : s > sB && s < sB + Lb ? sm((sB + Lb - s) / Lb) : 0;
+        if (w <= 0) continue;
+        P2[k][0] += ux * D * w; P2[k][1] += uy * D * w;
+        if (k0 < 0) k0 = k; k1 = k;
+      }
+      if (k0 < 0) return null;
+      k0 = Math.max(0, k0 - 1); k1 = Math.min(n - 1, k1 + 1);
+      return valid(P2, k0, k1) ? { D, P2, k0, k1 } : null;
+    };
+    // yeni hattın denetimi: hiçbir engele, suya, köprüye, uçuruma, tarlaya, kasabaya ya da binaya girmez
+    const valid = (P2, k0, k1) => {
+      for (let k = k0; k < k1; k++) {
+        for (const rr of R) if (segHit(P2[k], P2[k + 1], rr)) return false;
+        const A = P2[k], B = P2[k + 1], m = Math.max(1, Math.ceil(dist(A[0], A[1], B[0], B[1]) / 8));
+        for (let j = 0; j <= m; j++) {
+          const x = (A[0] + (B[0] - A[0]) * j / m) >> 4, y = (A[1] + (B[1] - A[1]) * j / m) >> 4;
+          if (!this.inb(x, y)) return false;
+          const i = y * WW + x, t = this.tile[i];
+          if (isCliffT(t) || isWaterT(t) || t === T.BRIDGE || t === T.FARM || (this.flags[i] & 12)) return false;
+        }
+      }
+      return true;
+    };
+    const outside = (p) => !R.some(r => p[0] > r[0] && p[0] < r[2] && p[1] > r[1] && p[1] < r[3]);
+    const detour = (cum, a, b) => {
+      if (!blocked) return null;
+      for (const span of [200, 360, 560]) {
+        // giriş ve çıkış noktaları: engelin dışında, köprüye/kasabaya varmadan
+        let i0 = a, i1 = b;
+        while (i0 > 1 && !fixed[i0 - 1] && cum[a] - cum[i0] < span) i0--;
+        while (i1 < n - 2 && !fixed[i1 + 1] && cum[i1] - cum[b] < span) i1++;
+        while (i0 > 1 && !fixed[i0 - 1] && !outside(pts[i0])) i0--;
+        while (i1 < n - 2 && !fixed[i1 + 1] && !outside(pts[i1])) i1++;
+        if (!outside(pts[i0]) || !outside(pts[i1]) || i1 - i0 < 4) continue;
+        const cell = (p) => [clamp(((p[0] - 8) / TS / CG) | 0, 0, CW - 1), clamp(((p[1] - 8) / TS / CG) | 0, 0, CHH - 1)];
+        // giriş ve çıkışta hat eski yönünde biraz devam eder: birleşme yerinde sert kırılma olmaz
+        const lead = (k, kb, sgn) => { const A = pts[k], B = pts[kb]; const L = dist(A[0], A[1], B[0], B[1]) || 1; return [A[0] + (A[0] - B[0]) / L * 40 * sgn, A[1] + (A[1] - B[1]) / L * 40 * sgn]; };
+        let L0 = lead(i0, Math.max(0, i0 - 2), 1), L1 = lead(i1, Math.min(n - 1, i1 + 2), 1);
+        const cl0 = cell(L0), cl1 = cell(L1);
+        if (blocked[cl0[1] * CW + cl0[0]] === 1 || !outside(L0)) L0 = null;
+        if (blocked[cl1[1] * CW + cl1[0]] === 1 || !outside(L1)) L1 = null;
+        const [sx, sy] = cell(L0 || pts[i0]), [tx, ty] = cell(L1 || pts[i1]);
+        const si = sy * CW + sx, gi = ty * CW + tx;
+        // ray yolun üstüne, yol rayın üstüne binmesin (yeni hatlar ayrı koridordan)
+        const path = this.astar(sx, sy, tx, ty, (ni) => ni === si || ni === gi ? 1 : blocked[ni] === 1 ? 1e6 : 1 + Math.min(this.cost[ni], 20) * 0.1 + (rail ? (this.cost[ni] < 1 ? 2 : 0) : (blocked[ni] === 2 ? 2 : 0)));
+        if (!path || path.length < 2) continue;
+        const raw = [pts[i0].slice(), ...(L0 ? [L0] : []), ...path.slice(1, -1).map(t => [t[0] * TS + 8, t[1] * TS + 8]), ...(L1 ? [L1] : []), pts[i1].slice()];
+        const sm2 = World.chaikin(raw, rail ? 3 : 2);
+        // aynı nokta sayısına yeniden örnekle (uçlar aynı kalır)
+        const c2 = [0];
+        for (let i = 1; i < sm2.length; i++) c2.push(c2[i - 1] + dist(sm2[i - 1][0], sm2[i - 1][1], sm2[i][0], sm2[i][1]));
+        const cnt = i1 - i0, total = c2[c2.length - 1];
+        if (total / cnt > 40 && span < 560) continue;   // noktalar çok seyrek: daha geniş bir parça dene
+        const P2 = pts.map(p => p.slice());
+        let j = 0;
+        for (let k = 1; k < cnt; k++) {
+          const d = total * k / cnt;
+          while (j < c2.length - 2 && c2[j + 1] < d) j++;
+          const f = (d - c2[j]) / Math.max(1e-6, c2[j + 1] - c2[j]);
+          P2[i0 + k] = [lerp(sm2[j][0], sm2[j + 1][0], f), lerp(sm2[j][1], sm2[j + 1][1], f)];
+        }
+        if (valid(P2, i0, i1)) return { D: total, P2, k0: i0, k1: i1 };
+      }
+      return null;
+    };
+    const skip = new Set();
+    let changed = false;
+    for (let it = 0; it < 24; it++) {
+      let hi = -1, hq = -1;
+      for (let i = 0; i < n - 1 && hi < 0; i++) for (let q = 0; q < R.length; q++) if (!skip.has(q) && segHit(pts[i], pts[i + 1], R[q])) { hi = i; hq = q; break; }
+      if (hi < 0) break;
+      const r = R[hq];
+      let b = hi + 1;
+      while (b < n - 1 && segHit(pts[b], pts[b + 1], r)) b++;
+      const cum = [0];
+      for (let i = 1; i < n; i++) cum.push(cum[i - 1] + dist(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]));
+      let best = null;
+      for (const [extra, pad] of [[0, 24], [16, 48], [40, 90], [80, 140], [120, 200]]) {
+        for (const sg of [1, -1]) { const t = tryBulge(cum, hi, b, r, sg, extra, pad); if (t && (!best || t.D < best.D)) best = t; }
+        if (best) break;
+      }
+      if (!best) best = detour(cum, hi, b);
+      if (!best) { skip.add(hq); continue; }
+      // eski ray karolarının işareti kalkar; yeni hat karolara işlenir
+      if (rail) for (let k = best.k0; k <= best.k1; k++) this.carveCircle((pts[k][0] - 8) / TS, (pts[k][1] - 8) / TS, 1.6, (tx, ty, d, i) => { this.flags[i] &= ~2; });
+      for (let k = best.k0; k <= best.k1; k++) { pts[k][0] = best.P2[k][0]; pts[k][1] = best.P2[k][1]; }
+      this.rasterRoad(pts.slice(best.k0, best.k1 + 1).map(p => [(p[0] - 8) / TS, (p[1] - 8) / TS]), rail ? 0.6 : 1.1, rail ? 'rail' : 'road');
+      changed = true;
+    }
+    return changed;
+  }
   connectToRoad(x, y) {
     // en yakın yol noktasına kısa bir patika
     let best = null, bd = 1e18;
@@ -1181,7 +1375,9 @@ class World {
     }
     if (!best || bd > 110 * 110) return;
     const C = this.cost;
-    const path = this.astar(clamp((x / CG) | 0, 0, CW - 1), clamp((y / CG) | 0, 0, CHH - 1), (best[0] / TS / CG) | 0, (best[1] / TS / CG) | 0, ni => C[ni] >= 1e5 ? 1e6 : C[ni]);
+    const B = WGEN >= 3 ? this.bcell : null;
+    const path = this.astar(clamp((x / CG) | 0, 0, CW - 1), clamp((y / CG) | 0, 0, CHH - 1), (best[0] / TS / CG) | 0, (best[1] / TS / CG) | 0,
+      ni => C[ni] >= 1e5 || (B && B[ni]) ? 1e6 : C[ni]);
     if (!path) return;
     path.unshift([x, y]);
     const sm = World.chaikin(path, 2);

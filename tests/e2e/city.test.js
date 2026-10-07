@@ -17,7 +17,7 @@ module.exports = {
         return { wgen: WGEN, cob, pave, road, parks: T0.parks.length, fountain: objs(O.FOUNTAIN), hedge: objs(O.HEDGE), flowers: objs(O.FLOWERBED), market: B.filter(b => b.type === 'market').length,
           modern: B.filter(b => b.modern).length, total: B.length, missing, harlowModern: other.buildings.some(b => b.modern), harlowCob: (() => { let n = 0; for (let y = other.y; y < other.y + other.h; y++) for (let x = other.x; x < other.x + other.w; x++) if (W.tile[y * WW + x] === T.COBBLE) n++; return n; })() };
       });
-      t.eq(r.wgen, 2, 'yeni dünya sürümü');
+      t.ok(r.wgen >= 2, 'yeni dünya sürümü zengin şehri kurar', r.wgen);
       t.ok(r.cob > 300 && r.road === 0, 'sokaklar arnavut kaldırımı', r);
       t.ok(r.pave > 2000, 'kaldırımlar taş döşeli', r.pave);
       t.eq(r.parks, 2, 'iki park'); t.ok(r.fountain >= 1 && r.hedge > 20 && r.flowers > 2, 'parkta çeşme, çit ve çiçek', r);
@@ -62,7 +62,7 @@ module.exports = {
       const r = await p.evaluate(async () => {
         WGEN = 1;
         const w = new World(G.seed); await w.generate(() => {});
-        WGEN = 2;
+        WGEN = WGEN_NEW;
         const T0 = w.towns.find(x => x.id === 'stclement');
         let cob = 0; for (let i = 0; i < w.tile.length; i++) if (w.tile[i] === T.COBBLE || w.tile[i] === T.PAVE) cob++;
         return { cob, market: T0.buildings.some(b => b.type === 'market'), modern: w.buildings.some(b => b.modern), parks: T0.parks.length };
@@ -70,7 +70,7 @@ module.exports = {
       t.eq(r, { cob: 0, market: false, modern: false, parks: 0 }, 'eski sürümde zengin şehir eklentileri yok');
       await p.evaluate(async () => { G.saveGame(true); await G.loadGame(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 60000 });
-      t.eq(await p.evaluate(() => WGEN), 2, 'yüklemede dünya sürümü korunur');
+      t.eq(await p.evaluate(() => WGEN), await p.evaluate(() => WGEN_NEW), 'yüklemede dünya sürümü korunur');
       t.ok(await p.evaluate(() => G.world.buildings.some(b => b.type === 'market')), 'yüklenen dünyada pazar var');
     });
   },
