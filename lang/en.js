@@ -1105,6 +1105,8 @@ I18N.add('en', {
     "Kanun Kaçağı'nın hikâyesini tamamla ve çeteyle hesabını kapat.": "Finish the Outlaw's story and settle your account with the gang.",
     "Başında <b>{0}</b> ödül var: kasabalarda kanun adamları yüzünü tanır. Kasabaya girmeden önce çantandan <b>Bandana</b>'yı tak ya da şerife teslim olup cezanı öde. Saklı kampın haritada işaretli.": "There's a <b>{0}</b> bounty on your head: lawmen in town will know your face. Put on the <b>Bandana</b> from your satchel before you ride in, or turn yourself in to the sheriff and pay the fine. Your hidden camp is marked on the map.",
     "Saklı Kamp": "Hidden Camp",
+    /* görev konuşmasını geçme */
+    "{0} Geç · basılı tut: tümü": "{0} Skip · hold: all",
     /* NPC şarjör ve mermi */
     "Şarjör!": "Reloading!",
     "Doldurmam lazım!": "Gotta reload!",
