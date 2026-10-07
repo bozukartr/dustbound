@@ -203,7 +203,7 @@ const Debug = {
 
   /* ---------------- yardımcılar ---------------- */
   screenToWorld(cx, cy) {
-    const c = G.canvas, r = c.getBoundingClientRect(), k = c.width / r.width;
+    const c = G.canvas, r = c.getBoundingClientRect(), k = G.vw / r.width;
     return [G.cam.ox + (cx - r.left) * k, G.cam.oy + (cy - r.top) * k];
   },
   ahead(d = 40) { const P = G.player, a = P.riding ? P.riding.ang : P.ang; return [P.x + Math.cos(a) * d, P.y + Math.sin(a) * d]; },
@@ -579,7 +579,7 @@ const Debug = {
     const dpr = window.devicePixelRatio || 1;
     if (cv.width !== Math.round(innerWidth * dpr) || cv.height !== Math.round(innerHeight * dpr)) { cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr); }
     cv._on = true;
-    const c = cv.getContext('2d'), gc = G.canvas, r = gc.getBoundingClientRect(), k = r.width / gc.width;
+    const c = cv.getContext('2d'), gc = G.canvas, r = gc.getBoundingClientRect(), k = r.width / G.vw;
     const C = G.cam, P = G.player, W = G.world, o = this.opt;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, innerWidth, innerHeight);

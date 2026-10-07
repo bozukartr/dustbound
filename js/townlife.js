@@ -207,7 +207,7 @@ const Bubbles = {
     this.list = this.list.filter(b => {
       b.t -= dt;
       if (b.t <= 0 || b.e.remove || b.e.dead || G.state !== 'play') { b.el.remove(); return false; }
-      const k = r.width / G.canvas.width, lift = b.e.child ? 9 : 13;
+      const k = r.width / G.vw, lift = b.e.child ? 9 : 13;
       b.x = r.left + (b.e.x - C.ox) * k; b.y = r.top + (b.e.y - C.oy - lift) * k;
       b.el.style.opacity = Math.min(1, b.t * 2).toFixed(2);
       return true;

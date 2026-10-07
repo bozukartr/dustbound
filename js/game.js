@@ -28,7 +28,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, r3d: false },
+  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, gfx: 0 },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -140,6 +140,8 @@ const G = {
     this._tone = S.tone;
     this.resize();
   },
+  /* Melez çizim açık mı: ayar Melez ve WebGL çalışıyor */
+  hybridOn() { return this.settings.gfx !== 1 && typeof HY !== 'undefined' && HY.available(); },
   /* Arayüz ölçeği: kullanıcının seçimi × ekran boyuna göre temel; kısa ekranda taşmasın diye sınırlanır */
   hudScaleApply() {
     const S = this.settings, w = innerWidth, h = innerHeight;
@@ -158,7 +160,11 @@ const G = {
     this.os = OVERSCAN;
     this.vw = Math.ceil(W / s * OVERSCAN); this.vh = Math.ceil(H / s * OVERSCAN);
     const c = this.canvas;
-    c.width = this.vw; c.height = this.vh;
+    // melez çizimde tuval iki kat yoğun (dünya pikseli başına 2x2 piksel); klasikte 1
+    const ds = this.hybridOn() ? 2 : 1;
+    if (ds === 2 && this.ds !== 2 && this.world) HY.flush(this.world);   // klasikteyken değişen yerler eskimiş kalmasın
+    this.ds = ds;
+    c.width = this.vw * ds; c.height = this.vh * ds;
     c.style.width = this.vw * s + 'px'; c.style.height = this.vh * s + 'px';
     const L = Math.round((W - this.vw * s) / 2), Tp = Math.round((H - this.vh * s) / 2);
     c.style.left = L + 'px'; c.style.top = Tp + 'px';
@@ -819,7 +825,7 @@ const G = {
   },
   /* Dünya koordinatı → ekran (CSS pikseli); tuvalin kenar payını ve yakınlaşmasını hesaba katar */
   toScreen(x, y) {
-    const r = this.canvas.getBoundingClientRect(), k = r.width / this.canvas.width;
+    const r = this.canvas.getBoundingClientRect(), k = r.width / this.vw;
     return { x: r.left + (x - this.cam.ox) * k, y: r.top + (y - this.cam.oy) * k };
   },
   prefetch(sync) {
@@ -837,8 +843,11 @@ const G = {
 
   /* ---------------- Render ---------------- */
   render(dt) {
-    // deneme: 3D çizici (js/r3d.js); WebGL yoksa 2D'ye düşer
-    if (this.settings.r3d && R3D.render(this, dt)) { if (this.binoc) this.binocDraw(); return; }
+    // melez çizim (js/hybrid.js): iki kat piksel, yükseklik haritasıyla güneş gölgesi, duvarda duran ışık
+    if (this.ds === 2) {
+      if (HY.render(this, dt)) { if (this.binoc) this.binocDraw(); return; }
+      this.resize();   // WebGL koptu: klasik çizime dön
+    }
     const ctx = this.ctx, W = this.world, P = this.player, C = this.cam;
     const vw = this.vw, vh = this.vh;
     const x0 = C.ox, y0 = C.oy, x1 = x0 + vw, y1 = y0 + vh;
