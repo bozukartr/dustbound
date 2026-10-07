@@ -246,6 +246,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - Aranma seviyesi, arama alanı ve peşine düşen kanun adamları. Ödülünü şerif ofisinde ödeyebilirsin.
 - **Ödül avı ve teslim**: İlan panosundan alınan hedef ölünce ödül kendiliğinden verilmez; kişiyi şerif ofisine getirmen gerekir. Canlı teslim tam ödülü, ceset yarısını getirir. Haydutları da teslim edebilirsin (canlı $5, ceset $2). Omzundakini ofisin içinde, eyerdekini ofis kapısında at sırtında ya da şerifin masasında teslim edersin.
 - **Ödül avcıları**: Başında $20 ya da daha fazla ödül varken, kanun peşini bıraksa bile kasaba dışında zaman zaman 2–4 kişilik ödül avcısı grupları çıkar; ödül büyüdükçe daha sık ve daha kalabalık gelirler. Önce yaklaşıp seslenir ve bir süre beklerler: yanlarına gidip teslim olabilir (tutuklanma menüsü açılır) ya da ödülün yaklaşık %60'ını verip kurtulabilirsin (ödül başında kalır). Kaçarsan, onlara nişan alırsan ya da süre dolarsa ateş açarlar. Onları vurmak suç değildir. Grup, oyuncuya giden düz yolu açık bir noktadan çıkar; arada nehir ya da kaya kalıp takılmazlar.
+- **Yumruk kavgası**: Kasabalıya (kanun adamı ve çocuk dışında) yumrukla vurmak hemen suç sayılmaz; 1890'da sokakta yumruklaşma olağandır. Vurulan kişi karakterine göre karşılık verir, öfkeyle uyarır ya da kaçar: huysuz bir hamal, madenci ya da demirci kolayca kavgaya girer; dindar, utangaç, yaşlı ya da seni seven biri pek girmez. Karşılık veren biriyle dövüşmek suç değildir, çevredekiler "Kavga! Kavga!" diye bağırır. Yenilen "Yeter!" diyerek teslim olur ya da bayılır; seni yenen kişi yere serer ama yumruk kavgasında kimse ölmez. Uzaklaşırsan karşındaki sakinleşir. Teslim olana ya da yere serilene vurmaya devam etmek, karşılık vermeyen birine üçüncü kez vurmak saldırı suçudur. Silah dipçiği ve bıçak kavga sayılmaz. Kavgadan sonra **Özür Dile** seçeneği çıkar: kişinin karakterine, kaç kez vurduğuna ve kavganın nasıl bittiğine göre kabul edilir (kavga biter, fikri biraz düzelir) ya da reddedilir.
 - **Kanıt**: Öldürdüğün masum birinin cesedi kanıttır. Biri cesedi bulduğunda sen yakındaysan suç sana yazılır ve tanık şerife koşar; uzaktaysan iz kalmaz. Ceset ya da bağlı biriyle görülmek de suçtur. Cesedi ıssız bir yere taşıyabilir, suya atabilir ya da kürekle gömebilirsin. Bağlanan tanık haber veremez.
 - Onur sistemi fiyatları ve insanların sana nasıl davrandığını etkiler.
 
@@ -357,6 +358,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `guide` | yeni hayatta hoş geldin rehberinin kendiliğinden açılması, sayfalar, ikinci hayatta yine açılması, "gösterme" işaretinin kalıcılığı, Duraklat menüsünden yeniden açma |
 | `carry` | kement, bağlama, omuzda/eyerde taşıma, şerife teslim, ödül hedefi, leş ve post, kanıt, suya atma |
 | `law` | tanıklar, tehdit, rüşvet, maske, dükkân reddi, teslim olma, ceza, hapis, dörtnala kanun adamına ve sivile çarpmada iki uyarı |
+| `brawl` | yumruk kavgası: kavgacı karşılık verir, suç yazılmaz; oyuncu yere serilir ama ölmez; teslim olana ya da karşılıksız kişiye üçüncü yumruk suç; kişilik ve meslekle kavgaya yatkınlık; dipçik, kanun adamı ve çocuk her zaman suç; özür kabul ve ret; uzaklaşınca sakinleşme; gerçek tuşla yumruk |
 | `economy` | para biçimi, fiyatlar, soygun tekrarları, al-sat açığı, günlük sınırlar |
 | `city` | zengin şehir: arnavut kaldırımı ve taş kaldırım, iki park (çeşme, çit, çiçek), pazar yeri ve %25 pahalı seçkin mallar, modern binalar, çeşmeden su, eski dünya sürümünün değişmemesi ve kayıtta korunması |
 | `business` | işletme satın alma, yük arabası, toptan mal, teslimat, gelir, arsaya inşaat, kayıt |
@@ -437,6 +439,7 @@ js/binoculars.js dürbün: uzağa bakma, etiketler, uzaktaki yerleri haritada i�
 js/poker.js     poker: el değerlendirme, rakip yapay zekâsı, sabit limitli bahis, masa arayüzü
 js/hunters.js   ödül avcıları: kasaba dışında çıkan grup, bekleyiş, teslim olma, parayla kurtulma, çatışma
 js/rails.js     demiryolu güvenliği: trenin tehlike koridoru, raydan çekilme ve geçitte bekleme, trenin arabaya fren yapması, katı vagonlar, hayvanlar için katı arabalar
+js/brawl.js     yumruk kavgası: karaktere göre karşılık, suçun ne zaman başladığı, kavganın sonu, özür
 tests/run.js    test çalıştırıcı (npm test); tests/lib.js yardımcılar; tests/e2e/*.test.js testler
 js/ui.js        HUD, radar, harita, menüler, mini oyunlar
 js/cinema.js    sinematik çizici (kütüphanesiz WebGL: gölge haritası, nokta ışık, su, son işlem)

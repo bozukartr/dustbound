@@ -1162,6 +1162,7 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(WorldSave));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(RailSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(BrawlSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(PokerSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BinocSystems));
