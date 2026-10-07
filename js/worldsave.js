@@ -12,7 +12,7 @@
    ========================================================== */
 
 const NPC_KEYS = ['ang', 'hp', 'maxHp', 'hostile', 'weapon', 'money', 'looted', 'state', 't', 'home', 'town', 'keepTown', 'poi', 'keepPoi', 'camp', 'romId',
-  'mounted', 'hAng', 'dead', 'deadT', 'tieT', 'downT', 'assaulted', 'evidence', 'child', 'carry2', 'goHome', 'target', 'pi', 'pdir', 'aggro', 'robbed', 'greetDay', 'bribeTried', 'silenced'];
+  'mounted', 'hAng', 'dead', 'deadT', 'tieT', 'downT', 'assaulted', 'evidence', 'child', 'carry2', 'goHome', 'target', 'pi', 'pdir', 'aggro', 'robbed', 'greetDay', 'bribeTried', 'silenced', 'mag', 'spare'];
 const ANIMAL_KEYS = ['ang', 'hp', 'maxHp', 'dead', 'deadT', 'skinned', 'male', 'look', 'state', 't', 'home', 'poi', 'town', 'keepTown', 'tieT', 'tame'];
 const HORSE_KEYS = ['ang', 'hp', 'dead', 'saddle', 'hitch', 'town', 'state', 'bond', 'owner'];
 const WAGON_KEYS = ['ang', 'bx', 'by', 'bang', 'pi', 'dir', 'stage', 'max', 'cargo', 'body', 'hc', 'owner', 'route', 'ri', 'leg', 'parkT', 'exitPt', 'hp', 'name'];

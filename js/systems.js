@@ -871,20 +871,45 @@ const GameSystems = {
   },
 
   /* ================= SAVAŞ YARDIMCILARI ================= */
+  /* Görüş hattı: çizginin geçtiği her karo sırayla denetlenir (DDA). Bina duvarları karonun kenarındaki ince
+     bantlardır; çizginin bantla kesişip kesişmediği tam hesaplanır, böylece duvarın ardı hiçbir açıdan görünmez. */
   los(x1, y1, x2, y2) {
-    const d = dist(x1, y1, x2, y2), n = Math.ceil(d / 8);
-    for (let i = 1; i < n; i++) {
-      const x = lerp(x1, x2, i / n), y = lerp(y1, y2, i / n);
-      const tx = x >> 4, ty = y >> 4;
-      const idx = ty * WW + tx;
-      const sv = this.world.solid[idx];
-      if (sv && !isWaterT(this.world.tile[idx])) {
-        if (sv === 3) { if (this.world.doorOpen(idx)) continue; return false; }
-        if (sv >= 16) { if (this.world.isSolidPx(x, y)) return false; continue; }
-        const o = this.world.obj[idx];
-        if (isFurnO(o)) continue;
-        if (this.world.flags[idx] & 8 || o === O.BOULDER || o === O.RUINWALL || isCliffT(this.world.tile[idx]) || (o && o < 20 && SOLID_O[o] && Math.random() < 0.5)) return false;
+    const W = this.world;
+    const dx = x2 - x1, dy = y2 - y1;
+    let tx = Math.floor(x1 / 16), ty = Math.floor(y1 / 16);
+    const ex = Math.floor(x2 / 16), ey = Math.floor(y2 / 16), sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+    const tdx = dx ? Math.abs(16 / dx) : Infinity, tdy = dy ? Math.abs(16 / dy) : Infinity;
+    let tmx = dx ? (dx > 0 ? (tx + 1) * 16 - x1 : x1 - tx * 16) / Math.abs(dx) : Infinity;
+    let tmy = dy ? (dy > 0 ? (ty + 1) * 16 - y1 : y1 - ty * 16) / Math.abs(dy) : Infinity;
+    // doğru parçası dikdörtgenle kesişiyor mu (Liang–Barsky)
+    const hit = (rx0, ry0, rx1, ry1) => {
+      let t0 = 0, t1 = 1;
+      const P = [-dx, dx, -dy, dy], Q = [x1 - rx0, rx1 - x1, y1 - ry0, ry1 - y1];
+      for (let k = 0; k < 4; k++) {
+        if (P[k] === 0) { if (Q[k] < 0) return false; continue; }
+        const r = Q[k] / P[k];
+        if (P[k] < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; }
       }
+      return t0 < t1;
+    };
+    const first = tx, firstY = ty;
+    for (let guard = 0; guard < 4000; guard++) {
+      if (tx >= 0 && ty >= 0 && tx < WW && ty < WH) {
+        const idx = ty * WW + tx, sv = W.solid[idx];
+        if (sv && !isWaterT(W.tile[idx])) {
+          if (sv === 3) { if (!W.doorOpen(idx)) return false; }
+          else if (sv >= 16) {
+            const X = tx * 16, Y = ty * 16;
+            if (((sv & 1) && hit(X, Y, X + 16, Y + 6)) || ((sv & 2) && hit(X, Y + 12, X + 16, Y + 16)) || ((sv & 4) && hit(X, Y, X + 5, Y + 16)) || ((sv & 8) && hit(X + 11, Y, X + 16, Y + 16))) return false;
+          } else if (!(tx === first && ty === firstY) && !(tx === ex && ty === ey)) {
+            // bütün karo: bina, kaya, harabe duvarı, uçurum; küçük nesneler (ağaç, çalı) bazen görüşü keser
+            const o = W.obj[idx];
+            if (!isFurnO(o) && ((W.flags[idx] & 8) || o === O.BOULDER || o === O.RUINWALL || isCliffT(W.tile[idx]) || (o && o < 20 && SOLID_O[o] && Math.random() < 0.5))) return false;
+          }
+        }
+      }
+      if (tx === ex && ty === ey) break;
+      if (tmx < tmy) { tmx += tdx; tx += sx; } else { tmy += tdy; ty += sy; }
     }
     return true;
   },
