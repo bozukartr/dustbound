@@ -102,6 +102,19 @@ const Story = {
 
   /* ---------------- bölüm ve adım akışı ---------------- */
   qCh() { const S = this.story; return S && this.storyDef().chapters[S.ch]; },
+  /* Adım arası (konuşma sürerken ya da adım biterken): sıradaki hedef. Bu sırada yapılanlar o adımda sayılır (_qPend). */
+  qPreview() {
+    const S = this.story, c = this.qCh();
+    if (!S || !c || S.done) return null;
+    const cur = this.qStep();
+    if (cur && !S.wait) return null;
+    for (let k = S.st + 1; k < c.steps.length; k++) {
+      const st = c.steps[k];
+      try { if (st.skip && st.skip.call(this, S)) continue; } catch (e) { return null; }
+      return { st, k };
+    }
+    return null;
+  },
   qStep() { const c = this.qCh(), S = this.story; return c && c.steps[S.st]; },
   qChapter(i) {
     const S = this.story, c = this.storyDef().chapters[i];
@@ -210,10 +223,32 @@ const Story = {
     if (S && S.talkQ && tag) S.talkQ = S.talkQ.filter(l => l.tag !== tag);
   },
   storyTalking() { const S = this.story; return !!(S && S.talkQ && (S.talkQ.length || S.talkCb)); },
+  /* Konuşmayı geç: satır atlanır; all ile konuşmanın kalanı atlanır, hikâye hemen sıradaki adıma geçer */
+  storySkip(all) {
+    const S = this.story;
+    if (!this.storyTalking() || this.cine) return;
+    if (all) S.talkQ.length = 0;
+    S.talkT = 0;
+    UI.el.sub.classList.add('hidden');
+    Audio_.voiceStop();
+  },
+  /* Enter / Boşluk ya da (önünde başka etkileşim yoksa) etkileşim tuşu: dokununca satır geçer, basılı tutunca hepsi */
+  storySkipInput(dt) {
+    const S = this.story, I = Input;
+    if (!this.storyTalking() || this.cine || UI.isModal() || document.body.classList.contains('wheel-open')) { S.skipHold = 0; return; }   // çark açıkken Enter/Boşluk eşya kullanır
+    const free = !UI.curInteract && !UI.holdTarget;
+    const held = I.keys.has('Enter') || I.keys.has('NumpadEnter') || I.keys.has('Space') || (free && I.down('interact'));
+    S.skipHold = held ? (S.skipHold || 0) + dt : 0;
+    if (S.skipHold > 0.6) this.storySkip(true);
+    else if (I.keyTap('Enter', 'NumpadEnter', 'Space') || (free && I.pressed('interact'))) this.storySkip(false);
+  },
+  skipHint() { return Tr`${Input.device === 'pad' ? Input.glyph('interact') : Input.glyph('confirm')} Geç · basılı tut: tümü`; },
   talkDur(x) { return window.__storyFast ? 0.05 : clamp(1.5 + x.length * 0.052, 2.2, 6.5); },
   storyTalkTick(dt) {
     const S = this.story;
     if (!S.talkQ || (!S.talkQ.length && !S.talkCb)) return;
+    this.storySkipInput(dt);
+    if (!S.talkQ) return;
     S.talkT -= dt;
     if (S.talkT > 0) return;
     const ln = S.talkQ.shift();
@@ -221,7 +256,7 @@ const Story = {
     // seslendirme varsa satır sesin süresi kadar ekranda kalır
     const me = this.mentorEnt(), vd = Audio_.voice(ln.raw || ln.x, I18N.lang, ln.w === 'S' && me ? { x: me.x, y: me.y, dist: 600 } : {});
     const d = Math.max(this.talkDur(ln.x), vd ? vd + 0.4 : 0);
-    UI.subtitle(this.sName(ln.w), ln.x, d - 0.2, ln.w === 'P');
+    UI.subtitle(this.sName(ln.w), ln.x, d - 0.2, ln.w === 'P', this.skipHint());
     const who = ln.w === 'S' ? me : ln.w === 'R' ? this.rivalEnt() : ln.w === 'K' ? this.kinEnt() || this.ents.find(e => e.quest === 'ward' && !e.remove) : ln.w === 'P' ? this.player : null;
     // söz bir kez, altyazıda yazılır; konuşanın üstünde yalnızca konuşma işareti
     if (who && (who === this.player || dist(who.x, who.y, this.player.x, this.player.y) < 300)) Bubbles.add(who, '', d - 0.2, true);
@@ -423,13 +458,16 @@ const Story = {
   questMark() {
     const S = this.story;
     if (!S || !S.on || S.done) return null;
-    const st = this.qStep();
+    let st = this.qStep();
+    if (!st || S.wait) { const pv = this.qPreview(); if (pv) st = pv.st; }
     if (!st || !st.at) return null;
     try { return st.at.call(this, S); } catch (e) { return null; }
   },
 
   /* ---------------- etkileşimler ---------------- */
   mentorActions(e) {
+    // konuşma sürerken etkileşim tuşu konuşmayı geçer (storySkipInput)
+    if (this.storyTalking()) return [];
     const S = this.story, acts = [], M = this.storyDef().mentor;
     const st = this.qStep();
     const work = M.work && (() => UI.openWork(M.work, M.place()));
@@ -446,6 +484,7 @@ const Story = {
     const S = this.story, K = this.storyDef().kin, st = this.qStep();
     if (!S || !K) return [];
     if (S.kin && S.kin.tied) return [{ n: Tr('İplerini Kes'), hold: 0.8, fn: () => { S.kin = { x: e.x, y: e.y }; Audio_.play('rope'); this.qEvent('free', e); } }];
+    if (this.storyTalking()) return [];   // konuşma sürerken etkileşim tuşu konuşmayı geçer
     if (S.on && !S.done && st && st.ev === 'talk' && st.who === 'kin' && !S.wait) return [{ n: Tr('Konuş'), fn: () => this.qTalkSully(e) }];
     return [{ n: Tr('Sohbet Et'), fn: () => {
       const x = this.sFmt(pick(S.done ? K.chatDone() : K.chatBusy()));
@@ -541,15 +580,19 @@ const Story = {
     const S = this.story, c = S && S.on && !S.done && this.storyDef().chapters[S.ch], st = c && this.qStep();
     if (!c) { el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
-    const n = st && st.n > 1 ? ` <span class="hq-n">${S.n}/${st.n}</span>` : '';
-    const txt = st ? st.t.call(this, S) + n : '…';
-    const key = S.ch + '|' + S.st + '|' + S.n + '|' + S.wait + '|' + txt;
+    // konuşma sürerken ya da adım biterken "…" yerine sıradaki hedef görünür; oyuncu beklemeden ona yönelebilir
+    const pv = this.qPreview();
+    const shown = pv ? pv.st : st, idx = pv ? pv.k : S.st, done = !pv && S.wait;
+    const n = shown && shown.n > 1 ? ` <span class="hq-n">${pv ? 0 : S.n}/${shown.n}</span>` : '';
+    let txt;
+    try { txt = shown ? shown.t.call(this, S) + n : '…'; } catch (e) { txt = '…'; }
+    const key = S.ch + '|' + idx + '|' + S.n + '|' + done + '|' + txt;
     if (el._k === key) return;
     el._k = key;
-    // yeni bir hedef: panel parlayarak kayıp gelir, kısa süre "Yeni Hedef" etiketi görünür
-    const sk = S.ch + '|' + S.st, fresh = st && !S.wait && el._sk !== sk;
+    // yeni bir hedef: panel parlayarak kayıp gelir, kısa süre "Yeni Hedef" etiketi görünür (önizlemede bir kez)
+    const sk = S.ch + '|' + idx, fresh = shown && !done && el._sk !== sk;
     if (fresh) el._sk = sk;
-    el.innerHTML = `<div class="hq-t">${fresh ? `<span class="hq-new">${Tr`Yeni Hedef`}</span>` : ''}${Tr`Bölüm ${S.ch + 1}`} · ${c.t()}</div><div class="hq-o ${S.wait ? 'done' : ''}"><i></i>${txt}</div><div class="hq-d"></div>`;
+    el.innerHTML = `<div class="hq-t">${fresh ? `<span class="hq-new">${Tr`Yeni Hedef`}</span>` : ''}${Tr`Bölüm ${S.ch + 1}`} · ${c.t()}</div><div class="hq-o ${done ? 'done' : ''}"><i></i>${txt}</div><div class="hq-d"></div>`;
     if (fresh) { el.classList.remove('hq-pulse'); void el.offsetWidth; el.classList.add('hq-pulse'); }
   },
   /* Günlük: Görevler sekmesi */
