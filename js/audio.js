@@ -787,6 +787,8 @@ Object.assign(Audio_, {
       .then(b => { this.vo.bufs[id] = b; }).catch(() => {});
   },
   voDur(text, lang) { const b = this.vo.bufs[lang + '/' + this.voiceKey(text)]; return b ? b.duration : 0; },
+  /* Konuşma geçilince süren seslendirme susar */
+  voiceStop() { if (this.voCur) { this.voCur.stop(0.05); this.voCur = null; this.voiceOn = false; this.duck(0, 0, 1); } },
   /* Satırı seslendir; süresini döndürür (dosya yoksa ya da hazır değilse 0) */
   voice(text, lang, o = {}) {
     if (!this.ctx) return 0;
