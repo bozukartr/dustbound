@@ -1810,6 +1810,31 @@ class World {
   }
   *chunkJob(cx, cy) {
     const g = makeCanvas(CPX, CPX), gc = g.getContext('2d');
+    yield* this.chunkGround(cx, cy, gc);
+    const ox = cx * CPX, oy = cy * CPX;
+    const o = makeCanvas(CPX, CPX), oc = o.getContext('2d');
+    gc.save(); oc.save();
+    gc.translate(-ox, -oy); oc.translate(-ox, -oy);
+    for (const r of this.rails) this.drawRail(gc, r, ox, oy);
+    const tx0 = cx * CHUNK - 3, ty0 = cy * CHUNK - 3, tx1 = tx0 + CHUNK + 6, ty1 = ty0 + CHUNK + 6;
+    for (let ty = ty0; ty < ty1; ty++) {
+      for (let tx = tx0; tx < tx1; tx++) {
+        if (!this.inb(tx, ty)) continue;
+        const ob = this.obj[ty * WW + tx];
+        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16) && !FX.dyn(ob)) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
+      }
+      if ((ty & 15) === 0) yield 0;
+    }
+    for (const b of this.buildings) {
+      const bx = b.x * TS, by = b.y * TS;
+      if (bx + b.w * TS + 40 < ox || bx - 40 > ox + CPX || by + b.h * TS + 40 < oy || by - 60 > oy + CPX) continue;
+      Spr.buildingGround(gc, b, this);
+    }
+    gc.restore(); oc.restore();
+    return { g, o };
+  }
+  /* Zemin pikselleri (karo rengi, gürültü, kenar titreşimi, mevsim): 2D chunk'lar ve 3D çizici (r3d.js) kullanır */
+  *chunkGround(cx, cy, gc) {
     const img = gc.createImageData(CPX, CPX), d = img.data;
     const ox = cx * CPX, oy = cy * CPX;
     const tile = this.tile, JX = World.JX, JY = World.JY, DET = World.DET, heat = this.heat, season = this.season;
@@ -1900,26 +1925,6 @@ class World {
     }
     gc.putImageData(img, 0, 0);
     yield 0;
-    const o = makeCanvas(CPX, CPX), oc = o.getContext('2d');
-    gc.save(); oc.save();
-    gc.translate(-ox, -oy); oc.translate(-ox, -oy);
-    for (const r of this.rails) this.drawRail(gc, r, ox, oy);
-    const tx0 = cx * CHUNK - 3, ty0 = cy * CHUNK - 3, tx1 = tx0 + CHUNK + 6, ty1 = ty0 + CHUNK + 6;
-    for (let ty = ty0; ty < ty1; ty++) {
-      for (let tx = tx0; tx < tx1; tx++) {
-        if (!this.inb(tx, ty)) continue;
-        const ob = this.obj[ty * WW + tx];
-        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16) && !FX.dyn(ob)) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
-      }
-      if ((ty & 15) === 0) yield 0;
-    }
-    for (const b of this.buildings) {
-      const bx = b.x * TS, by = b.y * TS;
-      if (bx + b.w * TS + 40 < ox || bx - 40 > ox + CPX || by + b.h * TS + 40 < oy || by - 60 > oy + CPX) continue;
-      Spr.buildingGround(gc, b, this);
-    }
-    gc.restore(); oc.restore();
-    return { g, o };
   }
   drawRail(ctx, r, ox, oy) {
     const x0 = ox - 20, y0 = oy - 20, x1 = ox + CPX + 20, y1 = oy + CPX + 20;

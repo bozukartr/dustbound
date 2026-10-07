@@ -705,6 +705,8 @@ I18N.add('en', {
     "Nişan Yardımı (Kol)": "Aim Assist (Controller)",
     "Nişan Hassasiyeti (Kol)": "Aim Sensitivity (Controller)",
     "Görsel Efektler": "Visual Effects",
+    "3D Çizim (deneme)": "3D Rendering (experimental)",
+    "Dünyayı WebGL ile 3D çizer: gerçek güneş gölgeleri, duvarda duran ışıklar, modelli binalar, insanlar ve hayvanlar. Deneme aşamasında; kapalıyken bugünkü 2D çizim kullanılır.": "Draws the world in 3D with WebGL: real sun shadows, lights that stop at walls, modelled buildings, people and animals. Experimental; when off, the current 2D renderer is used.",
     "Hafif": "Light",
     "Standart": "Standard",
     "Tam Kilit": "Full Lock",

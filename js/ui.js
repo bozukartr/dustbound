@@ -1552,7 +1552,7 @@ const UI = {
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2 };
+    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, r3d: false };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
       padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')], tone: [Tr('Doğal'), Tr('Canlı')],
@@ -1578,6 +1578,7 @@ const UI = {
         ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
         ['tone', Tr('Görüntü Tonu'), 'opt', Tr('Doğal: gerçeğe yakın, yumuşak renkler ve daha düşük kontrast; uzun oyunda gözü yormaz. Canlı: daha doygun, parlak renkler.')],
         ['fxq', Tr('Görsel Efektler'), 'opt', Tr('Tam: bulut gölgeleri, duman, izler, su halkaları ve renk tonlaması. Sade: zayıf bilgisayarlar için azaltılmış efektler.')],
+        ['r3d', Tr('3D Çizim (deneme)'), 'bool', Tr('Dünyayı WebGL ile 3D çizer: gerçek güneş gölgeleri, duvarda duran ışıklar, modelli binalar, insanlar ve hayvanlar. Deneme aşamasında; kapalıyken bugünkü 2D çizim kullanılır.')],
       ] },
       { n: Tr('Kontroller'), g: 'pad', rows: [
         ['padGlyphs', Tr('Kol Simgeleri'), 'opt', Tr('Ekranda gösterilecek oyun kolu tuş simgeleri. Otomatik, bağlı kolu tanır.')],

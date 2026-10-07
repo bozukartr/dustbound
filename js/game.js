@@ -28,7 +28,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2 },
+  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, r3d: false },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -837,6 +837,8 @@ const G = {
 
   /* ---------------- Render ---------------- */
   render(dt) {
+    // deneme: 3D çizici (js/r3d.js); WebGL yoksa 2D'ye düşer
+    if (this.settings.r3d && R3D.render(this, dt)) { if (this.binoc) this.binocDraw(); return; }
     const ctx = this.ctx, W = this.world, P = this.player, C = this.cam;
     const vw = this.vw, vh = this.vh;
     const x0 = C.ox, y0 = C.oy, x1 = x0 + vw, y1 = y0 + vh;
@@ -900,14 +902,7 @@ const G = {
       if (e.child) { ctx.save(); ctx.translate(e.x, e.y); ctx.scale(0.7, 0.7); ctx.translate(-e.x, -e.y); e.draw(ctx); ctx.restore(); continue; }
       e.draw(ctx);
     }
-    // mermiler
-    for (const p of this.projs) {
-      if (p.type === 'arrow') { ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - Math.cos(p.ang) * 7, p.y - Math.sin(p.ang) * 7); ctx.stroke(); ctx.fillStyle = '#e8e0d0'; ctx.fillRect(p.x - Math.cos(p.ang) * 7 - 1, p.y - Math.sin(p.ang) * 7 - 1, 2, 2); }
-      else if (p.type === 'lasso') { const o = p.owner; Spr.rope(ctx, o.x, o.y, p.x, p.y, 2); ctx.strokeStyle = '#c8a870'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(p.x, p.y, 4.5, 3.2, p.t * 14, 0, TAU); ctx.stroke(); }
-      else if (p.type === 'dynamite') { Spr.shadow(ctx, p.x, p.y + 2, 3, 1.5, 0.3); ctx.save(); ctx.translate(p.x, p.y - p.z); ctx.rotate(p.t * 12); ctx.fillStyle = '#b02a20'; ctx.fillRect(-3, -1, 6, 2.4); ctx.restore(); }
-    }
-    // kementteki kişiye uzanan ip
-    if (P.rope) { const e = P.rope, d = dist(P.x, P.y, e.x, e.y); Spr.rope(ctx, P.x, P.y, e.x, e.y, Math.max(0, 44 - d) * 0.25); }
+    this.drawProjs(ctx);
     Juice.sunOn = false;
     this.parts.draw(ctx, x0, y0, x1, y1);
     this.drawCovers(ctx, x0, y0, x1, y1, dt);
@@ -925,6 +920,26 @@ const G = {
       oc.globalCompositeOperation = 'source-over';
       ctx.drawImage(this.over, 0, 0);
     } else for (const [c, x, y] of chunks) ctx.drawImage(c.o, x, y);
+    this.renderTail(ctx, dt, x0, y0, x1, y1, fires, true);
+    // sonraki chunk'lar
+    this.prefetch(false);
+    W.runJobs(4);
+    if (this.binoc) this.binocDraw();
+  },
+  /* Mermiler, kement ve ip (dünya koordinatında; 2D ve 3D çizim ortak) */
+  drawProjs(ctx) {
+    const P = this.player;
+    for (const p of this.projs) {
+      if (p.type === 'arrow') { ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - Math.cos(p.ang) * 7, p.y - Math.sin(p.ang) * 7); ctx.stroke(); ctx.fillStyle = '#e8e0d0'; ctx.fillRect(p.x - Math.cos(p.ang) * 7 - 1, p.y - Math.sin(p.ang) * 7 - 1, 2, 2); }
+      else if (p.type === 'lasso') { const o = p.owner; Spr.rope(ctx, o.x, o.y, p.x, p.y, 2); ctx.strokeStyle = '#c8a870'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(p.x, p.y, 4.5, 3.2, p.t * 14, 0, TAU); ctx.stroke(); }
+      else if (p.type === 'dynamite') { Spr.shadow(ctx, p.x, p.y + 2, 3, 1.5, 0.3); ctx.save(); ctx.translate(p.x, p.y - p.z); ctx.rotate(p.t * 12); ctx.fillStyle = '#b02a20'; ctx.fillRect(-3, -1, 6, 2.4); ctx.restore(); }
+    }
+    // kementteki kişiye uzanan ip
+    if (P.rope) { const e = P.rope, d = dist(P.x, P.y, e.x, e.y); Spr.rope(ctx, P.x, P.y, e.x, e.y, Math.max(0, 44 - d) * 0.25); }
+  },
+  /* Üst katmanlar: kuşlar, bulutlar, dünya arayüzü, hava, (2D'de) ışık, renk tonu ve flaşlar */
+  renderTail(ctx, dt, x0, y0, x1, y1, fires, lit2d) {
+    const vw = this.vw, vh = this.vh;
     // dünya uzayı arayüz öğeleri
     ctx.save();
     ctx.translate(-x0, -y0);
@@ -938,7 +953,7 @@ const G = {
     this.drawWorldUI(ctx);
     ctx.restore();
     this.drawWeather(ctx, dt);
-    this.drawLighting(ctx, fires);
+    if (lit2d) this.drawLighting(ctx, fires);
     Juice.drawGlow(ctx, x0, y0);
     if (this.amb.flies.length) this.drawFlies(ctx);
     FX.post(ctx, dt);
@@ -948,10 +963,6 @@ const G = {
     if (this.fx.boom > 0) { ctx.fillStyle = `rgba(255,220,160,${this.fx.boom})`; ctx.fillRect(0, 0, vw, vh); this.fx.boom = Math.max(0, this.fx.boom - dt * 2); }
     this.fx.flash = Math.max(0, this.fx.flash - dt * 1.5);
     this.fx.muzzle = Math.max(0, this.fx.muzzle - dt);
-    // sonraki chunk'lar
-    this.prefetch(false);
-    W.runJobs(4);
-    if (this.binoc) this.binocDraw();
   },
   /* Bina cepheleri ve çatıları: içerideyken ya da arkasındayken soluklaşır */
   drawCovers(ctx, x0, y0, x1, y1, dt) {
