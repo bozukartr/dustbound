@@ -790,8 +790,10 @@ class Player extends Ent {
     const R = WEAPONS.lasso.range * (1 + G.skill('riding') * 0.03);
     // atış yönüne yakın bir kişi varsa ilmek ona yönelir (nişan yardımı)
     const tg = this.pickTarget(a, 0.35, null, true);
-    G.projs.push({ type: 'lasso', x: this.x + Math.cos(a) * 6, y: this.y + Math.sin(a) * 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: R / sp, owner: this, ang: a, t: 0, tg: tg && (tg.kind === 'npc' || tg.kind === 'animal') ? tg : null });
-    if (!Audio_.play('lasso')) Audio_.tone(380, 0.18, 'sine', 0.04, null, 0, 220);
+    // ip sesi ilmekle birlikte biter (ilmek değince ya da düşünce kısılır): kayıttaki dönen ip animasyondan sonra sürmez
+    const snd = Audio_.play('lasso');
+    if (!snd) Audio_.tone(380, 0.18, 'sine', 0.04, null, 0, 220);
+    G.projs.push({ type: 'lasso', x: this.x + Math.cos(a) * 6, y: this.y + Math.sin(a) * 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: R / sp, owner: this, ang: a, t: 0, tg: tg && (tg.kind === 'npc' || tg.kind === 'animal') ? tg : null, snd });
     this.swing = 1;
     this.sta = Math.max(0, this.sta - 4);
   }
@@ -837,7 +839,7 @@ class Player extends Ent {
       hitAny = true;
       break;
     }
-    if (!Audio_.play('lasso', { vol: 0.35, rate: 1.8 })) Audio_.tone(300, 0.06, 'sine', 0.05, null, 0, 120);   // kol savuruşu
+    if (!Audio_.play('lasso', { vol: 0.35, rate: 1.8, dur: 0.25 })) Audio_.tone(300, 0.06, 'sine', 0.05, null, 0, 120);   // kol savuruşu: kol animasyonu kadar
     if (hitAny) { if (!Audio_.play(this.weapon === 'knife' && !bash ? 'hit_flesh' : 'punch')) Audio_.thud(0.5); G.fx.shake = 2; G.skillXp('strength', 1); }
     this.sta = Math.max(0, this.sta - 5);
   }

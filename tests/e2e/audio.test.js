@@ -1,5 +1,5 @@
 'use strict';
-/* Ses motoru: ses listesi aracı, örnek bankası, uzamsal ses, mekân yankısı, zemin, kısma, seslendirme anahtarı */
+/* Ses motoru: ses listesi aracı, örnek bankası, uzamsal ses, mekân yankısı, zemin, kısma, kement sesi süresi, seslendirme anahtarı */
 module.exports = {
   name: 'Ses motoru',
   timeout: 200000,
@@ -41,14 +41,14 @@ module.exports = {
         };
         const M = (o) => ({ dist: 1600, max: 6, pitch: 0.05, rev: 0.5, vol: 0.8, ...o });
         const man = {};
-        for (const nm of ['gun_pistol', 'step_dirt', 'step_wood', 'ui_move', 'ui_ok', 'coins', 'whistle', 'horse_neigh', 'explosion', 'eat'])
+        for (const nm of ['gun_pistol', 'step_dirt', 'step_wood', 'ui_move', 'ui_ok', 'coins', 'whistle', 'horse_neigh', 'explosion', 'eat', 'lasso'])
           man[nm] = M({ files: [1, 2, 3].map(k => `${nm}_0${k}.wav`), ...(nm.startsWith('step') ? { dist: 280, max: 8 } : nm.startsWith('ui') || nm === 'coins' ? { bus: 'ui' } : {}) });
         man.amb_wind = { bus: 'amb', loop: true, vol: 1, files: ['amb_wind.wav'] };
         const real = window.fetch;
         window.fetch = (u, o) => {
           u = String(u);
           if (u.endsWith('audio/sfx/manifest.json')) return Promise.resolve(new Response(JSON.stringify(man)));
-          if (u.includes('audio/sfx/')) return Promise.resolve(new Response(wav(u.includes('amb_') ? 2 : 0.2, 300 + u.length * 7)));
+          if (u.includes('audio/sfx/')) return Promise.resolve(new Response(wav(u.includes('amb_') ? 2 : u.includes('lasso_') ? 1.6 : 0.2, 300 + u.length * 7)));   // kement: gerçeği gibi uzun dönen ip
           return real(u, o);
         };
         Audio_.loadBank();
@@ -121,6 +121,29 @@ module.exports = {
         return { names };
       });
       for (const n of ['whistle', 'ui_ok', 'coins', 'horse_neigh', 'explosion', 'eat']) t.ok(r.names.includes(n), n + ' çaldı', r.names);
+    });
+    await t.step('kement sesi ilmekle biter; savuruş sesi kol animasyonu kadar sürer', async () => {
+      const r = await p.evaluate(async () => {
+        const P = G.player, wait = (ms) => new Promise(res => setTimeout(res, ms));
+        const s = TH.openSpot(); TH.goto(s[0], s[1]); TH.clearNpcs();
+        P.giveWeapon('lasso', true); P.weapon = 'lasso'; P.fireCd = 0; P.aimAng = 0; P.ang = 0;
+        const fresh = (fn) => { const b = new Set(Audio_.voices); fn(); return Audio_.voices.find(v => !b.has(v) && v.name === 'lasso'); };
+        // boşluğa atış: ilmek menzilin sonunda düşer
+        const V = fresh(() => P.throwLasso()), proj = G.projs.find(q => q.type === 'lasso'), t0 = performance.now();
+        while (G.projs.includes(proj) && performance.now() - t0 < 3000) await wait(10);
+        const flight = performance.now() - t0;
+        await wait(60);
+        const out = { flight, thrown: !!V, throwDone: !!V && V.done, len: V ? V.src.buffer.duration : 0 };
+        // yumruk savuruşu aynı kaydı hızlı çalar
+        P.weapon = 'fists';
+        const M = fresh(() => P.melee()), t1 = performance.now();
+        while (M && !M.done && performance.now() - t1 < 3000) await wait(10);
+        return { ...out, swung: !!M, swing: performance.now() - t1 };
+      });
+      t.ok(r.thrown && r.len > 1, 'kement uzun kaydı çalar', r);
+      t.ok(r.flight < 800, 'ilmek kısa sürede düşer', r);
+      t.ok(r.throwDone, 'ilmek düşünce ip sesi kesilir (kaydın sonunu beklemez)', r);
+      t.ok(r.swung && r.swing < 600, 'savuruş sesi kol animasyonuyla biter', r);
     });
     await t.step('seslendirme anahtarı araçla aynı, dosya yoksa sessizce geçer', async () => {
       const fs = require('fs'), path = require('path');

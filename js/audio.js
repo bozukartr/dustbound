@@ -659,7 +659,8 @@ Object.assign(Audio_, {
   },
   /* Dinleyici: oyuncu (yoksa kamera) */
   listener() { return typeof G !== 'undefined' && G.player ? G.player : null; },
-  /* Bir örneği çal. o: { x, y (dünya konumu), vol, rate, bus, when, loop, dist, rev, muffle }
+  /* Bir örneği çal. o: { x, y (dünya konumu), vol, rate, bus, when, loop, dist, rev, muffle, dur }
+     dur: örnek bu kadar saniye çalar, sonra kısa bir sönümle kesilir (uzun kayıt kısa animasyona uysun)
      Dönen kulp: { src, g, stop(fade) }; banka hazır değilse null (çağıran prosedürel sese düşer) */
   play(name, o = {}) {
     if (!this.ctx || !this.has(name)) return null;
@@ -705,6 +706,7 @@ Object.assign(Audio_, {
     node.connect(bus === 'ui' ? this.uiBus : bus === 'amb' ? this.amb : bus === 'voice' ? this.voiceBus : bus === 'music' ? this.music : this.sfx);
     if (wet > 0.01 && bus !== 'ui') { const s = c.createGain(); s.gain.value = Math.min(1.5, wet); g.connect(s); s.connect(this.revIn); }
     src.start(t);
+    if (o.dur) { g.gain.setTargetAtTime(0, t + o.dur, 0.03); src.stop(t + o.dur + 0.15); }
     const V = { name, src, g, t: c.currentTime, vol, done: false, stop: (fd = 0.08) => { if (V.done) return; V.done = true; const n = c.currentTime; g.gain.cancelScheduledValues(n); g.gain.setTargetAtTime(0, n, fd / 3); try { src.stop(n + fd); } catch (e) {} } };
     src.onended = () => { V.done = true; this.voices = this.voices.filter(v => v !== V); };
     this.voices.push(V);
