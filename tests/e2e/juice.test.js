@@ -1,6 +1,6 @@
 'use strict';
 /* His efektleri: isabet duraklaması, savrulma ve uçan şapka, dinamit izi, dörtnala uzaklaşma,
-   şahlanma, boşta animasyon, gece sönen pencereler, yuvarlanan para sayacı */
+   şahlanma, boşta animasyon, gece sönen pencereler, yuvarlanan para sayacı, kardaki silik ayak izleri */
 module.exports = {
   name: 'His efektleri (juice)',
   async run(t) {
@@ -104,6 +104,54 @@ module.exports = {
       const mid = r.seen.filter(([s]) => s !== '$10.00' && s !== '$60.00');
       t.ok(mid.length >= 2, 'ara değerler görünmeli', r.seen); t.ok(r.seen.some(([, g]) => g), 'artışta yeşil parlar');
       t.eq(r.end, '$60.00', 'sonunda gerçek değer'); t.ok(!r.gain, 'parlama söner');
+    });
+    await t.step('karda yöne dönük, silik ayak izi kalır; yağan kar izleri doldurur', async () => {
+      const found = await p.evaluate(() => {
+        // yürüyüş şeridi (3x10 karo) baştan sona açık kar olan bir yer
+        UI.closeAll(); const W = G.world; let best = null;
+        const clean = (tx, ty) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 8; dx++) { const i = (ty + dy) * WW + tx + dx; if (W.tile[i] !== T.SNOW || W.obj[i] || W.flags[i]) return false; } return true; };
+        for (let ty = 12; ty < WH - 12 && !best; ty += 2) for (let tx = 12; tx < WW - 20 && !best; tx += 2) if (clean(tx, ty) && !W.townAt(tx * TS, ty * TS, 12)) best = [tx * TS + 8, ty * TS + 8];
+        if (!best) return false;
+        TH.goto(best[0], best[1]); TH.clearNpcs();
+        G.clock = Math.floor(G.clock / 1440) * 1440 + 12 * 60; G.weather = { type: 'clear', t: 99999, i: 0, cloud: 0, fogI: 0 };
+        G.envCache = G.localWeather(G.player.x, G.player.y);
+        FX.tracks.length = 0; FX.snowTracks.length = 0;
+        return true;
+      });
+      t.ok(found, 'açık karlı bir şerit bulundu');
+      await t.sleep(300);
+      await p.keyboard.down('KeyD'); await t.sleep(1500); await p.keyboard.up('KeyD');
+      const r = await p.evaluate(() => {
+        const L = FX.snowTracks, line = (a, ds) => {
+          // izin dolu pikselleri: yatay yürüyüşte tek satır, dikeyde tek sütun
+          const c = FX.printSpr('foot', a, ds).c, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, xs = new Set(), ys = new Set();
+          for (let i = 3; i < d.length; i += 4) if (d[i] > 200) { xs.add((i >> 2) % c.width); ys.add(Math.floor((i >> 2) / c.width)); }
+          return [xs.size, ys.size];
+        };
+        const out = { n: L.length, kinds: [...new Set(L.map(q => q.kind))], plain: FX.tracks.length, right: L.every(q => Math.abs(Math.cos(q.a)) > 0.9), h1: line(0, 1), v1: line(Math.PI / 2, 1), h2: line(0, 2) };
+        // aynı kare izsiz ve izli çizilir; iz merkezindeki pikselin kararması ölçülür
+        for (const q of L) q.life = 60;
+        const ds = G.ds || 1, cw = G.canvas.width, snap = ds === 1 ? Math.floor : Math.round, px = (q) => [snap(q.x * ds) - G.cam.ox * ds, snap(q.y * ds) - G.cam.oy * ds];
+        const keep = L.splice(0); G.render(0); const a = G.ctx.getImageData(0, 0, cw, G.canvas.height).data;
+        L.push(...keep); G.render(0); const b = G.ctx.getImageData(0, 0, cw, G.canvas.height).data;
+        const diffs = [];
+        for (const q of L) { const [x, y] = px(q); if (x < 0 || y < 0 || x >= cw || y >= G.canvas.height) continue; const i = (y * cw + x) * 4; diffs.push((a[i] + a[i + 1] + a[i + 2] - b[i] - b[i + 1] - b[i + 2]) / 3); }
+        diffs.sort((u, v) => u - v); out.dark = diffs[diffs.length >> 1]; out.nd = diffs.length;
+        // kar yağarken izler hızla dolar
+        const q = L[L.length - 1]; out.l0 = q.life; out.t0 = G.t; G.envCache.snow = 1;
+        return out;
+      });
+      t.ok(r.n >= 3, 'karda yürüyünce iz kalır', r.n);
+      t.eq(r.kinds, ['foot'], 'yaya izi çizme izidir');
+      t.eq(r.plain, 0, 'kar izi düz iz listesine düşmez');
+      t.ok(r.right, 'izler yürüyüş yönüne döner (sağa)', r);
+      t.ok(r.h1[1] === 1 && r.h1[0] >= 2, 'klasikte yatay iz tek piksel enli çizgi', r.h1);
+      t.ok(r.v1[0] === 1 && r.v1[1] >= 2, 'klasikte dikey iz tek piksel enli çizgi', r.v1);
+      t.ok(r.h2[0] >= 4 && r.h2[1] === 2, 'melezde iz iki kat ince ayrıntılı (iki piksel en)', r.h2);
+      t.ok(r.nd >= 3 && r.dark > 4 && r.dark < 45, 'iz görünür ama silik (karda hafif kararma)', r);
+      await t.sleep(700);
+      const f = await p.evaluate(({ l0, t0 }) => { const q = FX.snowTracks[FX.snowTracks.length - 1]; return { dl: l0 - q.life, dt: G.t - t0 }; }, r);
+      t.ok(f.dt > 0.1 && f.dl > f.dt * 2.5, 'yağan kar izi birkaç kat hızlı doldurur', f);
     });
   },
 };
