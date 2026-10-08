@@ -4,6 +4,8 @@
    Oyun tarafında js/platform.js bunu kullanır; tarayıcıda yoktur.
    ========================================================== */
 const { contextBridge, ipcRenderer } = require('electron');
+// ana süreçten gelen açılış bilgileri (--fe-ad=değer)
+const arg = (k) => { const a = process.argv.find(x => x.startsWith(`--fe-${k}=`)); return a ? a.slice(k.length + 6) : null; };
 
 contextBridge.exposeInMainWorld('native', {
   platform: process.platform,
@@ -19,5 +21,10 @@ contextBridge.exposeInMainWorld('native', {
   isFullscreen: () => ipcRenderer.sendSync('win:isFullscreen'),
   setFullscreen: (on) => ipcRenderer.send('win:fullscreen', on),
   quit: () => ipcRenderer.send('app:quit'),
+  relaunch: () => ipcRenderer.send('app:relaunch'),
   onClosing: (cb) => ipcRenderer.on('app:closing', () => cb()),
+  // ekran kartı: bu açılışta uygulanan tercih (auto | high | low), bulunan kartlar, yeni tercih (yeniden başlatınca)
+  gpuLaunch: arg('gpu') || 'auto',
+  gpuInfo: () => ipcRenderer.invoke('gpu:info'),
+  setGpu: (pref) => ipcRenderer.send('gpu:set', pref),
 });

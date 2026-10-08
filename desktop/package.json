@@ -27,7 +27,7 @@
     "appId": "com.frontiersend.game",
     "productName": "Frontier's End",
     "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "package.json", "build/icon.png", "app/**/*"],
+    "files": ["main.js", "preload.js", "gpu.js", "package.json", "build/icon.png", "app/**/*"],
     "asarUnpack": ["node_modules/steamworks.js/**/*"],
     "win": { "target": "dir", "icon": "build/icon.png", "files": ["build/icon.png", "!node_modules/steamworks.js/dist/{linux64,osx}/**", "!node_modules/steamworks.js/dist/win64/*.lib"] },
     "linux": { "target": "dir", "icon": "build/icon.png", "category": "Game", "files": ["build/icon.png", "!node_modules/steamworks.js/dist/{win64,osx}/**"] },

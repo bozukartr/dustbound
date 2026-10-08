@@ -28,7 +28,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, gfx: 0 },
+  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, gfx: 0, gpu: 0 },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -99,6 +99,8 @@ const G = {
         Object.assign(this.settings, s);
       }
     } catch (e) {}
+    // masaüstünde geçerli olan, bu açılışta uygulanan ekran kartı tercihidir (desktop.json)
+    if (Platform.gpuLaunch) this.settings.gpu = Platform.GPU_PREFS.indexOf(Platform.gpuLaunch);
     Input.setBinds(this.settings.binds);
     this.applySettings();
   },
@@ -138,8 +140,21 @@ const G = {
     document.body.classList.toggle('vivid', S.tone === 1);
     if (this._tone !== S.tone) { setTerrainTone(S.tone !== 1); if (this._tone !== undefined && this.world) this.world.refreshChunks(); }
     this._tone = S.tone;
+    // ekran kartı tercihi değişti: masaüstünde açılış ayarına yazılır (yeniden başlatınca geçerli),
+    // tarayıcıda Melez'in WebGL bağlamı yeni güç tercihiyle hemen yeniden kurulur
+    const gp = S.gpu || 0;
+    if (this._gpu !== undefined && this._gpu !== gp) {
+      if (Platform.gpuLaunch) Platform.gpuSave(this.gpuPref());
+      else if (typeof HY !== 'undefined') HY.reset();
+      UI.gpuDet = UI.gpuDetP = null;   // kullanılan kart yeniden algılanır (yarım kalan eski algılama sayılmaz)
+    }
+    this._gpu = gp;
     this.resize();
   },
+  /* Ekran kartı tercihi: auto (varsa güçlü kart) | high | low */
+  gpuPref() { return Platform.GPU_PREFS[this.settings.gpu] || 'auto'; },
+  /* WebGL bağlamının güç tercihi: masaüstünde bu açılışın tercihi (kart süreç boyunca sabit), tarayıcıda ayar */
+  gpuPower() { return (Platform.gpuLaunch || this.gpuPref()) === 'low' ? 'low-power' : 'high-performance'; },
   /* Melez çizim açık mı: ayar Melez ve WebGL çalışıyor */
   hybridOn() { return this.settings.gfx !== 1 && typeof HY !== 'undefined' && HY.available(); },
   /* Arayüz ölçeği: kullanıcının seçimi × ekran boyuna göre temel; kısa ekranda taşmasın diye sınırlanır */

@@ -1,6 +1,7 @@
 'use strict';
 /* Melez çizim (js/hybrid.js): varsayılan açık, kanvas iki kat yoğun; kasabada gündüz/gece ve bina içinde
-   hatasız çizer, gece ışıkları toplar, ayardan Klasik'e geçince eski 2D çizime döner. */
+   hatasız çizer, gece ışıkları toplar, ayardan Klasik'e geçince eski 2D çizime döner. Ekran Kartı ayarı
+   tarayıcıda WebGL bağlamını seçilen güç tercihiyle (güçlü / tasarruflu kart) yeniden kurar. */
 module.exports = {
   name: 'Melez çizim',
   async run(t) {
@@ -86,6 +87,23 @@ module.exports = {
       await p.evaluate(() => { G.settings.gfx = 0; G.applySettings(); });
       await t.sleep(800);
       t.ok(await frames() > f0, 'melez yeniden çiziyor');
+      t.eq(errs.length, 0, 'sayfa hatası yok', errs);
+    });
+
+    await t.step('Ekran Kartı: tasarruflu kart seçilince WebGL bağlamı düşük güçle yeniden kurulur, melez sürer', async () => {
+      const pow = () => p.evaluate(() => HY.canvas ? HY.canvas.getContext('webgl').getContextAttributes().powerPreference : null);
+      t.eq(await pow(), 'high-performance', 'Otomatik: güçlü kart istenir');
+      await p.evaluate(() => UI.openSettings(2)); await t.sleep(700);
+      const r = await p.evaluate(() => ({ opts: [...document.querySelectorAll('.st-row[data-k="gpu"] .st-seg span')].map(n => n.textContent), active: UI.gpuDet && UI.gpuDet.active }));
+      t.eq(r.opts.length, 3, 'Görüntü sekmesinde üç seçenekli Ekran Kartı satırı', r);
+      t.ok(!!r.active, 'kullanılan kart algılandı', r);
+      await p.evaluate(() => document.querySelector('.st-row[data-k="gpu"] [data-v="2"]').click()); await t.sleep(600);
+      t.eq(await pow(), 'low-power', 'yeni bağlam tasarruflu kart için');
+      t.ok(await p.evaluate(() => G.hybridOn() && G.ds === 2), 'melez açık kalır');
+      const f0 = await frames(); await t.sleep(800);
+      t.ok(await frames() > f0, 'melez yeni bağlamla çizmeyi sürdürür');
+      await p.evaluate(() => { UI.closeAll(); G.settings.gpu = 0; G.applySettings(); }); await t.sleep(300);
+      t.eq(await pow(), 'high-performance', "Otomatik'e dönünce güçlü kart yeniden istenir");
       t.eq(errs.length, 0, 'sayfa hatası yok', errs);
     });
   },

@@ -255,7 +255,8 @@ const Cinema = (() => {
     return { p, u, a: (nm) => gl.getAttribLocation(p, nm) };
   }
   function init(canvas) {
-    gl = canvas.getContext('webgl', { antialias: false, preserveDrawingBuffer: false }) || canvas.getContext('experimental-webgl');
+    // ekran kartı tercihi (Ayarlar → Görüntü → Ekran Kartı) sinematiklerde de geçerli
+    gl = canvas.getContext('webgl', { antialias: false, preserveDrawingBuffer: false, powerPreference: typeof G !== 'undefined' && G.gpuPower ? G.gpuPower() : 'default' }) || canvas.getContext('experimental-webgl');
     if (!gl) return false;
     P = compile(VS, FS); SP = compile(SVS, SFS); PP = compile(PVS, PFS); QP = compile(SVS, QFS);
     try { DP = compile(DVS, DFS); WP = compile(WVS, WFS); } catch (e) { console.warn('Gölge/su gölgelendiricisi derlenemedi', e); DP = WP = null; }
