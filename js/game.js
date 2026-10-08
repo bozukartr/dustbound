@@ -763,7 +763,8 @@ const G = {
         if (tg && !tg.dead && !tg.bound && !tg.remove) { const sp = Math.hypot(p.vx, p.vy), aa = Math.atan2(tg.y - p.y, tg.x - p.x); p.vx = Math.cos(aa) * sp; p.vy = Math.sin(aa) * sp; }
         p.x += p.vx * dt; p.y += p.vy * dt;
         let hit = null;
-        if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { L.splice(i, 1); continue; }
+        const end = () => { if (p.snd) p.snd.stop(0.15); L.splice(i, 1); };   // ip sesi ilmekle biter
+        if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { end(); continue; }
         for (const e of this.ents) {
           if (e.dead || e.remove || e.bound) continue;
           let r;
@@ -778,9 +779,9 @@ const G = {
           if (hit.kind === 'animal') this.lassoAnimal(hit);
           else if (hit.kind === 'wagon') this.lassoHit(hit.throwDriver());
           else this.lassoHit(hit);
-          L.splice(i, 1);
+          end();
         }
-        else if (p.life <= 0) L.splice(i, 1);
+        else if (p.life <= 0) end();
       } else if (p.type === 'dynamite') {
         p.t += dt; p.fuse -= dt;
         const f = Math.min(1, p.t / p.dur);
