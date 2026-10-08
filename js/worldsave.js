@@ -24,6 +24,7 @@ const WorldSave = {
   skipEnt(e) {
     const P = this.player;
     if (!e || e.remove || e.hide || e === P || e === this.horse || e === P.carry || e.event || e.eventType || e.quest || e.storyCoy || e.storyGame || e.storyHen) return true;
+    if (e.city && e.rider !== P) return true;   // şehir trafiği her açılışta yeniden kurulur
     if (e.kind === 'npc') return e.staffOf || e.work !== undefined || e.role === 'clerk' || e.role === 'nomad' || e.role === 'hunter' || e.role === 'target'
       || e.role === 'spouse' || e.role === 'child' || e.role === 'stranger' || e.keep || e.job || e.bountyId || e.nomad !== undefined;
     if (e.kind === 'horse') return e.owner === 'player' || e.rider || e.nomad !== undefined;

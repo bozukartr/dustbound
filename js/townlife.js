@@ -75,7 +75,19 @@ const TownPath = {
       const px = (x0 + x) * TS + 8, py = (y0 + y) * TS + 8;
       pass[y * w + x] = W.inb(x0 + x, y0 + y) && !W.blocked(px, py, 4.5) && !W.indoorPx(px, py) && !W.isWaterPx(px, py) ? 1 : 0;
     }
-    t._grid = { x0, y0, w, h, pass, cache: new Map() };
+    // planlı şehir: yaya kaldırımdan gider (taşıt yolunu karşıdan karşıya geçer, avlu ve bahçeden kestirmez),
+    // araba taşıt yolundan gider (kaldırıma yalnız park yerinde çıkar)
+    let cf = null, cc = null;
+    if (t.plan === 'grid') {
+      cf = new Uint8Array(w * h); cc = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!W.inb(x0 + x, y0 + y)) continue;
+        const tt = W.tile[(y0 + y) * WW + x0 + x], i = y * w + x;
+        cf[i] = tt === T.PAVE || tt === T.PLANK ? 0 : tt === T.COBBLE ? 4 : 2;
+        cc[i] = tt === T.COBBLE || tt === T.ROAD ? 0 : 8;
+      }
+    }
+    t._grid = { x0, y0, w, h, pass, cache: new Map(), cf, cc };
     return t._grid;
   },
   near(g, x, y) {
@@ -93,10 +105,10 @@ const TownPath = {
     const g = this.grid(t);
     const s = this.near(g, (ax >> 4) - g.x0, (ay >> 4) - g.y0), e = this.near(g, (bx >> 4) - g.x0, (by >> 4) - g.y0);
     if (!s || !e) return null;
-    const key = s[0] + ',' + s[1] + '>' + e[0] + ',' + e[1];
+    const cart = r >= 6, key = (cart ? 'c' : 'f') + s[0] + ',' + s[1] + '>' + e[0] + ',' + e[1];
     let raw = g.cache.get(key);
     if (raw === undefined) {
-      raw = this.astar(g, s, e);
+      raw = this.astar(g, s, e, g.cf ? 14000 : 8000, cart ? g.cc : g.cf);
       if (g.cache.size > 400) g.cache.delete(g.cache.keys().next().value);
       g.cache.set(key, raw);
     }
@@ -133,7 +145,7 @@ const TownPath = {
     const raw = this.astar(g, s, e, 30000);
     return raw ? this.simplify([[ax, ay], ...raw, [bx, by]], r) : null;
   },
-  astar(g, s, e, cap = 8000) {
+  astar(g, s, e, cap = 8000, cost = null) {
     const W = g.w, N = g.w * g.h, si = s[1] * W + s[0], ei = e[1] * W + e[0];
     const gs = new Float32Array(N).fill(1e9), came = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
     const open = [si]; gs[si] = 0;
@@ -155,7 +167,8 @@ const TownPath = {
         if (dx && dy && (!g.pass[cy * W + nx] || !g.pass[ny * W + cx])) continue;   // köşeden kesme
         // duvar dibinden geçmek pahalıdır: rotalar sokağın ortasına yakın kalır
         const wall = (nx > 0 && !g.pass[ni - 1]) || (nx < W - 1 && !g.pass[ni + 1]) || (ny > 0 && !g.pass[ni - W]) || (ny < g.h - 1 && !g.pass[ni + W]);
-        const ng = gs[cur] + (dx && dy ? 1.41 : 1) + (wall ? 0.35 : 0);
+        // planlı şehirde kaldırım zaten bina dibinde: duvar cezası küçük, karşı kaldırıma geçmek için yolu boşuna aşmaz
+        const ng = gs[cur] + (dx && dy ? 1.41 : 1) + (wall ? (cost ? 0.08 : 0.35) : 0) + (cost ? cost[ni] * 0.5 : 0);
         if (ng < gs[ni]) { gs[ni] = ng; came[ni] = cur; fs[ni] = ng + hf(ni); open.push(ni); }
       }
     }
@@ -289,7 +302,7 @@ class Wagon extends Ent {
     if (!t || this.stopT) return false;
     // dükkân önlerindeki park yerlerinden boş olanı: iki araba aynı yere park etmez
     const W = G.world, slots = [];
-    for (const ty of ['general', 'hotel', 'saloon', 'station', 'post', 'butcher', 'bakery']) for (const b of t.buildings) if (b.type === ty) for (const k of [0, 1, -1]) slots.push([b.door.x + 34 + k * 30, b.door.y + 34, b]);
+    for (const ty of ['general', 'hotel', 'saloon', 'station', 'post', 'butcher', 'bakery']) for (const b of t.buildings) if (b.type === ty) for (const k of [0, 1, -1]) slots.push([b.door.x + 34 + k * 30, b.curbY || b.door.y + 34, b]);
     const taken = (x, y) => G.ents.some(o => o !== this && o.kind === 'wagon' && ((o.slot && dist2(o.slot[0], o.slot[1], x, y) < 32 * 32) || dist2(o.x, o.y, x, y) < 26 * 26));
     const slot = slots.find(([x, y]) => !taken(x, y) && !W.blocked(x, y, 9) && !W.blocked(x - 22, y, 7) && !W.indoorPx(x, y));
     if (!slot) return false;
@@ -369,7 +382,7 @@ class Wagon extends Ent {
     }
     if (this.parkT > 0) {
       this.spd = 0; this.mv = 0; this.parkT -= dt;
-      if (this.parkT <= 0) { this.route = TownPath.find(this.stopT, this.x, this.y, this.exitPt[0], this.exitPt[1], 6) || [this.exitPt.slice()]; this.slot = null; this.ri = 0; this.leg = 'out'; }
+      if (this.parkT <= 0 && !this.city) { this.route = TownPath.find(this.stopT, this.x, this.y, this.exitPt[0], this.exitPt[1], 6) || [this.exitPt.slice()]; this.slot = null; this.ri = 0; this.leg = 'out'; }
       return;
     }
     let pt, prev;
@@ -377,16 +390,18 @@ class Wagon extends Ent {
       pt = this.route[this.ri]; prev = this.route[this.ri - 1];
       if (!pt) {
         this.route = null;
+        if (this.city) { G.cityNext(this); return; }   // şehir trafiği: sokak ağında yeni rota
         if (this.leg === 'in') { this.parkT = rnd(35, 60); if (this.stage) Bubbles.add(this, pick([Tr('Posta geldi!'), Tr('Yolcular, inin!')]), 2.5); G.wagonArrive(this); }
         else { this.dir = -this.dir; this.slot = null; }   // yola geri dön
         return;
       }
-    } else { pt = this.path[this.pi + this.dir]; prev = this.path[this.pi]; }
+    } else if (this.city) { G.cityNext(this); return; }
+    else { pt = this.path[this.pi + this.dir]; prev = this.path[this.pi]; }
     if (!pt) { if (!this.enterTown()) this.remove = true; return; }
     // sağdan gidiş: hedef nokta yolun sağ şeridine kaydırılır; karşıdan gelene yol verirken daha da sağa,
     // duran bir arabayı sollarken sola geçer
     const sa = prev ? Math.atan2(pt[1] - prev[1], pt[0] - prev[0]) : Math.atan2(pt[1] - this.y, pt[0] - this.x);
-    const lane = this.passT > 0 ? -9 : (this.route ? 3 : 7) + (this.shy || 0);
+    const lane = this.passT > 0 ? -9 : (this.city ? 0 : this.route ? 3 : 7) + (this.shy || 0);   // şehir rotası noktaları zaten sağ şeritte
     const tx = pt[0] - Math.sin(sa) * lane, ty = pt[1] + Math.cos(sa) * lane;
     const a = Math.atan2(ty - this.y, tx - this.x), da = Math.abs(angDiff(this.ang, a));
     const P = G.player;
@@ -449,7 +464,11 @@ class Wagon extends Ent {
     // hedefe 4 sn boyunca hiç yaklaşamıyorsa (etrafında dönüyorsa) o noktayı atla
     if (!(d2 < (this.bestD2 === undefined ? Infinity : this.bestD2) - 9)) this.wpT = (this.wpT || 0) + dt; else { this.bestD2 = d2; this.wpT = 0; }
     if (block || target < 1) this.wpT = 0;
-    if (d2 < 16 * 16 || (behind && d2 < 40 * 40) || this.wpT > 4) { this.wpT = 0; this.bestD2 = undefined; if (this.route) this.ri++; else this.pi += this.dir; }
+    if (d2 < 16 * 16 || (behind && d2 < 40 * 40) || this.wpT > 4) {
+      this.wpT = 0; this.bestD2 = undefined;
+      if (this.route) { if (this.city && pt[3] === 's') this.parkT = rnd(4, 9); this.ri++; }   // kaldırım kenarı durağı: yolcu iner, biner
+      else this.pi += this.dir;
+    }
     if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.bx - Math.cos(this.bang) * 10, this.by - Math.sin(this.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
   }
   draw(ctx) {
@@ -463,7 +482,15 @@ class Wagon extends Ent {
     const steer = clamp(angDiff(this.bang, this.ang), -0.6, 0.6);
     ctx.fillStyle = '#1e140c';
     for (const wy of [-6, 6]) { ctx.fillRect(-7 - 2.5, wy - 1, 5, 2); ctx.save(); ctx.translate(6, wy); ctx.rotate(steer); ctx.fillRect(-2.5, -1, 5, 2); ctx.restore(); }
-    if (this.stage) {
+    if (this.cab) {
+      // fayton: koyu gövde, arkada katlanır körük, önde sürücü yeri ve fenerler
+      ctx.fillStyle = this.body; ctx.fillRect(-9, -5, 16, 10);
+      ctx.fillStyle = shadeHex(this.body, 0.25); ctx.fillRect(-9, -5, 16, 1.4);
+      ctx.fillStyle = '#16120e'; ctx.beginPath(); ctx.ellipse(-4.5, 0, 5, 5.2, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#2c241e'; ctx.fillRect(-9, -4.2, 4.5, 8.4);
+      ctx.fillStyle = shadeHex(this.body, -0.2); ctx.fillRect(1, -4, 5, 8);
+      ctx.fillStyle = '#c8a040'; ctx.fillRect(6.2, -5.2, 1.2, 1.4); ctx.fillRect(6.2, 3.8, 1.2, 1.4);
+    } else if (this.stage) {
       ctx.fillStyle = this.body; ctx.fillRect(-10, -5.5, 19, 11);
       ctx.fillStyle = shadeHex(this.body, 0.2); ctx.fillRect(-10, -5.5, 19, 2);
       ctx.fillStyle = '#c8a040'; ctx.fillRect(-9, -5.5, 1, 11); ctx.fillRect(7, -5.5, 1, 11);

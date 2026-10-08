@@ -372,7 +372,8 @@ const Cinema = (() => {
     const P = (px, py) => { const dx = (px - ax) / TS, dy = (py - ay) / TS; return [at[0] + cr * dx - sr * dy, at[2] + sr * dx + cr * dy]; };
     const tileC = TINFO.map(t => C(t.c));
     // zemin: kasaba elipsinin içindeki karolar (su hariç)
-    const inT = (tx, ty, k = 1.12) => { const dx = (tx - T.cx / TS) / (T.rx + 2), dy = (ty - T.cy / TS) / (T.ry + 2); return dx * dx + dy * dy < k; };
+    const inT = T.plan === 'grid' ? (tx, ty) => tx >= T.x - 2 && ty >= T.y - 2 && tx < T.x + T.w + 2 && ty < T.y + T.h + 2   // planlı şehir: dikdörtgen
+      : (tx, ty, k = 1.12) => { const dx = (tx - T.cx / TS) / (T.rx + 2), dy = (ty - T.cy / TS) / (T.ry + 2); return dx * dx + dy * dy < k; };
     for (let ty = T.y - 4; ty < T.y + T.h + 4; ty++) for (let tx = T.x - 4; tx < T.x + T.w + 4; tx++) {
       if (!inT(tx, ty) || !W.inb(tx, ty)) continue;
       const tt = W.tile[ty * WW + tx]; if (TINFO[tt].water) continue;

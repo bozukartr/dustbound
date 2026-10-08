@@ -2094,6 +2094,7 @@ I18N.add('en', {
     // kasaba hayatı
     "Posta Arabası": "Stagecoach",
     "Yük Arabası": "Freight Wagon",
+    "Fayton": "Carriage",
     "Yoldan çekil!": "Out of the road!",
     "Hey! Çekil önümden!": "Hey! Get out of my way!",
     "Açılın!": "Make way!",

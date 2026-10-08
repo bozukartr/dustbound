@@ -18,7 +18,7 @@ const inWorld = d => !d.big || WW > WORLD_OLD;
 /* Dünya üretim sürümü: 2'den itibaren zengin şehir (Saint Clement) taş sokak, park, pazar ve modern binalarla kurulur;
    3'ten itibaren çiftlik, mülk, kamp ve simgesel yerler yolun, rayın ve başka yapıların üstüne kurulmaz, patikalar binaların
    etrafından dolanır. Eski kayıtlar kendi sürümüyle yeniden üretilir; binaların sırası ve numaraları değişmez. */
-const WGEN_NEW = 3;
+const WGEN_NEW = 4;
 let WGEN = WGEN_NEW;
 
 const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20, COBBLE: 21, PAVE: 22 };
@@ -612,6 +612,8 @@ class World {
     for (const td of TOWNS.filter(inWorld)) {
       // zengin şehir (dünya sürümü 2+): daha geniş, taş sokaklı, parklı ve pazarlı
       const rich = !!td.rich && WGEN >= 2;
+      // dünya sürümü 4+: zengin şehir ızgara planlıdır (js/city.js)
+      if (rich && WGEN >= 4) { this.genCity(td, big); continue; }
       const RT = rich ? T.COBBLE : T.ROAD, GT = rich ? T.PAVE : T.TOWN;
       const rx = RAD[td.sz] + (rich ? (big ? 8 : 6) : 0), ry = Math.round(rx * 0.74);
       const cx = Math.round(td.px * WW), cy = Math.round(td.py * WH);
@@ -1879,6 +1881,7 @@ class World {
           if (sy < 0) sy = 0; else if (sy > MAXP) sy = MAXP;
           t = tile[(sy >> 4) * WW + (sx >> 4)];
           if (t === T.BRIDGE || t === T.PLANK) t = base;
+          else if (base === T.COBBLE || base === T.PAVE || t === T.COBBLE || t === T.PAVE) t = base;   // taş döşemenin kenarı düz (bordür, çimen sınırı)
         }
         let col = TPAL[t];
         let v = DET[k] * TV[t];
@@ -1916,11 +1919,18 @@ class World {
           const row = (wy / 3) | 0, cxs = wx + (row & 1) * 2;
           if (wy % 3 === 0 || cxs % 4 === 0) mul = 0.74;
           else { v = (hash2(cxs >> 2, row, 23) - 0.5) * 22 + DET[k] * 3; if (wy % 3 === 1 && cxs % 4 === 1) v += 9; }
+          // bordür ve oluk: kaldırımın kenarına bakan taşlar koyu, kuzeydeki kaldırımın bordür yüzü gölgeli
+          const lx = wx & 15, ly = wy & 15, ti = rowT + (wx >> 4);
+          if ((ly <= 1 && tile[ti - WW] === T.PAVE) || (lx <= 0 && tile[ti - 1] === T.PAVE) || (lx >= 15 && tile[ti + 1] === T.PAVE)) mul = 0.66;
+          else if (ly >= 15 && tile[ti + WW] === T.PAVE) mul = 0.72;
         } else if (t === T.PAVE) {
           // kaldırım taşı: büyük kare levhalar
           const sx = (wx + (((wy >> 3) & 1) << 2)) & 7;
           if ((wy & 7) === 0 || sx === 0) mul = 0.84;
           else v = (hash2((wx + (((wy >> 3) & 1) << 2)) >> 3, wy >> 3, 29) - 0.5) * 10 + DET[k] * 2;
+          // bordür: taşıt yoluna bakan kenarda iki piksellik açık renkli kesme taş
+          const lx = wx & 15, ly = wy & 15, ti = rowT + (wx >> 4);
+          if ((ly >= 14 && tile[ti + WW] === T.COBBLE) || (ly <= 1 && tile[ti - WW] === T.COBBLE) || (lx >= 14 && tile[ti + 1] === T.COBBLE) || (lx <= 1 && tile[ti - 1] === T.COBBLE)) { mul = 1; v = 15 + DET[k] * 2; }
         }
         if (cls) cls[py * PW + px] = t;
         const i = (py * PW + px) << 2;
