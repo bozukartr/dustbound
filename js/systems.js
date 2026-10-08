@@ -1115,7 +1115,7 @@ const GameSystems = {
       else if (d > 1500 && t.spawned) { t.spawned = false; t._res = null; for (const e of ents) if (e.town === t.id) e.remove = true; }
     }
     // kasaba hayatı: sakinlerin günlük programı, dükkân çalışanları, yol trafiği
-    for (const t of W.towns) if (t.spawned) { this.townTick(t); this.townStaff(t); }
+    for (const t of W.towns) if (t.spawned) { this.townTick(t); this.townStaff(t); if (t.net) this.cityTick(t); }
     this.trafficTick();
     this.nomadTick();
     // çiftlikler & kamplar

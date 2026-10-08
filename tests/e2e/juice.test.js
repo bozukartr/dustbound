@@ -138,7 +138,7 @@ module.exports = {
         for (const q of L) { const [x, y] = px(q); if (x < 0 || y < 0 || x >= cw || y >= G.canvas.height) continue; const i = (y * cw + x) * 4; diffs.push((a[i] + a[i + 1] + a[i + 2] - b[i] - b[i + 1] - b[i + 2]) / 3); }
         diffs.sort((u, v) => u - v); out.dark = diffs[diffs.length >> 1]; out.nd = diffs.length;
         // kar yağarken izler hızla dolar
-        const q = L[L.length - 1]; out.l0 = q.life; out.t0 = G.t; G.envCache.snow = 1;
+        window.__probe = L[0]; out.l0 = L[0].life; out.t0 = G.t; G.envCache.snow = 1;   // hep aynı iz ölçülür (yeni izler araya girmez)
         return out;
       });
       t.ok(r.n >= 3, 'karda yürüyünce iz kalır', r.n);
@@ -150,7 +150,7 @@ module.exports = {
       t.ok(r.h2[0] >= 4 && r.h2[1] === 2, 'melezde iz iki kat ince ayrıntılı (iki piksel en)', r.h2);
       t.ok(r.nd >= 3 && r.dark > 4 && r.dark < 45, 'iz görünür ama silik (karda hafif kararma)', r);
       await t.sleep(700);
-      const f = await p.evaluate(({ l0, t0 }) => { const q = FX.snowTracks[FX.snowTracks.length - 1]; return { dl: l0 - q.life, dt: G.t - t0 }; }, r);
+      const f = await p.evaluate(({ l0, t0 }) => ({ dl: l0 - window.__probe.life, dt: G.t - t0 }), r);
       t.ok(f.dt > 0.1 && f.dl > f.dt * 2.5, 'yağan kar izi birkaç kat hızlı doldurur', f);
     });
   },

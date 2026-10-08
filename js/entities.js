@@ -1220,6 +1220,7 @@ class NPC extends Ent {
   }
   idleUpdate(dt, pd) {
     const P = G.player;
+    if (this.cityRide) { G.cityRideStep(this, dt); return; }   // şehirde atlı vatandaş: sokak ağında şeridini izler
     if (this.path) {
       const pt = this.path[this.pi];
       if (!pt) { this.remove = true; return; }

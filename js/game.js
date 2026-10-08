@@ -1175,6 +1175,7 @@ const G = {
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(GameSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(CarrySystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(TownLifeSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(CitySystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcNav));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcMind));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcActs));
