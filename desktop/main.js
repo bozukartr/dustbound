@@ -12,6 +12,7 @@
 const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const GPU = require('./gpu.js');
 
 const PKG = require('./package.json');
 const DEV = process.argv.includes('--dev') || !app.isPackaged;
@@ -63,6 +64,23 @@ let deskCfg = { fullscreen: true };
 try { Object.assign(deskCfg, JSON.parse(fs.readFileSync(DESK_CFG, 'utf8'))); } catch (e) {}
 const saveDeskCfg = () => { try { fs.writeFileSync(DESK_CFG, JSON.stringify(deskCfg)); } catch (e) {} };
 
+/* ---------------- Ekran kartı (desktop/gpu.js) ----------------
+   Tercih GPU süreci açılmadan uygulanmalı: anahtarlar ve ortam değişkenleri burada, hazır olmadan önce. */
+const GPU_CARDS = process.platform === 'linux' ? GPU.linuxCards() : [];
+const GPU_PLAN = GPU.launchPlan(deskCfg.gpu, process.platform, { cards: GPU_CARDS, nvidiaDriver: process.platform === 'linux' && GPU.nvidiaDriver(), envBad: deskCfg.gpuEnvBad });
+for (const s of GPU_PLAN.switches) app.commandLine.appendSwitch(s);
+Object.assign(process.env, GPU_PLAN.env);
+let gpuInfoP = null;
+function gpuInfo() {
+  if (!gpuInfoP) gpuInfoP = app.getGPUInfo('complete').catch(() => null).then((info) => {
+    // Linux'ta güçlü kart denemesi WebGL'i açamadıysa (yazılım çizimi) bir dahaki açılışta değişkenler verilmez
+    const webgl = String((app.getGPUFeatureStatus() || {}).webgl || '');
+    if (Object.keys(GPU_PLAN.env).length && !/^enabled/.test(webgl)) { deskCfg.gpuEnvBad = true; saveDeskCfg(); }
+    return Object.assign(GPU.summarize(info, GPU_CARDS), { webgl });
+  });
+  return gpuInfoP;
+}
+
 /* ---------------- Pencere ---------------- */
 let win = null, allowClose = false;
 function createWindow() {
@@ -82,10 +100,11 @@ function createWindow() {
       backgroundThrottling: false,
       autoplayPolicy: 'no-user-gesture-required',   // açılış videosu sesli başlasın
       devTools: DEV,
+      additionalArguments: ['--fe-gpu=' + GPU_PLAN.pref],   // bu açılışta uygulanan ekran kartı tercihi (preload.js)
     },
   });
   Menu.setApplicationMenu(null);
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => { win.show(); gpuInfo(); });
   win.loadFile(path.join(__dirname, 'app', 'index.html'));
   // dış bağlantılar sistem tarayıcısında açılsın, oyun sayfası başka yere gitmesin
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
@@ -126,6 +145,18 @@ ipcMain.on('steam:keyboard', (e, x, y, w, h) => {
 ipcMain.on('win:isFullscreen', (e) => { e.returnValue = !!(win && win.isFullScreen()); });
 ipcMain.on('win:fullscreen', (e, on) => { if (win) win.setFullScreen(!!on); });
 ipcMain.on('app:quit', () => { allowClose = true; app.quit(); });
+ipcMain.on('app:relaunch', () => { allowClose = true; app.relaunch(); app.quit(); });
+// ekran kartı: bulunan kartlar ve bu açılışın tercihi; seçim desktop.json'a yazılır, yeniden başlatınca geçerli olur
+ipcMain.handle('gpu:info', async () => {
+  const info = await gpuInfo();
+  return Object.assign({ launch: GPU_PLAN.pref, saved: GPU.prefOf(deskCfg.gpu), platform: process.platform, env: Object.keys(GPU_PLAN.env), envBad: !!deskCfg.gpuEnvBad }, info);
+});
+ipcMain.on('gpu:set', (e, pref) => {
+  const p = GPU.prefOf(pref);
+  if (p === GPU.prefOf(deskCfg.gpu)) return;
+  deskCfg.gpu = p; delete deskCfg.gpuEnvBad;   // yeni seçimde Linux denemesine yeniden izin
+  saveDeskCfg();
+});
 
 /* ---------------- Yaşam döngüsü ---------------- */
 if (!app.requestSingleInstanceLock()) app.quit();

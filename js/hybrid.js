@@ -972,15 +972,16 @@ const HY = (() => {
     if (soft && window.__hySoft) { soft = false; failed = false; }
     if (gl || failed) return !!gl;
     try {
-      glc = document.createElement('canvas');
-      gl = glc.getContext('webgl', { antialias: false, alpha: false, depth: false, preserveDrawingBuffer: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: !window.__hySoft });
+      const cv = glc = document.createElement('canvas');
+      // ekran kartı tercihi (Ayarlar → Görüntü → Ekran Kartı): tasarruflu seçildiyse tümleşik kart istenir
+      gl = glc.getContext('webgl', { antialias: false, alpha: false, depth: false, preserveDrawingBuffer: false, powerPreference: G.gpuPower ? G.gpuPower() : 'high-performance', failIfMajorPerformanceCaveat: !window.__hySoft });
       if (!gl) { soft = !window.__hySoft && !!document.createElement('canvas').getContext('webgl'); throw new Error(soft ? 'yazılım çizimi' : 'WebGL yok'); }
       const ri = gl.getExtension('WEBGL_debug_renderer_info');
       if (!window.__hySoft && ri && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(gl.getParameter(ri.UNMASKED_RENDERER_WEBGL))) { gl = null; soft = true; throw new Error('yazılım çizimi'); }
       PL = compile(LFS); PB = compile(BFS); PF = compile(FFS);
       quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
       texC = tex(0, 0, false); texG = tex(0, 0, false);
-      glc.addEventListener('webglcontextlost', (e) => { e.preventDefault(); failed = true; gl = null; });
+      glc.addEventListener('webglcontextlost', (e) => { e.preventDefault(); if (glc === cv) { failed = true; gl = null; } });   // bilerek bırakılan eski bağlam sayılmaz
       return true;
     } catch (e) {
       console.warn('Melez çizim açılamadı, klasik çizim kullanılacak:', e);
@@ -1244,8 +1245,15 @@ const HY = (() => {
     return true;
   }
 
+  /* Bağlamı bırak: sonraki available() yeni güç tercihiyle (ekran kartı değişti) baştan kurar */
+  function reset() {
+    try { const x = gl && gl.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); } catch (e) {}
+    gl = null; glc = null; failed = false; soft = false;
+    PL = PB = PF = null; quad = texC = texG = null; rtL = rtA = rtB = null; RW = RH = 0;
+  }
+
   return {
-    render, stat, flush: (W) => flush(W || world),
+    render, stat, reset, flush: (W) => flush(W || world),
     // testler için: bir noktanın parçasını ve bir binanın örtüsünü hemen pişir
     _bake(W, x, y) { return chunk(W, Math.floor(x / HC), Math.floor(y / HC), true); }, _cover(b, W) { return cover(b, W); },
     available() { return init(); },

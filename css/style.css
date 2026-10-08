@@ -1029,6 +1029,12 @@ body.dbg-nohud #hud { display: none; }
 .st-side-v { font-family: var(--type); font-size: 17px; color: var(--gold); margin: -2px 0 12px; }
 .st-desc { font-size: 17px; }
 .st-def { margin-top: 16px; font-family: var(--type); font-size: 13px; color: var(--dim); border-top: 1px dashed rgba(201, 164, 92, 0.2); padding-top: 10px; }
+/* ekran kartı: kullanılan ve bulunan kartlar, uyarılar */
+.st-gpu { margin-top: 12px; font-family: var(--type); font-size: 14px; line-height: 1.45; color: var(--dim); }
+.st-gpu b { color: var(--gold); font-weight: normal; }
+.st-gpu i { font-style: normal; color: rgba(236, 216, 172, 0.7); }
+.st-gpu-n { margin-top: 6px; color: #e8c890; }
+.st-row[data-k="gpu"] .st-seg span { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 900px) {
   .st-seg span { padding: 5px 7px; font-size: 13px; }
   .st-side { display: none; }
@@ -1039,6 +1045,7 @@ body.dbg-nohud #hud { display: none; }
   .st-seg span, .st-tog span { font-size: 17px; } .st-tog { width: 180px; height: 36px; }
   .st-slider { width: 260px; } .st-sl-knob { width: 26px; height: 26px; margin: -13px 0 0 -13px; }
   .st-desc { font-size: 20px; } .ps-t { font-size: 26px; }
+  .st-gpu { font-size: 16px; }
 }
 
 /* ---------------- Kaydırma çubukları: pirinç ray, deri oluk ---------------- */

@@ -1552,12 +1552,13 @@ const UI = {
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, gfx: 0 };
+    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, gfx: 0, gpu: 0 };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
       padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')], gfx: [Tr('Melez'), Tr('Klasik')], tone: [Tr('Doğal'), Tr('Canlı')],
       zoom: [Tr('Otomatik'), '1x', '2x', '3x', '4x', '5x'],
       hudScale: HUD_SCALES.map(v => Math.round(v * 100) + '%'),
+      gpu: this.gpuOpts(),
     };
     const TABS = [
       { n: Tr('@ayar|Genel'), g: 'gear', rows: [
@@ -1575,6 +1576,7 @@ const UI = {
       { n: Tr('Görüntü'), g: 'eye', rows: [
         ...(Platform.canFullscreen === false ? [] : [['fullscreen', Tr('Tam Ekran'), 'fs', Tr('Oyunu tam ekranda ya da pencerede çalıştırır. Tercih kaydedilir; tarayıcıda tam ekrandan çıkmak için Esc tuşunu basılı tut.')]]),
         ['gfx', Tr('Grafik'), 'opt', Tr('Melez: iki kat piksel ayrıntısı, güneşe göre gölgeler, duvarda duran gece ışıkları, ışıyan pencereler ve fenerler. Klasik: eski düz çizim; zayıf bilgisayarlar için daha hafif. Ekran kartı bulunamazsa Klasik kullanılır.')],
+        ['gpu', Tr('Ekran Kartı'), 'opt', Tr('Oyunun çizileceği ekran kartı. Otomatik, varsa güçlü (harici) kartı kullanır. Dizüstünde tasarruflu (tümleşik) kart pili uzatır ama Melez çizimde kare sayısı düşer.')],
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
         ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
         ['tone', Tr('Görüntü Tonu'), 'opt', Tr('Doğal: gerçeğe yakın, yumuşak renkler ve daha düşük kontrast; uzun oyunda gözü yormaz. Canlı: daha doygun, parlak renkler.')],
@@ -1609,7 +1611,7 @@ const UI = {
     const side = (row) => {
       const [k, n, t, d] = row;
       const T = TABS[m.tab];
-      return `<div class="st-side-ic">${Icons.glyph(T.g, '#c9a45c')}</div><div class="ps-t">${n}</div>${t !== 'link' ? `<div class="st-side-v">${valTxt(k, t)}</div>` : ''}<div class="ps-d st-desc">${d}</div>${k in DEF ? `<div class="st-def">${Tr`Varsayılan:`} ${t === 'vol' ? Math.round(DEF[k] * 100) + '%' : t === 'bool' ? (DEF[k] ? Tr('Açık') : Tr('Kapalı')) : OPTL[k][DEF[k]]}</div>` : ''}`;
+      return `<div class="st-side-ic">${Icons.glyph(T.g, '#c9a45c')}</div><div class="ps-t">${n}</div>${t !== 'link' ? `<div class="st-side-v">${valTxt(k, t)}</div>` : ''}<div class="ps-d st-desc">${d}</div>${k === 'gpu' ? this.gpuSide() : ''}${k in DEF ? `<div class="st-def">${Tr`Varsayılan:`} ${t === 'vol' ? Math.round(DEF[k] * 100) + '%' : t === 'bool' ? (DEF[k] ? Tr('Açık') : Tr('Kapalı')) : OPTL[k][DEF[k]]}</div>` : ''}`;
     };
     const change = (k, t, d, direct) => {
       if (t === 'lang') {
@@ -1621,6 +1623,14 @@ const UI = {
         return;
       }
       if (t === 'fs') { G.setFullscreenPref(direct !== undefined ? direct : !Platform.isFullscreen()); setTimeout(() => { if (m.alive) render(); }, 250); return; }
+      if (k === 'gpu') {
+        const v = direct !== undefined ? direct : ((S.gpu || 0) + d + 3) % 3;
+        if (v === (S.gpu || 0)) return;
+        S.gpu = v; this.gpuAsk = true;
+        G.saveSettings(); Audio_.ui('move');
+        gpuLoad(); render();   // tarayıcıda kart hemen değişir: kullanılan kart yeniden algılanır
+        return;
+      }
       if (t === 'link') { G.saveSettings(); this.openControls(); return; }
       if (t === 'vol') S[k] = clamp(direct !== undefined ? direct : Math.round((S[k] + d * 0.05) * 20) / 20, 0, 1);
       else if (t === 'bool') S[k] = direct !== undefined ? direct : !S[k];
@@ -1629,8 +1639,23 @@ const UI = {
       if (t === 'vol') Audio_.ui('move');
       render();
     };
+    // ekran kartları arka planda algılanır; sonuç gelince yalnızca kart satırı ve (odaktaysa) yan panel yenilenir
+    const gpuLoad = () => {
+      if (this.gpuDet || this.gpuDetP) return;
+      const P = this.gpuDetP = Platform.gpuDetect(G.gpuPower()).catch(() => ({ cards: [], active: null, soft: true })).then(r => {
+        if (this.gpuDetP !== P) return;
+        this.gpuDet = r; this.gpuDetP = null;
+        if (!m.alive) return;
+        OPTL.gpu = this.gpuOpts();
+        const row = $('.st-row[data-k="gpu"]', el);
+        if (row) row.querySelector('.st-ctl').innerHTML = control('gpu', 'opt');
+        const sd = $('.st-side', el);
+        if (sd && m.focusEl && m.focusEl.dataset.k === 'gpu') sd.innerHTML = side(m.focusEl._row);
+      });
+    };
     const render = () => {
       const T = TABS[m.tab];
+      OPTL.gpu = this.gpuOpts();
       const fk = m.focusEl ? m.focusEl.dataset.k : focusKey;
       el.innerHTML = `<div class="p-head st-head"><div class="p-title">${Tr`Ayarlar`}</div></div>
         <div class="p-tabs st-tabs">${Input.glyph('tabL')}${TABS.map((x, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${Icons.glyph(x.g, 'currentColor')}${x.n}</span>`).join('')}${Input.glyph('tabR')}</div>
@@ -1680,18 +1705,66 @@ const UI = {
       m.setFocus(target, true);
     };
     m = this.makeModal(el, {
-      onBack: () => { G.saveSettings(); this.pop(); },
+      onBack: () => { G.saveSettings(); this.pop(); this.gpuRestartAsk(); },
       onTab: (d) => { m.tab = (m.tab + d + TABS.length) % TABS.length; m.focusEl = null; focusKey = null; render(); Audio_.ui('move'); },
       onAlt: () => {
+        const g0 = S.gpu || 0;
         for (const r of TABS[m.tab].rows) if (r[0] in DEF) S[r[0]] = DEF[r[0]];
-        G.applySettings(); G.saveSettings(); render(); this.feed(Tr('Bu sekmedeki ayarlar varsayılana döndü.'));
+        if ((S.gpu || 0) !== g0) this.gpuAsk = true;
+        G.applySettings(); G.saveSettings(); gpuLoad(); render(); this.feed(Tr('Bu sekmedeki ayarlar varsayılana döndü.'));
       },
       onFocus: (n) => { const sd = $('.st-side', el); if (sd && n._row) sd.innerHTML = side(n._row); },
     });
     m.tab = tab;
     render();
     this.push(m);
+    gpuLoad();
     return m;
+  },
+  /* ---- Ekran kartı (Ayarlar → Görüntü) ----
+     Seçenekler: Otomatik, güçlü kart, tasarruflu kart; iki kart bulunduysa adlarıyla. */
+  gpuDet: null, gpuDetP: null, gpuAsk: false,
+  gpuOpts() {
+    const D = this.gpuDet, hi = D && D.cards.find(c => c.role === 'high'), lo = D && D.cards.find(c => c.role === 'low');
+    return [Tr('Otomatik'), hi ? hi.short : Tr('Güçlü kart'), lo ? lo.short : Tr('Tasarruflu kart')];
+  },
+  /* Yan panel: kullanılan kart, bulunan kartlar ve gerekirse ne yapılacağı */
+  gpuSide() {
+    const D = this.gpuDet;
+    if (!D) return `<div class="st-gpu">${Tr('Ekran kartları algılanıyor…')}</div>`;
+    const launch = Platform.gpuLaunch, pending = !!launch && G.gpuPref() !== launch, info = D.info || {};
+    const role = (c) => c.role === 'high' ? Tr('güçlü') : c.role === 'low' ? Tr('tasarruflu') : '';
+    const L = [`${Tr('Kullanılan:')} <b>${D.soft || !D.active ? Tr('yok (yazılım çizimi)') : escapeHtml(D.active)}</b>`];
+    if (D.cards.length) {
+      const ord = { high: 0, only: 1, low: 3 }, cards = [...D.cards].sort((a, b) => (ord[a.role] ?? 2) - (ord[b.role] ?? 2));
+      L.push(D.cards.length > 1 ? Tr('Bulunan kartlar:') : Tr('Bulunan kart:'));
+      for (const c of cards) L.push(`· ${escapeHtml(c.name)}${role(c) ? ` <i>— ${role(c)}</i>` : ''}`);
+    }
+    const N = [];
+    if (pending) N.push(Tr('Seçim oyun yeniden açılınca geçerli olur.'));
+    if (D.cards.length === 1) N.push(Tr('Tek ekran kartı bulundu; seçim fark etmez.'));
+    if (info.envBad) N.push(info.env && info.env.length ? Tr('Güçlü kart bu açılışta başlatılamadı; bir sonraki açılışta sistemin kartı kullanılacak.') : Tr('Güçlü kart daha önce başlatılamadığı için sistemin kartı kullanılıyor.'));
+    // istenen kart kullanılmıyor: sistemine göre elle seçme yolu
+    const want = launch || G.gpuPref(), act = D.cards.find(c => c.active);
+    if (!pending && !D.soft && act && (want === 'low' ? act.role === 'high' : act.role === 'low')) {
+      const pf = Platform.native && Platform.native.platform;
+      N.push(pf === 'win32' ? Tr('Seçilen kart kullanılamadı. Windows Ayarlar → Sistem → Ekran → Grafik bölümünden oyuna kartı elle atayabilirsin.')
+        : pf === 'linux' ? Tr("Seçilen kart kullanılamadı. Steam'de oyunun Başlatma Seçenekleri'ne prime-run %command% yazmayı dene.")
+        : Tr('Seçilen kart kullanılamadı; sistem ya da tarayıcı başka kartı seçti.'));
+    }
+    if (!launch && D.cards.length !== 1) N.push(Tr('Tarayıcı bu seçimi her zaman uygulamayabilir.'));
+    if (D.soft && !G.hybridOn()) N.push(Tr('Ekran kartı kullanılamadığı için Melez çizim kapalı.'));
+    return `<div class="st-gpu">${L.map(x => `<div>${x}</div>`).join('')}${N.map(x => `<div class="st-gpu-n">${x}</div>`).join('')}</div>`;
+  },
+  /* Masaüstünde kart değiştiyse ayarlardan çıkarken sorulur: kaydedip yeniden başlat (Steam'de kapat; Steam'den açılır) */
+  gpuRestartAsk() {
+    const launch = Platform.gpuLaunch;
+    if (!this.gpuAsk) return;
+    this.gpuAsk = false;
+    if (!launch || G.gpuPref() === launch) return;
+    const quit = Platform.steam || !Platform.canRelaunch;
+    this.confirm(Tr('Ekran Kartı'), Tr('Yeni ekran kartı oyun yeniden açılınca kullanılır.') + ' ' + (quit ? Tr('Oyun kaydedilip kapatılsın mı?') : Tr('Oyun kaydedilip yeniden başlatılsın mı?')),
+      () => { if (G.state === 'play') G.saveGame(true); if (quit) Platform.quit(); else Platform.relaunch(); }, Tr('Sonra'), quit ? Tr('Kaydet ve Çık') : Tr('Yeniden Başlat'));
   },
   /* Dil değişince açık menüleri yeni dilde yeniden kur (ayarlar dil satırında açık kalır) */
   relocalize(tab = 0, key = 'lang') {
