@@ -448,7 +448,9 @@ const G = {
 
   /* ---------------- Döngü ---------------- */
   frame(ts) {
-    const dt = Math.min(0.05, (ts - this.last) / 1000);
+    const dt = clamp((ts - this.last) / 1000, 0, 0.05);   // zaman geri gitmez, uzun duraksama tek kareye yayılmaz
+    // ekranın kare aralığı (yumuşatılmış): arka plan işlerinin bütçesi buna göre; 144 Hz'de 60 Hz'in bütçesi kareyi taşırır
+    this.frameMs = this.frameMs ? this.frameMs + (clamp(ts - this.last, 2, 50) - this.frameMs) * 0.1 : 16.7;
     this.last = ts;
     Input.poll(dt);
     if (this.state !== 'play') Audio_.pianoLevel = 0;
@@ -783,7 +785,7 @@ const G = {
         p.t += dt; p.fuse -= dt;
         const f = Math.min(1, p.t / p.dur);
         p.x = lerp(p.sx, p.tx, f); p.y = lerp(p.sy, p.ty, f); p.z = Math.sin(f * Math.PI) * 20;
-        if (Math.random() < 0.5) this.parts.add('spark', p.x, p.y - p.z, rnd(-10, 10), rnd(-20, 0), 0.3, 1);
+        if (Math.random() < dt * 30) this.parts.add('spark', p.x, p.y - p.z, rnd(-10, 10), rnd(-20, 0), 0.3, 1);
         if (p.fuse <= 0) { this.explode(p.x, p.y, p.owner); L.splice(i, 1); }
       }
     }
@@ -828,15 +830,19 @@ const G = {
     // içerideyken kamera binanın ortasına oturur
     const Z = this.zoomUpdate(dt);
     if (Z.k > 0.001) { tx = lerp(tx, Z.cx, Z.k); ty = lerp(ty, Z.cy, Z.k); }
-    const cf = this.binoc ? 7 : 4;
-    C.x = lerp(C.x, tx, Math.min(1, dt * cf));
-    C.y = lerp(C.y, ty, Math.min(1, dt * cf));
+    // yumuşak takip; üstel katsayı kare hızından bağımsız (60 Hz ile 144 Hz'de aynı)
+    const cf = this.binoc ? 7 : 4, k = 1 - Math.exp(-dt * cf);
+    C.x = lerp(C.x, tx, k);
+    C.y = lerp(C.y, ty, k);
     let sx = 0, sy = 0;
     if (this.fx.shake > 0 && this.settings.shake) { sx = rnd(-1, 1) * this.fx.shake; sy = rnd(-1, 1) * this.fx.shake; }
     this.fx.shake = Math.max(0, this.fx.shake - dt * 18);
     if (this.settings.shake) { sx += this.fx.kx || 0; sy += this.fx.ky || 0; }   // yönlü tepme (atış, patlama)
-    C.ox = Math.round(C.x - this.vw / 2 + sx);
-    C.oy = Math.round(C.y - this.vh / 2 + sy);
+    // piksel kamerası oyuncuya kilitli: kamera, oyuncunun yuvarlanmış konumuyla birlikte yuvarlanır; böylece karakter
+    // ekranda titremez, zemin onunla aynı adımda kayar. Melez çizimde (iki kat yoğun tuval) ızgara yarım pikseldir.
+    const q = this.ds === 2 ? 2 : 1, R = (v) => Math.round(v * q) / q;
+    C.ox = R(P.x) - R(P.x - (C.x - this.vw / 2 + sx));
+    C.oy = R(P.y) - R(P.y - (C.y - this.vh / 2 + sy));
   },
   /* Dünya koordinatı → ekran (CSS pikseli); tuvalin kenar payını ve yakınlaşmasını hesaba katar */
   toScreen(x, y) {
@@ -902,8 +908,8 @@ const G = {
         } else if (o === O.ARTIFACT) {
           const hv = W.harvested.get(row + tx);
           if (hv === undefined) Spr.sparkle(ctx, tx * TS + 8, ty * TS + 8, t + tx);
-        } else if (o === O.CAMPFIRE) { Spr.fire(ctx, tx * TS + 8, ty * TS + 8, t); fires.push([tx * TS + 8, ty * TS + 8]); if (Math.random() < 0.1) this.parts.add('ember', tx * TS + 8, ty * TS + 4, 0, -10, 1, 1); FX.fireSource(tx * TS + 8, ty * TS + 8); }
-        else if (o === O.STEAM) { if (Math.random() < 0.3) this.parts.add('steam', tx * TS + rnd(-40, 56), ty * TS + rnd(-40, 56), rnd(-4, 4), -6, 2.5, 3); }
+        } else if (o === O.CAMPFIRE) { Spr.fire(ctx, tx * TS + 8, ty * TS + 8, t); fires.push([tx * TS + 8, ty * TS + 8]); if (Math.random() < dt * 6) this.parts.add('ember', tx * TS + 8, ty * TS + 4, 0, -10, 1, 1); FX.fireSource(tx * TS + 8, ty * TS + 8); }
+        else if (o === O.STEAM) { if (Math.random() < dt * 18) this.parts.add('steam', tx * TS + rnd(-40, 56), ty * TS + rnd(-40, 56), rnd(-4, 4), -6, 2.5, 3); }
       }
     }
     for (const L of this.lostItems) Spr.sparkle(ctx, L.x, L.y, t * 1.3);
@@ -920,12 +926,17 @@ const G = {
     vis.push(P);
     const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' ? -20 : 0;   // yerde yatanlar altta çizilir
     vis.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
+    // her varlık kamerayla aynı piksel ızgarasına oturur: kayarken kenarları titremez
+    let sdx = 0, sdy = 0;
     for (const e of vis) {
       if (e === P && P.riding) continue;
+      const nx = Math.round(e.x) - e.x, ny = Math.round(e.y) - e.y;
+      ctx.translate(nx - sdx, ny - sdy); sdx = nx; sdy = ny;
       if (e.rider === P) { e.draw(ctx); if (e.kind === 'horse' || P.mountAnim) P.draw(ctx); continue; }   // araba sürücüyü kendisi çizer (binme animasyonu hariç)
       if (e.child) { ctx.save(); ctx.translate(e.x, e.y); ctx.scale(0.7, 0.7); ctx.translate(-e.x, -e.y); e.draw(ctx); ctx.restore(); continue; }
       e.draw(ctx);
     }
+    ctx.translate(-sdx, -sdy);
     this.drawProjs(ctx);
     Juice.sunOn = false;
     this.parts.draw(ctx, x0, y0, x1, y1);
@@ -947,7 +958,7 @@ const G = {
     this.renderTail(ctx, dt, x0, y0, x1, y1, fires, true);
     // sonraki chunk'lar
     this.prefetch(false);
-    W.runJobs(4);
+    W.runJobs(clamp(this.frameMs * 0.25, 1, 4));
     if (this.binoc) this.binocDraw();
   },
   /* Mermiler, kement ve ip (dünya koordinatında; 2D ve 3D çizim ortak) */
@@ -974,7 +985,7 @@ const G = {
     FX.drawClouds(ctx);
     ctx.save();
     ctx.translate(-x0, -y0);
-    this.drawWorldUI(ctx);
+    this.drawWorldUI(ctx, dt);
     ctx.restore();
     this.drawWeather(ctx, dt);
     if (lit2d) this.drawLighting(ctx, fires);
@@ -1017,7 +1028,7 @@ const G = {
     for (let y = ty - 4; y <= ty + 4; y++) for (let x = tx - 4; x <= tx + 4; x++) { if (W.inb(x, y) && W.obj[y * WW + x] === O.SEQUOIA) return true; }
     return false;
   },
-  drawWorldUI(ctx) {
+  drawWorldUI(ctx, dt = 1 / 60) {
     const P = this.player;
     // etkileşim hedefi
     const it = UI.curInteract;
@@ -1053,7 +1064,7 @@ const G = {
     // yapı kurma önizlemesi: arazinin sınırı (uygun değilse kırmızı)
     const HP = this.homePreview;
     if (HP) {
-      if (HP.t !== undefined && (HP.t -= 1 / 60) <= 0) this.homePreview = null;
+      if (HP.t !== undefined && (HP.t -= dt) <= 0) this.homePreview = null;
       ctx.strokeStyle = HP.bad ? 'rgba(230,80,60,0.9)' : 'rgba(240,220,140,0.9)'; ctx.lineWidth = 1; ctx.setLineDash([3, 2]);
       ctx.strokeRect(HP.tx * TS + 0.5, HP.ty * TS + 0.5, HOME_FW * TS - 1, HOME_FH * TS - 1); ctx.setLineDash([]);
     }

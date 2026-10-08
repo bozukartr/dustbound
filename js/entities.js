@@ -1550,8 +1550,8 @@ class Prop extends Ent {
   constructor(x, y, type, opts = {}) {
     super(x, y); this.kind = 'prop'; this.type = type; this.r = 0; this.col = opts.col || '#c8b890'; this.ang = opts.ang || 0;
   }
-  update() {
-    if (this.type === 'fire') { if (Math.random() < 0.05) G.parts.add('ember', this.x + rnd(-2, 2), this.y - 3, rnd(-3, 3), -10, 1.5, 1); FX.fireSource(this.x, this.y); }
+  update(dt = 1 / 60) {
+    if (this.type === 'fire') { if (Math.random() < dt * 3) G.parts.add('ember', this.x + rnd(-2, 2), this.y - 3, rnd(-3, 3), -10, 1.5, 1); FX.fireSource(this.x, this.y); }
   }
   draw(ctx) {
     const x = this.x, y = this.y;
