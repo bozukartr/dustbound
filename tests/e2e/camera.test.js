@@ -1,5 +1,5 @@
 'use strict';
-/* Kamera: binaya girince yumuşak yakınlaşma, çıkınca uzaklaşma; yakınken fareyle nişan */
+/* Kamera: binaya girince yumuşak yakınlaşma, çıkınca uzaklaşma; yakınken fareyle nişan; piksel kamerası oyuncuya kilitli */
 module.exports = {
   name: 'Kamera yakınlaşması',
   async run(t) {
@@ -65,6 +65,32 @@ module.exports = {
       const r = await z();
       t.ok(!r.inside, 'dışarıda'); t.near(r.z, 1, 0.001, 'ölçek 1'); t.eq(r.tf, '', 'dönüşüm kalktı');
       t.ok(samples.some(v => v > 1.02 && v < 1.9), 'kademeli uzaklaşma', samples);
+    });
+    await t.step('piksel kamerası oyuncuya kilitli: sabit hızda oyuncu ekranda titremez, zemin geri kaymaz (60 ve 144 Hz)', async () => {
+      const r = await p.evaluate(() => {
+        const P = G.player, C = G.cam, x0 = P.x, y0 = P.y, out = { ds: G.ds };
+        for (const fps of [60, 144]) {
+          const dt = 1 / fps, v = 58;   // yürüyüş hızı (piksel/sn), kare başına piksel altı adım
+          C.x = P.x = x0; C.y = P.y = y0;
+          let prev = null, prevOx = null, jumps = 0, back = 0, n = 0;
+          for (let i = 0; i < fps * 4; i++) {
+            P.x += v * dt; G.updateCamera(dt);
+            if (i < fps * 1.5) continue;              // kamera gecikmesi otursun
+            const scr = Math.round(P.x) - C.ox;        // oyuncunun tuvaldeki pikseli
+            if (prev !== null && scr !== prev) jumps++;
+            if (prevOx !== null && C.ox < prevOx) back++;
+            prev = scr; prevOx = C.ox; n++;
+          }
+          out[fps] = { jumps, back, n };
+        }
+        C.x = P.x = x0; C.y = P.y = y0; G.updateCamera(1 / 60);
+        return out;
+      });
+      t.eq(r.ds, 1, 'klasik çizim (tek kat ızgara)');
+      for (const fps of [60, 144]) {
+        t.ok(r[fps].jumps <= 2, fps + ' Hz: oyuncu ekranda sıçramaz', r[fps]);
+        t.eq(r[fps].back, 0, fps + ' Hz: zemin geri kaymaz');
+      }
     });
   },
 };

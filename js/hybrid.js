@@ -49,24 +49,30 @@ const HY = (() => {
     else { tg[i + 1] = (n[0] * 0.5 + 0.5) * 249; tg[i + 2] = (n[1] * 0.5 + 0.5) * 249; }
   }
   function rect(x0, y0, w, h, c, ht, n = UP, em = 0) {
-    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) {
+    // hedefin dışına düşen pikseller hiç hesaplanmaz (put onları zaten atar): parça sınırına taşan bina yarı yarıya ucuzlar
+    const ya = y0 < 0 ? y0 + Math.ceil(-y0) : y0, yb = Math.min(y0 + h, TG.h), xa = x0 < 0 ? x0 + Math.ceil(-x0) : x0, xb = Math.min(x0 + w, TG.w);
+    for (let y = ya; y < yb; y++) for (let x = xa; x < xb; x++) {
       const cc = typeof c === 'function' ? c(x, y) : c;
       if (!cc) continue;
       put(x, y, cc, typeof ht === 'function' ? ht(x, y) : ht, n, typeof em === 'function' ? em(x, y) : em);
     }
   }
   const facadeH = (baseW) => (x, y) => Math.max(0, baseW - wyOf(y));     // dikey yüz: tabandan yukarı yükselir
-  // 2D çizimi geçici tuvale iki kat ölçekte çizip keskin kenarlı piksellere çevirir
-  function stamp(draw, ox, oy, w, h, hFn, n, filter) {
+  // 2D çizimi geçici tuvale iki kat ölçekte çizip keskin kenarlı piksellere çevirir; step verilirse satır satır adım verir
+  function* stampSteps(draw, ox, oy, w, h, hFn, n, filter, step) {
     const cw = Math.ceil(w * S), chh = Math.ceil(h * S), cv = makeCanvas(cw, chh), g = cv.getContext('2d', { willReadFrequently: true });
     g.scale(S, S); g.translate(-ox, -oy); draw(g);
     const d = g.getImageData(0, 0, cw, chh).data, x0 = bx(ox), y0 = by(oy);
-    for (let y = 0; y < chh; y++) for (let x = 0; x < cw; x++) {
-      const k = (y * cw + x) * 4; if (d[k + 3] < 150) continue;
-      const c = [d[k] / 255, d[k + 1] / 255, d[k + 2] / 255]; if (filter && !filter(c)) continue;
-      put(x0 + x, y0 + y, c, hFn(x0 + x, y0 + y), typeof n === 'function' ? n(x0 + x, y0 + y) : n, 0);
+    for (let y = 0; y < chh; y++) {
+      for (let x = 0; x < cw; x++) {
+        const k = (y * cw + x) * 4; if (d[k + 3] < 150) continue;
+        const c = [d[k] / 255, d[k + 1] / 255, d[k + 2] / 255]; if (filter && !filter(c)) continue;
+        put(x0 + x, y0 + y, c, hFn(x0 + x, y0 + y), typeof n === 'function' ? n(x0 + x, y0 + y) : n, 0);
+      }
+      if (step) yield* step();
     }
   }
+  function stamp(draw, ox, oy, w, h, hFn, n, filter) { for (const _ of stampSteps(draw, ox, oy, w, h, hFn, n, filter)); }
   function signText(txt, x0, y0, w, h, bg, fg, baseW) {
     rect(x0, y0, w, h, (x, y) => (x === x0 || x === x0 + w - 1 || y === y0 || y === y0 + h - 1) ? sh(bg, -0.45) : bg, facadeH(baseW), SOUTH);
     const fc = signText.c || (signText.c = makeCanvas(256, 32)), c = fc.getContext('2d', { willReadFrequently: true });
@@ -79,11 +85,25 @@ const HY = (() => {
     }
   }
 
+  /* Pişirme adım adım: bir adım ~1.5 ms'yi geçince sıra kareye döner (144 Hz'de bir kare ~7 ms). Dönüşte çizim hedefi
+     yeniden kurulur, araya giren eşzamanlı pişirme (görünür parça, bina örtüsü) onu değiştirmiş olabilir. */
+  function pacer(tg) {
+    let t0 = performance.now();
+    return function* (force) {
+      if (!force && performance.now() - t0 < 1.5) return;
+      yield 0; if (tg) { TG = tg; LAYER = 0; } t0 = performance.now();
+    };
+  }
+  // büyük dikdörtgen 16 satırlık şeritler hâlinde: sonuç aynı, şeritlerin arasına adım girer
+  function* bands(x0, y0, w, h, c, ht, n, step) {
+    for (let y = y0; y < y0 + h; y += 16) { rect(x0, y, w, Math.min(16, y0 + h - y), c, ht, n); yield* step(); }
+  }
+
   /* ---------------- zemin (parça) ---------------- */
   function* ground(W, ox, oy, base) {
     const M = 16, ww = HC + 2 * M, img = new Uint8ClampedArray(ww * ww * 4), cls = new Int16Array(ww * ww);
     yield* W.groundPixels(ox - M, oy - M, ww, ww, img, cls);
-    const at = (x, y) => (Math.max(0, Math.min(ww - 1, y)) * ww + Math.max(0, Math.min(ww - 1, x)));
+    const at = (x, y) => (Math.max(0, Math.min(ww - 1, y)) * ww + Math.max(0, Math.min(ww - 1, x))), step = pacer(null);
     for (let y = 0; y < HB; y++) {
       for (let x = 0; x < HB; x++) {
         const gx = M + x / S, gy = M + y / S, sx = Math.floor(gx), sy = Math.floor(gy), qx = (x & 1), qy = (y & 1);
@@ -121,7 +141,7 @@ const HY = (() => {
         base.c[i] = r; base.c[i + 1] = g; base.c[i + 2] = b; base.c[i + 3] = 255;
         base.g[i] = 0; base.g[i + 1] = 124.5; base.g[i + 2] = 124.5; base.g[i + 3] = 255;
       }
-      if ((y & 63) === 63) yield 0;
+      yield* step();
     }
   }
 
@@ -323,14 +343,14 @@ const HY = (() => {
       return sky;
     }, facadeH(TG.base), SOUTH, (x, y) => { const u = x - x0, v = y - y0; return lit && u > 1 && u < w - 2 && v > 1 && v < hh - 2 && !(u === (w >> 1) - 1 || u === (w >> 1) || v === (hh >> 1) - 1) ? E_WIN : 0; });
   }
-  function western(b, W) {
+  function* western(b, W, step) {
     const d = b.def, X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, base = Y + Hd, id = b.id;
     const FW = d.tall ? 30 : 22, wy = base - FW, h = hash2(b.x, b.y, 5);
     const wall = rgb(d.wall), roof = rgb(d.roof), snowy = W.season === 3 && W.snowyTile(b.x + (b.w >> 1), b.y + (b.h >> 1));
     const xL = bx(X), xR = bx(X + Wd), yTop = by(wy), yBase = by(base);
     TG.base = base;
     // ön cephe: dikey tahtalar, ton farkı, damar, süpürgelik, korniş
-    rect(xL, yTop, xR - xL, yBase - yTop, (x, y) => {
+    yield* bands(xL, yTop, xR - xL, yBase - yTop, (x, y) => {
       const pl = Math.floor((x - xL) / 7), u = (x - xL) % 7, k = (hs(pl, id, 1) - 0.5) * 0.14;
       let c = sh(wall, k);
       if (u === 6) c = sh(wall, -0.38); else if (u === 0) c = sh(c, 0.08);
@@ -338,7 +358,7 @@ const HY = (() => {
       if (y >= yBase - 4) c = sh(wall, -0.32);
       if (y < yTop + 3) c = sh(wall, y === yTop ? 0.2 : -0.12);
       return c;
-    }, facadeH(base), SOUTH);
+    }, facadeH(base), SOUTH, step);
     // kapı
     const dx = bx(b.door.x), barn = b.type === 'stable' || b.type === 'barn';
     if (barn) {
@@ -358,6 +378,7 @@ const HY = (() => {
       }, facadeH(base), SOUTH);
       if (!swing) { put(x0 + 13, y0 + 15, rgb('#e0b040'), base - wyOf(y0 + 15), SOUTH, 0); put(x0 + 13, y0 + 16, rgb('#a07820'), base - wyOf(y0 + 16), SOUTH, 0); }
     }
+    yield* step();
     // pencereler (gece içeriden yanar; bazı evlerin ışığı kapalıdır)
     const nWin = Math.max(1, Math.floor(b.w / 3)), lit = b.type === 'saloon' || b.type === 'hotel' || b.type === 'sheriff' || hs(id, 7, 3) > 0.3;
     const rows = d.tall ? [wy + FW - 16, wy + 3] : [wy + FW - 16];
@@ -365,6 +386,7 @@ const HY = (() => {
       const cxw = X + (k + 0.5) * Wd / nWin;
       if (Math.abs(cxw - b.door.x) < 10) continue;
       for (const ry of rows) { const x0 = bx(cxw - 4), y0 = by(ry); windowGlass(x0, y0, 16, 18, id, k, rgb('#e0d4b8'), lit); rect(x0 - 1, y0 + 18, 18, 2, rgb('#c8b898'), facadeH(base), SOUTH); }
+      yield* step();
     }
     // veranda: ince saçak ve direkler
     if (!d.ruin && b.type !== 'station' && b.type !== 'barn' && b.type !== 'hermit') {
@@ -372,7 +394,9 @@ const HY = (() => {
       rect(bx(X - 1), y0, bx(X + Wd + 1) - bx(X - 1), yb - y0, (x, y) => { const v = y - y0, c = snowy ? SNOW : sh(roof, -0.08); return v === yb - y0 - 1 ? sh(c, -0.4) : (x % 6 === 0 ? sh(c, -0.18) : sh(c, v < 3 ? 0.1 : 0)); }, 15, [0, 0.5, 0.86]);
       for (const px of [X + 1, X + Wd - 2.6]) rect(bx(px), yb, 3, by(base + 14) - yb, (x) => x === bx(px) ? rgb('#5a4028') : rgb('#3e2a18'), facadeH(base + 14), SOUTH);
     }
-    roofGable(X, Y, Wd, wy, FW, roof, id, h, snowy, b.type !== 'station');
+    yield* step();
+    yield* roofGable(X, Y, Wd, wy, FW, roof, id, h, snowy, b.type !== 'station', step);
+    yield* step();
     // sahte cephe ve tabela
     const txt = b.type === 'property' ? (b.owned ? 'HOME' : 'FOR SALE') : SIGN_TEXT[b.type];
     if (!d.church && !WESTERN_SKIP.has(b.type) && !d.ruin) {
@@ -388,6 +412,7 @@ const HY = (() => {
       }, facadeH(base), SOUTH);
       if (txt) { const sw = Math.min(Wd - 8, txt.length * 4.6 + 6); signText(txt, bx(X + Wd / 2 - sw / 2), by(top + 1), Math.round(sw * S), 18, rgb(d.sign || '#c9a45c'), rgb('#1a120c'), base); }
     } else if (txt) { const sw = txt.length * 4.6 + 6; signText(txt, bx(X + Wd / 2 - sw / 2), by(wy - 9), Math.round(sw * S), 16, rgb(d.sign || '#c9a45c'), rgb('#1a120c'), base); }
+    yield* step();
     if (d.church) {
       const cx = X + Wd / 2, ry0 = Y - 8;
       rect(bx(cx - 7), by(ry0 - 26), 28, 60, (x) => (x - bx(cx - 7)) % 6 === 5 ? rgb('#c8c0b0') : rgb('#ece6da'), facadeH(ry0 + 30 + FW), SOUTH);
@@ -402,7 +427,7 @@ const HY = (() => {
     if (b.type === 'property' && !b.owned) { rect(bx(X + Wd + 4), by(base - 2), 3, 20, rgb('#5a3e26'), facadeH(base + 8), SOUTH); rect(bx(X + Wd), by(base - 8), 20, 12, (x, y) => (y === by(base - 8) ? rgb('#c8b888') : rgb('#e0d0a0')), 10, SOUTH); }
   }
   // beşik çatı: kaydırmalı kiremit sıraları, ton farkı, mahya, saçak gölgesi, yosun
-  function roofGable(X, Y, Wd, wy, FW, roof, id, h, snowy, chimney) {
+  function* roofGable(X, Y, Wd, wy, FW, roof, id, h, snowy, chimney, step) {
     const ry0 = Y - 8, xr0 = bx(X - 2), xr1 = bx(X + Wd + 2), yr0 = by(ry0), yr1 = by(wy), ym = (yr0 + yr1) / 2;
     for (let y = yr0; y < yr1; y++) {
       const north = y < ym, nn = north ? [0, -0.5, 0.87] : [0, 0.5, 0.87], ht = FW + 10 * (1 - Math.abs((y - ym) / ((yr1 - yr0) / 2)));
@@ -419,6 +444,7 @@ const HY = (() => {
         else if (hs(x >> 1, y >> 1, id + 3) > 0.985) c = mix(c, rgb('#6a7a48'), 0.4);
         put(x, y, c, ht, nn, 0);
       }
+      yield* step();
     }
     if (chimney && h > 0.3) {
       const cx = bx(X + Wd * (0.2 + h * 0.5)), cy = by(ry0 + 2);
@@ -426,13 +452,13 @@ const HY = (() => {
     }
   }
   // zengin şehrin binaları: tuğla ya da kesme taş, iki kat, kornişler, beyaz çerçeveli pencereler, tente, düz çatı
-  function modern(b, W) {
+  function* modern(b, W, step) {
     const d = b.def, X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, base = Y + Hd, id = b.id, h = hash2(b.x, b.y, 5);
     const FW = d.tall ? 40 : 32, wy = base - FW, mid = wy + FW - 19;
     const pal = MODERN_WALLS[Math.floor(hash2(b.x, b.y, 7) * MODERN_WALLS.length)], wall = rgb(MODERN_TYPE_WALL[b.type] || pal.c), brick = MODERN_TYPE_WALL[b.type] ? false : pal.brick;
     const snowy = W.season === 3 && W.snowyTile(b.x + (b.w >> 1), b.y + (b.h >> 1)), xL = bx(X), xR = bx(X + Wd), yTop = by(wy), yBase = by(base), trim = rgb('#e4dccb');
     TG.base = base;
-    rect(xL, yTop, xR - xL, yBase - yTop, (x, y) => {
+    yield* bands(xL, yTop, xR - xL, yBase - yTop, (x, y) => {
       const u = (x - xL) / S, v = (y - yTop) / S;
       let c = sh(wall, (hs(Math.floor(u / (brick ? 3 : 5)) + (Math.floor(v / (brick ? 1.5 : 2.5)) % 2) * 7, Math.floor(v / (brick ? 1.5 : 2.5)), id) - 0.5) * 0.12);
       if (brick) { const row = Math.floor(v / 1.5), uu = u + (row % 2) * 1.5; if (v % 1.5 < 0.5 || uu % 3 < 0.5) c = sh(wall, -0.24); }
@@ -442,7 +468,7 @@ const HY = (() => {
       if (wyy >= mid + 2 && wyy < mid + 3) c = sh(wall, -0.35);
       if (wyy >= base - 3) c = rgb('#6a645c');
       return c;
-    }, facadeH(base), SOUTH);
+    }, facadeH(base), SOUTH, step);
     // kapı: çift kanat, camlı tepe penceresi
     const dx = b.door.x;
     rect(bx(dx - 6), by(base - 17), 24, by(base) - by(base - 17), (x, y) => {
@@ -452,6 +478,7 @@ const HY = (() => {
       if (Math.abs(u - 6) < 0.5) return rgb('#1a120c');
       return (u < 2 || u > 10 || (v > 6 && v < 7)) ? rgb('#3a2414') : (v > 9.5 && v < 10.5 && Math.abs(u - 6) < 1.4) ? rgb('#d8b850') : rgb('#4a2e1c');
     }, facadeH(base), SOUTH);
+    yield* step();
     // pencereler: üstte kemerli dar, altta vitrin
     const shop = MODERN_SHOP.has(b.type), nWin = Math.max(2, Math.floor(b.w / 2.5)), lit = hs(id, 7, 3) > 0.25 || b.type === 'hotel';
     for (let k = 0; k < nWin; k++) {
@@ -463,7 +490,9 @@ const HY = (() => {
         const sx0 = bx(cx - 6), sy0 = by(base - 15), sw = 24, shh = 22;
         rect(sx0, sy0, sw, shh, (x, y) => { const u = x - sx0, v = y - sy0; if (u < 2 || u > 21 || v < 2 || v > 19) return trim; if (u === 11 || u === 12) return trim; if (v > 13 && v < 18 && (u % 6 === 3 || u % 6 === 4)) return rgb(['#c8a040', '#a0402a', '#d8d0c0'][(k + (u / 6 | 0)) % 3]); const sky = mix(rgb('#a8c4d4'), rgb('#2a3e52'), Math.min(1, v / 14 + u * 0.02)); return (u - v) % 7 === 0 && v < 10 ? sh(sky, 0.3) : sky; }, facadeH(base), SOUTH, (x, y) => { const u = x - sx0, v = y - sy0; return lit && u >= 2 && u <= 21 && v >= 2 && v <= 13 && u !== 11 && u !== 12 ? E_WIN : 0; });
       } else windowGlass(bx(cx - 3.5), by(base - 15), 14, 20, id, k + 10, trim, lit);
+      yield* step();
     }
+    yield* step();
     // tente ya da saçak
     if (shop) {
       const ac = rgb(MODERN_AWN[Math.floor(h * MODERN_AWN.length)]), ay = base - 18, y0 = by(ay);
@@ -471,14 +500,15 @@ const HY = (() => {
     } else rect(bx(X - 1), by(base - 3), bx(X + Wd + 1) - bx(X - 1), 6, rgb('#5a5650'), 14, [0, 0.5, 0.86]);
     // düz çatı: katran kaplama, açık renk korkuluk, tuğla baca
     const ry0 = Y - 8, xr0 = bx(X - 2), xr1 = bx(X + Wd + 2), yr0 = by(ry0), yr1 = yTop;
-    rect(xr0, yr0, xr1 - xr0, yr1 - yr0, (x, y) => {
+    yield* step();
+    yield* bands(xr0, yr0, xr1 - xr0, yr1 - yr0, (x, y) => {
       const u = (x - xr0) / S, v = (y - yr0) / S, e = Math.min(u, v, (xr1 - x) / S, (yr1 - y) / S);
       if (e < 2.5) return e < 0.6 ? rgb('#e8e0d0') : rgb('#d4ccbb');
       if (snowy) return sh(SNOW, (hs(x >> 1, y >> 1, 2) - 0.5) * 0.05);
       let c = sh(rgb('#4e5058'), (hs(Math.floor(u / 2), Math.floor(v / 2), id) - 0.5) * 0.08);
       if (v % 6 < 0.5) c = sh(c, -0.18);
       return c;
-    }, (x, y) => { const e = Math.min((x - xr0) / S, (y - yr0) / S, (xr1 - x) / S, (yr1 - y) / S); return e < 2.5 ? FW + 3 : FW; }, UP);
+    }, (x, y) => { const e = Math.min((x - xr0) / S, (y - yr0) / S, (xr1 - x) / S, (yr1 - y) / S); return e < 2.5 ? FW + 3 : FW; }, UP, step);
     const chx = bx(X + Wd * (0.18 + h * 0.6));
     rect(chx, by(ry0 + 3), 14, 22, (x, y) => (y - by(ry0 + 3)) < 4 ? rgb('#3a2420') : (((y >> 1) + ((x >> 2) % 2)) % 2 ? rgb('#7a3e2e') : rgb('#6a3426')), FW + 12, [0, 0.3, 0.95]);
     if (d.tall) rect(bx(X + Wd / 2 - 10), by(ry0 - 6), 40, 14, (x, y) => (y - by(ry0 - 6) < 3 || y - by(ry0 - 6) > 11) ? trim : rgb('#4e5058'), FW + 6, SOUTH);
@@ -486,40 +516,49 @@ const HY = (() => {
     const txt = b.type === 'property' ? (b.owned ? 'HOME' : 'FOR SALE') : SIGN_TEXT[b.type];
     if (txt) { const sw = Math.min(Wd - 6, txt.length * 4.6 + 8); signText(txt, bx(X + Wd / 2 - sw / 2), by(mid - 9), Math.round(sw * S), 16, rgb('#1e2a24'), rgb('#ead490'), base); }
   }
-  function cover(b, W) {
-    if (b._hy && b._hy.gen === W._hyGen) return b._hy;
-    const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS;
+  /* Bina örtüsü (cephe, çatı, tabela): büyük bir bina 15-60 ms sürer. Görüş alanına yaklaşan binanınki kare bütçesinden
+     adım adım önceden pişer (coverJobs); pişmemişken görünürse kalanı hemen bitirilir. */
+  const coverJobs = new Map();
+  function* coverGen(b, W) {
+    const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, gen = W._hyGen;
     const ox = X - 44, oy = Y - 64, w = (Wd + 88) * S, h = (Hd + 84) * S;
     const tc = new Uint8ClampedArray(w * h * 4), tg = new Uint8ClampedArray(w * h * 4);
-    TG = { c: tc, g: tg, w, h, ox, oy, o: null }; LAYER = 0;
+    const T = { c: tc, g: tg, w, h, ox, oy, o: null }, step = pacer(T);
+    TG = T; LAYER = 0;
     const d = b.def, special = b.type === 'mineentrance' || b.type === 'lighthouse' || b.type === 'market' || d.ruin || b.stage !== undefined && b.stage < 1;
     if (special) {
       // seyrek yapılar: 2D çizimi keskinleştirilir (cephe dikey, üst kısım çatı)
       const base = Y + Hd, hF = (x, y) => Math.max(0, Math.min(40, base - wyOf(y)));
-      stamp((g) => Spr.building(g, g, b, W), ox, oy, w / S, h / S, hF, (x, y) => (wyOf(y) < base - (d.tall ? 30 : 22) ? [0, 0.4, 0.9] : SOUTH));
-    } else if (b.modern && !MODERN_SKIP.has(b.type)) modern(b, W);
-    else western(b, W);
-    const mk = (arr) => { const cv = makeCanvas(w, h); cv.getContext('2d').putImageData(new ImageData(arr, w, h), 0, 0); return cv; };
-    b._hy = { c: mk(tc), g: mk(tg), x: ox, y: oy, gen: W._hyGen };
+      yield* stampSteps((g) => Spr.building(g, g, b, W), ox, oy, w / S, h / S, hF, (x, y) => (wyOf(y) < base - (d.tall ? 30 : 22) ? [0, 0.4, 0.9] : SOUTH), null, step);
+    } else if (b.modern && !MODERN_SKIP.has(b.type)) yield* modern(b, W, step);
+    else yield* western(b, W, step);
+    yield* step(true);
     TG = null;
-    return b._hy;
+    const mk = (arr) => { const cv = makeCanvas(w, h); cv.getContext('2d').putImageData(new ImageData(arr, w, h), 0, 0); return cv; };
+    return { c: mk(tc), g: mk(tg), x: ox, y: oy, gen };
+  }
+  function cover(b, W) {
+    if (b._hy && b._hy.gen === W._hyGen) return b._hy;
+    const j = coverJobs.get(b) || { gen: coverGen(b, W), spent: 0 }; coverJobs.delete(b);
+    const t0 = performance.now();
+    let r; do { r = j.gen.next(); } while (!r.done);
+    TG = null; learn('cover', j.spent + performance.now() - t0);
+    return (b._hy = r.value);
   }
 
   /* ---------------- iç mekân (parçaya pişer) ---------------- */
   const FLOOR = { saloon: '#5e4028', church: '#9a7a52', doctor: '#a08a6a', sheriff: '#6e5a40', station: '#6a5a44', bank: '#8a7a64', hotel: '#6e4a32', stable: '#8a7250', barn: '#8a7250', lumber: '#8a6a44', docks: '#6a6258' };
   const WALLP = { saloon: '#6a2a24', hotel: '#4e5e40', bank: '#2e4234', church: '#e8e0d0', doctor: '#d8d0c0', sheriff: '#8a7a60', station: '#6a5e4a', barber: '#b8a890', tailor: '#7a6078', land: '#8a7a5a' };
   const RUG = { hotel: '#7a2a2a', sheriff: '#5a3a2a', bank: '#2a4a3a', land: '#4a3a5a', doctor: '#3a5a6a', property: '#7a4a2a', house: '#6a3a2a', saloon: '#4a2418', ranch: '#6a4a2a' };
-  function interiorBase(b) {
+  // adım adım: büyük bir saloonun döşemesi tek seferde ~20 ms sürer
+  function* interiorBase(b, tg, step) {
     const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, t = b.type, id = b.id;
     const fl = rgb(FLOOR[t] || '#7a5a3a'), x0 = bx(X), y0 = by(Y), x1 = bx(X + Wd), y1 = by(Y + Hd), dxs = bx(b.door.x);
     LAYER = 0;
-    if (t === 'stable' || t === 'barn') {
-      rect(x0, y0, x1 - x0, y1 - y0, (x, y) => { const r = hs(x >> 1, y, id); return r > 0.8 ? rgb('#c8a860') : r > 0.6 ? rgb('#a88a50') : sh(fl, (hs(x >> 2, y >> 2, 3) - 0.5) * 0.1); }, 0, UP);
-    } else if (t === 'bank') {
-      rect(x0, y0, x1 - x0, y1 - y0, (x, y) => { const u = (wxOf(x) - X), v = (wyOf(y) - Y); const c = ((Math.floor(u / 8) + Math.floor(v / 8)) % 2) ? rgb('#c8b89a') : fl; return (u % 8 < 0.5 || v % 8 < 0.5) ? sh(c, -0.25) : sh(c, (hs(Math.floor(u / 8), Math.floor(v / 8), 2) - 0.5) * 0.08); }, 0, UP);
-    } else {
+    const floor = t === 'stable' || t === 'barn' ? (x, y) => { const r = hs(x >> 1, y, id); return r > 0.8 ? rgb('#c8a860') : r > 0.6 ? rgb('#a88a50') : sh(fl, (hs(x >> 2, y >> 2, 3) - 0.5) * 0.1); }
+      : t === 'bank' ? (x, y) => { const u = (wxOf(x) - X), v = (wyOf(y) - Y); const c = ((Math.floor(u / 8) + Math.floor(v / 8)) % 2) ? rgb('#c8b89a') : fl; return (u % 8 < 0.5 || v % 8 < 0.5) ? sh(c, -0.25) : sh(c, (hs(Math.floor(u / 8), Math.floor(v / 8), 2) - 0.5) * 0.08); }
       // döşeme: yatay tahtalar, kaydırmalı ekler, damar, çivi, kapı önünde aşınma
-      rect(x0, y0, x1 - x0, y1 - y0, (x, y) => {
+      : (x, y) => {
         const wx = wxOf(x), wy = wyOf(y), row = Math.floor((wy - Y) / 5), v = (wy - Y) - row * 5;
         const off = (row * 11) % 23, seg = Math.floor((wx - X + off) / 23), u = (wx - X + off) - seg * 23;
         let c = sh(fl, (hs(row, seg, id) - 0.5) * 0.2);
@@ -528,8 +567,9 @@ const HY = (() => {
         if (Math.abs(u - 1.5) < 0.4 && Math.abs(v - 2.5) < 0.4) c = sh(c, -0.45);
         const dd = Math.hypot(wx - b.door.x, (wy - Y - Hd) * 1.6); if (dd < 22) c = sh(c, 0.1 * (1 - dd / 22));
         return c;
-      }, 0, UP);
-    }
+      };
+    // döşeme şerit şerit; hedefin dışındaki şeritler atlanır
+    for (let y = Math.max(y0, 0); y < Math.min(y1, tg.h); y += 16) { rect(x0, y, x1 - x0, Math.min(16, y1 - y), floor, 0, UP); yield* step(); }
     const rug = RUG[t];
     if (rug) {
       const rw = Math.min(Wd - 40, 64), rh = Math.min(Hd - 40, 34), rx = X + Wd / 2 - rw / 2 + (t === 'saloon' ? 20 : 0), ry = Y + Hd / 2 - rh / 2 + 6, rc = rgb(rug);
@@ -542,6 +582,7 @@ const HY = (() => {
         return dm < 1.2 ? sh(rc, 0.3) : dm < 2 ? sh(rc, -0.12) : rc;
       }, 0.3, UP);
       for (let x = bx(rx); x < bx(rx + rw); x += 2) { put(x, by(ry) - 1, sh(rc, 0.4), 0.2, UP, 0); put(x, by(ry + rh), sh(rc, 0.4), 0.2, UP, 0); }
+      yield* step();
     }
     if (t === 'church') rect(bx(X + Wd / 2 - 6), by(Y + 26), 24, by(Y + Hd - 4) - by(Y + 26), (x) => (x === bx(X + Wd / 2 - 6) || x === bx(X + Wd / 2 + 6) - 1) ? rgb('#c8a040') : sh(rgb('#8a2020'), (hs(x >> 1, 0, 2) - 0.5) * 0.08), 0.3, UP);
     // arka duvar: desenli kâğıt, lambri, kiriş
@@ -555,7 +596,9 @@ const HY = (() => {
       if (v > 10 && v < 11) c = sh(wp, -0.4);
       return c;
     }, facadeH(Y + 16), SOUTH);
+    yield* step();
     stamp((g) => Spr.wallDecor(g, b, X, Y, Wd), X, Y, Wd, 16, facadeH(Y + 16), SOUTH, (c) => !(Math.abs(c[0] - wp[0]) < 0.06 && Math.abs(c[1] - wp[1]) < 0.06 && Math.abs(c[2] - wp[2]) < 0.06));
+    yield* step();
     // yan ve ön duvarların tepesi (kesit), kapı eşiği, pencere camları
     const wd = rgb('#3a2818');
     const wallTop = (x, y) => { const wx = wxOf(x), wy = wyOf(y); const inner = (wx > X + 4 && wx < X + 5) || (wx > X + Wd - 5 && wx < X + Wd - 4) || (wy > Y + Hd - 4 && wy < Y + Hd - 3); return inner ? sh(wd, 0.35) : (Math.floor(wy / 3) % 2 ? wd : sh(wd, -0.12)); };
@@ -634,14 +677,19 @@ const HY = (() => {
     }
     stamp((g) => Spr.furn(g, o, cx, cy, W, i, b, h), cx - 16, cy - 16, 40, 32, (x, y) => Math.max(0, (by(cy + 6) - y) / S), SOUTH, (c) => c[0] + c[1] + c[2] > 0.05);
   }
-  function interior(b, W) {
-    interiorBase(b);
-    for (let ly = 1; ly < b.h; ly++) for (let lx = 0; lx < b.w; lx++) {
-      const tx = b.x + lx, ty = b.y + ly, i = ty * WW + tx, o = W.obj[i]; if (!o) continue;
-      const cx = tx * TS + 8, cy = ty * TS + 8;
-      if (isFurnO(o)) furniture(o, cx, cy, i, b, W);
-      else if (!object(o, cx, cy, hash2(tx, ty, 77), W, tx, ty)) objectFallback(o, cx, cy, hash2(tx, ty, 77), W);
-      LAYER = 0;
+  // iç mekân: döşeme, duvar, mobilya (büyük bir saloon tek adımda onlarca ms sürerdi)
+  function* interior(b, W, tg) {
+    const step = pacer(tg);
+    TG = tg; yield* interiorBase(b, tg, step);
+    for (let ly = 1; ly < b.h; ly++) {
+      for (let lx = 0; lx < b.w; lx++) {
+        const tx = b.x + lx, ty = b.y + ly, i = ty * WW + tx, o = W.obj[i]; if (!o) continue;
+        const cx = tx * TS + 8, cy = ty * TS + 8;
+        if (isFurnO(o)) furniture(o, cx, cy, i, b, W);
+        else if (!object(o, cx, cy, hash2(tx, ty, 77), W, tx, ty)) objectFallback(o, cx, cy, hash2(tx, ty, 77), W);
+        LAYER = 0;
+        yield* step();
+      }
     }
   }
 
@@ -653,43 +701,58 @@ const HY = (() => {
     // raylar ve yassı süsler (ot, çiçek, ekin, kemik...) 2D çizimle, iki kat ölçekte
     const cv = makeCanvas(HB, HB), gc = cv.getContext('2d', { willReadFrequently: true });
     gc.putImageData(new ImageData(base.c, HB, HB), 0, 0);
+    let step = pacer(null);
+    yield* step(true);
+    // 2D çizim tuvalde birikir, asıl maliyet okumada ödenir: 1 piksellik okuma birikeni o adımda çizdirir
+    const flushDraw = () => gc.getImageData(0, 0, 1, 1);
     gc.save(); gc.scale(S, S); gc.translate(-ox, -oy);
     for (const r of W.rails) W.drawRail(gc, r, ox - 128, oy - 128);
+    flushDraw(); yield* step();
     const tx0 = (ox >> 4) - 3, ty0 = (oy >> 4) - 3, tx1 = ((ox + HC) >> 4) + 3, ty1 = ((oy + HC) >> 4) + 4;
     const tall = [];
-    for (let ty = ty0; ty < ty1; ty++) for (let tx = tx0; tx < tx1; tx++) {
-      if (!W.inb(tx, ty)) continue;
-      const i = ty * WW + tx, o = W.obj[i];
-      if (!o || isHerbO(o) || o === O.ARTIFACT || (W.flags[i] & 16)) continue;
-      if (o === O.TUFT || o === O.FLOWERS || o === O.REED || o === O.CROP || o === O.DRYBUSH || o === O.BONES || o === O.CAMPFIRE || o === O.FLOWERBED || o === O.BIGBONES) { if (o !== O.TUFT) Spr.object(gc, gc, o, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), W); else tall.push([ty, tx, o]); }
-      else tall.push([ty, tx, o]);
+    for (let ty = ty0; ty < ty1; ty++) {
+      let drawn = false;
+      for (let tx = tx0; tx < tx1; tx++) {
+        if (!W.inb(tx, ty)) continue;
+        const i = ty * WW + tx, o = W.obj[i];
+        if (!o || isHerbO(o) || o === O.ARTIFACT || (W.flags[i] & 16)) continue;
+        if (o === O.TUFT || o === O.FLOWERS || o === O.REED || o === O.CROP || o === O.DRYBUSH || o === O.BONES || o === O.CAMPFIRE || o === O.FLOWERBED || o === O.BIGBONES) { if (o !== O.TUFT) { Spr.object(gc, gc, o, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), W); drawn = true; } else tall.push([ty, tx, o]); }
+        else tall.push([ty, tx, o]);
+      }
+      if (drawn) flushDraw();
+      yield* step();
     }
     gc.restore();
+    yield* step(true);
     base.c.set(gc.getImageData(0, 0, HB, HB).data);
-    yield 0;
-    TG = { c: base.c, g: base.g, w: HB, h: HB, ox, oy, o: over };
+    yield* step(true);
+    // çizim hedefi her adımda yeniden kurulur: araya eşzamanlı başka bir pişirme (görünür parça, bina örtüsü) girebilir
+    const tg = { c: base.c, g: base.g, w: HB, h: HB, ox, oy, o: over };
     // iç mekânlar (döşeme, duvar, mobilya): içeri girince cephe kalkar, bunlar görünür
     for (const b of W.buildings) {
       if (!b.enter) continue;
       const X = b.x * TS, Y = b.y * TS;
       if (X + b.w * TS < ox || X > ox + HC || Y + b.h * TS < oy || Y > oy + HC) continue;
-      TG.o = null; interior(b, W); TG.o = over;
+      tg.o = null; yield* interior(b, W, tg); tg.o = over;
       yield 0;
     }
     // nesneler: kuzeyden güneye
     tall.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    let k = 0;
+    step = pacer(tg);
     for (const [ty, tx, o] of tall) {
       const x = tx * TS + 8, y = ty * TS + 8, hh = hash2(tx, ty, 77);
-      LAYER = 0;
+      TG = tg; LAYER = 0;
       if (!object(o, x, y, hh, W, tx, ty)) objectFallback(o, x, y, hh, W);
-      if ((++k & 31) === 0) yield 0;
+      yield* step();
     }
     LAYER = 0; TG = null;
     const mk = (arr) => { const c = makeCanvas(HB, HB); c.getContext('2d').putImageData(new ImageData(arr, HB, HB), 0, 0); return c; };
+    const bc = mk(base.c); yield 0;
+    const bg = mk(base.g); yield 0;
     // üst katman boşsa (ağaçsız, çatısız parça) tuval açılmaz: bellek yarıya iner
     let any = false; for (let i = 3; i < n; i += 4) if (over.c[i]) { any = true; break; }
-    return { bc: mk(base.c), bg: mk(base.g), oc: any ? mk(over.c) : null, og: any ? mk(over.g) : null, used: 0 };
+    const oc = any ? mk(over.c) : null; if (any) yield 0;
+    return { bc, bg, oc, og: any ? mk(over.g) : null, used: 0 };
   }
   const chunks = new Map(), jobs = new Map();
   let world = null;
@@ -698,10 +761,11 @@ const HY = (() => {
     let c = chunks.get(key);
     if (c) { c.used = performance.now(); return c; }
     let j = jobs.get(key);
-    if (!sync) { if (!j) jobs.set(key, { gen: bake(W, cx, cy) }); return null; }
-    if (!j) j = { gen: bake(W, cx, cy) };
+    if (!sync) { if (!j) jobs.set(key, { gen: bake(W, cx, cy), spent: 0 }); return null; }
+    if (!j) j = { gen: bake(W, cx, cy), spent: 0 };
+    const t0 = performance.now();
     let r; do { r = j.gen.next(); } while (!r.done);
-    jobs.delete(key);
+    jobs.delete(key); learn('chunk', j.spent + performance.now() - t0);
     return store(key, r.value);
   }
   function store(key, c) {
@@ -709,19 +773,47 @@ const HY = (() => {
     if (chunks.size > 28) { let ok = -1, ot = Infinity; for (const [k, v] of chunks) if (v.used < ot) { ot = v.used; ok = k; } chunks.delete(ok); }
     return c;
   }
-  function runJobs(budget) {
+  /* Arka plan işleri (parça ve bina örtüsü pişirme). Ortalama süreleri biten işlerden ölçülür. */
+  const cost = { chunk: 60, cover: 15 };
+  const learn = (kind, ms) => { cost[kind] += (ms - cost[kind]) * 0.25; };
+  // bekleyen işler, görünür olacakları sıraya göre: [görüş alanına uzaklık (piksel), tür, anahtar, iş]
+  function queue(x0, y0, x1, y1) {
+    const gap = (ax, ay, bx2, by2) => Math.max(0, ax - x1, x0 - bx2, ay - y1, y0 - by2), q = [];
+    for (const [k, j] of jobs) { const cx = k % 1024, cy = (k - cx) / 1024; q.push([gap(cx * HC, cy * HC, (cx + 1) * HC, (cy + 1) * HC), 'chunk', k, j]); }
+    for (const [b, j] of coverJobs) { const X = b.x * TS, Y = b.y * TS; q.push([gap(X - 50, Y - 80, X + b.w * TS + 50, Y + b.h * TS + 30), 'cover', b, j]); }
+    return q.sort((a, b) => a[0] - b[0]);
+  }
+  /* Bütçe: kare aralığının küçük bir payı (base). Görüş alanına yaklaşan bir iş bu payla yetişmeyecekse (görününce tek
+     seferde pişer, kare donar: yavaş cihazda dörtnala giderken), kalan işi görünür olana kadarki karelere yayılır;
+     en çok bir kare süresi. */
+  let camV = 0, camLX = null, camLY = null;
+  function jobBudget(q, base, C, dt, fm) {
+    if (camLX !== null && dt > 0) camV += (Math.min(2000, Math.hypot(C.x - camLX, C.y - camLY) / dt) - camV) * 0.2;
+    camLX = C.x; camLY = C.y;
+    const step = Math.max(0.25, camV * fm / 1000);   // kameranın kare başına ilerlediği piksel
+    let need = 0, acc = 0;
+    for (const [d, kind, , j] of q) { acc += Math.max(cost[kind] * 0.25, cost[kind] - j.spent); need = Math.max(need, acc / Math.max(1, d / step)); }
+    return Math.max(base, Math.min(need, fm));
+  }
+  function runJobs(ms, q) {
     const t0 = performance.now();
-    for (const [k, j] of jobs) {
+    for (const [, kind, k, j] of q) {
+      const map = kind === 'chunk' ? jobs : coverJobs;
+      if (map.get(k) !== j) continue;   // bu arada eşzamanlı bitirildi
       while (true) {
-        const r = j.gen.next();
-        if (r.done) { jobs.delete(k); store(k, r.value); break; }
-        if (performance.now() - t0 > budget) return;
+        const ts = performance.now(), r = j.gen.next(); j.spent += performance.now() - ts;
+        if (r.done) {
+          map.delete(k); learn(kind, j.spent);
+          if (kind === 'chunk') store(k, r.value); else { k._hy = r.value; TG = null; }
+          break;
+        }
+        if (performance.now() - t0 > ms) return;
       }
-      if (performance.now() - t0 > budget) return;
+      if (performance.now() - t0 > ms) return;
     }
   }
   function flush(W) {
-    chunks.clear(); jobs.clear();
+    chunks.clear(); jobs.clear(); coverJobs.clear();
     if (W) { W._hyGen = (W._hyGen || 0) + 1; }
     SPR.clear();
   }
@@ -859,9 +951,18 @@ const HY = (() => {
     varying vec2 vU; uniform sampler2D uC; uniform sampler2D uG; uniform vec2 uRes; uniform vec2 uOrg;
     uniform vec3 uSun; uniform vec3 uSunC; uniform vec3 uAmb; uniform float uNight; uniform float uDay;
     uniform vec4 uLP[${NL}]; uniform vec4 uLC[${NL}];
-    uniform vec4 uIn; uniform vec4 uWin[${NW}]; uniform float uInAmb; uniform float uShQ;
+    uniform vec4 uIn; uniform vec4 uWin[${NW}]; uniform float uInAmb;
+    uniform sampler2D uS; uniform vec2 uSRes;
     vec4 geo(vec2 p){ return texture2D(uG, p / uRes); }
     float hgt(vec2 p){ return texture2D(uG, p / uRes).r * 85.0; }
+    // yarım çözünürlüklü gölge: dört komşu, yüksekliği bu piksele yakın olanlar ağır basar (duvar dibi kenarı keskin kalır)
+    float shadowAt(vec2 st0, float hr){
+      vec2 st = st0 * uSRes - 0.5, b = floor(st), f = st - b, i0 = (b + 0.5) / uSRes, d = 1.0 / uSRes;
+      vec4 a = texture2D(uS, i0), c = texture2D(uS, i0 + vec2(d.x, 0.0)), e = texture2D(uS, i0 + vec2(0.0, d.y)), g = texture2D(uS, i0 + d);
+      float wa = (1.0 - f.x) * (1.0 - f.y) / (0.004 + abs(a.g - hr)), wc = f.x * (1.0 - f.y) / (0.004 + abs(c.g - hr));
+      float we = (1.0 - f.x) * f.y / (0.004 + abs(e.g - hr)), wg = f.x * f.y / (0.004 + abs(g.g - hr));
+      return (a.r * wa + c.r * wc + e.r * we + g.r * wg) / (wa + wc + we + wg);
+    }
     void main(){
       vec2 p = vec2(vU.x * uRes.x, (1.0 - vU.y) * uRes.y);
       vec2 uv = vec2(vU.x, 1.0 - vU.y);
@@ -872,24 +973,8 @@ const HY = (() => {
       if (!emW && !emF) { n.x = G.g * 255.0 / 249.0 * 2.0 - 1.0; n.y = G.b * 255.0 / 249.0 * 2.0 - 1.0; n.z = sqrt(max(0.0, 1.0 - n.x * n.x - n.y * n.y)); }
       vec2 w = uOrg + p / 2.0;            // pikselin dünya (ekran) konumu
       float ndl = max(dot(n, uSun), 0.0);
-      // güneş/ay gölgesi: yükseklik haritasında güneşe doğru yürü (2 iz, yumuşak kenar)
-      float sh = 1.0;
-      if (ndl > 0.0) {
-        vec2 u = vec2(-uSun.x / uSun.z, -uSun.y / uSun.z + 1.0) * 2.0;
-        vec2 side = normalize(vec2(-u.y, u.x));
-        float hit = 0.0;
-        for (int s = 0; s < 2; s++) {
-          vec2 q0 = p + side * (float(s) - 0.5);
-          for (int i = 1; i <= 48; i++) {
-            float d = float(i) * 1.4 * uShQ;
-            vec2 q = q0 - u * d;
-            if (q.x < 0.0 || q.y < 0.0 || q.x >= uRes.x || q.y >= uRes.y) break;
-            float hq = hgt(q);
-            if (hq >= h + d && hq < h + d + 7.0) { hit += 0.5; break; }
-          }
-        }
-        sh = 1.0 - hit;
-      }
+      // güneş/ay gölgesi: ayrı geçişte yarım çözünürlükte hesaplanır (SHFS)
+      float sh = ndl > 0.0 ? shadowAt(vU, G.r) : 1.0;
       // köşelerde ortam gölgesi
       float occ = 0.0;
       for (int k = 0; k < 8; k++) {
@@ -930,6 +1015,35 @@ const HY = (() => {
       if (emF) c = col * 1.25 + vec3(0.25, 0.1, 0.0);
       gl_FragColor = vec4(c, 1.0);
     }`;
+  const SHFS = `${HP}
+    varying vec2 vU; uniform sampler2D uG; uniform vec2 uRes; uniform vec3 uSun; uniform float uShQ;
+    float hgt(vec2 p){ return texture2D(uG, p / uRes).r * 85.0; }
+    void main(){
+      vec2 p = floor(vec2(vU.x * uRes.x, (1.0 - vU.y) * uRes.y)) + 0.5;   // iki kat yoğun tuvalde 2x2 bloğun bir pikseli
+      vec4 G = texture2D(uG, p / uRes);
+      float h = G.r * 85.0;
+      bool em = G.g > 0.992 && G.b > 0.998;
+      vec3 n = vec3(0.0, 1.0, 0.0);
+      if (!em) { n.x = G.g * 255.0 / 249.0 * 2.0 - 1.0; n.y = G.b * 255.0 / 249.0 * 2.0 - 1.0; n.z = sqrt(max(0.0, 1.0 - n.x * n.x - n.y * n.y)); }
+      float sh = 1.0;
+      if (dot(n, uSun) > 0.0) {
+        vec2 u = vec2(-uSun.x / uSun.z, -uSun.y / uSun.z + 1.0) * 2.0;
+        vec2 side = normalize(vec2(-u.y, u.x));
+        float hit = 0.0;
+        for (int s = 0; s < 2; s++) {
+          vec2 q0 = p + side * (float(s) - 0.5);
+          for (int i = 1; i <= 48; i++) {
+            float d = float(i) * 1.4 * uShQ;
+            vec2 q = q0 - u * d;
+            if (q.x < 0.0 || q.y < 0.0 || q.x >= uRes.x || q.y >= uRes.y) break;
+            float hq = hgt(q);
+            if (hq >= h + d && hq < h + d + 7.0) { hit += 0.5; break; }
+          }
+        }
+        sh = 1.0 - hit;
+      }
+      gl_FragColor = vec4(sh, G.r, 0.0, 1.0);   // gölge ve yükseklik (ana geçişte komşu seçimi için)
+    }`;
   const BFS = `${HP} varying vec2 vU; uniform sampler2D uT; uniform vec2 uDir; uniform float uThr;
     void main(){ vec3 s = vec3(0.0); float wsum = 0.0;
       for (int i = -4; i <= 4; i++) { float w = exp(-float(i * i) / 8.0); vec3 c = texture2D(uT, vU + uDir * float(i)).rgb; s += max(c - uThr, 0.0) * w; wsum += w; }
@@ -941,7 +1055,7 @@ const HY = (() => {
       // omuz: parlak yüzeyler (kar, kum) patlamasın, dokusu kalsın
       c *= 1.04; vec3 hi = max(c - 0.75, 0.0); c = min(c, 0.75) + 0.25 * (1.0 - exp(-hi / 0.25));
       float dz = bay(gl_FragCoord.xy); gl_FragColor = vec4(floor(clamp(c, 0.0, 1.0) * 44.0 + dz) / 44.0, 1.0); }`;
-  let gl = null, glc = null, failed = false, PL = null, PB = null, PF = null, quad = null, texC = null, texG = null, rtL = null, rtA = null, rtB = null, RW = 0, RH = 0;
+  let gl = null, glc = null, failed = false, PL = null, PS = null, PB = null, PF = null, quad = null, texC = null, texG = null, rtL = null, rtS = null, rtA = null, rtB = null, RW = 0, RH = 0, lastVr = '';
   function compile(fs) {
     const mk = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
     const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, VS)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, 'aP'); gl.linkProgram(p);
@@ -978,7 +1092,7 @@ const HY = (() => {
       if (!gl) { soft = !window.__hySoft && !!document.createElement('canvas').getContext('webgl'); throw new Error(soft ? 'yazılım çizimi' : 'WebGL yok'); }
       const ri = gl.getExtension('WEBGL_debug_renderer_info');
       if (!window.__hySoft && ri && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(gl.getParameter(ri.UNMASKED_RENDERER_WEBGL))) { gl = null; soft = true; throw new Error('yazılım çizimi'); }
-      PL = compile(LFS); PB = compile(BFS); PF = compile(FFS);
+      PL = compile(LFS); PS = compile(SHFS); PB = compile(BFS); PF = compile(FFS);
       quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
       texC = tex(0, 0, false); texG = tex(0, 0, false);
       glc.addEventListener('webglcontextlost', (e) => { e.preventDefault(); if (glc === cv) { failed = true; gl = null; } });   // bilerek bırakılan eski bağlam sayılmaz
@@ -1050,7 +1164,7 @@ const HY = (() => {
     const W = G.world, P = G.player, C = G.cam, vw = G.vw, vh = G.vh, x0 = C.ox, y0 = C.oy, x1 = x0 + vw, y1 = y0 + vh, w2 = vw * S, h2 = vh * S;
     if (world !== W) { flush(W); world = W; }
     if (W._hySeason !== W.season || W._hyFx !== G.settings.fxq) { if (W._hySeason !== undefined) flush(W); W._hySeason = W.season; W._hyFx = G.settings.fxq; }
-    if (W.hyDirty && W.hyDirty.length) { for (const [px, py] of W.hyDirty) { chunks.delete(Math.floor(py / HC) * 1024 + Math.floor(px / HC)); const b = W.buildingAtPx(px, py); if (b) b._hy = null; } W.hyDirty.length = 0; }
+    if (W.hyDirty && W.hyDirty.length) { for (const [px, py] of W.hyDirty) { chunks.delete(Math.floor(py / HC) * 1024 + Math.floor(px / HC)); const b = W.buildingAtPx(px, py); if (b) { b._hy = null; coverJobs.delete(b); } } W.hyDirty.length = 0; }
     frameCanvas(w2, h2);
     const S0 = sunState(G), sd = [-S0.dir[0] / S0.dir[2], -S0.dir[1] / S0.dir[2]];
 
@@ -1088,8 +1202,8 @@ const HY = (() => {
           if (hv !== undefined && hv > day) continue;
           Spr.herb(fc, o, tx * TS + 8, ty * TS + 10, t, dist2(tx * TS + 8, ty * TS + 8, P.x, P.y) < 60 * 60);
         } else if (o === O.ARTIFACT) { if (W.harvested.get(row + tx) === undefined) Spr.sparkle(fc, tx * TS + 8, ty * TS + 8, t + tx); }
-        else if (o === O.CAMPFIRE) { fires.push([tx * TS + 8, ty * TS + 8]); if (Math.random() < 0.1) G.parts.add('ember', tx * TS + 8, ty * TS + 4, 0, -10, 1, 1); FX.fireSource(tx * TS + 8, ty * TS + 8); }
-        else if (o === O.STEAM) { if (Math.random() < 0.3) G.parts.add('steam', tx * TS + rnd(-40, 56), ty * TS + rnd(-40, 56), rnd(-4, 4), -6, 2.5, 3); }
+        else if (o === O.CAMPFIRE) { fires.push([tx * TS + 8, ty * TS + 8]); if (Math.random() < dt * 6) G.parts.add('ember', tx * TS + 8, ty * TS + 4, 0, -10, 1, 1); FX.fireSource(tx * TS + 8, ty * TS + 8); }
+        else if (o === O.STEAM) { if (Math.random() < dt * 18) G.parts.add('steam', tx * TS + rnd(-40, 56), ty * TS + rnd(-40, 56), rnd(-4, 4), -6, 2.5, 3); }
       }
     }
     for (const L of G.lostItems) Spr.sparkle(fc, L.x, L.y, t * 1.3);
@@ -1118,8 +1232,12 @@ const HY = (() => {
       const wk = walkKey(st.phase || 0, Math.min(1, st.mv || 0)), key = wk + (st.saddle ? 's' : '') + (st.bags ? 'b' : '') + (st.graze ? 'g' : '') + (st.dead ? 'd' : '');
       blit(cached(L, 'H', ang, key, () => horseParts(L, Object.assign({}, st, { phase: phaseOf(wk), mv: wk[0] === 'i' ? 0 : wk[2] === 'f' ? 1 : 0.5 }))), x, y);
     };
+    // her varlık kamerayla aynı yarım piksel ızgarasına oturur: kayarken titremez
+    let sdx = 0, sdy = 0;
     for (const e of vis2) {
       if (e === P && P.riding) continue;
+      const nx = Math.round(e.x * S) / S - e.x, ny = Math.round(e.y * S) / S - e.y;
+      fc.translate(nx - sdx, ny - sdy); sdx = nx; sdy = ny;
       if (e === P) {
         if (P.mountAnim) { const A = P.mountAnim, k = Math.min(1, A.t / A.dur), hop = Math.sin(k * Math.PI) * (A.on ? 6 : 5), seated = A.on ? k > 0.7 : k < 0.3; human(P.x, P.y, P.ang, P.lookNow(), seated ? { riding: true } : { walk: P.phase, mv: 0.5 }, P, hop); continue; }
         creatureShadow(fc, P.x, P.y, 2.8, 2.4, 22, sd, shk);
@@ -1160,6 +1278,7 @@ const HY = (() => {
       }
       e.draw(fc);   // araba, sandık, post, kamp, dekor: 2D çizim
     }
+    fc.translate(-sdx, -sdy);
     G.drawProjs(fc);
     G.parts.draw(fc, x0, y0, x1, y1);
     const t2 = performance.now(); seg('canlılar', t2 - t1);
@@ -1177,7 +1296,11 @@ const HY = (() => {
     const IB = G.insideB, k = Math.min(1, dt * 7);
     for (const b of W.buildings) {
       const bxp = b.x * TS, byp = b.y * TS, bw = b.w * TS, bh = b.h * TS;
-      if (bxp + bw + 50 < x0 || bxp - 50 > x1 || byp + bh + 30 < y0 || byp - 80 > y1) continue;
+      if (bxp + bw + 50 < x0 || bxp - 50 > x1 || byp + bh + 30 < y0 || byp - 80 > y1) {
+        // yakında görünecek bina: örtüsü kare bütçesinden önceden pişer
+        if (!(bxp + bw + 50 + HC < x0 || bxp - 50 - HC > x1 || byp + bh + 30 + HC < y0 || byp - 80 - HC > y1) && !(b._hy && b._hy.gen === W._hyGen) && !coverJobs.has(b)) coverJobs.set(b, { gen: coverGen(b, W), spent: 0 });
+        continue;
+      }
       let target = 1;
       if (b === IB) target = 0;
       else if (P.x > bxp - 6 && P.x < bxp + bw + 6 && P.y > byp - 34 && P.y < byp + bh - (b.def.tall ? 30 : 22)) target = 0.4;
@@ -1195,15 +1318,35 @@ const HY = (() => {
 
     /* 5) WebGL ışık */
     if (glc.width !== w2 || glc.height !== h2) { glc.width = w2; glc.height = h2; }
-    if (RW !== w2 || RH !== h2) { RW = w2; RH = h2; rtL = rt(w2, h2, true, rtL); rtA = rt(w2 >> 2, h2 >> 2, true, rtA); rtB = rt(w2 >> 2, h2 >> 2, true, rtB); }
+    if (RW !== w2 || RH !== h2) { RW = w2; RH = h2; lastVr = ''; rtL = rt(w2, h2, true, rtL); rtS = rt(w2 >> 1, h2 >> 1, false, rtS); rtA = rt(w2 >> 2, h2 >> 2, true, rtA); rtB = rt(w2 >> 2, h2 >> 2, true, rtB); }
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texC); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FC);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texG); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FG);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, rtL.fb); gl.viewport(0, 0, w2, h2);
+    // görünür alan: tuvalin kenar payı yalnızca dörtnala uzaklaşınca görünür, iç mekânda yakınlaşınca daha da azı;
+    // ışık ve gölge geçişleri yalnızca görünen kısma (parlama için birkaç piksel payla) çizilir
+    const scis = (k) => { if (vr) { gl.enable(gl.SCISSOR_TEST); gl.scissor(Math.floor(vr[0] / k), Math.floor(vr[1] / k), Math.ceil(vr[2] / k), Math.ceil(vr[3] / k)); } else gl.disable(gl.SCISSOR_TEST); };
+    let vr = null;
+    if (!FX.drunkCss && G.scale > 0) {
+      const zo = G.camZoom && G.camZoom.out > 0 ? G.camZoom.out : 1, hw = innerWidth / (2 * G.scale * zo), hh = innerHeight / (2 * G.scale * zo), m = 8;
+      const X0 = Math.max(0, Math.floor((vw / 2 - hw) * S - m)), X1 = Math.min(w2, Math.ceil((vw / 2 + hw) * S + m));
+      const Y0 = Math.max(0, Math.floor((vh / 2 - hh) * S - m)), Y1 = Math.min(h2, Math.ceil((vh / 2 + hh) * S + m));
+      if (X1 > X0 && Y1 > Y0 && (X1 - X0) * (Y1 - Y0) < w2 * h2) vr = [X0, h2 - Y1, X1 - X0, Y1 - Y0];   // GL'de y aşağıdan yukarı
+    }
+    stat.lit = vr ? +(vr[2] * vr[3] / (w2 * h2)).toFixed(3) : 1;
+    // görünür alan değişince ışık tamponunun dışı karartılır: parlama bulanıklığı kenarda eski görüntüden beslenmez
+    const vk = vr ? vr.join(',') : 'hepsi';
+    if (vk !== lastVr) { lastVr = vk; gl.bindFramebuffer(gl.FRAMEBUFFER, rtL.fb); gl.disable(gl.SCISSOR_TEST); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
+    // güneş/ay gölgesi: dünya çözünürlüğünde (iki kat yoğun tuvalin yarısı), ana geçiş yüksekliğe duyarlı büyütür
+    gl.bindFramebuffer(gl.FRAMEBUFFER, rtS.fb); gl.viewport(0, 0, rtS.w, rtS.h); scis(2);
+    gl.useProgram(PS.p);
+    gl.uniform1i(PS.u.uG, 1); gl.uniform2f(PS.u.uRes, w2, h2); gl.uniform3fv(PS.u.uSun, S0.dir); gl.uniform1f(PS.u.uShQ, G.settings.fxq ? 1.6 : 1);
+    draw(PS);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, rtL.fb); gl.viewport(0, 0, w2, h2); scis(1);
     const u = PL.u; gl.useProgram(PL.p);
-    gl.uniform1i(u.uC, 0); gl.uniform1i(u.uG, 1); gl.uniform2f(u.uRes, w2, h2); gl.uniform2f(u.uOrg, x0, y0);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, rtS.t);
+    gl.uniform1i(u.uC, 0); gl.uniform1i(u.uG, 1); gl.uniform1i(u.uS, 2); gl.uniform2f(u.uSRes, rtS.w, rtS.h); gl.uniform2f(u.uRes, w2, h2); gl.uniform2f(u.uOrg, x0, y0);
     gl.uniform3fv(u.uSun, S0.dir); gl.uniform3fv(u.uSunC, S0.sunC); gl.uniform3fv(u.uAmb, S0.amb);
-    gl.uniform1f(u.uNight, clamp((S0.dark - 0.3) * 2.5, 0, 1)); gl.uniform1f(u.uDay, S0.day ? 1 : 0); gl.uniform1f(u.uShQ, G.settings.fxq ? 1.6 : 1);
+    gl.uniform1f(u.uNight, clamp((S0.dark - 0.3) * 2.5, 0, 1)); gl.uniform1f(u.uDay, S0.day ? 1 : 0);
     const Ls = lights(G, x0, y0, vw, vh, fires, S0), LP = new Float32Array(NL * 4), LC = new Float32Array(NL * 4);
     Ls.forEach((L, i) => { LP.set([L.x, L.y, L.z, L.r], i * 4); LC.set([L.c[0] * L.k, L.c[1] * L.k, L.c[2] * L.k, L.inner], i * 4); });
     gl.uniform4fv(u.uLP, LP); gl.uniform4fv(u.uLC, LC);
@@ -1216,6 +1359,7 @@ const HY = (() => {
     } else { gl.uniform4f(u.uIn, 0, 0, 0, 0); gl.uniform1f(u.uInAmb, 1); }
     gl.uniform4fv(u.uWin, WN);
     draw(PL);
+    gl.disable(gl.SCISSOR_TEST);
     // parlama: dörtte bir çözünürlükte yatay + dikey bulanıklık
     gl.bindFramebuffer(gl.FRAMEBUFFER, rtA.fb); gl.viewport(0, 0, rtA.w, rtA.h);
     gl.useProgram(PB.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, rtL.t); gl.uniform1i(PB.u.uT, 0); gl.uniform2f(PB.u.uDir, 2.5 / rtA.w, 0); gl.uniform1f(PB.u.uThr, 1.15 - S0.dark * 0.4); draw(PB);   // gündüz yalnızca çok parlak (ışıyan) yerler parlar
@@ -1239,7 +1383,9 @@ const HY = (() => {
     ctx.restore();
     G.renderTail(ctx, dt, x0, y0, x1, y1, fires, false);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    runJobs(Math.max(1, 6 - (performance.now() - t0) * 0.3));
+    // arka plan işleri: kare aralığına göre pay (60 Hz'de ~6, 144 Hz'de ~2.4 ms), yetişmeyecek işe ek süre
+    const fm = G.frameMs || 16.7, base = Math.max(0.75, Math.min(6, fm * 0.35) - (performance.now() - t0) * 0.3), q = queue(x0, y0, x1, y1);
+    runJobs(jobBudget(q, base, C, dt, fm), q);
     seg('2D üst katman', performance.now() - t5);
     stat.frames++; stat.ms = stat.ms * 0.95 + (performance.now() - t0) * 0.05; stat.lights = Ls.length; stat.chunks = chunks.size;
     return true;
@@ -1249,13 +1395,15 @@ const HY = (() => {
   function reset() {
     try { const x = gl && gl.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); } catch (e) {}
     gl = null; glc = null; failed = false; soft = false;
-    PL = PB = PF = null; quad = texC = texG = null; rtL = rtA = rtB = null; RW = RH = 0;
+    PL = PS = PB = PF = null; quad = texC = texG = null; rtL = rtS = rtA = rtB = null; RW = RH = 0; lastVr = '';
   }
 
   return {
     render, stat, reset, flush: (W) => flush(W || world),
-    // testler için: bir noktanın parçasını ve bir binanın örtüsünü hemen pişir
+    // testler için: bir noktanın parçasını ve bir binanın örtüsünü hemen pişir; bekleyen işleri yürüt, örtü sırada mı
     _bake(W, x, y) { return chunk(W, Math.floor(x / HC), Math.floor(y / HC), true); }, _cover(b, W) { return cover(b, W); },
+    _jobs(ms) { runJobs(ms, queue(-1e9, -1e9, 1e9, 1e9)); return { chunks: jobs.size, covers: coverJobs.size }; }, _coverQueued(b) { return coverJobs.has(b); },
+    get _cost() { return { ...cost, v: camV }; },
     available() { return init(); },
     get canvas() { return glc; },
   };

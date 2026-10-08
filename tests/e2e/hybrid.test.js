@@ -1,7 +1,8 @@
 'use strict';
 /* Melez çizim (js/hybrid.js): varsayılan açık, kanvas iki kat yoğun; kasabada gündüz/gece ve bina içinde
    hatasız çizer, gece ışıkları toplar, ayardan Klasik'e geçince eski 2D çizime döner. Ekran Kartı ayarı
-   tarayıcıda WebGL bağlamını seçilen güç tercihiyle (güçlü / tasarruflu kart) yeniden kurar. */
+   tarayıcıda WebGL bağlamını seçilen güç tercihiyle (güçlü / tasarruflu kart) yeniden kurar. Kamera yarım piksel
+   ızgarasında kayar; yaklaşan binanın örtüsü görünmeden önce adım adım pişer. */
 module.exports = {
   name: 'Melez çizim',
   async run(t) {
@@ -104,6 +105,65 @@ module.exports = {
       t.ok(await frames() > f0, 'melez yeni bağlamla çizmeyi sürdürür');
       await p.evaluate(() => { UI.closeAll(); G.settings.gpu = 0; G.applySettings(); }); await t.sleep(300);
       t.eq(await pow(), 'high-performance', "Otomatik'e dönünce güçlü kart yeniden istenir");
+      t.eq(errs.length, 0, 'sayfa hatası yok', errs);
+    });
+
+    await t.step('kamera yarım piksel ızgarada kayar, oyuncu ekranda titremez', async () => {
+      // binanın dışında, yakınlaşma sönmüş olmalı (içerideyken kamera binayı ortalar)
+      await p.evaluate(() => { TH.goto(B.door.x, B.door.y + 40); TH.clearNpcs(); });
+      const out = () => p.evaluate(() => !G.insideB && (!G.camZoom || (G.camZoom.z < 1.001 && G.camZoom.k < 0.001)));
+      for (let k = 0; k < 50 && !(await out()); k++) await t.sleep(200);   // yazılım çiziminde kareler yavaş
+      t.ok(await out(), 'dışarıda, yakınlaşma yok');
+      const r = await p.evaluate(() => {
+        const P = G.player, C = G.cam, x0 = P.x, y0 = P.y, dt = 1 / 60, v = 58;
+        C.x = x0; C.y = y0;
+        let prev = null, jumps = 0, off = 0, halves = 0, n = 0;
+        for (let i = 0; i < 240; i++) {
+          P.x += v * dt; G.updateCamera(dt);
+          if (i < 90) continue;
+          const scr = Math.round(P.x * 2) - C.ox * 2;   // oyuncunun tuvaldeki pikseli (iki kat yoğun)
+          if (prev !== null && scr !== prev) jumps++;
+          if (C.ox * 2 !== Math.round(C.ox * 2)) off++;
+          if (C.ox % 1 !== 0) halves++;
+          prev = scr; n++;
+        }
+        C.x = P.x = x0; C.y = P.y = y0; G.updateCamera(1 / 60);
+        return { ds: G.ds, jumps, off, halves, n };
+      });
+      t.eq(r.ds, 2, 'melez (iki kat yoğun)');
+      t.eq(r.off, 0, 'kamera yarım piksel ızgarasında');
+      t.ok(r.halves > 10, 'zemin yarım piksel adımlarla da kayar', r);
+      t.ok(r.jumps <= 2, 'oyuncu ekranda sıçramaz', r);
+    });
+
+    await t.step('yaklaşan binanın örtüsü görünmeden adım adım pişer; görününce hazır örtü kullanılır', async () => {
+      const spot = await p.evaluate(() => {
+        const W = G.world, bxp = B.x * TS, byp = B.y * TS;
+        HY.flush();
+        // binanın yanında, görüş alanının dışında ama önceden pişirme payının içinde, bina dışı bir yer
+        for (const side of [-1, 1]) for (const dy of [B.h * TS / 2, B.h * TS + 30, -30, B.h * TS + 60, -60]) {
+          const x = side < 0 ? bxp - 170 - G.vw / 2 : bxp + B.w * TS + 170 + G.vw / 2, y = byp + dy;
+          if (!W.buildingAtPx(x, y) && !W.indoorPx(x, y) && !W.blocked(x, y, 4)) { TH.goto(x, y); TH.clearNpcs(); return [x, y]; }
+        }
+        return null;
+      });
+      t.ok(!!spot, 'binanın yanında boş yer bulundu');
+      await t.sleep(700);   // birkaç kare: yaklaşan binalar sıraya girer
+      const q = await p.evaluate(() => {
+        const W = G.world, x0 = G.cam.ox, x1 = x0 + G.vw, y0 = G.cam.oy, y1 = y0 + G.vh, bxp = B.x * TS, byp = B.y * TS;
+        const visible = !(bxp + B.w * TS + 50 < x0 || bxp - 50 > x1 || byp + B.h * TS + 30 < y0 || byp - 80 > y1);
+        const queued = HY._coverQueued(B), fresh = !!(B._hy && B._hy.gen === W._hyGen);
+        const left = HY._jobs(1e9);   // bekleyen bütün işler biter
+        window.__hyB = B._hy;
+        return { visible, queued, fresh, left, done: !!(B._hy && B._hy.gen === W._hyGen), inside: !!G.insideB };
+      });
+      t.ok(!q.visible && !q.inside, 'bina henüz görünmüyor', q);
+      t.ok(q.queued || q.fresh, 'örtüsü sıraya girdi (ya da çoktan pişti)', q);
+      t.ok(q.done, 'işler bitince örtü hazır', q);
+      t.eq(q.left, { chunks: 0, covers: 0 }, 'bekleyen iş kalmadı');
+      await p.evaluate(() => TH.goto(B.door.x, B.door.y + 40));
+      await t.sleep(700);
+      t.ok(await p.evaluate(() => B._hy === window.__hyB), 'görününce önceden pişen örtü kullanılır (yeniden pişmez)');
       t.eq(errs.length, 0, 'sayfa hatası yok', errs);
     });
   },

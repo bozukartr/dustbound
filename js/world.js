@@ -1820,13 +1820,14 @@ class World {
     gc.translate(-ox, -oy); oc.translate(-ox, -oy);
     for (const r of this.rails) this.drawRail(gc, r, ox, oy);
     const tx0 = cx * CHUNK - 3, ty0 = cy * CHUNK - 3, tx1 = tx0 + CHUNK + 6, ty1 = ty0 + CHUNK + 6;
+    let tY = performance.now();
     for (let ty = ty0; ty < ty1; ty++) {
       for (let tx = tx0; tx < tx1; tx++) {
         if (!this.inb(tx, ty)) continue;
         const ob = this.obj[ty * WW + tx];
         if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16) && !FX.dyn(ob)) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
       }
-      if ((ty & 15) === 0) yield 0;
+      if (performance.now() - tY > 1.5) { yield 0; tY = performance.now(); }
     }
     for (const b of this.buildings) {
       const bx = b.x * TS, by = b.y * TS;
@@ -1865,6 +1866,7 @@ class World {
       if (sy < 0) sy = 0; else if (sy > MAXP) sy = MAXP;
       return tile[(sy >> 4) * WW + (sx >> 4)];
     };
+    let tY = performance.now();
     for (let py = 0; py < PH; py++) {
       const wy = oy + py;
       const ky = (wy & 127) << 7;
@@ -1939,40 +1941,61 @@ class World {
         d[i + 2] = (col[2] + v * 0.8) * mul;
         d[i + 3] = 255;
       }
-      if ((py & 63) === 63) yield 0;
+      // ~1.5 ms'de bir sıra kareye döner: yüksek tazelemede de kare bütçesini aşmaz
+      if (performance.now() - tY > 1.5) { yield 0; tY = performance.now(); }
     }
   }
   drawRail(ctx, r, ox, oy) {
     const x0 = ox - 20, y0 = oy - 20, x1 = ox + CPX + 20, y1 = oy + CPX + 20;
+    // ray 64 noktalık dilimlere bölünür, dilimlerin sınır kutusu bir kez hesaplanır: pencereye girmeyen dilim hiç taranmaz
+    // (her parça için binlerce ray noktası taranıyordu)
+    const R = 64, bb = r.bb || (r.bb = World.railBoxes(r, R));
+    const hit = (k, m) => !(bb[k * 4 + 2] < x0 - m || bb[k * 4] > x1 + m || bb[k * 4 + 3] < y0 - m || bb[k * 4 + 1] > y1 + m);
     ctx.lineCap = 'butt';
-    for (let i = 0; i < r.length - 1; i++) {
-      const [ax, ay] = r[i], [bx, by] = r[i + 1];
-      if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(ay, by) < y0 || Math.min(ay, by) > y1) continue;
-      const L = dist(ax, ay, bx, by), ux = (bx - ax) / L, uy = (by - ay) / L, nx = -uy, ny = ux;
-      ctx.strokeStyle = '#4a3522'; ctx.lineWidth = 2;
-      const cnt = Math.floor(L / 4);
-      ctx.beginPath();
-      for (let s = 0; s <= cnt; s++) {
-        const px = ax + ux * s * 4, py = ay + uy * s * 4;
-        ctx.moveTo(px + nx * 5, py + ny * 5); ctx.lineTo(px - nx * 5, py - ny * 5);
+    for (let k = 0; k * R < r.length - 1; k++) {
+      if (!hit(k, 0)) continue;
+      for (let i = k * R; i < Math.min((k + 1) * R, r.length - 1); i++) {
+        const [ax, ay] = r[i], [bx, by] = r[i + 1];
+        if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(ay, by) < y0 || Math.min(ay, by) > y1) continue;
+        const L = dist(ax, ay, bx, by), ux = (bx - ax) / L, uy = (by - ay) / L, nx = -uy, ny = ux;
+        ctx.strokeStyle = '#4a3522'; ctx.lineWidth = 2;
+        const cnt = Math.floor(L / 4);
+        ctx.beginPath();
+        for (let s = 0; s <= cnt; s++) {
+          const px = ax + ux * s * 4, py = ay + uy * s * 4;
+          ctx.moveTo(px + nx * 5, py + ny * 5); ctx.lineTo(px - nx * 5, py - ny * 5);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
     }
     for (const off of [-3, 3]) {
       ctx.strokeStyle = '#7d7d80'; ctx.lineWidth = 1.2;
       ctx.beginPath();
       let started = false;
-      for (let i = 0; i < r.length; i++) {
-        const [ax, ay] = r[i];
-        const [bx, by] = r[Math.min(i + 1, r.length - 1)];
-        const [cx, cy] = r[Math.max(i - 1, 0)];
-        const L = Math.hypot(bx - cx, by - cy) || 1;
-        const nx = -(by - cy) / L, ny = (bx - cx) / L;
-        const px = ax + nx * off, py = ay + ny * off;
-        if (px < x0 - 40 || px > x1 + 40 || py < y0 - 40 || py > y1 + 40) { started = false; continue; }
-        if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+      for (let k = 0; k * R < r.length; k++) {
+        if (!hit(k, 43)) { started = false; continue; }   // dilimin bütün noktaları pencere payının dışında
+        for (let i = k * R; i < Math.min((k + 1) * R, r.length); i++) {
+          const [ax, ay] = r[i];
+          const [bx, by] = r[Math.min(i + 1, r.length - 1)];
+          const [cx, cy] = r[Math.max(i - 1, 0)];
+          const L = Math.hypot(bx - cx, by - cy) || 1;
+          const nx = -(by - cy) / L, ny = (bx - cx) / L;
+          const px = ax + nx * off, py = ay + ny * off;
+          if (px < x0 - 40 || px > x1 + 40 || py < y0 - 40 || py > y1 + 40) { started = false; continue; }
+          if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+        }
       }
       ctx.stroke();
     }
+  }
+  // ray dilimlerinin sınır kutuları [minx, miny, maxx, maxy]; dilim bir sonraki dilimin ilk noktasını da kapsar
+  static railBoxes(r, R) {
+    const bb = [];
+    for (let k = 0; k * R < r.length; k++) {
+      let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+      for (let i = k * R; i <= Math.min((k + 1) * R, r.length - 1); i++) { const [x, y] = r[i]; if (x < a) a = x; if (y < b) b = y; if (x > c) c = x; if (y > d) d = y; }
+      bb.push(a, b, c, d);
+    }
+    return bb;
   }
 }

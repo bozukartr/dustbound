@@ -637,6 +637,7 @@ const Cinema = (() => {
       const fd = el.querySelector('.cn-fade'); fd.style.animation = 'none'; void fd.offsetWidth; fd.style.animation = '';
       const parts = [];
       const addP = (p, v, col, size, life) => { if (parts.length < 900) parts.push({ p: p.slice(), v, col, size, life, max: life }); };
+      let pAcc = 0;   // parçacık doğumları 60 Hz adımlarla: yüksek tazelemeli ekranda çoğalmaz
       let t0 = performance.now(), last = t0, done = false, raf = 0; const myId = ++playId;
       const finish = () => {
         if (done) return; done = true;
@@ -773,7 +774,7 @@ const Cinema = (() => {
         gl.disable(gl.BLEND); gl.depthMask(true);
         for (const a of AT) gl.disableVertexAttribArray(a);
         // parçacıklar
-        if (S.particles) S.particles(t, addP);
+        if (S.particles) { pAcc = Math.min(pAcc + dt, 3 / 60); for (; pAcc >= 1 / 60; pAcc -= 1 / 60) S.particles(t, addP); }
         const arr = [];
         for (let i = parts.length - 1; i >= 0; i--) {
           const q = parts[i]; q.life -= dt;
