@@ -12,15 +12,27 @@
 /* Rüzgârda salınan, dinamik çizilen küçük bitkiler: tür → [salınım genliği, taban ofseti] */
 const SWAY_O = { [O.TUFT]: [1, 2], [O.REED]: [1, 3], [O.FLOWERS]: [0.6, 1], [O.CROP]: [0.75, 5], [O.BUSH]: [0.32, 3] };
 /* İz tutan yumuşak zeminler: tile → iz rengi (rgb) */
-const TRACK_C = { [T.SAND]: '96,70,40', [T.DESERT]: '110,66,34', [T.MUD]: '40,28,16', [T.SNOW]: '84,104,136' };
 const SNOW_TRACK = '84,104,136';
+const TRACK_C = { [T.SAND]: '96,70,40', [T.DESERT]: '110,66,34', [T.MUD]: '40,28,16', [T.SNOW]: SNOW_TRACK };
+/* Kardaki izler: yöne dönük küçük çukurlar (çizme, nal, pati). Silik mavi-gri; karda uzun kalır, kar yağarken dolar.
+   Şekil yerel eksende verilir: u yürüyüş yönü, v yan (dünya pikseli); 1 = tam derin, 0 = iz yok. */
+const SNOW_PRINT = [150, 168, 196], SNOW_LIFE = 80, SNOW_MAX = 240;
+const PRINT_A = { foot: 0.3, hoof: 0.3, paw: 0.26 };
+const PRINT_SHAPE = {
+  // çizme: taban ve ayrı topuk
+  foot: (u, v) => ((u - 0.45) / 0.95) ** 2 + (v / 0.55) ** 2 <= 1 || ((u + 0.95) / 0.45) ** 2 + (v / 0.5) ** 2 <= 1 ? 1 : 0,
+  // nal: önü yuvarlak, arkası açık; ortası (çatal) sığ
+  hoof: (u, v) => { const r = (u / 1.15) ** 2 + (v / 1.2) ** 2; if (r > 1 || (u < -0.3 && Math.abs(v) < 0.5)) return 0; return r < 0.3 ? 0.45 : 1; },
+  // pati: yastık ve iki parmak
+  paw: (u, v) => ((u + 0.15) / 0.6) ** 2 + (v / 0.55) ** 2 <= 1 ? 1 : ((u - 0.75) / 0.3) ** 2 + ((Math.abs(v) - 0.38) / 0.28) ** 2 <= 1 ? 0.8 : 0,
+};
 /* Mermi isabetinde kalkan toz rengi */
 const DUST_C = { [T.SAND]: '214,190,140', [T.DESERT]: '206,160,108', [T.DRY]: '180,154,110', [T.REDROCK]: '176,104,70', [T.MESA]: '176,104,70', [T.SNOW]: '240,244,250', [T.MUD]: '96,76,52', [T.SWAMP]: '96,90,60', [T.FARM]: '130,100,66', [T.ROAD]: '170,146,108', [T.TOWN]: '168,142,104' };
 const LEAF_C = ['#b86a24', '#c89032', '#9a4a1e', '#d0a040', '#a85a20'];
 
 const FX = {
   wind: { a: 0.3, s: 0.25, x: 0.25, y: 0, gust: 0, gustT: 5, gustTo: 0 },
-  tracks: [], smoke: [], leaves: [], ripples: [], srcs: [], movers: [], scratches: [],
+  tracks: [], snowTracks: [], prints: new Map(), smoke: [], leaves: [], ripples: [], srcs: [], movers: [], scratches: [],
   cloudOff: { x: 0, y: 0 },
   g: { gold: 0, blue: 0, desert: 0, rain: 0, cold: 0, swamp: 0, hurt: 0, drunk: 0, frost: 0, de: 0 },
   temp: 20, tempT: 0, hb: 0, dub: false, grainT: 0, grainI: 0, drunkCss: false,
@@ -68,7 +80,7 @@ const FX = {
     this.frostC = null;
   },
   reset() {
-    this.tracks.length = 0; this.smoke.length = 0; this.leaves.length = 0; this.ripples.length = 0; this.srcs.length = 0; this.scratches.length = 0;
+    this.tracks.length = 0; this.snowTracks.length = 0; this.smoke.length = 0; this.leaves.length = 0; this.ripples.length = 0; this.srcs.length = 0; this.scratches.length = 0;
     for (const k in this.g) this.g[k] = 0;
     this.gradeInit = false;
   },
@@ -107,6 +119,9 @@ const FX = {
     if (P.riding && !G.ents.includes(P.riding)) this.mover(P.riding, 'hoof', dt, cold);
     // izler solar
     for (let i = this.tracks.length - 1; i >= 0; i--) { const t = this.tracks[i]; t.life -= dt; if (t.life <= 0) this.tracks.splice(i, 1); }
+    // kardaki izler yağan karla dolar
+    const fill = dt * (1 + (env.snow || 0) * 4);
+    for (let i = this.snowTracks.length - 1; i >= 0; i--) { const t = this.snowTracks[i]; t.life -= fill; if (t.life <= 0) this.snowTracks.splice(i, 1); }
     // yağmur damlası halkaları (su yüzeyinde)
     if (env.rain > 0.1 && !G.insideB) {
       let n = env.rain * dt * (this.full ? 150 : 60);
@@ -198,9 +213,39 @@ const FX = {
     return TRACK_C[t] || null;
   },
   addTrack(x, y, a, kind, c) {
+    if (c === SNOW_TRACK) {
+      if (this.snowTracks.length >= SNOW_MAX) this.snowTracks.shift();
+      this.snowTracks.push({ x, y, a, kind, life: SNOW_LIFE });
+      return;
+    }
     const T_ = this.tracks;
     if (T_.length >= 72) T_.shift();
-    T_.push({ x, y, a, kind, c, life: 34, snow: c === SNOW_TRACK });
+    T_.push({ x, y, a, kind, c, life: 34 });
+  },
+  /* İz şekli: 16 yöne ve tuval yoğunluğuna göre bir kez taranır. Kenar pikselleri yarı derin (piksel görünümü kalır).
+     Klasikte (1x) şeklin merkezi bir pikselin ortasıdır: tek piksel enli çizgi ortalanır; melezde (2x) piksel köşesidir. */
+  printSpr(kind, a, ds) {
+    const b = Math.round(a / TAU * 16) & 15, key = kind + b + '|' + ds;
+    let sp = this.prints.get(key);
+    if (sp) return sp;
+    const R = 2 * ds, n = R * 2, c = makeCanvas(n, n), g = c.getContext('2d'), img = g.createImageData(n, n), d = img.data;
+    const an = b / 16 * TAU, ca = Math.cos(an), sa = Math.sin(an), f = PRINT_SHAPE[kind], h = ds === 1 ? 0.5 : 0;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      let cov = 0;
+      for (let sy = 0; sy < 4; sy++) for (let sx = 0; sx < 4; sx++) {
+        const x = (i - R - h + (sx + 0.5) / 4) / ds, y = (j - R - h + (sy + 0.5) / 4) / ds;
+        cov += f(x * ca + y * sa, y * ca - x * sa);
+      }
+      cov /= 16;
+      const q = cov >= 0.55 ? 1 : cov >= 0.3 ? 0.5 : 0;
+      if (!q) continue;
+      const k = (j * n + i) * 4;
+      d[k] = SNOW_PRINT[0]; d[k + 1] = SNOW_PRINT[1]; d[k + 2] = SNOW_PRINT[2]; d[k + 3] = q * 255;
+    }
+    g.putImageData(img, 0, 0);
+    sp = { c, R };
+    this.prints.set(key, sp);
+    return sp;
   },
   ripple(x, y, r0, r1, life) {
     if (this.ripples.length >= 90) this.ripples.shift();
@@ -314,11 +359,26 @@ const FX = {
     for (const t of this.tracks) {
       if (t.x < x0 || t.x > x1 || t.y < y0 || t.y > y1) continue;
       // tam piksele oturt: kesirli koordinat izi bulanıklaştırıp yok eder
-      const a = (t.snow ? 0.34 : 0.26) * Math.min(1, t.life / 12, (34 - t.life) * 4);
+      const a = 0.26 * Math.min(1, t.life / 12, (34 - t.life) * 4);
       ctx.fillStyle = `rgba(${t.c},${a})`;
       const px = Math.round(t.x), py = Math.round(t.y);
       if (t.kind === 'hoof') ctx.fillRect(px - 1, py, 2, 1);
       else ctx.fillRect(px, py, 1, 1);
+    }
+    // kardaki izler: tuvalin piksel ızgarasına oturan küçük şekiller (melez çizimde iki kat ince)
+    if (this.snowTracks.length) {
+      // melezde ışık geçişi parlak karı sıkıştırır: aynı silikliğe biraz daha koyu iz gerekir
+      const ds = G.ds || 1, sm = ctx.imageSmoothingEnabled, ak = ds === 2 ? 1.35 : 1;
+      ctx.imageSmoothingEnabled = false;
+      for (const t of this.snowTracks) {
+        if (t.x < x0 || t.x > x1 || t.y < y0 || t.y > y1) continue;
+        const a = PRINT_A[t.kind] * ak * Math.min(1, t.life / 25, (SNOW_LIFE - t.life) * 4);
+        if (a < 0.01) continue;
+        const sp = this.printSpr(t.kind, t.a, ds), snap = ds === 1 ? Math.floor : Math.round;
+        ctx.globalAlpha = a;
+        ctx.drawImage(sp.c, (snap(t.x * ds) - sp.R) / ds, (snap(t.y * ds) - sp.R) / ds, sp.c.width / ds, sp.c.height / ds);
+      }
+      ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = sm;
     }
     ctx.lineWidth = 0.8;
     for (const r of this.ripples) {
