@@ -152,7 +152,7 @@ class World {
   idx(x, y) { return y * WW + x; }
   /* ---- Mevsimler ---- */
   /* Chunk önbelleğini boşalt (efekt kalitesi değişince) */
-  refreshChunks() { this.chunks.clear(); this.jobs.clear(); }
+  refreshChunks() { this.chunks.clear(); this.jobs.clear(); if (typeof HY !== 'undefined') HY.flush(this); }
   setSeason(season, force) {
     if (this.season === season && !force) return false;
     this.season = season;
@@ -1802,6 +1802,7 @@ class World {
     const cx = Math.floor(px / CPX), cy = Math.floor(py / CPX);
     this.chunks.delete(cy * 64 + cx);
     this.jobs.delete(cy * 64 + cx);
+    if (typeof G !== 'undefined' && G.ds === 2) (this.hyDirty || (this.hyDirty = [])).push([px, py]);   // melez çizimin parçası da yenilenir
   }
   renderChunk(cx, cy) {
     const g = this.chunkJob(cx, cy);
@@ -1810,18 +1811,49 @@ class World {
   }
   *chunkJob(cx, cy) {
     const g = makeCanvas(CPX, CPX), gc = g.getContext('2d');
-    const img = gc.createImageData(CPX, CPX), d = img.data;
+    yield* this.chunkGround(cx, cy, gc);
     const ox = cx * CPX, oy = cy * CPX;
+    const o = makeCanvas(CPX, CPX), oc = o.getContext('2d');
+    gc.save(); oc.save();
+    gc.translate(-ox, -oy); oc.translate(-ox, -oy);
+    for (const r of this.rails) this.drawRail(gc, r, ox, oy);
+    const tx0 = cx * CHUNK - 3, ty0 = cy * CHUNK - 3, tx1 = tx0 + CHUNK + 6, ty1 = ty0 + CHUNK + 6;
+    for (let ty = ty0; ty < ty1; ty++) {
+      for (let tx = tx0; tx < tx1; tx++) {
+        if (!this.inb(tx, ty)) continue;
+        const ob = this.obj[ty * WW + tx];
+        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16) && !FX.dyn(ob)) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
+      }
+      if ((ty & 15) === 0) yield 0;
+    }
+    for (const b of this.buildings) {
+      const bx = b.x * TS, by = b.y * TS;
+      if (bx + b.w * TS + 40 < ox || bx - 40 > ox + CPX || by + b.h * TS + 40 < oy || by - 60 > oy + CPX) continue;
+      Spr.buildingGround(gc, b, this);
+    }
+    gc.restore(); oc.restore();
+    return { g, o };
+  }
+  *chunkGround(cx, cy, gc) {
+    const img = gc.createImageData(CPX, CPX);
+    yield* this.groundPixels(cx * CPX, cy * CPX, CPX, CPX, img.data, null);
+    gc.putImageData(img, 0, 0);
+    yield 0;
+  }
+  /* Zemin pikselleri (karo rengi, gürültü, kenar titreşimi, mevsim) bir dikdörtgen için: 2D chunk'lar ve melez çizici
+     (js/hybrid.js) kullanır. ox, oy karo sınırında olmalı. cls verilirse her pikselin (titreşimli) karo türü yazılır. */
+  *groundPixels(ox, oy, PW, PH, d, cls) {
+    const tx0 = ox >> 4, ty0 = oy >> 4;
     const tile = this.tile, JX = World.JX, JY = World.JY, DET = World.DET, heat = this.heat, season = this.season;
     const TV = World.TV || (World.TV = new Float32Array(TINFO.map(t => t.v)));
     const MAXP = WW * TS - 1;
     const CL = World.CLF || (World.CLF = new Uint8Array(TINFO.map(t => (t.cliff ? 1 : 0))));
     const WA = World.WAF || (World.WAF = new Uint8Array(TINFO.map((t, i) => (i === T.WATER || i === T.DEEP || i === T.HOTWATER || i === T.BRIDGE ? 1 : 0))));
     // karo düzeyinde: üstünde uçurum var mı?
-    const TW = CHUNK + 4;
-    const nearCliff = new Uint8Array(TW * TW);
-    for (let ty = 0; ty < TW; ty++) for (let tx = 0; tx < TW; tx++) {
-      const wx = cx * CHUNK + tx - 2, wy = cy * CHUNK + ty - 2;
+    const TW = (PW >> 4) + 4, TH = (PH >> 4) + 4;
+    const nearCliff = new Uint8Array(TW * TH);
+    for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+      const wx = tx0 + tx - 2, wy = ty0 + ty - 2;
       let f = 0;
       for (let yy = -1; yy <= 1 && !f; yy++) for (let xx = -1; xx <= 1; xx++) if (CL[this.t(wx + xx, wy + yy)]) { f = 1; break; }
       nearCliff[ty * TW + tx] = f;
@@ -1831,12 +1863,12 @@ class World {
       if (sy < 0) sy = 0; else if (sy > MAXP) sy = MAXP;
       return tile[(sy >> 4) * WW + (sx >> 4)];
     };
-    for (let py = 0; py < CPX; py++) {
+    for (let py = 0; py < PH; py++) {
       const wy = oy + py;
       const ky = (wy & 127) << 7;
       const rowT = (wy >> 4) * WW;
-      const ncRow = (((wy >> 4) - cy * CHUNK) + 2) * TW;
-      for (let px = 0; px < CPX; px++) {
+      const ncRow = (((wy >> 4) - ty0) + 2) * TW;
+      for (let px = 0; px < PW; px++) {
         const wx = ox + px;
         const k = (wx & 127) + ky;
         const base = tile[rowT + (wx >> 4)];
@@ -1865,7 +1897,7 @@ class World {
             if (t === T.FOREST && DET[k] > 0.72) col = LEAF2; else col = AUT[t];
           } else if (season === 1 && LEAFY[t]) col = SUM[t];
         }
-        if (nearCliff[ncRow + ((wx >> 4) - cx * CHUNK) + 2]) {
+        if (nearCliff[ncRow + ((wx >> 4) - tx0) + 2]) {
           if (CL[t]) {
             if (!CL[tAt(wx + (JX[k] >> 1), wy + 7)]) { mul = 0.72; if ((wx * 3 + (wy >> 1)) % 5 === 0) v -= 10; }
             else if (!CL[tAt(wx, wy - 5)]) v += 16;
@@ -1890,7 +1922,8 @@ class World {
           if ((wy & 7) === 0 || sx === 0) mul = 0.84;
           else v = (hash2((wx + (((wy >> 3) & 1) << 2)) >> 3, wy >> 3, 29) - 0.5) * 10 + DET[k] * 2;
         }
-        const i = (py * CPX + px) << 2;
+        if (cls) cls[py * PW + px] = t;
+        const i = (py * PW + px) << 2;
         d[i] = (col[0] + v) * mul;
         d[i + 1] = (col[1] + v) * mul;
         d[i + 2] = (col[2] + v * 0.8) * mul;
@@ -1898,28 +1931,6 @@ class World {
       }
       if ((py & 63) === 63) yield 0;
     }
-    gc.putImageData(img, 0, 0);
-    yield 0;
-    const o = makeCanvas(CPX, CPX), oc = o.getContext('2d');
-    gc.save(); oc.save();
-    gc.translate(-ox, -oy); oc.translate(-ox, -oy);
-    for (const r of this.rails) this.drawRail(gc, r, ox, oy);
-    const tx0 = cx * CHUNK - 3, ty0 = cy * CHUNK - 3, tx1 = tx0 + CHUNK + 6, ty1 = ty0 + CHUNK + 6;
-    for (let ty = ty0; ty < ty1; ty++) {
-      for (let tx = tx0; tx < tx1; tx++) {
-        if (!this.inb(tx, ty)) continue;
-        const ob = this.obj[ty * WW + tx];
-        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16) && !FX.dyn(ob)) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
-      }
-      if ((ty & 15) === 0) yield 0;
-    }
-    for (const b of this.buildings) {
-      const bx = b.x * TS, by = b.y * TS;
-      if (bx + b.w * TS + 40 < ox || bx - 40 > ox + CPX || by + b.h * TS + 40 < oy || by - 60 > oy + CPX) continue;
-      Spr.buildingGround(gc, b, this);
-    }
-    gc.restore(); oc.restore();
-    return { g, o };
   }
   drawRail(ctx, r, ox, oy) {
     const x0 = ox - 20, y0 = oy - 20, x1 = ox + CPX + 20, y1 = oy + CPX + 20;

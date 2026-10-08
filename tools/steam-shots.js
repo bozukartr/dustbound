@@ -6,6 +6,8 @@
      node tools/steam-shots.js --lang tr       → Türkçe arayüzle
      node tools/steam-shots.js town poker      → yalnızca adı geçen sahneler
      node tools/steam-shots.js --out klasör    → çıktı klasörü (varsayılan steam/screenshots/<dil>)
+     node tools/steam-shots.js --both          → her sahne iki çizimle: <ad>_klasik.png ve <ad>_melez.png
+   Ekran kartı olmayan makinede de melez çizim açık kalır (yavaş ama doğru).
    Her sahne gerçek oyunda kurulur: yer, saat, hava ve kişiler ayarlanır,
    oyun birkaç saniye akar, sonra 1920x1080 ekran görüntüsü alınır.
    Bildirimler, ipuçları ve başarım duyuruları çekimden önce gizlenir.
@@ -15,10 +17,11 @@ const { loadPlaywright, sleep, pageHelpers } = require('../tests/lib');
 
 const ROOT = path.join(__dirname, '..');
 const argv = process.argv.slice(2);
-const opt = { lang: 'en', out: null, only: [] };
+const opt = { lang: 'en', out: null, only: [], both: false };
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--lang') opt.lang = argv[++i];
   else if (argv[i] === '--out') opt.out = argv[++i];
+  else if (argv[i] === '--both') opt.both = true;
   else opt.only.push(argv[i]);
 }
 const OUT = opt.out || path.join(ROOT, 'steam', 'screenshots', opt.lang);
@@ -322,11 +325,11 @@ const SCENES = [
   const { chromium } = loadPlaywright();
   const srv = await serve();
   const url = `http://127.0.0.1:${srv.address().port}/`;
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, locale: opt.lang === 'tr' ? 'tr-TR' : 'en-US' });
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.log('  sayfa hatası:', e.message));
-  await p.addInitScript(() => { window.__testNoGuide = true; window.addEventListener('blur', (e) => { if (e.target === window) e.stopImmediatePropagation(); }, true); });
+  await p.addInitScript(() => { window.__testNoGuide = true; window.__hySoft = true; window.addEventListener('blur', (e) => { if (e.target === window) e.stopImmediatePropagation(); }, true); });
   await p.goto(url + 'index.html');
   await p.waitForFunction(() => typeof G !== 'undefined' && G.state === 'menu', null, { timeout: 30000 });
   fs.mkdirSync(OUT, { recursive: true });
@@ -346,7 +349,16 @@ const SCENES = [
       await s.run(p);
       await p.evaluate(() => { for (const k of ['toasts', 'feed']) document.getElementById(k).innerHTML = ''; });
       if (process.env.SHOT_DEBUG) console.log('  ', JSON.stringify(await p.evaluate(() => ({ grade: FX.g, hp: G.player.hp, max: G.player.maxHp, cold: G.coldness, hot: G.hotness }))));
-      await p.screenshot({ path: path.join(OUT, `${s.file || s.name}.png`) });
+      if (opt.both) {
+        // aynı an iki çizimle: önce klasik 2D, sonra melez (oyun bu sırada durur)
+        await p.evaluate(() => { G._upd = G.update; G.update = () => {}; G.settings.gfx = 1; G.applySettings(); });
+        await sleep(600);
+        await p.screenshot({ path: path.join(OUT, `${s.file || s.name}_klasik.png`) });
+        await p.evaluate(() => { G.settings.gfx = 0; G.applySettings(); });
+        await sleep(2500);
+        await p.screenshot({ path: path.join(OUT, `${s.file || s.name}_melez.png`) });
+        await p.evaluate(() => { G.update = G._upd; });
+      } else await p.screenshot({ path: path.join(OUT, `${s.file || s.name}.png`) });
       if (s.after) await s.after(p);
     } catch (e) { console.log('  hata:', e.message.split('\n')[0]); }
   }

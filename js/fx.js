@@ -456,7 +456,7 @@ const FX = {
       const d = g.drunk, t = G.t;
       this.tint(ctx, 'soft-light', '#ffc070', d * 0.3);
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 0.26 * d;
-      ctx.drawImage(G.canvas, Math.sin(t * 1.3) * 2.6 * d, Math.cos(t * 0.9) * 1.6 * d);
+      ctx.drawImage(G.canvas, Math.sin(t * 1.3) * 2.6 * d, Math.cos(t * 0.9) * 1.6 * d, G.vw, G.vh);
     }
     // --- ayaz: kenarlarda buz kristalleri
     if (g.frost > 0.02) {
