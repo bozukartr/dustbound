@@ -9,7 +9,8 @@
    kopyayı küçültür ve demo/demo.js katmanını ekler. Depodaki oyun, masaüstü
    sürümü ve testler bu betikten etkilenmez.
      - Öbür dört geçmişin hikâye dosyaları, açılış sahneleri ve çevirileri pakete girmez
-     - Geliştirici araçları (debug.js) ve seslendirme metin tabloları pakete girmez
+     - Geliştirici araçları (debug.js) ve seslendirme metin tabloları pakete girmez; seslendirmeden yalnızca
+       Sully'nin hikâyesinin kayıtları girer
      - Kod küçültülür (terser); okunabilir kaynak pakette yer almaz
    ========================================================== */
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
@@ -24,6 +25,19 @@ fs.mkdirSync(OUT, { recursive: true });
 for (const it of ['index.html', 'css', 'js', 'lang', 'audio', 'fonts', 'video']) if (fs.existsSync(path.join(ROOT, it))) fs.cpSync(path.join(ROOT, it), path.join(OUT, it), { recursive: true });
 for (const f of DROP_JS) fs.rmSync(path.join(OUT, 'js', f));
 for (const f of fs.readdirSync(path.join(OUT, 'audio', 'vo'))) if (f.endsWith('.csv')) fs.rmSync(path.join(OUT, 'audio', 'vo', f));
+// seslendirme: yalnızca Sully'nin hikâyesinin kayıtları kalır (öbür hikâyelerin sesleri ve satır listesi girmez; KAYNAKLAR.md kalır)
+{
+  const VO = path.join(OUT, 'audio', 'vo'), L = JSON.parse(fs.readFileSync(path.join(VO, 'lines.json'), 'utf8'));
+  const keep = new Set(L.filter(l => l.story === 'sully').map(l => l.lang + '/' + l.key));
+  fs.rmSync(path.join(VO, 'lines.json'));
+  const man = JSON.parse(fs.readFileSync(path.join(VO, 'manifest.json'), 'utf8'));
+  for (const lang of Object.keys(man)) {
+    man[lang] = man[lang].filter(k => keep.has(lang + '/' + k));
+    const d = path.join(VO, lang);
+    if (fs.existsSync(d)) for (const f of fs.readdirSync(d)) { const m = /^([0-9a-f]{8}(?:\.[mf])?)\.(ogg|mp3)$/.exec(f); if (!m || !keep.has(lang + '/' + m[1])) fs.rmSync(path.join(d, f)); }
+  }
+  fs.writeFileSync(path.join(VO, 'manifest.json'), JSON.stringify(man));
+}
 // video klasöründen yalnızca videolar pakete girer
 if (fs.existsSync(path.join(OUT, 'video'))) for (const f of fs.readdirSync(path.join(OUT, 'video'))) if (!/\.(mp4|webm)$/i.test(f)) fs.rmSync(path.join(OUT, 'video', f), { recursive: true });
 fs.mkdirSync(path.join(OUT, 'demo'));

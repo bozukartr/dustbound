@@ -147,10 +147,11 @@ module.exports = {
     });
     await t.step('seslendirme anahtarı araçla aynı, dosya yoksa sessizce geçer', async () => {
       const fs = require('fs'), path = require('path');
+      // senaryo: dosya, hikâye, yer, konuşan, metin, okunuş (Türkçe kayıtlar henüz yok)
       const csv = fs.readFileSync(path.join(__dirname, '..', '..', 'audio', 'vo', 'script_tr.csv'), 'utf8').split('\n')[1];
-      const [k, , text] = csv.match(/"((?:[^"]|"")*)"/g).map(s => s.slice(1, -1).replace(/""/g, '"'));
+      const [file, , , , text] = csv.match(/"((?:[^"]|"")*)"/g).map(s => s.slice(1, -1).replace(/""/g, '"'));
       const r = await p.evaluate((text) => ({ k: Audio_.voiceKey(text), d: Audio_.voice(text, 'tr') }), text);
-      t.eq(r.k, k, 'aynı anahtar'); t.eq(r.d, 0, 'kayıt yok → 0 sn');
+      t.eq(r.k, /^tr\/([0-9a-f]{8})/.exec(file)[1], 'aynı anahtar'); t.eq(r.d, 0, 'kayıt yok → 0 sn');
     });
     await t.step('gerçek CC0 ses dosyaları: hepsi yüklenir ve çözülür, kaynakları kayıtlı', async () => {
       const fs = require('fs'), path = require('path');

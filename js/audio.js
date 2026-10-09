@@ -309,7 +309,7 @@ const Audio_ = {
     if (L) L.g.gain.setTargetAtTime(v, t, 0.4);
   },
   ambientTick(env) {
-    if (!this.ctx) return;
+    if (!this.ctx || this.cineL) return;   // sinematik sürerken ortamı sahne belirler
     this.setLoop('rain', env.rain * (this.sloops.rain ? 0.35 : 0.075));
     this.setLoop('wind', env.wind * 0.3);
     this.setLoop('fire', env.fire * (this.sloops.fire ? 0.12 : 0.06));
@@ -457,7 +457,8 @@ const Audio_ = {
     // saloon piyanosu
     const P = this.track('piano', true);
     this.pianoHold = Math.max(0, this.pianoHold - dt);
-    const want = P.failed ? 0 : this.pianoLevel * (this.pianoHold > 0 ? 0.15 : 1);
+    const lvl = this.cineL ? this.cineL.piano || 0 : this.pianoLevel, muf = this.cineL ? (this.cineL.pianoMuf === undefined ? 0.5 : this.cineL.pianoMuf) : this.pianoMuffle;
+    const want = P.failed ? 0 : lvl * (this.pianoHold > 0 ? 0.15 : 1);
     P.fade += (want - P.fade) * Math.min(1, dt * 1.6);
     if (want > 0.002 && !P.failed) {
       if (!P.busy && this.clock >= (P.gapUntil || 0)) {
@@ -472,7 +473,7 @@ const Audio_ = {
         P.onEnd = () => { P.gapUntil = this.clock + rnd(3, 8); P.el.dataset.src = ''; P.natural = true; };
       }
     } else if (P.fade < 0.003 && P.busy && !P.el.paused) { P.el.pause(); P.busy = false; P.pausedAt = this.clock; }
-    this.applyTrack(P, P.fade * this.GAIN.piano, this.pianoMuffle);
+    this.applyTrack(P, P.fade * this.GAIN.piano, muf);
     // ana tema
     const T = this.track('theme', false);
     if (this.mode === 'menu' && T.failed && !this.seq) this.playSeq('menu');
@@ -761,44 +762,80 @@ Object.assign(Audio_, {
     if (this.loops[key]) this.loops[key].g.gain.value = 0;
   },
 
+  /* ---- sinematik sesleri ----
+     Sinematik sürerken ortam döngülerini sahne belirler (oyunun ortam güncellemesi bekler): amb = { wind, fire,
+     water, crickets, crowd, rain, storm, piano, pianoMuf } (oyun içi düzeylerle aynı ölçek). Sahnenin tekil sesleri
+     (düdük, nal, adım, uluma) sinematik zamanına göre cineSfx ile çalar. Sinematik bitince ya da geçilince tekil
+     sesler ve seslendirme susar, ortam yeniden oyuna geçer. */
+  CINE_LOOPS: ['rain', 'wind', 'fire', 'water', 'storm', 'crickets', 'crowd'],
+  cineStart(amb) {
+    if (!this.ctx) return;
+    this.cineL = Object.assign({}, amb || {}); this.cineV = [];
+    for (const k of this.CINE_LOOPS) this.setLoop(k, this.cineL[k] || 0);
+  },
+  cineSfx(name, o = {}) {
+    if (!this.ctx || !this.cineL) return null;
+    const V = this.play(name, Object.assign({ rev: 0.25 }, o));
+    if (V) { this.cineV = this.cineV.filter(v => !v.done); this.cineV.push(V); }
+    return V;
+  },
+  cineEnd() {
+    if (!this.ctx) return;
+    this.voiceStop();
+    if (!this.cineL) return;
+    for (const V of this.cineV) V.stop(0.4);
+    this.cineV = []; this.cineL = null;
+    for (const k of this.CINE_LOOPS) this.setLoop(k, 0);
+  },
+
   /* ---- konuşma (seslendirme) ----
-     Bir diyalog satırının anahtarı: satırın o dildeki metninden türetilen kısa bir özet (voiceKey).
-     Dosya: audio/vo/<dil>/<anahtar>.ogg (ya da .mp3). audio/vo/manifest.json hangi dosyaların
-     var olduğunu listeler: { "tr": ["a1b2c3d4", ...], "en": [...] }. tools/vo-script.js bütün
-     diyalogları anahtarlarıyla birlikte seslendirme senaryosu olarak dışa aktarır. */
+     Yalnızca sinematik satırları seslendirilir (açılış ve bölüm sinematikleri; oyun içi konuşmalar sessiz).
+     Bir satırın anahtarı: satırın o dildeki metninden türetilen kısa bir özet (voiceKey).
+     Dosya: audio/vo/<dil>/<anahtar>.ogg (ya da .mp3); oyuncunun satırları oyuncunun cinsiyetine göre iki
+     kayıttır: <anahtar>.m ve <anahtar>.f. audio/vo/manifest.json hangi dosyaların var olduğunu listeler:
+     { "tr": ["a1b2c3d4", "c0ffee12.m", ...], "en": [...] }. tools/vo-script.js sinematik satırlarını
+     konuşanlarıyla birlikte seslendirme senaryosu olarak dışa aktarır ve manifesti klasöre göre yeniler. */
   voiceKey(text) {
     let h = 0x811c9dc5;
     for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
     return (h >>> 0).toString(16).padStart(8, '0');
   },
-  vo: { man: null, bufs: {}, loading: {} },
+  vo: { man: null, ready: null, bufs: {}, loading: {} },
   voInit() {
-    if (this.vo.man !== null) return;
-    this.vo.man = false;
-    fetch('audio/vo/manifest.json').then(r => r.ok ? r.json() : null).then(m => { this.vo.man = m || {}; }).catch(() => { this.vo.man = {}; });
+    if (!this.vo.ready) this.vo.ready = fetch('audio/vo/manifest.json').then(r => r.ok ? r.json() : null).then(m => { this.vo.man = m || {}; }).catch(() => { this.vo.man = {}; });
+    return this.vo.ready;
   },
   voHas(key, lang) { const m = this.vo.man; return !!(m && m[lang] && m[lang].includes(key)); },
-  /* Satırın sesini önceden yükle (diyalog kuyruğa girince) */
-  voPreload(text, lang) {
-    if (!this.ctx) return;
-    this.voInit();
-    const key = this.voiceKey(text), id = lang + '/' + key;
-    if (!this.voHas(key, lang) || this.vo.bufs[id] || this.vo.loading[id]) return;
-    const ext = this.canOgg ? 'ogg' : 'mp3';
-    this.vo.loading[id] = fetch(`audio/vo/${id}.${ext}`).then(r => r.arrayBuffer()).then(ab => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
-      .then(b => { this.vo.bufs[id] = b; }).catch(() => {});
+  // dosya kimliği: cinsiyete özel kayıt varsa o (oyuncunun satırları), yoksa ortak kayıt; hiçbiri yoksa null
+  voId(text, lang, sex) {
+    const key = this.voiceKey(text);
+    if (sex && this.voHas(key + '.' + sex, lang)) return lang + '/' + key + '.' + sex;
+    return this.voHas(key, lang) ? lang + '/' + key : null;
   },
-  voDur(text, lang) { const b = this.vo.bufs[lang + '/' + this.voiceKey(text)]; return b ? b.duration : 0; },
-  /* Konuşma geçilince süren seslendirme susar */
+  /* Satırın sesini önceden yükle; çözülünce (ya da dosya yoksa) biten bir söz döner */
+  voPreload(text, lang, sex) {
+    if (!this.ctx) return Promise.resolve();
+    return this.voInit().then(() => {
+      const id = this.voId(text, lang, sex);
+      if (!id || this.vo.bufs[id]) return;
+      if (!this.vo.loading[id]) {
+        const ext = this.canOgg ? 'ogg' : 'mp3';
+        this.vo.loading[id] = fetch(`audio/vo/${id}.${ext}`).then(r => r.arrayBuffer()).then(ab => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
+          .then(b => { this.vo.bufs[id] = b; }).catch(() => {});
+      }
+      return this.vo.loading[id];
+    });
+  },
+  voDur(text, lang, sex) { const id = this.voId(text, lang, sex), b = id && this.vo.bufs[id]; return b ? b.duration : 0; },
   voiceStop() { if (this.voCur) { this.voCur.stop(0.05); this.voCur = null; this.voiceOn = false; this.duck(0, 0, 1); } },
-  /* Satırı seslendir; süresini döndürür (dosya yoksa ya da hazır değilse 0) */
+  /* Satırı seslendir; süresini döndürür (dosya yoksa ya da hazır değilse 0). o.sex: oyuncunun satırı için cinsiyet */
   voice(text, lang, o = {}) {
     if (!this.ctx) return 0;
-    const id = lang + '/' + this.voiceKey(text), buf = this.vo.bufs[id];
-    if (!buf) { this.voPreload(text, lang); return 0; }
+    const id = this.voId(text, lang, o.sex), buf = id && this.vo.bufs[id];
+    if (!buf) { this.voPreload(text, lang, o.sex); return 0; }
     if (this.voCur) this.voCur.stop(0.05);
     this.bank.__vo = { bufs: [buf], last: -1 };
-    const V = this.play('__vo', Object.assign({ bus: 'voice', rev: 0.4 }, o));
+    const V = this.play('__vo', Object.assign({ bus: 'voice', rev: 0.15 }, o));
     if (!V) return 0;
     this.voCur = V; this.voiceOn = true;
     this.duck(0, 0, 0.5);

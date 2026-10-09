@@ -231,8 +231,9 @@ const G = {
     // varış sinematiğinin süresi kadar beklenir, böylece oyunun ilk saniyelerindeki zamanlama aynı kalır
     if (window.__testNoCine) await new Promise(r => setTimeout(r, 7800));
     else try {
+      const lines = SD && SD.opening ? await this.openingLines(SD) : null;   // seslendirme dosyaları yüklenince başlar
       await Cinema.play(profile.bg, { look: profile.look, seed, story: !!SD, sully: SD && SD.mentor.look, horseCol: this.horse && this.horse.look && this.horse.look.col,
-        lines: SD && SD.opening ? this.openingLines(SD) : null, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) });
+        lines, onLine: (ln) => this.cineVoice(ln) });
     } catch (e) { console.warn(e); }
     this.unlock('begin');
     this.startPlay();

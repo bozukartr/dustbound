@@ -68,7 +68,7 @@
     for (let k = 0; k < 9; k++) { const a = k / 9 * TAU; m.box(x + Math.cos(a) * 0.85, y, z + Math.sin(a) * 0.85, 0.34, 0.24, 0.3, k % 2 ? '#6a6a64' : '#5a5a56'); }
     for (let k = 0; k < 3; k++) m.at(x, y + 0.08, z, k * 1.05, () => m.box(0, 0, 0, 0.16, 0.16, 1.2, '#3a2416'));
     g.box(x, y + 0.04, z, 0.9, 0.06, 0.9, '#c84a18');
-    g.cone(x, y + 0.1, z, 0.34, 0.62, 5, '#ff7a20', '#ffd060'); g.cone(x + 0.12, y + 0.1, z - 0.08, 0.2, 0.45, 5, '#ffa030', '#fff0a0'); g.cone(x - 0.14, y + 0.1, z + 0.06, 0.18, 0.36, 5, '#ff9028', '#ffe080');
+    K.flame(x, y, z, 1);   // canlı alev (oynatıcı her kare çizer)
   }
   const fireP = (R, add, x, y, z, k = 1) => {
     if (Math.random() < 0.9 * k) add([x + R.range(-0.22, 0.22), y + 0.35, z + R.range(-0.22, 0.22)], [R.range(-0.2, 0.2), R.range(1.1, 2), R.range(-0.2, 0.2)], [1, R.range(0.5, 0.8), 0.2, 0.9], 0.45, 0.5);
@@ -249,6 +249,11 @@
       { d: 6.2, cam: (t, u) => { const p = px(t), k = ease(u); return { e: V.lerp([p - 7.5, 1.5, RZ + 3.6], [p + 8, 7, RZ + 12], k), c: V.lerp([p + 0.4, 1.9, RZ], [p - 30, -1, RZ - 2], ease(cl01((u - 0.3) / 0.7))) }; } },
     ];
     S.capAt = T2 + 0.8; S.lineAt = 0.9;
+    S.sound = { amb: { wind: 0.09 }, cues: [[0.5, 'bird', { vol: 0.3 }], [2.9, 'horse_neigh', { vol: 0.32 }], [7.2, 'bird', { vol: 0.25 }], [10.4, 'horse_neigh', { vol: 0.45 }]],
+      tick: (t, t0, play) => {
+        for (const b of K.beats(t0, t, 3.4, T2, 2.7)) play('hoof_dirt', { vol: 0.4 * Math.max(0.12, 1 - (b - 3.4) / 7) });   // araba atları uzaklaşır
+        for (const b of K.beats(t0, t, T2, T2 + 7, 5.2)) play('hoof_dirt', { vol: 0.55 * Math.max(0.2, 1 - (b - T2) / 7) });   // oyuncunun atı
+      } };
     S.cap = { n: Tr('Harlow Ovaları'), s: Tr('Toprak gitti. Ova kaldı.') };
     S.particles = (t, add) => {
       if (Math.random() < 0.5) add([R.range(-6, 12), R.range(0.3, 2.5), R.range(10, 20)], [R.range(0.3, 0.8), R.range(-0.05, 0.1), R.range(-0.1, 0.1)], [1, 0.92, 0.75, 0.5], -1, 3);   // güneşte uçuşan toz
@@ -321,6 +326,7 @@
       { d: 6, cam: (t, u) => { const k = ease(u); return { e: V.lerp([PX - f[0] * 2.6 + 0.6, 1.7, PZ - f[2] * 2.6 + 1.2], [-8.5, 6, 8.5], k), c: V.lerp([0, 0.9, 0], [30, -2.5, -6], ease(cl01((u - 0.25) / 0.75))) }; } },
     ];
     S.capAt = T2 + 0.7; S.lineAt = 1.0;
+    S.sound = { amb: { fire: 0.16, wind: 0.05 }, cues: [[1.4, 'coyote_howl', { vol: 0.16, muffle: 2400 }], [6.2, 'horse_neigh', { vol: 0.22 }], [11.8, 'hawk', { vol: 0.28 }]] };
     S.cap = { n: Tr('Saklı Kamp'), s: Tr('Geçmişinden kaçılmaz. Ama denenebilir.') };
     S.particles = (t, add) => {
       fireP(R, add, 0, 0, 0, 1.2);
@@ -409,7 +415,7 @@
       if (t > 8.8) D.push([PLB, M4.tr(0, 0, sz(t) - 14)]);
       if (gr) drawWalker(D, gr, 0.9, PY, 3.6, t < T2 ? Math.PI / 2 + 0.6 : 0.25, 0, 0);
       drawWalker(D, workers[0], 1.4 - Math.sin(t * 0.35) * 1.2, PY, 16 + Math.cos(t * 0.35) * 3, Math.cos(t * 0.35) > 0 ? Math.PI : 0, t * 6.5, 1);
-      drawWalker(D, workers[1], -1.0, PY, -3 + ((t * 1.1) % 9), 0, t * 6.5, 1);
+      { const a = t * 0.28; drawWalker(D, workers[1], -1.85, PY, 12 + Math.sin(a) * 4, Math.cos(a) > 0 ? 0 : Math.PI, t * 6.5, 1); }   // iskelenin kenarında, çuvalların ötesinde: kadrajı kapatmaz
       drawWalker(D, workers[2], 1.1, PY, 24, -Math.PI / 2, 0, 0);
       [[-9, 22], [-13, 30], [12, 36]].forEach(([x, z], i) => D.push([boats[i], M4.chain(M4.tr(x, -0.05 + Math.sin(t * 1.3 + i) * 0.1, z), M4.ry(0.3 * i), M4.rz(Math.sin(t * 1.1 + i * 2) * 0.05))]));
       for (let k = 0; k < 5; k++) { const a = t * (0.25 + k * 0.05) + k * 1.3, r = 9 + k * 3; drawGull(D, GU, SX + Math.cos(a) * r, 9 + k * 1.3 + Math.sin(t + k) * 0.6, z - 4 + Math.sin(a) * r * 0.7, a + Math.PI, t + k); }
@@ -424,6 +430,8 @@
       { d: 6.2, cam: (t, u) => { const p = walkP(t), k = ease(cl01((u - 0.45) / 0.55)); return { e: V.lerp([-1.1, PY + 1.7, -0.8], [5, 10, 9], k), c: V.lerp([p[0], p[1] + 1.1, p[2]], HP0, k) }; } },
     ];
     S.capAt = T2 + 0.8; S.lineAt = 0.8;
+    S.sound = { amb: { water: 0.15, wind: 0.08, crowd: 0.035 }, cues: [[3.0, 'train_whistle', { vol: 0.55, rate: 0.6 }], [6.5, 'bird', { vol: 0.18 }], [W0, 'hit_wood', { vol: 0.25 }]],
+      tick: (t, t0, play) => { for (const b of K.beats(t0, t, W0, W2, 1.9)) play('step_wood', { vol: 0.38 }); } };
     S.cap = { s: Tr('Yeni bir dünya, yeni bir hayat.') };
     S.particles = (t, add) => {
       const z = sz(t);
@@ -490,6 +498,9 @@
     if (!WT) m.at(-10, 0, TZ, Math.PI / 2, () => { m.box(0, 0, 0, 16, 4.2, 7, '#7a6a50'); m.roof(0, 4.2, 0, 16, 1.6, 7, '#3a4a5a', 0.3); m.box(0, 2.5, 5.2, 18, 0.2, 3.4, '#3a4a5a'); for (const sx of [-7.5, -2.5, 2.5, 7.5]) m.box(sx, 0, 6.6, 0.18, 2.5, 0.18, '#4a3a2a'); m.box(0, 5.6, 3.6, 6, 0.9, 0.1, '#e0e0d0'); m.box(0, 0.2, 3.52, 1.2, 2.2, 0.06, '#3a2a1a'); });
     if (!WT) m.at(-40, 0, TZ, 0, () => K.town(m, R, 0, -30, 40, { street: 7 }));
     const ST = WT && WT.find('station'), SXs = ST ? ST.x : -10;
+    // peron çekiminin gözü istasyon binasının arkasında kalmasın: gelen trene ve inen yolcuya açık bakan ilk nokta
+    let EZ = TZ - 7; while (EZ < TZ + 14 && !(K.camClear([-3.4, 2.1, EZ], [-1.2, 1.8, TZ + 40]) && K.camClear([-3.4, 2.1, EZ], [-2.2, 1.8, TZ + 15]))) EZ += 0.5;
+    if (EZ > TZ - 7) EZ += 1.5;   // istasyonun ucundan biraz uzak: vinç kalkarken köşesine sürtmesin
     for (let k = 0; k < 30; k++) { const x = R.range(-250, 250), z = R.range(-200, 360); if (Math.abs(x) < 14 || Math.hypot(x - TC[0], z - TC[1]) < FG.r + 8 || (x > 4 && x < 22 && z > -12 && z < 12)) continue; K.tree(m, x, z, hf(x, z), R.range(0.9, 1.4), R.chance(0.4) ? 'dry' : 'oak', R); }
     for (let k = 0; k < 6; k++) K.mountain(m, -420 + k * 160, -360 - R.range(0, 80), R.range(110, 150), R.range(60, 95), '#8a92a0', '#eef0f2');
     K.tufts(m, R, 700, -20, -30, 30, 30, hf, ['#a89a50', '#b8aa60', '#8a8a44'], (x, z) => Math.abs(x) < 2.4 || (x > 9.5 && x < 13 && Math.abs(z - 2.2) < 1.6), 1);
@@ -528,9 +539,12 @@
       // kamp: Boone saatine bakar, ekip uyanır
       { d: T2 - T1, cam: (t, u) => ({ e: [4.4 - u * 0.4, 1.65, 1.6 + u * 0.3], c: [9.8, 1.1, 0.2], shake: 0.008 }) },
       // Fort Redstone: yolcu treni yanaşır, oyuncu iner; vinç kasabaya döner
-      { d: 6.4, cam: (t, u) => { const z = tz(t), k = ease(cl01((u - 0.6) / 0.4)); return { e: V.lerp([-3.4, 2.1, TZ - 7], [8, 15, TZ - 16], k), c: V.lerp([-1.2, 1.8, z + 9], [-40, 2, TZ + 12], k) }; } },
+      // (vinç önce yükselir, sonra yana kayar: istasyonun çatısının üstünden geçer)
+      { d: 6.4, cam: (t, u) => { const z = tz(t), k = ease(cl01((u - 0.6) / 0.4)), ky = ease(cl01((u - 0.6) / 0.4 * 3.2)), e = V.lerp([-3.4, 2.1, EZ], [8, 15, TZ - 16], k); e[1] = 2.1 + (15 - 2.1) * ky; return { e, c: V.lerp([-1.2, 1.8, z + 9], [-40, 2, TZ + 12], k) }; } },
     ];
     S.capAt = T2 + 0.8; S.lineAt = 0.6;
+    S.sound = { amb: { wind: 0.06, fire: 0.05 }, cues: [[0.6, 'train_whistle', { vol: 0.75 }], [3.0, 'train_whistle', { vol: 0.6, rate: 1.03 }], [6.0, 'horse_neigh', { vol: 0.15 }], [8.9, 'train_whistle', { vol: 0.32, rate: 0.95 }]],
+      tick: (t, t0, play) => { for (const b of K.beats(t0, t, 13.3, 14.9, 1.9)) play(b < 13.9 ? 'step_wood' : 'step_dirt', { vol: 0.35 }); } };
     S.cap = { s: Tr('Rayların sonu, hikâyenin başı.') };
     S.particles = (t, add) => {
       const wh = (t > 0.6 && t < 2.4) || (t > 3.0 && t < 3.7);
@@ -561,8 +575,11 @@
     m.at(-4.6, 0, 1.2, 0.1, () => { for (let r = 0; r < 4; r++) for (let k = 0; k < 6 - r; k++) m.cyl(-1.2 + k * 0.45 + r * 0.22, 0.2 + r * 0.38, -0.9, 0.2, 1.8, 7, '#6a4a30', 'z', '#b08a5a'); m.box(0, 1.65, 0, 2.6, 0.16, 1.9, '#eef2f6'); });
     m.at(-2.5, 0, 6, 0.7, () => { m.box(0, 0.25, 0, 0.9, 0.08, 2.2, '#7a5a3a'); for (const sx of [-0.4, 0.4]) m.box(sx, 0, 0, 0.06, 0.25, 2.4, '#5a3a22'); m.box(0, 0.33, 0.2, 0.8, 0.12, 1.4, '#eef2f6'); });
     m.box(-0.2, 0, 3.15, 1.6, 0.3, 0.9, '#eef2f6');                                                               // kapı önü kar birikintisi
-    // çam ormanı (kar yüklü); açıklık ve iz boş kalır
-    for (let k = 0; k < 230; k++) { const x = R.range(-200, 200), z = R.range(-200, 120); if (Math.hypot(x, z - 2) < 14 || trail(x, z) || (x > -1 && x < 12 && z > 4 && z < 100) || Math.hypot(x - CX, z - CZ) < CG.r + 6) continue; snowPine(m, x, hf(x, z), z, R.range(1.0, 2.2)); }
+    // çam ormanı (kar yüklü); açıklık ve iz boş kalır. Vinç çekiminin yolu ve kasabaya bakış konisi de ağaçsız
+    // (yakındaki bir çam kadrajı kapatmasın)
+    const segD = (x, z, ax, az, bx, bz) => { const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz), k = ((x - ax) * dx + (z - az) * dz) / (L * L); return [Math.abs((x - ax) * dz - (z - az) * dx) / L, k * L, cl01(k) === k]; };
+    const view = (x, z) => { const p = segD(x, z, 0.6, 1.5, -1, 24); if (p[2] && p[0] < 7) return true; const q = segD(x, z, -1, 24, CX, CZ); return q[1] > -6 && q[1] < 35 && q[0] < 4 + Math.max(0, q[1]) * 0.85; };
+    for (let k = 0; k < 230; k++) { const x = R.range(-200, 200), z = R.range(-200, 120); if (Math.hypot(x, z - 2) < 14 || trail(x, z) || (x > -1 && x < 12 && z > 4 && z < 100) || view(x, z) || Math.hypot(x - CX, z - CZ) < CG.r + 6) continue; snowPine(m, x, hf(x, z), z, R.range(1.0, 2.2)); }
     for (let k = 0; k < 7; k++) K.mountain(m, -420 + k * 140, -300 - R.range(0, 80), R.range(100, 140), R.range(90, 130), '#6a7a88', '#eef2f6');
     // vadide Cedar Falls: kasaba, nehir, bacalardan duman
     placeTown(m, null, R, 'cedarfalls', [CX, 0, CZ], Math.PI / 2 - CG.ang, VY, false, () => m.at(CX, VY, CZ, 0.2, () => K.town(m, R, 0, -30, 30, { street: 7, gable: 0.8, tower: false })));
@@ -588,6 +605,8 @@
       { d: 6, cam: (t, u) => { const p = rp(t), k = ease(u); return { e: V.lerp([p[0] - 2.4, hf(p[0], p[2]) + 2.4, p[2] - 6.5], [p[0] - 8, hf(p[0], p[2]) + 13, p[2] - 18], k), c: V.lerp([p[0], hf(p[0], p[2]) + 1.8, p[2] + 2], [CX, VY, CZ], ease(cl01((u - 0.2) / 0.8))) }; } },
     ];
     S.capAt = T2 + 0.8; S.lineAt = 1.0;
+    S.sound = { amb: { wind: 0.17, storm: 0.03 }, cues: [[2.4, 'wolf_howl', { vol: 0.18 }], [9.6, 'horse_neigh', { vol: 0.3 }]],
+      tick: (t, t0, play) => { for (const b of K.beats(t0, t, T2 + 0.2, T2 + 6.5, 3.6)) play('hoof_snow', { vol: 0.5 * Math.max(0.25, 1 - (b - T2) / 7) }); } };
     S.cap = { s: Tr('Ocak soğudu. İz karla kapandı.') };
     S.particles = (t, add) => {
       const c = t < T2 ? [0, 0, 3] : rp(t);

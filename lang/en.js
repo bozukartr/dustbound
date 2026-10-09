@@ -28,7 +28,7 @@ I18N.add('en', {
     "Rayların sonu, hikâyenin başı.": "The end of the line, the start of the story.",
     "Cedar Falls": "Cedar Falls",
     "Amerika, {0}": "America, {0}",
-    "{0} Geç": "{0} Skip",
+    "{0} Geçmek için basılı tut": "{0} Hold to skip",
     "🐴 {0} ile bağın gelişti: Seviye {1}": "🐴 Your bond with {0} grew: Level {1}",
     "{0} yaralandı ve yere düştü. Bir <b>At Diriltici</b> kullanabilir ya da ahırdan yeni at alabilirsin.": "{0} is wounded and down. Use a <b>Horse Reviver</b> or buy a new horse at a stable.",
     "Çantada yer yok: {0}": "No room in your satchel: {0}",
