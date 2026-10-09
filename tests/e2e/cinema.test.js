@@ -1,5 +1,5 @@
 'use strict';
-/* Sinematikler: seslendirme yalnızca sinematik satırlarında (İngilizce kayıtlar, oyuncunun sesi cinsiyetine göre,
+/* Sinematikler: seslendirme yalnızca sinematik satırlarında (İngilizce kayıtlar, Türkçe oyunda da; oyuncunun sesi cinsiyetine göre,
    satır sesin süresi kadar ekranda, oyun içi konuşma sessiz), sahnenin ortam sesleri ve tekil sesleri (geçilince
    hepsi susar), kamera dünyadaki kasabanın binalarının içine girmez, kamp ateşinin alevi canlıdır. */
 const fs = require('fs'), path = require('path');
@@ -25,11 +25,15 @@ module.exports = {
       const man = JSON.parse(fs.readFileSync(path.join(VO, 'manifest.json'), 'utf8'));
       t.ok(en.every(x => man.en.includes(x.key)), 'manifestte bütün İngilizce kayıtlar');
       t.ok(!(man.tr && man.tr.length), 'Türkçe kayıt yok (senaryo kayda hazır)');
-      // kullanılan her ses modeli kaynak dosyasında, lisansıyla
-      const tool = fs.readFileSync(path.join(__dirname, '..', '..', 'tools', 'vo-tts.py'), 'utf8'), credits = fs.readFileSync(path.join(VO, 'KAYNAKLAR.md'), 'utf8');
-      const used = [...tool.matchAll(/'(\w+)': '(en\/[^']+)'/g)].map(m => m[2].split('/').pop());
-      t.ok(used.length >= 5 && used.every(m => credits.includes(m)), 'ses modelleri KAYNAKLAR.md içinde', used);
-      t.ok(/CC BY 4\.0/.test(credits) && /LibriTTS/.test(credits) && !/lessac\]/.test(credits), 'CC BY atfı var, lessac yok');
+      // her karakter sesinin örnek kaydı var; kaynağı (LibriTTS-R okuru ve cümleleri) ve lisanslar KAYNAKLAR.md içinde
+      const tool = (f) => fs.readFileSync(path.join(__dirname, '..', '..', 'tools', f), 'utf8'), credits = fs.readFileSync(path.join(VO, 'KAYNAKLAR.md'), 'utf8');
+      const voices = [...tool('vo-ref.py').matchAll(/^\s+'(\w+)': \('(\d+)', \[([^\]]+)\]/gm)].map(m => ({ name: m[1], spk: m[2], utts: [...m[3].matchAll(/'(\w+)'/g)].map(u => u[1]) }));
+      const used = [...tool('vo-tts.py').matchAll(/\('\w+', '\w+'\): '(\w+)'|'[mf]': '(\w+)'/g)].map(m => m[1] || m[2]);
+      t.ok(voices.length >= 12 && used.length >= 12 && used.every(v => voices.some(x => x.name === v)), 'her konuşanın sesi var', { voices: voices.map(v => v.name), used });
+      const ref = (v) => path.join(__dirname, '..', '..', 'tools', 'vo-ref', v.name + '.ogg');
+      t.ok(voices.every(v => fs.existsSync(ref(v)) && fs.statSync(ref(v)).size > 20000), 'örnek kayıtlar depoda');
+      t.ok(voices.every(v => credits.includes('`' + v.name + '`') && credits.includes(v.spk) && v.utts.every(u => credits.includes(u))), 'her sesin kaynağı KAYNAKLAR.md içinde');
+      t.ok(/CC BY 4\.0/.test(credits) && /LibriTTS-R/.test(credits) && /Chatterbox/.test(credits) && /MIT/.test(credits), 'lisanslar ve CC BY atfı yazılı');
     });
 
     // ses dosyaları da yüklensin (düdük); hikâye açık (oyun içi konuşma)
@@ -37,22 +41,27 @@ module.exports = {
     await p.evaluate(() => { Audio_.unlock(); UI.el.help.classList.add('hidden'); const w = document.querySelector('.modal.welcome'); if (w) UI.closeAll(); });
     await p.waitForFunction(() => G.story && G.story.on, null, { timeout: 30000 });
 
-    await t.step('İngilizce sinematik satırı sesi yüklenince başlar ve sesin süresi kadar sürer; oyuncunun sesi cinsiyetine göre', async () => {
+    await t.step('sinematik satırı sesi yüklenince başlar ve sesin süresi kadar sürer; oyuncunun sesi cinsiyetine göre; Türkçe oyunda da İngilizce kayıt çalar', async () => {
       const r = await p.evaluate(async () => {
-        I18N.setLang('en');
         const D = STORIES[STORY_FOR_BG.farm], sex0 = G.player.sex, res = {};
-        for (const sex of ['m', 'f']) {
-          G.player.sex = sex;
-          const lines = await G.openingLines(D);
-          res[sex] = lines.map(l => ({ d: +l.d.toFixed(2), vd: +Audio_.voDur(l.raw, 'en', l.self ? sex : null).toFixed(2), self: l.self, id: Audio_.voId(l.raw, 'en', l.self ? sex : null) }));
+        for (const lang of ['en', 'tr']) {
+          I18N.setLang(lang);
+          for (const sex of ['m', 'f']) {
+            G.player.sex = sex;
+            const lines = await G.openingLines(D), vs = (l) => (l.self ? sex : null);
+            res[lang + '.' + sex] = lines.map(l => ({ d: +l.d.toFixed(2), vd: +Audio_.voDur(l.raw, lang, vs(l)).toFixed(2), self: l.self, id: Audio_.voId(l.raw, lang, vs(l)) }));
+          }
         }
         G.player.sex = sex0; I18N.setLang('tr');
         return res;
       });
-      for (const sex of ['m', 'f']) {
-        t.ok(r[sex].length === 4 && r[sex].every(l => l.vd > 0.4 && l.d >= l.vd + 0.3), `satırların sesi yüklü, satır sesin süresi kadar (${sex})`, r[sex]);
-        t.ok(r[sex].filter(l => l.self).every(l => l.id.endsWith('.' + sex)) && r[sex].some(l => l.self), `oyuncunun satırı ${sex} kaydı`, r[sex]);
+      for (const lang of ['en', 'tr']) for (const sex of ['m', 'f']) {
+        const R = r[lang + '.' + sex];
+        t.ok(R.length === 4 && R.every(l => l.vd > 0.4 && l.d >= l.vd + 0.3), `satırların sesi yüklü, satır sesin süresi kadar (${lang}, ${sex})`, R);
+        t.ok(R.filter(l => l.self).every(l => l.id.endsWith('.' + sex)) && R.some(l => l.self), `oyuncunun satırı ${sex} kaydı (${lang})`, R);
       }
+      t.ok(Object.values(r).every(R => R.every(l => l.id && l.id.startsWith('en/'))), 'iki dilde de İngilizce kayıtlar', r);
+      t.eq(r['tr.m'].map(l => l.id), r['en.m'].map(l => l.id), 'Türkçe oyunda aynı kayıtlar');
     });
 
     await t.step('oyun içi konuşma seslendirilmez', async () => {

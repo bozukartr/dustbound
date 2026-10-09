@@ -145,13 +145,19 @@ module.exports = {
       t.ok(r.throwDone, 'ilmek düşünce ip sesi kesilir (kaydın sonunu beklemez)', r);
       t.ok(r.swung && r.swing < 600, 'savuruş sesi kol animasyonuyla biter', r);
     });
-    await t.step('seslendirme anahtarı araçla aynı, dosya yoksa sessizce geçer', async () => {
+    await t.step('seslendirme anahtarı araçla aynı; Türkçe kaydı olmayan satırda İngilizce kayıt çalar, kaydı hiç olmayan satır sessizce geçer', async () => {
       const fs = require('fs'), path = require('path');
-      // senaryo: dosya, hikâye, yer, konuşan, metin, okunuş (Türkçe kayıtlar henüz yok)
-      const csv = fs.readFileSync(path.join(__dirname, '..', '..', 'audio', 'vo', 'script_tr.csv'), 'utf8').split('\n')[1];
-      const [file, , , , text] = csv.match(/"((?:[^"]|"")*)"/g).map(s => s.slice(1, -1).replace(/""/g, '"'));
-      const r = await p.evaluate((text) => ({ k: Audio_.voiceKey(text), d: Audio_.voice(text, 'tr') }), text);
-      t.eq(r.k, /^tr\/([0-9a-f]{8})/.exec(file)[1], 'aynı anahtar'); t.eq(r.d, 0, 'kayıt yok → 0 sn');
+      // senaryo: dosya, hikâye, yer, konuşan, metin, okunuş (Türkçe kayıtlar henüz yok); iki dilde satırlar aynı sırada
+      const row = (lang) => fs.readFileSync(path.join(__dirname, '..', '..', 'audio', 'vo', `script_${lang}.csv`), 'utf8').split('\n')[1].match(/"((?:[^"]|"")*)"/g).map(s => s.slice(1, -1).replace(/""/g, '"'));
+      const [file, , , , text] = row('tr'), [fileEn] = row('en');
+      const r = await p.evaluate(async (text) => {
+        await Audio_.voInit();
+        const none = 'Böyle bir sinematik satırı yok.';
+        return { k: Audio_.voiceKey(text), id: Audio_.voId(text, 'tr'), none: Audio_.voId(none, 'tr'), d: Audio_.voice(none, 'tr') };
+      }, text);
+      t.eq(r.k, /^tr\/([0-9a-f]{8})/.exec(file)[1], 'aynı anahtar');
+      t.eq(r.id + '.ogg', fileEn, 'Türkçe kaydı yok → satırın İngilizce kaydı');
+      t.eq([r.none, r.d], [null, 0], 'kaydı hiç olmayan satır → 0 sn');
     });
     await t.step('gerçek CC0 ses dosyaları: hepsi yüklenir ve çözülür, kaynakları kayıtlı', async () => {
       const fs = require('fs'), path = require('path');

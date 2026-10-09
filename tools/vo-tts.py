@@ -1,86 +1,52 @@
 #!/usr/bin/env python3
 """FRONTIER'S END — İngilizce sinematik seslendirmesini yapay sesle üretir.
 
-Yalnızca sinematik satırları (audio/vo/lines.json, tools/vo-script.js yazar) Piper ile seslendirilir.
-Her karakterin kendi sesi vardır; oyuncunun satırları erkek ve kadın sesiyle iki kayıttır (<anahtar>.m / .f).
-Yalnızca kamu malı ya da CC BY verilerle sıfırdan eğitilmiş ses modelleri kullanılır (ayrıntı:
-audio/vo/KAYNAKLAR.md). Türkçe için ses modeli yok: Türkçe senaryo (script_tr.csv) kayda hazırdır.
+Yalnızca sinematik satırları (audio/vo/lines.json, tools/vo-script.js yazar) seslendirilir. Motor: Chatterbox Turbo
+(Resemble AI, MIT lisansı): sesi kısa bir örnek kayıttan kopyalayan, tonlaması doğal bir metinden sese modeli.
+Her karakterin örnek kaydı tools/vo-ref/<ses>.ogg dosyasıdır: LibriTTS-R (CC BY 4.0) okurlarının birkaç cümlesi,
+gırtlak rengi ve perdesi değiştirilerek yeni bir karakter sesine dönüştürülmüştür (tools/vo-ref.py, kaynaklar:
+audio/vo/KAYNAKLAR.md). Oyuncunun satırları erkek ve kadın sesiyle iki kayıttır (<anahtar>.m / .f). Türkçe ses yok:
+Türkçe oyunda da İngilizce kayıtlar çalar; Türkçe senaryo (script_tr.csv) kayda hazırdır.
 
-Kurulum ve çalıştırma (bir kez):
-    python3 -m venv .venv-tts && .venv-tts/bin/pip install piper-tts soundfile numpy
-    node tools/vo-script.js                  # satır listesi
-    .venv-tts/bin/python tools/vo-tts.py     # eksik kayıtları üretir (--force: hepsini yeniden)
-    node tools/vo-script.js                  # manifesti yeniler
+Kurulum ve çalıştırma (bir kez; Python 3.11):
+    python3 -m venv .venv-tts && .venv-tts/bin/pip install chatterbox-tts faster-whisper
+    node tools/vo-script.js                       # satır listesi
+    .venv-tts/bin/python tools/vo-tts.py --utmos  # eksik kayıtları üretir (--force: hepsini yeniden)
 
-Modeller ilk çalıştırmada Hugging Face'teki rhasspy/piper-voices deposundan indirilir (--models, varsayılan
-~/.cache/frontiers-end-voices) ve katalogdaki MD5 özetleriyle doğrulanır.
+Chatterbox Turbo ilk çalıştırmada Hugging Face'ten (ResembleAI/chatterbox-turbo) indirilir. İşlemcide (4 çekirdek)
+bir saniyelik ses yaklaşık iki saniyede üretilir.
 
-Kayıtlar: 22.05 kHz tek kanal; baştaki ve sondaki sessizlik kırpılır, ses düzeyi eşitlenir (konuşma RMS
--20 dBFS, tepe en çok -1.5 dBFS), 70 Hz altı süzülür; audio/vo/en/<anahtar>.ogg (Vorbis) ve .mp3 yazılır.
+Seçim: sentez her seferinde biraz farklıdır. Her satır için en çok --takes aday üretilir; konuşma tanıma
+(faster-whisper, small.en) metni doğru duymazsa ya da doğallık tahmini (--utmos: UTMOS, insan dinleyici puanını
+tahmin eden model, balacoon/utmos) düşükse yeni aday denenir. Metni en doğru duyulan, eşitse en doğal aday seçilir.
 
-Doğrulama (isteğe bağlı): --verify N ile her satır için en çok N aday üretilir ve konuşma tanıma
-(faster-whisper, small.en) ile dinlenir; metne en yakın aday seçilir (sentez her seferinde biraz farklıdır,
-kısa satırlarda yanlış okuma olabilir). Gerekli paket: .venv-tts/bin/pip install faster-whisper
+Kayıtlar: 24 kHz tek kanal; baştaki ve sondaki sessizlik kırpılır, ses düzeyi eşitlenir (konuşma RMS -20 dBFS, tepe
+en çok -1.5 dBFS), 70 Hz altı süzülür; audio/vo/en/<anahtar>.ogg (Vorbis) ve .mp3 yazılır. Chatterbox her kayda
+duyulmayan bir yapay ses filigranı (Perth) ekler.
 """
-import argparse, hashlib, json, os, re, subprocess, sys, urllib.request
+import argparse, json, os, re, subprocess, sys, urllib.request, zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VO = ROOT / 'audio' / 'vo'
-HF = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/'
+REF = ROOT / 'tools' / 'vo-ref'
 
-# ses modelleri: (katalog adı, katalogdaki yol)
-MODELS = {
-    'john': 'en/en_US/john/medium/en_US-john-medium',
-    'bryce': 'en/en_US/bryce/medium/en_US-bryce-medium',
-    'ljspeech': 'en/en_US/ljspeech/high/en_US-ljspeech-high',
-    'cori': 'en/en_GB/cori/high/en_GB-cori-high',
-    'libritts': 'en/en_US/libritts/high/en_US-libritts-high',
-}
-# karakter → (model, konuşmacı, konuşma hızı katsayısı: >1 yavaş)
-# yaşlılar pes ve ağır konuşur; oyuncunun erkek ve kadın sesi bütün hikâyelerde aynı
-PLAYER = {'m': ('john', None, 0.95), 'f': ('ljspeech', None, 0.97)}
+# karakter → örnek kayıt (tools/vo-ref/<ses>.ogg); oyuncunun erkek ve kadın sesi bütün hikâyelerde aynı
+PLAYER = {'m': 'player_m', 'f': 'player_f'}
 CAST = {
-    ('sully', 'S'): ('libritts', 136, 1.06),      # Dunham Sully: yaşlı çiftçi
-    ('sully', 'F'): ('libritts', 595, 1.05),      # baba
-    ('outlaw', 'S'): ('libritts', 846, 1.08),     # Hollis Crane: yaşlı kanun kaçağı
-    ('outlaw', 'R'): ('libritts', 105, 1.0),      # Silas Vance
-    ('rail', 'S'): ('bryce', None, 0.86),         # Walt Boone: ustabaşı
-    ('rail', 'Mick'): ('libritts', 92, 1.0),
-    ('rail', 'Sven'): ('libritts', 406, 1.02),
-    ('immigrant', 'S'): ('cori', None, 1.0),      # Greta Halvorsen
-    ('immigrant', 'K'): ('libritts', 633, 1.0),   # Anton, ağabey
-    ('immigrant', 'W'): ('libritts', 47, 1.02),   # şerif
-    ('trapper', 'S'): ('libritts', 548, 1.1),     # Elias Crowe: yaşlı tuzakçı
-    ('trapper', 'K'): ('libritts', 49, 1.08),     # Abel, baba
+    ('sully', 'S'): 'sully',        # Dunham Sully: yaşlı çiftçi
+    ('sully', 'F'): 'pa',           # baba
+    ('outlaw', 'S'): 'hollis',      # Hollis Crane: yaşlı kanun kaçağı
+    ('outlaw', 'R'): 'silas',       # Silas Vance
+    ('rail', 'S'): 'walt',          # Walt Boone: ustabaşı
+    ('rail', 'Mick'): 'mick',
+    ('rail', 'Sven'): 'sven',
+    ('immigrant', 'S'): 'greta',    # Greta Halvorsen
+    ('immigrant', 'K'): 'anton',    # Anton, ağabey
+    ('immigrant', 'W'): 'sheriff',  # şerif
+    ('trapper', 'S'): 'elias',      # Elias Crowe: yaşlı tuzakçı
+    ('trapper', 'K'): 'abel',       # Abel, baba
 }
-
-
-def fetch(url, dst):
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dst.with_suffix(dst.suffix + '.part')
-    with urllib.request.urlopen(url) as r, open(tmp, 'wb') as f:
-        while True:
-            b = r.read(1 << 20)
-            if not b:
-                break
-            f.write(b)
-    tmp.replace(dst)
-
-
-def model_path(name, mdir, catalog):
-    rel = MODELS[name]
-    onnx, cfg = mdir / (Path(rel).name + '.onnx'), mdir / (Path(rel).name + '.onnx.json')
-    if not cfg.exists():
-        fetch(HF + rel + '.onnx.json', cfg)
-    if not onnx.exists():
-        print(f'  model indiriliyor: {onnx.name}', flush=True)
-        fetch(HF + rel + '.onnx', onnx)
-        want = catalog.get(Path(rel).name, {}).get('files', {}).get(rel + '.onnx', {}).get('md5_digest')
-        if want and hashlib.md5(onnx.read_bytes()).hexdigest() != want:
-            onnx.unlink()
-            sys.exit(f'MD5 tutmadı: {onnx.name}')
-    return onnx
 
 
 def voice_for(item):
@@ -92,37 +58,39 @@ def voice_for(item):
     return v
 
 
-# okunuş düzeltmeleri (yalnızca seslendirilen metinde; altyazı değişmez): modellerin yanlış okuduğu sözcükler
-# (metin, okunuş, yalnızca bu ses modeli için)
-SAY = [
-    ('Well... he used to.', 'Well, he used to.', None),
-    ('Shh.', 'Hush.', None),
-    ('My wallet. My watch. And the deed.', 'My wallet, my watch, and the deed.', None),
-    ('The wagon?', 'The wag-on?', 'ljspeech'),
-]
+# okunuş düzeltmeleri (yalnızca seslendirilen metinde; altyazı değişmez): (metin, okunuş)
+SAY = []
 
 
-def speech_text(t, voice=None, say=True):
-    # Piper için: tırnaklar ve uzun çizgiler okunmaz, satır başındaki üç nokta atlanır
-    for a, b, only in SAY if say else []:
-        if only in (None, voice):
-            t = t.replace(a, b)
+def speech_text(t, say=True):
+    # tırnaklar okunmaz, uzun çizgi duraklamadır, satır başındaki üç nokta atlanır
+    for a, b in SAY if say else []:
+        t = t.replace(a, b)
     t = t.replace('“', '').replace('”', '').replace('"', '').replace('—', ', ').replace('–', ', ')
     t = re.sub(r'^\.\.\.\s*', '', t.strip())
-    # "Thirty-one" tireyle okununca araya duraklama girer
-    t = re.sub(r'\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)-(one|two|three|four|five|six|seven|eight|nine)\b', r'\1 \2', t, flags=re.I)
     return re.sub(r'\s+', ' ', t).strip()
 
 
 NUM = {w: i for i, w in enumerate('zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split())}
 NUM.update({w: 10 * (i + 2) for i, w in enumerate('twenty thirty forty fifty sixty seventy eighty ninety'.split())})
+# tanımanın yazım farkları ve kısaltmalar (kesme işareti atılmış hâlleriyle)
+SAME = {'co op': 'coop', 'okay': 'ok', 'o k': 'ok', 'mr': 'mister', 'mrs': 'missus', 'im': 'i am', 'youre': 'you are', 'theyre': 'they are',
+        'dont': 'do not', 'doesnt': 'does not', 'didnt': 'did not', 'cant': 'can not', 'cannot': 'can not', 'wont': 'will not', 'isnt': 'is not',
+        'arent': 'are not', 'wasnt': 'was not', 'werent': 'were not', 'havent': 'have not', 'hasnt': 'has not', 'couldnt': 'could not',
+        'wouldnt': 'would not', 'shouldnt': 'should not', 'ive': 'i have', 'youve': 'you have', 'weve': 'we have', 'thats': 'that is',
+        'whats': 'what is', 'theres': 'there is', 'hes': 'he is', 'shes': 'she is', 'youll': 'you will', 'ill': 'i will',
+        'id': 'i would', 'youd': 'you would',
+        # sesteşler ve özel adların yazımı (tanıma duyduğunu başka yazar)
+        'st': 'saint', 'planes': 'plains', 'crow': 'crowe', 'halvorson': 'halvorsen', 'halverson': 'halvorsen'}
 
 
 def words(t):
-    # karşılaştırma için: küçük harf, noktalama yok, sayılar rakam ("thirty-one" → 31)
+    # karşılaştırma için: küçük harf, noktalama ve kesme işareti yok, kısaltmalar açık, sayılar rakam ("thirty-one" → 31)
+    t = ' ' + re.sub(r"[^a-z0-9 -]", ' ', t.lower().replace("'", '').replace('’', '')).replace('-', ' ') + ' '
+    for a, b in SAME.items():
+        t = t.replace(f' {a} ', f' {b} ')
     out = []
-    for w in re.sub(r"[^a-z0-9' -]", ' ', t.lower()).replace('-', ' ').split():
-        w = w.strip("'")
+    for w in t.split():
         if w in NUM and out and out[-1].isdigit() and int(out[-1]) % 10 == 0 and int(out[-1]) >= 20 and NUM[w] < 10:
             out[-1] = str(int(out[-1]) + NUM[w])
         elif w in NUM:
@@ -132,8 +100,20 @@ def words(t):
     return out
 
 
+def joined(a, b):
+    # bitişik/ayrı yazım farkı ("trapline" / "trap line"): öbür tarafta bitişik hâli olan ardışık iki sözcüğü birleştir
+    va, out = set(a), []
+    for w in b:
+        if out and out[-1] + w in va and out[-1] not in va:
+            out[-1] += w
+        else:
+            out.append(w)
+    return out
+
+
 def wer(ref, hyp):
     a, b = words(ref), words(hyp)
+    a, b = joined(b, a), joined(a, b)
     d = list(range(len(b) + 1))
     for i in range(1, len(a) + 1):
         prev, d[0] = d[0], i
@@ -152,17 +132,18 @@ def process(a, sr, np):
         prev_y = k * (prev_y + x - prev_x)
         prev_x = x
         y[i] = prev_y
-    # baştaki ve sondaki sessizliği kırp (en çok -45 dBFS), başta 60 ms, sonda 140 ms bırak
+    # baştaki ve sondaki sessizliği kırp (en yüksek düzeyin 40 dB altı), başta 60 ms, sonda 160 ms bırak
     env = np.abs(y)
     win = max(1, int(sr * 0.01))
     env = np.convolve(env, np.ones(win) / win, 'same')
-    on = np.where(env > 10 ** (-45 / 20))[0]
+    on = np.where(env > float(env.max()) * 10 ** (-40 / 20))[0]
     if len(on):
-        y = y[max(0, on[0] - int(sr * 0.06)): min(len(y), on[-1] + int(sr * 0.14))]
+        y = y[max(0, on[0] - int(sr * 0.06)): min(len(y), on[-1] + int(sr * 0.16))]
     # düzey: sesli bölümlerin RMS'i -20 dBFS, tepe en çok -1.5 dBFS
     fr = int(sr * 0.03)
     rms = [float(np.sqrt(np.mean(y[i:i + fr] ** 2))) for i in range(0, max(1, len(y) - fr), fr)]
-    voiced = [r for r in rms if r > 10 ** (-40 / 20)] or rms
+    top = max(rms) if rms else 1.0
+    voiced = [r for r in rms if r > top * 0.1] or rms
     g = 10 ** (-20 / 20) / max(1e-6, float(np.sqrt(np.mean(np.square(voiced)))))
     peak = float(np.max(np.abs(y))) * g
     if peak > 10 ** (-1.5 / 20):
@@ -176,70 +157,119 @@ def process(a, sr, np):
     return y.astype(np.float32)
 
 
+def utmos_model(cache):
+    # balacoon/utmos: UTMOS (SpeechMOS yarışması, UTokyo-SaruLab) TorchScript; ekran kartına bağlı kaydedilmiş, işlemciye çevrilir
+    import torch
+    cpu = cache / 'utmos_cpu.jit'
+    if not cpu.exists():
+        src = cache / 'utmos.jit'
+        if not src.exists():
+            print('  UTMOS indiriliyor (~400 MB)', flush=True)
+            cache.mkdir(parents=True, exist_ok=True)
+            tmp = src.with_suffix('.part')
+            with urllib.request.urlopen('https://huggingface.co/balacoon/utmos/resolve/main/utmos.jit') as r, open(tmp, 'wb') as f:
+                while True:
+                    b = r.read(1 << 20)
+                    if not b:
+                        break
+                    f.write(b)
+            tmp.replace(src)
+        with zipfile.ZipFile(src) as z, zipfile.ZipFile(cpu, 'w', zipfile.ZIP_STORED) as o:
+            for i in z.infolist():
+                if i.filename.endswith('.debug_pkl'):
+                    continue
+                b = z.read(i.filename)
+                if i.filename.endswith('.py'):
+                    b = b.replace(b'torch.device("cuda:0")', b'torch.device("cpu")')
+                o.writestr(i, b)
+    return torch.jit.load(str(cpu), map_location='cpu').eval()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--models', default=str(Path.home() / '.cache' / 'frontiers-end-voices'))
+    ap.add_argument('--cache', default=str(Path.home() / '.cache' / 'frontiers-end-voices'))
     ap.add_argument('--force', action='store_true', help='var olan kayıtları da yeniden üret')
     ap.add_argument('--only', nargs='*', help='yalnızca bu anahtarlar (ör. 6123b07e.m)')
-    ap.add_argument('--verify', type=int, default=0, help='satır başına en çok bu kadar aday üretip konuşma tanımayla seç')
+    ap.add_argument('--voice', nargs='*', help='yalnızca bu sesler (ör. sully player_f)')
+    ap.add_argument('--takes', type=int, default=3, help='satır başına en çok bu kadar aday')
+    ap.add_argument('--utmos', action='store_true', help='adaylar arasında doğallık tahminiyle de seç')
+    ap.add_argument('--recheck', action='store_true', help='var olan kayıtları dinle; metni yanlış duyulanları yeniden üret (eskisi de aday)')
     args = ap.parse_args()
     import numpy as np
     import soundfile as sf
-    from piper import PiperVoice, SynthesisConfig
-    asr = None
-    if args.verify > 1:
-        from faster_whisper import WhisperModel
-        asr = WhisperModel('small.en', device='cpu', compute_type='int8', download_root=str(Path(args.models).expanduser() / 'whisper'))
+    import torch
+    from chatterbox.tts_turbo import ChatterboxTurboTTS
+    from faster_whisper import WhisperModel
+    torch.set_num_threads(max(1, os.cpu_count() or 1))
+    cache = Path(args.cache).expanduser()
 
     items = [x for x in json.loads((VO / 'lines.json').read_text('utf8')) if x['lang'] == 'en']
     if args.only:
         items = [x for x in items if x['key'] in args.only]
+    if args.voice:
+        items = [x for x in items if voice_for(x) in args.voice]
     out = VO / 'en'
     out.mkdir(parents=True, exist_ok=True)
-    mdir = Path(args.models).expanduser()
-    mdir.mkdir(parents=True, exist_ok=True)
-    cat_path = mdir / 'voices.json'
-    if not cat_path.exists():
-        fetch(HF + 'voices.json', cat_path)
-    catalog = json.loads(cat_path.read_text('utf8'))
-    voices, done = {}, 0
-    for it in items:
-        ogg, mp3 = out / (it['key'] + '.ogg'), out / (it['key'] + '.mp3')
-        if not args.force and ogg.exists() and mp3.exists():
-            continue
-        name, spk, ls = voice_for(it)
-        if name not in voices:
-            voices[name] = PiperVoice.load(str(model_path(name, mdir, catalog)))
-        v = voices[name]
-        cfg = SynthesisConfig(speaker_id=spk, length_scale=ls, noise_scale=0.6, noise_w_scale=0.75)
-        text = speech_text(it['read'], name)
-        best = None
-        for k in range(max(1, args.verify)):
-            chunks = list(v.synthesize(text, syn_config=cfg))
-            sr = chunks[0].sample_rate
-            # cümleler arasında kısa duraklama
-            gap = np.zeros(int(sr * 0.12), np.float32)
-            a = np.concatenate([np.concatenate([c.audio_float_array, gap]) for c in chunks])[:-len(gap)]
-            y = process(a.astype(np.float64), sr, np)
-            if not asr:
-                best = (0, y, '')
-                break
+    have = lambda x: (out / (x['key'] + '.ogg')).exists() and (out / (x['key'] + '.mp3')).exists()
+    items = [x for x in items if args.force or args.recheck or not have(x)]
+    if not items:
+        print('kayıtlar hazır')
+    else:
+        tts = ChatterboxTurboTTS.from_pretrained(device='cpu')
+        asr = WhisperModel('small.en', device='cpu', compute_type='int8', download_root=str(cache / 'whisper'))
+        mos = utmos_model(cache) if args.utmos else None
+        def judge(y, sr, text, plain, n_words):
+            # metin doğru duyuluyor mu (okunuşa ya da asıl söze yakınlık), süre makul mü, ne kadar doğal
             y16 = np.interp(np.arange(0, len(y), sr / 16000), np.arange(len(y)), y).astype(np.float32)   # tanıma 16 kHz ister
             segs, _ = asr.transcribe(y16, language='en', beam_size=5)
             heard = ' '.join(x.text for x in segs).strip()
-            e = min(wer(text, heard), wer(speech_text(it['read'], say=False), heard))   # okunuşa ya da asıl söze yakınlık
-            if best is None or e < best[0]:
-                best = (e, y, heard)
-            # yeterince yakın: uzun satırda bir iki kelime (tanımanın sesteş yanılgıları), kısa satırda tam
-            if e == 0 or (len(words(text)) > 5 and e <= 0.12):
-                break
-        e, y, heard = best
-        sf.write(str(ogg), y, sr, format='OGG', subtype='VORBIS', compression_level=0.55)
-        sf.write(str(mp3), y, sr, format='MP3', subtype='MPEG_LAYER_III', compression_level=0.45, bitrate_mode='VARIABLE')
-        done += 1
-        print(f"{it['key']:<12} {len(y) / sr:5.2f} sn  {name}{'' if spk is None else '#' + str(spk)}  {it['name']}: {it['read'][:60]}"
-              + (f'  [WER {e:.2f}: {heard[:50]}]' if asr else ''), flush=True)
-    print(f'{done} kayıt üretildi.')
+            e = min(wer(text, heard), wer(plain, heard))
+            # uzun sessizlik ya da uydurma ek ses olmasın: kelime başına en çok ~0.75 sn
+            if len(y) / sr > 1.2 + 0.75 * n_words:
+                e += 0.5
+            q = 0.0
+            if mos is not None:
+                with torch.no_grad():
+                    q = float(mos(torch.tensor(np.clip(y16 * 32767, -32768, 32767).astype(np.int16)).unsqueeze(0)).item())
+            return e, q, heard
+
+        done, cur, sr = 0, None, tts.sr
+        for it in sorted(items, key=voice_for):
+            v = voice_for(it)
+            text, plain = speech_text(it['read']), speech_text(it['read'], say=False)
+            n_words = len(words(plain))
+            # yeterince iyi: metin doğru duyuldu (uzun satırda bir sesteş yanılgı olabilir) ve doğal
+            good = lambda e, q: (e == 0 or (n_words > 6 and e <= 0.1)) and (mos is None or q >= 4.0)
+            best = None
+            if args.recheck and not args.force and have(it):
+                y0, sr0 = sf.read(str(out / (it['key'] + '.ogg')), dtype='float64')
+                e, q, heard = judge(y0, sr0, text, plain, n_words)
+                if e == 0:
+                    continue
+                best = (e, q, y0.astype(np.float32), heard, -1)
+            if v != cur:
+                tts.prepare_conditionals(str(REF / f'{v}.ogg'))
+                cur = v
+            again = 100 if best else 0   # yeniden denetimde ilk üretimden farklı tohumlar
+            for k in range(max(1, args.takes)):
+                torch.manual_seed(int(it['key'][:8], 16) + 7919 * (k + again))
+                y = process(tts.generate(text).squeeze(0).numpy().astype(np.float64), sr, np)
+                e, q, heard = judge(y, sr, text, plain, n_words)
+                if best is None or (e, -q) < (best[0], -best[1]):
+                    best = (e, q, y, heard, k)
+                if good(e, q) and (e == 0 or best[4] != -1):
+                    break
+            e, q, y, heard, k = best
+            if k < 0:
+                print(f"{it['key']:<12} eski kayıt kaldı  WER {e:.2f}  [duyulan: {heard[:50]}]", flush=True)
+                continue
+            ogg, mp3 = out / (it['key'] + '.ogg'), out / (it['key'] + '.mp3')
+            sf.write(str(ogg), y, sr, format='OGG', subtype='VORBIS', compression_level=0.55)
+            sf.write(str(mp3), y, sr, format='MP3', subtype='MPEG_LAYER_III', compression_level=0.45, bitrate_mode='VARIABLE')
+            done += 1
+            print(f"{it['key']:<12} {len(y) / sr:5.2f} sn  {v:<9} aday {k + 1}  WER {e:.2f}" + (f'  UTMOS {q:.2f}' if mos is not None else '')
+                  + f"  {it['read'][:50]}" + (f'  [duyulan: {heard[:50]}]' if e > 0 else ''), flush=True)
+        print(f'{done} kayıt üretildi.')
     try:
         subprocess.run(['node', str(ROOT / 'tools' / 'vo-script.js')], check=True)
     except Exception as e:

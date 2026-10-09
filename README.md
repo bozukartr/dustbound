@@ -332,20 +332,20 @@ node tools/sfx-manifest.js   # audio/sfx/manifest.json ve LISTE.md
 - Ses düzeyi, perde oynaması, yankı payı, duyulma mesafesi ve eşzamanlı sınır `tools/sfx-manifest.js` içindeki listededir.
 - Döngülerin (`amb_…`) başı ve sonu kesintisiz birleşmelidir.
 
-**Seslendirme:** yalnızca **sinematik satırları** seslendirilir (beş açılış sinematiği ve bölüm sinematikleri, dil başına 163 kayıt); oyun içi konuşmalar altyazıyla kalır. Her satır, o dildeki metninin özetinden (FNV-1a) türeyen bir anahtarla bulunur. Oyuncunun satırları iki kayıttır: `<anahtar>.m` (erkek oyuncu) ve `<anahtar>.f` (kadın oyuncu).
+**Seslendirme:** yalnızca **sinematik satırları** seslendirilir (beş açılış sinematiği ve bölüm sinematikleri, dil başına 163 kayıt); oyun içi konuşmalar altyazıyla kalır. Her satır, o dildeki metninin özetinden (FNV-1a) türeyen bir anahtarla bulunur. Oyuncunun satırları iki kayıttır: `<anahtar>.m` (erkek oyuncu) ve `<anahtar>.f` (kadın oyuncu). Şimdilik yalnızca İngilizce kayıt var: satırın oyunun dilinde kaydı yoksa İngilizce karşılığının kaydı çalar, yani Türkçe oyunda da İngilizce ses duyulur (altyazı Türkçe).
 
 ```
 node tools/vo-script.js     # audio/vo/script_tr.csv, script_en.csv (dosya, hikâye, sinematik, konuşan, metin, okunuş),
                             # audio/vo/lines.json ve klasördeki kayıtlardan audio/vo/manifest.json
 ```
 
-- **İngilizce** kayıtlar yapay sestir: `tools/vo-tts.py` [Piper](https://github.com/OHF-Voice/piper1-gpl) ile, yalnızca kamu malı ve CC BY verilerle sıfırdan eğitilmiş modellerle üretir (karakterlerin sesleri, lisanslar ve LibriTTS atfı: `audio/vo/KAYNAKLAR.md`). Baştaki ve sondaki sessizlik kırpılır, düzey eşitlenir; `--verify N` her satır için N aday üretip konuşma tanımayla (faster-whisper) metne en yakınını seçer. Modellerin yanlış okuduğu birkaç sözcüğün okunuşu araçtaki listededir (altyazı değişmez).
+- **İngilizce** kayıtlar yapay sestir: `tools/vo-tts.py` [Chatterbox Turbo](https://github.com/resemble-ai/chatterbox) (MIT) ile üretir. Chatterbox her karakterin sesini kısa bir örnek kayıttan kopyalar. Örnek kayıtlar (`tools/vo-ref/<ses>.ogg`, `tools/vo-ref.py` kurar) LibriTTS-R (CC BY 4.0) okurlarının birkaç cümlesidir; gırtlak rengi ve perdesi değiştirilerek karakterin yaşına ve yapısına göre yeni bir sese dönüştürülür (karakterlerin sesleri, lisanslar ve atıf: `audio/vo/KAYNAKLAR.md`). Her satır için en çok `--takes` aday üretilir: konuşma tanıma (faster-whisper) metni doğru duymalı, `--utmos` ile doğallık tahmini (UTMOS) en yüksek olan seçilir. Baştaki ve sondaki sessizlik kırpılır, düzey eşitlenir. Modelin yanlış okuduğu sözcüklerin okunuşu araçtaki listeye yazılır (altyazı değişmez).
 
   ```
-  python3 -m venv .venv-tts && .venv-tts/bin/pip install piper-tts soundfile numpy faster-whisper
-  .venv-tts/bin/python tools/vo-tts.py --verify 4     # eksik kayıtları üretir (--force: hepsini yeniden)
+  python3 -m venv .venv-tts && .venv-tts/bin/pip install chatterbox-tts faster-whisper
+  .venv-tts/bin/python tools/vo-tts.py --utmos      # eksik kayıtları üretir (--force: hepsini yeniden, --voice sully: tek ses)
   ```
-- **Türkçe** için lisansı uygun bir ses modeli yok; senaryo kayda hazırdır. `script_tr.csv` her kayıt için dosya adını, hangi hikâyenin hangi sinematiği olduğunu, konuşanı, ekrandaki metni ve okunacak metni (oyuncunun adı okunmaz) verir. Kayıtlar `audio/vo/tr/<anahtar>.ogg` (Safari için ayrıca `.mp3`) olarak konup `node tools/vo-script.js` çalıştırılınca oyun onları çalar.
+- **Türkçe** kayıt henüz yok (Türkçe oyunda İngilizce kayıtlar çalar); senaryo kayda hazırdır. `script_tr.csv` her kayıt için dosya adını, hangi hikâyenin hangi sinematiği olduğunu, konuşanı, ekrandaki metni ve okunacak metni (oyuncunun adı okunmaz) verir. Kayıtlar `audio/vo/tr/<anahtar>.ogg` (Safari için ayrıca `.mp3`) olarak konup `node tools/vo-script.js` çalıştırılınca oyun Türkçede onları çalar.
 
 Kaydı olan satır konuşma kanalından çalar, sinematik başlamadan yüklenir (en çok 3 saniye beklenir), altyazı kayıt süresince ekranda kalır, ortam ve müzik kısılır. Kaydı olmayan satır sessiz altyazıyla geçer. Metin değişirse anahtar da değişir; senaryoyu yeniden almak eski kayıtların hangilerinin geçersiz kaldığını gösterir.
 
@@ -459,7 +459,8 @@ audio/sfx/      efekt ve ortam ses dosyaları, manifest ve ses listesi (LISTE.md
 audio/vo/       sinematik seslendirme: senaryo (CSV), satır listesi, İngilizce kayıtlar, manifest, kaynaklar
 tools/sfx-manifest.js  ses listesi ve manifest aracı (node)
 tools/vo-script.js   sinematik seslendirme senaryosu, satır listesi ve manifest aracı (node)
-tools/vo-tts.py      İngilizce sinematik seslendirmesini Piper ile üretir (python)
+tools/vo-tts.py      İngilizce sinematik seslendirmesini Chatterbox Turbo ile üretir (python)
+tools/vo-ref.py      seslendirme karakter seslerinin örnek kayıtlarını (tools/vo-ref/) kurar (python)
 js/world.js     dünya üretimi, chunk render, harita
 js/sprites.js   karakter, hayvan, at, bina ve nesne çizimleri
 js/entities.js  oyuncu, at, hayvan, NPC, tren, parçacıklar

@@ -15,6 +15,8 @@
    üretilir (Audio_.voiceKey ile aynı FNV-1a özeti); metin değişirse
    anahtar da değişir ve eski kayıt kullanılmaz. "okunuş" sütunu
    seslendirilecek metindir: oyuncunun adı ({ad}) okunmaz.
+   Satırın oyunun dilinde kaydı yoksa İngilizce karşılığının kaydı çalar
+   (şimdilik yalnızca İngilizce kayıtlar var; Türkçe oyunda da İngilizce ses).
    Araç yeniden çalıştırılınca audio/vo/manifest.json klasördeki
    kayıtlarla güncellenir.
      node tools/vo-script.js

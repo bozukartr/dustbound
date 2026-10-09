@@ -806,11 +806,19 @@ Object.assign(Audio_, {
     return this.vo.ready;
   },
   voHas(key, lang) { const m = this.vo.man; return !!(m && m[lang] && m[lang].includes(key)); },
-  // dosya kimliği: cinsiyete özel kayıt varsa o (oyuncunun satırları), yoksa ortak kayıt; hiçbiri yoksa null
+  /* dosya kimliği: cinsiyete özel kayıt varsa o (oyuncunun satırları), yoksa ortak kayıt. Satırın o dilde kaydı
+     yoksa İngilizce karşılığının kaydı çalar (şimdilik yalnızca İngilizce seslendirme var: Türkçe oyunda da
+     İngilizce ses, altyazı Türkçe). Hiçbiri yoksa null. */
   voId(text, lang, sex) {
-    const key = this.voiceKey(text);
-    if (sex && this.voHas(key + '.' + sex, lang)) return lang + '/' + key + '.' + sex;
-    return this.voHas(key, lang) ? lang + '/' + key : null;
+    const one = (t, l) => {
+      const key = this.voiceKey(t);
+      if (sex && this.voHas(key + '.' + sex, l)) return l + '/' + key + '.' + sex;
+      return this.voHas(key, l) ? l + '/' + key : null;
+    };
+    const id = one(text, lang);
+    if (id || lang === 'en') return id;
+    const en = typeof I18N !== 'undefined' && I18N.packs.en && I18N.packs.en.t[text];
+    return en ? one(en, 'en') : null;
   },
   /* Satırın sesini önceden yükle; çözülünce (ya da dosya yoksa) biten bir söz döner */
   voPreload(text, lang, sex) {
