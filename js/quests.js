@@ -205,7 +205,6 @@ const Story = {
   /* satırlar: [kim, söz]; S = Sully, P = oyuncu, W = şerif, B = barmen */
   qSay(lines, cb, delay = 0, tag) {
     const S = this.story, L = (lines || []).filter(Boolean).map(([w, x]) => ({ w, x: this.sFmt(x), raw: x, tag }));
-    for (const l of L) Audio_.voPreload(l.raw, I18N.lang);   // seslendirme dosyası varsa önceden yüklenir
     // süren bir konuşma varsa arkasına eklenir (bekleyen geri çağrı kaybolmaz)
     if (S.talkQ && (S.talkQ.length || S.talkCb)) {
       S.talkQ.push(...L);
@@ -230,7 +229,6 @@ const Story = {
     if (all) S.talkQ.length = 0;
     S.talkT = 0;
     UI.el.sub.classList.add('hidden');
-    Audio_.voiceStop();
   },
   /* Enter / Boşluk ya da (önünde başka etkileşim yoksa) etkileşim tuşu: dokununca satır geçer, basılı tutunca hepsi */
   storySkipInput(dt) {
@@ -253,9 +251,8 @@ const Story = {
     if (S.talkT > 0) return;
     const ln = S.talkQ.shift();
     if (!ln) { const cb = S.talkCb; S.talkCb = null; S.talkQ = null; if (cb) cb(); return; }
-    // seslendirme varsa satır sesin süresi kadar ekranda kalır
-    const me = this.mentorEnt(), vd = Audio_.voice(ln.raw || ln.x, I18N.lang, ln.w === 'S' && me ? { x: me.x, y: me.y, dist: 600 } : {});
-    const d = Math.max(this.talkDur(ln.x), vd ? vd + 0.4 : 0);
+    // oyun içi konuşmalar seslendirilmez (seslendirme yalnızca sinematiklerde)
+    const me = this.mentorEnt(), d = this.talkDur(ln.x);
     UI.subtitle(this.sName(ln.w), ln.x, d - 0.2, ln.w === 'P', this.skipHint());
     const who = ln.w === 'S' ? me : ln.w === 'R' ? this.rivalEnt() : ln.w === 'K' ? this.kinEnt() || this.ents.find(e => e.quest === 'ward' && !e.remove) : ln.w === 'P' ? this.player : null;
     // söz bir kez, altyazıda yazılır; konuşanın üstünde yalnızca konuşma işareti
@@ -264,23 +261,32 @@ const Story = {
     S.talkT = d;
   },
 
-  /* ---------------- sinematik ---------------- */
-  cineLines(lines, start = 3.4) {
+  /* ---------------- sinematik ----------------
+     Seslendirme yalnızca sinematiklerde: satırların ses dosyaları sinematikten önce yüklenir (en çok 3 sn
+     beklenir), her satır sesi bitene kadar ekranda kalır. Oyuncunun satırı oyuncunun cinsiyetine göre seslendirilir. */
+  voSex(w) { return w === 'P' && this.player ? this.player.sex : null; },
+  cineVoice(ln) { Audio_.voice(ln.raw, I18N.lang, { sex: ln.self ? this.voSex('P') : null }); },
+  voWait(lines) {
+    const all = Promise.all((lines || []).map(([w, x0]) => Audio_.voPreload(x0, I18N.lang, this.voSex(w))));
+    return Promise.race([all, new Promise(r => setTimeout(r, 3000))]).catch(() => {});
+  },
+  async cineLines(lines, start = 3.4) {
+    await this.voWait(lines);
     let t = start; const out = [];
     for (const [w, x0] of lines || []) {
-      Audio_.voPreload(x0, I18N.lang);
-      const x = this.sFmt(x0), vd = Audio_.voDur(x0, I18N.lang), d = Math.max(this.talkDur(x) * 0.95, vd ? vd + 0.3 : 0);
+      const x = this.sFmt(x0), vd = Audio_.voDur(x0, I18N.lang, this.voSex(w)), d = Math.max(this.talkDur(x) * 0.95, vd ? vd + 0.35 : 0);
       out.push({ t, d, w: this.sName(w), x, raw: x0, self: w === 'P' }); t += d + 0.3;
     }
     return { lines: out, dur: t + 1.2 };
   },
   /* açılış sinematiğinin satırları: hikâye henüz kurulmadan (S yok) isimler tanımdan çözülür */
-  openingLines(D) {
+  async openingLines(D) {
     const nm = (w) => w === 'P' ? this.player.name : w === 'S' ? D.mentor.short : D.speakers && D.speakers[w] ? D.speakers[w]() : w;
+    const src = D.opening();
+    await this.voWait(src);
     let t = 0;
-    return D.opening().map(([w, x0]) => {
-      Audio_.voPreload(x0, I18N.lang);
-      const x = this.sFmt(x0), vd = Audio_.voDur(x0, I18N.lang), d = Math.max(this.talkDur(x) * 0.95, vd ? vd + 0.3 : 0);
+    return src.map(([w, x0]) => {
+      const x = this.sFmt(x0), vd = Audio_.voDur(x0, I18N.lang, this.voSex(w)), d = Math.max(this.talkDur(x) * 0.95, vd ? vd + 0.35 : 0);
       const o = { t, d, w: nm(w), x, raw: x0, self: w === 'P' }; t += d + 0.3; return o;
     });
   },
@@ -288,9 +294,9 @@ const Story = {
     const fin = () => { this.cine = false; this.timeScale = 1; try { if (after) after(); } catch (e) { console.warn(e); } };
     if (window.__testNoCine || typeof Cinema === 'undefined' || !Cinema.has(sc)) { fin(); return; }
     this.cine = true; this._qPend = null; Bubbles.clear(); UI.el.sub.classList.add('hidden');
-    const L = this.cineLines(lines), h = this.horse, S = this.story;
-    const D = this.storyDef();
-    Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, town: S.town, sully: cast === 'rival' ? D.rival.look : cast === 'kin' && D.kin ? Object.assign({}, D.kin.look, S.kinLook || {}) : D.mentor.look, jack: D.rival ? D.rival.look : null, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => Audio_.voice(ln.raw, I18N.lang) }).then(fin, fin);
+    const h = this.horse, S = this.story, D = this.storyDef();
+    // dünya bekler (this.cine); satırların sesleri yüklenince sinematik başlar
+    this.cineLines(lines).then((L) => Cinema.play(sc, { look: this.player.look, seed: (this.seed || 1) + S.ch * 31, env: S.env, town: S.town, sully: cast === 'rival' ? D.rival.look : cast === 'kin' && D.kin ? Object.assign({}, D.kin.look, S.kinLook || {}) : D.mentor.look, jack: D.rival ? D.rival.look : null, horseCol: h && h.look && h.look.col, cap, lines: L.lines, dur: L.dur, capAt: 0.4, onLine: (ln) => this.cineVoice(ln) })).then(fin, fin);
   },
 
   /* ---------------- her kare ---------------- */

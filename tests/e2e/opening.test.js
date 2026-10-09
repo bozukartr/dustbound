@@ -1,6 +1,7 @@
 'use strict';
 /* Açılış sinematikleri: beş geçmişin sahnesi hatasız çizilir (boş değil, gölge açık, GL hatası yok),
-   hikâye açıkken akıl hocası ve satırlar, kapalıyken satırsız; yeni oyunda sinematik oynar, geçilir, hikâye başlar */
+   hikâye açıkken akıl hocası ve satırlar, kapalıyken satırsız; yeni oyunda sinematik oynar, basılı tutunca geçilir
+   (kısa basış geçirmez), hikâye başlar */
 module.exports = {
   name: 'Açılış sinematikleri',
   timeout: 420000,
@@ -18,6 +19,7 @@ module.exports = {
       const el = document.getElementById('cinema');
       const out = { st, line: el.querySelector('.cn-line').textContent, cap: el.querySelector('.cn-n').textContent, sub: el.querySelector('.cn-s').textContent, on: el.classList.contains('on') };
       await new Promise(r => setTimeout(r, 450));
+      // Esc basılı tutulur (bırakılmaz): bir saniyede geçer
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       await pr;
       return out;
@@ -60,7 +62,19 @@ module.exports = {
       const r = await q.evaluate(() => ({ line: document.querySelector('#cinema .cn-line').textContent, st: Cinema.stat() }));
       t.ok(r.st.scene === 'farm' && r.st.lines === 4, 'çiftçi sahnesi, dört satır', r.st);
       t.ok(/Baban/.test(r.line) && !/\{ad\}/.test(r.line), 'konuşan baba, isim yerleşti', r.line);
-      await q.keyboard.press('Enter');
+      // geçmek için basılı tutulur: kısa basış geçirmez, tutarken halka dolar, bırakınca boşalır
+      const ring = () => q.evaluate(() => { const c = document.getElementById('cinema'), p = c.querySelector('.cn-ring .p');
+        return { on: c.classList.contains('on') && !c.classList.contains('out'), hold: c.querySelector('.cn-skip').classList.contains('hold'), off: parseFloat(p.style.strokeDashoffset), txt: c.querySelector('.cn-skip').textContent }; });
+      await q.keyboard.press('Enter'); await t.sleep(700);
+      let k = await ring();
+      t.ok(k.on && /basılı tut/.test(k.txt), 'kısa basış sinematiği geçmez', k);
+      await q.keyboard.down('Enter'); await t.sleep(450);
+      k = await ring();
+      t.ok(k.on && k.hold && k.off > 15 && k.off < 85, 'basılı tutarken halka doluyor', k);
+      await q.keyboard.up('Enter'); await t.sleep(500);
+      k = await ring();
+      t.ok(k.on && k.off > 93, 'bırakınca halka boşalır, sinematik sürer', k);
+      await q.keyboard.down('Enter'); await t.sleep(1300); await q.keyboard.up('Enter');
       await q.waitForFunction(() => G.state === 'play' && !document.getElementById('cinema').classList.contains('on'), null, { timeout: 20000 });
       await t.helpers(q);
       await q.evaluate(() => { const w = document.querySelector('.modal.welcome'); if (w) UI.closeAll(); });

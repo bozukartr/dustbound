@@ -855,7 +855,12 @@ body.dying #game { filter: var(--tone) grayscale(0.9) brightness(0.5) contrast(1
 .cn-s { font-style: italic; font-size: clamp(14px, 1.5vw, 22px); color: #e8dcc6; margin-top: 4px; }
 .cn-fade { position: absolute; inset: 0; background: #000; pointer-events: none; animation: cnfade 5.4s linear forwards; }
 @keyframes cnfade { 0% { opacity: 1; } 10% { opacity: 0; } 88% { opacity: 0; } 100% { opacity: 0.85; } }
-.cn-skip { position: absolute; right: 24px; bottom: 18px; color: rgba(232, 220, 198, 0.65); font-size: 14px; display: flex; align-items: center; gap: 6px; }
+/* geçiş göstergesi üst siyah şeritte (altyazıyla çakışmaz); basılı tutunca halka dolar */
+.cn-skip { position: absolute; top: 0; right: 2.5%; height: 11%; color: rgba(232, 220, 198, 0.55); font-size: clamp(11px, 1.05vw, 16px); display: flex; align-items: center; gap: 6px; transition: color 0.2s; pointer-events: none; }
+.cn-skip.hold { color: #f2e8d4; }
+.cn-ring { width: 1.5em; height: 1.5em; flex: none; }
+.cn-ring circle { fill: none; stroke-width: 3.2; stroke: rgba(232, 220, 198, 0.22); }
+.cn-ring circle.p { stroke: var(--gold); stroke-dasharray: 94.25; stroke-dashoffset: 94.25; transform: rotate(-90deg); transform-origin: 50% 50%; stroke-linecap: round; }
 
 /* Kasaba sakinlerinin konuşma baloncukları (dünyadaki konuma bağlı) */
 #bubbles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
@@ -1142,7 +1147,7 @@ body.binoc-on #hud-help, body.binoc-on #hud-tr, body.binoc-on #hud-bl, body.bino
 .wl-btns .st-btn { color: #f6ead0; background: #4a2e14; border-color: #2a1808; }
 .wl-btns .st-btn.pref { background: linear-gradient(180deg, #a8521e, #7a3410); border-color: #4a1e08; color: #fff3dc; }
 .wl-btns .st-btn:hover, .wl-btns .st-btn.focus { filter: brightness(1.15); box-shadow: 0 0 0 2px #e2b64a; }
-.cn-line { position: absolute; left: 8%; right: 8%; bottom: 0; height: 11%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: clamp(14px, 1.6vw, 24px); color: #f2e8d4; opacity: 0; transition: opacity 0.25s; line-height: 1.25; }
+.cn-line { position: absolute; left: 8%; right: 8%; bottom: 0; height: 11%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: clamp(15px, 1.75vw, 27px); color: #f2e8d4; opacity: 0; transition: opacity 0.25s; line-height: 1.25; }
 .cn-line.on { opacity: 1; }
 .cn-line > .cl-box { padding: 5px 18px 7px; background: rgba(12, 8, 5, 0.58); border-radius: 6px; box-shadow: 0 0 16px 5px rgba(12, 8, 5, 0.25); }
 .cn-line .cl-n { color: var(--gold); margin-right: 8px; font-family: var(--sc); letter-spacing: 1px; }

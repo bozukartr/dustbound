@@ -112,7 +112,8 @@
   function campfire(m, g, x, y, z) {
     for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; m.box(x + Math.cos(a) * 0.9, y, z + Math.sin(a) * 0.9, 0.35, 0.25, 0.35, '#6a6a64'); }
     for (let k = 0; k < 3; k++) m.at(x, y + 0.1, z, k * 1.05, () => m.box(0, 0, 0, 0.18, 0.18, 1.3, '#4a3020'));
-    g.cone(x, y + 0.1, z, 0.45, 0.9, 5, '#ff9a30', '#ffe080');
+    g.box(x, y + 0.04, z, 1.0, 0.06, 1.0, '#c84a18');   // kor
+    K.flame(x, y, z, 1.35);   // canlı alev (oynatıcı her kare çizer)
   }
   function tent(m, x, y, z, ry, col) {
     m.at(x, y, z, ry, () => {
@@ -153,6 +154,9 @@
       { d: 5.6, cam: (t, u) => { const z = pz(t), x = trail(z), k = ease(u); return { e: V.lerp([x - 2.5, hf(x, z) + 3.2, z + 8], [x - 7, hf(x, z) + 13, z + 19], k), c: V.lerp([x, hf(x, z) + 2.4, z - 6], [0, ry + 3, -92], ease(cl01(u * 1.3))) }; } },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    // iki atlı tırısta: nal sesleri, rüzgâr, kuşlar ve şahin
+    S.sound = { amb: { wind: 0.07 }, cues: [[2.2, 'bird', { vol: 0.28 }], [7.5, 'hawk', { vol: 0.3 }], [12.4, 'bird', { vol: 0.22 }]],
+      tick: (t, t0, play) => { for (const b of K.beats(t0, t, 0, 60, 3.1)) play('hoof_dirt', { vol: 0.36 }); for (const b of K.beats(t0, t, 0, 60, 3.1, 0.45)) play('hoof_dirt', { vol: 0.26 }); } };
     S.particles = (t, add) => { if (Math.random() < 0.4) { const z = pz(t); add([trail(z) + R.range(-1.5, 1.5), hf(0, z) + 0.2, z + 1.4], [0, 0.3, 0.8], [0.75, 0.64, 0.48, 0.45], 1.1, 1.3); } };
     return S;
   });
@@ -184,6 +188,8 @@
       { d: 5, cam: (t, u) => { const k = ease(u); return { e: V.lerp([2, 3, 18], [-6, 8, 24], k), c: V.lerp([9, 1, 8], [14, 1, 14], k) }; } },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    // alacakaranlık: yaklaşan çakalların ulumaları, hırıltı
+    S.sound = { amb: { wind: 0.05, crickets: 0.07 }, cues: [[1.6, 'coyote_howl', { vol: 0.38 }], [4.9, 'coyote_howl', { vol: 0.3, rate: 1.06 }], [7.4, 'growl', { vol: 0.28 }], [9.8, 'coyote_howl', { vol: 0.42 }]] };
     S.particles = (t, add) => { if (Math.random() < 0.06) add([R.range(-30, 30), R.range(1, 4), R.range(-10, 30)], [0, 0.2, 0], [0.9, 0.95, 0.5, 0.8], -1.2, 2); };
     return S;
   });
@@ -203,12 +209,16 @@
     figure(f, look, 1.6, 0.3, 4.95, -0.25, 'sit');
     finish(S, [g, f]);
     S.dyn = (t, D) => { S.focus = [0, 1.5, 5]; };
+    // fener ve pencerelerden sıcak ışık: verandada oturanlar karanlıkta kalmasın
+    S.lights = [{ p: [0.2, 1.4, 5.3], c: '#ffb060', i: 1.15, r: 5.5, flick: true }, { p: [-2.6, 1.4, 4.0], c: '#ffc070', i: 0.55, r: 3.6 }, { p: [2.6, 1.4, 4.0], c: '#ffc070', i: 0.55, r: 3.6 }];
     S.shots = [
       { d: 5, cam: (t, u) => { const k = ease(u); return { e: V.lerp([0, 5, 30], [0, 3, 18], k), c: [0, 1.6, 4] }; } },
       { d: 5, cam: (t, u) => ({ e: [-4.2 + u * 0.4, 1.9, 9.5 - u * 0.5], c: [-1.2, 1.5, 5] }) },
       { d: 5, cam: (t, u) => ({ e: [4.8 - u * 0.4, 1.9, 9.2], c: [1.4, 1.5, 5] }) },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    // gece verandası: cırcır böcekleri, baykuş, çok uzakta bir çakal
+    S.sound = { amb: { crickets: 0.16, wind: 0.03 }, cues: [[3.6, 'owl', { vol: 0.3 }], [10.6, 'coyote_howl', { vol: 0.14, muffle: 2200 }]] };
     S.particles = (t, add) => {
       stars(S, R, add);
       if (Math.random() < 0.08) add([R.range(-14, 14), R.range(0.5, 2.5), R.range(6, 16)], [R.range(-0.2, 0.2), R.range(-0.1, 0.2), 0], [0.9, 1, 0.5, 0.9], -1.4, 2.5);
@@ -245,8 +255,23 @@
       { d: 5, cam: (t, u) => { const z = pz(t), k = ease(u); return { e: V.lerp([-2, 3, z + 7], [-3, 9, z + 16], k), c: V.lerp([0, 2.3, z - 6], [0, 3, -40], k) }; } },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    // sabah kasabası: kalabalık uğultusu, adımlayan iki atın nalları taşta ve toprakta
+    S.sound = { amb: { crowd: 0.09, wind: 0.04 }, cues: [[3.2, 'horse_neigh', { vol: 0.28 }], [8.6, 'door_open', { vol: 0.16 }], [11.4, 'saloon_door', { vol: 0.2 }]],
+      tick: (t, t0, play) => { for (const b of K.beats(t0, t, 0, 60, 2.4)) play('hoof_dirt', { vol: 0.34 }); for (const b of K.beats(t0, t, 0, 60, 2.4, 0.5)) play('hoof_dirt', { vol: 0.26 }); } };
     return S;
   });
+
+  /* Sahnede yürünen yol (x, z noktaları): köşeler yumuşatılır, yay uzunluğuyla gidilir.
+     at(s): konum; dir(s): yumuşatılmış yön (kamera dönemeçte savrulmasın) */
+  function scenePath(pts) {
+    let P = pts.map(q => q.slice());
+    for (let it = 0; it < 2; it++) { const Q = [P[0]]; for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1]; Q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } Q.push(P[P.length - 1]); P = Q; }
+    const L = [0]; for (let i = 1; i < P.length; i++) L.push(L[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    const len = L[L.length - 1];
+    const at = (s) => { s = Math.max(0, Math.min(len, s)); let i = 1; while (i < P.length - 1 && L[i] < s) i++; const a = P[i - 1], b = P[i], k = (s - L[i - 1]) / Math.max(1e-6, L[i] - L[i - 1]); return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; };
+    const dir = (s, w = 2.5) => { const a = at(s - w), b = at(s + w), d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / d, (b[1] - a[1]) / d]; };
+    return { len, at, dir };
+  }
 
   /* ---------- Bölüm 8: gece, saloonun ışıkları ---------- */
   Cinema.addScene('q_saloon', (R, look, o) => {
@@ -255,39 +280,86 @@
     const S = base(R, o, 'night', hf, [-240, -200, 240, 200], (x, z) => Math.abs(x) < 50 && z < 60);
     const m = S.m, g = new Mesh(GLOW);
     // haritadaki kasabanın saloonu: kapısı sahnede (6.6, 22), cephesi -x'e bakar
+    const DOOR = [6.6, 22];
     const T = o.town && typeof G !== 'undefined' && G.world && G.world.towns.find(t => t.id === o.town);
     const SB0 = T && G.world.buildings.find(b => b.town === T.id && (b.type === 'saloon' || b.type === 'cantina'));
-    const WT = SB0 ? K.worldTown(m, g, T.id, { anchor: [SB0.door.x, SB0.door.y], at: [6.6, 0, 22], rot: Math.PI / 2, night: true }) : null;
+    const WT = SB0 ? K.worldTown(m, g, T.id, { anchor: [SB0.door.x, SB0.door.y], at: [DOOR[0], 0, DOOR[1]], rot: Math.PI / 2, night: true }) : null;
     if (!WT) { K.town(m, R, 0, -60, 10, { street: 6, gable: 0.2, church: false, tower: false }); for (let z = -70; z < 120; z += 2) m.box(0, 0.02, z, 6, 0.05, 2.2, S.E.road); }
     // saloon: yan sokakta, cepheye bakar (gerçek kasaba yoksa)
     if (!WT) at2(m, g, 12, 0, 22, -Math.PI / 2, () => {
       m.box(0, 0, 0, 12, 6, 9, '#7a4f33'); m.box(0, 0, 4.6, 12, 8.2, 0.3, '#86593a');
       m.box(0, 3.4, 5.6, 12.4, 0.2, 2.2, '#46291c'); m.box(0, 0, 5.6, 12, 0.22, 2.2, '#6a4a2e');
       for (const sx of [-5.8, -2, 2, 5.8]) m.box(sx, 0, 6.6, 0.2, 3.4, 0.2, '#3a2416');
-      g.box(0, 6.4, 4.8, 5, 0.9, 0.08, '#d84a30');
+      m.box(0, 6.4, 4.8, 5, 0.9, 0.08, '#a83a26');
       for (const sx of [-4, 4]) g.box(sx, 1.2, 4.78, 2, 1.4, 0.06, '#ffc060');
       g.box(0, 0.2, 4.78, 1.6, 2.2, 0.06, '#ffb050');
       g.box(0, 4.4, 4.78, 1.4, 1.2, 0.06, '#ffd080'); g.box(-4, 4.4, 4.78, 1.4, 1.2, 0.06, '#f0a050');
     });
+    /* yürüyüş yolu: gerçek kasabada 15-26 m ötedeki bir sokak noktasından saloonun kapısının önüne, kasabanın
+       yol bulucusuyla (binaların arasından, sokak boyunca); kasaba yoksa düz cadde */
+    let path = null;
+    if (WT && typeof TownPath !== 'undefined') {
+      const W = G.world, ax = SB0.door.x, ay = SB0.door.y + 20, open = (x, y) => !W.blocked(x, y, 6) && !W.buildingAtPx(x, y) && !W.isWaterPx(x, y);
+      const tryFrom = (sx, sy, maxK) => {
+        let pts = null; try { pts = TownPath.find(T, sx, sy, ax, ay, 5); } catch (e) { pts = null; }
+        if (!pts || !pts.length) return null;
+        const sp = scenePath([WT.P(sx, sy), ...pts.map(q => WT.P(q[0], q[1]))]), d = Math.hypot(sx - ax, sy - ay) / TS;
+        return sp.len > 10 && sp.len < 32 && sp.len < d * maxK + 2 ? sp : null;
+      };
+      // saloonun baktığı cadde: kapıdan dışarı (güneye) açık kalan 2-5 karo; yürüyüş cadde boyunca doğudan ya da batıdan gelir
+      let fy = ay; for (let k = 2; k <= 5; k++) { const y = SB0.door.y + k * TS; if (!open(ax, y)) break; fy = y; }
+      for (const d of [18, 15, 21, 12]) { for (const sg of [-1, 1]) for (const dy of [0, -1, 1, 2]) { const sx = ax + sg * d * TS, sy = fy + dy * TS; if (!path && open(sx, sy)) path = tryFrom(sx, sy, 1.35); } if (path) break; }
+      // olmazsa kasabanın sokak noktalarından biri (dolambaçlı olabilir)
+      if (!path) for (const c of T.streetPts.map(q => ({ q, d: Math.hypot(q.x - ax, q.y - ay) / TS })).filter(c => c.d > 15 && c.d < 26).sort((a, b) => Math.abs(a.d - 19) - Math.abs(b.d - 19)).slice(0, 16)) if ((path = tryFrom(c.q.x, c.q.y, 2))) break;
+    }
+    if (!path) path = scenePath([[2.2, 44], [2.2, 25.3]]);
+    const NF = [-1, 0], end = path.at(path.len);
+    // yanal yön: cepheden uzağa (cadde tarafı); kamera hep o yandan bakar
+    const out = (f) => { const v = [-f[1], f[0]]; return v[0] * NF[0] + v[1] * NF[1] >= 0 ? v : [-v[0], -v[1]]; };
+    // bağlı atlar kapının yolun gelmediği yanında (yürüyenler atların içinden geçmesin)
+    const from = Math.sign(path.at(path.len - 4)[1] - DOOR[1]) || 1, HZ = DOOR[1] - from * 3, HX = WT ? 4.6 : 3.4;
     // verandada sızmış bir sarhoş, bağlı atlar
-    figure(m, randomLook('m', R), 6.6, 0.22, 19.5, -Math.PI / 2, 'sit');
+    figure(m, randomLook('m', R), DOOR[0], 0.22, DOOR[1] - from * 2.5, -Math.PI / 2, 'sit');
     finish(S, [g]);
     const hp = K.horseParts(S.L, o.horseCol || '#6a4a2e', null), hs = K.horseParts(S.L, '#3a2a20', null);
     const pm = new Mesh(warm(0.5)); figure(pm, look, 0, 0, 0, 0, 'stand'); const PB = K.build(pm);
     const sm = new Mesh(warm(0.5)); figure(sm, o.sully, 0, 0, 0, 0, 'stand'); const SB = K.build(sm);
-    const wz = (t) => 44 - Math.min(t, 11) * 1.7, WX = WT ? 2.2 : 0, HX = WT ? 4.6 : 3.4;
+    const v = clamp(path.len / 12, 1.4, 2.1), ws = (t) => Math.min(path.len, t * v), walking = (t) => t * v < path.len;
     S.dyn = (t, D) => {
-      K.drawHorse(D, hp, HX, 0, 25, Math.PI / 2, 0.4, false); K.drawHorse(D, hs, HX, 0, 27.5, Math.PI / 2, 1.8, false);
-      const z = wz(t), sw = Math.sin(t * 6) * 0.05;
-      D.push([PB, M4.chain(M4.tr(WX - 0.9, sw, z), M4.ry(Math.PI))]); D.push([SB, M4.chain(M4.tr(WX + 0.9, -sw, z - 0.3), M4.ry(Math.PI))]);
-      S.focus = [WX, 1.6, z];
+      K.drawHorse(D, hp, HX, 0, HZ, Math.PI / 2, 0.4, false); K.drawHorse(D, hs, HX, 0, HZ - from * 2.5, Math.PI / 2, 1.8, false);
+      const s = ws(t), p = path.at(s), f = path.dir(s), sv = [-f[1], f[0]], a = Math.atan2(f[0], f[1]), sw = walking(t) ? Math.sin(t * 6) * 0.05 : 0;
+      D.push([PB, M4.chain(M4.tr(p[0] - sv[0] * 0.9, sw, p[1] - sv[1] * 0.9), M4.ry(a))]);
+      D.push([SB, M4.chain(M4.tr(p[0] + sv[0] * 0.9 - f[0] * 0.3, -sw, p[1] + sv[1] * 0.9 - f[1] * 0.3), M4.ry(a))]);
+      S.focus = [p[0], 1.6, p[1]];
     };
+    // saloonun içi (kapıdan bakınca ışıklı salon)
+    const IN = [DOOR[0] + 2.4, 2.4, DOOR[1]];
+    /* kamera yerleşimi: sokağın genişliği kasabadan kasabaya değişir; her çekim için adaylar arasından, çekim boyunca
+       o kasabanın binalarına çarpmayan (en çok örnekte açık kalan) seçilir */
+    const kD = o.dur && o.dur > 15.2 ? o.dur / 15.2 : 1;
+    const pickCam = (cands, mk, a, b) => { let best = cands[0], bn = -1; for (const cd of cands) { let n = 0; for (let k = 0; k <= 16; k++) { const q = mk(cd)(a + (b - a) * k / 16, k / 16); if (K.camClear(q.e, q.c)) n++; } if (n > bn) { bn = n; best = cd; } if (n === 17) break; } return mk(best); };
+    // sokaktan saloona: yolun başından alçalan vinç
+    const crane = (cd) => (t, u) => { const k = ease(u), p0 = path.at(0), p1 = path.at(Math.min(path.len, 4)), f0 = path.dir(0), o0 = out(f0);
+      return { e: V.lerp([p0[0] + o0[0] * cd.l - f0[0] * 2, cd.y, p0[1] + o0[1] * cd.l - f0[1] * 2], [p1[0] + o0[0] * cd.l * 0.75, 3.5, p1[1] + o0[1] * cd.l * 0.75], k), c: [DOOR[0] + 3.4, 3, DOOR[1]] }; };
+    // önden: yürüyen iki kişi (cadde tarafından ya da öbür yandan); dar sokakta kamera yolun üstünde, önlerinde geri geri gider
+    const front = (cd) => (t, u) => { const s = ws(t), p = path.at(s), f = path.dir(s), ov = out(f);
+      if (cd.lead) { const q = path.at(s + cd.d); return { e: [q[0] + ov[0] * cd.l, cd.y, q[1] + ov[1] * cd.l], c: [p[0], 1.6, p[1]] }; }
+      return { e: [p[0] + f[0] * cd.d + ov[0] * cd.l, cd.y, p[1] + f[1] * cd.d + ov[1] * cd.l], c: [p[0], 1.6, p[1]] }; };
+    // arkadan: saloonun kapısına yürürler (dar sokakta kamera yolun üstünde, arkalarından gelir)
+    const back = (cd) => (t, u) => { const s = ws(t), p = path.at(s), f = path.dir(s), ov = out(f);
+      if (cd.trail) { const q = path.at(s - cd.d + u); return { e: [q[0] + ov[0] * cd.l, cd.y, q[1] + ov[1] * cd.l], c: IN }; }
+      return { e: [p[0] - f[0] * (cd.d - u) + ov[0] * cd.l, cd.y, p[1] - f[1] * (cd.d - u) + ov[1] * cd.l], c: IN }; };
     S.shots = [
-      { d: 5.2, cam: (t, u) => { const k = ease(u); return { e: V.lerp([-5, 7, 40], [-4, 3.5, 32], k), c: [10, 3, 22] }; } },
-      { d: 5, cam: (t, u) => { const z = wz(t); return { e: [WX - 3.6, 1.8, z - 5], c: [WX, 1.6, z] }; } },
-      { d: 5, cam: (t, u) => { const z = wz(t); return { e: [WX - 2.2, 2.1, z + 5 - u], c: [9, 2.4, 22] }; } },
+      { d: 5.2, cam: pickCam([{ l: 4, y: 7 }, { l: 2, y: 7 }, { l: 0, y: 8 }, { l: -2, y: 8 }, { l: 1, y: 11 }, { l: 0, y: 14 }, { l: 3, y: 14 }], crane, 0, 5.2 * kD) },
+      { d: 5, cam: pickCam([{ d: 5, l: 3.6, y: 1.8 }, { d: 5, l: -3.6, y: 1.8 }, { d: 4, l: 2.2, y: 1.8 }, { d: 4, l: -2.2, y: 1.8 }, { lead: 1, d: 4.5, l: 0.7, y: 1.8 }, { lead: 1, d: 4, l: -0.7, y: 1.8 }, { lead: 1, d: 4, l: 0, y: 2.4 }], front, 5.2 * kD, 10.2 * kD) },
+      { d: 5, cam: pickCam([{ d: 5, l: 2.2, y: 2.1 }, { d: 5, l: -2.2, y: 2.1 }, { d: 4, l: 1.2, y: 2.1 }, { d: 4, l: -1.2, y: 2.1 }, { trail: 1, d: 5, l: 0.7, y: 2.1 }, { trail: 1, d: 4.5, l: -0.7, y: 2.1 }, { trail: 1, d: 4, l: 0, y: 2.6 }], back, 10.2 * kD, 15.2 * kD) },
     ];
+    // saloonun kapısından ve pencerelerinden sokağa vuran sıcak ışık (yürüyenler yaklaştıkça aydınlanır)
+    S.lights = [{ p: [5.4, 1.9, DOOR[1]], c: '#ffb050', i: 1.1, r: 7, flick: true }, { p: [5.4, 1.6, DOOR[1] - 3.8], c: '#ffc070', i: 0.6, r: 4.5 }, { p: [5.4, 1.6, DOOR[1] + 3.8], c: '#ffc070', i: 0.6, r: 4.5 }];
     S.capAt = 0.4; S.capEnd = 3.6;
+    // gece kasabası: içeriden boğuk piyano ve kalabalık, cırcır böcekleri, yürüyenlerin adımları; sonunda kanatlı kapı
+    S.sound = { amb: { crickets: 0.07, crowd: 0.05, piano: 0.55, pianoMuf: 0.45 }, cues: [[4.0, 'horse_neigh', { vol: 0.2 }], [path.len / v + 0.4, 'saloon_door', { vol: 0.35 }]],
+      tick: (t, t0, play) => { for (const b of K.beats(t0, t, 0, path.len / v, v * 1.15)) play('step_dirt', { vol: 0.3 }); } };
     S.particles = (t, add) => { stars(S, R, add); if (Math.random() < 0.3) add([13 + R.range(-0.3, 0.3), 9, 18], [R.range(-0.2, 0.2), 1, 0], [0.3, 0.3, 0.34, 0.5], 1, 2.5); };
     return S;
   });
@@ -315,6 +387,8 @@
       { d: 5, cam: (t, u) => ({ e: [-1.6, 1.4, 3.0 - u * 0.3], c: [2.3, 1.2, -0.3] }) },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    // kamp ateşi: çıtırtı, cırcır böcekleri, uzakta kurt ve baykuş
+    S.sound = { amb: { fire: 0.19, crickets: 0.1, wind: 0.03 }, cues: [[5.8, 'wolf_howl', { vol: 0.16 }], [11.2, 'owl', { vol: 0.24 }]] };
     S.lights = [{ p: [0, 0.8, 0], c: '#ff8a3a', i: 1.1, r: 7, flick: true }];
     S.particles = (t, add) => { stars(S, R, add); fireParts(R, add, 0, 0, 0, 1.6); };
     return S;
@@ -345,6 +419,8 @@
       { d: 5, cam: (t, u) => ({ e: [0.3 - u * 0.3, 1.7, -6.4 + u * 0.6], c: [1.6, 1.65, -2.4] }) },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    // şafak: sönmeye yüz tutmuş ateş, rüzgâr, uyanan kuşlar
+    S.sound = { amb: { fire: 0.07, wind: 0.06 }, cues: [[1.5, 'bird', { vol: 0.26 }], [4.2, 'bird', { vol: 0.22 }], [8.4, 'horse_neigh', { vol: 0.2 }], [11.5, 'bird', { vol: 0.25 }]] };
     S.lights = [{ p: [0, 0.8, 0], c: '#ff8a3a', i: 0.8, r: 6, flick: true }];
     S.particles = (t, add) => { fireParts(R, add, 0, 0, 0, 0.5); if (Math.random() < 0.12) add([R.range(-60, 60), R.range(0.5, 3), R.range(-60, 30)], [0.4, 0, 0], [0.95, 0.9, 0.85, 0.35], 6, 6); };
     return S;
@@ -370,6 +446,8 @@
       { d: 6, cam: (t, u) => { const k = ease(u); return { e: V.lerp([2, 3, 16], [-8, 16, 34], k), c: V.lerp([0, 1.8, 5], [0, 3, -40], ease(cl01(u * 1.2))) }; } },
     ];
     S.capAt = 0.4; S.capEnd = 3.6;
+    // son: akşam rüzgârı, kuşlar, atın kişnemesi
+    S.sound = { amb: { wind: 0.07, crickets: 0.04 }, cues: [[2.0, 'bird', { vol: 0.25 }], [6.4, 'horse_neigh', { vol: 0.24 }], [12.0, 'hawk', { vol: 0.24 }]] };
     S.particles = (t, add) => { if (Math.random() < 0.3) add([R.range(-2, 2) + 3.4, 6.6, -1.5], [R.range(-0.2, 0.2), 0.9, 0], [0.35, 0.33, 0.33, 0.45], 1, 2.5); };
     return S;
   });

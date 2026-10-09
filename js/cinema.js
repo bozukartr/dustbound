@@ -279,6 +279,7 @@ const Cinema = (() => {
     const bm = new Mesh({ dir: [0, 1, 0], amb: 1, dif: 0, ambC: [0, 0, 0], sunC: [0, 0, 0] });
     for (const r of [1, 0.75, 0.5]) for (let i = 0; i < 16; i++) { const a0 = i / 16 * TAU, a1 = (i + 1) / 16 * TAU; bm.face([[0, 0, 0], [Math.cos(a1) * r, 0, Math.sin(a1) * r], [Math.cos(a0) * r, 0, Math.sin(a0) * r]], [0, 1, 0], [0, 0, 0]); }
     blob = bm.build(gl);
+    tongueB = TONGUE.map(([, , , , c0, c1]) => { const g = new Mesh(GLOW_L); g.cone(0, 0, 0, 1, 1, 6, c0, c1); return g.build(gl); });
     return true;
   }
 
@@ -404,16 +405,33 @@ const Cinema = (() => {
       else if (ob === O.HEDGE) m.box(x, Y, z, 1, 0.8, 1, '#4a6a34');
       else if (ob === O.WINDMILL) { m.box(x, Y, z, 0.6, 7, 0.6, '#7a6a54'); m.box(x, Y + 7, z, 3.2, 0.3, 0.1, '#d0c8b8'); m.box(x, Y + 5.6, z, 0.1, 3.2, 0.3, '#d0c8b8'); }
     }
-    // binalar
-    const out = { town: T, P, y: Y, rot, buildings: [], r: Math.max(T.rx, T.ry) + 4 };
+    // binalar; her bina kamera için bir katı kutu da bırakır (sinematik kamerası içine girmesin)
+    const out = { town: T, P, y: Y, rot, buildings: [], solids: [], r: Math.max(T.rx, T.ry) + 4 };
     for (const b of W.buildings) {
       if (b.town !== id) continue;
       const def = b.def || BUILDINGS[b.type]; if (!def) continue;
       const [x, z] = P((b.x + b.w / 2) * TS, (b.y + b.h / 2) * TS), [dx, dz] = P(b.door.x, b.door.y);
       out.buildings.push({ b, type: b.type, x, z, door: [dx, dz], w: b.w, d: b.h });
+      out.solids.push(...solidsOf(b, def, x, z, Y, rot));
       m.at(x, Y, z, -rot, () => { const o2 = g.T; g.T = m.T; build3d(m, g, b, def, !!o.night, R); g.T = o2; });
     }
+    if (solidAcc) solidAcc.push(...out.solids);
     out.find = (type) => out.buildings.find(q => q.type === type) || null;
+    return out;
+  }
+  /* binanın katı kutuları (build3d ile aynı ölçüler, yerel eksenlerde): gövde (sahte cephe dahil) ve önde veranda
+     saçağının tablası. Saçak yumuşak katıdır (soft): veranda açıktır, kamera altından, yanından, üstünden bakabilir;
+     yalnızca tablanın içine düşerse düzeltilir. c, s: yerelden sahneye dönüş (yerel +x sahnede (c, s) yönünde) */
+  const GABLE = ['house', 'ranch', 'cabin', 'hermit', 'barn', 'stable', 'station', 'lumber', 'mill', 'warehouse', 'docks'];
+  function solidsOf(b, def, x, z, Y, rot) {
+    const w = b.w, d = b.h, H = def.tall ? 6.4 : def.church ? 5 : 3.6 + (w >= 10 ? 0.5 : 0);
+    const gable = def.home || def.church || GABLE.includes(b.type);
+    const front = b.type === 'station' ? 2.5 : b.type === 'barn' || b.type === 'stable' ? 0.1 : gable ? 1.3 : 2.1;
+    const top = def.ruin ? 2.4 : b.type === 'lighthouse' ? 15.7 : b.type === 'market' ? 2.9 : b.type === 'mineentrance' ? 3 : gable ? H + (def.church ? 3 : 2.6) : H + 2.1;
+    const c = Math.cos(rot), s = Math.sin(rot), body = Math.min(front, gable ? 0.08 : 0.3);   // ön duvar ya da sahte cephe
+    const out = [{ x, z, c, s, x0: -w / 2, x1: w / 2, z0: -d / 2, z1: d / 2 + body, y0: Y - 2, y1: Y + top }];
+    const ry = b.type === 'station' ? 2.9 : gable ? H * 0.72 : def.tall ? 3.1 : 2.75, rt = def.tall && !gable ? 0.8 : 0.2;
+    if (front > body && !def.ruin && b.type !== 'market') out.push({ x, z, c, s, soft: true, x0: -w / 2 - 0.2, x1: w / 2 + 0.2, z0: d / 2 + body, z1: d / 2 + front + 0.1, y0: Y + ry - 0.1, y1: Y + ry + rt + 0.1 });
     return out;
   }
   /* tek bina: yerel eksenlerde ön yüz +z (güney), taban 0 */
@@ -444,7 +462,7 @@ const Cinema = (() => {
     m.box(0, 0, fz + 0.12, w, fh, 0.25, shadeHex(wall, 0.05));                                   // sahte cephe
     if (brick) for (let y = 0.6; y < fh; y += 0.6) m.box(0, y, fz + 0.26, w, 0.03, 0.02, shadeHex(wall, -0.18));
     m.box(0, fh - 0.15, fz + 0.2, w + 0.3, 0.25, 0.45, shadeHex(roofC, -0.1));                   // korniş
-    (night ? g : m).box(0, fh - 1.15, fz + 0.27, Math.min(w - 1, 5.5), 0.75, 0.06, def.sign || '#d8c080');   // tabela
+    m.box(0, fh - 1.15, fz + 0.27, Math.min(w - 1, 5.5), 0.75, 0.06, def.sign || '#d8c080');   // tabela (boyalı tahta: geceleyin ışımaz)
     m.box(0, 0.05, fz + 0.27, 1.2, 2.2, 0.06, '#2a1c12');
     const nw = Math.max(1, Math.floor((w - 2) / 2.6));
     for (let k = 0; k < nw; k++) { const sx = -w / 2 + 1 + (k + 0.5) * (w - 2) / nw; if (Math.abs(sx) < 1) continue; win.box(sx, 1.0, fz + 0.27, 1.2, 1.2, 0.05, wc(k)); }
@@ -587,10 +605,121 @@ const Cinema = (() => {
     for (const [lx, lz, o] of legs) D.push([parts.leg, M4.chain(base, M4.tr(lx, 1.05, lz), M4.rx(Math.sin(ph + o) * (gallop ? 0.75 : 0.35)))]);
   }
 
+  /* ---------------- Canlı alev ----------------
+     Kamp ateşinin üç dili her kare boy atar, daralır ve rüzgârla eğilir; sahneler K.flame(x, y, z, ölçek) ile ekler,
+     oynatıcı dinamik parçalarla birlikte çizer (gölge düşürmez, ışıktan etkilenmez). */
+  const GLOW_L = { dir: [0, 1, 0], amb: 1, dif: 0, ambC: [1.25, 1.2, 1.1], sunC: [0, 0, 0] };
+  const TONGUE = [[0, 0, 0.34, 0.62, '#ff7a20', '#ffd060'], [0.12, -0.08, 0.2, 0.45, '#ffa030', '#fff0a0'], [-0.14, 0.06, 0.18, 0.36, '#ff9028', '#ffe080']];
+  let tongueB = null, flameAcc = null;
+  const flame = (x, y, z, s = 1) => { if (flameAcc) flameAcc.push({ x, y, z, s, ph: flameAcc.length * 1.7 }); };
+  function drawFlames(D, flames, t) {
+    if (!flames || !tongueB) return;
+    for (const F of flames) TONGUE.forEach(([ox, oz, r, h], k) => {
+      const p = F.ph + k * 2.3, fl = 0.8 + 0.14 * Math.sin(t * 11 + p) + 0.08 * Math.sin(t * 23.3 + p * 1.7) + 0.05 * Math.sin(t * 37 + p * 0.6);
+      const sw = 0.1 * Math.sin(t * 4.1 + p) + 0.05 * Math.sin(t * 9.7 + p), rr = r * F.s * (0.92 + 0.08 * Math.sin(t * 7 + p)), hh = h * F.s * fl;
+      D.push([tongueB[k], M4.chain(M4.tr(F.x + ox * F.s, F.y + 0.1 * F.s, F.z + oz * F.s), M4.rz(sw), M4.rx(sw * 0.6), new Float32Array([rr, 0, 0, 0, 0, hh, 0, 0, 0, 0, rr, 0, 0, 0, 0, 1]))]);
+    });
+  }
+
+  /* (t0, t1] aralığına düşen düzenli vuruşların zamanları (nal, adım): from–to arasında saniyede hz kez, ph evre */
+  function beats(t0, t1, from, to, hz, ph = 0) {
+    const out = [], a = Math.max(t0, from), b = Math.min(t1, to);
+    if (b <= a) return out;
+    for (let k = Math.floor((a - from) * hz - ph) + 1; (k + ph) / hz + from <= b; k++) { const x = (k + ph) / hz + from; if (x > a) out.push(x); }
+    return out;
+  }
+
   /* ---------------- Sahneler ----------------
      Açılış sinematikleri opencine.js'te, hikâye sinematikleri storycine.js'te
      addScene ile eklenir. */
   const SCENES = {};
+
+  /* ---------------- Kamera çarpışması ----------------
+     Dünyadaki kasabanın binaları katı kutudur (worldTown → solidsOf). Göz bir binanın içine ya da duvarın dibine
+     düşerse (hedefle göz arasındaki engel gözün 2.5 m yakınında) düzeltilir:
+       - yakın hedefte (özne çekimi) göz hedefe doğru çekilir: hedeften bakınca önüne çıkan ilk binanın önüne;
+       - uzak hedefte (geniş çekim) göz yükseltilir: engelin üstünden bakar.
+     Uzaktaki engeller (geniş çekimde çatılar) sorun sayılmaz; hedefi içine alan bina (iç çekim) yok sayılır.
+     Çekim önceden örneklenir; çekme ve yükseltme saniye başına sınırlı değişir (kamera sıçramaz, önceden
+     yavaşça yaklaşır ve sonra bırakır). Düzeltilen göz başka bir binaya denk gelirse o an biraz daha yükseltilir. */
+  let solidAcc = null;   // sahne kurulurken worldTown'ın bıraktığı katılar
+  const CAM_NEAR = 2.5, CAM_M = 0.4, CAM_FAR = 25, RATE_F = 0.8, RATE_H = 4;   // CAM_M: duvar payı (yakın kırpma düzlemi 0.4)
+  const locP = (B, p) => { const dx = p[0] - B.x, dz = p[2] - B.z; return [B.c * dx + B.s * dz, p[1], -B.s * dx + B.c * dz]; };
+  const inBox = (B, q) => q[0] > B.x0 && q[0] < B.x1 && q[1] > B.y0 && q[1] < B.y1 && q[2] > B.z0 && q[2] < B.z1;
+  // a→b doğru parçasının (yerel) kutuya giriş ve çıkış oranı, kesmiyorsa null
+  function segBox(B, a, b, m) {
+    let t0 = 0, t1 = 1;
+    for (let k = 0; k < 3; k++) {
+      const lo = (k === 0 ? B.x0 : k === 1 ? B.y0 : B.z0) - m, hi = (k === 0 ? B.x1 : k === 1 ? B.y1 : B.z1) + m, d = b[k] - a[k];
+      if (Math.abs(d) < 1e-9) { if (a[k] <= lo || a[k] >= hi) return null; continue; }
+      let u0 = (lo - a[k]) / d, u1 = (hi - a[k]) / d; if (u0 > u1) { const q = u0; u0 = u1; u1 = q; }
+      if (u0 > t0) t0 = u0; if (u1 < t1) t1 = u1; if (t0 >= t1) return null;
+    }
+    return [t0, t1];
+  }
+  // hedeften göze ışın: göz bir katının içinde ya da dibinde mi (bad), hedeften bakınca ilk katıya giriş oranı (first)
+  function camRay(solids, e, c) {
+    const L = Math.hypot(e[0] - c[0], e[1] - c[1], e[2] - c[2]); let bad = false, first = 1;
+    if (L < 1e-3) return { bad, first, L };
+    for (const B of solids) {
+      if (B.soft) { if (inBox(B, locP(B, e))) bad = true; continue; }   // saçak tablası: yalnızca içine düşmek sorun
+      const lc = locP(B, c); if (inBox(B, lc)) continue;
+      const h = segBox(B, lc, locP(B, e), CAM_M); if (!h) continue;
+      if (h[0] < first) first = h[0];
+      if (h[1] > 1 - CAM_NEAR / L) bad = true;   // göz kutunun içinde ya da çıkışı gözün dibinde
+    }
+    return { bad, first: Math.max(0.04, first - 0.2 / L), L };   // sınırın 20 cm önü
+  }
+  const lerpE = (cm, f) => V.add(cm.c, V.sub(cm.e, cm.c).map(v => v * f));
+  const camAt = (cm, f, h) => { const e = f < 1 ? lerpE(cm, f) : cm.e.slice(); e[1] += h; return e; };
+  // gözü engelden kurtaran en küçük yükseltme (yarım metre adımla, en çok 24 m)
+  function liftFor(solids, e, c) { for (let h = 0.5; h <= 24; h += 0.5) if (!camRay(solids, [e[0], e[1] + h, e[2]], c).bad) return h; return 24; }
+  /* çekimleri örnekleyip her an için yumuşatılmış çekme oranı (f) ve yükseltme (h); sorun yoksa null.
+     Yumuşatma: f(i) = min_j F(j) + k·|i-j|, h(i) = max_j H(j) − k·|i-j|.
+     st: örnek sayısı, düzeltme öncesi ve sonrası sorunlu örnekler (testler için) */
+  function planCam(shots, solids, st) {
+    if (!solids.length) return null;
+    const plan = []; let a = 0, any = false;
+    for (const sh of shots) {
+      const n = Math.max(12, Math.ceil(sh.d * 10)), CM = [], R = [], F = [], H = [];
+      for (let i = 0; i <= n; i++) {
+        const u = i / n, cm = sh.cam(a + u * sh.d, u), r = camRay(solids, cm.e, cm.c);
+        CM.push(cm); R.push(r);
+        // yakın hedefe çekilir; çekilen göz hedefe 2.5 m'den çok yaklaşacaksa (hedef duvar dibinde) yükseltilir
+        const pull = r.bad && r.L <= CAM_FAR && r.first * r.L >= CAM_NEAR;
+        F.push(pull ? r.first : 1); H.push(r.bad && !pull ? liftFor(solids, cm.e, cm.c) : 0);
+      }
+      const kf = RATE_F * sh.d / n, kh = RATE_H * sh.d / n;
+      const env = () => [F.map((_, i) => { let v = 1; for (let j = 0; j <= n; j++) v = Math.min(v, F[j] + kf * Math.abs(i - j)); return v; }),
+        H.map((_, i) => { let v = 0; for (let j = 0; j <= n; j++) v = Math.max(v, H[j] - kh * Math.abs(i - j)); return v; })];
+      let [f, h] = env();
+      for (let it = 0; it < 4; it++) {
+        let ch = false;
+        for (let i = 0; i <= n; i++) {
+          if (f[i] >= 1 && h[i] <= 0) continue;
+          const e = camAt(CM[i], f[i], h[i]);
+          if (camRay(solids, e, CM[i].c).bad) { H[i] = Math.max(H[i], h[i] + liftFor(solids, e, CM[i].c)); ch = true; }
+        }
+        if (!ch) break;
+        [f, h] = env();
+      }
+      if (f.some(v => v < 1) || h.some(v => v > 0)) any = true;
+      if (st) for (let i = 0; i <= n; i++) { st.n++; if (R[i].bad) st.pre++; if (camRay(solids, camAt(CM[i], f[i], h[i]), CM[i].c).bad) st.post++; }
+      plan.push({ a, d: sh.d, n, f, h }); a += sh.d;
+    }
+    return any ? plan : null;
+  }
+  // t anındaki düzeltme: [çekme oranı, yükseltme]
+  function camFixAt(plan, t) {
+    if (!plan) return null;
+    for (const P of plan) if (t < P.a + P.d || P === plan[plan.length - 1]) {
+      const x = cl01((t - P.a) / P.d) * P.n, i = Math.min(P.n - 1, Math.floor(x)), k = x - i;
+      return [P.f[i] + (P.f[i + 1] - P.f[i]) * k, P.h[i] + (P.h[i + 1] - P.h[i]) * k];
+    }
+    return null;
+  }
+  // sahne kurulurken: bu göz noktası (o ana kadar kurulan kasaba binalarına göre) açık mı
+  const camClear = (e, c) => !solidAcc || !camRay(solidAcc, e, c).bad;
 
   /* ---------------- Oynatıcı ---------------- */
   let el = null;
@@ -599,7 +728,7 @@ const Cinema = (() => {
     el = document.createElement('div');
     el.id = 'cinema';
     el.innerHTML = `<div class="cn-frame"><canvas width="${RW}" height="${RH}"></canvas><div class="cn-bar t"></div><div class="cn-bar b"></div>
-      <div class="cn-cap"><div class="cn-k"></div><div class="cn-n"></div><div class="cn-s"></div></div><div class="cn-line"></div><div class="cn-fade"></div></div><div class="cn-skip"></div>`;
+      <div class="cn-cap"><div class="cn-k"></div><div class="cn-n"></div><div class="cn-s"></div></div><div class="cn-line"></div><div class="cn-fade"></div><div class="cn-skip"></div></div>`;
     document.body.appendChild(el);
     return el;
   }
@@ -616,7 +745,9 @@ const Cinema = (() => {
       const cv = el.querySelector('canvas');
       try { if (!gl && !init(cv)) { resolve(); return; } } catch (e) { console.warn('Sinematik başlatılamadı', e); resolve(); return; }
       let S;
-      try { S = mk(new RNG(opts.seed || 1890), opts.look || randomLook('m'), opts); } catch (e) { console.warn(e); resolve(); return; }
+      solidAcc = []; flameAcc = [];
+      try { S = mk(new RNG(opts.seed || 1890), opts.look || randomLook('m'), opts); } catch (e) { solidAcc = flameAcc = null; console.warn(e); resolve(); return; }
+      const solids = (S.solids || []).concat(solidAcc), flames = flameAcc; solidAcc = flameAcc = null;
       const town = TOWNS.find(t => t.id === (BACKGROUNDS.find(b => b.id === bgId) || {}).town);
       // hikâye sahneleri kendi başlığını (bölüm adı) ve konuşma satırlarını verir
       const oc = opts.cap || S.cap || {};
@@ -632,24 +763,45 @@ const Cinema = (() => {
       }
       let curLine = null;
       lineEl.innerHTML = '';
-      el.querySelector('.cn-skip').innerHTML = Tr`${Input.glyph('confirm')} Geç`;
+      // geçiş göstergesi: basılı tutunca dolan halka
+      const sk = el.querySelector('.cn-skip');
+      sk.innerHTML = '<svg class="cn-ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15"/><circle class="p" cx="18" cy="18" r="15"/></svg>' + Tr`${Input.glyph('confirm')} Geçmek için basılı tut`;
+      const ringP = sk.querySelector('.p'); sk.classList.remove('hold');
       el.classList.remove('out'); el.classList.add('on');
       const fd = el.querySelector('.cn-fade'); fd.style.animation = 'none'; void fd.offsetWidth; fd.style.animation = '';
       const parts = [];
       const addP = (p, v, col, size, life) => { if (parts.length < 900) parts.push({ p: p.slice(), v, col, size, life, max: life }); };
       let pAcc = 0;   // parçacık doğumları 60 Hz adımlarla: yüksek tazelemeli ekranda çoğalmaz
       let t0 = performance.now(), last = t0, done = false, raf = 0; const myId = ++playId;
+      /* Geçmek için basılı tutulur (yanlışlıkla geçilmesin): Enter, Boşluk ya da Esc, fare ya da dokunma; kolda X, O ya da
+         Options. Yalnız sinematik başladıktan sonraki basışlar sayılır: önceki ekrandan basılı kalan tuş geçirmez. */
+      const HOLD = 1, held = new Set(), SKIPK = ['Enter', 'NumpadEnter', 'Space', 'Escape'];
+      let hold = 0, padArmed = false, lastReal = t0;
+      const isSkip = (e) => SKIPK.includes(e.code) || e.key === 'Escape' || e.key === 'Enter' || e.key === ' ';
+      const kd = (e) => { if (!isSkip(e)) return; e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) held.add(e.code || e.key); };
+      // bırakma yalnız sinematikte basılan tuş için yutulur (öncesinden basılı kalan tuş oyunda takılı kalmasın)
+      const ku = (e) => { if (held.delete(e.code || e.key)) { e.preventDefault(); e.stopImmediatePropagation(); } };
+      const pd = (e) => { e.preventDefault(); e.stopImmediatePropagation(); held.add('p' + e.pointerId); };
+      const pu = (e) => { if (held.delete('p' + e.pointerId)) e.stopImmediatePropagation(); };
+      const lose = () => held.clear();
+      const EV = [['keydown', kd], ['keyup', ku], ['pointerdown', pd], ['pointerup', pu], ['pointercancel', pu], ['blur', lose]];
+      for (const [n, f] of EV) window.addEventListener(n, f, true);
+      window.addEventListener('resize', fit);
+      // ses: sahnenin ortam döngüleri ve tekil sesleri (dondurulmuş karelerde ses yok); bitince ya da geçilince susar
+      const SND = opts.freeze === undefined && typeof Audio_ !== 'undefined' ? S.sound || {} : null;
+      if (SND) Audio_.cineStart(SND.amb);
+      let sndT = 0;
       const finish = () => {
         if (done) return; done = true;
         cancelAnimationFrame(raf);
-        window.removeEventListener('keydown', skip, true); window.removeEventListener('pointerdown', skip, true);
+        if (SND) Audio_.cineEnd();
+        for (const [n, f] of EV) window.removeEventListener(n, f, true);
+        window.removeEventListener('resize', fit);
         el.classList.add('out');
         resolve();
         // hemen ardından başka bir sinematik başladıysa onun katmanı kapatılmaz
         setTimeout(() => { if (playId === myId) el.classList.remove('on', 'out'); }, 700);
       };
-      const skip = (e) => { if (performance.now() - t0 > 400) { if (e) { e.preventDefault(); e.stopImmediatePropagation(); } finish(); } };
-      window.addEventListener('keydown', skip, true); window.addEventListener('pointerdown', skip, true);
       const sky = S.sky;
       // çekimler: sahne tek bir S.cam veriyorsa tek çekim sayılır
       let shots = S.shots || [{ d: DUR, cam: (t) => S.cam(t) }];
@@ -662,9 +814,12 @@ const Cinema = (() => {
       const cuts = []; { let a = 0; for (const sh of shots.slice(0, -1)) cuts.push(a += sh.d); }
       const capAt = opts.capAt !== undefined ? opts.capAt : S.capAt !== undefined ? S.capAt : cut1 + 0.5, capEnd = S.capEnd || total;
       const shotAt = (t) => { let a = 0; for (const sh of shots) { if (t < a + sh.d || sh === shots[shots.length - 1]) return sh.cam(t, cl01((t - a) / sh.d)); a += sh.d; } };
-      const G = Object.assign({ lift: [0, 0, 0], gain: [1, 1, 1], sat: 1, con: 1 }, S.grade || {});
+      const cst = { n: 0, pre: 0, post: 0 }, camPlan = planCam(shots, solids, opts.probe ? cst : null);
+      stat.flames = flames ? flames.length : 0;
+      stat.cam = Object.assign(cst, { solids: solids.length, pull: camPlan ? Math.min(...camPlan.map(P => Math.min(...P.f))) : 1, lift: camPlan ? Math.max(...camPlan.map(P => Math.max(...P.h))) : 0 });
+      const GR = Object.assign({ lift: [0, 0, 0], gain: [1, 1, 1], sat: 1, con: 1 }, S.grade || {});
       // gölge: düşük grafik ayarında küçük harita; sahne kapatabilir (S.shadow === false)
-      const lowQ = typeof G !== 'undefined' && G.settings && G.settings.fxq;
+      const lowQ = !!(typeof G !== 'undefined' && G.settings && G.settings.fxq);
       const shadowOn = !!(DP && S.shadow !== false && shadowTargets(lowQ ? 1024 : 2048));
       const nearH = S.shadowN || 26, farH = S.shadowR || 240, LD = V.norm(S.L.dir);
       let farM = null;
@@ -691,16 +846,29 @@ const Cinema = (() => {
       const frame = (now) => {
         if (done) return;
         // opts.freeze: zamanı sabitler (kapak karesi ve testler için)
-        const t = opts.freeze !== undefined ? opts.freeze : (now - t0) / 1000, dt = Math.min(0.05, (now - last) / 1000); last = now;
-        if ((t > total && opts.freeze === undefined) || (Input.pad && (Input.padTap(PS.X) || Input.padTap(PS.O) || Input.padTap(PS.OPT)) && t > 0.4)) { finish(); return; }
+        // ilk karenin zaman damgası kurulumdan önceye düşebilir (kare başı): süreler eksiye gitmez
+        const t = opts.freeze !== undefined ? opts.freeze : Math.max(0, (now - t0) / 1000), dt = clamp((now - last) / 1000, 0, 0.05); last = Math.max(last, now);
+        // basılı tutma: gerçek zamanla dolar (yavaş karelerde uzamaz), bırakınca geri boşalır
+        const rdt = clamp((now - lastReal) / 1000, 0, 0.25); lastReal = Math.max(lastReal, now);
+        const padDown = !!(Input.pad && (Input.btn[PS.X] > 0.5 || Input.btn[PS.O] > 0.5 || Input.btn[PS.OPT] > 0.5));
+        if (!padDown) padArmed = true;   // sinematikten önce basılı kalan kol tuşu önce bırakılmalı
+        hold = held.size || (padArmed && padDown) ? Math.min(1, hold + rdt / HOLD) : Math.max(0, hold - rdt * 3);
+        ringP.style.strokeDashoffset = (94.25 * (1 - hold)).toFixed(2); sk.classList.toggle('hold', hold > 0);
+        if (hold >= 1 || (t > total && opts.freeze === undefined)) { finish(); return; }
+        if (SND && t > sndT) {
+          if (SND.cues) for (const c of SND.cues) if (c[0] > sndT && c[0] <= t) Audio_.cineSfx(c[1], c[2]);
+          if (SND.tick) try { SND.tick(t, sndT, (n, o) => Audio_.cineSfx(n, o)); } catch (e) {}
+          sndT = t;
+        }
         // başlık ikinci çekimde (geniş açı) belirir
         el.querySelector('.cn-cap').style.opacity = clamp((t - capAt) * 1.4, 0, 1) * clamp((Math.min(total, capEnd) - t) * 2, 0, 1);
         // altyazı: alttaki siyah şeritte konuşan kişinin adı ve sözü
         const ln = lines.find(l => t >= l.t && t < l.t + l.d) || null;
         if (ln !== curLine) { curLine = ln; if (ln && opts.onLine) try { opts.onLine(ln); } catch (e) {} lineEl.innerHTML = ln ? `<span class="cl-box"><span class="cl-n ${ln.self ? 'self' : ''}">${escapeHtml(ln.w)}</span> ${escapeHtml(ln.x)}</span>` : ''; lineEl.classList.toggle('on', !!ln); }
         const D = [];
-        S.dyn(t, D);
-        const cam = shotAt(t);
+        S.dyn(t, D); drawFlames(D, flames, t);
+        const cam = shotAt(t), fx = camFixAt(camPlan, t);
+        if (fx) cam.e = camAt(cam, fx[0], fx[1]);
         if (cam.shake) { const k = cam.shake; cam.e = [cam.e[0] + (Math.sin(t * 1.7) + Math.sin(t * 2.9) * 0.5) * k, cam.e[1] + Math.sin(t * 2.3 + 1) * k * 0.7, cam.e[2] + Math.sin(t * 1.3 + 2) * k]; }
         // yakın gölge kademesi: özneyi izler (dinamik parçalar dahil), her kare yeniden çizilir
         let nearM = null;
@@ -803,7 +971,7 @@ const Cinema = (() => {
           gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, fbTex); gl.uniform1i(QP.u.uT, 0);
           const sunOn = sw > 0 && Math.abs(sunX) < 1.3 && Math.abs(sunY) < 1.3 ? 1 : 0;
           gl.uniform2f(QP.u.uSun, sunX, sunY); gl.uniform1f(QP.u.uSunVis, sunOn); gl.uniform3fv(QP.u.uSunC, C(sky.sunC));
-          gl.uniform3fv(QP.u.uLift, G.lift); gl.uniform3fv(QP.u.uGain, G.gain); gl.uniform1f(QP.u.uSat, G.sat); gl.uniform1f(QP.u.uCon, G.con);
+          gl.uniform3fv(QP.u.uLift, GR.lift); gl.uniform3fv(QP.u.uGain, GR.gain); gl.uniform1f(QP.u.uSat, GR.sat); gl.uniform1f(QP.u.uCon, GR.con);
           // çekim geçişinde kısa bir kararma, başta ve sonda yumuşak açılış/kapanış
           let cutDip = 1; for (const c of cuts) cutDip = Math.min(cutDip, 1 - 0.85 * Math.max(0, 1 - Math.abs(t - c) / 0.12));
           gl.uniform1f(QP.u.uTime, t); gl.uniform1f(QP.u.uFade, cutDip);
@@ -823,7 +991,7 @@ const Cinema = (() => {
   }
   /* Başka dosyalardaki sahneler (hikâye sinematikleri) aynı yapı taşlarını kullanır */
   const kit = {
-    M4, V, C, ease, cl01, flatW, Mesh, building, town, tree, mountain, mesa, horseParts, rider, personParts, drawHorse, tufts, rock, worldTown,
+    M4, V, C, ease, cl01, flatW, Mesh, building, town, tree, mountain, mesa, horseParts, rider, personParts, drawHorse, tufts, rock, worldTown, camClear, flame, beats,
     build: (m) => m.build(gl), blob: () => blob,
   };
   function addScene(id, fn) { SCENES[id] = fn; }

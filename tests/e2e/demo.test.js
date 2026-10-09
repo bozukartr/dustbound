@@ -29,6 +29,11 @@ module.exports = {
       for (const w of ['GRETA_LOOK', 'Greta', 'Vance', 'Elias', 'Kanun Kaçağı: saklı', 'Debug']) t.ok(!all.includes(w), `pakette "${w}" yok`);
       const q = fs.readFileSync(path.join(D, 'js', 'quests.js'), 'utf8');
       t.ok(!/\/\*|\n {2}/.test(q.slice(0, 4000)), 'kod küçültülmüş');
+      // seslendirme: yalnızca Sully'nin hikâyesinin kayıtları (satır listesi ve senaryolar yok, kaynaklar var)
+      const L = JSON.parse(fs.readFileSync(path.join(ROOT, 'audio', 'vo', 'lines.json'), 'utf8')), sully = new Set(L.filter(l => l.story === 'sully' && l.lang === 'en').map(l => l.key));
+      const vo = fs.readdirSync(path.join(D, 'audio', 'vo', 'en')).map(f => f.replace(/\.(ogg|mp3)$/, '')), man = JSON.parse(fs.readFileSync(path.join(D, 'audio', 'vo', 'manifest.json'), 'utf8'));
+      t.ok(vo.length > 0 && vo.every(k => sully.has(k)) && man.en.length === sully.size && man.en.every(k => sully.has(k)), 'pakette yalnızca Sully hikâyesinin seslendirmesi', { vo: vo.length, man: man.en.length, sully: sully.size });
+      t.ok(!fs.existsSync(path.join(D, 'audio', 'vo', 'lines.json')) && fs.readdirSync(path.join(D, 'audio', 'vo')).every(f => !f.endsWith('.csv')) && fs.existsSync(path.join(D, 'audio', 'vo', 'KAYNAKLAR.md')), 'satır listesi ve senaryo yok, kaynaklar var');
       // depodaki oyun dosyaları yerinde
       for (const f of ['story_outlaw.js', 'story_immigrant.js', 'story_rail.js', 'story_trapper.js', 'debug.js']) t.ok(fs.existsSync(path.join(ROOT, 'js', f)), `tam oyunda ${f} duruyor`);
     });
@@ -49,7 +54,7 @@ module.exports = {
       await p.waitForFunction(() => { const c = document.getElementById('cinema'); return c && c.classList.contains('on'); }, null, { timeout: 150000 });
       const st = await p.evaluate(() => Cinema.stat());
       t.ok(st.scene === 'farm' && st.lines === 4, 'çiftçi açılışı, dört satır', st);
-      await p.keyboard.press('Enter');
+      await p.keyboard.down('Enter'); await t.sleep(1300); await p.keyboard.up('Enter');   // basılı tutunca geçer
       await p.waitForFunction(() => G.state === 'play' && !document.getElementById('cinema').classList.contains('on'), null, { timeout: 20000 });
       await t.helpers(p);
       await p.evaluate(() => { const w = document.querySelector('.modal.welcome'); if (w) UI.closeAll(); });
@@ -61,7 +66,7 @@ module.exports = {
 
       // sekizinci bölüm oynanır, dokuzuncu (kamp ve final) başlarken demo sonu
       t.eq(await p.evaluate(() => DEMO.lastCh), 8, 'sınır sekiz bölüm');
-      // bölüm atlamalarında geçiş sinematikleri açılmasın (açılırsa Enter sinematiği geçer, demo sonuna gitmez)
+      // bölüm atlamalarında geçiş sinematikleri açılmasın (açılırsa Enter sinematiğe gider, demo sonuna ulaşmaz)
       await p.evaluate(() => { window.__testNoCine = true; G.qChapter(4); });
       t.ok(await p.evaluate(() => G.story.ch === 4 && !document.getElementById('demo-end')), 'beşinci bölüm artık demoda');
       await p.evaluate(() => G.qChapter(7));
