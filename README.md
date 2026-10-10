@@ -427,12 +427,15 @@ Yeni bir test için `tests/e2e/` altına `ad.test.js` ekle: `module.exports = { 
 - **Kare hızı sınırı yok.** Oyun her ekran yenilemesinde bir kare çizer (`requestAnimationFrame`): 60, 120, 144 ya da 240 Hz ekranda o hızda. Tarayıcı ve işletim sistemi pil tasarrufunda ya da sekme arka plandayken kare hızını düşürebilir.
 - **Arka plan işlerinin bütçesi ekranın kare aralığına göredir:**
   - Melez çizimde 60 Hz'de ~6 ms, 144 Hz'de ~2.4 ms; Klasik'te 144 Hz'de ~1.7 ms, en çok 4 ms.
-  - Pişirme ~1.5 ms'lik adımlara bölünür: zemin satırları, raylar ve yassı süsler, nesneler, iç mekân döşemesi ve mobilyası, cephe ve çatı şeritleri. Tek adım yüksek tazelemeli ekranda da kareyi taşırmaz.
+  - Pişirme ~0.75 ms'lik adımlara bölünür (`World.STEP`): zemin satırları, raylar ve yassı süsler, nesneler (süreye her nesneden sonra bakılır), iç mekân döşemesi ve mobilyası, cephe ve çatı şeritleri. Tek adım yüksek tazelemeli ekranda da kareyi taşırmaz.
   - Melez'de işler görüş alanına yakınlık sırasıyla yapılır; parça ve bina örtüsü pişirme süreleri ölçülür. Görüş alanına yaklaşan bir iş bu payla yetişmeyecekse (yavaş cihazda dörtnala giderken), kalan işi görünür olana kadarki karelere yayılır, en çok bir kare süresi kadar. Böylece parça görününce tek seferde pişip ekranı dondurmaz.
   - Görüş alanına yaklaşan binaların örtüsü (cephe, çatı, tabela) görünmeden önce pişer.
 - **Piksel kamerası oyuncuya kilitlidir.** Kamera, oyuncunun yuvarlanmış konumuyla birlikte yuvarlanır; karakter ekranda titremez, zemin onunla aynı adımda kayar. NPC'ler, atlar ve hayvanlar aynı piksel ızgarasına oturur. Takip yumuşatması kare hızından bağımsızdır. Melez çizimde ızgara yarım pikseldir (tuval iki kat yoğun), kayma iki kat incedir.
 - Köz, buhar ve kıvılcım doğumları saniye başına hesaplanır; 144 Hz'de iki kat çoğalmaz.
 - **Melez ışık geçişi:** güneş gölgesi yarım çözünürlükte hesaplanıp kenarları korunarak büyütülür. Tuvalin o an ekranda görünmeyen kenar payı (dörtnala giderken kameranın uzaklaşması için çizilen fazlalık) ışıklandırılmaz; kamera uzaklaşınca ışıklanan alan da genişler.
+- **Kasabada yol bulma (A\*) ikili yığınla çalışır.**
+  - Arama dizileri kasaba ızgarasına bir kez ayrılır, her aramada yeniden oluşturulmaz.
+  - Kare başına yol bulmaya en çok ~2 ms harcanır (`TownPath.BUDGET`): bütçe dolunca yeni rota isteyen NPC sonraki kareyi bekler (en çok 8 kare). Aynı anda çok kişi rota isteyince (saat değişimi, kasabaya giriş) iş karelere yayılır.
 - **Arayüz sayfa düzenini her karede hesaplatmaz.**
   - Tuvalin ekrandaki yeri yalnızca boyu ya da CSS dönüşümü (iç mekân yakınlaşması, dörtnala uzaklaşma, sarhoşluk) değişince ölçülür (`G.canvasRect`).
   - Konuşma balonlarının boyu bir kez ölçülür, yerleri CSS dönüşümüyle verilir.

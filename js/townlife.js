@@ -98,10 +98,20 @@ const TownPath = {
     }
     return null;
   },
+  /* Kare başına yol bulma bütçesi (ms): bir karede bu kadar harcandıysa gezinme yeni rota isteğini sonraki kareye
+     bırakır (bkz. NpcNav.navStep). Aynı anda çok kişi yeni rota isteyince (saat değişimi, kasabaya giriş) iş karelere yayılır. */
+  BUDGET: 2, spent: 0, spentF: -1,
+  busy() { return this.spentF === G.fno && this.spent >= this.BUDGET; },
   /* px koordinatlarında nokta listesi döner (null: yol yok). Karo yolu önbelleğe alınır;
      sadeleştirme gerçek başlangıç konumundan ve gövde genişliğiyle yapılır: rota köşeleri
      kesip duvara sürtmez, ilk ayak da yürünebilir olur. */
   find(t, ax, ay, bx, by, r = 4.2) {
+    const t0 = performance.now(), res = this.route(t, ax, ay, bx, by, r);
+    if (this.spentF !== G.fno) { this.spentF = G.fno; this.spent = 0; }
+    this.spent += performance.now() - t0;
+    return res;
+  },
+  route(t, ax, ay, bx, by, r) {
     const g = this.grid(t);
     const s = this.near(g, (ax >> 4) - g.x0, (ay >> 4) - g.y0), e = this.near(g, (bx >> 4) - g.x0, (by >> 4) - g.y0);
     if (!s || !e) return null;
@@ -145,31 +155,49 @@ const TownPath = {
     const raw = this.astar(g, s, e, 30000);
     return raw ? this.simplify([[ax, ay], ...raw, [bx, by]], r) : null;
   },
+  /* A*: açık liste ikili yığın (en iyi aday her adımda listeyi taramadan çıkar). Arama dizileri ızgaraya bir kez
+     ayrılır; her aramada sıfırdan oluşturup doldurmak yerine arama numarasıyla (seen/shut) geçersiz sayılır. */
   astar(g, s, e, cap = 8000, cost = null) {
-    const W = g.w, N = g.w * g.h, si = s[1] * W + s[0], ei = e[1] * W + e[0];
-    const gs = new Float32Array(N).fill(1e9), came = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
-    const open = [si]; gs[si] = 0;
+    const W = g.w, H = g.h, N = W * H, si = s[1] * W + s[0], ei = e[1] * W + e[0], pass = g.pass;
+    let S = g._as;
+    if (!S || S.N !== N) S = g._as = { N, gs: new Float32Array(N), came: new Int32Array(N), seen: new Uint32Array(N), shut: new Uint32Array(N), id: 0, hn: new Int32Array(4096), hk: new Float64Array(4096) };
+    const id = ++S.id, gs = S.gs, came = S.came, seen = S.seen, shut = S.shut;
+    let hn = S.hn, hk = S.hk, hl = 0;
+    const push = (n, k) => {
+      if (hl === hn.length) { const a = new Int32Array(hl * 2), b = new Float64Array(hl * 2); a.set(hn); b.set(hk); hn = S.hn = a; hk = S.hk = b; }
+      let i = hl++;
+      while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hn[i] = hn[p]; hk[i] = hk[p]; i = p; }
+      hn[i] = n; hk[i] = k;
+    };
+    const pop = () => {
+      const top = hn[0];
+      if (--hl > 0) {
+        const n = hn[hl], k = hk[hl]; let i = 0;
+        for (;;) { let c = 2 * i + 1; if (c >= hl) break; if (c + 1 < hl && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hn[i] = hn[c]; hk[i] = hk[c]; i = c; }
+        hn[i] = n; hk[i] = k;
+      }
+      return top;
+    };
     const hf = (i) => { const dx = Math.abs(i % W - e[0]), dy = Math.abs(((i / W) | 0) - e[1]); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
-    const fs = new Float32Array(N); fs[si] = hf(si);
+    seen[si] = id; gs[si] = 0; came[si] = -1; push(si, hf(si));
     let found = false, iter = 0;
-    while (open.length && iter++ < cap) {
-      let bi = 0; for (let k = 1; k < open.length; k++) if (fs[open[k]] < fs[open[bi]]) bi = k;
-      const cur = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+    while (hl && iter++ < cap) {
+      const cur = pop();
       if (cur === ei) { found = true; break; }
-      if (closed[cur]) continue; closed[cur] = 1;
-      const cx = cur % W, cy = (cur / W) | 0;
+      if (shut[cur] === id) continue; shut[cur] = id;
+      const cx = cur % W, cy = (cur / W) | 0, gc = gs[cur];
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         if (!dx && !dy) continue;
         const nx = cx + dx, ny = cy + dy;
-        if (nx < 0 || ny < 0 || nx >= W || ny >= g.h) continue;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const ni = ny * W + nx;
-        if (!g.pass[ni] || closed[ni]) continue;
-        if (dx && dy && (!g.pass[cy * W + nx] || !g.pass[ny * W + cx])) continue;   // köşeden kesme
+        if (!pass[ni] || shut[ni] === id) continue;
+        if (dx && dy && (!pass[cy * W + nx] || !pass[ny * W + cx])) continue;   // köşeden kesme
         // duvar dibinden geçmek pahalıdır: rotalar sokağın ortasına yakın kalır
-        const wall = (nx > 0 && !g.pass[ni - 1]) || (nx < W - 1 && !g.pass[ni + 1]) || (ny > 0 && !g.pass[ni - W]) || (ny < g.h - 1 && !g.pass[ni + W]);
+        const wall = (nx > 0 && !pass[ni - 1]) || (nx < W - 1 && !pass[ni + 1]) || (ny > 0 && !pass[ni - W]) || (ny < H - 1 && !pass[ni + W]);
         // planlı şehirde kaldırım zaten bina dibinde: duvar cezası küçük, karşı kaldırıma geçmek için yolu boşuna aşmaz
-        const ng = gs[cur] + (dx && dy ? 1.41 : 1) + (wall ? (cost ? 0.08 : 0.35) : 0) + (cost ? cost[ni] * 0.5 : 0);
-        if (ng < gs[ni]) { gs[ni] = ng; came[ni] = cur; fs[ni] = ng + hf(ni); open.push(ni); }
+        const ng = gc + (dx && dy ? 1.41 : 1) + (wall ? (cost ? 0.08 : 0.35) : 0) + (cost ? cost[ni] * 0.5 : 0);
+        if (seen[ni] !== id || ng < gs[ni]) { seen[ni] = id; gs[ni] = ng; came[ni] = cur; push(ni, ng + hf(ni)); }
       }
     }
     if (!found) return null;

@@ -172,6 +172,9 @@ const NpcNav = {
     if (!N || Math.abs(N.tx - x) > 18 || Math.abs(N.ty - y) > 18) N = e.nav = { tx: x, ty: y, route: null, ri: 0, fails: 0, stuckT: 0 };
     const W = this.world;
     if (!N.route) {
+      // bu karede yol bulmaya bütçe kadar zaman harcandıysa rota sonraki kareye kalır (en çok 8 kare bekler)
+      if (TownPath.busy() && (N.wait = (N.wait || 0) + 1) <= 8) return 'moving';
+      N.wait = 0;
       const t = W.townAt(e.x, e.y, 10) || W.townAt(x, y, 10);
       N.route = this.bendRoute(e, (t && TownPath.find(t, e.x, e.y, x, y)) || [[x, y]]); N.ri = 0;
       // bina içindeyse önce kapıdan çıkar (dış rota duvarın öbür yanından başlar)
