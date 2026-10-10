@@ -955,6 +955,7 @@ const HY = (() => {
     uniform sampler2D uS; uniform vec2 uSRes;
     vec4 geo(vec2 p){ return texture2D(uG, p / uRes); }
     float hgt(vec2 p){ return texture2D(uG, p / uRes).r * 85.0; }
+    float aoAt(vec2 p, vec2 o, float h){ float d1 = hgt(p + o * 6.0) - h, d2 = hgt(p + o * 12.0) - h; return clamp(d1 / 12.0, 0.0, 1.0) + clamp(d2 / 12.0, 0.0, 1.0) * 0.5; }
     // yarım çözünürlüklü gölge: dört komşu, yüksekliği bu piksele yakın olanlar ağır basar (duvar dibi kenarı keskin kalır)
     float shadowAt(vec2 st0, float hr){
       vec2 st = st0 * uSRes - 0.5, b = floor(st), f = st - b, i0 = (b + 0.5) / uSRes, d = 1.0 / uSRes;
@@ -976,12 +977,10 @@ const HY = (() => {
       // güneş/ay gölgesi: ayrı geçişte yarım çözünürlükte hesaplanır (SHFS)
       float sh = ndl > 0.0 ? shadowAt(vU, G.r) : 1.0;
       // köşelerde ortam gölgesi
-      float occ = 0.0;
-      for (int k = 0; k < 8; k++) {
-        float a = float(k) * 0.785398; vec2 o = vec2(cos(a), sin(a));
-        float d1 = hgt(p + o * 6.0) - h, d2 = hgt(p + o * 12.0) - h;
-        occ += clamp(d1 / 12.0, 0.0, 1.0) + clamp(d2 / 12.0, 0.0, 1.0) * 0.5;
-      }
+      // sekiz yön (45 derece aralıkla) sabit: her pikselde sin/cos hesaplanmaz
+      const float R2 = 0.70710678;
+      float occ = aoAt(p, vec2(1.0, 0.0), h) + aoAt(p, vec2(R2, R2), h) + aoAt(p, vec2(0.0, 1.0), h) + aoAt(p, vec2(-R2, R2), h)
+        + aoAt(p, vec2(-1.0, 0.0), h) + aoAt(p, vec2(-R2, -R2), h) + aoAt(p, vec2(0.0, -1.0), h) + aoAt(p, vec2(R2, -R2), h);
       float ao = max(0.55, 1.0 - occ * 0.07);
       // iç mekân: çatı altı, güneş yalnızca pencere ve kapıdan
       float ak = 1.0, sk = sh;
@@ -1122,7 +1121,7 @@ const HY = (() => {
     const inView = (x, y, r) => x + r > x0 && x - r < x0 + vw && y + r > y0 - 40 && y - r < y0 + vh + 60;
     const add = (x, y, z, r, c, k, inner) => { if (k > 0.01 && inView(x, y, r)) out.push({ x, y, z, r, c, k, inner: inner ? 1 : 0 }); };
     const IB = G.insideB;
-    for (const L of W.lights) {
+    for (const L of W.lightsIn(x0, y0 - 40, x0 + vw, y0 + vh + 60)) {
       if (L.type === 'window') { if (night && Juice.windowLit(L) && !IB) add(L.x, L.y + 22, 6, L.r * 1.35, [1.0, 0.75, 0.42], 1.0 * nk); }
       else if (L.type === 'lamp') { if (night) add(L.x, L.y + 6, 14, 84 * Juice.flicker(L.x + L.y, G.t * 0.6, 0.035), [1.0, 0.72, 0.42], 1.7 * nk); }
       else if (L.type === 'inner') { if (IB && IB.id === L.b) add(L.x, L.y, 30, L.r * 1.5, [1.0, 0.8, 0.52], night ? 1.5 : 0.2, true); }

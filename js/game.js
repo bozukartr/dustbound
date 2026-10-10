@@ -1156,7 +1156,7 @@ const G = {
     const P = this.player;
     const inView = (x, y, r) => x + r > x0 && x - r < x0 + vw && y + r > y0 && y - r < y0 + vh;
     const night = dark > 0.35;
-    for (const L of this.world.lights) {
+    for (const L of this.world.lightsIn(x0, y0, x0 + vw, y0 + vh)) {
       if (!inView(L.x, L.y, L.r)) continue;
       if (L.type === 'window' && (!night || !Juice.windowLit(L))) continue;
       if (L.type === 'lamp' && !night) continue;

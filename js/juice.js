@@ -378,7 +378,7 @@ const Juice = {
     if (this.wet > 0.2 && G.daylight < 0.45 && !G.insideB) {
       const W = G.world, vw = G.vw, vh = G.vh;
       ctx.globalCompositeOperation = 'lighter';
-      for (const L of W.lights) {
+      for (const L of W.lightsIn(x0, y0, x0 + vw, y0 + vh)) {
         if (L.type !== 'lamp' && L.type !== 'window') continue;
         if (L.x < x0 - 60 || L.x > x0 + vw + 60 || L.y < y0 - 60 || L.y > y0 + vh + 60) continue;
         for (let ty = (L.y - 50) >> 4; ty <= (L.y + 50) >> 4; ty++) for (let tx = (L.x - 50) >> 4; tx <= (L.x + 50) >> 4; tx++) {
