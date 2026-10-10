@@ -168,11 +168,12 @@ const Input = {
       return this.keys.has(code) || this.tapped.has(code);
     };
     const upd = (a, d) => { this.prev[a] = this.state[a]; this.state[a] = d; this.hold[a] = d ? this.hold[a] + dt : 0; };
-    for (const g of GAME_ACTIONS) {
-      const a = g.id;
+    // her kare çalışır: dizi dolaşan döngüler yineleyici nesnesi yaratmasın diye indeksli
+    for (let gi = 0; gi < GAME_ACTIONS.length; gi++) {
+      const a = GAME_ACTIONS[gi].id, kb = this.binds.kb[a], fk = FIXED_KB[a];
       let d = false;
-      for (const c of (this.binds.kb[a] || [])) if (c && kdown(c)) { d = true; break; }
-      if (!d && FIXED_KB[a]) for (const c of FIXED_KB[a]) if (kdown(c)) { d = true; break; }
+      if (kb) for (let j = 0; j < kb.length; j++) { const c = kb[j]; if (c && kdown(c)) { d = true; break; } }
+      if (!d && fk) for (let j = 0; j < fk.length; j++) if (kdown(fk[j])) { d = true; break; }
       const pb = this.binds.pad[a];
       if (!d && pb !== null && pb !== undefined && this.btn[pb] > 0.35) d = true;
       upd(a, d);
@@ -180,7 +181,7 @@ const Input = {
     for (const a in BINDS) {
       const b = BINDS[a];
       let d = false;
-      if (b.k) for (const k of b.k) if (kdown(k)) { d = true; break; }
+      if (b.k) for (let j = 0; j < b.k.length; j++) if (kdown(b.k[j])) { d = true; break; }
       if (!d && b.p !== undefined && this.btn[b.p] > 0.35) d = true;
       if (!d && b.ax && Math.abs(this.axes[b.ax[0]]) > 0.55 && Math.sign(this.axes[b.ax[0]]) === b.ax[1]) d = true;
       upd(a, d);

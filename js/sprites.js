@@ -21,6 +21,11 @@ const MODERN_SHOP = new Set(['general', 'tailor', 'bakery', 'pharmacy', 'barber'
 const MODERN_SKIP = new Set(['church', 'station', 'stable', 'barn', 'lighthouse', 'mineentrance', 'ruin', 'docks', 'warehouse', 'lot']);
 const AUTUMN_PAL = [['#7a3416', '#a84e1c', '#d07a2a'], ['#8a5a14', '#b88024', '#e0aa3a'], ['#6a3a1a', '#94501e', '#c07030'], ['#8a6a1a', '#b89424', '#e8c040']];
 
+/* Toplanabilir bitkilerin renkleri (sap, çiçek/meyve): bir kez kurulur, her karede yeniden yaratılmaz */
+const HERB_COLS = {
+  [O.BERRY]: ['#3a5a26', '#3048a0'], [O.GINSENG]: ['#4a7a2e', '#c03020'], [O.YARROW]: ['#5a7a3a', '#f0f0e0'], [O.SAGE]: ['#8aa080', '#b0c0a8'],
+  [O.MINT]: ['#3a8a3a', '#6ac06a'], [O.OREGANO]: ['#5a7a3a', '#b080c0'], [O.MILKWEED]: ['#6a8a4a', '#f0d0e0'], [O.MUSHROOM]: ['#e8dcc8', '#a03a2a'], [O.WFLOWER]: ['#4a7a2e', '#e8c040'],
+}, HERB_COL0 = ['#5a7a3a', '#fff'];
 const Spr = {
   ell(ctx, x, y, rx, ry, col, rot = 0) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, TAU); ctx.fill(); },
   circ(ctx, x, y, r, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); },
@@ -439,10 +444,7 @@ const Spr = {
 
   /* Dinamik çizilen toplanabilir bitkiler */
   herb(ctx, type, x, y, t, glow) {
-    const cols = {
-      [O.BERRY]: ['#3a5a26', '#3048a0'], [O.GINSENG]: ['#4a7a2e', '#c03020'], [O.YARROW]: ['#5a7a3a', '#f0f0e0'], [O.SAGE]: ['#8aa080', '#b0c0a8'],
-      [O.MINT]: ['#3a8a3a', '#6ac06a'], [O.OREGANO]: ['#5a7a3a', '#b080c0'], [O.MILKWEED]: ['#6a8a4a', '#f0d0e0'], [O.MUSHROOM]: ['#e8dcc8', '#a03a2a'], [O.WFLOWER]: ['#4a7a2e', '#e8c040'],
-    }[type] || ['#5a7a3a', '#fff'];
+    const cols = HERB_COLS[type] || HERB_COL0;
     if (glow) { ctx.fillStyle = 'rgba(255,240,180,0.25)'; ctx.beginPath(); ctx.arc(x, y, 7 + Math.sin(t * 4) * 1, 0, TAU); ctx.fill(); }
     if (type === O.MUSHROOM) {
       ctx.fillStyle = cols[0]; ctx.fillRect(x - 0.8, y - 1, 1.6, 3);

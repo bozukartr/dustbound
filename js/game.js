@@ -261,10 +261,15 @@ const G = {
       this.romances[t.id] = { id: 'rom_' + t.id, name: R.pick(NAMES[sex]) + ' ' + R.pick(NAMES.last), sex, look, rel: 0 };
     });
   },
-  async buildWorld(seed) {
+  /* season: yüklenen kaydın mevsimi (önbellekten gelen dünyanın haritası doğrudan bu mevsimle çizilir) */
+  async buildWorld(seed, season) {
     UI.showLoading(true);
-    const w = new World(seed);
-    await w.generate((msg, p) => UI.loading(msg, p));
+    let w = await WorldCache.load(seed, season, (msg, p) => UI.loading(msg, p));
+    if (!w) {
+      w = new World(seed);
+      await w.generate((msg, p) => UI.loading(msg, p));
+      WorldCache.save(w);   // üretilen dünyanın kopyası arka planda önbelleğe yazılır
+    }
     World.initTables(seed);
     this.world = w;
     w.doorFn = (b) => this.doorOpen(b);
@@ -405,7 +410,8 @@ const G = {
     this.resetState();
     this.slot = L.n;
     this.seed = d.seed;
-    await this.buildWorld(d.seed);
+    Object.assign(this, { clock: d.clock, pace: d.pace });   // mevsim dünya kurulmadan bilinsin
+    await this.buildWorld(d.seed, this.season);
     Object.assign(this, { clock: d.clock, pace: d.pace, difficulty: d.difficulty, background: d.background, profile: d.profile, honor: d.honor, bank: d.bank, scars: d.scars || 0, goalReached: d.goalReached });
     Object.assign(this.weather, d.weather); Object.assign(this.law, d.law); this.law.level = 0; this.law.maskBounty = 0; this.law.masked = false; this.law.resist = false; this.law.arrestT = 0; this.law.warned = false;
     Object.assign(this.stats, d.stats); Object.assign(this.skills, d.skills); this.achieved = d.achieved || {};
@@ -1014,9 +1020,9 @@ const G = {
   /* Bina cepheleri ve çatıları: içerideyken ya da arkasındayken soluklaşır */
   drawCovers(ctx, x0, y0, x1, y1, dt) {
     const W = this.world, P = this.player, IB = this.insideB;
-    const k = Math.min(1, dt * 7);
-    for (const b of W.buildings) {
-      const bx = b.x * TS, by = b.y * TS, bw = b.w * TS, bh = b.h * TS;
+    const k = Math.min(1, dt * 7), BS = W.buildings;
+    for (let bi = 0; bi < BS.length; bi++) {
+      const b = BS[bi], bx = b.x * TS, by = b.y * TS, bw = b.w * TS, bh = b.h * TS;
       if (bx + bw + 50 < x0 || bx - 50 > x1 || by + bh + 30 < y0 || by - 80 > y1) continue;
       let target = 1;
       if (b === IB) target = 0;

@@ -131,10 +131,21 @@ function hexToRgb(h) {
   const n = parseInt(h.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
+/* Koyulaştır/açıklaştır. Sonuç renk ve orana göre önbelleklenir (her karede aynı renkler istenir); en çok 4096 kayıt */
+const SHADE_C = new Map();
+let SHADE_N = 0;
 function shadeHex(h, f) {
-  const [r, g, b] = hexToRgb(h);
-  const m = v => clamp(Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f), 0, 255);
-  return `rgb(${m(r)},${m(g)},${m(b)})`;
+  let m = SHADE_C.get(h);
+  if (m === undefined) SHADE_C.set(h, m = new Map());
+  let out = m.get(f);
+  if (out === undefined) {
+    const [r, g, b] = hexToRgb(h);
+    const k = v => clamp(Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f), 0, 255);
+    out = `rgb(${k(r)},${k(g)},${k(b)})`;
+    if (++SHADE_N > 4096) { SHADE_C.clear(); SHADE_N = 1; SHADE_C.set(h, m = new Map()); }
+    m.set(f, out);
+  }
+  return out;
 }
 function mixHex(a, b, t) {
   const A = hexToRgb(a), B = hexToRgb(b);

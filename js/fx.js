@@ -276,9 +276,9 @@ const FX = {
     const W = G.world, h = G.hour, IB = G.insideB;
     const morning = h >= 5.5 && h < 10, evening = h >= 17 && h < 23;
     const coldK = this.temp < 8;
-    const rate = this.full ? 2.6 : 1.3;
-    for (const b of W.buildings) {
-      const X = b.x * TS, Y = b.y * TS;
+    const rate = this.full ? 2.6 : 1.3, BS = W.buildings;
+    for (let bi = 0; bi < BS.length; bi++) {
+      const b = BS[bi], X = b.x * TS, Y = b.y * TS;
       if (X > x1 || X + b.w * TS < x0 || Y > y1 || Y < y0) continue;
       if (b.def.ruin || b.type === 'station' || b === IB) continue;
       const hh = hash2(b.x, b.y, 5);

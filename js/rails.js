@@ -14,9 +14,11 @@ const RAIL_HALF = 9;      // ray ekseninden vagon kenarına (yarı genişlik)
 const RAIL_STEP = 6;      // koridor örnek aralığı (px)
 
 const RailSystems = {
-  /* Her kare: trenlerin tehlike koridorları ve vagon çarpışma çemberleri */
+  /* Her kare: trenlerin tehlike koridorları ve vagon çarpışma çemberleri.
+     Diziler her karede yeniden yaratılmaz, yerinde güncellenir (okuyanlar aynı karede okur). */
   railTick() {
-    const zones = [];
+    const zones = this.railZones || (this.railZones = []);
+    zones.length = 0;
     for (const tr of this.trains) {
       if (!tr.pos[0]) continue;
       const L = tr.line, dir = tr.dir;
@@ -25,31 +27,36 @@ const RailSystems = {
       const ahead = moving ? Math.max(50, tr.spd * RAIL_WARN) : leaving ? 70 : 0;
       const sTail = tr.s - dir * ((tr.cars.length - 1) * tr.gap + 16), sHead = tr.s + dir * (16 + ahead);
       const a = Math.min(sTail, sHead), b = Math.max(sTail, sHead);
-      const pts = [];
-      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      const Z = tr.zone || (tr.zone = { tr, pts: [], x0: 0, y0: 0, x1: 0, y1: 0, moving: false }), pts = Z.pts;
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, n = 0;
       for (let s = Math.max(0, a); s <= Math.min(L.len, b) + 0.1; s += RAIL_STEP) {
-        const p = tr.at(s);
+        const p = tr.at(s, pts[n] || (pts[n] = [0, 0, 0, 0]));
         // ETA: lokomotifin bu noktaya varış süresi (gövdenin altı: 0)
         const ds = (s - tr.s) * dir;
-        p.push(ds <= 0 ? 0 : ds / Math.max(tr.spd, moving ? 12 : 6) + (moving ? 0 : tr.wait));
-        pts.push(p);
+        p[3] = ds <= 0 ? 0 : ds / Math.max(tr.spd, moving ? 12 : 6) + (moving ? 0 : tr.wait);
+        n++;
         if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
       }
-      if (pts.length) zones.push({ tr, pts, x0, y0, x1, y1, moving: moving || leaving });
+      pts.length = n;
+      if (n) { Z.x0 = x0; Z.y0 = y0; Z.x1 = x1; Z.y1 = y1; Z.moving = moving || leaving; zones.push(Z); }
       // vagon çemberleri (vagon 26-28 px boyunda, 12 px eninde: üç çember) ve sınır kutusu
-      const cc = [];
+      const cc = tr.circles || (tr.circles = []), np = tr.pos.length;
       let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
-      for (const [x, y, ang] of tr.pos) {
-        const c = Math.cos(ang) * 8, s = Math.sin(ang) * 8;
-        cc.push([x + c, y + s], [x, y], [x - c, y - s]);
+      for (let i = 0; i < np; i++) {
+        const q = tr.pos[i], x = q[0], y = q[1], c = Math.cos(q[2]) * 8, s = Math.sin(q[2]) * 8;
+        const A = cc[3 * i] || (cc[3 * i] = [0, 0]), B = cc[3 * i + 1] || (cc[3 * i + 1] = [0, 0]), D = cc[3 * i + 2] || (cc[3 * i + 2] = [0, 0]);
+        A[0] = x + c; A[1] = y + s; B[0] = x; B[1] = y; D[0] = x - c; D[1] = y - s;
         bx0 = Math.min(bx0, x); by0 = Math.min(by0, y); bx1 = Math.max(bx1, x); by1 = Math.max(by1, y);
       }
-      tr.circles = cc; tr.box = [bx0 - 20, by0 - 20, bx1 + 20, by1 + 20];
+      cc.length = 3 * np;
+      const B = tr.box || (tr.box = [0, 0, 0, 0]);
+      B[0] = bx0 - 20; B[1] = by0 - 20; B[2] = bx1 + 20; B[3] = by1 + 20;
     }
-    this.railZones = zones;
     // katı arabalar: hayvanlar ve sahipsiz atlar içlerinden geçemez (yayalar ve oyuncu kasaba içinde
     // park etmiş arabaların arasından geçebilir; arabalar onlar için zaten durur, onlar da arabadan kaçar)
-    this.wagonsNow = this.ents.filter(o => o.kind === 'wagon' && !o.remove && !o.hide);
+    const wn = this.wagonsNow || (this.wagonsNow = []);
+    wn.length = 0;
+    for (let i = 0; i < this.ents.length; i++) { const o = this.ents[i]; if (o.kind === 'wagon' && !o.remove && !o.hide) wn.push(o); }
   },
   /* (x, y, r) bir arabanın gövdesine ya da atlarına giriyor mu: yalnızca hayvanlar ve atlar için */
   wagonBlock(x, y, r, self) {
@@ -67,19 +74,23 @@ const RailSystems = {
   solidAt(x, y, r, self) { return this.trainBlock(x, y, r) || this.wagonBlock(x, y, r, self); },
   /* (x, y) çevresindeki tehlike: koridora `pad` mesafesinden yakınsa en yakın ray noktası, yönü ve varış süresi */
   railDanger(x, y, pad) {
-    let best = null;
-    for (const Z of this.railZones || []) {
+    // en yakın nokta: ara nesne yaratmadan (yalnızca tehlike varsa sonuç nesnesi)
+    const Zs = this.railZones;
+    if (!Zs) return null;
+    let bd = 0, bi = -1, bZ = null;
+    for (let z = 0; z < Zs.length; z++) {
+      const Z = Zs[z];
       if (x < Z.x0 - pad - RAIL_HALF || x > Z.x1 + pad + RAIL_HALF || y < Z.y0 - pad - RAIL_HALF || y > Z.y1 + pad + RAIL_HALF) continue;
       const P = Z.pts;
       for (let i = 0; i < P.length; i++) {
         const dx = x - P[i][0], dy = y - P[i][1], d2 = dx * dx + dy * dy, lim = RAIL_HALF + pad;
-        if (d2 < lim * lim && (!best || d2 < best.d2)) best = { d2, i, Z };
+        if (d2 < lim * lim && (!bZ || d2 < bd)) { bd = d2; bi = i; bZ = Z; }
       }
     }
-    if (!best) return null;
-    const P = best.Z.pts, p = P[best.i], q = P[Math.min(P.length - 1, best.i + 1)], o = P[Math.max(0, best.i - 1)];
+    if (!bZ) return null;
+    const P = bZ.pts, p = P[bi], q = P[Math.min(P.length - 1, bi + 1)], o = P[Math.max(0, bi - 1)];
     const tang = Math.atan2(q[1] - o[1], q[0] - o[0]);
-    return { d: Math.sqrt(best.d2), x: p[0], y: p[1], tang, eta: p[3], tr: best.Z.tr, moving: best.Z.moving };
+    return { d: Math.sqrt(bd), x: p[0], y: p[1], tang, eta: p[3], tr: bZ.tr, moving: bZ.moving };
   },
   /* Raydan dik yönde uzaklaşma açısı (bulunulan taraf; tam ortadaysa kimliğe göre bir yan) */
   railAway(e, D) {
@@ -88,10 +99,12 @@ const RailSystems = {
   },
   /* Vagonlarla çakışma: (x, y, r) bir trenin gövdesine giriyor mu */
   trainBlock(x, y, r) {
-    for (const tr of this.trains) {
-      const B = tr.box;
+    const TR = this.trains;
+    for (let t = 0; t < TR.length; t++) {
+      const tr = TR[t], B = tr.box;
       if (!B || x < B[0] || x > B[2] || y < B[1] || y > B[3]) continue;
-      for (const [cx, cy] of tr.circles) { const lim = r + 6; if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < lim * lim) return tr; }
+      const cc = tr.circles;
+      for (let i = 0; i < cc.length; i++) { const cx = cc[i][0], cy = cc[i][1], lim = r + 6; if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < lim * lim) return tr; }
     }
     return null;
   },

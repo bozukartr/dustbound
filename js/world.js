@@ -1688,54 +1688,67 @@ class World {
     }
     const PA = this._paper, CT = 9;   // eş yükselti aralığı
     const ev = (x, y) => E[(y < 0 ? 0 : y >= WH ? WH - 1 : y) * WW + (x < 0 ? 0 : x >= WW ? WW - 1 : x)];
-    // karo başına bir kez: gölge ve eş yükselti geçişleri (1: sağa, 2: aşağı)
+    // karo başına bir kez: gölge ve eş yükselti geçişleri (1: sağa, 2: aşağı); komşular yalnız kenarda sınırlanır
     const SH = new Int8Array(N), CF = new Uint8Array(N);
-    for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
-      const i = y * WW + x, gx = ev(x + 1, y) - ev(x - 1, y), gy = ev(x, y + 1) - ev(x, y - 1);
-      SH[i] = clamp(-(gx + gy) * 2.2, -46, 30);
-      const e0 = (E[i] / CT) | 0;
-      CF[i] = (e0 !== ((ev(x + 1, y) / CT) | 0) ? 1 : 0) | (e0 !== ((ev(x, y + 1) / CT) | 0) ? 2 : 0);
+    for (let y = 0; y < WH; y++) {
+      const edge = y === 0 || y === WH - 1;
+      for (let x = 0; x < WW; x++) {
+        const i = y * WW + x;
+        let eR, eL, eD, eU;
+        if (edge || x === 0 || x === WW - 1) { eR = ev(x + 1, y); eL = ev(x - 1, y); eD = ev(x, y + 1); eU = ev(x, y - 1); }
+        else { eR = E[i + 1]; eL = E[i - 1]; eD = E[i + WW]; eU = E[i - WW]; }
+        SH[i] = clamp(-((eR - eL) + (eD - eU)) * 2.2, -46, 30);
+        const e0 = (E[i] / CT) | 0;
+        CF[i] = (e0 !== ((eR / CT) | 0) ? 1 : 0) | (e0 !== ((eD / CT) | 0) ? 2 : 0);
+      }
     }
-    const winter = this.season === 3, SN = winter ? new Uint8Array(N) : null;
+    const winter = this.season === 3, autumn = this.season === 2, SN = winter ? new Uint8Array(N) : null;
     const hsh = (a, b, k) => { let h = (a * 374761393 + b * 668265263 + k * 1442695041) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-    const rows = (Y0, Y1) => { for (let Y = Y0; Y < Y1; Y++) {
-      const y = Y >> 1, sy = Y & 1;
-      for (let X = 0; X < MW; X++) {
-        const x = X >> 1, sx = X & 1, i = y * WW + x, t = tile[i];
-        const mc = MC[t]; let r = mc[0], g = mc[1], b = mc[2];
-        if (t === T.TOWN || t === T.ROAD || t === T.BRIDGE || t === T.PLANK || isStoneT(t)) { r = 196; g = 172; b = 132; }   // yollar vektörel çizilir
-        if (winter && SNOWABLE[t] && (sx | sy) === 0 ? (SN[i] = this.snowAmt(i, (hash2(x, y, 71) - 0.5) * 0.8) > 0.25 ? 1 : 0) : winter && SN[i]) { r = 238; g = 236; b = 230; }
-        else if (this.season === 2 && LEAFY[t]) { r += 14; g -= 4; b -= 16; }
-        const water = sd[i] > 0;
-        let sh = 0;
-        if (!water) {
-          // tepe gölgelendirmesi: kuzeybatıdan ışık
-          sh = SH[i];
-          // eş yükselti çizgisi (1 piksel)
-          if ((sx && (CF[i] & 1)) || (sy && (CF[i] & 2))) { r = r * 0.8 + 16; g = g * 0.78 + 8; b = b * 0.76; sh -= 6; }
-          if (isCliffT(t) && ((X + Y) % 3 === 0)) sh -= 34;                 // yamaç taraması
-          if ((t === T.ROCK || t === T.REDROCK) && ((X - Y) % 5 === 0)) sh -= 14;
-          if ((t === T.DESERT || t === T.SAND || t === T.DRY) && hsh(X, Y, 17) < 0.05) sh -= 26;   // kum beneği
-          if ((t === T.FOREST || t === T.SWAMP) && !sx && !sy && hsh(x, y, 5) < 0.34) { r -= 46; g -= 38; b -= 40; }   // ağaç noktası
-          else if ((t === T.FOREST || t === T.SWAMP) && sx && sy && hsh(x, y, 5) < 0.34) sh -= 18;               // gölgesi
-          const o = obj[i];
-          if (o && SOLID_O[o] && o < 20 && t !== T.FOREST) sh -= 16;
-          // kıyı çizgisi: suya bakan kara kenarı mürekkeple
-          if ((sd[i - 1] === 1 && !sx) || (sd[i + 1] === 1 && sx) || (sd[i - WW] === 1 && !sy) || (sd[i + WW] === 1 && sy)) { r = 70; g = 84; b = 88; sh = 0; }
-        } else {
-          // su: derine gittikçe koyulaşır, kıyıya paralel tarama çizgileri
-          const k = sd[i];
-          r -= k * 5; g -= k * 3; b -= k * 1;
-          if (k <= 3 && ((Y + k * 3) % 5 === 0)) { r -= 18; g -= 12; b -= 6; }
-          if (t === T.DEEP) { r -= 8; g -= 4; }
+    // karo karo: 2x2 pikselin ortak değerleri bir kez hesaplanır, pikseller soldan sağa ve yukarıdan aşağı aynı sırayla işlenir
+    // (Y0 ve Y1 çift; d bir Uint8ClampedArray olduğundan değerler yazılırken 0..255 aralığına sınırlanıp yuvarlanır)
+    const rows = (Y0, Y1) => { for (let y = Y0 >> 1; y < Y1 >> 1; y++) {
+      for (let x = 0; x < WW; x++) {
+        const i = y * WW + x, t = tile[i], mc = MC[t];
+        let r0 = mc[0], g0 = mc[1], b0 = mc[2];
+        if (t === T.TOWN || t === T.ROAD || t === T.BRIDGE || t === T.PLANK || isStoneT(t)) { r0 = 196; g0 = 172; b0 = 132; }   // yollar vektörel çizilir
+        // kış: kar karonun sol üst pikselinde bir kez hesaplanır
+        if (winter && SNOWABLE[t]) SN[i] = this.snowAmt(i, (hash2(x, y, 71) - 0.5) * 0.8) > 0.25 ? 1 : 0;
+        if (winter && SN[i]) { r0 = 238; g0 = 236; b0 = 230; }
+        else if (autumn && LEAFY[t]) { r0 += 14; g0 -= 4; b0 -= 16; }
+        const water = sd[i] > 0, k = sd[i], fl = flags[i], pa = PA[i], sh0 = SH[i], cf = CF[i];
+        const cliff = isCliffT(t), rock = t === T.ROCK || t === T.REDROCK, sand = t === T.DESERT || t === T.SAND || t === T.DRY;
+        const dot = (t === T.FOREST || t === T.SWAMP) && hsh(x, y, 5) < 0.34, o = obj[i], solidO = o && SOLID_O[o] && o < 20 && t !== T.FOREST;
+        const cL = sd[i - 1] === 1, cR = sd[i + 1] === 1, cU = sd[i - WW] === 1, cD = sd[i + WW] === 1;
+        for (let q = 0; q < 4; q++) {
+          const sx = q & 1, sy = q >> 1, X = 2 * x + sx, Y = 2 * y + sy;
+          let r = r0, g = g0, b = b0, sh = 0;
+          if (!water) {
+            // tepe gölgelendirmesi: kuzeybatıdan ışık
+            sh = sh0;
+            // eş yükselti çizgisi (1 piksel)
+            if ((sx && (cf & 1)) || (sy && (cf & 2))) { r = r * 0.8 + 16; g = g * 0.78 + 8; b = b * 0.76; sh -= 6; }
+            if (cliff && ((X + Y) % 3 === 0)) sh -= 34;                 // yamaç taraması
+            if (rock && ((X - Y) % 5 === 0)) sh -= 14;
+            if (sand && hsh(X, Y, 17) < 0.05) sh -= 26;   // kum beneği
+            if (dot && !sx && !sy) { r -= 46; g -= 38; b -= 40; }   // ağaç noktası
+            else if (dot && sx && sy) sh -= 18;                     // gölgesi
+            if (solidO) sh -= 16;
+            // kıyı çizgisi: suya bakan kara kenarı mürekkeple
+            if ((cL && !sx) || (cR && sx) || (cU && !sy) || (cD && sy)) { r = 70; g = 84; b = 88; sh = 0; }
+          } else {
+            // su: derine gittikçe koyulaşır, kıyıya paralel tarama çizgileri
+            r -= k * 5; g -= k * 3; b -= k * 1;
+            if (k <= 3 && ((Y + k * 3) % 5 === 0)) { r -= 18; g -= 12; b -= 6; }
+            if (t === T.DEEP) { r -= 8; g -= 4; }
+          }
+          if (fl & 2) { r = 40; g = 30; b = 22; sh = ((x + y) & 1) ? 0 : 50; }
+          if (fl & 8) { r = 82; g = 56; b = 36; sh = (sx || sy) ? 0 : 14; }   // binalar
+          const n = pa + (hsh(X, Y, 3) - 0.5) * 7;
+          const k4 = (Y * MW + X) * 4;
+          // hafif sepya kâğıt tonu
+          r = r + sh + n; g = g + sh + n; b = b + sh * 0.8 + n;
+          d[k4] = r * 0.94 + 18; d[k4 + 1] = g * 0.92 + 12; d[k4 + 2] = b * 0.86 + 4; d[k4 + 3] = 255;
         }
-        if (flags[i] & 2) { r = 40; g = 30; b = 22; sh = ((x + y) & 1) ? 0 : 50; }
-        if (flags[i] & 8) { r = 82; g = 56; b = 36; sh = (sx || sy) ? 0 : 14; }   // binalar
-        const n = PA[i] + (hsh(X, Y, 3) - 0.5) * 7;
-        const k4 = (Y * MW + X) * 4;
-        // hafif sepya kâğıt tonu
-        r = r + sh + n; g = g + sh + n; b = b + sh * 0.8 + n;
-        d[k4] = clamp(r * 0.94 + 18, 0, 255); d[k4 + 1] = clamp(g * 0.92 + 12, 0, 255); d[k4 + 2] = clamp(b * 0.86 + 4, 0, 255); d[k4 + 3] = 255;
       }
     } };
     const done = () => { ctx.putImageData(img, 0, 0); this.mapCanvas = c; this.mapScale = S; };
@@ -2042,3 +2055,160 @@ class World {
 /* Pişirme adımının uzunluğu (ms): parça pişirme bu süre dolunca sırayı kareye bırakır. Kare bütçesi en çok bu kadar aşılır;
    144 Hz'de bir kare ~7 ms. */
 World.STEP = 0.75;
+
+/* ==========================================================
+   Dünya önbelleği: kayıt yüklenince dünya sıfırdan üretilmez.
+   Üretilen dünya (kayıt uygulanmadan önceki hâli) IndexedDB'ye sıkıştırılıp yazılır; masaüstünde
+   de tarayıcı deposunda durur, Steam bulutuna gitmez. Kayıt anahtarı tohum, dünya boyu, dünya
+   sürümü ve dildir (üretimde bazı adlar o anki dile çevrilir). Kayıtla birlikte üretim kodunun
+   ve kullandığı tabloların özeti de saklanır: oyun güncellenince eski kayıt kullanılmaz, dünya
+   yeniden üretilip yazılır. Harita resmi saklanmaz; yüklemede kaydın mevsimiyle çizilir.
+   En son kullanılan birkaç dünya tutulur. window.__noWorldCache önbelleği kapatır.
+   ========================================================== */
+const WorldCache = {
+  DB: 'frontiersend_worlds', V: 1, MAX: 4,
+  last: null,   // son okuma/yazma özeti (testler ve hata ayıklama için)
+  _db: null,
+  ok() {
+    try { return typeof indexedDB !== 'undefined' && typeof structuredClone === 'function' && !window.__noWorldCache; } catch (e) { return false; }
+  },
+  key(seed) { return seed + '_' + WW + '_' + WGEN + '_' + (typeof I18N !== 'undefined' ? I18N.lang : 'tr'); },
+  /* Üretim kodu ve tablolarının özeti: biri değişince önbellekteki dünya geçersiz olur */
+  fp() {
+    const lang = typeof I18N !== 'undefined' ? I18N.lang : 'tr', id = lang + WW + '_' + WGEN;
+    if (this._fp && this._fpId === id) return this._fp;
+    const parts = [this.V, WW, WH, WGEN, lang, String(World)];
+    for (const k of Object.getOwnPropertyNames(World.prototype)) { const d = Object.getOwnPropertyDescriptor(World.prototype, k); parts.push(k, String(d.value || d.get || '')); }
+    for (const f of [Noise, RNG, mulberry32, hash2, clamp, lerp, dist, dist2, turnTo, angDiff, hexToRgb, shadeHex, mixHex, segDist2, isWaterT, isCliffT, isStoneT, inWorld]) parts.push(String(f));
+    parts.push(JSON.stringify([T, O, TINFO, SOLID_O, TRUNK_O, TRUNK_R, TRUNK_DY, SNOWABLE, LEAFY, [...AREA_NEUTRAL], HARVEST, SNOW_LINE, CHUNK, CG,
+      BUILDINGS, TOWNS, RAIL_LINES, REGIONS, LANDMARKS, CAMPS, FARMS, PROPERTIES, typeof CITY_ZONE !== 'undefined' ? [CITY_ZONE, CITY_PRIO, CITY_CARTS, CITY_RIDERS] : null]));
+    const s = parts.join('\u0001');
+    let h1 = 0x811c9dc5, h2 = 0x9e3779b9;
+    for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 ^ c, 0x5bd1e995); h2 ^= h2 >>> 15; }
+    this._fpId = id;
+    return this._fp = (h1 >>> 0).toString(36) + '.' + (h2 >>> 0).toString(36) + '.' + s.length;
+  },
+  open() {
+    if (!this._db) this._db = new Promise((res, rej) => {
+      const q = indexedDB.open(this.DB, 1);
+      q.onupgradeneeded = () => q.result.createObjectStore('w');
+      q.onsuccess = () => res(q.result);
+      q.onerror = () => rej(q.error);
+      q.onblocked = () => rej(new Error('IndexedDB engellendi'));
+    }).catch((e) => { this._db = null; throw e; });
+    return this._db;
+  },
+  /* Tek işlem: fn(depo, sonuç) — sonuç(v) işlemin döndüreceği değeri verir */
+  async tx(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('w', mode); let out;
+      fn(t.objectStore('w'), (v) => { out = v; });
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('işlem iptal'));
+    });
+  },
+  /* Sıkıştırılmış veri: deflate (bozulmaya karşı sağlama toplamı içerir) */
+  async pipe(u8, S) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new S('deflate'))).arrayBuffer()); },
+  /* Üretimden hemen sonraki dünyanın kopyası (eşzamanlı; oyun dünyayı değiştirmeden önce alınır).
+     Tipli diziler tek tampona, geri kalanı yapılandırılmış kopyayla. Bina tanımları ve kasaba
+     tanımının listeleri genel tablolardandır: kopyada hangi tabloya ait oldukları yazılır, geri
+     yüklemede aynı nesneye bağlanır. Başka bir genel tabloya başvuru varsa dünya önbelleğe alınmaz. */
+  snapshot(w) {
+    const SKIP = new Set(['mapCanvas', 'rng', 'chunks', 'jobs', 'doorFn']), order = Object.keys(w), src = {}, arrays = [];
+    let bytes = 0;
+    for (const k of order) {
+      const v = w[k];
+      if (SKIP.has(k) || (k[0] === '_' && k !== '_paper')) continue;
+      if (ArrayBuffer.isView(v)) { arrays.push([k, v]); bytes += Math.ceil(v.byteLength / 8) * 8; } else src[k] = v;
+    }
+    const defKey = new Map(Object.entries(BUILDINGS).map(([k, d]) => [d, k]));
+    const defs = w.buildings.map(b => (b.def === undefined ? null : defKey.has(b.def) ? defKey.get(b.def) : false));
+    if (defs.includes(false)) return null;
+    const links = [], allowed = new Set(defKey.keys());
+    w.towns.forEach((t, i) => {
+      const td = TOWNS.find(d => d.id === t.id);
+      if (td) for (const k of Object.keys(td)) if (td[k] && typeof td[k] === 'object' && t[k] === td[k]) { links.push([i, k]); allowed.add(td[k]); }
+    });
+    // genel tablolara giden başka başvuru var mı
+    const tables = new Set(), seen = new Set();
+    const walkT = (o, d) => { if (!o || typeof o !== 'object' || tables.has(o) || d > 8) return; tables.add(o); for (const k of Object.keys(o)) walkT(o[k], d + 1); };
+    for (const t of I18N.TABLES()) walkT(t, 0);
+    const st = [src];
+    while (st.length) {
+      const o = st.pop();
+      if (!o || typeof o !== 'object' || seen.has(o) || ArrayBuffer.isView(o)) continue;
+      seen.add(o);
+      if (tables.has(o)) { if (allowed.has(o)) continue; return null; }
+      if (o instanceof Map) { for (const [a, b] of o) st.push(a, b); continue; }
+      if (o instanceof Set) { for (const a of o) st.push(a); continue; }
+      for (const k of Object.keys(o)) st.push(o[k]);
+    }
+    const buf = new Uint8Array(bytes), ta = [];
+    let off = 0;
+    for (const [k, v] of arrays) { buf.set(new Uint8Array(v.buffer, v.byteOffset, v.byteLength), off); ta.push([k, v.constructor.name, v.length, off]); off += Math.ceil(v.byteLength / 8) * 8; }
+    return { order, ta, buf, plain: structuredClone(src), defs, links };
+  },
+  /* Üretilen dünyayı arka planda yaz (oyunu bekletmez) */
+  save(w) {
+    if (!this.ok()) return null;
+    let snap = null;
+    try { snap = this.snapshot(w); } catch (e) { console.warn('dünya önbelleğe alınamadı', e); }
+    if (!snap) return null;
+    const key = this.key(w.seed), fp = this.fp(), t0 = performance.now();
+    return this._saving = (async () => {
+      const z = typeof CompressionStream !== 'undefined';
+      const data = z ? await this.pipe(snap.buf, CompressionStream) : snap.buf;
+      const rec = { v: this.V, fp, seed: w.seed, z, order: snap.order, ta: snap.ta, data, plain: snap.plain, defs: snap.defs, links: snap.links };
+      await this.tx('readwrite', (s) => {
+        s.put(rec, key);
+        const q = s.get('_lru');
+        q.onsuccess = () => {
+          const L = q.result || {};
+          L[key] = { t: Date.now(), fp };
+          const keep = Object.keys(L).filter(k => L[k].fp === fp).sort((a, b) => L[b].t - L[a].t).slice(0, this.MAX);
+          for (const k of Object.keys(L)) if (!keep.includes(k)) { s.delete(k); delete L[k]; }
+          s.put(L, '_lru');
+        };
+      });
+      this.last = { saved: key, saveMs: Math.round(performance.now() - t0), bytes: data.byteLength };
+      return true;
+    })().catch((e) => { console.warn('dünya önbelleği yazılamadı', e); return false; });
+  },
+  /* Önbellekteki dünya: yoksa ya da geçersizse null. Harita verilen mevsimle çizilir. */
+  async load(seed, season, progress) {
+    if (!this.ok()) return null;
+    const t0 = performance.now(), key = this.key(seed), fp = this.fp();
+    let rec = null;
+    try { rec = await this.tx('readonly', (s, set) => { const q = s.get(key); q.onsuccess = () => set(q.result); }); } catch (e) { rec = null; }
+    if (!rec || rec.v !== this.V || rec.fp !== fp || rec.seed !== seed) { this.last = { hit: false, key }; return null; }
+    const t1 = performance.now();
+    try {
+      const raw = rec.z ? await this.pipe(rec.data, DecompressionStream) : rec.data, A = {}, t2 = performance.now();
+      for (const [k, C, n, off] of rec.ta) A[k] = new globalThis[C](raw.buffer, raw.byteOffset + off, n);   // açılan tamponun üzerinde (8 bayt hizalı)
+      const w = Object.create(World.prototype), P = rec.plain;
+      for (const k of rec.order) {
+        if (k in A) w[k] = A[k];
+        else if (k === 'rng') w.rng = new RNG(seed * 7 + 13);   // yalnızca üretimde kullanılır
+        else if (k === 'chunks' || k === 'jobs') w[k] = new Map();
+        else if (k === 'mapCanvas') w.mapCanvas = null;
+        else if (k in P) w[k] = P[k];
+      }
+      rec.defs.forEach((d, i) => { if (d !== null) w.buildings[i].def = BUILDINGS[d]; });
+      for (const [i, k] of rec.links) w.towns[i][k] = TOWNS.find(d => d.id === w.towns[i].id)[k];
+      const t3 = performance.now();
+      if (progress) { progress(Tr('Harita çiziliyor...'), 0.85); await new Promise(r => setTimeout(r, 0)); }
+      w.season = season || 0;
+      const t4 = performance.now();
+      w.buildMapImage();
+      const t5 = performance.now();
+      this.last = { hit: true, key, ms: Math.round(t5 - t0), read: Math.round(t1 - t0), unzip: Math.round(t2 - t1), build: Math.round(t3 - t2), map: Math.round(t5 - t4) };
+      this.tx('readwrite', (s) => { const q = s.get('_lru'); q.onsuccess = () => { const L = q.result || {}; L[key] = { t: Date.now(), fp }; s.put(L, '_lru'); }; }).catch(() => {});
+      return w;
+    } catch (e) {
+      console.warn('dünya önbelleği okunamadı', e);
+      this.last = { hit: false, key, err: String(e) };
+      this.tx('readwrite', (s) => s.delete(key)).catch(() => {});
+      return null;
+    }
+  },
+};

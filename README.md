@@ -274,7 +274,7 @@ Tuşların hepsi **Ayarlar → Tuş Atamaları** ekranından değiştirilebilir.
 - *Hikaye*: ölürsen doktor seni kurtarır; biraz para ve kalıcı sağlık kaybedersin.
 - *Tek Hayat*: ölüm kalıcıdır, kayıt silinir.
 
-**Kayıt yuvaları**: 3 yuva vardır; her yuva ayrı bir hayattır. Her yuvada bir otomatik, bir manuel kayıt tutulur. Otomatik kayıt her yeni günde, uyuyunca ve oyun sırasında 4 dakikada bir (aranmıyorsan) alınır; manuel kaydı duraklatma menüsünden, çantadan ya da evindeki yataktan alırsın. "Kayıt Yükle" ekranı her yuvanın küçük ekran görüntüsünü, karakterin adını, yaşını, geçmişini, zorluğunu, bulunduğu yeri, yılı, parasını ve oynama süresini gösterir; iki kayıttan istediğini yükleyebilir ya da yuvayı silebilirsin. "Devam Et" en yeni kaydı açar. Yeni hayat başlarken yuva seçilir; dolu bir yuva seçilirse onay istenir. *Tek Hayat* zorluğunda yalnız otomatik kayıt tutulur ve ölünce o yuva silinir. Eski tek kayıt ilk açılışta 1. yuvaya taşınır. Kayıtlar tarayıcıda `localStorage`'a, masaüstü sürümünde kayıt klasörüne yazılır.
+**Kayıt yuvaları**: 3 yuva vardır; her yuva ayrı bir hayattır. Her yuvada bir otomatik, bir manuel kayıt tutulur. Otomatik kayıt her yeni günde, uyuyunca ve oyun sırasında 4 dakikada bir (aranmıyorsan) alınır; manuel kaydı duraklatma menüsünden, çantadan ya da evindeki yataktan alırsın. "Kayıt Yükle" ekranı her yuvanın küçük ekran görüntüsünü, karakterin adını, yaşını, geçmişini, zorluğunu, bulunduğu yeri, yılı, parasını ve oynama süresini gösterir; iki kayıttan istediğini yükleyebilir ya da yuvayı silebilirsin. "Devam Et" en yeni kaydı açar. Yeni hayat başlarken yuva seçilir; dolu bir yuva seçilirse onay istenir. *Tek Hayat* zorluğunda yalnız otomatik kayıt tutulur ve ölünce o yuva silinir. Eski tek kayıt ilk açılışta 1. yuvaya taşınır. Kayıtlar tarayıcıda `localStorage`'a, masaüstü sürümünde kayıt klasörüne yazılır. Kayıt yüklenirken dünya sıfırdan üretilmez: üretilen dünya ayrıca tarayıcı deposunda (IndexedDB) önbellekte tutulur (bkz. Teknik); bu önbellek kaydın parçası değildir, Steam bulutuna gitmez, silinirse dünya bir kez yeniden üretilir.
 
 ## Hata ayıklama modu
 
@@ -371,6 +371,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `npclife` | NPC aklı: duvara takılmadan ve aynı çizgiden olmadan doğal yürüme, arabaların çakışmaması, ayrı park yerleri, sürücünün inip sandık taşıması ve geri dönmesi, satır satır sohbet, sataşma ve karşılık verme, selam ve selamı almama tepkisi, boşta hareket çeşitliliği, silaha el kaldırma, atlıdan kaçma |
 | `boot` | ana menü, karakter ekranı, 13 kasabalık dünya, yeni binaların iç mekânları, yürüme, duraklatma, harita |
 | `saves` | kayıt yuvaları, otomatik/manuel kayıt, Tek Hayat, eski kayıt taşıma, eski 1024 dünya, 1890 fiyat dönüşümü |
+| `worldcache` | dünya önbelleği: yeni hayatın dünyası arka planda önbelleğe yazılır; önbellekten gelen dünya aynı tohumdan taze üretilenle birebir aynıdır (bütün alanlar, paylaşılan başvurular, bina tanımları ve kasaba listelerinin genel tablolara bağı, harita resmi; büyük ve eski 1024 dünyada); "Devam Et" dünyayı yeniden üretmez ve haritayı kaydın mevsimiyle açar; dil değişince dünya yeniden üretilir |
 | `i18n` | çeviri anahtarları (tools/i18n-check.js), oyun içinde dil değiştirme |
 | `hud` | arayüz boyutu ayarının köşe gruplarını ölçeklemesi ve kaydedilmesi, binilen atın kapıdan içeri uzanamaması, içeride kalan atın dışarı çıkarılması, dükkânda sağ üstteki cüzdan, harita açıklamasından en yakın yeri işaretleme |
 | `ui` | arayüz yenilemesi: HUD gösterge kümesinde çakışma olmaması, genişletilmiş HUD, hava rozeti, mermi pipleri, duyuru kuyruğu, yardım süresi, mesafe biçimi, tam ekran duraklatma ve kayıt defteri, harita konum kartı ve sis katmanı, yükleme atlısı, ölüm ekranı, ana menü son hayat kartı |
@@ -433,6 +434,14 @@ Yeni bir test için `tests/e2e/` altına `ad.test.js` ekle: `module.exports = { 
 - **Piksel kamerası oyuncuya kilitlidir.** Kamera, oyuncunun yuvarlanmış konumuyla birlikte yuvarlanır; karakter ekranda titremez, zemin onunla aynı adımda kayar. NPC'ler, atlar ve hayvanlar aynı piksel ızgarasına oturur. Takip yumuşatması kare hızından bağımsızdır. Melez çizimde ızgara yarım pikseldir (tuval iki kat yoğun), kayma iki kat incedir.
 - Köz, buhar ve kıvılcım doğumları saniye başına hesaplanır; 144 Hz'de iki kat çoğalmaz.
 - **Melez ışık geçişi:** güneş gölgesi yarım çözünürlükte hesaplanıp kenarları korunarak büyütülür. Tuvalin o an ekranda görünmeyen kenar payı (dörtnala giderken kameranın uzaklaşması için çizilen fazlalık) ışıklandırılmaz; kamera uzaklaşınca ışıklanan alan da genişler. Köşe gölgesinin sekiz yönü sabit yazılıdır; her pikselde sin/cos hesaplanmaz.
+- **Kayıt yükleme dünyayı yeniden üretmez (dünya önbelleği, `WorldCache` js/world.js).**
+  - Yeni hayatta ya da önbelleği olmayan bir kayıt açılınca dünya üretilir; üretimden hemen sonraki hâli (kayıt uygulanmadan önce) arka planda sıkıştırılıp IndexedDB'ye yazılır (büyük dünya ~1,8 MB). En son kullanılan 4 dünya tutulur.
+  - Kayıt açılınca dünya buradan kurulur; harita resmi saklanmaz, kaydın mevsimiyle yeniden çizilir (ilkbahar dışındaki kayıtlarda harita artık iki kez çizilmez). Bu makinede yükleme 3,6–3,8 sn'den 0,8–0,95 sn'ye indi.
+  - Kayıt anahtarı tohum, dünya boyu, dünya sürümü ve dildir (üretimde bazı adlar o anki dile çevrilir). Kayıtla birlikte üretim kodunun ve kullandığı tabloların özeti saklanır: oyun güncellenince eski kayıt kullanılmaz, dünya yeniden üretilip yazılır.
+  - Bina tanımları ve kasaba listeleri genel tablolardaki nesnelere yeniden bağlanır (dil değişince çeviri onları da günceller). Dünyada başka bir genel tabloya başvuru bulunursa o dünya önbelleğe alınmaz.
+  - `window.__noWorldCache = true` önbelleği kapatır.
+- **Harita resmi karo karo çizilir.** Her karonun 2x2 pikselinin ortak değerleri (renk, kar, su, kıyı, orman noktası) bir kez hesaplanır; çıktı piksel piksel aynıdır, çizim yaklaşık iki kat hızlıdır (mevsim değişiminde ve inşaatta harita yenilenirken de).
+- **Kare başına çöp az.** Tren tehlike koridoru, vagon konumları ve çarpışma çemberleri yerinde güncellenir; radar, girdi yoklaması ve her karede bütün binaları dolaşan döngüler yineleyici ve geçici dizi yaratmaz; renk koyulaştırma (`shadeHex`) sonuçları önbelleklenir. Çatışmada küçük çöp toplamaları yaklaşık üçte bire indi.
 - **Gece ışıkları hücrelerden seçilir.**
   - Dünyadaki sabit ışıklar (fener, pencere, iç ışık, ateş, işaret) 128 piksellik hücrelere bir kez dağıtılır (`World.lightsIn`).
   - Klasik ışık, Melez ışık listesi ve ıslak zemin yansıması bütün ışıkları dolaşmaz, yalnızca ekrana değen hücrelere bakar. Sıra ana listedekiyle aynıdır, görüntü değişmez.
@@ -473,7 +482,7 @@ tools/sfx-manifest.js  ses listesi ve manifest aracı (node)
 tools/vo-script.js   sinematik seslendirme senaryosu, satır listesi ve manifest aracı (node)
 tools/vo-tts.py      İngilizce sinematik seslendirmesini Chatterbox Turbo ile üretir (python)
 tools/vo-ref.py      seslendirme karakter seslerinin örnek kayıtlarını (tools/vo-ref/) kurar (python)
-js/world.js     dünya üretimi, chunk render, harita
+js/world.js     dünya üretimi, chunk render, harita, dünya önbelleği (IndexedDB)
 js/sprites.js   karakter, hayvan, at, bina ve nesne çizimleri
 js/entities.js  oyuncu, at, hayvan, NPC, tren, parçacıklar
 js/systems.js   zaman, hava, hayatta kalma, kanun, doğma, etkileşim
