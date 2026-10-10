@@ -422,7 +422,7 @@ class Player extends Ent {
     if (I.device === 'kb') {
       this.lockTarget = null;
       // tuval CSS ile ölçeklenmiş olabilir (iç mekân yakınlaşması): ekran → tuval pikseli
-      const r = G.canvas.getBoundingClientRect(), k = G.vw / r.width;
+      const r = G.canvasRect(), k = G.vw / r.width;
       const mx = (I.mouse.x - r.left) * k, my = (I.mouse.y - r.top) * k;
       this.aimAng = Math.atan2(my - sy, mx - sx);
       this.aimDist = clamp(Math.hypot(mx - sx, my - sy), 14, this.W && this.W.range ? this.W.range : 200);

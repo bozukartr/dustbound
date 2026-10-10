@@ -110,14 +110,19 @@ const Input = {
       this.padIndex = e.gamepad.index; this.device = 'pad'; this.padId = e.gamepad.id;
       if (typeof UI !== 'undefined' && UI.toast) UI.feed(Tr('🎮 Kol bağlandı: ') + e.gamepad.id.slice(0, 32));
     });
-    window.addEventListener('gamepaddisconnected', e => { if (e.gamepad.index === this.padIndex) this.padIndex = -1; });
+    window.addEventListener('gamepaddisconnected', e => { if (e.gamepad.index === this.padIndex) { this.padIndex = -1; this.btn.fill(0); this.axes.fill(0); } });
   },
 
   poll(dt) {
-    // kol
-    this.btnPrev = this.btn.slice();
+    // kol: önceki karenin düğmeleri (her karede yeni dizi oluşturmadan)
+    if (!this.btnPrev) this.btnPrev = new Float32Array(this.btn.length);
+    this.btnPrev.set(this.btn);
     this.pad = null;
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    // kol listesi bir kol biliniyorken her karede, yokken saniyede iki kez istenir (takılınca 'gamepadconnected' da haber verir)
+    this._padScan = (this._padScan || 0) - (dt || 0);
+    const scan = this.padIndex >= 0 || this._padScan <= 0;
+    if (scan && this.padIndex < 0) this._padScan = 0.5;
+    const pads = scan && navigator.getGamepads ? navigator.getGamepads() : null;
     if (pads) {
       let p = this.padIndex >= 0 ? pads[this.padIndex] : null;
       if (!p) for (const q of pads) if (q && q.connected) { p = q; this.padIndex = q.index; break; }
@@ -145,7 +150,7 @@ const Input = {
         const src = [0, 1, rx, ry];
         for (let i = 0; i < 4; i++) { const v = dz(p.axes[src[i]] || 0); if (Math.abs(v) > 0.4 && Math.abs(this.axes[i]) <= 0.4) active = true; this.axes[i] = v; }
         if (active) { this.device = 'pad'; this._mm = 0; }
-      } else { this.btn.fill(0); this.axes = [0, 0, 0, 0]; }
+      } else { this.btn.fill(0); this.axes.fill(0); }
     }
     // tuş yakalama (ayarlar ekranı)
     if (this.capture) {

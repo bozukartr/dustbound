@@ -184,6 +184,7 @@ const G = {
     const L = Math.round((W - this.vw * s) / 2), Tp = Math.round((H - this.vh * s) / 2);
     c.style.left = L + 'px'; c.style.top = Tp + 'px';
     c.style.transformOrigin = `${W / 2 - L}px ${H / 2 - Tp}px`;   // yakınlaşma ekranın ortasından
+    this._cRect = null;
     this.light.width = this.vw; this.light.height = this.vh;
     this.over.width = this.vw; this.over.height = this.vh;
     this.ctx.imageSmoothingEnabled = false;
@@ -846,9 +847,17 @@ const G = {
     C.ox = R(P.x) - R(P.x - (C.x - this.vw / 2 + sx));
     C.oy = R(P.y) - R(P.y - (C.y - this.vh / 2 + sy));
   },
+  /* Tuvalin ekrandaki dikdörtgeni (CSS pikseli). getBoundingClientRect, arayüz o karede değiştiyse bütün sayfa
+     düzenini hesaplatır; bu yüzden yalnızca tuvalin boyu ve yeri (resize) ya da CSS dönüşümü (iç mekân yakınlaşması,
+     dörtnala uzaklaşma, sarhoşluk) değişince yeniden ölçülür. */
+  canvasRect() {
+    const tf = this.canvas.style.transform;
+    if (!this._cRect || this._cRectTf !== tf) { this._cRect = this.canvas.getBoundingClientRect(); this._cRectTf = tf; }
+    return this._cRect;
+  },
   /* Dünya koordinatı → ekran (CSS pikseli); tuvalin kenar payını ve yakınlaşmasını hesaba katar */
   toScreen(x, y) {
-    const r = this.canvas.getBoundingClientRect(), k = r.width / this.vw;
+    const r = this.canvasRect(), k = r.width / this.vw;
     return { x: r.left + (x - this.cam.ox) * k, y: r.top + (y - this.cam.oy) * k };
   },
   prefetch(sync) {

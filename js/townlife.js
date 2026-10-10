@@ -216,19 +216,22 @@ const Bubbles = {
   },
   update(dt) {
     if (!this.list.length) return;
-    const C = G.cam, r = G.canvas.getBoundingClientRect();
+    const C = G.cam, r = G.canvasRect();
     this.list = this.list.filter(b => {
       b.t -= dt;
       if (b.t <= 0 || b.e.remove || b.e.dead || G.state !== 'play') { b.el.remove(); return false; }
       const k = r.width / G.vw, lift = b.e.child ? 9 : 13;
       b.x = r.left + (b.e.x - C.ox) * k; b.y = r.top + (b.e.y - C.oy - lift) * k;
-      b.el.style.opacity = Math.min(1, b.t * 2).toFixed(2);
+      const op = Math.min(1, b.t * 2).toFixed(2);
+      if (b.op !== op) { b.op = op; b.el.style.opacity = op; }
       return true;
     });
-    // yakın konuşanların baloncukları üst üste binmesin: aşağıdakinden yukarı doğru dizilir
+    // yakın konuşanların baloncukları üst üste binmesin: aşağıdakinden yukarı doğru dizilir. Balonun boyu bir kez
+    // ölçülür (metni değişmez); konum CSS dönüşümüyle verilir, sayfa düzenini her karede yeniden hesaplatmaz
     const placed = [];
     for (const b of this.list.slice().sort((a, c) => c.y - a.y)) {
-      const w = b.el.offsetWidth || 120, h = b.el.offsetHeight || 22;
+      if (b.w === undefined) { b.w = b.el.offsetWidth || 120; b.h = b.el.offsetHeight || 22; }
+      const w = b.w, h = b.h;
       let y = b.y;
       for (let n = 0; n < 6; n++) {
         const hit = placed.find(q => Math.abs(q.x - b.x) < (q.w + w) / 2 + 2 && y > q.y - q.h - 2 && y - h < q.y + 2);
@@ -236,7 +239,7 @@ const Bubbles = {
         y = hit.y - hit.h - 4;
       }
       placed.push({ x: b.x, y, w, h });
-      b.el.style.left = b.x + 'px'; b.el.style.top = y + 'px';
+      b.el.style.transform = `translate(${b.x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
     }
   },
   clear() { for (const b of this.list) b.el.remove(); this.list = []; },
