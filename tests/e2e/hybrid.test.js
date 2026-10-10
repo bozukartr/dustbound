@@ -61,6 +61,31 @@ module.exports = {
       t.ok(ln.mean < ld.mean, 'gece daha karanlık', { day: ld.mean, night: ln.mean });
     });
 
+    await t.step('ekrandaki ışıklar hücrelerden seçilir: tüm listeyle aynı sonuç, sonradan eklenen ışık hemen görünür', async () => {
+      const r = await p.evaluate(() => {
+        const W = G.world; let rs = 7; const rnd = () => (rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+        let bad = 0, seen = 0;
+        for (let k = 0; k < 600; k++) {
+          const tw = W.towns[k % W.towns.length], vw = [461, 922][k % 2], vh = Math.round(vw * 9 / 16);
+          const x0 = tw.cx + (rnd() - 0.5) * 1600 - vw / 2, y0 = tw.cy + (rnd() - 0.5) * 1600 - vh / 2;
+          // tüketicilerin en geniş payı: Klasik yarıçap, Melez 1,5 kat yarıçap ve 22 px kayma ya da fener 93 px, ıslak zemin 60 px
+          const need = (L) => { const e = Math.max(L.r * 1.5 + 22, 93); return L.x + e > x0 && L.x - e < x0 + vw && L.y + e > y0 - 40 && L.y - e < y0 + vh + 60; };
+          const a = W.lights.filter(need), b = W.lightsIn(x0, y0 - 40, x0 + vw, y0 + vh + 60).filter(need);
+          if (a.length !== b.length || a.some((L, i) => L !== b[i])) bad++;
+          seen += a.length;
+        }
+        const P = G.player, L = { x: P.x + 4, y: P.y + 4, r: 34, type: 'window', b: -1 };
+        W.lights.push(L);
+        const added = W.lightsIn(P.x - 100, P.y - 100, P.x + 100, P.y + 100).includes(L);
+        W.lights.pop();
+        const gone = !W.lightsIn(P.x - 100, P.y - 100, P.x + 100, P.y + 100).includes(L);
+        return { bad, seen, added, gone };
+      });
+      t.eq(r.bad, 0, 'hücrelerden seçilen ışıklar tüm listeyle aynı');
+      t.ok(r.seen > 100, 'taramada ışık görüldü', r);
+      t.ok(r.added && r.gone, 'eklenen ışık hemen görünür, çıkarılınca kaybolur', r);
+    });
+
     await t.step('bina içinde (iç mekân pişer) hatasız çizer', async () => {
       await p.evaluate(() => TH.inside(B));
       await t.sleep(1500);

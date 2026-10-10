@@ -1806,6 +1806,43 @@ class World {
     this.jobs.delete(cy * 64 + cx);
     if (typeof G !== 'undefined' && G.ds === 2) (this.hyDirty || (this.hyDirty = [])).push([px, py]);   // melez çizimin parçası da yenilenir
   }
+  /* Dikdörtgene değen statik ışıklar: her ışık bir kez, etki alanının (yarıçapın 1,5 katı, en az 90, artı 30 px)
+     değdiği 128 px'lik hücrelere yazılır; her karede yalnızca dikdörtgenin hücrelerine bakılır. Sıra ana listedekiyle
+     aynıdır. Kamera aynı hücrelerde kaldıkça önceki sonuç kullanılır; ışık eklenince (inşa) hücreler yeniden kurulur. */
+  lightsIn(x0, y0, x1, y1) {
+    const Ls = this.lights, C = 128;
+    if (this._lN !== Ls.length) {
+      const B = this._lB = new Map();
+      for (let i = 0; i < Ls.length; i++) {
+        const L = Ls[i], e = Math.max(L.r * 1.5, 90) + 30;
+        for (let cy = Math.floor((L.y - e) / C); cy <= Math.floor((L.y + e) / C); cy++)
+          for (let cx = Math.floor((L.x - e) / C); cx <= Math.floor((L.x + e) / C); cx++) {
+            const k = (cy + 8) * 4096 + cx + 8;
+            let a = B.get(k); if (!a) B.set(k, a = []);
+            a.push(i);
+          }
+      }
+      this._lN = Ls.length; this._lS = new Uint32Array(Ls.length); this._lT = 0; this._lI = new Int32Array(Ls.length); this._lQ = new Map();
+    }
+    const cx0 = Math.floor(x0 / C), cy0 = Math.floor(y0 / C), cx1 = Math.floor(x1 / C), cy1 = Math.floor(y1 / C);
+    const qk = (((cy0 + 8) * 4096 + cx0 + 8) * 4096 + cx1 - cx0) * 4096 + cy1 - cy0;
+    let O = this._lQ.get(qk);
+    if (O) return O;
+    const S = this._lS, I = this._lI;
+    if (++this._lT > 0xfffffff0) { S.fill(0); this._lT = 1; }
+    const t = this._lT;
+    let n = 0;
+    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+      const a = this._lB.get((cy + 8) * 4096 + cx + 8);
+      if (a) for (let j = 0; j < a.length; j++) { const i = a[j]; if (S[i] !== t) { S[i] = t; I[n++] = i; } }
+    }
+    const s = I.subarray(0, n).sort();
+    O = new Array(n);
+    for (let j = 0; j < n; j++) O[j] = Ls[s[j]];
+    if (this._lQ.size >= 8) this._lQ.clear();
+    this._lQ.set(qk, O);
+    return O;
+  }
   renderChunk(cx, cy) {
     const g = this.chunkJob(cx, cy);
     let r; do { r = g.next(); } while (!r.done);
