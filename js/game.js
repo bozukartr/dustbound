@@ -450,6 +450,7 @@ const G = {
 
   /* ---------------- Döngü ---------------- */
   frame(ts) {
+    this.fno = (this.fno || 0) + 1;   // kare sayacı (kare başına iş bütçeleri için)
     const dt = clamp((ts - this.last) / 1000, 0, 0.05);   // zaman geri gitmez, uzun duraksama tek kareye yayılmaz
     // ekranın kare aralığı (yumuşatılmış): arka plan işlerinin bütçesi buna göre; 144 Hz'de 60 Hz'in bütçesi kareyi taşırır
     this.frameMs = this.frameMs ? this.frameMs + (clamp(ts - this.last, 2, 50) - this.frameMs) * 0.1 : 16.7;

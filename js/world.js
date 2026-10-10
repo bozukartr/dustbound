@@ -1825,9 +1825,12 @@ class World {
       for (let tx = tx0; tx < tx1; tx++) {
         if (!this.inb(tx, ty)) continue;
         const ob = this.obj[ty * WW + tx];
-        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16) && !FX.dyn(ob)) Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
+        if (ob && !isHerbO(ob) && ob !== O.ARTIFACT && !(this.flags[ty * WW + tx] & 16) && !FX.dyn(ob)) {
+          Spr.object(gc, oc, ob, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), this);
+          // süreye her nesneden sonra bakılır: sık ormanda tek bir karo satırı bile birkaç ms sürebilir
+          if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
+        }
       }
-      if (performance.now() - tY > 1.5) { yield 0; tY = performance.now(); }
     }
     for (const b of this.buildings) {
       const bx = b.x * TS, by = b.y * TS;
@@ -1941,8 +1944,8 @@ class World {
         d[i + 2] = (col[2] + v * 0.8) * mul;
         d[i + 3] = 255;
       }
-      // ~1.5 ms'de bir sıra kareye döner: yüksek tazelemede de kare bütçesini aşmaz
-      if (performance.now() - tY > 1.5) { yield 0; tY = performance.now(); }
+      // adım süresi dolunca (World.STEP) sıra kareye döner: yüksek tazelemede de kare bütçesini aşmaz
+      if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
     }
   }
   drawRail(ctx, r, ox, oy) {
@@ -1999,3 +2002,6 @@ class World {
     return bb;
   }
 }
+/* Pişirme adımının uzunluğu (ms): parça pişirme bu süre dolunca sırayı kareye bırakır. Kare bütçesi en çok bu kadar aşılır;
+   144 Hz'de bir kare ~7 ms. */
+World.STEP = 0.75;

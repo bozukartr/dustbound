@@ -85,12 +85,12 @@ const HY = (() => {
     }
   }
 
-  /* Pişirme adım adım: bir adım ~1.5 ms'yi geçince sıra kareye döner (144 Hz'de bir kare ~7 ms). Dönüşte çizim hedefi
-     yeniden kurulur, araya giren eşzamanlı pişirme (görünür parça, bina örtüsü) onu değiştirmiş olabilir. */
+  /* Pişirme adım adım: bir adım World.STEP'i (~0.75 ms) geçince sıra kareye döner (144 Hz'de bir kare ~7 ms). Dönüşte
+     çizim hedefi yeniden kurulur, araya giren eşzamanlı pişirme (görünür parça, bina örtüsü) onu değiştirmiş olabilir. */
   function pacer(tg) {
     let t0 = performance.now();
     return function* (force) {
-      if (!force && performance.now() - t0 < 1.5) return;
+      if (!force && performance.now() - t0 < World.STEP) return;
       yield 0; if (tg) { TG = tg; LAYER = 0; } t0 = performance.now();
     };
   }
