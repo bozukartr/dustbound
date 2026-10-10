@@ -433,6 +433,11 @@ Yeni bir test için `tests/e2e/` altına `ad.test.js` ekle: `module.exports = { 
 - **Piksel kamerası oyuncuya kilitlidir.** Kamera, oyuncunun yuvarlanmış konumuyla birlikte yuvarlanır; karakter ekranda titremez, zemin onunla aynı adımda kayar. NPC'ler, atlar ve hayvanlar aynı piksel ızgarasına oturur. Takip yumuşatması kare hızından bağımsızdır. Melez çizimde ızgara yarım pikseldir (tuval iki kat yoğun), kayma iki kat incedir.
 - Köz, buhar ve kıvılcım doğumları saniye başına hesaplanır; 144 Hz'de iki kat çoğalmaz.
 - **Melez ışık geçişi:** güneş gölgesi yarım çözünürlükte hesaplanıp kenarları korunarak büyütülür. Tuvalin o an ekranda görünmeyen kenar payı (dörtnala giderken kameranın uzaklaşması için çizilen fazlalık) ışıklandırılmaz; kamera uzaklaşınca ışıklanan alan da genişler.
+- **Arayüz sayfa düzenini her karede hesaplatmaz.**
+  - Tuvalin ekrandaki yeri yalnızca boyu ya da CSS dönüşümü (iç mekân yakınlaşması, dörtnala uzaklaşma, sarhoşluk) değişince ölçülür (`G.canvasRect`).
+  - Konuşma balonlarının boyu bir kez ölçülür, yerleri CSS dönüşümüyle verilir.
+  - Radar yolları ve rayları 64 noktalık parçalar hâlinde dolaşır; radarın dışındaki parçalar atlanır.
+  - Kol bağlı değilken kol listesi saniyede iki kez istenir.
 - Oyun düşük çözünürlüklü bir tuvale çizilip piksel ölçeklemeyle büyütülür. Bu hem piksel sanat görünümü verir hem de akıcı FPS sağlar.
 - Efektler ve ortam sesleri `audio/sfx/` altındaki CC0 kayıtlardan çalar (bkz. Ses); bir sesin dosyası yoksa ya da tarayıcı çözemezse WebAudio ile prosedürel üretilen sese düşülür. Ana tema ve saloon piyanosu `audio/` klasöründeki sıkıştırılmış mp3 dosyalarından akışla çalınır (belleğe tamamen açılmaz). Ana tema menüde ve keşif sırasında aralıklarla, Karplus-Strong gitarıyla çalan prosedürel müzikle dönüşümlü çalar.
 - Saloon piyanosu üç parça arasından rastgele seçilir. İçeride tam sesle duyulur; dışarıda kapıya yaklaştıkça yavaşça yükselir, duvar arkasından boğuk gelir. Piyano duyulurken ana tema kısılır.

@@ -551,9 +551,16 @@ const UI = {
     c.drawImage(W.mapCanvas, (tx - span / 2) * ms, (ty - span / 2) * ms, span * ms, span * ms, C - R, C - R, 2 * R, 2 * R);
     c.imageSmoothingEnabled = true;
     const toR = (wx, wy) => [C + (wx / TS - tx) * z, C + (wy / TS - ty) * z];
-    // yollar ve demiryolu (vektörel)
-    const lim = span * TS * 0.75;
-    const poly = (pts, step) => { c.beginPath(); let on = false; for (let k = 0; k < pts.length; k += step) { const q = pts[k]; if (Math.abs(q[0] - P.x) > lim || Math.abs(q[1] - P.y) > lim) { on = false; continue; } const [x, y] = toR(q[0], q[1]); if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; } } c.stroke(); };
+    // yollar ve demiryolu (vektörel); çizgiler 64 noktalık parçalara bölünür, radarın dışında kalan parça hiç dolaşılmaz
+    const lim = span * TS * 0.75, bx0 = P.x - lim, bx1 = P.x + lim, by0 = P.y - lim, by1 = P.y + lim;
+    const poly = (pts, step) => {
+      c.beginPath(); let on = false;
+      for (const s of radarSegs(pts)) {
+        if (s[2] < bx0 || s[0] > bx1 || s[3] < by0 || s[1] > by1) { on = false; continue; }
+        for (let k = s[4]; k < s[5]; k += step) { const q = pts[k]; if (Math.abs(q[0] - P.x) > lim || Math.abs(q[1] - P.y) > lim) { on = false; continue; } const [x, y] = toR(q[0], q[1]); if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; } }
+      }
+      c.stroke();
+    };
     c.lineCap = 'round'; c.lineJoin = 'round';
     for (const r of W.roads) { c.strokeStyle = 'rgba(92,62,36,0.85)'; c.lineWidth = r.spur ? 1.6 : 2.6; poly(r.pts, 2); c.strokeStyle = 'rgba(214,190,140,0.9)'; c.lineWidth = r.spur ? 0.6 : 1.1; poly(r.pts, 2); }
     c.strokeStyle = 'rgba(30,24,20,0.8)'; c.lineWidth = 1.2;
@@ -638,13 +645,13 @@ const UI = {
       c.globalAlpha = 1;
     }
     // kubbe gölgesi: kenarlara doğru koyulaşan kâğıt
-    const vg = c.createRadialGradient(C, C, R * 0.58, C, C, R);
-    vg.addColorStop(0, 'rgba(40,24,10,0)'); vg.addColorStop(1, 'rgba(40,24,10,0.42)');
+    let vg = this._rVig;
+    if (!vg) { vg = this._rVig = c.createRadialGradient(C, C, R * 0.58, C, C, R); vg.addColorStop(0, 'rgba(40,24,10,0)'); vg.addColorStop(1, 'rgba(40,24,10,0.42)'); }
     c.fillStyle = vg; c.fillRect(C - R, C - R, 2 * R, 2 * R);
     // oyuncu: önündeki bakış konisi ve ok
     c.translate(C, C); c.rotate(P.riding ? P.riding.ang : P.ang);
-    const cone = c.createRadialGradient(0, 0, 3, 0, 0, 46);
-    cone.addColorStop(0, 'rgba(255,248,226,0.5)'); cone.addColorStop(1, 'rgba(255,248,226,0)');
+    let cone = this._rCone;
+    if (!cone) { cone = this._rCone = c.createRadialGradient(0, 0, 3, 0, 0, 46); cone.addColorStop(0, 'rgba(255,248,226,0.5)'); cone.addColorStop(1, 'rgba(255,248,226,0)'); }
     c.fillStyle = cone; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 46, -0.5, 0.5); c.closePath(); c.fill();
     c.fillStyle = '#fffaf0'; c.strokeStyle = '#1a120b'; c.lineWidth = 1.6;
     c.beginPath(); c.moveTo(9, 0); c.lineTo(-6, -6); c.lineTo(-2.5, 0); c.lineTo(-6, 6); c.closePath(); c.fill(); c.stroke();
@@ -3102,6 +3109,23 @@ const I_WHEEL_HINT = (page) => {
   const sel = pad ? Tr('Sağ analog') : Tr('Fare');
   return page ? Tr`${sel}: seç • ${cyc}: aynı türde değiştir • ${pad ? Input.padGlyph(PS.X) : Input.kbGlyph('Mouse0')} kullan • ${sw} Silahlar` : Tr`${sel}: seç • ${cyc}: aynı türde değiştir • ${Input.glyph('wheel')} bırak: kuşan • ${sw} Eşyalar`;
 };
+/* Radar: yol ve ray çizgisinin 64 noktalık parçaları ve sınır kutuları [minx, miny, maxx, maxy, i0, i1]; bir kez hesaplanır
+   (çizgiler dünya kurulurken oluşur, sonra değişmez) */
+const RADAR_SEG = new WeakMap();
+function radarSegs(pts) {
+  let S = RADAR_SEG.get(pts);
+  if (!S) {
+    S = [];
+    for (let i0 = 0; i0 < pts.length; i0 += 64) {
+      const i1 = Math.min(pts.length, i0 + 64);
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (let k = i0; k < i1; k++) { const q = pts[k]; if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; }
+      S.push([x0, y0, x1, y1, i0, i1]);
+    }
+    RADAR_SEG.set(pts, S);
+  }
+  return S;
+}
 const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence', 'bakery', 'smith', 'pharmacy', 'gambling', 'brewery', 'mill', 'county', 'post', 'warehouse', 'cantina']);
 /* Harita açıklamaları: [simge, ad]; MAP_LEGEND_B: simgenin bina türleri */
 const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
