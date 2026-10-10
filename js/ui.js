@@ -550,14 +550,18 @@ const UI = {
     const span = 2 * R / z, ms = W.mapScale || 1;
     c.drawImage(W.mapCanvas, (tx - span / 2) * ms, (ty - span / 2) * ms, span * ms, span * ms, C - R, C - R, 2 * R, 2 * R);
     c.imageSmoothingEnabled = true;
-    const toR = (wx, wy) => [C + (wx / TS - tx) * z, C + (wy / TS - ty) * z];
+    // dünya → radar: sonuç her çağrıda aynı diziye yazılır, çağıran değerleri hemen okur
+    const RP = [0, 0], toR = (wx, wy) => { RP[0] = C + (wx / TS - tx) * z; RP[1] = C + (wy / TS - ty) * z; return RP; };
     // yollar ve demiryolu (vektörel); çizgiler 64 noktalık parçalara bölünür, radarın dışında kalan parça hiç dolaşılmaz
     const lim = span * TS * 0.75, bx0 = P.x - lim, bx1 = P.x + lim, by0 = P.y - lim, by1 = P.y + lim;
+    // nokta başına dizi yaratmamak için dönüşüm (toR ile aynı) satır içinde
     const poly = (pts, step) => {
       c.beginPath(); let on = false;
-      for (const s of radarSegs(pts)) {
+      const S = radarSegs(pts);
+      for (let j = 0; j < S.length; j++) {
+        const s = S[j];
         if (s[2] < bx0 || s[0] > bx1 || s[3] < by0 || s[1] > by1) { on = false; continue; }
-        for (let k = s[4]; k < s[5]; k += step) { const q = pts[k]; if (Math.abs(q[0] - P.x) > lim || Math.abs(q[1] - P.y) > lim) { on = false; continue; } const [x, y] = toR(q[0], q[1]); if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; } }
+        for (let k = s[4]; k < s[5]; k += step) { const q = pts[k]; if (Math.abs(q[0] - P.x) > lim || Math.abs(q[1] - P.y) > lim) { on = false; continue; } const x = C + (q[0] / TS - tx) * z, y = C + (q[1] / TS - ty) * z; if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; } }
       }
       c.stroke();
     };
@@ -571,7 +575,7 @@ const UI = {
     if (night > 0.02) { c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.62 * night; c.fillStyle = '#48527a'; c.fillRect(C - R, C - R, 2 * R, 2 * R); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
     // aranma alanı
     if (G.law.level > 0) {
-      const [lx, ly] = toR(G.law.lastX, G.law.lastY);
+      const lp = toR(G.law.lastX, G.law.lastY), lx = lp[0], ly = lp[1];
       c.fillStyle = 'rgba(180,20,20,0.22)'; c.strokeStyle = 'rgba(200,30,30,0.7)'; c.lineWidth = 1.5;
       c.beginPath(); c.arc(lx, ly, G.law.radius / TS * z, 0, TAU); c.fill(); c.stroke();
     }
@@ -583,25 +587,27 @@ const UI = {
       let bestI = 0, bd = 1e18;
       for (let i = 0; i < G.gps.length; i++) { const d = dist2(G.gps[i][0], G.gps[i][1], P.x, P.y); if (d < bd) { bd = d; bestI = i; } }
       c.moveTo(C, C);
-      for (let i = bestI; i < G.gps.length; i++) { const [x, y] = toR(G.gps[i][0], G.gps[i][1]); c.lineTo(x, y); started = true; }
+      for (let i = bestI; i < G.gps.length; i++) { const q = toR(G.gps[i][0], G.gps[i][1]); c.lineTo(q[0], q[1]); started = true; }
       if (started) c.stroke();
     }
     // simgeler; edge: daire dışındaysa kadran bandında gösterilir
     const edges = [];
     const icon = (wx, wy, g, col, bg, sz = 13, edge) => {
-      const [x, y] = toR(wx, wy);
+      const q = toR(wx, wy), x = q[0], y = q[1];
       const dx = x - C, dy = y - C, d = Math.hypot(dx, dy);
       if (d > R - 8) { if (edge) edges.push({ a: Math.atan2(dy, dx), g, col: col || '#fff', bg: bg || 'rgba(26,18,12,0.95)', q: edge === 'quest' }); return; }
       c.fillStyle = bg || 'rgba(26,18,12,0.85)'; c.beginPath(); c.arc(x, y, sz * 0.62, 0, TAU); c.fill();
       const im = Icons.img(g, col || '#efe6d2', 32);
       if (im && im.complete) c.drawImage(im, x - sz * 0.42, y - sz * 0.42, sz * 0.84, sz * 0.84);
     };
-    for (const b of W.buildings) {
+    for (let bi = 0; bi < W.buildings.length; bi++) {
+      const b = W.buildings[bi];
       if (Math.abs(b.door.x - P.x) > 900 || Math.abs(b.door.y - P.y) > 900 || (xk > 0.5 && b.town)) continue;   // genişken kasaba adı yeterli
       const ic = BICON[b.type];
       if (ic && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 15);
     }
-    for (const p of W.pois) {
+    for (let pi = 0; pi < W.pois.length; pi++) {
+      const p = W.pois[pi];
       if (!G.discovered.has(p.id) && !G.rumored.has(p.id)) continue;
       icon(p.x, p.y, G.rumored.has(p.id) && !G.discovered.has(p.id) ? 'question' : (PICON[p.kind === 'landmark' ? p.type : p.kind] || 'eye'), '#efe6d2', p.kind === 'camp' ? 'rgba(130,20,14,0.9)' : null);
     }
@@ -612,14 +618,15 @@ const UI = {
     if (G.waypoint) icon(G.waypoint.x, G.waypoint.y, 'waypoint', '#fff', 'rgba(140,40,140,0.95)', 15, true);
     const qm = G.questMark();
     if (qm) {
-      const [qx, qy] = toR(qm.x, qm.y);
+      const qp = toR(qm.x, qm.y), qx = qp[0], qy = qp[1];
       if (Math.hypot(qx - C, qy - C) <= R - 8) { const pr = 9 + (Math.sin(G.t * 4) * 0.5 + 0.5) * 4; c.strokeStyle = 'rgba(240,200,90,0.75)'; c.lineWidth = 1.5; c.beginPath(); c.arc(qx, qy, pr, 0, TAU); c.stroke(); }
       icon(qm.x, qm.y, 'star', '#fff', 'rgba(190,140,20,0.98)', 15, 'quest');
     }
     // canlılar
-    for (const e of G.ents) {
+    for (let ei = 0; ei < G.ents.length; ei++) {
+      const e = G.ents[ei];
       if (e.dead) continue;
-      const [x, y] = toR(e.x, e.y);
+      const q = toR(e.x, e.y), x = q[0], y = q[1];
       if (Math.hypot(x - C, y - C) > R - 4) { if (e === G.horse && !P.riding && !e.rider) icon(e.x, e.y, 'horse', '#f0d8a8', 'rgba(60,36,20,0.95)', 13, true); continue; }
       if (e.kind === 'npc') {
         if (e.witness && !e.witness.done) { const im = Icons.img('witness', '#fff4dc', 32); c.fillStyle = 'rgba(200,120,20,0.95)'; c.beginPath(); c.arc(x, y, 6, 0, TAU); c.fill(); if (im.complete) c.drawImage(im, x - 4.5, y - 4.5, 9, 9); }
@@ -631,14 +638,14 @@ const UI = {
       else if (e.kind === 'animal' && P.crouch) { c.fillStyle = 'rgba(255,255,255,0.8)'; c.fillRect(x - 1.5, y - 1.5, 3, 3); }
       else if (e === G.horse) { icon(e.x, e.y, 'horse', '#f0d8a8', 'rgba(60,36,20,0.9)', 13); }
     }
-    for (const tr of G.trains) if (tr.pos[0]) { const [x, y] = toR(tr.pos[0][0], tr.pos[0][1]); if (Math.hypot(x - C, y - C) < R - 4) { c.fillStyle = '#222'; c.fillRect(x - 3, y - 3, 6, 6); } }
+    for (let ti = 0; ti < G.trains.length; ti++) { const tr = G.trains[ti]; if (!tr.pos[0]) continue; const q = toR(tr.pos[0][0], tr.pos[0][1]), x = q[0], y = q[1]; if (Math.hypot(x - C, y - C) < R - 4) { c.fillStyle = '#222'; c.fillRect(x - 3, y - 3, 6, 6); } }
     // genişletilmiş radarda kasaba adları
     if (xk > 0.3) {
       c.globalAlpha = Math.min(1, (xk - 0.3) * 2);
       c.font = '12px "IM Fell English SC", serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
       for (const t of W.towns) {
         if (!G.visited.has(t.id) && !G.reveal[((t.cy / TS / 4) | 0) * FW + ((t.cx / TS / 4) | 0)]) continue;
-        const [x, y] = toR(t.cx, t.cy);
+        const q = toR(t.cx, t.cy), x = q[0], y = q[1];
         if (Math.hypot(x - C, y - C) > R - 16) continue;
         c.lineWidth = 3; c.strokeStyle = 'rgba(236,224,196,0.9)'; c.strokeText(t.n, x, y - 10); c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, y - 10);
       }

@@ -282,20 +282,22 @@ const Juice = {
   },
   /* Varlıkların üstünde, cephelerden sonra: salınan saloon kapıları ve sıçrayan balık */
   drawAfterCovers(ctx, x0, y0, x1, y1, dt) {
-    for (const f of this.fish) {
-      const k = f.t / f.dur, x = f.x + f.dir * f.len * k, z = Math.sin(k * Math.PI) * 7;
+    for (let i = 0; i < this.fish.length; i++) {
+      const f = this.fish[i], k = f.t / f.dur, x = f.x + f.dir * f.len * k, z = Math.sin(k * Math.PI) * 7;
       ctx.save(); ctx.translate(x, f.y - z); ctx.rotate(f.dir * (k - 0.5) * 1.6 + (f.dir < 0 ? Math.PI : 0));
       ctx.fillStyle = '#8a9aa4'; ctx.beginPath(); ctx.ellipse(0, 0, 3, 1.2, 0, 0, TAU); ctx.fill();
       ctx.fillRect(-4.5, -1, 1.6, 2); ctx.restore();
     }
-    const W = G.world;
-    for (const b of W.buildings) {
+    const W = G.world, BS = W.buildings;
+    for (let bi = 0; bi < BS.length; bi++) {
+      const b = BS[bi];
       if (b.type !== 'saloon' && b.type !== 'cantina' && b.type !== 'gambling') continue;
       const dx = b.door.x, by = (b.y + b.h) * TS;
       if (dx < x0 - 20 || dx > x1 + 20 || by < y0 - 20 || by > y1 + 20) continue;
       const S = b.swing || (b.swing = { a: 0, v: 0 });
       // kapıdan geçen biri kanatları iter
-      for (const e of [G.player, ...G.ents]) {
+      for (let j = -1; j < G.ents.length; j++) {   // önce oyuncu, sonra varlıklar (yeni dizi yaratmadan)
+        const e = j < 0 ? G.player : G.ents[j];
         if (e.kind !== 'npc' && e !== G.player) continue;
         if (Math.abs(e.x - dx) < 7 && Math.abs(e.y - (by - 8)) < 11) {
           const k = e._jd || (e._jd = { x: e.x, y: e.y }), vy = e.y - k.y;
@@ -307,7 +309,8 @@ const Juice = {
       const wd = 3.6 * Math.cos(S.a), sh = S.a > 0 ? 0.15 : -0.1;
       ctx.globalAlpha = b.coverA === undefined ? 1 : b.coverA;
       const col = shadeHex('#5e3c22', sh * Math.abs(Math.sin(S.a)));
-      for (const lx of [dx - 4, dx + 4 - wd]) {
+      for (let q = 0; q < 2; q++) {
+        const lx = q ? dx + 4 - wd : dx - 4;
         ctx.fillStyle = col; ctx.fillRect(lx, by - 11, wd, 6);
         ctx.fillStyle = '#b08858'; ctx.fillRect(lx, by - 11, wd, 1); ctx.fillRect(lx, by - 6, wd, 0.8);   // üst ve alt kayıt
         ctx.fillStyle = 'rgba(0,0,0,0.35)'; if (wd > 2) ctx.fillRect(lx + wd / 2 - 0.3, by - 10, 0.6, 4);   // çıta arası
@@ -317,9 +320,9 @@ const Juice = {
   },
   /* Çatıların ve ağaçların üstü: bayraklar, çamaşır ipleri, toz şeytanları */
   drawHigh(ctx, x0, y0, x1, y1) {
-    const W = G.world, t = G.t, w = FX.wind;
-    for (const b of W.buildings) {
-      const bx = b.x * TS, by = b.y * TS;
+    const W = G.world, t = G.t, w = FX.wind, BS = W.buildings;
+    for (let bi = 0; bi < BS.length; bi++) {
+      const b = BS[bi], bx = b.x * TS, by = b.y * TS;
       if (bx > x1 + 40 || bx + b.w * TS < x0 - 40 || by > y1 + 60 || by + b.h * TS < y0 - 60) continue;
       if (b.type === 'sheriff' || b.type === 'county' || b.type === 'station' || b.type === 'bank') {
         // çatıda bayrak direği ve rüzgârda dalgalanan bayrak

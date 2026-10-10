@@ -59,7 +59,8 @@ class Particles {
     }
   }
   draw(ctx, cx0, cy0, cx1, cy1) {
-    for (const p of this.list) {
+    for (let i = 0; i < this.list.length; i++) {
+      const p = this.list[i];
       if (p.x < cx0 - 40 || p.x > cx1 + 40 || p.y < cy0 - 40 || p.y > cy1 + 40) continue;
       const a = p.life / p.max;
       switch (p.type) {
@@ -1466,14 +1467,17 @@ class Train {
     this.nextStop = null;
     this.whistleT = 0;
   }
-  at(s) {
+  /* Ray üzerinde s mesafesindeki [x, y, açı]; out verilirse yeni dizi yaratmadan ona yazar */
+  at(s, out) {
     const L = this.line, pts = L.pts, cum = L.cum;
     s = clamp(s, 0, L.len);
     let lo = 0, hi = cum.length - 1;
     while (lo < hi - 1) { const m = (lo + hi) >> 1; if (cum[m] <= s) lo = m; else hi = m; }
     const seg = cum[hi] - cum[lo] || 1, f = (s - cum[lo]) / seg;
-    const [ax, ay] = pts[lo], [bx, by] = pts[hi];
-    return [lerp(ax, bx, f), lerp(ay, by, f), Math.atan2(by - ay, bx - ax)];
+    const A = pts[lo], B = pts[hi], ax = A[0], ay = A[1], bx = B[0], by = B[1];
+    if (!out) return [lerp(ax, bx, f), lerp(ay, by, f), Math.atan2(by - ay, bx - ax)];
+    out[0] = lerp(ax, bx, f); out[1] = lerp(ay, by, f); out[2] = Math.atan2(by - ay, bx - ax);
+    return out;
   }
   update(dt) {
     const L = this.line;
@@ -1488,8 +1492,8 @@ class Train {
     } else {
       // sonraki istasyon
       let next = null;
-      for (const st of L.stops) {
-        const ds = (st.d - this.s) * this.dir;
+      for (let k = 0; k < L.stops.length; k++) {
+        const st = L.stops[k], ds = (st.d - this.s) * this.dir;
         if (ds > 2 && (!next || ds < (next.d - this.s) * this.dir)) next = st;
       }
       const toStop = next ? Math.abs(next.d - this.s) : 1e9;
@@ -1514,33 +1518,33 @@ class Train {
       if (this.s <= 0) { this.s = 0; this.wait = 12; this.dir = 1; }
       if (this.s >= L.len) { this.s = L.len; this.wait = 12; this.dir = -1; }
     }
-    // vagon konumları (lokomotif hareket yönünde önde)
-    this.pos.length = 0;
+    // vagon konumları (lokomotif hareket yönünde önde); diziler yerinde güncellenir
     for (let i = 0; i < this.cars.length; i++) {
       const s = this.s - this.dir * i * this.gap;
-      const p = this.at(s);
+      const p = this.at(s, this.pos[i] || (this.pos[i] = [0, 0, 0]));
       if (this.dir < 0) p[2] += Math.PI;
-      this.pos.push(p);
     }
+    this.pos.length = this.cars.length;
     this.smokeT -= dt;
     if (this.smokeT <= 0 && this.pos[0]) {
       this.smokeT = this.spd > 20 ? 0.08 : 0.35;
-      const [x, y, a] = this.pos[0];
+      const q = this.pos[0], x = q[0], y = q[1], a = q[2];
       const P = G.player;
       if (Math.abs(x - P.x) < 700 && Math.abs(y - P.y) < 500) G.parts.add('smoke', x + Math.cos(a) * 9, y + Math.sin(a) * 9 - 6, rnd(-6, 6) - Math.cos(a) * this.spd * 0.3, -12 - Math.sin(a) * this.spd * 0.3, 2.2, 3, '60,58,56');
     }
     // çarpışma
     if (this.spd > 15) {
       const P = G.player;
-      for (const [x, y] of this.pos) {
+      for (let i = 0; i < this.pos.length; i++) {
+        const x = this.pos[i][0], y = this.pos[i][1];
         if (dist2(x, y, P.x, P.y) < 13 * 13) { P.hurt(60, 'train'); const a = Math.atan2(P.y - y, P.x - x); P.x += Math.cos(a) * 20; P.y += Math.sin(a) * 20; if (P.riding) { P.riding.x = P.x; P.riding.y = P.y; } }
-        for (const e of G.ents) if (!e.dead && dist2(x, y, e.x, e.y) < 12 * 12 && e.hurt) e.hurt(200, null);
+        for (let k = 0; k < G.ents.length; k++) { const e = G.ents[k]; if (!e.dead && dist2(x, y, e.x, e.y) < 12 * 12 && e.hurt) e.hurt(200, null); }
       }
     }
   }
   draw(ctx, x0, y0, x1, y1) {
     for (let i = this.pos.length - 1; i >= 0; i--) {
-      const [x, y, a] = this.pos[i];
+      const q = this.pos[i], x = q[0], y = q[1], a = q[2];
       if (x < x0 - 40 || x > x1 + 40 || y < y0 - 40 || y > y1 + 40) continue;
       Spr.trainCar(ctx, x, y, a, this.cars[i], G.t);
     }
