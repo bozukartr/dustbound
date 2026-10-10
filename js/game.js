@@ -867,17 +867,23 @@ const G = {
     const r = this.canvasRect(), k = r.width / this.vw;
     return { x: r.left + (x - this.cam.ox) * k, y: r.top + (y - this.cam.oy) * k };
   },
+  /* 2D parça alanı: görünen parçalar ve hareket yönünde bir halka (atlıyken gidilen yönde iki). Önbellek bu alanı her
+     zaman tutar (World.chunkNeed); çizimden önce kurulur ki ışınlanınca yeni parçalar eski alana göre atılmasın.
+     Dönen dizi: [cx0, cy0, cx1, cy1, batı, kuzey, doğu, güney halka genişliği] (her çağrıda aynı dizi). */
+  chunkArea() {
+    const C = this.cam, P = this.player, A = this._chunkA || (this._chunkA = [0, 0, 0, 0, 1, 1, 1, 1]);
+    A[0] = Math.floor(C.ox / CPX); A[1] = Math.floor(C.oy / CPX); A[2] = Math.floor((C.ox + this.vw) / CPX); A[3] = Math.floor((C.oy + this.vh) / CPX);
+    const vx = P.riding ? Math.cos(P.riding.ang) : 0, vy = P.riding ? Math.sin(P.riding.ang) : 0;
+    A[4] = vx < -0.3 ? 2 : 1; A[5] = vy < -0.3 ? 2 : 1; A[6] = vx > 0.3 ? 2 : 1; A[7] = vy > 0.3 ? 2 : 1;
+    this.world.chunkNeed(A[0] - A[4], A[1] - A[5], A[2] + A[6], A[3] + A[7]);
+    return A;
+  },
   prefetch(sync) {
-    const W = this.world, C = this.cam;
-    const x0 = C.ox, y0 = C.oy;
-    const cx0 = Math.floor(x0 / CPX), cy0 = Math.floor(y0 / CPX), cx1 = Math.floor((x0 + this.vw) / CPX), cy1 = Math.floor((y0 + this.vh) / CPX);
+    if (this.ds === 2) return;   // melez çizim kendi parçalarını pişirir; 2D parçalar boşuna pişip bellekte kalmasın
+    const W = this.world, A = this.chunkArea(), cx0 = A[0], cy0 = A[1], cx1 = A[2], cy1 = A[3];
     const NC = WW / CHUNK;
     if (sync) for (let cy = Math.max(0, cy0); cy <= Math.min(NC - 1, cy1); cy++) for (let cx = Math.max(0, cx0); cx <= Math.min(NC - 1, cx1); cx++) W.getChunk(cx, cy, true);
-    // hareket yönünde bir halka
-    const P = this.player;
-    const vx = P.riding ? Math.cos(P.riding.ang) : 0, vy = P.riding ? Math.sin(P.riding.ang) : 0;
-    const ex = vx > 0.3 ? 2 : 1, wx = vx < -0.3 ? 2 : 1, ey = vy > 0.3 ? 2 : 1, ny = vy < -0.3 ? 2 : 1;
-    for (let cy = cy0 - ny; cy <= cy1 + ey; cy++) for (let cx = cx0 - wx; cx <= cx1 + ex; cx++) W.getChunk(cx, cy, false);
+    for (let cy = cy0 - A[5]; cy <= cy1 + A[7]; cy++) for (let cx = cx0 - A[4]; cx <= cx1 + A[6]; cx++) W.getChunk(cx, cy, false);
   },
 
   /* ---------------- Render ---------------- */
@@ -893,6 +899,7 @@ const G = {
     const cx0 = Math.floor(x0 / CPX), cy0 = Math.floor(y0 / CPX), cx1 = Math.floor(x1 / CPX), cy1 = Math.floor(y1 / CPX);
     const chunks = [];
     const NC = WW / CHUNK;
+    this.chunkArea();
     for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
       if (cx < 0 || cy < 0 || cx >= NC || cy >= NC) { ctx.fillStyle = '#2c4b5e'; ctx.fillRect(cx * CPX - x0, cy * CPX - y0, CPX, CPX); continue; }
       const c = W.getChunk(cx, cy, true);

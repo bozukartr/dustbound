@@ -1792,12 +1792,24 @@ class World {
     if (this.chunks.has(key) || this.jobs.has(key)) return;
     this.jobs.set(key, { gen: this.chunkJob(cx, cy) });
   }
+  /* Gereken parça alanı (görünen + ön halka, parça koordinatında): önbellek bu alanı her zaman tutar, sığa ona göre
+     büyür; yer gerekince alana en uzak parça atılır. Sabit 36 parça küçük piksel ölçeğinde halkayı almıyor, görünen
+     parçalar atılıp yeniden pişiyordu. */
+  chunkNeed(x0, y0, x1, y1) {
+    const N = this._need || (this._need = [0, 0, 0, 0]);
+    N[0] = x0; N[1] = y0; N[2] = x1; N[3] = y1;
+    this._cap = Math.max(36, (x1 - x0 + 1) * (y1 - y0 + 1) + 2);
+  }
   storeChunk(key, c) {
     c.used = performance.now();
     this.chunks.set(key, c);
-    if (this.chunks.size > 36) {
-      let oldK = -1, oldT = Infinity;
-      for (const [k, v] of this.chunks) if (v.used < oldT) { oldT = v.used; oldK = k; }
+    if (this.chunks.size > (this._cap || 36)) {
+      const N = this._need;
+      let oldK = -1, oldD = -1, oldT = Infinity;
+      for (const [k, v] of this.chunks) {
+        const kx = k % 64, ky = (k - kx) / 64, d = N ? Math.max(0, kx - N[2], N[0] - kx) + Math.max(0, ky - N[3], N[1] - ky) : 0;
+        if (d > oldD || (d === oldD && v.used < oldT)) { oldD = d; oldT = v.used; oldK = k; }
+      }
       this.chunks.delete(oldK);
     }
     return c;
@@ -1891,9 +1903,12 @@ class World {
     return { g, o };
   }
   *chunkGround(cx, cy, gc) {
-    const img = gc.createImageData(CPX, CPX);
+    // 1 MB'lık piksel dizisi her parçada yeniden açılmaz (yürürken sık çöp toplama); groundPixels her pikseli yazar,
+    // putImageData veriyi kopyalar. Yarıda kalan pişirmenin dizisi havuza dönmez, çöpe gider.
+    const pool = World.IMGP || (World.IMGP = []), img = pool.pop() || gc.createImageData(CPX, CPX);
     yield* this.groundPixels(cx * CPX, cy * CPX, CPX, CPX, img.data, null);
     gc.putImageData(img, 0, 0);
+    if (pool.length < 3) pool.push(img);
     yield 0;
   }
   /* Zemin pikselleri (karo rengi, gürültü, kenar titreşimi, mevsim) bir dikdörtgen için: 2D chunk'lar ve melez çizici
