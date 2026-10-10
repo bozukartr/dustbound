@@ -554,21 +554,27 @@ const UI = {
     const RP = [0, 0], toR = (wx, wy) => { RP[0] = C + (wx / TS - tx) * z; RP[1] = C + (wy / TS - ty) * z; return RP; };
     // yollar ve demiryolu (vektörel); çizgiler 64 noktalık parçalara bölünür, radarın dışında kalan parça hiç dolaşılmaz
     const lim = span * TS * 0.75, bx0 = P.x - lim, bx1 = P.x + lim, by0 = P.y - lim, by1 = P.y + lim;
-    // nokta başına dizi yaratmamak için dönüşüm (toR ile aynı) satır içinde
+    // nokta başına dizi yaratmamak için dönüşüm (toR ile aynı) satır içinde; yol yolu bir kez kurulur, iki kez (koyu kenar,
+    // açık orta) çizilir; radarın dışında kalan yol hiç çizilmez
     const poly = (pts, step) => {
-      c.beginPath(); let on = false;
+      c.beginPath(); let on = false, any = false;
       const S = radarSegs(pts);
       for (let j = 0; j < S.length; j++) {
         const s = S[j];
         if (s[2] < bx0 || s[0] > bx1 || s[3] < by0 || s[1] > by1) { on = false; continue; }
-        for (let k = s[4]; k < s[5]; k += step) { const q = pts[k]; if (Math.abs(q[0] - P.x) > lim || Math.abs(q[1] - P.y) > lim) { on = false; continue; } const x = C + (q[0] / TS - tx) * z, y = C + (q[1] / TS - ty) * z; if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; } }
+        for (let k = s[4]; k < s[5]; k += step) { const q = pts[k]; if (Math.abs(q[0] - P.x) > lim || Math.abs(q[1] - P.y) > lim) { on = false; continue; } const x = C + (q[0] / TS - tx) * z, y = C + (q[1] / TS - ty) * z; if (on) c.lineTo(x, y); else { c.moveTo(x, y); on = true; any = true; } }
       }
-      c.stroke();
+      return any;
     };
     c.lineCap = 'round'; c.lineJoin = 'round';
-    for (const r of W.roads) { c.strokeStyle = 'rgba(92,62,36,0.85)'; c.lineWidth = r.spur ? 1.6 : 2.6; poly(r.pts, 2); c.strokeStyle = 'rgba(214,190,140,0.9)'; c.lineWidth = r.spur ? 0.6 : 1.1; poly(r.pts, 2); }
+    for (let ri = 0; ri < W.roads.length; ri++) {
+      const r = W.roads[ri];
+      if (!poly(r.pts, 2)) continue;
+      c.strokeStyle = 'rgba(92,62,36,0.85)'; c.lineWidth = r.spur ? 1.6 : 2.6; c.stroke();
+      c.strokeStyle = 'rgba(214,190,140,0.9)'; c.lineWidth = r.spur ? 0.6 : 1.1; c.stroke();
+    }
     c.strokeStyle = 'rgba(30,24,20,0.8)'; c.lineWidth = 1.2;
-    for (const l of W.lines) poly(l.pts, 2);
+    for (let li = 0; li < W.lines.length; li++) if (poly(W.lines[li].pts, 2)) c.stroke();
     c.drawImage(G.fogCanvas, (tx - span / 2) / 4, (ty - span / 2) / 4, span / 4, span / 4, C - R, C - R, 2 * R, 2 * R);
     // gece: kâğıt mürekkep mavisine kararır (göz yormaz)
     const night = 1 - G.daylight;

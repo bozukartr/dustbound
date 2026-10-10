@@ -13,7 +13,7 @@
 const HY = (() => {
   const S = 2;                 // dünya pikseli başına tuval pikseli
   const HC = 256, HB = HC * S; // pişirme parçası (dünya px) ve tampon boyu
-  const UP = [0, 0, 1], SOUTH = [0, 1, 0];
+  const UP = [0, 0, 1], SOUTH = [0, 1, 0], ROOFN = [0, 0.4, 0.9];
   const E_WIN = 1, E_FIRE = 2;
 
   /* ---------------- renk yardımcıları ---------------- */
@@ -29,6 +29,21 @@ const HY = (() => {
   };
   const sh = (c, k) => k < 0 ? [c[0] * (1 + k), c[1] * (1 + k), c[2] * (1 + k)] : [c[0] + (1 - c[0]) * k, c[1] + (1 - c[1]) * k, c[2] + (1 - c[2]) * k];
   const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  /* Geçici renk (shT, mixT): piksel başına çağrılan sh/mix her seferinde yeni dizi açıyor, yürürken pişirme saniyede
+     onlarca MB çöp üretip sık çöp toplama duraklamasına yol açıyordu. Sonuç 64 dizilik halkaya yazılır; put ya da
+     çağıran onu hemen okur (piksel başına en çok birkaç ara renk). Saklanacak renk (sprite parçası, döngü boyu sabit)
+     için sh/mix kullanılır. */
+  const TMP = []; for (let i = 0; i < 64; i++) TMP.push([0.5, 0.5, 0.5]);
+  let tmpI = 0;
+  const shT = (c, k) => {
+    const o = TMP[tmpI = (tmpI + 1) & 63];
+    if (k < 0) { o[0] = c[0] * (1 + k); o[1] = c[1] * (1 + k); o[2] = c[2] * (1 + k); }
+    else { o[0] = c[0] + (1 - c[0]) * k; o[1] = c[1] + (1 - c[1]) * k; o[2] = c[2] + (1 - c[2]) * k; }
+    return o;
+  };
+  const mixT = (a, b, t) => { const o = TMP[tmpI = (tmpI + 1) & 63]; o[0] = a[0] + (b[0] - a[0]) * t; o[1] = a[1] + (b[1] - a[1]) * t; o[2] = a[2] + (b[2] - a[2]) * t; return o; };
+  // put'a verilen geçici normal ve 2D'den okunan piksel rengi (put değerleri hemen kopyalar)
+  const NT = [0.5, 0.5, 0.5], SC = [0.5, 0.5, 0.5];
   const hex = (c) => '#' + c.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('');
   const hs = (x, y, s = 0) => { let h = (x * 374761393 + y * 668265263 + s * 1442695041) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
@@ -59,22 +74,29 @@ const HY = (() => {
   }
   const facadeH = (baseW) => (x, y) => Math.max(0, baseW - wyOf(y));     // dikey yüz: tabandan yukarı yükselir
   // 2D çizimi geçici tuvale iki kat ölçekte çizip keskin kenarlı piksellere çevirir; step verilirse satır satır adım verir
+  // geçici tuval boyuta göre yeniden kullanılır (kaktüs, mezar, mobilya... her nesnede yeni tuval açılıp çöpe gitmesin);
+  // reset() pikselleri ve çizim durumunu (dönüşüm, stiller, yol) yeni açılmış tuvaldeki gibi sıfırlar
+  const SCV = new Map();
   function* stampSteps(draw, ox, oy, w, h, hFn, n, filter, step) {
-    const cw = Math.ceil(w * S), chh = Math.ceil(h * S), cv = makeCanvas(cw, chh), g = cv.getContext('2d', { willReadFrequently: true });
+    const cw = Math.ceil(w * S), chh = Math.ceil(h * S), key = cw * 8192 + chh, free = SCV.get(key);
+    let cv = free && free.pop(), g;
+    if (cv) { g = cv.getContext('2d', { willReadFrequently: true }); g.reset(); }
+    else { cv = makeCanvas(cw, chh); g = cv.getContext('2d', { willReadFrequently: true }); }
     g.scale(S, S); g.translate(-ox, -oy); draw(g);
     const d = g.getImageData(0, 0, cw, chh).data, x0 = bx(ox), y0 = by(oy);
+    if (g.reset) { let L = SCV.get(key); if (!L) SCV.set(key, L = []); if (L.length < 2) L.push(cv); }
     for (let y = 0; y < chh; y++) {
       for (let x = 0; x < cw; x++) {
         const k = (y * cw + x) * 4; if (d[k + 3] < 150) continue;
-        const c = [d[k] / 255, d[k + 1] / 255, d[k + 2] / 255]; if (filter && !filter(c)) continue;
-        put(x0 + x, y0 + y, c, hFn(x0 + x, y0 + y), typeof n === 'function' ? n(x0 + x, y0 + y) : n, 0);
+        SC[0] = d[k] / 255; SC[1] = d[k + 1] / 255; SC[2] = d[k + 2] / 255; if (filter && !filter(SC)) continue;
+        put(x0 + x, y0 + y, SC, hFn(x0 + x, y0 + y), typeof n === 'function' ? n(x0 + x, y0 + y) : n, 0);
       }
       if (step) yield* step();
     }
   }
   function stamp(draw, ox, oy, w, h, hFn, n, filter) { for (const _ of stampSteps(draw, ox, oy, w, h, hFn, n, filter)); }
   function signText(txt, x0, y0, w, h, bg, fg, baseW) {
-    rect(x0, y0, w, h, (x, y) => (x === x0 || x === x0 + w - 1 || y === y0 || y === y0 + h - 1) ? sh(bg, -0.45) : bg, facadeH(baseW), SOUTH);
+    rect(x0, y0, w, h, (x, y) => (x === x0 || x === x0 + w - 1 || y === y0 || y === y0 + h - 1) ? shT(bg, -0.45) : bg, facadeH(baseW), SOUTH);
     const fc = signText.c || (signText.c = makeCanvas(256, 32)), c = fc.getContext('2d', { willReadFrequently: true });
     c.clearRect(0, 0, 256, 32); c.font = 'bold 12px monospace'; c.textBaseline = 'middle'; c.textAlign = 'center'; c.fillStyle = '#fff';
     c.fillText(txt, 128, 16);
@@ -94,14 +116,34 @@ const HY = (() => {
       yield 0; if (tg) { TG = tg; LAYER = 0; } t0 = performance.now();
     };
   }
-  // büyük dikdörtgen 16 satırlık şeritler hâlinde: sonuç aynı, şeritlerin arasına adım girer
+  /* Büyük ara tamponlar havuzu: parça pişirme başına ~5 MB, bina örtüsü başına 1-3 MB dizi açılıp atılınca yürürken
+     sık büyük çöp toplama olur. Pişirme bitince tampon havuza döner (putImageData veriyi kopyalar), sonraki pişirme onu
+     kullanır; yarıda bırakılan pişirmenin tamponu çöpe gider. Aynı boyuttan en çok 4, toplam en çok 48 MB tutulur. */
+  const POOL = new Map();
+  let poolBytes = 0;
+  const CVP = [];   // parça pişirmenin geçici 2D tuvalleri
+  function take(C, n, zero) {
+    const L = POOL.get(C.name + n), a = L && L.pop();
+    if (!a) return new C(n);
+    poolBytes -= a.byteLength;
+    if (zero) a.fill(0);
+    return a;
+  }
+  function give(a) {
+    const k = a.constructor.name + a.length;
+    let L = POOL.get(k); if (!L) POOL.set(k, L = []);
+    if (L.length >= 4 || poolBytes + a.byteLength > 48e6) return;
+    L.push(a); poolBytes += a.byteLength;
+  }
+  // büyük dikdörtgen 8 satırlık şeritler hâlinde: sonuç aynı, şeritlerin arasına adım girer (geniş cephede 16 satır birkaç ms)
   function* bands(x0, y0, w, h, c, ht, n, step) {
-    for (let y = y0; y < y0 + h; y += 16) { rect(x0, y, w, Math.min(16, y0 + h - y), c, ht, n); yield* step(); }
+    for (let y = y0; y < y0 + h; y += 8) { rect(x0, y, w, Math.min(8, y0 + h - y), c, ht, n); yield* step(); }
   }
 
   /* ---------------- zemin (parça) ---------------- */
   function* ground(W, ox, oy, base) {
-    const M = 16, ww = HC + 2 * M, img = new Uint8ClampedArray(ww * ww * 4), cls = new Int16Array(ww * ww);
+    // groundPixels her pikseli yazar: havuzdan gelen tamponun sıfırlanması gerekmez
+    const M = 16, ww = HC + 2 * M, img = take(Uint8ClampedArray, ww * ww * 4), cls = take(Int16Array, ww * ww);
     yield* W.groundPixels(ox - M, oy - M, ww, ww, img, cls);
     const at = (x, y) => (Math.max(0, Math.min(ww - 1, y)) * ww + Math.max(0, Math.min(ww - 1, x))), step = pacer(null);
     for (let y = 0; y < HB; y++) {
@@ -129,7 +171,7 @@ const HY = (() => {
           if (t === T.ROAD && hs(Math.floor(wx / 6), Math.floor(wy / 3), 9) > 0.8 && n > 0.5) k -= 0.06;
         } else if (t === T.PLANK) {
           const pl = Math.floor(wx / 5), u = wx - pl * 5, sv = Math.floor(wy + hs(pl, 0, 3) * 16), seam = (sv & 15) === 15;
-          const c = sh(rgb('#7a5a3a'), (hs(pl, sv >> 4, 4) - 0.5) * 0.18); r = c[0] * 255; g = c[1] * 255; b = c[2] * 255;
+          const c = shT(rgb('#7a5a3a'), (hs(pl, sv >> 4, 4) - 0.5) * 0.18); r = c[0] * 255; g = c[1] * 255; b = c[2] * 255;
           if (u < 0.5) k = -0.42; else if (seam) k = -0.35;
           else if (Math.abs(u - 1) < 0.3 && ((Math.floor(wy * 2) % 32) === 3)) k = -0.3;
           else if (hs(Math.floor(wx * 2), Math.floor(wy / 2), 12) > 0.8) k = 0.07;
@@ -143,6 +185,7 @@ const HY = (() => {
       }
       yield* step();
     }
+    give(img); give(cls);
   }
 
   /* ---------------- ağaçlar ve nesneler ---------------- */
@@ -156,21 +199,22 @@ const HY = (() => {
     const c1 = rgb(cols[0]), c2 = rgb(cols[1]), c3 = rgb(cols[2]);
     for (let yy = by(cy - r * 1.2); yy <= by(cy + r * 1.1); yy++) for (let xx = bx(x - r * 1.2); xx <= bx(x + r * 1.2); xx++) {
       const wx = wxOf(xx), wy = wyOf(yy);
-      let best = -1, bn = null;
-      for (const [bx0, by0, br] of blobs) { const dx = (wx - bx0) / br, dy = (wy - by0) / br, d = dx * dx + dy * dy; if (d > 1) continue; const z = Math.sqrt(1 - d) * br + (by0 < cy ? 1 : 0); if (z > best) { best = z; bn = [dx, dy, Math.sqrt(1 - d)]; } }
+      let best = -1, nx = 0, ny = 0, nz = 0;
+      for (let q = 0; q < blobs.length; q++) { const B = blobs[q], bx0 = B[0], by0 = B[1], br = B[2], dx = (wx - bx0) / br, dy = (wy - by0) / br, d = dx * dx + dy * dy; if (d > 1) continue; const z = Math.sqrt(1 - d) * br + (by0 < cy ? 1 : 0); if (z > best) { best = z; nx = dx; ny = dy; nz = Math.sqrt(1 - d); } }
       if (best < 0) continue;
       const lf = hs(Math.floor(wx * 1.4), Math.floor(wy * 1.6), 21 + (h * 100 | 0));
-      const lit = -bn[0] * 0.5 - bn[1] * 0.6 + bn[2] * 0.4;
+      const lit = -nx * 0.5 - ny * 0.6 + nz * 0.4;
       let c = lit > 0.55 ? c3 : lit > 0.05 ? c2 : c1;
-      if (lf > 0.86) c = sh(c, 0.14); else if (lf < 0.12) c = sh(c, -0.22);
-      if (snowy && bn[1] < -0.2 && lf > 0.3) c = SNOW;
-      const l = Math.hypot(bn[0], bn[1], bn[2] * 1.3);
-      put(xx, yy, c, Math.max(7, baseY - wy) + best * 0.4, [bn[0] / l, bn[1] / l, bn[2] * 1.3 / l], 0);
+      if (lf > 0.86) c = shT(c, 0.14); else if (lf < 0.12) c = shT(c, -0.22);
+      if (snowy && ny < -0.2 && lf > 0.3) c = SNOW;
+      const l = Math.hypot(nx, ny, nz * 1.3);
+      NT[0] = nx / l; NT[1] = ny / l; NT[2] = nz * 1.3 / l;
+      put(xx, yy, c, Math.max(7, baseY - wy) + best * 0.4, NT, 0);
     }
   }
   function trunk(x, y0w, y1w, w, col) {
     const c = rgb(col);
-    rect(bx(x - w / 2), by(y0w), Math.max(2, Math.round(w * S)), by(y1w) - by(y0w), (xx) => xx === bx(x - w / 2) ? sh(c, 0.18) : (xx - bx(x - w / 2)) % 3 === 2 ? sh(c, -0.2) : c, facadeH(y1w), SOUTH);
+    rect(bx(x - w / 2), by(y0w), Math.max(2, Math.round(w * S)), by(y1w) - by(y0w), (xx) => xx === bx(x - w / 2) ? shT(c, 0.18) : (xx - bx(x - w / 2)) % 3 === 2 ? shT(c, -0.2) : c, facadeH(y1w), SOUTH);
   }
   function pine(x, cy, baseY, r, cols, h, snowy) {
     for (let layer = 0; layer < 3; layer++) {
@@ -181,10 +225,11 @@ const HY = (() => {
         const R = rr * (0.62 + 0.38 * m), d = Math.hypot(dx, dy) / R;
         if (d > 1) continue;
         const nz = Math.sqrt(1 - d * d * 0.8), lit = -dx / rr * 0.5 - dy / rr * 0.6 + nz * 0.3;
-        let c = lit > 0.35 ? sh(col, 0.14) : lit < -0.3 ? sh(col, -0.2) : col;
-        if (hs(xx, yy, 33) > 0.9) c = sh(c, -0.15);
-        if (snowy && (dy < -rr * 0.15 || lit > 0.2) && hs(xx >> 1, yy >> 1, 4 + layer) > 0.3) c = lit > 0.35 ? SNOW : sh(SNOW, -0.12);
-        put(xx, yy, c, Math.max(7, baseY - wyOf(yy)) + nz * 3 + layer * 2, [dx / rr * 0.7, dy / rr * 0.7, nz], 0);
+        let c = lit > 0.35 ? shT(col, 0.14) : lit < -0.3 ? shT(col, -0.2) : col;
+        if (hs(xx, yy, 33) > 0.9) c = shT(c, -0.15);
+        if (snowy && (dy < -rr * 0.15 || lit > 0.2) && hs(xx >> 1, yy >> 1, 4 + layer) > 0.3) c = lit > 0.35 ? SNOW : shT(SNOW, -0.12);
+        NT[0] = dx / rr * 0.7; NT[1] = dy / rr * 0.7; NT[2] = nz;
+        put(xx, yy, c, Math.max(7, baseY - wyOf(yy)) + nz * 3 + layer * 2, NT, 0);
       }
     }
   }
@@ -229,7 +274,7 @@ const HY = (() => {
       case O.LAMP: {
         LAYER = 0; rect(P(x - 1), Q(y - 10), 4, Q(y + 2) - Q(y - 10), (xx) => xx === P(x - 1) ? rgb('#4a4440') : rgb('#1e1a18'), facadeH(y + 2), SOUTH);
         LAYER = 1;
-        rect(P(x - 3), Q(y - 17), 12, 16, (xx, yy) => { const u = xx - P(x - 3), v = yy - Q(y - 17); if (v < 3 || v > 13 || u < 2 || u > 9) return rgb('#1e1a18'); return mix(rgb('#e8e0c0'), rgb('#9aa8a8'), v / 14); }, facadeH(y + 2), SOUTH, (xx, yy) => { const u = xx - P(x - 3), v = yy - Q(y - 17); return v >= 3 && v <= 13 && u >= 2 && u <= 9 ? E_WIN : 0; });
+        rect(P(x - 3), Q(y - 17), 12, 16, (xx, yy) => { const u = xx - P(x - 3), v = yy - Q(y - 17); if (v < 3 || v > 13 || u < 2 || u > 9) return rgb('#1e1a18'); return mixT(rgb('#e8e0c0'), rgb('#9aa8a8'), v / 14); }, facadeH(y + 2), SOUTH, (xx, yy) => { const u = xx - P(x - 3), v = yy - Q(y - 17); return v >= 3 && v <= 13 && u >= 2 && u <= 9 ? E_WIN : 0; });
         rect(P(x - 3.5), Q(y - 18), 14, 2, rgb('#2a2622'), 21, UP);
         return true;
       }
@@ -241,7 +286,7 @@ const HY = (() => {
       }
       case O.TROUGH: {
         LAYER = 0;
-        rect(P(x - 10), Q(y - 4), 40, 8, (xx, yy) => { const u = xx - P(x - 10), v = yy - Q(y - 4); if (u < 3 || u > 36 || v < 2) return rgb('#7a5636'); const w = mix(rgb('#4a7a8a'), rgb('#2a4a5a'), v / 8); return (u + v * 3) % 11 === 0 ? sh(w, 0.4) : w; }, 5, UP);
+        rect(P(x - 10), Q(y - 4), 40, 8, (xx, yy) => { const u = xx - P(x - 10), v = yy - Q(y - 4); if (u < 3 || u > 36 || v < 2) return rgb('#7a5636'); const w = mixT(rgb('#4a7a8a'), rgb('#2a4a5a'), v / 8); return (u + v * 3) % 11 === 0 ? shT(w, 0.4) : w; }, 5, UP);
         rect(P(x - 10), Q(y), 40, 6, (xx) => (xx - P(x - 10)) % 8 === 7 ? rgb('#4a3220') : rgb('#6a4a2e'), facadeH(y + 3), SOUTH);
         return true;
       }
@@ -266,7 +311,7 @@ const HY = (() => {
       }
       case O.WELL: {
         LAYER = 0;
-        for (let yy = -14; yy <= 14; yy++) for (let xx = -14; xx <= 14; xx++) { const r = Math.hypot(xx, yy * 1.05); if (r > 13.5) continue; const c = r > 9 ? (hs(Math.floor(Math.atan2(yy, xx) * 4), Math.floor(r / 3), 2) > 0.5 ? rgb('#8a847a') : rgb('#6e6860')) : r > 7.5 ? rgb('#4a4640') : mix(rgb('#2e4450'), rgb('#101a20'), r / 8); put(P(x) + xx, Q(y) + yy, c, r > 7.5 ? 6 : 1, UP, 0); }
+        for (let yy = -14; yy <= 14; yy++) for (let xx = -14; xx <= 14; xx++) { const r = Math.hypot(xx, yy * 1.05); if (r > 13.5) continue; const c = r > 9 ? (hs(Math.floor(Math.atan2(yy, xx) * 4), Math.floor(r / 3), 2) > 0.5 ? rgb('#8a847a') : rgb('#6e6860')) : r > 7.5 ? rgb('#4a4640') : mixT(rgb('#2e4450'), rgb('#101a20'), r / 8); put(P(x) + xx, Q(y) + yy, c, r > 7.5 ? 6 : 1, UP, 0); }
         LAYER = 1;
         for (const px of [x - 6, x + 4.5]) rect(P(px), Q(y - 14), 3, Q(y - 1) - Q(y - 14), rgb('#5a3e26'), facadeH(y + 11), SOUTH);
         for (let k = 0; k < 16; k++) { const half = Math.round(k * 18 / 16); rect(P(x) - half, Q(y - 20) + k, half * 2, 1, (xx) => (xx + k) % 5 === 0 ? rgb('#4a2a18') : xx < P(x) ? rgb('#7a4428') : rgb('#5a3420'), 20 - k * 0.3, [0, 0.4, 0.9]); }
@@ -288,7 +333,7 @@ const HY = (() => {
       case O.FENCEH: {
         LAYER = 0;
         rect(P(x - 1), Q(y - 5), 4, Q(y + 1.5) - Q(y - 5), (xx) => xx === P(x - 1) ? rgb('#7a5838') : rgb('#4a3220'), facadeH(y + 1.5), SOUTH);
-        for (const [ry, c] of [[y - 3.6, '#8a6a46'], [y - 0.6, '#6a4a2e']]) rect(P(x - 8), Q(ry), P(x + 8) - P(x - 8), 3, (xx, yy) => yy === Q(ry) ? sh(rgb(c), 0.2) : rgb(c), facadeH(y + 1.5), SOUTH);
+        for (const [ry, c] of [[y - 3.6, '#8a6a46'], [y - 0.6, '#6a4a2e']]) rect(P(x - 8), Q(ry), P(x + 8) - P(x - 8), 3, (xx, yy) => yy === Q(ry) ? shT(rgb(c), 0.2) : rgb(c), facadeH(y + 1.5), SOUTH);
         return true;
       }
       case O.FENCEV: {
@@ -304,10 +349,11 @@ const HY = (() => {
           const dx = (wxOf(xx) - x) / r, dy = (wyOf(yy) - cy) / ry, a = Math.atan2(dy, dx), wob = 1 + 0.12 * Math.sin(a * 5 + hh * 9), d = Math.hypot(dx, dy) / wob;
           if (d > 1) continue;
           const nz = Math.sqrt(1 - d * d), facet = Math.floor((a + Math.PI) / (TAU / 7));
-          let c = sh(base, (hs(facet, Math.floor(d * 2), 3) - 0.5) * 0.2 + (-dx * 0.25 - dy * 0.3 + nz * 0.1));
-          if (hs(xx, yy, 8) > 0.93) c = sh(c, -0.18);
+          let c = shT(base, (hs(facet, Math.floor(d * 2), 3) - 0.5) * 0.2 + (-dx * 0.25 - dy * 0.3 + nz * 0.1));
+          if (hs(xx, yy, 8) > 0.93) c = shT(c, -0.18);
           if (snowy && dy < -0.1) c = SNOW;
-          put(xx, yy, c, nz * r * 1.1, [dx * 0.8, dy * 0.8, nz], 0);
+          NT[0] = dx * 0.8; NT[1] = dy * 0.8; NT[2] = nz;
+          put(xx, yy, c, nz * r * 1.1, NT, 0);
         }
         return true;
       }
@@ -336,9 +382,9 @@ const HY = (() => {
       const u = x - x0, v = y - y0;
       if (u === 0 || u === w - 1 || v === 0 || v === hh - 1) return rgb('#2e2014');
       if (u === 1 || u === w - 2 || v === 1 || v === hh - 2) return framed;
-      if (u === (w >> 1) - 1 || u === (w >> 1) || v === (hh >> 1) - 1) return sh(framed, -0.06);
-      const sky = mix(rgb('#9ab8cc'), rgb('#2c3e52'), Math.min(1, v / (hh * 0.55) + u * 0.03));
-      if ((u + v) % 7 === 0 && v < hh / 2) return sh(sky, 0.35);
+      if (u === (w >> 1) - 1 || u === (w >> 1) || v === (hh >> 1) - 1) return shT(framed, -0.06);
+      const sky = mixT(rgb('#9ab8cc'), rgb('#2c3e52'), Math.min(1, v / (hh * 0.55) + u * 0.03));
+      if ((u + v) % 7 === 0 && v < hh / 2) return shT(sky, 0.35);
       if (hs(id, k, 9) > 0.5 && (u < 4 || u > w - 5) && v > 2) return rgb('#8a3a2a');
       return sky;
     }, facadeH(TG.base), SOUTH, (x, y) => { const u = x - x0, v = y - y0; return lit && u > 1 && u < w - 2 && v > 1 && v < hh - 2 && !(u === (w >> 1) - 1 || u === (w >> 1) || v === (hh >> 1) - 1) ? E_WIN : 0; });
@@ -352,29 +398,29 @@ const HY = (() => {
     // ön cephe: dikey tahtalar, ton farkı, damar, süpürgelik, korniş
     yield* bands(xL, yTop, xR - xL, yBase - yTop, (x, y) => {
       const pl = Math.floor((x - xL) / 7), u = (x - xL) % 7, k = (hs(pl, id, 1) - 0.5) * 0.14;
-      let c = sh(wall, k);
-      if (u === 6) c = sh(wall, -0.38); else if (u === 0) c = sh(c, 0.08);
-      if (hs(x, Math.floor(y / 3), id) > 0.93) c = sh(c, -0.1);
-      if (y >= yBase - 4) c = sh(wall, -0.32);
-      if (y < yTop + 3) c = sh(wall, y === yTop ? 0.2 : -0.12);
+      let c = shT(wall, k);
+      if (u === 6) c = shT(wall, -0.38); else if (u === 0) c = shT(c, 0.08);
+      if (hs(x, Math.floor(y / 3), id) > 0.93) c = shT(c, -0.1);
+      if (y >= yBase - 4) c = shT(wall, -0.32);
+      if (y < yTop + 3) c = shT(wall, y === yTop ? 0.2 : -0.12);
       return c;
     }, facadeH(base), SOUTH, step);
     // kapı
     const dx = bx(b.door.x), barn = b.type === 'stable' || b.type === 'barn';
     if (barn) {
       const w = 40, x0 = dx - w / 2, y0 = yBase - 32;
-      rect(x0, y0, w, 32, (x) => { const u = (x - x0) % 8, c = rgb('#5a3a22'); return u === 7 ? sh(c, -0.4) : sh(c, (hs(Math.floor((x - x0) / 8), 3, id) - 0.5) * 0.15); }, facadeH(base), SOUTH);
+      rect(x0, y0, w, 32, (x) => { const u = (x - x0) % 8, c = rgb('#5a3a22'); return u === 7 ? shT(c, -0.4) : shT(c, (hs(Math.floor((x - x0) / 8), 3, id) - 0.5) * 0.15); }, facadeH(base), SOUTH);
       for (let k = 0; k <= 32; k++) { const a = Math.round(k * w / 32 / 2); for (const xx of [x0 + a, x0 + w / 2 - 1 - a, x0 + w / 2 + a, x0 + w - 1 - a]) put(xx, y0 + k, rgb('#c8b090'), base - wyOf(y0 + k), SOUTH, 0); }
       rect(x0 - 2, y0 - 2, w + 4, 2, rgb('#3a2616'), facadeH(base), SOUTH);
     } else {
       const x0 = dx - 9, y0 = yBase - 29, swing = b.type === 'saloon' || b.type === 'cantina' || b.type === 'gambling';
       rect(x0 - 1, y0 - 2, 20, 31, rgb('#3a2414'), facadeH(base), SOUTH);
       rect(x0 + 1, y0, 16, 29, (x, y) => {
-        if (swing) { const inner = rgb('#1a120c'); if (y < y0 + 8 || y > y0 + 22) return inner; const c = rgb('#8a6038'); return (x === x0 + 8) ? inner : (y % 3 === 0 ? sh(c, -0.25) : sh(c, x < x0 + 9 ? 0.05 : -0.05)); }
+        if (swing) { const inner = rgb('#1a120c'); if (y < y0 + 8 || y > y0 + 22) return inner; const c = rgb('#8a6038'); return (x === x0 + 8) ? inner : (y % 3 === 0 ? shT(c, -0.25) : shT(c, x < x0 + 9 ? 0.05 : -0.05)); }
         const c = rgb('#6a4628'), u = x - x0 - 1, v = y - y0;
-        if (u === 0 || u === 15 || v === 0 || v === 13 || v === 28) return sh(c, -0.3);
-        if ((u === 3 || u === 12) && v > 2 && v < 26 && v !== 13) return sh(c, -0.18);
-        return sh(c, v < 13 ? 0.04 : -0.02);
+        if (u === 0 || u === 15 || v === 0 || v === 13 || v === 28) return shT(c, -0.3);
+        if ((u === 3 || u === 12) && v > 2 && v < 26 && v !== 13) return shT(c, -0.18);
+        return shT(c, v < 13 ? 0.04 : -0.02);
       }, facadeH(base), SOUTH);
       if (!swing) { put(x0 + 13, y0 + 15, rgb('#e0b040'), base - wyOf(y0 + 15), SOUTH, 0); put(x0 + 13, y0 + 16, rgb('#a07820'), base - wyOf(y0 + 16), SOUTH, 0); }
     }
@@ -391,7 +437,7 @@ const HY = (() => {
     // veranda: ince saçak ve direkler
     if (!d.ruin && b.type !== 'station' && b.type !== 'barn' && b.type !== 'hermit') {
       const y0 = by(base - 3), yb = by(base + 2);
-      rect(bx(X - 1), y0, bx(X + Wd + 1) - bx(X - 1), yb - y0, (x, y) => { const v = y - y0, c = snowy ? SNOW : sh(roof, -0.08); return v === yb - y0 - 1 ? sh(c, -0.4) : (x % 6 === 0 ? sh(c, -0.18) : sh(c, v < 3 ? 0.1 : 0)); }, 15, [0, 0.5, 0.86]);
+      rect(bx(X - 1), y0, bx(X + Wd + 1) - bx(X - 1), yb - y0, (x, y) => { const v = y - y0, c = snowy ? SNOW : shT(roof, -0.08); return v === yb - y0 - 1 ? shT(c, -0.4) : (x % 6 === 0 ? shT(c, -0.18) : shT(c, v < 3 ? 0.1 : 0)); }, 15, [0, 0.5, 0.86]);
       for (const px of [X + 1, X + Wd - 2.6]) rect(bx(px), yb, 3, by(base + 14) - yb, (x) => x === bx(px) ? rgb('#5a4028') : rgb('#3e2a18'), facadeH(base + 14), SOUTH);
     }
     yield* step();
@@ -401,15 +447,15 @@ const HY = (() => {
     const txt = b.type === 'property' ? (b.owned ? 'HOME' : 'FOR SALE') : SIGN_TEXT[b.type];
     if (!d.church && !WESTERN_SKIP.has(b.type) && !d.ruin) {
       const fh = 12 + (d.tall ? 6 : 0), top = wy - fh;
-      rect(xL, by(top), xR - xL, yTop - by(top), (x, y) => {
+      yield* bands(xL, by(top), xR - xL, yTop - by(top), (x, y) => {
         const wyy = wyOf(y), side = x < bx(X + Wd * 0.2) || x >= bx(X + Wd * 0.8);
         if (side && wyy < top + 4) return null;
-        const pl = Math.floor((x - xL) / 7), u = (x - xL) % 7; let c = sh(wall, (hs(pl, id, 1) - 0.5) * 0.14 + 0.03);
-        if (u === 6) c = sh(wall, -0.38);
+        const pl = Math.floor((x - xL) / 7), u = (x - xL) % 7; let c = shT(wall, (hs(pl, id, 1) - 0.5) * 0.14 + 0.03);
+        if (u === 6) c = shT(wall, -0.38);
         const capY = side ? top + 4 : top;
-        if (wyy < capY + 1.5) c = sh(wall, 0.3); else if (wyy < capY + 3) c = sh(wall, -0.3);
+        if (wyy < capY + 1.5) c = shT(wall, 0.3); else if (wyy < capY + 3) c = shT(wall, -0.3);
         return c;
-      }, facadeH(base), SOUTH);
+      }, facadeH(base), SOUTH, step);
       if (txt) { const sw = Math.min(Wd - 8, txt.length * 4.6 + 6); signText(txt, bx(X + Wd / 2 - sw / 2), by(top + 1), Math.round(sw * S), 18, rgb(d.sign || '#c9a45c'), rgb('#1a120c'), base); }
     } else if (txt) { const sw = txt.length * 4.6 + 6; signText(txt, bx(X + Wd / 2 - sw / 2), by(wy - 9), Math.round(sw * S), 16, rgb(d.sign || '#c9a45c'), rgb('#1a120c'), base); }
     yield* step();
@@ -433,15 +479,15 @@ const HY = (() => {
       const north = y < ym, nn = north ? [0, -0.5, 0.87] : [0, 0.5, 0.87], ht = FW + 10 * (1 - Math.abs((y - ym) / ((yr1 - yr0) / 2)));
       for (let x = xr0; x < xr1; x++) {
         const row = Math.floor((y - yr0) / 4), off = (row % 2) * 4, col = Math.floor((x - xr0 + off) / 8), v = (y - yr0) % 4, u = (x - xr0 + off) % 8;
-        let c = sh(roof, north ? 0.06 : -0.06);
-        c = sh(c, (hs(col, row, id) - 0.5) * 0.16);
-        if (v === 3) c = sh(c, -0.28); else if (v === 0) c = sh(c, 0.08);
-        if (u === 0 && v < 3) c = sh(c, -0.16);
-        if (Math.abs(y - ym) < 2) c = sh(roof, 0.28);
-        if (y >= yr1 - 2) c = sh(roof, -0.45);
-        if (x < xr0 + 2 || x >= xr1 - 2) c = sh(c, -0.22);
-        if (snowy && y < yr1 - 3 && hs(x >> 2, y >> 1, 3) > 0.12) c = sh(SNOW, (hs(x, y, 4) - 0.5) * 0.06);
-        else if (hs(x >> 1, y >> 1, id + 3) > 0.985) c = mix(c, rgb('#6a7a48'), 0.4);
+        let c = shT(roof, north ? 0.06 : -0.06);
+        c = shT(c, (hs(col, row, id) - 0.5) * 0.16);
+        if (v === 3) c = shT(c, -0.28); else if (v === 0) c = shT(c, 0.08);
+        if (u === 0 && v < 3) c = shT(c, -0.16);
+        if (Math.abs(y - ym) < 2) c = shT(roof, 0.28);
+        if (y >= yr1 - 2) c = shT(roof, -0.45);
+        if (x < xr0 + 2 || x >= xr1 - 2) c = shT(c, -0.22);
+        if (snowy && y < yr1 - 3 && hs(x >> 2, y >> 1, 3) > 0.12) c = shT(SNOW, (hs(x, y, 4) - 0.5) * 0.06);
+        else if (hs(x >> 1, y >> 1, id + 3) > 0.985) c = mixT(c, rgb('#6a7a48'), 0.4);
         put(x, y, c, ht, nn, 0);
       }
       yield* step();
@@ -460,12 +506,12 @@ const HY = (() => {
     TG.base = base;
     yield* bands(xL, yTop, xR - xL, yBase - yTop, (x, y) => {
       const u = (x - xL) / S, v = (y - yTop) / S;
-      let c = sh(wall, (hs(Math.floor(u / (brick ? 3 : 5)) + (Math.floor(v / (brick ? 1.5 : 2.5)) % 2) * 7, Math.floor(v / (brick ? 1.5 : 2.5)), id) - 0.5) * 0.12);
-      if (brick) { const row = Math.floor(v / 1.5), uu = u + (row % 2) * 1.5; if (v % 1.5 < 0.5 || uu % 3 < 0.5) c = sh(wall, -0.24); }
-      else { const row = Math.floor(v / 2.5), uu = u + (row % 2) * 2.5; if (v % 2.5 < 0.5 || uu % 5 < 0.5) c = sh(wall, -0.14); }
+      let c = shT(wall, (hs(Math.floor(u / (brick ? 3 : 5)) + (Math.floor(v / (brick ? 1.5 : 2.5)) % 2) * 7, Math.floor(v / (brick ? 1.5 : 2.5)), id) - 0.5) * 0.12);
+      if (brick) { const row = Math.floor(v / 1.5), uu = u + (row % 2) * 1.5; if (v % 1.5 < 0.5 || uu % 3 < 0.5) c = shT(wall, -0.24); }
+      else { const row = Math.floor(v / 2.5), uu = u + (row % 2) * 2.5; if (v % 2.5 < 0.5 || uu % 5 < 0.5) c = shT(wall, -0.14); }
       const wyy = wyOf(y);
-      if ((wyy >= mid && wyy < mid + 2) || wyy < wy + 3) c = wyy < wy + 1 || (wyy >= mid && wyy < mid + 0.6) ? sh(trim, 0.1) : trim;
-      if (wyy >= mid + 2 && wyy < mid + 3) c = sh(wall, -0.35);
+      if ((wyy >= mid && wyy < mid + 2) || wyy < wy + 3) c = wyy < wy + 1 || (wyy >= mid && wyy < mid + 0.6) ? shT(trim, 0.1) : trim;
+      if (wyy >= mid + 2 && wyy < mid + 3) c = shT(wall, -0.35);
       if (wyy >= base - 3) c = rgb('#6a645c');
       return c;
     }, facadeH(base), SOUTH, step);
@@ -474,7 +520,7 @@ const HY = (() => {
     rect(bx(dx - 6), by(base - 17), 24, by(base) - by(base - 17), (x, y) => {
       const u = (x - bx(dx - 6)) / S, v = (y - by(base - 17)) / S;
       if (u < 1 || u > 11 || v < 2) return trim;
-      if (v < 4.5) return mix(rgb('#9ac0d8'), rgb('#4a6a80'), (v - 2) / 2.5);
+      if (v < 4.5) return mixT(rgb('#9ac0d8'), rgb('#4a6a80'), (v - 2) / 2.5);
       if (Math.abs(u - 6) < 0.5) return rgb('#1a120c');
       return (u < 2 || u > 10 || (v > 6 && v < 7)) ? rgb('#3a2414') : (v > 9.5 && v < 10.5 && Math.abs(u - 6) < 1.4) ? rgb('#d8b850') : rgb('#4a2e1c');
     }, facadeH(base), SOUTH);
@@ -484,11 +530,11 @@ const HY = (() => {
     for (let k = 0; k < nWin; k++) {
       const cx = X + (k + 0.5) * Wd / nWin;
       const x0 = bx(cx - 3.5), y0 = by(wy + 5), w = 14, hh = 22;
-      rect(x0, y0, w, hh, (x, y) => { const u = x - x0, v = y - y0; const arch = v < 4 && Math.hypot(u - 6.5, 4 - v) > 6.8; if (arch) return null; if (u < 2 || u > 11 || v > 19) return trim; if (u === 6 || u === 7) return trim; const sky = mix(rgb('#9ab8cc'), rgb('#26384a'), Math.min(1, v / 12 + u * 0.03)); return (u + v) % 6 === 0 && v < 10 ? sh(sky, 0.3) : sky; }, facadeH(base), SOUTH, (x, y) => { const u = x - x0, v = y - y0; return lit && u >= 2 && u <= 11 && v <= 19 && u !== 6 && u !== 7 && !(v < 4 && Math.hypot(u - 6.5, 4 - v) > 6.8) ? E_WIN : 0; });
+      rect(x0, y0, w, hh, (x, y) => { const u = x - x0, v = y - y0; const arch = v < 4 && Math.hypot(u - 6.5, 4 - v) > 6.8; if (arch) return null; if (u < 2 || u > 11 || v > 19) return trim; if (u === 6 || u === 7) return trim; const sky = mixT(rgb('#9ab8cc'), rgb('#26384a'), Math.min(1, v / 12 + u * 0.03)); return (u + v) % 6 === 0 && v < 10 ? shT(sky, 0.3) : sky; }, facadeH(base), SOUTH, (x, y) => { const u = x - x0, v = y - y0; return lit && u >= 2 && u <= 11 && v <= 19 && u !== 6 && u !== 7 && !(v < 4 && Math.hypot(u - 6.5, 4 - v) > 6.8) ? E_WIN : 0; });
       if (Math.abs(cx - dx) < 11) continue;
       if (shop) {
         const sx0 = bx(cx - 6), sy0 = by(base - 15), sw = 24, shh = 22;
-        rect(sx0, sy0, sw, shh, (x, y) => { const u = x - sx0, v = y - sy0; if (u < 2 || u > 21 || v < 2 || v > 19) return trim; if (u === 11 || u === 12) return trim; if (v > 13 && v < 18 && (u % 6 === 3 || u % 6 === 4)) return rgb(['#c8a040', '#a0402a', '#d8d0c0'][(k + (u / 6 | 0)) % 3]); const sky = mix(rgb('#a8c4d4'), rgb('#2a3e52'), Math.min(1, v / 14 + u * 0.02)); return (u - v) % 7 === 0 && v < 10 ? sh(sky, 0.3) : sky; }, facadeH(base), SOUTH, (x, y) => { const u = x - sx0, v = y - sy0; return lit && u >= 2 && u <= 21 && v >= 2 && v <= 13 && u !== 11 && u !== 12 ? E_WIN : 0; });
+        rect(sx0, sy0, sw, shh, (x, y) => { const u = x - sx0, v = y - sy0; if (u < 2 || u > 21 || v < 2 || v > 19) return trim; if (u === 11 || u === 12) return trim; if (v > 13 && v < 18 && (u % 6 === 3 || u % 6 === 4)) return rgb(['#c8a040', '#a0402a', '#d8d0c0'][(k + (u / 6 | 0)) % 3]); const sky = mixT(rgb('#a8c4d4'), rgb('#2a3e52'), Math.min(1, v / 14 + u * 0.02)); return (u - v) % 7 === 0 && v < 10 ? shT(sky, 0.3) : sky; }, facadeH(base), SOUTH, (x, y) => { const u = x - sx0, v = y - sy0; return lit && u >= 2 && u <= 21 && v >= 2 && v <= 13 && u !== 11 && u !== 12 ? E_WIN : 0; });
       } else windowGlass(bx(cx - 3.5), by(base - 15), 14, 20, id, k + 10, trim, lit);
       yield* step();
     }
@@ -496,7 +542,7 @@ const HY = (() => {
     // tente ya da saçak
     if (shop) {
       const ac = rgb(MODERN_AWN[Math.floor(h * MODERN_AWN.length)]), ay = base - 18, y0 = by(ay);
-      rect(bx(X - 1), y0, bx(X + Wd + 1) - bx(X - 1), 14, (x, y) => { const k = Math.floor((x - bx(X - 1)) / 8), v = y - y0, u = (x - bx(X - 1)) % 8; const c = snowy && v < 4 ? SNOW : k % 2 ? rgb('#efe8da') : ac; if (v >= 10) return Math.hypot(u - 3.5, v - 10) < 4 ? sh(c, -0.1) : null; return v === 9 ? sh(c, -0.3) : sh(c, v < 2 ? 0.12 : 0); }, 22, [0, 0.55, 0.83]);
+      rect(bx(X - 1), y0, bx(X + Wd + 1) - bx(X - 1), 14, (x, y) => { const k = Math.floor((x - bx(X - 1)) / 8), v = y - y0, u = (x - bx(X - 1)) % 8; const c = snowy && v < 4 ? SNOW : k % 2 ? rgb('#efe8da') : ac; if (v >= 10) return Math.hypot(u - 3.5, v - 10) < 4 ? shT(c, -0.1) : null; return v === 9 ? shT(c, -0.3) : shT(c, v < 2 ? 0.12 : 0); }, 22, [0, 0.55, 0.83]);
     } else rect(bx(X - 1), by(base - 3), bx(X + Wd + 1) - bx(X - 1), 6, rgb('#5a5650'), 14, [0, 0.5, 0.86]);
     // düz çatı: katran kaplama, açık renk korkuluk, tuğla baca
     const ry0 = Y - 8, xr0 = bx(X - 2), xr1 = bx(X + Wd + 2), yr0 = by(ry0), yr1 = yTop;
@@ -504,9 +550,9 @@ const HY = (() => {
     yield* bands(xr0, yr0, xr1 - xr0, yr1 - yr0, (x, y) => {
       const u = (x - xr0) / S, v = (y - yr0) / S, e = Math.min(u, v, (xr1 - x) / S, (yr1 - y) / S);
       if (e < 2.5) return e < 0.6 ? rgb('#e8e0d0') : rgb('#d4ccbb');
-      if (snowy) return sh(SNOW, (hs(x >> 1, y >> 1, 2) - 0.5) * 0.05);
-      let c = sh(rgb('#4e5058'), (hs(Math.floor(u / 2), Math.floor(v / 2), id) - 0.5) * 0.08);
-      if (v % 6 < 0.5) c = sh(c, -0.18);
+      if (snowy) return shT(SNOW, (hs(x >> 1, y >> 1, 2) - 0.5) * 0.05);
+      let c = shT(rgb('#4e5058'), (hs(Math.floor(u / 2), Math.floor(v / 2), id) - 0.5) * 0.08);
+      if (v % 6 < 0.5) c = shT(c, -0.18);
       return c;
     }, (x, y) => { const e = Math.min((x - xr0) / S, (y - yr0) / S, (xr1 - x) / S, (yr1 - y) / S); return e < 2.5 ? FW + 3 : FW; }, UP, step);
     const chx = bx(X + Wd * (0.18 + h * 0.6));
@@ -522,20 +568,22 @@ const HY = (() => {
   function* coverGen(b, W) {
     const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, gen = W._hyGen;
     const ox = X - 44, oy = Y - 64, w = (Wd + 88) * S, h = (Hd + 84) * S;
-    const tc = new Uint8ClampedArray(w * h * 4), tg = new Uint8ClampedArray(w * h * 4);
+    const tc = take(Uint8ClampedArray, w * h * 4, true), tg = take(Uint8ClampedArray, w * h * 4, true);
     const T = { c: tc, g: tg, w, h, ox, oy, o: null }, step = pacer(T);
     TG = T; LAYER = 0;
     const d = b.def, special = b.type === 'mineentrance' || b.type === 'lighthouse' || b.type === 'market' || d.ruin || b.stage !== undefined && b.stage < 1;
     if (special) {
       // seyrek yapılar: 2D çizimi keskinleştirilir (cephe dikey, üst kısım çatı)
       const base = Y + Hd, hF = (x, y) => Math.max(0, Math.min(40, base - wyOf(y)));
-      yield* stampSteps((g) => Spr.building(g, g, b, W), ox, oy, w / S, h / S, hF, (x, y) => (wyOf(y) < base - (d.tall ? 30 : 22) ? [0, 0.4, 0.9] : SOUTH), null, step);
+      yield* stampSteps((g) => Spr.building(g, g, b, W), ox, oy, w / S, h / S, hF, (x, y) => (wyOf(y) < base - (d.tall ? 30 : 22) ? ROOFN : SOUTH), null, step);
     } else if (b.modern && !MODERN_SKIP.has(b.type)) yield* modern(b, W, step);
     else yield* western(b, W, step);
     yield* step(true);
     TG = null;
     const mk = (arr) => { const cv = makeCanvas(w, h); cv.getContext('2d').putImageData(new ImageData(arr, w, h), 0, 0); return cv; };
-    return { c: mk(tc), g: mk(tg), x: ox, y: oy, gen };
+    const r = { c: mk(tc), g: mk(tg), x: ox, y: oy, gen };
+    give(tc); give(tg);
+    return r;
   }
   function cover(b, W) {
     if (b._hy && b._hy.gen === W._hyGen) return b._hy;
@@ -555,45 +603,45 @@ const HY = (() => {
     const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, t = b.type, id = b.id;
     const fl = rgb(FLOOR[t] || '#7a5a3a'), x0 = bx(X), y0 = by(Y), x1 = bx(X + Wd), y1 = by(Y + Hd), dxs = bx(b.door.x);
     LAYER = 0;
-    const floor = t === 'stable' || t === 'barn' ? (x, y) => { const r = hs(x >> 1, y, id); return r > 0.8 ? rgb('#c8a860') : r > 0.6 ? rgb('#a88a50') : sh(fl, (hs(x >> 2, y >> 2, 3) - 0.5) * 0.1); }
-      : t === 'bank' ? (x, y) => { const u = (wxOf(x) - X), v = (wyOf(y) - Y); const c = ((Math.floor(u / 8) + Math.floor(v / 8)) % 2) ? rgb('#c8b89a') : fl; return (u % 8 < 0.5 || v % 8 < 0.5) ? sh(c, -0.25) : sh(c, (hs(Math.floor(u / 8), Math.floor(v / 8), 2) - 0.5) * 0.08); }
+    const floor = t === 'stable' || t === 'barn' ? (x, y) => { const r = hs(x >> 1, y, id); return r > 0.8 ? rgb('#c8a860') : r > 0.6 ? rgb('#a88a50') : shT(fl, (hs(x >> 2, y >> 2, 3) - 0.5) * 0.1); }
+      : t === 'bank' ? (x, y) => { const u = (wxOf(x) - X), v = (wyOf(y) - Y); const c = ((Math.floor(u / 8) + Math.floor(v / 8)) % 2) ? rgb('#c8b89a') : fl; return (u % 8 < 0.5 || v % 8 < 0.5) ? shT(c, -0.25) : shT(c, (hs(Math.floor(u / 8), Math.floor(v / 8), 2) - 0.5) * 0.08); }
       // döşeme: yatay tahtalar, kaydırmalı ekler, damar, çivi, kapı önünde aşınma
       : (x, y) => {
         const wx = wxOf(x), wy = wyOf(y), row = Math.floor((wy - Y) / 5), v = (wy - Y) - row * 5;
         const off = (row * 11) % 23, seg = Math.floor((wx - X + off) / 23), u = (wx - X + off) - seg * 23;
-        let c = sh(fl, (hs(row, seg, id) - 0.5) * 0.2);
-        if (v < 0.5) c = sh(fl, -0.4); else if (u < 0.5) c = sh(fl, -0.32);
-        else { const gr = Math.sin((wx * 0.9 + hs(row, seg, 3) * 40) * 0.7 + v * 0.3); if (gr > 0.85) c = sh(c, -0.08); else if (gr < -0.9) c = sh(c, 0.06); }
-        if (Math.abs(u - 1.5) < 0.4 && Math.abs(v - 2.5) < 0.4) c = sh(c, -0.45);
-        const dd = Math.hypot(wx - b.door.x, (wy - Y - Hd) * 1.6); if (dd < 22) c = sh(c, 0.1 * (1 - dd / 22));
+        let c = shT(fl, (hs(row, seg, id) - 0.5) * 0.2);
+        if (v < 0.5) c = shT(fl, -0.4); else if (u < 0.5) c = shT(fl, -0.32);
+        else { const gr = Math.sin((wx * 0.9 + hs(row, seg, 3) * 40) * 0.7 + v * 0.3); if (gr > 0.85) c = shT(c, -0.08); else if (gr < -0.9) c = shT(c, 0.06); }
+        if (Math.abs(u - 1.5) < 0.4 && Math.abs(v - 2.5) < 0.4) c = shT(c, -0.45);
+        const dd = Math.hypot(wx - b.door.x, (wy - Y - Hd) * 1.6); if (dd < 22) c = shT(c, 0.1 * (1 - dd / 22));
         return c;
       };
     // döşeme şerit şerit; hedefin dışındaki şeritler atlanır
-    for (let y = Math.max(y0, 0); y < Math.min(y1, tg.h); y += 16) { rect(x0, y, x1 - x0, Math.min(16, y1 - y), floor, 0, UP); yield* step(); }
+    for (let y = Math.max(y0, 0); y < Math.min(y1, tg.h); y += 8) { rect(x0, y, x1 - x0, Math.min(8, y1 - y), floor, 0, UP); yield* step(); }
     const rug = RUG[t];
     if (rug) {
       const rw = Math.min(Wd - 40, 64), rh = Math.min(Hd - 40, 34), rx = X + Wd / 2 - rw / 2 + (t === 'saloon' ? 20 : 0), ry = Y + Hd / 2 - rh / 2 + 6, rc = rgb(rug);
       rect(bx(rx), by(ry), Math.round(rw * S), Math.round(rh * S), (x, y) => {
         const u = (x - bx(rx)) / S, v = (y - by(ry)) / S, e = Math.min(u, v, rw - u, rh - v);
-        if (e < 1) return sh(rc, -0.25);
-        if (e < 3.2 && e > 2.2) return sh(rc, 0.45);
-        if (e < 5 && ((Math.floor(u) + Math.floor(v)) % 3 === 0)) return sh(rc, 0.25);
+        if (e < 1) return shT(rc, -0.25);
+        if (e < 3.2 && e > 2.2) return shT(rc, 0.45);
+        if (e < 5 && ((Math.floor(u) + Math.floor(v)) % 3 === 0)) return shT(rc, 0.25);
         const dm = Math.abs(((u - rw / 2) % 8 + 8) % 8 - 4) + Math.abs(((v - rh / 2) % 8 + 8) % 8 - 4);
-        return dm < 1.2 ? sh(rc, 0.3) : dm < 2 ? sh(rc, -0.12) : rc;
+        return dm < 1.2 ? shT(rc, 0.3) : dm < 2 ? shT(rc, -0.12) : rc;
       }, 0.3, UP);
-      for (let x = bx(rx); x < bx(rx + rw); x += 2) { put(x, by(ry) - 1, sh(rc, 0.4), 0.2, UP, 0); put(x, by(ry + rh), sh(rc, 0.4), 0.2, UP, 0); }
+      for (let x = bx(rx); x < bx(rx + rw); x += 2) { put(x, by(ry) - 1, shT(rc, 0.4), 0.2, UP, 0); put(x, by(ry + rh), shT(rc, 0.4), 0.2, UP, 0); }
       yield* step();
     }
-    if (t === 'church') rect(bx(X + Wd / 2 - 6), by(Y + 26), 24, by(Y + Hd - 4) - by(Y + 26), (x) => (x === bx(X + Wd / 2 - 6) || x === bx(X + Wd / 2 + 6) - 1) ? rgb('#c8a040') : sh(rgb('#8a2020'), (hs(x >> 1, 0, 2) - 0.5) * 0.08), 0.3, UP);
+    if (t === 'church') rect(bx(X + Wd / 2 - 6), by(Y + 26), 24, by(Y + Hd - 4) - by(Y + 26), (x) => (x === bx(X + Wd / 2 - 6) || x === bx(X + Wd / 2 + 6) - 1) ? rgb('#c8a040') : shT(rgb('#8a2020'), (hs(x >> 1, 0, 2) - 0.5) * 0.08), 0.3, UP);
     // arka duvar: desenli kâğıt, lambri, kiriş
     const wp = rgb(WALLP[t] || hex(sh(rgb(b.def.wall), -0.05)));
     rect(x0, y0, x1 - x0, by(Y + 16) - y0, (x, y) => {
       const u = wxOf(x) - X, v = wyOf(y) - Y;
       if (v < 2) return rgb('#1e140c');
-      if (v >= 11) { const q = u % 12; let c = sh(wp, -0.3); if (q < 0.6 || v < 11.6 || v > 15.4) c = sh(wp, -0.48); else if (q > 2 && q < 10 && v > 12.4 && v < 14.6) c = sh(wp, -0.22); return c; }
+      if (v >= 11) { const q = u % 12; let c = shT(wp, -0.3); if (q < 0.6 || v < 11.6 || v > 15.4) c = shT(wp, -0.48); else if (q > 2 && q < 10 && v > 12.4 && v < 14.6) c = shT(wp, -0.22); return c; }
       const dm = Math.abs(((u % 6) + 6) % 6 - 3) + Math.abs(((v - 2) % 6 + 6) % 6 - 3);
-      let c = wp; if (dm < 0.9) c = sh(wp, t === 'church' || t === 'doctor' ? -0.1 : 0.22); else if (Math.abs(dm - 2.4) < 0.3) c = sh(wp, -0.12);
-      if (v > 10 && v < 11) c = sh(wp, -0.4);
+      let c = wp; if (dm < 0.9) c = shT(wp, t === 'church' || t === 'doctor' ? -0.1 : 0.22); else if (Math.abs(dm - 2.4) < 0.3) c = shT(wp, -0.12);
+      if (v > 10 && v < 11) c = shT(wp, -0.4);
       return c;
     }, facadeH(Y + 16), SOUTH);
     yield* step();
@@ -601,7 +649,7 @@ const HY = (() => {
     yield* step();
     // yan ve ön duvarların tepesi (kesit), kapı eşiği, pencere camları
     const wd = rgb('#3a2818');
-    const wallTop = (x, y) => { const wx = wxOf(x), wy = wyOf(y); const inner = (wx > X + 4 && wx < X + 5) || (wx > X + Wd - 5 && wx < X + Wd - 4) || (wy > Y + Hd - 4 && wy < Y + Hd - 3); return inner ? sh(wd, 0.35) : (Math.floor(wy / 3) % 2 ? wd : sh(wd, -0.12)); };
+    const wallTop = (x, y) => { const wx = wxOf(x), wy = wyOf(y); const inner = (wx > X + 4 && wx < X + 5) || (wx > X + Wd - 5 && wx < X + Wd - 4) || (wy > Y + Hd - 4 && wy < Y + Hd - 3); return inner ? shT(wd, 0.35) : (Math.floor(wy / 3) % 2 ? wd : shT(wd, -0.12)); };
     rect(x0, y0, bx(X + 5) - x0, y1 - y0, wallTop, 20, UP);
     rect(bx(X + Wd - 5), y0, x1 - bx(X + Wd - 5), y1 - y0, wallTop, 20, UP);
     rect(x0, by(Y + Hd - 4), dxs - 16 - x0, y1 - by(Y + Hd - 4), wallTop, 20, UP);
@@ -615,13 +663,13 @@ const HY = (() => {
     const h = hash2(cx >> 4, cy >> 4, 17), same = (dd) => W.obj[i + dd] === o;
     const top = (x0, y0, w, hh, c, ht, em) => rect(bx(x0), by(y0), Math.round(w * S), by(y0 + hh) - by(y0), c, ht, UP, em || 0);
     const front = (x0, y0, w, hh, c, base, em) => rect(bx(x0), by(y0), Math.round(w * S), by(y0 + hh) - by(y0), c, facadeH(base), SOUTH, em || 0);
-    const wood = (base, x, y, k = 4) => sh(rgb(base), ((hs(Math.floor(x / k), Math.floor(y / 9), 5) - 0.5) * 0.16) + (Math.sin(x * 0.9 + y * 0.05) > 0.9 ? -0.08 : 0));
+    const wood = (base, x, y, k = 4) => shT(rgb(base), ((hs(Math.floor(x / k), Math.floor(y / 9), 5) - 0.5) * 0.16) + (Math.sin(x * 0.9 + y * 0.05) > 0.9 ? -0.08 : 0));
     LAYER = 0;
     switch (o) {
       case O.BAR: case O.COUNTER: case O.TICKET: {
         const tc = o === O.BAR ? '#5a3220' : o === O.TICKET ? '#6a5236' : b.type === 'bank' ? '#5a3a22' : '#9a7048', dark = hex(sh(rgb(tc), -0.28)), edge = sh(rgb(tc), -0.45);
-        front(cx - 8, cy + 1, 16, 7, (x, y) => { const u = (x - bx(cx - 8)) / S; const c = wood(dark, x, y); return (u % 8 < 0.7) ? sh(c, -0.35) : (o === O.BAR && y >= by(cy + 5) && y < by(cy + 6)) ? rgb('#d8b048') : c; }, cy + 8);
-        top(cx - 8, cy - 5, 16, 6, (x, y) => { const c = wood(tc, x, y, 8); return y < by(cy - 4.5) ? sh(c, 0.3) : c; }, 10);
+        front(cx - 8, cy + 1, 16, 7, (x, y) => { const u = (x - bx(cx - 8)) / S; const c = wood(dark, x, y); return (u % 8 < 0.7) ? shT(c, -0.35) : (o === O.BAR && y >= by(cy + 5) && y < by(cy + 6)) ? rgb('#d8b048') : c; }, cy + 8);
+        top(cx - 8, cy - 5, 16, 6, (x, y) => { const c = wood(tc, x, y, 8); return y < by(cy - 4.5) ? shT(c, 0.3) : c; }, 10);
         if (!same(-1)) front(cx - 8, cy - 5, 1.5, 13, edge, cy + 8);
         if (!same(1)) front(cx + 6.5, cy - 5, 1.5, 13, edge, cy + 8);
         if (o === O.BAR) {
@@ -639,8 +687,8 @@ const HY = (() => {
         for (let yy = -RS; yy <= RS; yy++) for (let xx = -RS; xx <= RS; xx++) {
           const dd = Math.hypot(xx, yy) / RS; if (dd > 1) continue;
           let c;
-          if (o === O.CARDTABLE) c = dd > 0.86 ? rgb('#4a2e1a') : sh(rgb('#2e6a3a'), (hs(xx, yy, 4) - 0.5) * 0.08);
-          else { c = dd > 0.88 ? rgb('#4a2e1a') : wood('#7a5232', xx + 100, yy + 100, 3); if (dd > 0.8 && dd <= 0.88) c = sh(c, 0.18); }
+          if (o === O.CARDTABLE) c = dd > 0.86 ? rgb('#4a2e1a') : shT(rgb('#2e6a3a'), (hs(xx, yy, 4) - 0.5) * 0.08);
+          else { c = dd > 0.88 ? rgb('#4a2e1a') : wood('#7a5232', xx + 100, yy + 100, 3); if (dd > 0.8 && dd <= 0.88) c = shT(c, 0.18); }
           put(bx(cx) + xx, by(cy - 1) + yy, c, 8, UP, 0);
         }
         for (let yy = 0; yy < 4; yy++) for (let xx = -12; xx <= 12; xx++) put(bx(cx) + xx, by(cy - 1) + Math.round(RS * Math.sqrt(1 - (xx / RS) ** 2)) + yy, rgb('#2e1c10'), 7, SOUTH, 0);
@@ -651,7 +699,7 @@ const HY = (() => {
         return;
       }
       case O.PIANO: {
-        top(cx - 8, cy - 7, 16, 6, (x, y) => { const c = wood('#2e1c12', x, y, 16); return y < by(cy - 6.4) ? sh(c, 0.35) : c; }, 16);
+        top(cx - 8, cy - 7, 16, 6, (x, y) => { const c = wood('#2e1c12', x, y, 16); return y < by(cy - 6.4) ? shT(c, 0.35) : c; }, 16);
         front(cx - 8, cy - 1, 16, 2, rgb('#1e120c'), cy + 1);
         top(cx - 7, cy + 1, 14, 3, (x) => ((x - bx(cx - 7)) % 4 === 0 ? rgb('#1a1a1a') : rgb('#f2eee2')), 9);
         front(cx - 8, cy + 4, 16, 3, rgb('#2a1a12'), cy + 7);
@@ -670,7 +718,7 @@ const HY = (() => {
           const r = Math.floor((v - 0.8) / 4), rv = (v - 0.8) - r * 4; if (rv > 3.2) return rgb('#6a4428');
           const k = Math.floor((u - 1) / 3), cols = ['#c8402c', '#e0c060', '#4a7aa8', '#6a9a4a', '#d8d0c0', '#8a5a2a'];
           const hc = hs(i, r * 4 + k, 5); if (rv < (1 - hc) * 1.2) return rgb('#2a1a10');
-          const c = rgb(cols[Math.floor(hc * cols.length)]); return (u - 1) % 3 > 2.2 ? rgb('#2a1a10') : ((u - 1) % 3 < 0.6 ? sh(c, 0.25) : c);
+          const c = rgb(cols[Math.floor(hc * cols.length)]); return (u - 1) % 3 > 2.2 ? rgb('#2a1a10') : ((u - 1) % 3 < 0.6 ? shT(c, 0.25) : c);
         }, cy + 6);
         return;
       }
@@ -696,10 +744,13 @@ const HY = (() => {
   /* ---------------- parça pişirme ---------------- */
   function* bake(W, cx, cy) {
     const ox = cx * HC, oy = cy * HC, n = HB * HB * 4;
-    const base = { c: new Uint8ClampedArray(n), g: new Uint8ClampedArray(n) }, over = { c: new Uint8ClampedArray(n), g: new Uint8ClampedArray(n) };
+    // alt katman zeminle baştan sona yazılır; üst katman boş (saydam) başlar
+    const base = { c: take(Uint8ClampedArray, n), g: take(Uint8ClampedArray, n) }, over = { c: take(Uint8ClampedArray, n, true), g: take(Uint8ClampedArray, n, true) };
     yield* ground(W, ox, oy, base);
-    // raylar ve yassı süsler (ot, çiçek, ekin, kemik...) 2D çizimle, iki kat ölçekte
-    const cv = makeCanvas(HB, HB), gc = cv.getContext('2d', { willReadFrequently: true });
+    // raylar ve yassı süsler (ot, çiçek, ekin, kemik...) 2D çizimle, iki kat ölçekte; geçici tuval havuzdan (yol sıfırlanır,
+    // çizim durumu save/restore ile hep varsayılana döner, pikseller putImageData ile baştan yazılır)
+    const cv = CVP.pop() || makeCanvas(HB, HB), gc = cv.getContext('2d', { willReadFrequently: true });
+    gc.beginPath();
     gc.putImageData(new ImageData(base.c, HB, HB), 0, 0);
     let step = pacer(null);
     yield* step(true);
@@ -725,6 +776,7 @@ const HY = (() => {
     gc.restore();
     yield* step(true);
     base.c.set(gc.getImageData(0, 0, HB, HB).data);
+    if (CVP.length < 3) CVP.push(cv);
     yield* step(true);
     // çizim hedefi her adımda yeniden kurulur: araya eşzamanlı başka bir pişirme (görünür parça, bina örtüsü) girebilir
     const tg = { c: base.c, g: base.g, w: HB, h: HB, ox, oy, o: over };
@@ -746,16 +798,25 @@ const HY = (() => {
       yield* step();
     }
     LAYER = 0; TG = null;
-    const mk = (arr) => { const c = makeCanvas(HB, HB); c.getContext('2d').putImageData(new ImageData(arr, HB, HB), 0, 0); return c; };
+    // atılan parçaların tuvalleri yeniden kullanılır (putImageData bütün pikselleri yazar)
+    const mk = (arr) => { const c = FREE.pop() || makeCanvas(HB, HB); c.getContext('2d').putImageData(new ImageData(arr, HB, HB), 0, 0); return c; };
     const bc = mk(base.c); yield 0;
     const bg = mk(base.g); yield 0;
     // üst katman boşsa (ağaçsız, çatısız parça) tuval açılmaz: bellek yarıya iner
     let any = false; for (let i = 3; i < n; i += 4) if (over.c[i]) { any = true; break; }
     const oc = any ? mk(over.c) : null; if (any) yield 0;
-    return { bc, bg, oc, og: any ? mk(over.g) : null, used: 0 };
+    const og = any ? mk(over.g) : null;
+    give(base.c); give(base.g); give(over.c); give(over.g);
+    return { bc, bg, oc, og, used: 0 };
   }
   const chunks = new Map(), jobs = new Map();
   let world = null;
+  /* Önbellek görünen parçaları ve çevresindeki halkayı her zaman tutar: sığa (cap) bu alanın parça sayısına göre büyür.
+     Sabit 28 parçada büyük ekranda ya da küçük piksel ölçeğinde halka (6x5 = 30 parça ve üstü) sığmıyor, yeni pişen
+     parça halkadakini hatta görüneni atıyor, aynı parçalar durmadan yeniden pişiyordu. Gerekince en uzaktaki parça atılır;
+     tuvalleri bir sonraki karede yeni parçalarda yeniden kullanılır (yeni tuval açılıp eskisi çöpe gitmez). */
+  let cap = 28;
+  const NEED = [0, 0, -1, -1], FREE = [], FREE_NEXT = [];
   function chunk(W, cx, cy, sync) {
     const key = cy * 1024 + cx;
     let c = chunks.get(key);
@@ -765,12 +826,20 @@ const HY = (() => {
     if (!j) j = { gen: bake(W, cx, cy), spent: 0 };
     const t0 = performance.now();
     let r; do { r = j.gen.next(); } while (!r.done);
-    jobs.delete(key); learn('chunk', j.spent + performance.now() - t0);
+    jobs.delete(key); learn('chunk', j.spent + performance.now() - t0); stat.sync++;
     return store(key, r.value);
   }
   function store(key, c) {
     c.used = performance.now(); chunks.set(key, c);
-    if (chunks.size > 28) { let ok = -1, ot = Infinity; for (const [k, v] of chunks) if (v.used < ot) { ot = v.used; ok = k; } chunks.delete(ok); }
+    if (chunks.size > cap) {
+      let ok = -1, od = -1, ot = Infinity;
+      for (const [k, v] of chunks) {
+        const kx = k % 1024, ky = (k - kx) / 1024, d = Math.max(0, kx - NEED[2], NEED[0] - kx) + Math.max(0, ky - NEED[3], NEED[1] - ky);
+        if (d > od || (d === od && v.used < ot)) { od = d; ot = v.used; ok = k; }
+      }
+      const old = chunks.get(ok); chunks.delete(ok);
+      for (const cv of [old.bc, old.bg, old.oc, old.og]) if (cv && FREE.length + FREE_NEXT.length < 12) FREE_NEXT.push(cv);
+    }
     return c;
   }
   /* Arka plan işleri (parça ve bina örtüsü pişirme). Ortalama süreleri biten işlerden ölçülür. */
@@ -815,7 +884,7 @@ const HY = (() => {
   function flush(W) {
     chunks.clear(); jobs.clear(); coverJobs.clear();
     if (W) { W._hyGen = (W._hyGen || 0) + 1; }
-    SPR.clear();
+    SPR.clear(); sprCount = 0;
   }
 
   /* ---------------- canlılar: şekil değerlendirici, önbellekli sprite ---------------- */
@@ -826,19 +895,21 @@ const HY = (() => {
     const cv = makeCanvas(size, size), g = cv.getContext('2d'), img = g.createImageData(size, size), d = img.data, mask = new Uint8Array(size * size);
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const wx = (x + 0.5 - half) / S, wy = (y + 0.5 - half) / S, lx = wx * ca + wy * sa, ly = -wx * sa + wy * ca;
-      let best = null, bh = -1, bn = null;
-      for (const p of parts) {
+      // piksel başına dizi açılmaz: en üstteki parçanın normali yerel değişkenlerde
+      let best = null, bh = -1, n0 = 0, n1 = 0, n2 = 0;
+      for (let pi = 0; pi < parts.length; pi++) {
+        const p = parts[pi];
         let dd, nx, ny;
-        if (p.e) { const [ex, ey, rx, ry] = p.e; const ux = (lx - ex) / rx, uy = (ly - ey) / ry; dd = ux * ux + uy * uy; if (dd > 1) continue; nx = ux; ny = uy; }
-        else { const [ax, ay, bx2, by2, r] = p.c; const vx = bx2 - ax, vy = by2 - ay, t = clamp01(((lx - ax) * vx + (ly - ay) * vy) / (vx * vx + vy * vy || 1)); const qx = lx - ax - vx * t, qy = ly - ay - vy * t; dd = (qx * qx + qy * qy) / (r * r); if (dd > 1) continue; nx = qx / r; ny = qy / r; }
+        if (p.e) { const E = p.e, ex = E[0], ey = E[1], rx = E[2], ry = E[3]; const ux = (lx - ex) / rx, uy = (ly - ey) / ry; dd = ux * ux + uy * uy; if (dd > 1) continue; nx = ux; ny = uy; }
+        else { const K = p.c, ax = K[0], ay = K[1], bx2 = K[2], by2 = K[3], r = K[4]; const vx = bx2 - ax, vy = by2 - ay, t = clamp01(((lx - ax) * vx + (ly - ay) * vy) / (vx * vx + vy * vy || 1)); const qx = lx - ax - vx * t, qy = ly - ay - vy * t; dd = (qx * qx + qy * qy) / (r * r); if (dd > 1) continue; nx = qx / r; ny = qy / r; }
         const hh = p.h - (p.dome || 0) * dd;
-        if (hh > bh) { bh = hh; best = p; bn = [nx * ca - ny * sa, nx * sa + ny * ca, Math.sqrt(Math.max(0.05, 1 - Math.min(1, dd)))]; }
+        if (hh > bh) { bh = hh; best = p; n0 = nx * ca - ny * sa; n1 = nx * sa + ny * ca; n2 = Math.sqrt(Math.max(0.05, 1 - Math.min(1, dd))); }
       }
       if (!best) continue;
       let c = typeof best.col === 'function' ? best.col(lx, ly) : best.col;
       // sabit üst-sol ışıkla hacim (dünya ışığı sonra GPU'da eklenir)
-      const lit = -bn[0] * 0.35 - bn[1] * 0.45 + bn[2] * 0.25;
-      c = sh(c, lit > 0.25 ? 0.1 : lit < -0.15 ? -0.16 : 0);
+      const lit = -n0 * 0.35 - n1 * 0.45 + n2 * 0.25;
+      c = shT(c, lit > 0.25 ? 0.1 : lit < -0.15 ? -0.16 : 0);
       const i = (y * size + x) * 4; d[i] = c[0] * 255; d[i + 1] = c[1] * 255; d[i + 2] = c[2] * 255; d[i + 3] = 255; mask[y * size + x] = 1;
     }
     if (outline) for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
@@ -859,7 +930,7 @@ const HY = (() => {
     }
     if (!st.riding) { P.push({ e: [0.5 + sw, -2.2, 2.2, 1.3], col: (x) => x > 1.6 + sw ? boot : pants, h: 6, dome: 2 }); P.push({ e: [0.5 - sw, 2.2, 2.2, 1.3], col: (x) => x > 1.6 - sw ? boot : pants, h: 6, dome: 2 }); }
     if (L.coatLen) P.push({ e: [-2.2, 0, 2.6 + L.coatLen * 1.6, 4.6], col: sh(coat, -0.15), h: 14, dome: 3 });
-    P.push({ e: [0, 0, 3.4, 5.3], col: (x, y) => (Math.abs(y) < 0.4 && x > 0) ? sh(coat, -0.25) : coat, h: 20, dome: 5 });
+    P.push({ e: [0, 0, 3.4, 5.3], col: (x, y) => (Math.abs(y) < 0.4 && x > 0) ? shT(coat, -0.25) : coat, h: 20, dome: 5 });
     P.push({ e: [1.9, 0, 1.3, 1.9], col: shirt, h: 20.5, dome: 1 });
     if (st.backGun) P.push({ c: [-4, -4, -1, 5, 0.7], col: rgb('#3a2618'), h: 21 });
     if (st.aim) {
@@ -883,12 +954,12 @@ const HY = (() => {
       const Sx = LOOKS.hatShape[L.hat] || LOOKS.hatShape.cowboy, hc = rgb(hatColor(L.hat, L.hatCol));
       if (L.hat === 'bonnet') { P.push({ e: [-0.8, 0, 3.6, 3.3], col: hc, h: 27, dome: 2 }); P.push({ e: [1.4, 0, 1.3, 2.9], col: sh(hc, 0.18), h: 27.5 }); }
       else {
-        P.push({ e: [0.2, 0, Sx.br, Sx.br * 0.95], col: (x, y) => Math.hypot(x - 0.2, y) > Sx.br - 0.6 ? sh(hc, -0.22) : hc, h: 26, dome: 0.6 });
-        P.push({ e: [-0.2, 0, 2.6, 2.4], col: (x, y) => Math.abs(Math.hypot(x + 0.2, y) - 2.2) < 0.35 ? rgb('#2a1a10') : (L.hat === 'cowboy' || L.hat === 'wide' || L.hat === 'straw') && Math.abs(y) < 0.45 ? sh(hc, 0.22) : sh(hc, -0.12), h: L.hat === 'top' ? 31 : 29, dome: 2.5 });
+        P.push({ e: [0.2, 0, Sx.br, Sx.br * 0.95], col: (x, y) => Math.hypot(x - 0.2, y) > Sx.br - 0.6 ? shT(hc, -0.22) : hc, h: 26, dome: 0.6 });
+        P.push({ e: [-0.2, 0, 2.6, 2.4], col: (x, y) => Math.abs(Math.hypot(x + 0.2, y) - 2.2) < 0.35 ? rgb('#2a1a10') : (L.hat === 'cowboy' || L.hat === 'wide' || L.hat === 'straw') && Math.abs(y) < 0.45 ? shT(hc, 0.22) : shT(hc, -0.12), h: L.hat === 'top' ? 31 : 29, dome: 2.5 });
       }
     } else {
       P.push({ e: [1.9, 0, 1.3, 1.9], col: L.mask === 'bandana' ? rgb('#a8281f') : skin, h: 25, dome: 1 });
-      P.push({ e: [-0.3, 0, 2.9, 2.9], col: (x, y) => ((Math.floor((x + y * 0.4) * 2.5) % 2) ? sh(hair, 0.12) : hair), h: 27, dome: 2.5 });
+      P.push({ e: [-0.3, 0, 2.9, 2.9], col: (x, y) => ((Math.floor((x + y * 0.4) * 2.5) % 2) ? shT(hair, 0.12) : hair), h: 27, dome: 2.5 });
     }
     return P;
   }
@@ -897,7 +968,7 @@ const HY = (() => {
     if (st.dead) { P.push({ e: [0, 0, 10, 5], col: c, h: 6, dome: 3 }); P.push({ e: [11, 2, 4, 2], col: c, h: 5 }); for (let k = 0; k < 4; k++) P.push({ c: [-6 + k * 4, 4, -6 + k * 4, 9, 0.8], col: lc, h: 3 }); return P; }
     for (const [lx, ly, ph] of [[6, -3.4, 0], [6, 3.4, Math.PI], [-6, -3.4, Math.PI * 0.6], [-6, 3.4, Math.PI * 1.6]]) P.push({ e: [lx + Math.sin(p + ph) * 3.2 * m, ly, 2, 1.3], col: lc, h: 5, dome: 2 });
     P.push({ c: [-9.5, 0, -15, Math.sin(p) * 1.5 * m, 1.3], col: mane, h: 12, dome: 1 });
-    P.push({ e: [0, 0, 10.5, 4.6], col: (x, y) => y < -1.8 ? sh(c, 0.12) : c, h: 16, dome: 4 });
+    P.push({ e: [0, 0, 10.5, 4.6], col: (x, y) => y < -1.8 ? shT(c, 0.12) : c, h: 16, dome: 4 });
     const nk = st.graze ? 2 : 0;
     P.push({ e: [8.6, 0, 4.2, 2.7], col: c, h: 17, dome: 2 });
     P.push({ e: [12.8 + nk, 0, 3.6, 2], col: c, h: 16.5 - nk * 3, dome: 1.5 });
@@ -927,13 +998,20 @@ const HY = (() => {
   }
   // önbellek: görünüm nesnesi → (açı/adım/duruş anahtarı → sprite)
   const SPR = new Map();
-  let sprCount = 0;
+  let sprCount = 0, sprTick = 0;
   function cached(owner, kind, ang, key, mk) {
     let m = SPR.get(owner); if (!m) { m = new Map(); SPR.set(owner, m); }
+    m.t = sprTick;
     const ab = Math.round(((ang % TAU) + TAU) % TAU / TAU * 32) % 32, k = kind + ab + key;
     let s = m.get(k);
-    if (!s) { if (sprCount > 6000) { SPR.clear(); sprCount = 0; m = new Map(); SPR.set(owner, m); } s = sprite(mk(), ab / 32 * TAU); m.set(k, s); sprCount++; }
+    if (!s) { if (sprCount > 6000) sprTrim(); s = sprite(mk(), ab / 32 * TAU); m.set(k, s); sprCount++; }
     return s;
+  }
+  /* Sınır aşılınca en uzun süredir çizilmeyen görünümlerin sprite'ları atılır. Eskiden hepsi birden atılıyordu: ekrandaki
+     herkesin sprite'ı aynı karede yeniden üretilir, kalabalık kasabada kare donardı. */
+  function sprTrim() {
+    const owners = [...SPR.entries()].sort((a, b) => a[1].t - b[1].t);
+    for (const [o, m] of owners) { if (sprCount <= 4500) break; if (m.t === sprTick) continue; sprCount -= m.size; SPR.delete(o); }
   }
   const walkKey = (phase, mv) => mv < 0.08 ? 'i' : 'w' + (Math.round(((phase % TAU) + TAU) % TAU / TAU * 8) % 8) + (mv > 0.6 ? 'f' : 's');
   const phaseOf = (key) => key[0] === 'i' ? 0 : (+key[1]) / 8 * TAU;
@@ -1143,7 +1221,7 @@ const HY = (() => {
 
   /* ---------------- kare ---------------- */
   let FC = null, FG = null, fc = null, fg = null, TO = null, TOG = null, to = null, tog = null;
-  const stat = { frames: 0, ms: 0, built: 0, seg: {} };
+  const stat = { frames: 0, ms: 0, built: 0, seg: {}, sync: 0 };   // sync: görünür olunca tek seferde pişen parça sayısı
   const seg = (k, t) => { stat.seg[k] = (stat.seg[k] || 0) * 0.9 + t * 0.1; };
   function frameCanvas(w, h) {
     if (FC && FC.width === w && FC.height === h) return;
@@ -1172,6 +1250,10 @@ const HY = (() => {
     fc.fillStyle = '#2c4b5e'; fc.fillRect(0, 0, w2, h2); fg.fillStyle = 'rgb(0,124,124)'; fg.fillRect(0, 0, w2, h2);
     const NC = Math.ceil(WW * TS / HC), vis = [];
     const ccx0 = Math.floor(x0 / HC), ccy0 = Math.floor(y0 / HC), ccx1 = Math.floor(x1 / HC), ccy1 = Math.floor(y1 / HC);
+    // gereken alan (görünen + halka) önbelleğe her zaman sığar; geçen karede atılan parçaların tuvalleri artık kullanılabilir
+    NEED[0] = ccx0 - 1; NEED[1] = ccy0 - 1; NEED[2] = ccx1 + 1; NEED[3] = ccy1 + 1;
+    cap = Math.max(28, (ccx1 - ccx0 + 3) * (ccy1 - ccy0 + 3) + 2);
+    while (FREE_NEXT.length) FREE.push(FREE_NEXT.pop());
     for (let cy = ccy0; cy <= ccy1; cy++) for (let cx = ccx0; cx <= ccx1; cx++) {
       if (cx < 0 || cy < 0 || cx >= NC || cy >= NC) continue;
       const c = chunk(W, cx, cy, true), dx = (cx * HC - x0) * S, dy = (cy * HC - y0) * S;
@@ -1386,7 +1468,7 @@ const HY = (() => {
     const fm = G.frameMs || 16.7, base = Math.max(0.75, Math.min(6, fm * 0.35) - (performance.now() - t0) * 0.3), q = queue(x0, y0, x1, y1);
     runJobs(jobBudget(q, base, C, dt, fm), q);
     seg('2D üst katman', performance.now() - t5);
-    stat.frames++; stat.ms = stat.ms * 0.95 + (performance.now() - t0) * 0.05; stat.lights = Ls.length; stat.chunks = chunks.size;
+    stat.frames++; sprTick++; stat.ms = stat.ms * 0.95 + (performance.now() - t0) * 0.05; stat.lights = Ls.length; stat.chunks = chunks.size;
     return true;
   }
 
@@ -1402,6 +1484,7 @@ const HY = (() => {
     // testler için: bir noktanın parçasını ve bir binanın örtüsünü hemen pişir; bekleyen işleri yürüt, örtü sırada mı
     _bake(W, x, y) { return chunk(W, Math.floor(x / HC), Math.floor(y / HC), true); }, _cover(b, W) { return cover(b, W); },
     _jobs(ms) { runJobs(ms, queue(-1e9, -1e9, 1e9, 1e9)); return { chunks: jobs.size, covers: coverJobs.size }; }, _coverQueued(b) { return coverJobs.has(b); },
+    _queued() { return { chunks: jobs.size, covers: coverJobs.size, cached: chunks.size, cap }; },
     get _cost() { return { ...cost, v: camV }; },
     available() { return init(); },
     get canvas() { return glc; },

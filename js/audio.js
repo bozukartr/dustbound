@@ -558,20 +558,47 @@ const REVERBS = {
 };
 Object.assign(Audio_, {
   bank: {}, sloops: {}, man: null, canOgg: true, voices: [], revName: null, envT: 0,
-  /* Yankı: iki evrişim arasında yumuşak geçiş */
+  /* Yankı: her mekânın kendi evrişim düğümü, aralarında yumuşak geçiş. IR üretimi ve düğüme atanması (FFT hazırlığı)
+     ana iş parçacığında 5-20 ms sürer; mekân değiştikçe yeniden yapılsaydı yürürken takılırdı. Düğümler ses açılınca
+     (menüde) boş zamanda birer birer hazırlanır, oyunda yalnızca kazançlar değişir. */
   buildReverb() {
     const c = this.ctx;
     this.revIn = c.createGain();
     this.revOut = c.createGain(); this.revOut.connect(this.glue);
-    this.revA = { conv: c.createConvolver(), g: c.createGain() };
-    this.revB = { conv: c.createConvolver(), g: c.createGain() };
-    for (const R of [this.revA, this.revB]) { this.revIn.connect(R.conv); R.conv.connect(R.g); R.g.connect(this.revOut); R.g.gain.value = 0; }
-    this.irs = {};
+    this.irs = {}; this.revs = {};
     this.setReverb('open', true);
+    this.revQ = Object.keys(REVERBS).filter(n => n !== 'open');
+    this.revPrep();
+  },
+  /* Sıradaki mekânı boş zamanda hazırla: önce IR, sonraki boşlukta düğüm (iki iş ayrı karelere düşer) */
+  revPrep() {
+    if (this._revPrep || !this.revQ.length) return;
+    this._revPrep = true;
+    const idle = window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 1500 }) : (f) => setTimeout(f, 200);
+    idle(() => {
+      this._revPrep = false;
+      const n = this.revQ[0];
+      if (!n) return;
+      if (!this.irs[n]) this.makeIR(n);
+      else { this.revQ.shift(); this.revNode(n); if (this.revName === n && this.revOn !== n) this.revSwitch(n); }
+      this.revPrep();
+    });
+  },
+  /* Mekânın evrişim düğümü (IR bir kez atanır). Girişi yalnızca duyulurken bağlıdır: susunca ses iş parçacığı onu atlar.
+     Düğümler yankı çıkışının bağlamında kurulur (ses bağlamı sonradan değişse de boş zamanda hazırlanan düğüm ona bağlanır). */
+  revNode(name) {
+    let R = this.revs[name];
+    if (!R) {
+      const c = this.revOut.context;
+      R = this.revs[name] = { conv: c.createConvolver(), g: c.createGain(), on: false, fed: false };
+      R.conv.buffer = this.makeIR(name);
+      R.g.gain.value = 0; R.conv.connect(R.g); R.g.connect(this.revOut);
+    }
+    return R;
   },
   makeIR(name) {
     if (this.irs[name]) return this.irs[name];
-    const P = REVERBS[name], c = this.ctx, sr = c.sampleRate, len = Math.floor(sr * P.len);
+    const P = REVERBS[name], c = this.revOut.context, sr = c.sampleRate, len = Math.floor(sr * P.len);
     const buf = c.createBuffer(2, len, sr);
     for (let ch = 0; ch < 2; ch++) {
       const d = buf.getChannelData(ch);
@@ -586,15 +613,28 @@ Object.assign(Audio_, {
     }
     return (this.irs[name] = buf);
   },
+  /* İstenen mekân (revName) hemen kaydedilir; düğümü henüz hazır değilse sıranın başına alınır, hazırlanınca geçilir */
   setReverb(name, instant) {
     if (!this.ctx || this.revName === name || !REVERBS[name]) return;
     this.revName = name;
-    const t = this.ctx.currentTime, P = REVERBS[name];
-    const [on, off] = this.revA.on ? [this.revB, this.revA] : [this.revA, this.revB];
-    on.conv.buffer = this.makeIR(name); on.on = true; off.on = false;
-    on.g.gain.cancelScheduledValues(t); off.g.gain.cancelScheduledValues(t);
-    on.g.gain.setTargetAtTime(P.wet, t, instant ? 0.01 : 0.35);
-    off.g.gain.setTargetAtTime(0, t, instant ? 0.01 : 0.35);
+    if (instant || this.revs[name]) { this.revSwitch(name, instant); return; }
+    const i = this.revQ.indexOf(name);
+    if (i !== 0) { if (i > 0) this.revQ.splice(i, 1); this.revQ.unshift(name); }
+    this.revPrep();
+  },
+  revSwitch(name, instant) {
+    const t = this.revOut.context.currentTime, P = REVERBS[name], on = this.revNode(name);
+    for (const n in this.revs) {
+      const R = this.revs[n];
+      if (R === on) {
+        if (!R.fed) { this.revIn.connect(R.conv); R.fed = true; }
+        R.on = true; R.g.gain.cancelScheduledValues(t); R.g.gain.setTargetAtTime(P.wet, t, instant ? 0.01 : 0.35);
+      } else if (R.on) { R.on = false; R.g.gain.cancelScheduledValues(t); R.g.gain.setTargetAtTime(0, t, instant ? 0.01 : 0.35); }
+    }
+    this.revOn = name;
+    // sönen mekânın girişi geçiş bitince kesilir (kuyruğu kendi kendine söner, düğüm sessizleşir)
+    clearTimeout(this._revT);
+    this._revT = setTimeout(() => { for (const n in this.revs) { const R = this.revs[n]; if (!R.on && R.fed) { try { this.revIn.disconnect(R.conv); } catch (e) {} R.fed = false; } } }, 2500);
   },
   /* Oyuncunun bulunduğu yere göre yankı (her yarım saniyede) */
   envUpdate(dt) {

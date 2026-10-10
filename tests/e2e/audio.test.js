@@ -93,6 +93,31 @@ module.exports = {
       t.ok(r.ambLP < 5000, 'içeride ortam boğuk', r.ambLP);
       t.eq(r.town, 'street', 'kasaba sokağı'); t.ok(['open', 'forest', 'canyon'].includes(r.wild), 'kırda doğal yankı', r.wild);
     });
+    await t.step('mekân yankıları ses açılınca boş zamanda hazırlanır; yer değişince yankı yeniden kurulmaz (takılma yok)', async () => {
+      const r = await p.evaluate(async () => {
+        const A = Audio_;
+        A.envT = 1e9;   // oyuncunun yerine göre yankı seçimi bu adımda karışmasın
+        for (let k = 0; k < 60 && Object.keys(A.revs).length < Object.keys(REVERBS).length; k++) await new Promise(res => setTimeout(res, 100));
+        const ready = Object.keys(A.revs).sort().join(',');
+        // geçişlerde yeni evrişim düğümü açılmaz, IR (FFT hazırlığı) yeniden atanmaz
+        const c = A.revOut.context, cc = c.createConvolver; let made = 0, assigned = 0;
+        c.createConvolver = function () { made++; return cc.apply(this, arguments); };
+        const d = Object.getOwnPropertyDescriptor(ConvolverNode.prototype, 'buffer');
+        Object.defineProperty(ConvolverNode.prototype, 'buffer', { configurable: true, get: d.get, set(v) { assigned++; d.set.call(this, v); } });
+        try { for (const n of ['street', 'open', 'forest', 'canyon', 'open', 'hall', 'room', 'cave', 'street']) A.setReverb(n); }
+        finally { Object.defineProperty(ConvolverNode.prototype, 'buffer', d); c.createConvolver = cc; }
+        const name = A.revName, on = A.revOn;
+        await new Promise(res => setTimeout(res, 2800));   // sönen yankıların girişi kesilir
+        const fed = Object.keys(A.revs).filter(n => A.revs[n].fed);
+        A.envT = 0;
+        return { ready, made, assigned, name, on, fed };
+      });
+      t.eq(r.ready, 'canyon,cave,forest,hall,open,room,street', 'yedi mekânın yankısı hazır');
+      t.eq(r.made, 0, 'geçişte yeni evrişim düğümü açılmaz');
+      t.eq(r.assigned, 0, 'yankı (IR) yeniden atanmaz');
+      t.eq(r.name, 'street', 'istenen yankı'); t.eq(r.on, 'street', 'çalan yankı');
+      t.eq(r.fed, ['street'], 'yalnızca duyulan yankı beslenir (öbürleri ses iş parçacığında boşta)');
+    });
     await t.step('yakın silah sesi ortamı ve müziği kısar, sonra geri gelir', async () => {
       const r = await p.evaluate(async () => {
         const P = G.player; Audio_.shot('pistol', 1, P.x + 30, P.y);

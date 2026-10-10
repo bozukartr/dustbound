@@ -191,5 +191,49 @@ module.exports = {
       t.ok(await p.evaluate(() => B._hy === window.__hyB), 'görününce önceden pişen örtü kullanılır (yeniden pişmez)');
       t.eq(errs.length, 0, 'sayfa hatası yok', errs);
     });
+
+    await t.step('yeniden kullanılan tampon ve tuvallerle pişen parça ve bina örtüsü ilk pişenle piksel piksel aynı', async () => {
+      const r = await p.evaluate(async () => {
+        const W = G.world, frame = () => new Promise(res => requestAnimationFrame(() => res()));
+        const h = (cv) => { if (!cv) return 0; const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let x = 2166136261 >>> 0; for (let i = 0; i < d.length; i++) { x ^= d[i]; x = Math.imul(x, 16777619) >>> 0; } return x; };
+        const sig = (c) => [h(c.bc), h(c.bg), h(c.oc), h(c.og)].join('/'), csig = (c) => h(c.c) + '/' + h(c.g);
+        HY.flush();
+        const x = B.x * TS + 8, y = B.y * TS + 8;   // iç mekânı, nesneleri ve bina zemini olan parça
+        const first = sig(HY._bake(W, x, y));
+        B._hy = null; const cov1 = csig(HY._cover(B, W));
+        // başka parçalar ve örtüler pişer, önbellek taşar: atılan parçaların tuvalleri ve ara tamponlar havuza döner
+        for (let k = 0; k < 40; k++) HY._bake(W, x + ((k % 8) - 4) * 256, y + (Math.floor(k / 8) - 2) * 256);
+        for (const b of W.buildings.filter(q => q.town === B.town).slice(0, 12)) { b._hy = null; HY._cover(b, W); }
+        await frame(); await frame();
+        HY.flush();   // önbellek boşalır, havuzdakiler kalır
+        const second = sig(HY._bake(W, x, y));
+        B._hy = null; const cov2 = csig(HY._cover(B, W));
+        return { first, second, cov1, cov2 };
+      });
+      t.eq(r.second, r.first, 'parça aynı (alt ve üst katman, renk ve geometri)');
+      t.eq(r.cov2, r.cov1, 'bina örtüsü aynı');
+    });
+
+    await t.step('küçük piksel ölçeğinde (büyük görünüm) önbellek görünen parçaları ve halkasını tutar: aynı parçalar yeniden pişmez', async () => {
+      const r = await p.evaluate(async () => {
+        const frame = () => new Promise(res => requestAnimationFrame(() => res()));
+        const z0 = G.settings.zoom; G.settings.zoom = 2; G.resize();
+        try {
+          // görünen alan 4x3 parçaya değsin: halkasıyla 6x5 = 30 parça (eski sabit önbellek 28 parçaydı)
+          const s = TH.openSpot(), P = G.player, at = (v, m, half) => Math.floor((v - half) / 256) * 256 + m + half;
+          TH.clearNpcs(); P.x = at(s[0], 180, G.vw / 2); P.y = at(s[1], 200, G.vh / 2); G.cam.x = P.x; G.cam.y = P.y;
+          for (let k = 0; k < 6; k++) { await frame(); HY._jobs(1e9); }
+          const C = G.cam, cols = Math.floor((C.ox + G.vw) / 256) - Math.floor(C.ox / 256) + 1, rows = Math.floor((C.oy + G.vh) / 256) - Math.floor(C.oy / 256) + 1;
+          const sync0 = HY.stat.sync; let queued = 0;
+          for (let k = 0; k < 15; k++) { await frame(); queued = Math.max(queued, HY._queued().chunks); HY._jobs(1e9); }
+          return { cols, rows, queued, sync: HY.stat.sync - sync0, q: HY._queued() };
+        } finally { G.settings.zoom = z0; G.resize(); }
+      });
+      t.ok(r.cols === 4 && r.rows === 3, 'görünen alan 4x3 parça', r);
+      t.eq(r.queued, 0, 'yerinde dururken yeni parça işi açılmaz (atılıp yeniden pişen parça yok)');
+      t.eq(r.sync, 0, 'görünen parça tek seferde yeniden pişmez');
+      t.ok(r.q.cached >= 30 && r.q.cap >= 32, 'önbellek halkayı alacak kadar büyüdü', r.q);
+      t.eq(errs.length, 0, 'sayfa hatası yok', errs);
+    });
   },
 };
