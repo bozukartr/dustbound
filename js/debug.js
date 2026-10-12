@@ -560,7 +560,7 @@ const Debug = {
       case 'hunters': if (G.law.bounty < HUNTER_MIN) G.law.bounty = 60; if (G.posse) G.posseLeave(); G.posse = null; G.hunterSpawn(); break;
       case 'horse': { const [x, y] = this.ahead(40); const h = new Horse(x, y, pick(Object.keys(HORSE_BREEDS)), { owner: 'npc' }); G.addEnt(h); break; }
       case 'killHostile': for (const e of G.ents) if (!e.dead && ((e.kind === 'npc' && (e.hostile || e.role === 'bandit' || e.role === 'hunter')) || (e.kind === 'animal' && e.state === 'attack'))) e.hurt(9999, 'npc'); break;
-      case 'clearDead': for (const e of G.ents) if (e.dead && (e.kind === 'npc' || e.kind === 'animal')) e.remove = true; break;
+      case 'clearDead': for (const e of G.ents) if ((e.dead && (e.kind === 'npc' || e.kind === 'animal')) || e.kind === 'gun') e.remove = true; break;
       case 'clearAni': for (const e of G.ents) if (e.kind === 'animal' && dist2(e.x, e.y, P.x, P.y) < 600 * 600) e.remove = true; break;
       case 'townReload': { const t = W.towns.find(x => x.id === this.el.querySelector('#dbg-town').value); if (t && t.spawned) { t.spawned = false; t._res = null; for (const e of G.ents) if (e.town === t.id) e.remove = true; } this.refreshTown(true); break; }
       case 'loveTown': { const t = W.towns.find(x => x.id === this.el.querySelector('#dbg-town').value); for (const r of G.residents(t)) G.mem(r).op = 100; this.mark(); break; }

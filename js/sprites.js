@@ -1261,6 +1261,59 @@ const Spr = {
     ctx.fillStyle = '#c8a870'; ctx.fillRect(-w * 0.35, -h, 1, h * 2); ctx.fillRect(w * 0.3, -h, 1, h * 2);
     ctx.restore();
   },
+  /* Yere düşmüş silah (üstten): x ekseni boyunca yatar, namlu +x yönünde. Ara ara namluda kısa bir parıltı
+     görünür (yerdeki silah gözden kaçmasın); parıltının zamanı konuma göre kayar, yan yana iki silah aynı anda parlamaz. */
+  gunDrop(ctx, x, y, ang, w, t = 0) {
+    const W = WEAPONS[w] || {};
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    const wood = '#5a3a22', woodL = '#7a5634', iron = '#2a2a2e';
+    let gx = 0, gl = 0;   // parıltının başladığı yer ve uzunluğu (namlunun üst kenarı)
+    if (w === 'knife') {
+      this.ell(ctx, 0.4, 0.9, 4.6, 1.3, 'rgba(0,0,0,0.22)');
+      ctx.fillStyle = '#3a2618'; ctx.fillRect(-4.2, -0.8, 3.2, 1.6);
+      ctx.fillStyle = '#8a8a90'; ctx.fillRect(-1.2, -1.2, 0.8, 2.4);
+      ctx.fillStyle = '#c8ccd0'; ctx.beginPath(); ctx.moveTo(-0.4, -0.8); ctx.lineTo(4, -0.5); ctx.lineTo(4.7, 0.2); ctx.lineTo(-0.4, 0.8); ctx.closePath(); ctx.fill();
+      gx = 0.4; gl = 2.6;
+    } else if (W.kind === 'bow') {
+      this.ell(ctx, 0.5, 0.8, 2.6, 5.4, 'rgba(0,0,0,0.2)');
+      ctx.strokeStyle = '#6a4a28'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(-3.2, 0, 6, -1.05, 1.05); ctx.stroke();
+      ctx.strokeStyle = '#d8d0c0'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(-0.1, -5.2); ctx.lineTo(-0.1, 5.2); ctx.stroke();
+      ctx.fillStyle = '#3a2618'; ctx.fillRect(2, -0.9, 0.9, 1.8);
+    } else if (W.kind === 'long') {
+      const brl = w === 'rifle' ? 8.6 : w === 'winchester' ? 7.2 : w === 'shotgun' ? 6 : 6.6;
+      this.ell(ctx, 0.6, 1.1, 5.4 + brl * 0.5, 1.9, 'rgba(0,0,0,0.22)');
+      // dipçik
+      ctx.fillStyle = wood; ctx.beginPath(); ctx.moveTo(-8.2, -1.5); ctx.lineTo(-2, -0.8); ctx.lineTo(-2, 0.9); ctx.lineTo(-8.2, 1.7); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = woodL; ctx.fillRect(-7.6, -1.1, 5, 0.6);
+      ctx.fillStyle = '#1e1610'; ctx.fillRect(-8.4, -1.5, 0.7, 3.2);
+      // mekanizma: Plainsman pirinç, öbürleri çelik
+      ctx.fillStyle = w === 'winchester' ? '#b0903e' : '#4a4a52'; ctx.fillRect(-2.3, -1, 3.3, 2);
+      if (w === 'shotgun') {
+        // çift namlu
+        ctx.fillStyle = iron; ctx.fillRect(1, -1, brl, 0.9); ctx.fillRect(1, 0.15, brl, 0.9);
+        ctx.fillStyle = '#4a4a52'; ctx.fillRect(1, -0.1, brl, 0.25);
+      } else {
+        ctx.fillStyle = iron; ctx.fillRect(1, -0.5, brl, 1);
+        ctx.fillStyle = woodL; ctx.fillRect(1, -0.7, Math.min(3.4, brl * 0.45), 1.4);   // ön kundak
+      }
+      if (w === 'repeater' || w === 'winchester') { ctx.strokeStyle = '#3a3a40'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.arc(-1.2, 1.9, 0.9, 0, TAU); ctx.stroke(); }   // tetik kolu
+      gx = 1.4 + brl * 0.4; gl = 1.8;
+    } else {
+      // tabanca: kabza, gövde ve topaç, namlu; Schofield nikel kaplama
+      this.ell(ctx, 0.2, 1.1, 4.6, 1.8, 'rgba(0,0,0,0.22)');
+      ctx.fillStyle = wood; ctx.beginPath(); ctx.moveTo(-1.5, -0.6); ctx.lineTo(-3.5, -0.3); ctx.lineTo(-3.9, 2.1); ctx.lineTo(-2.3, 2.4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = woodL; ctx.fillRect(-3.3, 0.2, 0.8, 1.6);
+      const st = w === 'schofield' ? '#9a9aa2' : '#4a4a52';
+      ctx.fillStyle = st; ctx.fillRect(-1.9, -1.1, 2.7, 2);
+      this.circ(ctx, -0.5, -0.1, 1.05, shadeHex(st, -0.25));
+      ctx.fillStyle = iron; ctx.fillRect(0.6, -0.65, 3.6, 0.95);
+      ctx.fillStyle = st; ctx.fillRect(3.9, -0.9, 0.4, 0.4);
+      gx = 1; gl = 2.2;
+    }
+    // parıltı: ~3,4 sn'de bir, çeyrek saniye
+    if (gl && ((t + x * 0.013 + y * 0.007) % 3.4) < 0.24) { ctx.fillStyle = 'rgba(255,248,226,0.9)'; ctx.fillRect(gx, -0.75, gl, 0.4); }
+    ctx.restore();
+  },
   /* Omuzda ya da eyerde taşınan varlık. (x, y) çizim merkezi, rot uzun eksenin açısı */
   /* Toptan mal: sandık, fıçı, çuval ya da balya (x, y merkez; üstten görünüş) */
   goods(ctx, x, y, g, sc = 1) {

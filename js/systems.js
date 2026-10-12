@@ -936,7 +936,7 @@ const GameSystems = {
     for (const e of cands) {
       if (e === owner || e.dead || e.remove || e.hide) continue;
       if (e === this.player && !opts.npc) continue;
-      if (e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || (e === this.horse && owner === this.player)) continue;
+      if (e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' || (e === this.horse && owner === this.player)) continue;
       if (e === this.player.riding && owner === this.player) continue;
       if (opts.npc && e.kind === 'npc' && owner.role === e.role) continue;
       const r = e.kind === 'wagon' ? 9 : (e.r || 4) + (e.kind === 'horse' ? 3 : 1.5);
@@ -1106,6 +1106,7 @@ const GameSystems = {
       if (e.kind === 'npc' && !e.town && d > 1400 && !e.bountyId) e.remove = true;
       if (e.kind === 'npc' && e.dead && e.deadT > 180 && d > 450 && !this.isBountyTarget(e)) e.remove = true;
       if (e.kind === 'pelt' && d > 1600) e.remove = true;
+      if (e.kind === 'gun' && (d > 1600 || (e.age > 300 && d > 450))) e.remove = true;
       if (e.kind === 'horse' && e.owner !== 'player' && d > 1300 && !e.hitch) e.remove = true;
     }
     // kasabalar
@@ -1643,6 +1644,8 @@ const GameSystems = {
         }
         continue;
       }
+      // yerdeki silah cesedin hemen önüne düşer: ancak silaha belirgin biçimde daha yakınken onun eylemi çıkar, ceset önde kalır
+      if (e.kind === 'gun') { const a = this.gunPickAction(e); if (a) add(e.x, e.y, e.name, [a], -4); continue; }
       if ((e.kind === 'animal' || e.kind === 'npc' || e.kind === 'pelt' || e.kind === 'crate') && this.carryableActions(e, add, d)) continue;
       if (e.kind === 'animal') {
         if (!e.dead && e.def.tame && d < 30) add(e.x, e.y, e.def.n, [{ n: Tr('Sakinleştir ve Evcilleştir'), hold: 2.5, fn: () => this.tameHorse(e), check: () => P.crouch || e.state !== 'flee' }]);
@@ -1873,11 +1876,58 @@ const GameSystems = {
     const P = this.player;
     const innocent = !(e.role === 'bandit' || e.role === 'target' || (e.isLaw && e.hostile));
     if (e.money > 0.2) this.earn(e.money * (this.hasPerk('devil') ? 1.5 : 1), Tr('Ceset'));
-    if (e.weapon) { const W = WEAPONS[e.weapon]; if (W.ammo) { const n = rndi(3, 8); P.ammo[W.ammo] = Math.min(AMMO[W.ammo].max, P.ammo[W.ammo] + n); UI.feed(`+${n} ${AMMO[W.ammo].n}`); } if (!P.weapons.has(e.weapon) && chance(0.35)) P.giveWeapon(e.weapon); }
+    // kemerdeki yedek mermi; silahın kendisi öldüğünde yere düştü (dropNpcWeapon), yerden alınır
+    if (e.weapon) { const W = WEAPONS[e.weapon]; if (W.ammo) { const n = rndi(3, 8); P.ammo[W.ammo] = Math.min(AMMO[W.ammo].max, P.ammo[W.ammo] + n); UI.feed(`+${n} ${AMMO[W.ammo].n}`); } }
     if (chance(0.4)) P.addItem(pick(['jerky', 'bread', 'beans', 'tobacco', 'whiskey', 'cigarette', 'bandage']));
     if (chance(0.1)) P.addItem(pick(['pocket_watch', 'gold_ring', 'necklace', 'cig_card']));
     if (e.role === 'target' && chance(0.5)) P.addItem('treasure_map') && this.makeTreasure();
     if (innocent) this.crime('looting', e.x, e.y, e);
+    Audio_.ui('pick');
+  },
+  /* Silahlı biri ölünce son kullandığı silah, durduğu yerin biraz önüne düşer; şarjöründe kalan mermi silahla
+     birlikte kalır (hiç ateş etmediyse dolu). Suya düşen silah kaybolur. Yumruk, dinamit ve kement düşmez. */
+  dropNpcWeapon(e) {
+    const W = WEAPONS[e.weapon], Wd = this.world;
+    if (!W || e.weapon === 'fists' || W.throw || W.lasso) return;
+    // önüne düşer; önü kapalıysa (duvar) yanına ya da arkasına. Cesedin üstüne düşerse ceset eylemi hep önde kalır,
+    // silah alınamazdı: o yüzden yalnızca her yan kapalıyken cesedin dibine
+    let x = e.x + rnd(-3, 3), y = e.y + rnd(-3, 3);
+    const a0 = e.ang + rnd(-0.5, 0.5), d = rnd(8, 11);
+    let a = a0;
+    for (const da of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) {
+      const fx = e.x + Math.cos(a0 + da) * d, fy = e.y + Math.sin(a0 + da) * d;
+      if (Wd.blocked(fx, fy, 1)) continue;
+      a = a0 + da; x = fx; y = fy;
+      break;
+    }
+    if (Wd.isWaterPx(x, y)) return;   // suya düşen silah kaybolur
+    const n = W.ammo ? Math.max(0, Math.min(W.clip || 1, e.mag === undefined ? W.clip || 1 : e.mag)) : null;
+    const g = new GunDrop(x, y, e.weapon, n);
+    g.ang = a + rnd(-0.8, 0.8);
+    this.addEnt(g);
+  },
+  /* Yerdeki silahın eylemi: sende yoksa silahı al; varsa yalnızca şarjöründeki mermileri. Alınacak bir şey
+     yoksa (sende olan boş ya da mermisiz silah) eylem yoktur, yakındaki cesedin eylemlerini kapatmaz. */
+  gunPickAction(g) {
+    const W = WEAPONS[g.w];
+    if (!this.player.weapons.has(g.w)) return { n: Tr('Silahı Al'), fn: () => this.pickGun(g) };
+    if (W.ammo && g.n > 0) return { n: Tr`Mermilerini Al (${g.n})`, fn: () => this.pickGun(g) };
+    return null;
+  },
+  pickGun(g) {
+    const P = this.player, W = WEAPONS[g.w];
+    if (!P.weapons.has(g.w)) {
+      P.giveWeapon(g.w);
+      if (W.clip) P.clip[g.w] = Math.min(W.clip, g.n || 0);   // şarjör, silah yere düştüğündeki kadar dolu
+      g.remove = true;
+    } else {
+      if (!W.ammo || !(g.n > 0)) return;
+      const add = Math.min(g.n, AMMO[W.ammo].max - P.ammo[W.ammo]);
+      if (add <= 0) { UI.feed(Tr('Daha fazla taşıyamazsın.'), 'warn'); return; }
+      P.ammo[W.ammo] += add; g.n -= add;
+      UI.feed(`+${add} ${AMMO[W.ammo].n}`);
+      if (g.n <= 0) g.remove = true;   // mermisi alınan silah yerde bırakılmaz
+    }
     Audio_.ui('pick');
   },
   skin(a) {

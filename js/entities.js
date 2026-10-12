@@ -1110,6 +1110,7 @@ class NPC extends Ent {
     if (this.hp <= 0) {
       if (G.player.rope === this) G.player.rope = null;
       this.hp = 0; this.dead = true; this.state = 'dead'; this.deadT = 0;
+      G.dropNpcWeapon(this);
       if (by === 'player') G.onNpcKill(this, how);
       else if (this.event && this.event.onDeath) this.event.onDeath(this);
     }
@@ -1661,6 +1662,19 @@ class Pelt extends Ent {
   get name() { return this.q > 1 ? Tr`Kusursuz ${ITEMS[this.id].n}` : ITEMS[this.id].n; }
   update(dt) { this.age += dt; }
   draw(ctx) { Spr.pelt(ctx, this.x, this.y, this.ang, this.col, this.big); }
+}
+
+/* ---------------- Yere düşen silah ----------------
+   Silahlı biri ölünce son kullandığı silah yanına düşer (G.dropNpcWeapon). n: şarjöründe kalan mermi,
+   mermisiz silahta (bıçak) null. Yerden alınır; çarpışması yoktur, mermi ve patlama ona işlemez. */
+class GunDrop extends Ent {
+  constructor(x, y, w, n = null) {
+    super(x, y);
+    this.kind = 'gun'; this.w = w; this.n = n; this.r = 0; this.ang = rnd(-Math.PI, Math.PI); this.age = 0;
+  }
+  get name() { return WEAPONS[this.w].n; }
+  update(dt) { this.age += dt; }
+  draw(ctx) { Spr.gunDrop(ctx, this.x, this.y, this.ang, this.w, this.age); }
 }
 
 /* ---------------- Kamp ---------------- */

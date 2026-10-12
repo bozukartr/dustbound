@@ -1298,7 +1298,7 @@ const HY = (() => {
     for (const e of G.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P)) vis2.push(e);
     if (P.riding) vis2.push(P.riding);
     vis2.push(P);
-    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' ? -20 : 0;
+    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : 0;
     vis2.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     const shk = (S0.day ? 1 : 0.35) * (G.insideB ? 0.4 : 1);
     const blit = (s, x, y) => fc.drawImage(s.c, x - s.h / S, y - s.h / S, s.c.width / S, s.c.height / S);
