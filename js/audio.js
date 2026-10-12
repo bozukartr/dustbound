@@ -180,6 +180,20 @@ const Audio_ = {
     const g = c.createGain(); this.env(g, t, 0.006, v, dub ? 0.1 : 0.16);
     o.connect(g); g.connect(this.sfx); o.start(t); o.stop(t + 0.26);
   },
+  /* Öğürme (zehir): gırtlaktan gelen kısa, boğuk bir "ıhk"; alçak testere dalgası ve süzülmüş gürültü */
+  retch(v = 0.2, when = 0) {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime + when;
+    const o = c.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(118, t); o.frequency.exponentialRampToValueAtTime(72, t + 0.24);
+    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 2.2;
+    f.frequency.setValueAtTime(540, t); f.frequency.exponentialRampToValueAtTime(260, t + 0.24);
+    const g = c.createGain(); this.env(g, t, 0.025, v, 0.22);
+    o.connect(f); f.connect(g); g.connect(this.sfx); o.start(t); o.stop(t + 0.32);
+    const n = this.noiseSrc(); const nf = c.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 760; nf.Q.value = 1.4;
+    const ng = c.createGain(); this.env(ng, t + 0.03, 0.012, v * 0.45, 0.17);
+    n.connect(nf); nf.connect(ng); ng.connect(this.sfx); n.start(t, Math.random()); n.stop(t + 0.3);
+  },
   /* ayak sesi / toynak: zemin konumdan bulunur (kum, çimen, taş, tahta, çamur, kar, su, toprak) */
   step(v = 0.08, hoof, x, y) {
     if (!this.ctx) return;

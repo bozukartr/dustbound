@@ -43,7 +43,7 @@ const ITEMS = {
   // ---- İlaç
   health_cure:  { n: 'Sağlık İksiri', c: 'med', p: 0.5, i: '🧪', e: { health: 60 }, d: 'Yaraları hızla sarar.' },
   stamina_tonic:{ n: 'Enerji Toniği', c: 'med', p: 0.35, i: '🍶', e: { stamina: 100, energy: 10 }, d: 'Yorgunluğu anında giderir.' },
-  snake_oil:    { n: 'Yılan Yağı', c: 'med', p: 0.5, i: '🫙', e: { deadeye: 100, cure: 1 }, d: 'Şarlatanların meşhur iksiri. Şaşırtıcı biçimde işe yarıyor.' },
+  snake_oil:    { n: 'Yılan Yağı', c: 'med', p: 0.5, i: '🫙', e: { deadeye: 100, cure: 1, poison: 1 }, d: 'Şarlatanların meşhur iksiri. Şaşırtıcı biçimde işe yarıyor; yılan zehrini bile söker.' },
   antidote:     { n: 'Panzehir', c: 'med', p: 0.75, i: '💊', e: { poison: 1, health: 10 }, max: 5, d: 'Yılan zehrine karşı.' },
   bandage:      { n: 'Bandaj', c: 'med', p: 0.1, i: '🩹', e: { health: 25 }, d: 'Temiz bez sargı.' },
   herbal_tonic: { n: 'Bitki Toniği', c: 'med', p: 0.35, i: '🧉', e: { health: 35, cure: 1, energy: 5 }, d: 'Kendi yaptığın şifalı karışım.' },

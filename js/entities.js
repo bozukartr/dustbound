@@ -42,12 +42,13 @@ class Particles {
       if (p.type === 'smoke' || p.type === 'steam') { p.vx = p.vx * 0.98 + FX.wind.x * 9 * dt; p.vy = p.vy * 0.98 - 6 * dt + FX.wind.y * 5 * dt; p.size += dt * 6; }
       else if (p.type === 'dust') { p.vx = p.vx * 0.92 + FX.wind.x * 6 * dt; p.vy *= 0.92; p.size += dt * 5; }
       else if (p.type === 'breath') { p.vx = p.vx * 0.94 + FX.wind.x * 10 * dt; p.vy = p.vy * 0.94 - 3 * dt; p.size += dt * 3.2; }
-      else if (p.type === 'chip' || p.type === 'casing' || p.type === 'drop') {
+      else if (p.type === 'chip' || p.type === 'casing' || p.type === 'drop' || p.type === 'bile') {
         // basit zıplama: z yukarı, yerçekimi, yere çarpınca sekme
         p.vz -= 240 * dt; p.z += p.vz * dt;
         if (p.z <= 0) {
           p.z = 0;
           if (p.type === 'drop') { p.life = 0; continue; }
+          if (p.type === 'bile') { p.vx = p.vy = p.vz = 0; continue; }   // safra sekmez: yere yapışır, solarak kaybolur
           if (p.vz < -18) { p.vz = -p.vz * 0.35; p.vx *= 0.5; p.vy *= 0.5; if (p.type === 'casing' && p.vz > 12 && Math.random() < 0.5) Audio_.tone(3200 + Math.random() * 900, 0.02, 'triangle', 0.012); }
           else { p.vz = 0; p.vx *= 0.8; p.vy *= 0.8; }
         }
@@ -79,6 +80,7 @@ class Particles {
         case 'breath': ctx.fillStyle = `rgba(236,241,248,${a * 0.3})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.fill(); break;
         case 'chip': ctx.fillStyle = p.col; ctx.globalAlpha = Math.min(1, a * 3); ctx.fillRect(p.x, p.y - p.z, p.size, p.size); ctx.globalAlpha = 1; break;
         case 'drop': ctx.fillStyle = `rgba(210,232,244,${a})`; ctx.fillRect(p.x, p.y - p.z, 1, 1); break;
+        case 'bile': ctx.fillStyle = `rgba(148,166,52,${Math.min(0.9, a * 1.8)})`; ctx.fillRect(p.x, p.y - p.z, p.size, p.size); break;
         case 'casing': ctx.fillStyle = p.col; ctx.globalAlpha = Math.min(1, a * 4); ctx.fillRect(p.x, p.y - p.z, p.size, 1); ctx.globalAlpha = 1; break;
         case 'text': ctx.fillStyle = p.col; ctx.globalAlpha = Math.min(1, a * 2); ctx.font = '7px monospace'; ctx.textAlign = 'center'; ctx.fillText(p.size, p.x, p.y); ctx.globalAlpha = 1; break;
       }
@@ -253,6 +255,7 @@ class Player extends Ent {
     this.hunger = 85; this.thirst = 85; this.energy = 90; this.clean = 90; this.drunk = 0; this.warmBuff = 0;
     this.deCore = 70;
     this.sick = 0; this.poison = 0;
+    this.retchT = 0; this.retchCd = 3; this.sweatT = 0;   // zehir görüntüsü: öğürme süresi/arası, ter damlası
     this.immuneT = 0; this.painT = 0; this.limberT = 0; this.coolT = 0;   // ilaçların süreli etkileri (oyun dakikası)
     this.canteen = 3;
     this.coat = null;
@@ -344,7 +347,7 @@ class Player extends Ent {
     const fx = this.x, fy = this.y;
     if (!G.world.blocked(cx + ox, cy + oy, this.r)) { this.x = cx + ox; this.y = cy + oy; }
     else if (!G.world.blocked(cx - ox, cy - oy, this.r)) { this.x = cx - ox; this.y = cy - oy; }
-    if (fall) { this.hurt(12, null, true); UI.feed(Tr('Attan düştün!')); }
+    if (fall) { this.hurt(12, 'fall', true); UI.feed(Tr('Attan düştün!')); }
     else if (anim) { this.mountAnim = { on: false, h, t: 0, dur: 0.36, fx, fy, tx: this.x, ty: this.y, fa: this.ang }; this.x = fx; this.y = fy; Audio_.step(0.2, true); }
     h.spd *= 0.3;
   }
@@ -363,17 +366,55 @@ class Player extends Ent {
 
   hurt(dmg, src, silent) {
     if (G.state !== 'play' || this.hp <= 0) return;
-    if (this.riding && src && src !== 'fall' && Math.random() < 0.25) { this.riding.hurt(dmg); return; }
+    // zehir içten içe tüketir: kan fışkırmaz, ekran sarsılmaz, ata da geçmez (görüntüsü poisonFx'te)
+    const inner = src === 'zehir';
+    if (this.riding && src && src !== 'fall' && !inner && Math.random() < 0.25) { this.riding.hurt(dmg); return; }
     if (G.godMode) return;
     if (this.painT > 0) dmg *= 0.6;   // laudanum: acıyı uyuşturur
     this.hp -= dmg;
-    this.hurtT = 0.4;
-    G.fx.flash = Math.min(0.6, G.fx.flash + dmg / 40);
-    G.fx.shake = Math.min(6, G.fx.shake + dmg / 8);
-    G.parts.burst('blood', this.x, this.y, 4 + dmg / 6, 30, 0.5, 1.4);
+    if (!inner) {
+      this.hurtT = 0.4;
+      G.fx.flash = Math.min(0.6, G.fx.flash + dmg / 40);
+      G.fx.shake = Math.min(6, G.fx.shake + dmg / 8);
+      G.parts.burst('blood', this.x, this.y, 4 + dmg / 6, 30, 0.5, 1.4);
+    }
     if (!silent) { Audio_.thud(0.3); Input.rumble(Math.min(1, dmg / 30), 0.5, 180); }
     if (this.hp <= 0) { this.hp = 0; G.playerDied(src); }
   }
+  /* Zehrin görüntüsü (kan yerine): solgun ten (lookNow), alından damlayan ter, sendeleme (updateFoot) ve ara ara
+     öğürme. Öğürürken iki büklüm olup neredeyse durur, gövde iki kez öne kasılır ve her kasılmada safra çıkar. */
+  poisonFx(dt) {
+    if (this.retchT > 0) {
+      const k0 = 1 - this.retchT / Player.RETCH;
+      this.retchT = Math.max(0, this.retchT - dt);
+      const k1 = 1 - this.retchT / Player.RETCH;
+      if ((k0 < 0.25 && k1 >= 0.25) || (k0 < 0.75 && k1 >= 0.75)) this.spitBile();
+    }
+    if (!(this.poison > 0)) { this.retchCd = 3; return; }
+    this.sweatT -= dt;
+    if (this.sweatT <= 0) {
+      this.sweatT = rnd(0.3, 0.75);
+      const p = G.parts.add('drop', this.x + rnd(-2.2, 2.2), this.y + rnd(-2.2, 2.2), rnd(-5, 5), rnd(-5, 5), 1, 1);
+      if (p) { p.z = rnd(8, 11); p.vz = rnd(2, 12); }
+    }
+    this.retchCd -= dt;
+    if (this.retchCd <= 0) {
+      // atta, nişan alırken, yük taşırken, doldururken ya da bir pencere açıkken öğürmez; biraz sonra yeniden dener
+      if (this.riding || this.mountAnim || this.aiming || this.carry || this.reloadT > 0 || this.swing > 0 || G.uiBlocksMove) this.retchCd = rnd(1, 2);
+      else { this.retchCd = rnd(5, 8); this.retchT = Player.RETCH; }
+    }
+  }
+  spitBile() {
+    const a = this.ang, mx = this.x + Math.cos(a) * 4.5, my = this.y + Math.sin(a) * 4.5;
+    for (let i = 0; i < 5; i++) {
+      const sp = rnd(5, 15), b = a + rnd(-0.5, 0.5);
+      const p = G.parts.add('bile', mx, my, Math.cos(b) * sp, Math.sin(b) * sp, rnd(2.5, 4), Math.random() < 0.5 ? 1 : 1.5);
+      if (p) { p.z = rnd(5, 7); p.vz = rnd(-8, 10); }
+    }
+    Audio_.retch(0.2);
+  }
+  /* öğürürken gövdenin öne kasılması (çizimde bakış yönüne kayma, px) */
+  get heave() { return this.retchT > 0 ? Math.abs(Math.sin((1 - this.retchT / Player.RETCH) * Math.PI * 2)) * 1.3 : 0; }
 
   update(dt) {
     const I = Input, W = G.world;
@@ -547,7 +588,7 @@ class Player extends Ent {
   updateFoot(dt, mv, age) {
     const I = Input;
     let speed = 58;
-    const wantSprint = I.down('sprint') && mv.m > 0.2 && !this.aiming && !this.carry;
+    const wantSprint = I.down('sprint') && mv.m > 0.2 && !this.aiming && !this.carry && !(this.retchT > 0);
     if (mv.m > 0 && mv.m < 0.55 && !mv.kb) speed = 32;
     if (this.crouch) speed = 26;
     this.sprinting = false;
@@ -565,8 +606,11 @@ class Player extends Ent {
     if (this.hp < this.maxHp * 0.2) speed *= 0.85;
     speed *= this.slow();
     if (this.reloadT > 0) speed *= 0.8;
+    if (this.retchT > 0) speed *= 0.3;   // öğürürken iki büklüm: neredeyse durur
     let dx = mv.x * mv.m, dy = mv.y * mv.m;
     if (this.drunk > 20) { const w = Math.sin(G.t * 2.3) * this.drunk / 100; const c = Math.cos(w), s = Math.sin(w); const nx = dx * c - dy * s; dy = dx * s + dy * c; dx = nx; }
+    // zehirliyken hafif sendeleme (sarhoşluktan yumuşak, en çok ~11°)
+    if (this.poison > 0) { const w = (Math.sin(G.t * 1.9) + Math.sin(G.t * 0.73 + 1.3)) * 0.1; const c = Math.cos(w), s = Math.sin(w); const nx = dx * c - dy * s; dy = dx * s + dy * c; dx = nx; }
     // Hız bir anda değişmez: kalkışta yumuşak ivmelenme, koşuya geçerken daha ağır hızlanma,
     // bırakınca kısa bir yavaşlama; yön değişirken gövde biraz süzülür (ağırlık hissi)
     const tvx = dx * speed, tvy = dy * speed, cur = Math.hypot(this.vx, this.vy), tgt = Math.hypot(tvx, tvy);
@@ -864,8 +908,9 @@ class Player extends Ent {
       Spr.human(ctx, this.x - Math.cos(this.riding.ang) * rb, this.y - Math.sin(this.riding.ang) * rb, this.ang, this.lookNow(), { riding: true, aim: this.aiming, wk: this.aimKind(), draw: this.draw_ });
       return;
     }
-    Spr.human(ctx, this.x, this.y, this.ang, this.lookNow(), {
-      walk: this.phase, mv: Math.min(1, this.mv), aim: this.aiming || this.swing > 0.2, wk: this.aimKind(), crouch: this.crouch, swing: this.swing, draw: this.draw_, head: this.idleA || 0, hatK: this.hatK || 0,
+    const hv = this.heave;
+    Spr.human(ctx, this.x + Math.cos(this.ang) * hv, this.y + Math.sin(this.ang) * hv, this.ang, this.lookNow(), {
+      walk: this.phase, mv: Math.min(1, this.mv), aim: this.aiming || this.swing > 0.2, wk: this.aimKind(), crouch: this.crouch || this.retchT > 0, swing: this.swing, draw: this.draw_, head: this.idleA || 0, hatK: this.hatK || 0,
       hasGun: this.weapons.has('cattleman') || this.weapons.has('schofield'), backGun: this.weapons.has('repeater') || this.weapons.has('winchester') || this.weapons.has('rifle') || this.weapons.has('shotgun'),
     });
     // omuzdaki yük omuz hattı boyunca yatar
@@ -888,11 +933,14 @@ class Player extends Ent {
       const grey = clamp((age - 42) / 30, 0, 1);
       const coat = this.coat ? ITEMS[this.coat].coat : null;
       this._lk = Object.assign({}, L, { hairNow: grey > 0 ? mixHex(L.hair, '#d8d4cc', grey) : L.hair, coat: coat && coat.col ? coat.col : L.coat, coatLen: coat ? coat.len : 0, mask });
-      this._lkAge = age; this._lkCoat = this.coat; this._lkHat = L.hat; this._lkMask = mask;
+      this._lkAge = age; this._lkCoat = this.coat; this._lkHat = L.hat; this._lkMask = mask; this._lkP = null;
     }
+    // zehirliyken ten solgun yeşile çalar (ayrı ve kalıcı bir nesne: melez çizicinin sprite önbelleği bozulmaz)
+    if (this.poison > 0) return this._lkP || (this._lkP = Object.assign({}, this._lk, { skin: mixHex(this._lk.skin, '#a3b87a', 0.42) }));
     return this._lk;
   }
 }
+Player.RETCH = 0.9;   // bir öğürmenin süresi (sn)
 
 /* ---------------- Hayvan ---------------- */
 class Animal extends Ent {

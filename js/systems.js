@@ -220,7 +220,7 @@ const GameSystems = {
     if (e.drunk) P.drunk = clamp(P.drunk + e.drunk, 0, 100);
     if (e.warmth) P.warmBuff = Math.max(P.warmBuff, e.warmth * 4);
     if (e.cure) { if (P.sick > 0) UI.feed(Tr('Kendini daha iyi hissediyorsun.')); P.sick = 0; }
-    if (e.poison) { P.poison = 0; UI.feed(Tr('Zehir etkisini yitirdi.')); }
+    if (e.poison) { if (P.poison > 0) UI.feed(Tr('Zehir etkisini yitirdi.')); P.poison = 0; }
     // süreli etkiler (oyun dakikası)
     if (e.immune) P.immuneT = Math.max(P.immuneT, e.immune * 60);
     if (e.pain) P.painT = Math.max(P.painT, e.pain * 60);
@@ -951,7 +951,7 @@ const GameSystems = {
     this.parts.tracer(ox, oy, ex, ey);
     if (hit) {
       const was = hit.dead;
-      if (hit === this.player) { if (owner) Juice.hurtFrom(owner.x, owner.y); hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : 'haydut'); }
+      if (hit === this.player) { if (owner) Juice.hurtFrom(owner.x, owner.y); hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : owner && owner.role === 'hunter' ? 'avci' : 'haydut'); }
       else hit.hurt(dmg, owner === this.player ? 'player' : 'npc', 'gun');
       if (hit.kind === 'npc' || hit.kind === 'animal' || hit === this.player) Audio_.play('hit_flesh', { x: ex, y: ey, vol: hit === this.player ? 1.2 : 0.8 });
       else if (hit.kind === 'wagon') Audio_.play('hit_wood', { x: ex, y: ey });
@@ -1039,7 +1039,7 @@ const GameSystems = {
   playerDied(cause) {
     if (this.state !== 'play') return;
     this.state = 'dead';
-    const CAUSES = { train: Tr('tren kazası'), fist: Tr('kavga'), fall: Tr('attan düşme'), patlama: Tr('patlama'), haydut: Tr('haydut kurşunu'), kanun: Tr('kanun adamlarının kurşunu'), zehir: Tr('zehirlenme'), test: Tr('bilinmeyen') };
+    const CAUSES = { train: Tr('tren kazası'), fist: Tr('kavga'), fall: Tr('attan düşme'), patlama: Tr('patlama'), haydut: Tr('haydut kurşunu'), kanun: Tr('kanun adamlarının kurşunu'), avci: Tr('ödül avcısı kurşunu'), zehir: Tr('zehirlenme'), test: Tr('bilinmeyen') };
     this.deathCause = ANIMALS[cause] ? ANIMALS[cause].n + Tr(' saldırısı') : (CAUSES[cause] || cause || Tr('bilinmeyen'));
     if (this.difficulty === 'hard') this.deleteSave();
     this.player.deadeye = false;

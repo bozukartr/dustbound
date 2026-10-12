@@ -550,6 +550,7 @@ const G = {
       if (P.de <= 0 || !P.aiming) { P.de = Math.max(0, P.de); P.deadeye = false; Audio_.tone(300, 0.3, 'sine', 0.08, null, 0, 150); }
     } else P.de = Math.min(100, P.de + dt * (0.6 + P.deCore / 60));
     if (P.poison > 0) { P.poison -= dt; P.hurt(dt * 1.6, 'zehir', true); }
+    P.poisonFx(dt);
     P.hp = Math.min(P.hp, P.maxHp);
     this.lawUpdate(dt);
     this.storyTick(dt);
@@ -1210,7 +1211,7 @@ const G = {
     this.scars = Math.min(30, (this.scars || 0) + 3);
     P.x = doc.door.x; P.y = doc.door.y + 10;
     if (P.riding) P.dismount();
-    P.hp = P.maxHp * 0.6; P.hunger = Math.max(P.hunger, 50); P.thirst = Math.max(P.thirst, 50); P.energy = Math.max(P.energy, 60); P.poison = 0; P.sick = 0;
+    P.hp = P.maxHp * 0.6; P.hunger = Math.max(P.hunger, 50); P.thirst = Math.max(P.thirst, 50); P.energy = Math.max(P.energy, 60); P.poison = 0; P.sick = 0; P.retchT = 0;
     P.deadeye = false;
     this.law.level = 0;
     for (const e of this.ents) if (e.kind === 'npc' && (e.hostile || e.role === 'bandit')) e.remove = true;
