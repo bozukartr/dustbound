@@ -4,6 +4,9 @@ module.exports = {
   name: 'Hata ayıklama paneli',
   async run(t) {
     const p = await t.newGame();
+    // gerçek şifre depoda hiçbir yerde düz yazılmaz: test kendi geçici şifresini kurar
+    const PIN = '8642';
+    await p.evaluate((pin) => { Debug.PIN_HASH = Debug.pinHash(pin); }, PIN);
     const combo = async () => { await p.keyboard.down('Control'); await p.keyboard.down('Alt'); await p.keyboard.press('KeyC'); await p.keyboard.up('Alt'); await p.keyboard.up('Control'); await t.sleep(250); };
     await t.step('kısayol şifre sorar; yanlış şifre açmaz, oyuncu yürümez', async () => {
       await combo();
@@ -14,7 +17,7 @@ module.exports = {
       t.ok(await p.evaluate((x0) => G.player.x === x0, x0), 'şifre yazarken oyuncu yürümemeli');
     });
     await t.step('doğru şifre paneli açar, sonra şifresiz açılır', async () => {
-      for (const d of '4620') await p.click(`#dbg-pin button[data-k="${d}"]`);
+      for (const d of PIN) await p.click(`#dbg-pin button[data-k="${d}"]`);
       await t.sleep(500);
       t.ok(await p.evaluate(() => Debug.open && !Debug.pin), 'panel açılmalı');
       t.ok(await p.evaluate(() => !G.debugUsed), 'yalnız paneli açmak kaydı hileli saymamalı');
