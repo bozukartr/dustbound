@@ -332,6 +332,8 @@ I18N.add('en', {
     "Kamp": "Camp",
     "Kamp Menüsü": "Camp Menu",
     "Cesedi Ara": "Search Body",
+    "Silahı Al": "Take Weapon",
+    "Mermilerini Al ({0})": "Take Its Ammo ({0})",
     "Yerde bir şey parlıyor": "Something's shining on the ground",
     "Al": "Take",
     "Kırık Araba": "Broken Wagon",

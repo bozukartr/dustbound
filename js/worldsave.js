@@ -4,7 +4,7 @@
    "Devam Et" oyunu kaldığı andan sürdürür: çevredeki kasaba
    sakinleri, kanun adamları, yolcular, haydutlar, çiftçiler,
    hayvanlar (av, çiftlik, kasaba tavukları), bağlı atlar, yol
-   arabaları, yerdeki cesetler, postlar, sandıklar, uçmuş şapkalar
+   arabaları, yerdeki cesetler, düşen silahlar, postlar, sandıklar, uçmuş şapkalar
    ve yanık izleri bulundukları yerde, durumlarıyla geri gelir.
    Kendi düzeneğiyle yeniden kurulanlar (tezgâhtaki esnaf, piyanist,
    göçebeler, ödül hedefi, aile, olay NPC'leri, ödül avcıları)
@@ -65,6 +65,7 @@ const WorldSave = {
         b.spd = Math.round(e.spd || 0);
       } else if (e.kind === 'pelt') Object.assign(b, { id: e.id, q: e.q, ang: e.ang, age: e.age });
       else if (e.kind === 'crate') Object.assign(b, { g: e.g });
+      else if (e.kind === 'gun') Object.assign(b, { w: e.w, n: e.n, ang: Math.round(e.ang * 100) / 100, age: Math.round(e.age) });
       else continue;
       out.push(b);
     }
@@ -116,6 +117,7 @@ const WorldSave = {
           if (!e.path && !e.route && !e.stopT) e.remove = true;
         } else if (b.k === 'pelt') { if (!ITEMS[b.id]) continue; e = new Pelt(b.x, b.y, b.id, b.q || 1); e.ang = b.ang || 0; e.age = b.age || 0; }
         else if (b.k === 'crate') { if (!GOODS[b.g]) continue; e = new Crate(b.x, b.y, b.g); }
+        else if (b.k === 'gun') { if (!WEAPONS[b.w]) continue; e = new GunDrop(b.x, b.y, b.w, b.n === undefined ? null : b.n); e.ang = b.ang || 0; e.age = b.age || 0; }
       } catch (err) { console.warn('varlık yüklenemedi', b, err); e = null; }
       made.push(e);
       if (e && !e.remove) this.addEnt(e);
