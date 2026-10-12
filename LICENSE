@@ -1,0 +1,77 @@
+Frontier's End (önceki adıyla / formerly Dustbound)
+Telif hakkı / Copyright © 2026 Burak Göl (GitHub: bozukartr). Tüm hakları saklıdır. All rights reserved.
+
+==============================================================================
+TÜRKÇE
+==============================================================================
+
+1. Sahiplik. Bu depodaki ve bu depodan üretilen her pakette (web, masaüstü/Steam
+   ve demo sürümleri) bulunan oyunun kaynak kodu, oyun tasarımı, görselleri,
+   sesleri, müzikleri, videoları, metinleri, diyalogları, karakterleri,
+   hikâyeleri ve diğer bütün içeriği ("Oyun"), 4. maddedeki üçüncü taraf
+   içerikler dışında Burak Göl'e aittir. Oyun, 5846 sayılı Fikir ve Sanat
+   Eserleri Kanunu ve Türkiye'nin taraf olduğu uluslararası telif sözleşmeleri
+   (Bern Sözleşmesi dahil) kapsamında korunur.
+
+2. Yasaklar. Sahibinin önceden verilmiş yazılı izni olmadan Oyun'un tamamı ya da
+   herhangi bir parçası:
+   - kopyalanamaz, çoğaltılamaz, değiştirilemez, uyarlanamaz, çevrilemez ve
+     ondan türev eser oluşturulamaz;
+   - dağıtılamaz, satılamaz, kiralanamaz, ücretli ya da ücretsiz kamuya
+     sunulamaz;
+   - Steam dahil hiçbir dijital mağazada, platformda ya da web sitesinde
+     yayımlanamaz;
+   - başka bir adla ya da başkasının eseri olarak sunulamaz.
+
+3. Lisans verilmez. Bu deponun, oyun dosyalarının ya da kaynak kodun görülebilir
+   veya erişilebilir olması hiçbir kullanım, kopyalama, değiştirme ya da dağıtım
+   hakkı veya lisansı vermez. Açıkça ve yazılı olarak verilmeyen bütün haklar
+   saklıdır.
+
+4. Üçüncü taraf içerikler. Aşağıdaki içerikler kendi lisanslarına tabidir; bu
+   lisans onların sahiplerinin haklarını değiştirmez:
+   - Yazı tipleri: fonts/LICENSES/ (SIL Open Font License 1.1, Apache License 2.0)
+   - Ses efektleri: audio/sfx/KAYNAKLAR.md (CC0 1.0)
+   - Seslendirme ve karakter sesi örnekleri: audio/vo/KAYNAKLAR.md
+   - Depoda kaynağı ve lisansı belirtilen diğer üçüncü taraf içerikler.
+
+5. İzin talepleri: https://github.com/bozukartr
+
+Türkçe ve İngilizce metinler arasında fark olursa Türkçe metin esas alınır.
+
+==============================================================================
+ENGLISH
+==============================================================================
+
+1. Ownership. The game's source code, game design, graphics, sounds, music,
+   videos, text, dialogue, characters, stories and all other content in this
+   repository and in every package built from it (web, desktop/Steam and demo
+   versions) (the "Game"), except the third-party content listed in section 4,
+   are owned by Burak Göl. The Game is protected by Turkish Law No. 5846 on
+   Intellectual and Artistic Works and by the international copyright treaties
+   to which Turkey is a party (including the Berne Convention).
+
+2. Restrictions. Without the owner's prior written permission, the Game or any
+   part of it may not be:
+   - copied, reproduced, modified, adapted, translated or used to create
+     derivative works;
+   - distributed, sold, rented or made available to the public, whether for a
+     fee or free of charge;
+   - published on Steam or any other digital store, platform or website;
+   - presented under another name or as someone else's work.
+
+3. No license. Being able to see or access this repository, the game files or
+   the source code does not grant any right or license to use, copy, modify or
+   distribute them. All rights not expressly granted in writing are reserved.
+
+4. Third-party content. The following content is subject to its own licenses;
+   this license does not change the rights of their owners:
+   - Fonts: fonts/LICENSES/ (SIL Open Font License 1.1, Apache License 2.0)
+   - Sound effects: audio/sfx/KAYNAKLAR.md (CC0 1.0)
+   - Voice-over and character voice samples: audio/vo/KAYNAKLAR.md
+   - Other third-party content whose source and license are stated in the
+     repository.
+
+5. Permission requests: https://github.com/bozukartr
+
+If the Turkish and English texts differ, the Turkish text prevails.
