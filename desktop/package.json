@@ -3,6 +3,8 @@
   "productName": "Frontier's End",
   "version": "0.9.0",
   "description": "Frontier's End — 2D open-world western survival and life simulation.",
+  "author": "Burak Göl",
+  "license": "UNLICENSED",
   "main": "main.js",
   "private": true,
   "steamAppId": 480,
@@ -26,6 +28,7 @@
   "build": {
     "appId": "com.frontiersend.game",
     "productName": "Frontier's End",
+    "copyright": "Copyright © 2026 Burak Göl. All rights reserved.",
     "directories": { "output": "dist" },
     "files": ["main.js", "preload.js", "gpu.js", "package.json", "build/icon.png", "app/**/*"],
     "asarUnpack": ["node_modules/steamworks.js/**/*"],

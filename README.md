@@ -517,3 +517,7 @@ js/juice.js     his efektleri: isabet duraklaması, tepme, savrulma, şapka, din
 js/game.js      oyun döngüsü, kamera, render, ışık, kayıt
 js/main.js      başlatıcı
 ```
+
+## Lisans
+
+Frontier's End açık kaynak değildir, bütün hakları saklıdır: © 2026 Burak Göl. Oyunun kodu, tasarımı ve içeriği izinsiz kopyalanamaz, değiştirilemez, dağıtılamaz ve Steam dahil hiçbir mağazada yayımlanamaz. Ayrıntılar ve kendi lisanslarına tabi üçüncü taraf içerikler (yazı tipleri, CC0 ses efektleri, seslendirme) için `LICENSE` dosyasına bak. Masaüstü ve demo paketleri `LICENSE` dosyasını da içerir.
