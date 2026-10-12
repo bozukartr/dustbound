@@ -95,7 +95,7 @@ const Debug = {
   /* ---------------- şifre ----------------
      Panel 4 haneli bir şifreyle açılır (oturum boyunca bir kez sorulur).
      Şifre kaynakta düz yazılmaz; yalnızca özeti tutulur. */
-  PIN_HASH: '144crf48',
+  PIN_HASH: '13f5sou7',
   pinHash(p) {
     const f = s => { let h = 0x811c9dc5; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h; };
     let h = 'fe-dbg:' + p;
