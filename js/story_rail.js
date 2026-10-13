@@ -242,7 +242,7 @@ STORIES.rail = {
     {
       t: () => Tr('Tren Bileti'),
       talk: () => [['S', Tr('Bilet parası benden. Hale\'e mektubu ver, ağzından çıkanı aklında tut. Yazılı söz yalan söylemez; Hale söyler.')]],
-      start(S) { this.earn(3, 'Boone'); },
+      start(S) { this.earn(Math.max(3, Math.ceil(2 * this.trainPrice(this.sTown(), this.rlDest()))), 'Boone'); },   // gidiş-dönüş bilet parası Boone'dan
       steps: [
         { t() { return Tr`Trenle ${this.rlDest().n} kasabasına git`; }, chk() { const P = this.player, D = this.rlDest(), t = this.world.townAt(P.x, P.y, 2); return !!(t && t.id === D.id) || !!(D.station && dist(P.x, P.y, D.station.door.x, D.station.door.y) < 300); },   // istasyon kasabanın dışında kalabilir
           at() { const t = this.world.townAt(this.player.x, this.player.y, 30), st = t && t.id === this.story.town && this.sBld('station'); return st ? this.sDoor(st, 4) : this.rlDest().spawn; }, wp: true,

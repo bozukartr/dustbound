@@ -221,7 +221,7 @@ STORIES.immigrant = {
     {
       t: () => Tr('Posta Arabasıyla'),
       talk: () => [['S', Tr('Silver Ridge dağların ardında. Atla günler sürer; posta arabası daha çabuk, at da arkadan bağlı gelir.')], ['S', Tr('Bilet parası benden. Pazarlık edersen bir dahakine sen ısmarlarsın.')]],
-      start(S) { S.stageTo = S.mine; this.earn(6, 'Greta'); },
+      start(S) { S.stageTo = S.mine; const port = this.world.towns.find(t => t.id === S.port); this.earn(Math.max(6, Math.ceil(port ? this.stagePrice(port, this.imMine()) : 6)), 'Greta'); },   // bilet parası Greta'dan: en az biletin fiyatı
       steps: [
         { t() { return Tr`${this.imMine().n} kasabasına git`; }, chk() { const t = this.world.townAt(this.player.x, this.player.y, 0); return !!(t && t.id === this.story.mine); },
           at() { const t = this.world.townAt(this.player.x, this.player.y, 30), b = t && t.id === this.story.port && (this.sBld('post') || this.sBld('station')); return b ? this.sDoor(b, 4) : this.imMine().spawn; }, wp: true,

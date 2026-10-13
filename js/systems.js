@@ -394,6 +394,9 @@ const GameSystems = {
     return m;
   },
   buyPrice(id) { return ITEMS[id].p * this.priceMul(true); },
+  /* Bilet ücretleri: iki kasaba arası uzaklığa göre ("Kasabalar" kazanımı indirim yapar); hikâyeler de bunu kullanır */
+  trainPrice(a, b) { return Math.max(SVC.trainMin, dist(a.cx, a.cy, b.cx, b.cy) * SVC.trainPx) * (this.hasPerk('towns') ? 0.5 : 1); },
+  stagePrice(a, b) { return Math.max(SVC.stageMin, dist(a.cx, a.cy, b.cx, b.cy) * SVC.stagePx) * (this.hasPerk('towns') ? 0.75 : 1); },
   sellPrice(id, shop) {
     const it = ITEMS[id];
     const S = SHOPS[shop];

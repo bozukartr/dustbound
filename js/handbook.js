@@ -33,7 +33,7 @@ const Handbook = {
         Tr('Canın kendiliğinden dolar: açlık ve susuzluk 20\'nin, uyku 10\'un üstündeyken, hasta değilken, donmuyor ve sıcak çarpmıyorken.'),
         Tr('Hızı oyun saatinde <b>7 can</b>; açlık ve susuzluk 60\'ın üstündeyse <b>13</b>, uyurken 8 fazlası.'),
         Tr('Canın %20\'nin altına inince yürüyüşün %15 yavaşlar.'),
-        Tr`Doktor <b>${fmtMoney(G.hasPerk('saint') ? 0.5 : 1)}</b> karşılığında canını, hastalığını ve zehrini tamamen iyileştirir (30 oyun dakikası).`,
+        Tr`Doktor <b>${fmtMoney(SVC.heal * (G.hasPerk('saint') ? 0.5 : 1))}</b> karşılığında canını, hastalığını ve zehrini tamamen iyileştirir (30 oyun dakikası).`,
         Tr('Her ölüm kalıcı bir iz bırakır: en yüksek can 3 azalır (en çok 30).'),
       ]) },
       { id: 'needs', ic: 'meat', t: Tr('Açlık, Susuzluk ve Uyku'), b: () => li([

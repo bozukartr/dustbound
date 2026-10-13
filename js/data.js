@@ -374,6 +374,9 @@ const SHOPS = {
 };
 /* Herhangi bir dükkanda satılan eşyalar (satış fiyatı sınırı için) */
 const PURCHASABLE = new Set(Object.values(SHOPS).flatMap(S => S.sell || []));
+/* Hizmet ücretleri ($): ürün değildir ama genel fiyat düzeyini izler. Otel odası kasabanın fiyat çarpanıyla çarpılır;
+   biletler uzaklığa göre (tren en az trainMin, posta arabası en az stageMin; her piksel için trainPx / stagePx). */
+const SVC = { room: 1, bath: 0.5, heal: 2, horsecare: 0.5, barber: 0.3, rumor: 0.1, fetchWagon: 1, trainMin: 0.5, trainPx: 1 / 2500, stageMin: 0.8, stagePx: 1 / 1800 };
 
 /* ---- Önemli yerler ---- */
 const LANDMARKS = [

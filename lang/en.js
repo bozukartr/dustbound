@@ -1018,7 +1018,7 @@ I18N.add('en', {
     "Aranırken trene binemezsin!": "You can't board a train while wanted!",
     "{0} yolunda...": "On the way to {0}...",
     "Berber": "Barber",
-    "Her işlem 15¢": "Each service 15¢",
+    "Her işlem {0}": "Each service {0}",
     "Saç": "Hair",
     "Sakal": "Beard",
     "Hediye edebileceğin bir şey yok. (Çiçek, çikolata, mücevher…)": "You have nothing to give as a gift. (Flowers, chocolate, jewelry…)",
