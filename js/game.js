@@ -51,6 +51,7 @@ const G = {
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null; this.hideout = null;
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
+    this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -1218,7 +1219,7 @@ const G = {
     P.x = doc.door.x; P.y = doc.door.y + 10;
     if (P.riding) P.dismount();
     P.hp = P.maxHp * 0.6; P.hunger = Math.max(P.hunger, 50); P.thirst = Math.max(P.thirst, 50); P.energy = Math.max(P.energy, 60); P.poison = 0; P.sick = 0; P.retchT = 0;
-    P.deadeye = false;
+    P.deadeye = false; this.dmgLog = [];
     this.law.level = 0;
     for (const e of this.ents) if (e.kind === 'npc' && (e.hostile || e.role === 'bandit')) e.remove = true;
     for (const e of this.ents) if (e.kind === 'animal' && e.state === 'attack') e.remove = true;

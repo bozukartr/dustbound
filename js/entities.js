@@ -256,6 +256,7 @@ class Player extends Ent {
     this.deCore = 70;
     this.sick = 0; this.poison = 0;
     this.retchT = 0; this.retchCd = 3; this.sweatT = 0;   // zehir görüntüsü: öğürme süresi/arası, ter damlası
+    this.poisonBy = null;   // zehirleyen hayvan türü (ölüm ekranı için)
     this.immuneT = 0; this.painT = 0; this.limberT = 0; this.coolT = 0;   // ilaçların süreli etkileri (oyun dakikası)
     this.canteen = 3;
     this.coat = null;
@@ -347,7 +348,7 @@ class Player extends Ent {
     const fx = this.x, fy = this.y;
     if (!G.world.blocked(cx + ox, cy + oy, this.r)) { this.x = cx + ox; this.y = cy + oy; }
     else if (!G.world.blocked(cx - ox, cy - oy, this.r)) { this.x = cx - ox; this.y = cy - oy; }
-    if (fall) { this.hurt(12, 'fall', true); UI.feed(Tr('Attan düştün!')); }
+    if (fall) { this.hurt(12, 'fall', true, h); UI.feed(Tr('Attan düştün!')); }
     else if (anim) { this.mountAnim = { on: false, h, t: 0, dur: 0.36, fx, fy, tx: this.x, ty: this.y, fa: this.ang }; this.x = fx; this.y = fy; Audio_.step(0.2, true); }
     h.spd *= 0.3;
   }
@@ -364,13 +365,15 @@ class Player extends Ent {
     if (k >= 1) { this.mountAnim = null; if (A.on) { this.x = h.x; this.y = h.y; this.ang = h.ang; } }
   }
 
-  hurt(dmg, src, silent) {
+  /* by: saldıran (varsa), weapon: silahı; ölüm ekranının "Son anlar" dökümü için kaydedilir */
+  hurt(dmg, src, silent, by, weapon) {
     if (G.state !== 'play' || this.hp <= 0) return;
     // zehir içten içe tüketir: kan fışkırmaz, ekran sarsılmaz, ata da geçmez (görüntüsü poisonFx'te)
     const inner = src === 'zehir';
     if (this.riding && src && src !== 'fall' && !inner && Math.random() < 0.25) { this.riding.hurt(dmg); return; }
     if (G.godMode) return;
     if (this.painT > 0) dmg *= 0.6;   // laudanum: acıyı uyuşturur
+    G.logHurt(src, Math.min(dmg, this.hp), by, weapon);
     this.hp -= dmg;
     if (!inner) {
       this.hurtT = 0.4;
@@ -1051,8 +1054,8 @@ class Animal extends Ent {
         if (this.atkCd <= 0) {
           this.atkCd = 1.1;
           Juice.hurtFrom(this.x, this.y);
-          P.hurt(d.dmg * (G.difficulty === 'hard' ? 1.2 : 1), this.type);
-          if (d.venom && !G.player.riding) { P.poison = Math.max(P.poison, 90); UI.help(Tr('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.'), 6); }
+          P.hurt(d.dmg * (G.difficulty === 'hard' ? 1.2 : 1), this.type, false, this);
+          if (d.venom && !G.player.riding) { P.poison = Math.max(P.poison, 90); P.poisonBy = this.type; UI.help(Tr('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.'), 6); }
           if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar' || this.type === 'gator') Audio_.growl(this.type, this.x, this.y);
         }
       }
@@ -1460,8 +1463,8 @@ class NPC extends Ent {
       this.cool = rnd(0.8, 1.4); this.swing = 1; Juice.hurtFrom(this.x, this.y); Audio_.thud(0.4);
       // yumruk kavgasında kimse ölmez: oyuncu yere serilince kavga biter
       const d = rndi(5, 9);
-      if (P.hp - d <= 10) { P.hurt(Math.max(0, P.hp - 8), 'fist'); G.brawlWin(this); return; }
-      P.hurt(d, 'fist');
+      if (P.hp - d <= 10) { P.hurt(Math.max(0, P.hp - 8), 'fist', false, this); G.brawlWin(this); return; }
+      P.hurt(d, 'fist', false, this);
     }
     if (this.swing > 0) this.swing -= dt * 4;
     if (this.hp < this.maxHp * 0.4) { G.brawlYield(this); return; }

@@ -2045,7 +2045,7 @@ const UI = {
       Audio_.shot('pistol', 1);
       G.parts.add('flash', P.x + Math.cos(P.ang) * 8, P.y + Math.sin(P.ang) * 8, 0, 0, 0.08, 5);
       if (win) { e.hurt(999, 'duel'); G.earn(bet, Tr('Düello')); G.addHonor(1); G.skillXp('shooting', 15); G.stat('duels', 1); draw(msg, Tr('KAZANDIN')); }
-      else { P.hurt(55, 'haydut'); if (G.state === 'play') { e.state = 'idle'; e.eventType = null; e.path = null; e.home = { x: e.x + 200, y: e.y, r: 50 }; } draw(msg, Tr('VURULDUN')); }
+      else { P.hurt(55, 'duello', false, e, e.weapon || 'cattleman'); if (G.state === 'play') { e.state = 'idle'; e.eventType = null; e.path = null; e.home = { x: e.x + 200, y: e.y, r: 50 }; } draw(msg, Tr('VURULDUN')); }
       setTimeout(() => { if (m.alive) this.pop(m); }, 2200);
     };
     m.update = (dt) => {
@@ -2689,10 +2689,36 @@ const UI = {
   },
 
   /* ================= ÖLÜM & MİRAS ================= */
+  /* Ölüm ekranı: sebep ve öldüren (adı, silahı, isabet), yer ve zaman, son iki dakikanın hasar dökümü ("Son anlar"),
+     doktorun kurtarmasının bedeli (Tek Hayat'ta kaydın silindiği) ve sebebe göre kısa bir öğüt */
+  deathDetails() {
+    const D = G.deathInfo && G.deathInfo.cause === G.deathCause ? G.deathInfo : null, hard = G.difficulty === 'hard';
+    if (!D) return '';
+    const g = (n, c = '#c9a45c') => Icons.glyph(n, c);
+    const wn = D.weapon && WEAPONS[D.weapon] ? WEAPONS[D.weapon].n : '';
+    const killer = D.who ? `<div class="ds-k">${Tr`Öldüren: <b>${escapeHtml(D.who)}</b>`}${wn ? ' · ' + wn : ''}${D.hits > 1 ? ' · ' + Tr('{0} isabet', D.hits) : ''}</div>` : '';
+    const where = `<div class="ds-w">${g('pin', '#bcb09a')}${escapeHtml(D.place)}${D.near ? ' · ' + Tr`en yakın kasaba ${D.near.n}, ${fmtDist(D.near.d)} ${D.near.dir}` : ''} &nbsp; ${g('hourglass', '#bcb09a')}${D.time} · ${D.date}</div>`;
+    // son anlar: eskiden yeniye; çubuk o satırın can kaybını en büyüğüne göre gösterir
+    const cont = { zehir: 1, hunger: 1, thirst: 1, cold: 1, heat: 1, tired: 1, sick: 1 };
+    const top = Math.max(1, ...D.log.map(e => e.sum));
+    const rows = D.log.map(e => {
+      const sub = [e.who ? escapeHtml(e.who) : '', e.weapon && WEAPONS[e.weapon] ? WEAPONS[e.weapon].n : '', cont[e.src] ? Tr`${fmtSec(Math.max(1, e.dur))} boyunca` : e.n > 1 ? Tr('{0} isabet', e.n) : ''].filter(Boolean).join(' · ');
+      return `<div class="dl-r${e.kill ? ' kill' : ''}"><span class="dl-v">−${Math.max(1, Math.round(e.sum))}</span><span class="dl-l">${G.hurtLabel(e.src)}${sub ? `<small>${sub}</small>` : ''}</span><span class="dl-t">${e.kill ? Tr('ölümcül') : e.ago < 1 ? Tr('az önce') : Tr`${fmtSec(e.ago)} önce`}</span><span class="dl-bar"><i style="width:${Math.round(e.sum / top * 100)}%"></i></span></div>`;
+    }).join('') || `<div class="dl-none">${Tr('Kayıtlı bir hasar yok.')}</div>`;
+    const cost = hard ? `<div class="ds-hard">${Tr('Bu hayat burada biter; kaydı silindi.')}</div>`
+      : [`${g('coin')}${D.money >= 0.01 ? Tr`Cebindeki paranın dörtte biri: <b>−${fmtMoney(D.money * 0.25)}</b>` : Tr('Cebinde para yok; para kaybetmezsin')}`,
+        `${g('bank')}${D.bank > 0 ? Tr`Bankadaki ${fmtMoney(D.bank)} güvende` : Tr('Bankadaki para ölünce kaybolmaz')}`,
+        `${g('heart')}${D.scars < 30 ? Tr('Kalıcı iz: en yüksek can −3') : Tr('Kalıcı izlerin en üst düzeyde')}`,
+        G.law.level > 0 ? `${g('star')}${Tr('Aranman sona erer; başındaki ödül kalır')}` : '',
+        `${g('bed')}${Tr('18 saat sonra %60 canla uyanırsın; zehir ve hastalık geçer')}`].filter(Boolean).map(l => `<div>${l}</div>`).join('');
+    const tip = G.deathTip(D.src);
+    return `${killer}${where}<div class="ds-grid"><div class="ds-box"><h4>${Tr('SON ANLAR')}</h4>${rows}</div><div class="ds-box ds-cost"><h4>${hard ? Tr('TEK HAYAT') : Tr('DOKTOR SENİ KURTARIRSA')}</h4>${cost}</div></div>`
+      + (tip ? `<div class="ds-tip">${g('question', '#e8c070')}${tip}</div>` : '');
+  },
   showDeath() {
     const el = el_('div', 'modal deathscreen');
-    const hard = G.difficulty === 'hard';
-    el.innerHTML = `<div class="ds-inner"><div class="ds-t">${Tr`ÖLDÜN`}</div><div class="ds-rule"></div><div class="ds-c">${Tr`Ölüm sebebi: ${G.deathCause}`}</div><div class="ds-a">${Tr`${G.player.name}, ${G.age} yaşında`}</div>
+    const hard = G.difficulty === 'hard', det = this.deathDetails();
+    el.innerHTML = `<div class="ds-inner${det ? ' full' : ''}"><div class="ds-t">${Tr`ÖLDÜN`}</div><div class="ds-rule"></div><div class="ds-c">${Tr`Ölüm sebebi: ${G.deathCause}`}</div>${det}<div class="ds-a">${Tr`${G.player.name}, ${G.age} yaşında`}</div>
       <div class="ds-items"><div class="p-item nav pref" id="ds-cont">${hard ? Tr('Hayatının Özeti') : Tr('Devam Et (Doktor)')}</div>${!hard ? `<div class="p-item nav" id="ds-legacy">${Tr`Bu Hayatı Bitir`}</div>` : ''}<div class="p-item nav" id="ds-menu">${Tr`Ana Menü`}</div></div></div>`;
     document.body.classList.add('dying');
     const m = this.makeModal(el, { onBack: () => {}, onClose: () => document.body.classList.remove('dying') });
