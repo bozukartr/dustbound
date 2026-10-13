@@ -139,6 +139,19 @@ const HOTEL_UP = {
     [4, 5, 8], [4, 6, 8], [4, 7, 8], [5, 5, 4], [5, 6, 4], [5, 7, 4]],
 };
 const isHotel2 = b => !!b && b.type === 'hotel' && b.w === 10 && b.h === 8;   // iki katlı otel (bütün oteller 10x8; üst kat planı bu boya göre)
+/* Üst katta kilitli odaların (dolu ya da kiralanmamış) içi görünmez: odanın döşemesi (duvar bantlarının arası) ve arka
+   odalarda arka duvarın odaya bakan yüzü karanlık bir tavanla örtülür. Binaya göre yerel piksel dikdörtgenleri [x, y, w, h]. */
+const hotelShut = (b) => {
+  const out = [];
+  if (!isHotel2(b) || b.floor !== 1) return out;
+  HOTEL_UP.rooms.forEach((R, k) => {
+    if (k === b.openRoom) return;
+    const A = R.area, back = R.side === 2, x0 = A[0] * TS + 5, x1 = (A[2] + 1) * TS - 5, y0 = back ? TS : A[1] * TS + 6, y1 = (A[3] + 1) * TS - 4;
+    out.push([x0, y0, x1 - x0, y1 - y0]);
+    if (back) out.push([A[0] * TS, 2, (A[2] - A[0] + 1) * TS, TS - 2]);
+  });
+  return out;
+};
 
 class World {
   constructor(seed) {
@@ -1700,19 +1713,22 @@ class World {
   /* İki katlı otel: kat değişince binanın iç mekân nesneleri ve çarpışması o katınkiyle değişir; çizim önbellekleri
      (2D ve melez) yalnızca binanın parçalarında yenilenir, bina örtüsü korunur. Zemin katın nesneleri ilk değişimde
      kopyalanır (dünya önbelleği üretimden hemen sonra alındığı için bu kopyalar ona girmez). open: kapısı açık oda
-     (kiralanan), yoksa -1. */
+     (kiralanan), yoksa -1. Üst katta eşyalar yalnızca açık odadadır; kilitli odaların içi boştur ve örtülür (hotelShut). */
   setFloor(b, lv, open = -1) {
     if (!isHotel2(b)) return false;
     const n = b.w * b.h, at = (k) => (b.y + Math.floor(k / b.w)) * WW + b.x + k % b.w;
     if (!b.fl0) { b.fl0 = new Uint8Array(n); for (let k = 0; k < n; k++) b.fl0[k] = this.obj[at(k)]; }
-    if (!b.fl1) {
-      const o = b.fl1 = new Uint8Array(n), put = (lx, ly, v) => { o[ly * b.w + lx] = v; };
+    if (lv) {
+      const o = b.fl1 || (b.fl1 = new Uint8Array(n)), put = (lx, ly, v) => { o[ly * b.w + lx] = v; };
+      o.fill(0);
       for (let ly = 1; ly <= 3; ly++) for (const lx of HOTEL_UP.stairs) put(lx, ly, O.STAIRSD);
-      for (const R of HOTEL_UP.rooms) {
-        put(R.bed[0], R.bed[1], O.BED); put(R.bed[0], R.bed[1] + 1, O.IBLOCK); put(R.door[0], R.door[1], O.RDOOR);
+      HOTEL_UP.rooms.forEach((R, k) => {
+        put(R.door[0], R.door[1], O.RDOOR);
+        if (k !== open) return;
+        put(R.bed[0], R.bed[1], O.BED); put(R.bed[0], R.bed[1] + 1, O.IBLOCK);
         if (R.chair) put(R.chair[0], R.chair[1], O.CHAIR);
         if (R.shelf) put(R.shelf[0], R.shelf[1], O.SHELF);
-      }
+      });
     }
     b.floor = lv ? 1 : 0; b.openRoom = lv ? open : -1;
     if (lv) {

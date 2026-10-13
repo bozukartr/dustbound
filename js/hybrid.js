@@ -668,8 +668,15 @@ const HY = (() => {
       yield* step();
     }
     const nWin = Math.max(1, Math.floor(b.w / 3));
-    for (let k = 0; k < nWin; k++) { const cx = X + (k + 0.5) * Wd / nWin; if (!up && Math.abs(cx - b.door.x) < 14) continue; rect(bx(cx - 5), by(Y + Hd - 4), 20, by(Y + Hd - 1) - by(Y + Hd - 4), (x, y) => (y === by(Y + Hd - 4) ? rgb('#c8e0f0') : rgb('#7a9ab0')), 8, UP); }
+    const wins = up ? [X + 40, X + Wd - 40] : Array.from({ length: nWin }, (_, k) => X + (k + 0.5) * Wd / nWin);   // üst katta öndeki iki odanın ortasında
+    for (const cx of wins) { if (!up && Math.abs(cx - b.door.x) < 14) continue; rect(bx(cx - 5), by(Y + Hd - 4), 20, by(Y + Hd - 1) - by(Y + Hd - 4), (x, y) => (y === by(Y + Hd - 4) ? rgb('#c8e0f0') : rgb('#7a9ab0')), 8, UP); }
     if (b.h >= 6) for (const sx of [X + 1, X + Wd - 4]) rect(bx(sx), by(Y + Hd / 2 - 4), 6, 16, rgb('#8ab0c8'), 8, UP);
+    // otelin üst katı: kilitli odaların içi görünmez, üstleri duvar boyunda karanlık bir tavanla örtülü (kapılar üstüne basılır)
+    if (up) {
+      const c0 = rgb('#181009'), c1 = rgb('#1c130d');
+      for (const [x, y, w, h] of hotelShut(b)) rect(bx(X + x), by(Y + y), w * S, h * S, (px, py) => (Math.floor((wyOf(py) - Y) / 6) % 2 ? c1 : c0), 20, UP);
+      yield* step();
+    }
   }
   function furniture(o, cx, cy, i, b, W) {
     const h = hash2(cx >> 4, cy >> 4, 17), same = (dd) => W.obj[i + dd] === o;

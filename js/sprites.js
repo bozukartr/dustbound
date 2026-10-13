@@ -549,11 +549,16 @@ const Spr = {
       g.fillStyle = 'rgba(255,220,170,0.14)'; if (v <= 2) g.fillRect(r[0], r[1], r[2], 1); else g.fillRect(v === 4 ? r[0] + r[2] - 1 : r[0], r[1], 1, r[3]);
       g.fillStyle = 'rgba(0,0,0,0.16)'; if (v <= 2) g.fillRect(r[0], r[1] + r[3], r[2], 2);
     }
-    // ön duvar pencereleri
+    // ön duvar pencereleri (otelin üst katında öndeki iki odanın ortasında)
     const nWin = Math.max(1, Math.floor(b.w / 3));
-    for (let k = 0; k < nWin; k++) { const cx = X + (k + 0.5) * W / nWin; if (!up && Math.abs(cx - dx) < 14) continue; g.fillStyle = '#8ab0c8'; g.fillRect(cx - 4, Y + H - 4, 8, 3); g.fillStyle = 'rgba(200,230,255,0.12)'; g.fillRect(cx - 5, Y + H - 16, 10, 12); }
+    const wins = up ? [X + 40, X + W - 40] : Array.from({ length: nWin }, (_, k) => X + (k + 0.5) * W / nWin);
+    for (const cx of wins) { if (!up && Math.abs(cx - dx) < 14) continue; g.fillStyle = '#8ab0c8'; g.fillRect(cx - 4, Y + H - 4, 8, 3); g.fillStyle = 'rgba(200,230,255,0.12)'; g.fillRect(cx - 5, Y + H - 16, 10, 12); }
     // yan pencereler
     if (b.h >= 6) { g.fillStyle = '#8ab0c8'; g.fillRect(X + 1, Y + H / 2 - 4, 3, 8); g.fillRect(X + W - 4, Y + H / 2 - 4, 3, 8); }
+    // otelin üst katı: kilitli odaların içi görünmez, üstleri karanlık bir tavanla örtülü (kapılar üstüne çizilir)
+    for (const [x, y, w, h] of hotelShut(b)) for (let yy = Y + y; yy < Y + y + h; yy += 3) {
+      g.fillStyle = Math.floor((yy - Y) / 6) % 2 ? '#1c130d' : '#181009'; g.fillRect(X + x, yy, w, Math.min(3, Y + y + h - yy));
+    }
     // eşyalar
     for (let ly = 1; ly < b.h; ly++) for (let lx = 0; lx < b.w; lx++) {
       const tx = b.x + lx, ty = b.y + ly, i = ty * WW + tx, o = world.obj[i];

@@ -26,6 +26,16 @@ module.exports = {
         inRoom(k) { const R = HOTEL_UP.rooms[k], ly = HT.loc()[1]; return R.side === 2 ? ly < R.door[1] + 0.75 : ly > R.door[1] + 0.375; },
         /* yatağın yanındaki boş karo */
         byBed(k) { const R = HOTEL_UP.rooms[k]; return R.side === 2 ? [R.bed[0] + (R.bed[0] < HB.w / 2 ? 1 : -1), R.bed[1]] : [R.bed[0] + (R.bed[0] < HB.w / 2 ? 1 : -1), R.bed[1] + 1]; },
+        /* odanın ortası (yerel piksel; döşeme, eşya yok) ve odanın karanlık örtüyle kapalı olup olmadığı */
+        mid: [[56, 30], [104, 30], [40, 105], [120, 105]],
+        shut(k) { const [x, y] = HT.mid[k]; return hotelShut(HB).some(([a, b, w, h]) => x >= a && x < a + w && y >= b && y < b + h); },
+        /* ekranda odanın ortasının parlaklığı (tuvaldeki son kare, 5x5 ortalama) */
+        luma(k) {
+          const s = G.canvas.width / G.vw, [x, y] = HT.mid[k], cx = Math.round((HB.x * TS + x - G.cam.ox) * s), cy = Math.round((HB.y * TS + y - G.cam.oy) * s);
+          const d = G.ctx.getImageData(cx - 2, cy - 2, 5, 5).data; let t = 0;
+          for (let i = 0; i < d.length; i += 4) t += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          return Math.round(t / (d.length / 4));
+        },
       };
       TH.inside(HB);
     });
@@ -67,13 +77,15 @@ module.exports = {
       await fade();
       const r = await p.evaluate(() => ({
         up: G.upB === HB, floor: HB.floor, loc: HT.loc(), rdoor: HT.objs(O.RDOOR), bed: HT.objs(O.BED), down: HT.objs(O.STAIRSD),
-        lobby: HT.objs(O.COUNTER) + HT.objs(O.SOFA) + HT.objs(O.STAIRS), open: HB.openRoom, occ: [0, 1, 2, 3].map(k => G.hotelOccupied(HB, k)), acts: TH.actions(),
+        lobby: HT.objs(O.COUNTER) + HT.objs(O.SOFA) + HT.objs(O.STAIRS), open: HB.openRoom, occ: [0, 1, 2, 3].map(k => G.hotelOccupied(HB, k)), acts: TH.actions(), shut: [0, 1, 2, 3].map(k => HT.shut(k)),
         blocked: G.world.blocked(G.player.x, G.player.y, G.player.r),
       }));
       t.ok(r.up && r.floor === 1, 'üst kattayız', r);
       t.eq(r.loc, [1.5, 4.5], 'merdivenin başındaki karoya çıkıldı');
       t.ok(!r.blocked, 'çıkılan yer boş');
-      t.eq([r.rdoor, r.bed, r.down], [4, 4, 6], 'dört oda kapısı, dört yatak, iki merdiven boşluğu');
+      t.eq([r.rdoor, r.down], [4, 6], 'dört oda kapısı, iki merdiven boşluğu');
+      t.eq(r.bed, 0, 'kira yokken odaların içi boş (eşya yok)');
+      t.eq(r.shut, [true, true, true, true], 'bütün odalar kilitli: içleri karanlık örtüyle kapalı');
       t.eq(r.lobby, 0, 'lobinin eşyaları üst katta yok');
       t.eq(r.open, -1, 'kira yokken bütün kapılar kapalı');
       t.eq(r.acts, ['Merdiven', 'Alt Kata İn'], 'aşağı inen merdiven');
@@ -164,6 +176,9 @@ module.exports = {
       room = st.k;
       t.ok(st.up, 'sağdaki merdivenden de çıkılır');
       t.eq(st.open, st.k, 'kiralanan odanın kapısı açık');
+      const vis = await p.evaluate((k) => ({ beds: HT.objs(O.BED), bedIn: G.world.obj[HT.idx(...HOTEL_UP.rooms[k].bed)] === O.BED, shut: [0, 1, 2, 3].map(q => HT.shut(q)) }), st.k);
+      t.ok(vis.beds === 1 && vis.bedIn, 'yalnızca kiralanan odada eşya var', vis);
+      t.eq(vis.shut, [0, 1, 2, 3].map(q => q !== st.k), 'kiralanan oda açık, öbürlerinin içi kapalı');
       t.eq(st.acts, [], 'açık kapı engel değil, etkileşim yok');
       await p.keyboard.down(st.f.key); await t.sleep(900); await p.keyboard.up(st.f.key);
       const inn = await p.evaluate((k) => ({ inRoom: HT.inRoom(k), loc: HT.loc() }), st.k);
@@ -253,7 +268,8 @@ module.exports = {
       }
     });
 
-    await t.step('iki çizicide de katlar hatasız çizilir (Melez ve Klasik)', async () => {
+    await t.step('iki çizicide de katlar hatasız çizilir; kilitli odaların içi ekranda görünmez (Melez ve Klasik)', async () => {
+      await p.evaluate(() => { G.clock = Math.floor(G.clock / 1440) * 1440 + 1440 + 13 * 60; G.hotelRent = { b: HB.id, room: 1, until: G.clock + 1440 }; });   // ertesi gün öğle; 2 numaralı oda (arkada sağda) kiralık
       for (const gfx of [0, 1]) {
         // ekran kartı olmayan test tarayıcısında melez çizim yalnızca zorlanınca açılır
         const on = await p.evaluate((g) => { window.__hySoft = true; G.settings.gfx = g; G.applySettings(); HT.at(1, 4); return G.hybridOn(); }, gfx);
@@ -263,6 +279,10 @@ module.exports = {
         await p.evaluate(() => TH.act(/Üst Kata Çık/));
         await fade(); await t.sleep(500);
         const up = await p.evaluate(() => [G.upB === HB, HB.floor, TH.actions()]);
+        // parçalar pişene kadar bekle: kilitli odaların ortası karanlık, kiralanan oda aydınlık
+        const ok = await p.waitForFunction(() => { const L = [0, 1, 2, 3].map(k => HT.luma(k)); return L[1] > 50 && [0, 2, 3].every(k => L[k] < L[1] * 0.6); }, null, { timeout: 10000 }).then(() => true, () => false);
+        const lum = await p.evaluate(() => [0, 1, 2, 3].map(k => HT.luma(k)));
+        t.ok(ok, `çizici ${gfx}: kilitli odalar karanlık, kiralanan oda görünür`, lum);
         await p.evaluate(() => TH.act(/Alt Kata İn/));
         await fade(); await t.sleep(500);
         const down = await p.evaluate(() => [!G.upB, HB.floor || 0, HY.stat.frames]);
