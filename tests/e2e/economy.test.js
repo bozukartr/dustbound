@@ -15,10 +15,12 @@ module.exports = {
       await p.evaluate(() => UI.closeAll());
       // ürün fiyatları (hizmetler, ücretler ve mülkler ayrı)
       const pr = await p.evaluate(() => ({ bread: ITEMS.bread.p, coffee: ITEMS.coffee.p, drover: WEAPONS.cattleman.p, plainsman: WEAPONS.winchester.p, morgan: HORSE_BREEDS.morgan.p, arabian: HORSE_BREEDS.arabian.p,
-        wagon: WAGON_PRICE, deed: [ITEMS.land_deed.p, DEED_PRICE], crate: GOODS.dry.p, shack: PROPERTIES[0].p, cabin: HOME_TYPES.hs_cabin.p }));
-      t.eq([pr.bread, pr.coffee, pr.drover, pr.plainsman, pr.morgan, pr.arabian, pr.wagon, pr.crate], [0.06, 0.12, 17, 30, 42, 550, 80, 2.6], 'ürün fiyatları');
-      t.eq(pr.deed, [30, 30], 'tapu eşyası ile tapu dairesi aynı fiyat');
-      t.eq([pr.shack, pr.cabin], [45, 80], 'mülk ve yapı fiyatları ayrı (değişmedi)');
+        wagon: WAGON_PRICE, deed: [ITEMS.land_deed.p, DEED_PRICE], crate: GOODS.dry.p, shack: PROPERTIES[0].p, cabin: HOME_TYPES.hs_cabin.p,
+        biz: [BIZ.general.p, BIZ.general.inc], ranch: (r => [r.p, r.income])(PROPERTIES.find(x => x.id === 'ranch')), estate: (r => [r.p, r.income])(PROPERTIES.find(x => x.id === 'estate')), fine: HOME_FINE }));
+      t.eq([pr.bread, pr.coffee, pr.drover, pr.plainsman, pr.morgan, pr.arabian, pr.wagon, pr.crate], [0.1, 0.2, 28, 50, 70, 925, 130, 4.25], 'ürün fiyatları (ekmek 10¢)');
+      t.eq(pr.deed, [50, 50], 'tapu eşyası ile tapu dairesi aynı fiyat');
+      t.eq([pr.shack, pr.cabin, pr.estate, pr.fine], [45, 80, [1800, 4], 25], 'ev, yapı, kira ve ceza ürünlerden ayrı');
+      t.eq([pr.biz, pr.ranch], [[635, 7], [1000, 2.5]], 'mal satan işletme ve çiftlik: fiyat ve gelir ürünlerle aynı ölçekte');
     });
     await t.step('aynı dükkân ve banka art arda soyulamaz', async () => {
       const r = await p.evaluate(() => {

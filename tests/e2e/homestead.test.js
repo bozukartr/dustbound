@@ -153,12 +153,12 @@ module.exports = {
         const office = G.world.buildings.find(x => x.type === 'county') || G.world.buildings.find(x => x.type === 'land');
         const item = UI.svcItems(office, 'property').find(i => /Tapuya Bağla/.test(i.label));
         const m0 = P.money; if (item) item.fn();
-        return { ok, built, notice: notice > 0, sealed, open, door, item: !!item, paid: m0 - P.money, legal: h.legal, unsealed: !h.sealed, open2: G.doorOpen(b) };
+        return { ok, built, notice: notice > 0, sealed, open, door, item: !!item, paid: m0 - P.money, deed: DEED_PRICE, fine: HOME_FINE, legal: h.legal, unsealed: !h.sealed, open2: G.doorOpen(b) };
       });
       t.ok(!r.err, r.err); t.ok(r.ok && r.built, 'kaçak baraka biter');
       t.ok(r.notice, 'ihbar'); t.ok(r.sealed && !r.open, 'mühürlenir, kapı kapanır');
       t.ok(r.door.some(a => /Mühürlü/.test(a)), 'mühürlü kapı', r.door);
-      t.ok(r.item, 'tapuya bağlama seçeneği'); t.eq(r.paid, 50, 'tapu + ceza'); t.ok(r.legal && r.unsealed && r.open2, 'yasallaştı');
+      t.ok(r.item, 'tapuya bağlama seçeneği'); t.eq(r.paid, r.deed + r.fine, 'tapu + ceza'); t.eq(r.fine, 25, 'ceza ürün değil, tapu fiyatından ayrı ($25)'); t.ok(r.legal && r.unsealed && r.open2, 'yasallaştı');
     });
     await t.step('iç tasarımlar farklıdır; kayıt/yükleme yapıları, ekleri ve tasarımı korur', async () => {
       const r = await p.evaluate(async () => {

@@ -1897,14 +1897,14 @@ const UI = {
         if (L.length) it.push({ icon: '🦌', label: Tr`Getirdiğin Avı Sat (${L.length})`, right: fmtMoney(L.reduce((a, c) => a + G.loadValue(c.e, d.shop), 0)), fn: () => { G.sellCarried(d.shop); this.pop(); } });
         break;
       }
-      case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(0.3 * G.priceMul(true)), fn: () => { if (G.spend(0.3 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); G.qEvent('eat', 'meal'); } } });
-        it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(0.12), fn: () => { if (G.spend(0.12)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); G.qEvent('drink', 'whiskey'); } } }); break;
+      case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(0.5 * G.priceMul(true)), fn: () => { if (G.spend(0.5 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); G.qEvent('eat', 'meal'); } } });
+        it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(0.2), fn: () => { if (G.spend(0.2)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); G.qEvent('drink', 'whiskey'); } } }); break;
       case 'poker': it.push({ icon: '♠', label: Tr('Poker Oyna'), fn: () => this.openPoker(b) }); break;
       case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
       case 'arm': it.push({ icon: '💪', label: Tr('Bilek Güreşi (25¢ bahis)'), fn: () => this.openArmWrestle() }); break;
       case 'rumor': it.push({ icon: '👂', label: Tr('Söylenti Dinle'), right: fmtMoney(0.05), fn: () => this.rumor() }); break;
       case 'rob': if (!G.bizOf(b)) it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) }); break;
-      case 'news': it.push({ icon: '📰', label: Tr('Gazete Oku'), right: fmtMoney(0.06), fn: () => this.readNews() }); break;
+      case 'news': it.push({ icon: '📰', label: Tr('Gazete Oku'), right: fmtMoney(0.1), fn: () => this.readNews() }); break;
       case 'room': it.push({ icon: '🛏', label: Tr('Oda Tut ve Uyu'), right: fmtMoney(0.5 * G.priceMul(true)), fn: () => this.openSleep('hotel', 0.5 * G.priceMul(true)) }); break;
       case 'bath': it.push({ icon: '🛁', label: Tr('Sıcak Banyo'), right: fmtMoney(0.25), fn: () => { if (G.spend(0.25)) { P.clean = 100; P.warmBuff = 60; this.feed(Tr('🛁 Tertemiz oldun. Kokun bile değişti.')); G.advanceClock(30); } } }); break;
       case 'heal': { const c = 1 * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: Tr('Tedavi Ol (Sağlık, hastalık, zehir)'), right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed(Tr('✚ Doktor seni muayene edip tedavi etti.')); G.advanceClock(30); } } }); break; }
@@ -1965,7 +1965,7 @@ const UI = {
               const it = ITEMS[id];
               if (!it) continue;
               if (id === 'treasure_map' && (G.treasure || P.has('treasure_map'))) continue;
-              const pr = (id === 'treasure_map' ? 30 : it.p) * G.priceMul(true) * regional;
+              const pr = (id === 'treasure_map' ? 50 : it.p) * G.priceMul(true) * regional;
               const full = P.count(id) >= it.max;
               items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, disabled: full, why: Tr('Daha fazla taşıyamazsın.'), sideHtml: this.itemSide(it), fn: () => { if (G.spend(pr)) { P.addItem(id, 1, true); if (id === 'treasure_map') G.makeTreasure(); if (it.autoUse) G.consume(id); Audio_.ui('cash'); G.qEvent('buy', { id, shop: shopId }); if (shopId === 'saloon' && (id === 'beer' || id === 'whiskey' || id === 'sarsaparilla')) G.qEvent('drink', id); } } });
             }
@@ -2020,7 +2020,7 @@ const UI = {
     });
   },
   readNews() {
-    if (!G.spend(0.06)) return;
+    if (!G.spend(0.1)) return;
     const [h, t] = pick(HEADLINES);
     const unk = G.world.pois.filter(p => p.kind === 'landmark' && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     let extra = '';

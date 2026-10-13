@@ -1841,7 +1841,7 @@ I18N.add('en', {
     "Göl Kıyısı Kulübe": "Lakeside Cabin",
     "Ormanın içinde huzurlu bir kulübe.": "A peaceful cabin in the woods.",
     "Harlow Çiftliği": "Harlow Ranch",
-    "Günlük $1.50 gelir getiren küçük bir çiftlik.": "A small ranch that brings in $1.50 a day.",
+    "Günlük $2.50 gelir getiren küçük bir çiftlik.": "A small ranch that brings in $2.50 a day.",
     "Clement Konağı": "Clement Manor",
     "Lüks konak. Günlük $4 kira geliri.": "A luxurious manor. $4 a day in rent.",
     "Batıda yeni bir hayata başla.": "Begin a new life in the West.",
