@@ -140,7 +140,7 @@ const HomeSystems = {
     }
   },
   /* Tapu dairesinde / ilçe binasında: kaçak yapıyı tapuya bağla (ihbarlı ya da mühürlüyse ceza da ödenir) */
-  homeLegalPrice(h) { return DEED_PRICE + (h.notice || h.sealed ? DEED_PRICE : 0); },
+  homeLegalPrice(h) { return DEED_PRICE + (h.notice || h.sealed ? HOME_FINE : 0); },
   homeLegalize(h) {
     if (h.legal || !this.spend(this.homeLegalPrice(h))) return false;
     h.legal = true; h.notice = 0; h.sealed = false;

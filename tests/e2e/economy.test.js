@@ -10,9 +10,24 @@ module.exports = {
     });
     await t.step('mağazada 1890 fiyatları', async () => {
       await p.evaluate(() => UI.openShop('general', 'Genel Mağaza')); await t.sleep(300);
-      const rows = await p.evaluate(() => [...document.querySelectorAll('.p-item')].map(n => n.textContent.replace(/\s+/g, ' ').trim()));
-      t.ok(rows.some(r => /Ekmek.*5¢/.test(r)), 'ekmek 5¢ olmalı', rows.slice(0, 6));
+      const r = await p.evaluate(() => ({ rows: [...document.querySelectorAll('.p-item')].map(n => n.textContent.replace(/\s+/g, ' ').trim()), want: fmtMoney(ITEMS.bread.p * G.priceMul(true)) }));
+      t.ok(r.rows.some(x => /Ekmek/.test(x) && x.includes(r.want)), 'mağazada ekmek: temel fiyat × oyuncunun fiyat çarpanı', { want: r.want, rows: r.rows.slice(0, 6) });
       await p.evaluate(() => UI.closeAll());
+      // ürün fiyatları (hizmetler, ücretler ve mülkler ayrı)
+      const pr = await p.evaluate(() => ({ bread: ITEMS.bread.p, coffee: ITEMS.coffee.p, drover: WEAPONS.cattleman.p, plainsman: WEAPONS.winchester.p, morgan: HORSE_BREEDS.morgan.p, arabian: HORSE_BREEDS.arabian.p,
+        wagon: WAGON_PRICE, deed: [ITEMS.land_deed.p, DEED_PRICE], crate: GOODS.dry.p, shack: PROPERTIES[0].p, cabin: HOME_TYPES.hs_cabin.p,
+        biz: [BIZ.general.p, BIZ.general.inc], ranch: (r => [r.p, r.income])(PROPERTIES.find(x => x.id === 'ranch')), estate: (r => [r.p, r.income])(PROPERTIES.find(x => x.id === 'estate')), fine: HOME_FINE }));
+      t.eq([pr.bread, pr.coffee, pr.drover, pr.plainsman, pr.morgan, pr.arabian, pr.wagon, pr.crate], [0.1, 0.2, 28, 50, 70, 925, 130, 4.25], 'ürün fiyatları (ekmek 10¢)');
+      t.eq(pr.deed, [50, 50], 'tapu eşyası ile tapu dairesi aynı fiyat');
+      t.eq([pr.shack, pr.cabin, pr.estate, pr.fine], [45, 80, [1800, 4], 25], 'ev, yapı, kira ve ceza ürünlerden ayrı');
+      t.eq([pr.biz, pr.ranch], [[635, 7], [1000, 2.5]], 'mal satan işletme ve çiftlik: fiyat ve gelir ürünlerle aynı ölçekte');
+      // hizmetler genel fiyat düzeyinde (ekmek 5¢ → 10¢ iken hizmetler ×2): tablo ve doktorun menüsü
+      const sv = await p.evaluate(() => {
+        const doc = G.world.buildings.find(b => b.type === 'doctor'), heal = UI.svcItems(doc, 'heal').find(i => /Tedavi/.test(i.label));
+        return { svc: [SVC.room, SVC.bath, SVC.heal, SVC.barber, SVC.rumor, SVC.horsecare, SVC.fetchWagon, SVC.trainMin, SVC.stageMin], heal: heal && heal.right, want: fmtMoney(SVC.heal * (G.hasPerk('saint') ? 0.5 : 1)) };
+      });
+      t.eq(sv.svc, [1, 0.5, 2, 0.3, 0.1, 0.5, 1, 0.5, 0.8], 'hizmet ücretleri (otel, banyo, doktor, tıraş, söylenti, tımar, araba getirtme, tren, posta arabası)');
+      t.eq(sv.heal, sv.want, 'doktorun menüsündeki ücret tablodan');
     });
     await t.step('aynı dükkân ve banka art arda soyulamaz', async () => {
       const r = await p.evaluate(() => {

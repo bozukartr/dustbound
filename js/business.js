@@ -275,7 +275,7 @@ const BizSystems = {
     const w = this.myWagon;
     if (!w) return;
     if (this.player.riding === w) { UI.feed(Tr('Zaten arabadasın.')); return; }
-    if (!this.spend(0.5)) return;
+    if (!this.spend(SVC.fetchWagon)) return;
     w.x = b.door.x + 30; w.y = b.door.y + 26; w.ang = 0; w.spd = 0; w.bx = undefined; w.trail(true);
     if (!this.ents.includes(w)) { w.remove = false; this.addEnt(w); }
     UI.feed(Tr('Seyis arabanı ahırın önüne getirdi.'));

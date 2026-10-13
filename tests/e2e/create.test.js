@@ -59,12 +59,36 @@ module.exports = {
       const s1 = await st();
       t.eq(s1.tab, r.after - 1, 'Esc bir önceki bölüm'); t.ok(!!(await p.evaluate(() => document.querySelector('.create'))), 'ekran açık');
     });
+    await t.step('başta şapkasız; Kıyafet adımından önce Rastgele şapka takmaz; pantolon satırı yok', async () => {
+      const r = await p.evaluate(() => {
+        const tab = i => document.querySelectorAll('.cr-tab')[i].click();
+        const row = l => [...document.querySelectorAll('.opt')].find(x => x.querySelector('.cr-l').textContent === l);
+        const hat = () => row('Şapka').querySelector('.v').textContent;
+        tab(2);
+        const out = { start: hat(), labels: [...document.querySelectorAll('.opt .cr-l')].map(n => n.textContent), guide: document.querySelector('.cr-guide').textContent, early: [], late: new Set() };
+        // saç ve sakal seçilirken (Görünüm) Rastgele şapka takmaz
+        for (let k = 0; k < 12; k++) { tab(1); document.querySelector('#cr-rand').click(); tab(2); out.early.push(hat()); }
+        // Kıyafet adımında Rastgele şapkayı da seçer
+        for (let k = 0; k < 20; k++) { document.querySelector('#cr-rand').click(); out.late.add(hat()); }
+        // oyuna şapkasız başlasın
+        for (let k = 0; k < 12 && hat() !== 'Şapkasız'; k++) row('Şapka').click();
+        out.late = [...out.late]; out.end = hat();
+        return out;
+      });
+      t.eq(r.start, 'Şapkasız', 'ekran açılınca şapkasız');
+      t.ok(r.early.every(h => h === 'Şapkasız'), 'Kıyafet adımından önce Rastgele şapka takmaz', r.early);
+      t.ok(r.late.some(h => h !== 'Şapkasız'), 'Kıyafet adımında Rastgele şapka da seçer', r.late);
+      t.ok(!r.labels.includes('Pantolon') && r.labels.includes('Şapka') && r.labels.includes('Ceket') && r.labels.includes('Gömlek'), 'Kıyafet: pantolon satırı yok', r.labels);
+      t.ok(!/pantolon/i.test(r.guide), 'açıklamada pantolon yok', r.guide);
+      t.eq(r.end, 'Şapkasız', 'şapka satırından şapkasıza dönülür');
+    });
     await t.step('bütün bölümler görülünce Hayata Başla; isim temizlenir, seçimler oyuna geçer', async () => {
       await p.evaluate(() => { document.querySelectorAll('.cr-tab')[3].click(); document.querySelectorAll('.cr-card')[3].click(); });
       for (let k = 0; k < 6 && (await st()).state !== 'play'; k++) { await p.evaluate(() => document.querySelector('#cr-go') && document.querySelector('#cr-go').click()); await t.sleep(150); }
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 });
-      const r = await p.evaluate(() => ({ name: G.player.name, bg: G.background, want: BACKGROUNDS[3].id, tf: Input.textFocus }));
+      const r = await p.evaluate(() => ({ name: G.player.name, bg: G.background, want: BACKGROUNDS[3].id, tf: Input.textFocus, hat: G.player.look.hat, pants: LOOKS.pants.includes(G.player.look.pants) }));
       t.eq(r.tf, false, 'oyunda klavye yazı moduna takılı kalmaz');
+      t.eq(r.hat, 'none', 'şapka seçilmedikçe şapkasız'); t.ok(r.pants, 'pantolon rengi yine var (seçilmeden)');
       t.eq(r.name, 'Jesse Callahan', 'isimde < > kalmaz'); t.eq(r.bg, r.want, 'seçilen geçmiş');
     });
   },

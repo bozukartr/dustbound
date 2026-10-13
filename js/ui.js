@@ -1897,17 +1897,17 @@ const UI = {
         if (L.length) it.push({ icon: '🦌', label: Tr`Getirdiğin Avı Sat (${L.length})`, right: fmtMoney(L.reduce((a, c) => a + G.loadValue(c.e, d.shop), 0)), fn: () => { G.sellCarried(d.shop); this.pop(); } });
         break;
       }
-      case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(0.25 * G.priceMul(true)), fn: () => { if (G.spend(0.25 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); G.qEvent('eat', 'meal'); } } });
-        it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(0.1), fn: () => { if (G.spend(0.1)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); G.qEvent('drink', 'whiskey'); } } }); break;
+      case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(0.5 * G.priceMul(true)), fn: () => { if (G.spend(0.5 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); G.qEvent('eat', 'meal'); } } });
+        it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(0.2), fn: () => { if (G.spend(0.2)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); G.qEvent('drink', 'whiskey'); } } }); break;
       case 'poker': it.push({ icon: '♠', label: Tr('Poker Oyna'), fn: () => this.openPoker(b) }); break;
       case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
       case 'arm': it.push({ icon: '💪', label: Tr('Bilek Güreşi (25¢ bahis)'), fn: () => this.openArmWrestle() }); break;
-      case 'rumor': it.push({ icon: '👂', label: Tr('Söylenti Dinle'), right: fmtMoney(0.05), fn: () => this.rumor() }); break;
+      case 'rumor': it.push({ icon: '👂', label: Tr('Söylenti Dinle'), right: fmtMoney(SVC.rumor), fn: () => this.rumor() }); break;
       case 'rob': if (!G.bizOf(b)) it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) }); break;
-      case 'news': it.push({ icon: '📰', label: Tr('Gazete Oku'), right: fmtMoney(0.05), fn: () => this.readNews() }); break;
-      case 'room': it.push({ icon: '🛏', label: Tr('Oda Tut ve Uyu'), right: fmtMoney(0.5 * G.priceMul(true)), fn: () => this.openSleep('hotel', 0.5 * G.priceMul(true)) }); break;
-      case 'bath': it.push({ icon: '🛁', label: Tr('Sıcak Banyo'), right: fmtMoney(0.25), fn: () => { if (G.spend(0.25)) { P.clean = 100; P.warmBuff = 60; this.feed(Tr('🛁 Tertemiz oldun. Kokun bile değişti.')); G.advanceClock(30); } } }); break;
-      case 'heal': { const c = 1 * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: Tr('Tedavi Ol (Sağlık, hastalık, zehir)'), right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed(Tr('✚ Doktor seni muayene edip tedavi etti.')); G.advanceClock(30); } } }); break; }
+      case 'news': it.push({ icon: '📰', label: Tr('Gazete Oku'), right: fmtMoney(0.1), fn: () => this.readNews() }); break;
+      case 'room': it.push({ icon: '🛏', label: Tr('Oda Tut ve Uyu'), right: fmtMoney(SVC.room * G.priceMul(true)), fn: () => this.openSleep('hotel', SVC.room * G.priceMul(true)) }); break;
+      case 'bath': it.push({ icon: '🛁', label: Tr('Sıcak Banyo'), right: fmtMoney(SVC.bath), fn: () => { if (G.spend(SVC.bath)) { P.clean = 100; P.warmBuff = 60; this.feed(Tr('🛁 Tertemiz oldun. Kokun bile değişti.')); G.advanceClock(30); } } }); break;
+      case 'heal': { const c = SVC.heal * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: Tr('Tedavi Ol (Sağlık, hastalık, zehir)'), right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed(Tr('✚ Doktor seni muayene edip tedavi etti.')); G.advanceClock(30); } } }); break; }
       case 'bounty':
         if (G.law.bounty > 0) it.push({ icon: '⚖', label: Tr('Başındaki Ödülü Öde'), right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
         if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: Tr('Ödül Avı Ödülünü Al'), right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, Tr('Ödül avı')); G.addHonor(3); G.activeBounty = null; } });
@@ -1917,9 +1917,9 @@ const UI = {
       case 'board': it.push({ icon: '📜', label: Tr('Ödül İlanları'), fn: () => { this.openBountyBoard(); G.qEvent('board'); } }); break;
       case 'horses': it.push({ icon: '🐴', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) });
         if (!G.myWagon) it.push({ icon: '📦', label: Tr('Yük Arabası Satın Al'), right: fmtMoney(WAGON_PRICE * G.priceMul(true)), fn: () => { G.buyWagon(b); this.pop(); } });
-        else it.push({ icon: '📦', label: Tr('Arabanı Buraya Getirt'), right: fmtMoney(0.5), fn: () => G.fetchWagon(b) });
+        else it.push({ icon: '📦', label: Tr('Arabanı Buraya Getirt'), right: fmtMoney(SVC.fetchWagon), fn: () => G.fetchWagon(b) });
         break;
-      case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: Tr`${G.horse.name}'i Tımar Ettir`, right: fmtMoney(0.25), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed(Tr('Atın burada değil.'), 'warn'); return; } if (G.spend(0.25)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(Tr`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
+      case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: Tr`${G.horse.name}'i Tımar Ettir`, right: fmtMoney(SVC.horsecare), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed(Tr('Atın burada değil.'), 'warn'); return; } if (G.spend(SVC.horsecare)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(Tr`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
       case 'bank': it.push({ icon: '🏦', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
       case 'robbank': it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
       case 'train': it.push({ icon: '🚂', label: Tr('Tren Bileti Al'), fn: () => this.openTrain(b) }); break;
@@ -1930,7 +1930,7 @@ const UI = {
         it.push({ icon: '📜', label: Tr('Arazi Tapusu Al'), right: fmtMoney(DEED_PRICE), fn: () => G.buyDeed() });
         for (const h of G.homes.filter(x => !x.legal)) it.push({ icon: '⚖', label: Tr`Tapuya Bağla: ${G.homeName(h)}${h.sealed ? Tr(' (mühürlü)') : h.notice ? Tr(' (ihbarlı)') : ''}`, right: fmtMoney(G.homeLegalPrice(h)), fn: () => { if (G.homeLegalize(h)) this.pop(); } });
         break;
-      case 'barber': it.push({ icon: '💈', label: Tr('Tıraş Ol / Saç Kestir'), right: fmtMoney(0.15), fn: () => this.openBarber() }); break;
+      case 'barber': it.push({ icon: '💈', label: Tr('Tıraş Ol / Saç Kestir'), right: fmtMoney(SVC.barber), fn: () => this.openBarber() }); break;
       case 'work': it.push({ icon: '⚒', label: JOBS[d.work].n, fn: () => this.openWork(d.work, b.name) }); break;
     }
     return it;
@@ -1965,7 +1965,7 @@ const UI = {
               const it = ITEMS[id];
               if (!it) continue;
               if (id === 'treasure_map' && (G.treasure || P.has('treasure_map'))) continue;
-              const pr = (id === 'treasure_map' ? 25 : it.p) * G.priceMul(true) * regional;
+              const pr = (id === 'treasure_map' ? 50 : it.p) * G.priceMul(true) * regional;
               const full = P.count(id) >= it.max;
               items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, disabled: full, why: Tr('Daha fazla taşıyamazsın.'), sideHtml: this.itemSide(it), fn: () => { if (G.spend(pr)) { P.addItem(id, 1, true); if (id === 'treasure_map') G.makeTreasure(); if (it.autoUse) G.consume(id); Audio_.ui('cash'); G.qEvent('buy', { id, shop: shopId }); if (shopId === 'saloon' && (id === 'beer' || id === 'whiskey' || id === 'sarsaparilla')) G.qEvent('drink', id); } } });
             }
@@ -2020,7 +2020,7 @@ const UI = {
     });
   },
   readNews() {
-    if (!G.spend(0.05)) return;
+    if (!G.spend(0.1)) return;
     const [h, t] = pick(HEADLINES);
     const unk = G.world.pois.filter(p => p.kind === 'landmark' && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     let extra = '';
@@ -2063,7 +2063,7 @@ const UI = {
     this.push(m);
   },
   rumor() {
-    if (!G.spend(0.05)) return;
+    if (!G.spend(SVC.rumor)) return;
     if (G.storyRumor()) return;
     const unk = G.world.pois.filter(p => (p.kind === 'landmark' || p.kind === 'camp') && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     const line = pick(LINES.rumor);
@@ -2243,7 +2243,7 @@ const UI = {
       title: Tr('Tren Bileti'), sub: Tr`${here.n} İstasyonu`, cls: 'small', wallet: true,
       build: () => stations.map(t => {
         const d = dist(here.cx, here.cy, t.cx, t.cy);
-        const pr = Math.max(0.25, d / 5000) * (G.hasPerk('towns') ? 0.5 : 1);
+        const pr = G.trainPrice(here, t);
         const hrs = Math.max(1, Math.round(d / 2200));
         return { icon: '🚂', label: t.n, right: Tr`${fmtMoney(pr)} • ${hrs} sa`, fn: () => {
           if (G.law.level > 0) { this.feed(Tr('Aranırken trene binemezsin!'), 'warn'); return; }
@@ -2276,7 +2276,7 @@ const UI = {
       title: Tr('Posta Arabası'), sub: Tr`${here.n} Durağı`, cls: 'small', wallet: true,
       build: () => dests.map(t => {
         const d = dist(here.cx, here.cy, t.cx, t.cy);
-        const pr = Math.max(0.4, d / 3600) * (G.hasPerk('towns') ? 0.75 : 1);
+        const pr = G.stagePrice(here, t);
         const hrs = Math.max(2, Math.round(d / 1300));
         return { icon: '🐴', label: t.n + (G.visited.has(t.id) ? '' : Tr(' (yeni)')), right: Tr`${fmtMoney(pr)} • ${hrs} sa`, fn: () => {
           if (G.law.level > 0) { this.feed(Tr('Aranırken arabacı seni almaz!'), 'warn'); return; }
@@ -2304,13 +2304,13 @@ const UI = {
   openBarber() {
     const P = G.player, L = P.look;
     this.menu({
-      title: Tr('Berber'), cls: 'small', wallet: true, sub: Tr('Her işlem 15¢'),
+      title: Tr('Berber'), cls: 'small', wallet: true, sub: Tr`Her işlem ${fmtMoney(SVC.barber)}`,
       build: () => {
         const it = [{ header: Tr('Saç') }];
-        LOOKS.hairStyle.forEach((_, i) => it.push({ label: hairStyleN(L, i) + (L.hairStyle === i ? ' ✔' : ''), fn: () => { if (G.spend(0.15)) { L.hairStyle = i; P._lk = null; P.clean = Math.min(100, P.clean + 10); } } }));
+        LOOKS.hairStyle.forEach((_, i) => it.push({ label: hairStyleN(L, i) + (L.hairStyle === i ? ' ✔' : ''), fn: () => { if (G.spend(SVC.barber)) { L.hairStyle = i; P._lk = null; P.clean = Math.min(100, P.clean + 10); } } }));
         if (L.sex === 'm') {
           it.push({ header: Tr('Sakal') });
-          LOOKS.beard.forEach((n, i) => it.push({ label: n + (L.beard === i ? ' ✔' : ''), fn: () => { if (G.spend(0.15)) { L.beard = i; L.beardLen = 0.2; P._lk = null; } } }));
+          LOOKS.beard.forEach((n, i) => it.push({ label: n + (L.beard === i ? ' ✔' : ''), fn: () => { if (G.spend(SVC.barber)) { L.beard = i; L.beardLen = 0.2; P._lk = null; } } }));
         }
         return it;
       },
@@ -2864,7 +2864,8 @@ const UI = {
   },
   showCreate(slot) {
     const look = randomLook(chance(0.5) ? 'm' : 'f');
-    look.coatLen = 0;
+    // şapka Kıyafet adımında seçilir: saç ve yüz seçilirken görünsün diye karakter şapkasız başlar
+    look.coatLen = 0; look.hat = 'none';
     const rndName = (sex) => pick(NAMES[sex]) + ' ' + pick(NAMES.last);
     const prof = { name: rndName(look.sex), look, bg: 'farm', difficulty: 'story', pace: 'normal', story: true, slot: slot || G.freeSlot() || 1 };
     // oyuncu kendi ismini yazdıysa cinsiyet değişince ya da Rastgele'de korunur
@@ -2873,7 +2874,7 @@ const UI = {
     const TABS = [
       { n: Tr('Kimlik'), g: 'quill', d: Tr('Adını yaz; cinsiyetini, ten ve göz rengini seç.') },
       { n: Tr('Görünüm'), g: 'barber', d: Tr('Saçını ve sakalını belirle. Portre her değişikliği gösterir.') },
-      { n: Tr('Kıyafet'), g: 'scissors', d: Tr('Batıya ne giyerek geleceğini seç: şapka, ceket, gömlek, pantolon.') },
+      { n: Tr('Kıyafet'), g: 'scissors', d: Tr('Batıya ne giyerek geleceğini seç: şapka, ceket ve gömlek.') },
       { n: Tr('Hikâye'), g: 'book', d: Tr('Geçmişin başlangıç kasabanı, paranı, atını ve becerilerini belirler. Zorluğu ve yaşlanma hızını seç, sonra hayata başla.') },
     ];
     // her bölüme en az bir kez bakılmadan hayata başlanamaz
@@ -2891,7 +2892,6 @@ const UI = {
       { t: 2, k: 'hatCol', n: Tr('Şapka Rengi'), opts: LOOKS.hatCol, sw: 1 },
       { t: 2, k: 'coat', n: Tr('Ceket'), opts: LOOKS.coat, sw: 1 },
       { t: 2, k: 'shirt', n: Tr('Gömlek'), opts: LOOKS.shirt, sw: 1 },
-      { t: 2, k: 'pants', n: Tr('Pantolon'), opts: LOOKS.pants, sw: 1 },
       { t: 3, k: 'bg', n: Tr('Geçmiş'), opts: BACKGROUNDS.map(b => b.id), lab: v => BACKGROUNDS.find(b => b.id === v).n, prof: 1 },
       { t: 3, k: 'difficulty', n: Tr('Zorluk'), opts: DIFFICULTIES.map(b => b.id), lab: v => DIFFICULTIES.find(b => b.id === v).n, prof: 1 },
       { t: 3, k: 'pace', n: Tr('Yaşlanma Hızı'), opts: LIFE_PACES.map(b => b.id), lab: v => LIFE_PACES.find(b => b.id === v).n, prof: 1 },
@@ -2998,7 +2998,7 @@ const UI = {
         const r = rows[+n.dataset.i];
         const setV = (v) => {
           if (r.prof) prof[r.k] = v; else look[r.k] = v;
-          if (r.k === 'sex') { if (v === 'f') look.beard = 0; else if (LOOKS.hatF.includes(look.hat)) look.hat = 'cowboy'; if (!customName) prof.name = rndName(v); }
+          if (r.k === 'sex') { if (v === 'f') look.beard = 0; else if (LOOKS.hatF.includes(look.hat)) look.hat = 'none'; if (!customName) prof.name = rndName(v); }
           const i = +n.dataset.i; build(); const back = $(`.opt[data-i="${i}"]`, el); if (back) m.setFocus(back, true);
         };
         n._lr = (d) => { const i = r.opts.indexOf(get(r)); setV(r.opts[(i + d + r.opts.length) % r.opts.length]); };
@@ -3006,7 +3006,12 @@ const UI = {
         $$('.arr', n).forEach((a, i) => (a.onclick = (e) => { e.stopPropagation(); n._lr(i ? 1 : -1); }));
         n.onmouseenter = () => m && m.setFocus(n, true);
       });
-      $('#cr-rand', el).onclick = () => { const nl = randomLook(look.sex); Object.assign(look, nl, { coatLen: 0 }); if (!customName) prof.name = rndName(look.sex); build(); m.setFocus($('#cr-rand', el), true); };
+      $('#cr-rand', el).onclick = () => {
+        const nl = randomLook(look.sex);
+        // Kıyafet adımından önce Rastgele şapka takmaz: seçili şapka (başta şapkasız) kalır
+        if (tab < 2) { nl.hat = look.hat; nl.hatCol = look.hatCol; }
+        Object.assign(look, nl, { coatLen: 0 }); if (!customName) prof.name = rndName(look.sex); build(); m.setFocus($('#cr-rand', el), true);
+      };
       const prev = $('#cr-prev', el); if (prev) prev.onclick = () => setTab(tab - 1);
       $('#cr-go', el).onclick = () => {
         if (started || !m.alive) return;   // çift tıklama yeni hayatı iki kez başlatmasın

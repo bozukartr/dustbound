@@ -41,7 +41,8 @@ module.exports = {
       const n = await p.evaluate(() => G.posse.ents.length);
       t.eq(n, 4, '200$ ödülde 4 avcı');
       // gerçek girdiyle: fareyi liderin üstüne getir, sağ tuşla nişan al
-      const sc = await p.evaluate(() => { const P = G.player; P.giveWeapon('cattleman', true); P.weapon = 'cattleman'; const L = G.posse.ents[0]; return G.toScreen(L.x, L.y); });
+      // lider ekranın dışında durabilir (pencere 720 px yüksek, fare oraya gidemez): aynı yönde, oyuncuya 100 px uzaklıkta bir noktaya nişan al
+      const sc = await p.evaluate(() => { const P = G.player; P.giveWeapon('cattleman', true); P.weapon = 'cattleman'; const L = G.posse.ents[0], a = G.toScreen(P.x, P.y), b = G.toScreen(L.x, L.y), d = Math.hypot(b.x - a.x, b.y - a.y) || 1; return { x: a.x + (b.x - a.x) / d * 100, y: a.y + (b.y - a.y) / d * 100 }; });
       await p.mouse.move(sc.x, sc.y); await p.mouse.down({ button: 'right' });
       await p.waitForFunction(() => G.posse && G.posse.phase === 'fight', null, { timeout: 8000 }).finally(() => p.mouse.up({ button: 'right' }));
       t.ok(await p.evaluate(() => G.posse.ents.every(e => e.hostile && e.aggro)), 'hepsi düşman olmalı');
