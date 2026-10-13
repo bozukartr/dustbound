@@ -104,11 +104,16 @@ module.exports = {
       const mine = await p.evaluate(() => G.imMine().n);
       const post = await p.evaluate(() => !!G.sBld('post'));
       if (post) {
+        // bazı haritalarda maden kasabasının postanesi kasabanın alt kenarındadır ve posta arabası oyuncuyu sınırın bir karo kadar dışına
+        // bırakır; varış yine sayılmalı. Bunu her seferinde sına: varış noktası (kapının 14 px önü) sınırın 1,25 karo dışına düşsün
+        const edge = await p.evaluate(() => { const M = G.imMine(), st = M.buildings.find(x => x.type === 'post') || M.buildings.find(x => x.type === 'stable'); if (!st) return null; window.__door = [st, st.door.y]; st.door.y = (M.y + M.h) * TS + 6; return G.world.townAt(st.door.x, st.door.y + 14, 0) !== M; });
         const ok = await p.evaluate((n) => { const P = G.player; if (P.riding) { P.dismount(); P.mountAnim = null; } const b = G.sBld('post'); TH.inside(b); UI.openStage(b); return TH.clickItem(new RegExp(n)); }, mine);
         t.ok(ok, 'bilet listesinde maden kasabası', mine);
-        await p.waitForFunction(() => G.world.townAt(G.player.x, G.player.y, 0) && G.world.townAt(G.player.x, G.player.y, 0).id === G.story.mine, null, { timeout: 15000 });
+        await p.waitForFunction(() => G.world.townAt(G.player.x, G.player.y, 2) && G.world.townAt(G.player.x, G.player.y, 2).id === G.story.mine, null, { timeout: 15000 });
+        if (edge !== null) t.ok(edge, 'varış noktası kasaba sınırının dışında (kenardaki postane)');
       } else await p.evaluate(() => { const M = G.imMine(); TH.goto(M.spawn.x, M.spawn.y); });
       await waitStep(6, 0, 20000);
+      await p.evaluate(() => { if (window.__door) { window.__door[0].door.y = window.__door[1]; window.__door = null; } });
       const r = await p.evaluate(() => ({ town: G.story.town === G.story.mine, d: G.mentorEnt() ? dist(G.mentorEnt().x, G.mentorEnt().y, G.player.x, G.player.y) : 9999 }));
       t.ok(r.town, 'hikâye maden kasabasına taşındı'); t.ok(r.d < 400, 'Greta da geldi', r.d);
     });
