@@ -311,15 +311,17 @@ const UI = {
     e.className = good ? 'good' : 'bad';
     void e.offsetWidth; e.classList.add('show');
   },
-  fade(fn, text) {
+  /* quick: kısa geçiş (otel merdiveni gibi) */
+  fade(fn, text, quick) {
     const f = this.el.fader;
     this.state = 'fade';
+    f.classList.toggle('quick', !!quick);
     f.classList.add('on');
     $('#fader-text').textContent = text || '';
     setTimeout(() => {
       try { fn(); } catch (e) { console.error(e); }
-      setTimeout(() => { f.classList.remove('on'); this.state = null; }, 900);
-    }, 600);
+      setTimeout(() => { f.classList.remove('on'); this.state = null; }, quick ? 320 : 900);
+    }, quick ? 280 : 600);
   },
 
   /* ================= HUD ================= */
@@ -1905,7 +1907,14 @@ const UI = {
       case 'rumor': it.push({ icon: '👂', label: Tr('Söylenti Dinle'), right: fmtMoney(SVC.rumor), fn: () => this.rumor() }); break;
       case 'rob': if (!G.bizOf(b)) it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) }); break;
       case 'news': it.push({ icon: '📰', label: Tr('Gazete Oku'), right: fmtMoney(0.1), fn: () => this.readNews() }); break;
-      case 'room': it.push({ icon: '🛏', label: Tr('Oda Tut ve Uyu'), right: fmtMoney(SVC.room * G.priceMul(true)), fn: () => this.openSleep('hotel', SVC.room * G.priceMul(true)) }); break;
+      case 'room': {
+        if (!isHotel2(b)) { it.push({ icon: '🛏', label: Tr('Oda Tut ve Uyu'), right: fmtMoney(SVC.room * G.priceMul(true)), fn: () => this.openSleep('hotel', SVC.room * G.priceMul(true)) }); break; }
+        // iki katlı otel: oda kiralanır, uyumak için üst kattaki odaya çıkılır (otel senin işletmense ücretsiz)
+        const k = G.hotelRoom(b);
+        if (k >= 0) it.push({ icon: '🔑', label: Tr`Odan: ${k + 1} Numara`, right: Tr`${Math.max(1, Math.ceil((G.hotelRent.until - G.clock) / 60))} sa`, fn: () => this.feed(Tr`🔑 ${k + 1} numaralı oda senin. Merdivenden üst kata çık.`) });
+        else it.push({ icon: '🔑', label: Tr('Oda Kirala'), right: G.bizOf(b) ? Tr('Ücretsiz') : fmtMoney(SVC.room * G.priceMul(true)), fn: () => G.rentRoom(b) });
+        break;
+      }
       case 'bath': it.push({ icon: '🛁', label: Tr('Sıcak Banyo'), right: fmtMoney(SVC.bath), fn: () => { if (G.spend(SVC.bath)) { P.clean = 100; P.warmBuff = 60; this.feed(Tr('🛁 Tertemiz oldun. Kokun bile değişti.')); G.advanceClock(30); } } }); break;
       case 'heal': { const c = SVC.heal * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: Tr('Tedavi Ol (Sağlık, hastalık, zehir)'), right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed(Tr('✚ Doktor seni muayene edip tedavi etti.')); G.advanceClock(30); } } }); break; }
       case 'bounty':

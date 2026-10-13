@@ -820,8 +820,8 @@ const GameSystems = {
     this.stat('locksPicked', 1);
     UI.feed(Tr('🗝️ Kilit sessizce açıldı.'));
   },
-  /* İç mekân eşyası -> etkileşimler */
-  furnActions(b, o) {
+  /* İç mekân eşyası -> etkileşimler (i: eşyanın karo indeksi) */
+  furnActions(b, o, i) {
     const P = this.player, U = UI;
     const svc = (...ids) => {
       const acts = [];
@@ -847,7 +847,11 @@ const GameSystems = {
         if (b.type === 'county') return { label: Tr('İlçe Memuru'), acts: [...svc('property'), { n: Tr('Konuş'), fn: () => U.openBuilding(b) }] };
         return counter(Tr('Masa'));
       case O.BED:
-        if (b.type === 'hotel') return { label: Tr('Otel Odası'), acts: svc('room') };
+        if (b.type === 'hotel') {
+          if (!isHotel2(b)) return { label: Tr('Otel Odası'), acts: svc('room') };
+          const k = this.hotelRoomAt(b, i, 'bed');
+          return k >= 0 && k === this.hotelRoom(b) && this.hotelInRoom(b, k) ? { label: Tr`${k + 1} Numaralı Oda`, acts: [{ n: Tr('Uyu'), fn: () => U.openSleep('hotel') }] } : null;   // yalnızca kiraladığın odanın içinden
+        }
         if (b.type === 'doctor') return { label: Tr('Muayene Yatağı'), acts: svc('heal') };
         if (b.type === 'property' && this.props.includes(b.prop)) return { label: Tr('Yatağın'), acts: [{ n: Tr('Uyu'), fn: () => U.openSleep('home') }, { n: Tr('Oyunu Kaydet'), fn: () => this.saveGame() }] };
         return null;
@@ -873,6 +877,15 @@ const GameSystems = {
       case O.SHELF: case O.RACK: case O.MANNEQUIN:
         return b.def.shop ? { label: Tr('Raflar'), acts: [{ n: Tr('Mallara Bak'), fn: () => (staff || !b.staff ? U.openBuilding(b) : UI.feed(Tr('Satıcı yok.'))) }] } : null;
       case O.WORKBENCH: return b.def.work ? { label: Tr('Tezgah'), acts: svc('work') } : null;
+      case O.STAIRS: return isHotel2(b) ? { label: Tr('Merdiven'), acts: [{ n: Tr('Üst Kata Çık'), fn: () => this.hotelStairs(b, i) }] } : null;
+      case O.STAIRSD: return isHotel2(b) ? { label: Tr('Merdiven'), acts: [{ n: Tr('Alt Kata İn'), fn: () => this.hotelStairs(b, i) }] } : null;
+      case O.RDOOR: {
+        const k = this.hotelRoomAt(b, i, 'door');
+        if (k < 0 || b.openRoom === k) return null;   // açık kapıdan geçilir
+        const occ = this.hotelOccupied(b, k);
+        return { label: Tr`${k + 1} Numaralı Oda`, acts: [{ n: occ ? Tr('Kilitli (Dolu)') : Tr('Kilitli'), fn: () => UI.feed(occ ? pick([Tr('İçeriden horultu geliyor. Oda dolu.'), Tr('"Meşgul!" diye sesleniyor biri içeriden.')]) : Tr('Oda boş ama kilitli. Resepsiyondan kiralayabilirsin.'), 'warn') }] };
+      }
+      case O.SOFA: return { label: Tr('Kanepe'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
       case O.CELL: return { label: Tr('Hücre'), acts: [{ n: Tr('Parmaklıklara Bak'), fn: () => UI.subtitle(Tr('Mahkum'), pick([Tr('Bir sigaran var mı, dostum?'), Tr('Masumum, yemin ederim!'), Tr('Beni buradan çıkar, sana altının yerini söylerim...')]), 3) }] };
     }
     return null;
@@ -968,7 +981,7 @@ const GameSystems = {
     let hit = null, hd = wallD;
     const cands = opts.npc ? [this.player, ...(this.horse && !this.horse.dead ? [this.horse] : []), ...this.ents.filter(e => e.kind === 'npc' && !e.hostile && !e.dead)] : this.ents;
     for (const e of cands) {
-      if (e === owner || e.dead || e.remove || e.hide) continue;
+      if (e === owner || e.dead || e.remove || e.hide || this.floorHid(e)) continue;   // üst kattayken alt kattakiler vurulmaz
       if (e === this.player && !opts.npc) continue;
       if (e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' || (e === this.horse && owner === this.player)) continue;
       if (e === this.player.riding && owner === this.player) continue;
@@ -1725,7 +1738,7 @@ const GameSystems = {
     }
     // varlıklar
     for (const e of this.ents) {
-      if (e.hide) continue;
+      if (e.hide || this.floorHid(e)) continue;
       if (e.remove) continue;
       const d = e.kind === 'wagon' ? Math.min(dist(P.x, P.y, e.x, e.y), dist(P.x, P.y, e.bx, e.by)) : dist(P.x, P.y, e.x, e.y);   // arabanın gövdesi atların arkasında
       if (d > (e.held ? 50 : 30)) continue;
@@ -1820,8 +1833,8 @@ const GameSystems = {
         case O.BIGBONES: case O.BONES: break;
         default:
           if (isFurnO(o) && W.bid[i] >= 0) {
-            const fo = o === O.IBLOCK ? (W.obj[i - WW] === O.BED ? O.BED : W.obj[i - 1]) : o;
-            const fa = this.furnActions(W.buildings[W.bid[i]], fo);
+            const fi = o === O.IBLOCK ? (W.obj[i - WW] === O.BED ? i - WW : i - 1) : i, fo = W.obj[fi];
+            const fa = this.furnActions(W.buildings[W.bid[i]], fo, fi);
             if (fa) add(ox, oy, fa.label, fa.acts, 2);
           }
       }

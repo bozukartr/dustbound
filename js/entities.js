@@ -1204,6 +1204,7 @@ class NPC extends Ent {
     }
   }
   say(text, dur = 3) {
+    if (G.floorHid(this)) return;   // oyuncu otelin üst katında, bu kişi altta
     const d = dist(this.x, this.y, G.player.x, G.player.y);
     if (d < 180) { UI.subtitle(this.name, text, dur); Bubbles.add(this, '', dur, true); }
   }
@@ -1236,6 +1237,7 @@ class NPC extends Ent {
     if (this.dead) { this.deadT = (this.deadT || 0) + dt; this.waterTick(dt); return; }
     if (this.bound) { this.boundUpdate(dt); if (!this.dead) this.waterTick(dt); return; }
     if (this.hide) { if (this.job) G.jobUpdate(this, dt); return; }   // dükkânın içinde (sandık taşıyor)
+    if (G.floorHid(this)) { this.mv = 0; return; }   // oyuncu otelin üst katındayken alt kattakiler bekler
     G.animTick(this, dt);
     if (G.railDodge(this, dt)) return;   // yaklaşan tren: raydan çekil ya da geçmeden bekle
     if (this.quest && G.questNpc(this, dt)) return;   // hikâyenin akıl hocası kendi yolunu izler

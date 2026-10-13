@@ -128,7 +128,13 @@ STORIES.immigrant = {
           done() { const b = this.sBld('hotel'); if (b) { let iy = b.door.y; for (let k = 0; k < 40 && !this.world.buildingAtPx(b.door.x, iy); k++) iy -= 2; this.sullyGo(b.door.x - 10, iy - 12); } },
           after: () => [['S', Tr('Anton\'un odası buydu. Hâlâ duvarda bıraktığı harita asılı.')], ['S', Tr('Bir gece uyu, sonra konuşuruz. Yolculuk insanı iki kere yorar: önce bedenini, sonra aklını.')]] },
         { t: () => Tr('Pansiyonda bir gece uyu'), ev: 'sleep', ok: (d) => d === 'hotel',
-          hint: () => Tr`Yatağa yaklaş, ${Input.glyph('interact')} ile <b>Oda Tut ve Uyu</b>. Uyurken oyun kaydedilir.` },
+          on() { const b = this.sBld('hotel'); if (b && this.hotelRoom(b) < 0) this.rentRoom(b, true); }, reOn: true,   // Greta, Anton'un odasını ücretsiz verir (kira bitmişse yüklemede yeniden)
+          at() {   // aşağıdayken merdiven, üst kattayken odanın yatağı
+            const b = this.sBld('hotel'); if (!b) return null;
+            const R = HOTEL_UP.rooms[this.hotelRoom(b)];
+            return this.upB === b && R ? { x: (b.x + R.bed[0]) * TS + 8, y: (b.y + R.bed[1]) * TS + 8 } : { x: (b.x + 1) * TS + 8, y: (b.y + 3) * TS + 8 };
+          },
+          hint: () => Tr`Greta sana Anton'un odasını verdi. Merdivenden üst kata çık, odandaki yatağa yaklaş ve ${Input.glyph('interact')} ile <b>Uyu</b>. Uyurken oyun kaydedilir.` },
       ],
     },
     /* 2 — İlk Yevmiye: limanda çalış */

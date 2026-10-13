@@ -87,16 +87,18 @@ const O = {
   // iç mekân eşyaları
   COUNTER: 70, BAR: 71, TABLE: 72, PIANO: 73, CARDTABLE: 74, BED: 75, STOVE: 76, DESK: 77, CELL: 78, PEW: 79, ALTAR: 80, SAFE: 81, TUB: 82, BCHAIR: 83,
   RACK: 84, WORKBENCH: 85, STALL: 86, TICKET: 87, SHELF: 88, CHAIR: 89, PLANT: 90, HOMECHEST: 91, IBLOCK: 92, MANNEQUIN: 93,
+  // otel: zemin katta yukarı çıkan merdiven, üst katta aşağı inen merdiven boşluğu, oda kapısı, lobi kanepesi
+  STAIRS: 98, STAIRSD: 99, RDOOR: 100, SOFA: 101,
   LOTSIGN: 69,
   // zengin şehir: park ve meydan süsleri
   FOUNTAIN: 94, HEDGE: 95, FLOWERBED: 96, STATUE: 97,
 };
-const isFurnO = o => o >= 70 && o <= 93;
+const isFurnO = o => (o >= 70 && o <= 93) || (o >= 98 && o <= 101);
 const SOLID_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.SAGUARO, O.BOULDER, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.FENCEH, O.FENCEV, O.CRATE, O.BARREL, O.LAMP, O.WELL, O.TROUGH, O.TENT, O.HAY,
   O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP, O.LOTSIGN,
   O.COUNTER, O.BAR, O.TABLE, O.PIANO, O.CARDTABLE, O.BED, O.STOVE, O.DESK, O.CELL, O.PEW, O.ALTAR, O.SAFE, O.TUB, O.BCHAIR, O.RACK, O.WORKBENCH, O.STALL, O.TICKET,
-  O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN, O.FOUNTAIN, O.HEDGE, O.STATUE].forEach(o => (SOLID_O[o] = 1));
+  O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN, O.FOUNTAIN, O.HEDGE, O.STATUE, O.STAIRS, O.STAIRSD, O.SOFA].forEach(o => (SOLID_O[o] = 1));   // oda kapısı katı değil: kapalıyken duvar bandı olur (buildingSolid)
 /* Gövdesi ince olan nesneler: tam kare yerine gövde boyutunda yuvarlak çarpışır (solid = 5) */
 const TRUNK_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.LAMP, O.POLE, O.SIGN, O.SAGUARO].forEach(o => (TRUNK_O[o] = 1));
@@ -118,6 +120,38 @@ const HARVEST = {
   [O.ARTIFACT]: { item: 'artifact', n: [1, 1], re: 9999, label: 'İncele' },
 };
 const isHerbO = o => o >= 20 && o <= 28;
+/* Otelin üst katı (yerel karo; otel 10x8). Merdiven boşlukları zemin kattaki merdivenlerle aynı sütunlarda (1 ve 8,
+   satır 1-3); ortada koridor, arkada iki, önde iki oda. Oda duvarları karo kenarındaki ince bantlardır (wall: karo başına
+   çarpışma maskesi: 1 üst, 2 alt, 4 sol, 8 sağ); kapı karosunun bandı yalnızca kapı kapalıyken eklenir (side).
+   area: odanın kapladığı karolar [x0, y0, x1, y1] (yatağa yalnızca odanın içinden uzanılır). */
+const HOTEL_UP = {
+  stairs: [1, 8],
+  land: [[1, 4], [8, 4]],   // merdivenden çıkınca ya da inince durulan karo (iki katta aynı)
+  rooms: [
+    { door: [3, 2], side: 2, bed: [2, 1], chair: [4, 1], area: [2, 1, 4, 2] },
+    { door: [6, 2], side: 2, bed: [7, 1], chair: [5, 1], area: [5, 1, 7, 2] },
+    { door: [2, 5], side: 1, bed: [1, 5], shelf: [4, 5], chair: [4, 6], area: [0, 5, 4, 7] },
+    { door: [7, 5], side: 1, bed: [8, 5], shelf: [5, 5], chair: [5, 6], area: [5, 5, 9, 7] },
+  ],
+  wall: [[2, 1, 4], [2, 2, 4], [4, 1, 8], [4, 2, 8], [5, 1, 4], [5, 2, 4], [7, 1, 8], [7, 2, 8],
+    [2, 2, 2], [4, 2, 2], [5, 2, 2], [7, 2, 2],
+    [0, 5, 1], [1, 5, 1], [3, 5, 1], [4, 5, 1], [5, 5, 1], [6, 5, 1], [8, 5, 1], [9, 5, 1],
+    [4, 5, 8], [4, 6, 8], [4, 7, 8], [5, 5, 4], [5, 6, 4], [5, 7, 4]],
+};
+const isHotel2 = b => !!b && b.type === 'hotel' && b.w === 10 && b.h === 8;   // iki katlı otel (bütün oteller 10x8; üst kat planı bu boya göre)
+/* Üst katta kilitli odaların (dolu ya da kiralanmamış) içi görünmez: odanın döşemesi (duvar bantlarının arası) ve arka
+   odalarda arka duvarın odaya bakan yüzü karanlık bir tavanla örtülür. Binaya göre yerel piksel dikdörtgenleri [x, y, w, h]. */
+const hotelShut = (b) => {
+  const out = [];
+  if (!isHotel2(b) || b.floor !== 1) return out;
+  HOTEL_UP.rooms.forEach((R, k) => {
+    if (k === b.openRoom) return;
+    const A = R.area, back = R.side === 2, x0 = A[0] * TS + 5, x1 = (A[2] + 1) * TS - 5, y0 = back ? TS : A[1] * TS + 6, y1 = (A[3] + 1) * TS - 4;
+    out.push([x0, y0, x1 - x0, y1 - y0]);
+    if (back) out.push([A[0] * TS, 2, (A[2] - A[0] + 1) * TS, TS - 2]);
+  });
+  return out;
+};
 
 class World {
   constructor(seed) {
@@ -545,7 +579,16 @@ class World {
       case 'fence': row(2, 1, 2, O.COUNTER); b.staff = at(1, 1); put(W - 2, 1, O.CRATE); put(W - 2, 2, O.BARREL); put(W - 2, F, O.CRATE); put(W - 3, 1, O.CRATE); break;
       case 'land': desk(1, 2); b.staff = at(1, 1); put(W - 2, 1, O.SHELF); put(W - 2, F, O.PLANT); break;
       case 'barber': put(1, 2, O.BCHAIR); put(W - 2, 2, O.BCHAIR); b.staff = at(2, 2); put(1, F, O.PLANT); put(W - 2, F, O.CHAIR); break;
-      case 'hotel': row(3, 1, 3, O.COUNTER); b.staff = at(2, 2); bed(W - 3, 1); bed(W - 2, 1); put(D - 1, 1, O.TUB); put(W - 2, F, O.PLANT); put(1, F, O.CHAIR); break;
+      case 'hotel':
+        if (isHotel2(b)) {
+          // lobi: resepsiyon girişin karşısında, binanın tam ortasında; iki arka köşede üst kata merdiven; önde iki oturma köşesi
+          for (let ly = 1; ly <= 3; ly++) { put(1, ly, O.STAIRS); put(W - 2, ly, O.STAIRS); }
+          row(2, 3, W - 4, O.COUNTER); b.staff = at(W / 2 - 0.5, 1); put(3, 1, O.SHELF); put(W - 4, 1, O.SHELF);
+          put(2, F - 1, O.TABLE); put(W - 3, F - 1, O.TABLE);
+          put(2, F, O.SOFA); put(3, F, O.SOFA); put(W - 4, F, O.SOFA); put(W - 3, F, O.SOFA);
+          put(1, F, O.PLANT); put(W - 2, F, O.PLANT);
+        } else { row(3, 1, 3, O.COUNTER); b.staff = at(2, 2); bed(W - 3, 1); bed(W - 2, 1); put(D - 1, 1, O.TUB); put(W - 2, F, O.PLANT); put(1, F, O.CHAIR); }
+        break;
       case 'bank': row(3, 2, W - 3, O.COUNTER); b.staff = at(4, 2); put(W - 2, 1, O.SAFE); desk(1, 1); put(1, F, O.PLANT); put(W - 2, F, O.PLANT); break;
       case 'station': row(2, 1, 3, O.TICKET); b.staff = at(2, 1); row(2, D + 1, W - 3, O.PEW); row(F, D + 1, W - 3, O.PEW); put(W - 2, 1, O.STOVE); break;
       case 'church': put(D - 1, 1, O.ALTAR); put(D, 1, O.IBLOCK); b.staff = at(D - 0.5, 2.1);
@@ -1653,16 +1696,54 @@ class World {
     for (const b of this.buildings) if (b.enter) this.buildingSolid(b);
   }
   buildingSolid(b) {
+    const h2 = isHotel2(b), up = h2 && b.floor === 1 ? b.upMask : null;
     for (let ly = 0; ly < b.h; ly++) for (let lx = 0; lx < b.w; lx++) {
       const i = (b.y + ly) * WW + b.x + lx;
       if (ly === 0 || SOLID_O[this.obj[i]]) { this.solid[i] = 1; continue; }
-      if (i === b.doorI) { this.solid[i] = 3; continue; }
+      if (i === b.doorI && !up) { this.solid[i] = 3; continue; }   // üst katta kapının yeri duvardır
       let m = 0;
       if (lx === 0) m |= 4;
       if (lx === b.w - 1) m |= 8;
       if (ly === b.h - 1) m |= 2;
+      if (h2 && ly >= 1 && ly <= 3) { if (lx === 0) m |= 8; if (lx === b.w - 1) m |= 4; }   // merdivenle yan duvar arası (iki katta da)
+      if (up) m |= up[ly * b.w + lx];
       this.solid[i] = m ? 16 | m : 0;
     }
+  }
+  /* İki katlı otel: kat değişince binanın iç mekân nesneleri ve çarpışması o katınkiyle değişir; çizim önbellekleri
+     (2D ve melez) yalnızca binanın parçalarında yenilenir, bina örtüsü korunur. Zemin katın nesneleri ilk değişimde
+     kopyalanır (dünya önbelleği üretimden hemen sonra alındığı için bu kopyalar ona girmez). open: kapısı açık oda
+     (kiralanan), yoksa -1. Üst katta eşyalar yalnızca açık odadadır; kilitli odaların içi boştur ve örtülür (hotelShut). */
+  setFloor(b, lv, open = -1) {
+    if (!isHotel2(b)) return false;
+    const n = b.w * b.h, at = (k) => (b.y + Math.floor(k / b.w)) * WW + b.x + k % b.w;
+    if (!b.fl0) { b.fl0 = new Uint8Array(n); for (let k = 0; k < n; k++) b.fl0[k] = this.obj[at(k)]; }
+    if (lv) {
+      const o = b.fl1 || (b.fl1 = new Uint8Array(n)), put = (lx, ly, v) => { o[ly * b.w + lx] = v; };
+      o.fill(0);
+      for (let ly = 1; ly <= 3; ly++) for (const lx of HOTEL_UP.stairs) put(lx, ly, O.STAIRSD);
+      HOTEL_UP.rooms.forEach((R, k) => {
+        put(R.door[0], R.door[1], O.RDOOR);
+        if (k !== open) return;
+        put(R.bed[0], R.bed[1], O.BED); put(R.bed[0], R.bed[1] + 1, O.IBLOCK);
+        if (R.chair) put(R.chair[0], R.chair[1], O.CHAIR);
+        if (R.shelf) put(R.shelf[0], R.shelf[1], O.SHELF);
+      });
+    }
+    b.floor = lv ? 1 : 0; b.openRoom = lv ? open : -1;
+    if (lv) {
+      const m = b.upMask = new Uint8Array(n);
+      for (const [lx, ly, v] of HOTEL_UP.wall) m[ly * b.w + lx] |= v;
+      HOTEL_UP.rooms.forEach((R, k) => { if (k !== open) m[R.door[1] * b.w + R.door[0]] |= R.side; });
+    } else b.upMask = null;
+    const src = lv ? b.fl1 : b.fl0;
+    for (let k = 0; k < n; k++) this.obj[at(k)] = src[k];
+    this.buildingSolid(b);
+    const x0 = b.x * TS, y0 = b.y * TS, x1 = (b.x + b.w) * TS - 1, y1 = (b.y + b.h) * TS - 1;
+    for (const [px, py] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) this.invalidateChunkAt(px, py, true);
+    const t = this.towns.find(q => q.id === b.town);
+    if (t) t._grid = null;   // kasabanın yol bulma ızgarası yeniden kurulsun
+    return true;
   }
 
   /* ---- Parşömen harita görüntüsü ----
@@ -1825,11 +1906,11 @@ class World {
       if (performance.now() - t0 > budget) return;
     }
   }
-  invalidateChunkAt(px, py) {
+  invalidateChunkAt(px, py, keepCover) {
     const cx = Math.floor(px / CPX), cy = Math.floor(py / CPX);
     this.chunks.delete(cy * 64 + cx);
     this.jobs.delete(cy * 64 + cx);
-    if (typeof G !== 'undefined' && G.ds === 2) (this.hyDirty || (this.hyDirty = [])).push([px, py]);   // melez çizimin parçası da yenilenir
+    if (typeof G !== 'undefined' && G.ds === 2) (this.hyDirty || (this.hyDirty = [])).push([px, py, keepCover ? 1 : 0]);   // melez çizimin parçası da yenilenir (keepCover: bina örtüsü değişmedi)
   }
   /* Dikdörtgene değen statik ışıklar: her ışık bir kez, etki alanının (yarıçapın 1,5 katı, en az 90, artı 30 px)
      değdiği 128 px'lik hücrelere yazılır; her karede yalnızca dikdörtgenin hücrelerine bakılır. Sıra ana listedekiyle
@@ -2094,7 +2175,7 @@ const WorldCache = {
     if (this._fp && this._fpId === id) return this._fp;
     const parts = [this.V, WW, WH, WGEN, lang, String(World)];
     for (const k of Object.getOwnPropertyNames(World.prototype)) { const d = Object.getOwnPropertyDescriptor(World.prototype, k); parts.push(k, String(d.value || d.get || '')); }
-    for (const f of [Noise, RNG, mulberry32, hash2, clamp, lerp, dist, dist2, turnTo, angDiff, hexToRgb, shadeHex, mixHex, segDist2, isWaterT, isCliffT, isStoneT, inWorld]) parts.push(String(f));
+    for (const f of [Noise, RNG, mulberry32, hash2, clamp, lerp, dist, dist2, turnTo, angDiff, hexToRgb, shadeHex, mixHex, segDist2, isWaterT, isCliffT, isStoneT, inWorld, isHotel2]) parts.push(String(f));
     parts.push(JSON.stringify([T, O, TINFO, SOLID_O, TRUNK_O, TRUNK_R, TRUNK_DY, SNOWABLE, LEAFY, [...AREA_NEUTRAL], HARVEST, SNOW_LINE, CHUNK, CG,
       BUILDINGS, TOWNS, RAIL_LINES, REGIONS, LANDMARKS, CAMPS, FARMS, PROPERTIES, typeof CITY_ZONE !== 'undefined' ? [CITY_ZONE, CITY_PRIO, CITY_CARTS, CITY_RIDERS] : null]));
     const s = parts.join('\u0001');

@@ -511,10 +511,11 @@ const Spr = {
       }
       g.fillStyle = 'rgba(255,240,210,0.05)'; for (let yy = Y + 2; yy < Y + H; yy += 10) g.fillRect(X, yy, W, 2);
     }
-    // halılar
+    // halılar (otelin üst katında koridor boyunca uzun yolluk)
     const rug = { hotel: '#7a2a2a', sheriff: '#5a3a2a', bank: '#2a4a3a', land: '#4a3a5a', doctor: '#3a5a6a', property: '#7a4a2a', house: '#6a3a2a', saloon: '#4a2418', ranch: '#6a4a2a' }[t];
+    const up = isHotel2(b) && b.floor === 1;
     if (rug) {
-      const rw = Math.min(W - 40, 64), rh = Math.min(H - 40, 34), rx = X + W / 2 - rw / 2 + (t === 'saloon' ? 20 : 0), ry = Y + H / 2 - rh / 2 + 6;
+      const rw = up ? W - 48 : Math.min(W - 40, 64), rh = up ? 20 : Math.min(H - 40, 34), rx = X + W / 2 - rw / 2 + (t === 'saloon' ? 20 : 0), ry = up ? Y + 54 : Y + H / 2 - rh / 2 + 6;
       g.fillStyle = rug; g.fillRect(rx, ry, rw, rh);
       g.strokeStyle = shadeHex(rug, 0.35); g.lineWidth = 1; g.strokeRect(rx + 2.5, ry + 2.5, rw - 5, rh - 5);
       g.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = 0; k < rw; k += 4) g.fillRect(rx + k, ry + rh, 2, 2);
@@ -536,13 +537,28 @@ const Spr = {
     g.fillStyle = 'rgba(255,220,170,0.12)'; g.fillRect(X + 4, Y + 2, 1, H - 2); g.fillRect(X + W - 5, Y + 2, 1, H - 2);
     g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(X + 5, Y + 16, 3, H - 20); g.fillRect(X + W - 8, Y + 16, 3, H - 20);
     const dx = b.door.x;
-    g.fillStyle = WD; g.fillRect(X, Y + H - 4, dx - 8 - X, 4); g.fillRect(dx + 8, Y + H - 4, X + W - dx - 8, 4);
-    g.fillStyle = '#8a6a44'; g.fillRect(dx - 8, Y + H - 3, 16, 3);
-    // ön duvar pencereleri
+    if (up) { g.fillStyle = WD; g.fillRect(X, Y + H - 4, W, 4); }   // üst katta kapı yok
+    else {
+      g.fillStyle = WD; g.fillRect(X, Y + H - 4, dx - 8 - X, 4); g.fillRect(dx + 8, Y + H - 4, X + W - dx - 8, 4);
+      g.fillStyle = '#8a6a44'; g.fillRect(dx - 8, Y + H - 3, 16, 3);
+    }
+    // üst katın oda duvarları (karo kenarındaki ince bantlar; kapılar ayrı çizilir)
+    if (up) for (const [lx, ly, v] of HOTEL_UP.wall) {
+      const x = X + lx * TS, y = Y + ly * TS, r = v === 1 ? [x, y, 16, 6] : v === 2 ? [x, y + 12, 16, 4] : v === 4 ? [x, y, 5, 16] : [x + 11, y, 5, 16];
+      g.fillStyle = WD; g.fillRect(r[0], r[1], r[2], r[3]);
+      g.fillStyle = 'rgba(255,220,170,0.14)'; if (v <= 2) g.fillRect(r[0], r[1], r[2], 1); else g.fillRect(v === 4 ? r[0] + r[2] - 1 : r[0], r[1], 1, r[3]);
+      g.fillStyle = 'rgba(0,0,0,0.16)'; if (v <= 2) g.fillRect(r[0], r[1] + r[3], r[2], 2);
+    }
+    // ön duvar pencereleri (otelin üst katında öndeki iki odanın ortasında)
     const nWin = Math.max(1, Math.floor(b.w / 3));
-    for (let k = 0; k < nWin; k++) { const cx = X + (k + 0.5) * W / nWin; if (Math.abs(cx - dx) < 14) continue; g.fillStyle = '#8ab0c8'; g.fillRect(cx - 4, Y + H - 4, 8, 3); g.fillStyle = 'rgba(200,230,255,0.12)'; g.fillRect(cx - 5, Y + H - 16, 10, 12); }
+    const wins = up ? [X + 40, X + W - 40] : Array.from({ length: nWin }, (_, k) => X + (k + 0.5) * W / nWin);
+    for (const cx of wins) { if (!up && Math.abs(cx - dx) < 14) continue; g.fillStyle = '#8ab0c8'; g.fillRect(cx - 4, Y + H - 4, 8, 3); g.fillStyle = 'rgba(200,230,255,0.12)'; g.fillRect(cx - 5, Y + H - 16, 10, 12); }
     // yan pencereler
     if (b.h >= 6) { g.fillStyle = '#8ab0c8'; g.fillRect(X + 1, Y + H / 2 - 4, 3, 8); g.fillRect(X + W - 4, Y + H / 2 - 4, 3, 8); }
+    // otelin üst katı: kilitli odaların içi görünmez, üstleri karanlık bir tavanla örtülü (kapılar üstüne çizilir)
+    for (const [x, y, w, h] of hotelShut(b)) for (let yy = Y + y; yy < Y + y + h; yy += 3) {
+      g.fillStyle = Math.floor((yy - Y) / 6) % 2 ? '#1c130d' : '#181009'; g.fillRect(X + x, yy, w, Math.min(3, Y + y + h - yy));
+    }
     // eşyalar
     for (let ly = 1; ly < b.h; ly++) for (let lx = 0; lx < b.w; lx++) {
       const tx = b.x + lx, ty = b.y + ly, i = ty * WW + tx, o = world.obj[i];
@@ -589,7 +605,15 @@ const Spr = {
         break;
       }
       case 'bank': { frame(X + W * 0.3, '#5a4a3a'); this.circ(g, X + W * 0.6, Y + 6, 4, '#c8b060'); this.circ(g, X + W * 0.6, Y + 6, 3, '#f0ead8'); g.fillStyle = '#1a1a1a'; g.fillRect(X + W * 0.6 - 0.4, Y + 3.5, 0.8, 2.5); g.fillRect(X + W * 0.6, Y + 5.6, 2, 0.8); frame(X + W * 0.85, '#3a5a4a'); break; }
-      case 'hotel': { for (let k = 0; k < 8; k++) { g.fillStyle = '#6a4a2a'; g.fillRect(X + 10 + k * 3, Y + 4 + (k % 2) * 3, 2, 2); g.fillStyle = '#c8a040'; g.fillRect(X + 10.5 + k * 3, Y + 6 + (k % 2) * 3, 1, 1.5); } frame(X + W * 0.5, '#6a5a3a'); win(X + W * 0.8); break; }
+      case 'hotel': {
+        if (isHotel2(b) && b.floor === 1) { win(X + 56); win(X + W - 56); frame(X + 40, '#5a6a4a'); frame(X + W - 40, '#6a4a5a'); break; }   // üst kat: arka odaların pencereleri, yatakların üstünde tablo
+        // zemin kat: resepsiyonun arkasında, ortada anahtar panosu; iki yanda tablo
+        const kc = isHotel2(b) ? X + W / 2 : X + 22;
+        if (isHotel2(b)) { g.fillStyle = '#4a3020'; g.fillRect(kc - 14, Y + 2, 28, 10); g.fillStyle = '#6a4a2a'; g.fillRect(kc - 13, Y + 3, 26, 8); }
+        for (let k = 0; k < 8; k++) { g.fillStyle = isHotel2(b) ? '#3a2416' : '#6a4a2a'; g.fillRect(kc - 12 + k * 3, Y + 4 + (k % 2) * 3, 2, 2); g.fillStyle = '#c8a040'; g.fillRect(kc - 11.5 + k * 3, Y + 6 + (k % 2) * 3, 1, 1.5); }
+        if (isHotel2(b)) { frame(X + 40, '#6a5a3a'); frame(X + W - 40, '#5a6a4a'); } else { frame(X + W * 0.5, '#6a5a3a'); win(X + W * 0.8); }
+        break;
+      }
       case 'station': { g.fillStyle = '#1a1a1a'; g.fillRect(X + W * 0.55, Y + 2, 26, 9); g.fillStyle = '#d8d0c0'; for (let k = 0; k < 3; k++) g.fillRect(X + W * 0.55 + 2, Y + 4 + k * 2.4, 22 * (0.6 + h(k) * 0.4), 0.8); this.circ(g, X + 20, Y + 6, 4, '#f0ead8'); break; }
       case 'barber': { for (const x of [X + 24, X + W - 24]) { g.fillStyle = '#8a6a30'; g.fillRect(x - 6, Y + 1, 12, 10); g.fillStyle = '#a8c0c8'; g.fillRect(x - 5, Y + 2, 10, 8); } g.fillStyle = '#e8e0d0'; g.fillRect(X + W / 2 - 1, Y + 1, 2, 10); g.fillStyle = '#c83030'; for (let k = 0; k < 4; k++) g.fillRect(X + W / 2 - 1, Y + 2 + k * 2.5, 2, 1); break; }
       case 'tailor': { for (let x = x0; x < x1 - 20; x += 5) { g.fillStyle = ['#6a2a4a', '#2a4a6a', '#8a6a2a', '#3a5a3a', '#7a3a2a'][Math.floor(h(x) * 5)]; g.fillRect(x, Y + 2, 4, 9); } win(X + W - 16); break; }
@@ -746,6 +770,62 @@ const Spr = {
         g.fillStyle = '#5a3a22'; g.fillRect(cx - 0.5, cy, 1, 6); g.fillRect(cx - 3, cy + 5, 6, 1);
         const c = ['#6a2a4a', '#2a4a6a', '#8a6a2a', '#3a5a3a'][Math.floor(h * 4)];
         this.ell(g, cx, cy - 2, 4, 3.5, c); this.ell(g, cx, cy - 6, 2.2, 1.5, '#d8c8a8');
+        break;
+      }
+      case O.STAIRS: case O.STAIRSD: {
+        // otel merdiveni (kuzey-güney): dış kenarı yan duvara dayanır, iç kenarda korkuluk. Zemin katta kuzeye doğru
+        // yükselir (basamaklar açılır), üst katta boşluğun içinde aşağı iner (kuzeye doğru kararır)
+        const lx = (i % WW) - b.x, left = lx < b.w / 2, down = o === O.STAIRSD;
+        let p = 0, n = 1;
+        for (let q = i - WW; world.obj[q] === o; q -= WW) { p++; n++; }
+        for (let q = i + WW; world.obj[q] === o; q += WW) n++;
+        const x0 = left ? cx - 19 : cx - 8, x1 = left ? cx + 8 : cx + 19, w = x1 - x0;
+        for (let j = 0; j < 4; j++) {
+          const u = (p * 4 + j) / (n * 4 - 1), k = down ? -0.6 * (1 - u) : 0.26 * (1 - u) - 0.1;
+          g.fillStyle = shadeHex('#8a6440', k); g.fillRect(x0, cy - 8 + j * 4, w, 3);
+          g.fillStyle = shadeHex('#4a3020', down ? k * 0.6 : 0); g.fillRect(x0, cy - 5 + j * 4, w, 1);
+        }
+        if (down && !same(-WW)) { g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(x0, cy - 8, w, 4); }   // boşluğun dibi
+        const rx = left ? x1 - 2 : x0;
+        g.fillStyle = '#3a2416'; g.fillRect(rx, cy - 8, 2, 16);
+        g.fillStyle = '#5a3a22'; for (let y = cy - 7; y < cy + 8; y += 4) g.fillRect(left ? rx - 1.5 : rx + 2, y, 1.5, 1);
+        if (!same(WW)) { g.fillStyle = '#2a1a10'; g.fillRect(rx - 0.5, cy + 3, 3, 5); g.fillStyle = '#c8a040'; g.fillRect(rx, cy + 3, 2, 1); }   // merdiven başındaki dikme
+        break;
+      }
+      case O.SOFA: {
+        // lobi kanepesi: kuzeye bakar, arkalığı güneyde; uçlarda kolçak
+        const fab = '#6a2a30', dk = shadeHex(fab, -0.38);
+        g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(cx - 8, cy + 7, 16, 2);
+        g.fillStyle = dk; g.fillRect(cx - 8, cy + 1, 16, 6);
+        g.fillStyle = fab; g.fillRect(cx - 8, cy - 5, 16, 7);
+        g.fillStyle = shadeHex(fab, 0.2); g.fillRect(cx - 8, cy - 5, 16, 1);
+        g.fillStyle = shadeHex(fab, -0.18); g.fillRect(cx - 0.5, cy - 5, 1, 7);
+        if (!same(-1)) { g.fillStyle = dk; g.fillRect(cx - 8, cy - 6, 3, 13); g.fillStyle = shadeHex(fab, 0.1); g.fillRect(cx - 8, cy - 6, 3, 1); }
+        if (!same(1)) { g.fillStyle = dk; g.fillRect(cx + 5, cy - 6, 3, 13); g.fillStyle = shadeHex(fab, 0.1); g.fillRect(cx + 5, cy - 6, 3, 1); }
+        break;
+      }
+      case O.RDOOR: {
+        // otel odasının kapısı: duvar bandının yerinde; kapalıyken kanat, açıkken odaya doğru açılmış kanat. Koridor
+        // yanında pirinç levhada oda numarası
+        const lx = (i % WW) - b.x, ly = Math.floor(i / WW) - b.y;
+        const k = HOTEL_UP.rooms.findIndex(R => R.door[0] === lx && R.door[1] === ly);
+        if (k < 0) break;
+        const R = HOTEL_UP.rooms[k], open = b.openRoom === k, back = R.side === 2;
+        const wy = back ? cy + 4 : cy - 8, wh = back ? 4 : 6;
+        g.fillStyle = '#2a1a10'; g.fillRect(cx - 8, wy - 1, 2, wh + 2); g.fillRect(cx + 6, wy - 1, 2, wh + 2);
+        if (open) {
+          g.fillStyle = 'rgba(255,230,180,0.22)'; g.fillRect(cx - 6, wy, 12, wh);
+          g.fillStyle = '#7a5032'; g.fillRect(cx - 6, back ? wy - 11 : wy + wh, 3, 12);
+          g.fillStyle = '#5a3820'; g.fillRect(cx - 4, back ? wy - 11 : wy + wh, 1, 12);
+        } else {
+          g.fillStyle = '#7a5032'; g.fillRect(cx - 6, wy, 12, wh);
+          g.fillStyle = '#5a3820'; g.fillRect(cx - 6, wy + wh - 1, 12, 1); g.fillRect(cx - 0.5, wy, 1, wh);
+          g.fillStyle = '#c8a040'; g.fillRect(cx + 3, wy + (wh >> 1), 1, 1);
+        }
+        const DIG = ['010110010010111', '111001111100111', '111001111001111', '101101111001001'][k];
+        const py = back ? wy + wh + 1 : wy - 8;
+        g.fillStyle = '#2a1a10'; g.fillRect(cx - 4, py - 1, 7, 9); g.fillStyle = '#c8a040'; g.fillRect(cx - 3, py, 5, 7);
+        g.fillStyle = '#3a2416'; for (let q = 0; q < 15; q++) if (DIG[q] === '1') g.fillRect(cx - 2 + (q % 3), py + 1 + Math.floor(q / 3), 1, 1);
         break;
       }
     }
