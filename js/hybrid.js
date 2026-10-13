@@ -618,9 +618,9 @@ const HY = (() => {
       };
     // döşeme şerit şerit; hedefin dışındaki şeritler atlanır
     for (let y = Math.max(y0, 0); y < Math.min(y1, tg.h); y += 8) { rect(x0, y, x1 - x0, Math.min(8, y1 - y), floor, 0, UP); yield* step(); }
-    const rug = RUG[t];
+    const rug = RUG[t], up = isHotel2(b) && b.floor === 1;   // otelin üst katı: koridor boyunca uzun yolluk
     if (rug) {
-      const rw = Math.min(Wd - 40, 64), rh = Math.min(Hd - 40, 34), rx = X + Wd / 2 - rw / 2 + (t === 'saloon' ? 20 : 0), ry = Y + Hd / 2 - rh / 2 + 6, rc = rgb(rug);
+      const rw = up ? Wd - 48 : Math.min(Wd - 40, 64), rh = up ? 20 : Math.min(Hd - 40, 34), rx = X + Wd / 2 - rw / 2 + (t === 'saloon' ? 20 : 0), ry = up ? Y + 54 : Y + Hd / 2 - rh / 2 + 6, rc = rgb(rug);
       rect(bx(rx), by(ry), Math.round(rw * S), Math.round(rh * S), (x, y) => {
         const u = (x - bx(rx)) / S, v = (y - by(ry)) / S, e = Math.min(u, v, rw - u, rh - v);
         if (e < 1) return shT(rc, -0.25);
@@ -652,11 +652,23 @@ const HY = (() => {
     const wallTop = (x, y) => { const wx = wxOf(x), wy = wyOf(y); const inner = (wx > X + 4 && wx < X + 5) || (wx > X + Wd - 5 && wx < X + Wd - 4) || (wy > Y + Hd - 4 && wy < Y + Hd - 3); return inner ? shT(wd, 0.35) : (Math.floor(wy / 3) % 2 ? wd : shT(wd, -0.12)); };
     rect(x0, y0, bx(X + 5) - x0, y1 - y0, wallTop, 20, UP);
     rect(bx(X + Wd - 5), y0, x1 - bx(X + Wd - 5), y1 - y0, wallTop, 20, UP);
-    rect(x0, by(Y + Hd - 4), dxs - 16 - x0, y1 - by(Y + Hd - 4), wallTop, 20, UP);
-    rect(dxs + 16, by(Y + Hd - 4), x1 - dxs - 16, y1 - by(Y + Hd - 4), wallTop, 20, UP);
-    rect(dxs - 16, by(Y + Hd - 3), 32, by(Y + Hd) - by(Y + Hd - 3), (x) => ((x >> 1) % 4 === 0 ? rgb('#6a4a2c') : rgb('#8a6a44')), 0.5, UP);
+    if (up) rect(x0, by(Y + Hd - 4), x1 - x0, y1 - by(Y + Hd - 4), wallTop, 20, UP);   // üst katta kapı yok
+    else {
+      rect(x0, by(Y + Hd - 4), dxs - 16 - x0, y1 - by(Y + Hd - 4), wallTop, 20, UP);
+      rect(dxs + 16, by(Y + Hd - 4), x1 - dxs - 16, y1 - by(Y + Hd - 4), wallTop, 20, UP);
+      rect(dxs - 16, by(Y + Hd - 3), 32, by(Y + Hd) - by(Y + Hd - 3), (x) => ((x >> 1) % 4 === 0 ? rgb('#6a4a2c') : rgb('#8a6a44')), 0.5, UP);
+    }
+    // üst katın oda duvarları: karo kenarındaki ince bantlar (çarpışma maskesiyle aynı yer; kapılar ayrı çizilir)
+    if (up) {
+      const pw = (x, y) => { const wy = wyOf(y); return Math.floor(wy / 3) % 2 ? shT(wd, 0.06) : wd; };
+      for (const [lx, ly, v] of HOTEL_UP.wall) {
+        const x = X + lx * TS, y = Y + ly * TS, r = v === 1 ? [x, y, 16, 6] : v === 2 ? [x, y + 12, 16, 4] : v === 4 ? [x, y, 5, 16] : [x + 11, y, 5, 16];
+        rect(bx(r[0]), by(r[1]), r[2] * S, r[3] * S, pw, 20, UP);
+      }
+      yield* step();
+    }
     const nWin = Math.max(1, Math.floor(b.w / 3));
-    for (let k = 0; k < nWin; k++) { const cx = X + (k + 0.5) * Wd / nWin; if (Math.abs(cx - b.door.x) < 14) continue; rect(bx(cx - 5), by(Y + Hd - 4), 20, by(Y + Hd - 1) - by(Y + Hd - 4), (x, y) => (y === by(Y + Hd - 4) ? rgb('#c8e0f0') : rgb('#7a9ab0')), 8, UP); }
+    for (let k = 0; k < nWin; k++) { const cx = X + (k + 0.5) * Wd / nWin; if (!up && Math.abs(cx - b.door.x) < 14) continue; rect(bx(cx - 5), by(Y + Hd - 4), 20, by(Y + Hd - 1) - by(Y + Hd - 4), (x, y) => (y === by(Y + Hd - 4) ? rgb('#c8e0f0') : rgb('#7a9ab0')), 8, UP); }
     if (b.h >= 6) for (const sx of [X + 1, X + Wd - 4]) rect(bx(sx), by(Y + Hd / 2 - 4), 6, 16, rgb('#8ab0c8'), 8, UP);
   }
   function furniture(o, cx, cy, i, b, W) {
@@ -722,6 +734,15 @@ const HY = (() => {
         }, cy + 6);
         return;
       }
+    }
+    // otel merdiveni yan duvara kadar uzanır (geniş kutu); yükseklik: çıkan merdiven kuzeye doğru yükselir, inen boşluk
+    // zemin seviyesinde, kapı kanadı ve kanepe kendi boyunda
+    if (o === O.STAIRS || o === O.STAIRSD || o === O.SOFA || o === O.RDOOR) {
+      let p = 0, n = 1; for (let q = i - WW; W.obj[q] === o; q -= WW) { p++; n++; } for (let q = i + WW; W.obj[q] === o; q += WW) n++;
+      const hf = o === O.STAIRS ? (x, y) => { const u = clamp01((p * 16 + (wyOf(y) - (cy - 8))) / (n * 16)); return 2 + 14 * (1 - u); }
+        : o === O.STAIRSD ? () => 0.5 : o === O.SOFA ? (x, y) => (wyOf(y) > cy ? 7 : 4) : () => 10;
+      stamp((g) => Spr.furn(g, o, cx, cy, W, i, b, h), cx - 20, cy - 16, 44, 32, hf, o === O.STAIRSD ? UP : SOUTH, (c) => c[0] + c[1] + c[2] > 0.05);
+      return;
     }
     stamp((g) => Spr.furn(g, o, cx, cy, W, i, b, h), cx - 16, cy - 16, 40, 32, (x, y) => Math.max(0, (by(cy + 6) - y) / S), SOUTH, (c) => c[0] + c[1] + c[2] > 0.05);
   }
@@ -1241,7 +1262,7 @@ const HY = (() => {
     const W = G.world, P = G.player, C = G.cam, vw = G.vw, vh = G.vh, x0 = C.ox, y0 = C.oy, x1 = x0 + vw, y1 = y0 + vh, w2 = vw * S, h2 = vh * S;
     if (world !== W) { flush(W); world = W; }
     if (W._hySeason !== W.season || W._hyFx !== G.settings.fxq) { if (W._hySeason !== undefined) flush(W); W._hySeason = W.season; W._hyFx = G.settings.fxq; }
-    if (W.hyDirty && W.hyDirty.length) { for (const [px, py] of W.hyDirty) { chunks.delete(Math.floor(py / HC) * 1024 + Math.floor(px / HC)); const b = W.buildingAtPx(px, py); if (b) { b._hy = null; coverJobs.delete(b); } } W.hyDirty.length = 0; }
+    if (W.hyDirty && W.hyDirty.length) { for (const [px, py, keep] of W.hyDirty) { chunks.delete(Math.floor(py / HC) * 1024 + Math.floor(px / HC)); const b = keep ? null : W.buildingAtPx(px, py); if (b) { b._hy = null; coverJobs.delete(b); } } W.hyDirty.length = 0; }
     frameCanvas(w2, h2);
     const S0 = sunState(G), sd = [-S0.dir[0] / S0.dir[2], -S0.dir[1] / S0.dir[2]];
 
@@ -1295,7 +1316,7 @@ const HY = (() => {
 
     /* 3) canlılar: güneşe göre gölge, sonra sprite */
     const vis2 = [];
-    for (const e of G.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P)) vis2.push(e);
+    for (const e of G.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !G.floorHid(e)) vis2.push(e);
     if (P.riding) vis2.push(P.riding);
     vis2.push(P);
     const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : 0;

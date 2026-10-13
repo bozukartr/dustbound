@@ -39,8 +39,12 @@ module.exports = {
       await waitStep(0, 1);
       await p.evaluate(() => { const P = G.player; const L = G.ents.filter(e => e.kind === 'npc' && !e.quest && !e.dead && !e.hostile && e.role !== 'law').sort((a, b) => dist(a.x, a.y, P.x, P.y) - dist(b.x, b.y, P.x, P.y)).slice(0, 2); L.forEach(e => G.greet(e)); });
       await waitStep(0, 2);
+      const m0 = await p.evaluate(() => G.player.money);
       await p.evaluate(() => TH.inside(G.sBld('hotel')));
       await waitStep(0, 3);
+      // Greta, Anton'un odasını ücretsiz verir; oda üst katta, yer işareti önce merdivende
+      const g = await p.evaluate((m0) => { const b = G.sBld('hotel'), q = G.questMark(); return { room: G.hotelRoom(b), paid: m0 - G.player.money, mark: q ? [Math.floor(q.x / TS) - b.x, Math.floor(q.y / TS) - b.y] : null }; }, m0);
+      t.ok(g.room >= 0, 'Greta odayı verdi', g); t.near(g.paid, 0, 1e-6, 'oda ücretsiz'); t.eq(g.mark, [1, 3], 'yer işareti merdivende');
       await p.evaluate(() => G.sleep(8, 'hotel'));
       await waitStep(1, 0, 20000);
     });

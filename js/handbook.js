@@ -9,7 +9,7 @@
 const Handbook = {
   /* ipucu anahtarı → el kitabı konusu (G.hintOnce ilk kez gösterince konuyu işaretler) */
   HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison',
-    deadeye: 'deadeye', ride: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', death: 'death', aging: 'aging' },
+    deadeye: 'deadeye', ride: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', death: 'death', aging: 'aging', hotel: 'needs' },
 
   unread() { const H = G.hints || {}; return this.topics().some(T => H['new:' + T.id]); },
 
@@ -43,6 +43,7 @@ const Handbook = {
         Tr('Uyku 20\'nin altındayken koşu dayanıklılığı 1,5 kat hızlı tükenir; 15\'in altında dayanıklılık yavaş dolar; 10\'un altında en yüksek dayanıklılık %40 düşer.'),
         Tr`Matara 5 yudum alır, her yudum susuzluğu 32 doldurur (${g('quick')} ile hızlıca iç). Kuyu, çeşme ve nehir başında dolar.`,
         Tr('Nehir ya da gölden içmek susuzluğu 40 doldurur ama %6 (bataklıkta %20) hastalık riski taşır; kuyu ve çeşme temizdir.'),
+        Tr`Otelde oda resepsiyondan kiralanır (<b>${fmtMoney(SVC.room)}</b>, bir gün geçerli; otel senin işletmense ücretsiz). Odan üst kattadır: merdivenden çık, odandaki yatakta uyu. Öbür odalar kilitlidir.`,
       ]) },
       { id: 'temp', ic: 'snow', t: Tr('Sıcak ve Soğuk'), b: () => li([
         Tr('Sağ üstteki rozet <b>hissedilen sıcaklıktır</b>: bölge, mevsim, gece (çölde daha çok soğur), yağmur ve kar, giydiğin palto ve ateşe yakınlık belirler. Bina içinde 21 °C\'ye yaklaşır.'),

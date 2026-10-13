@@ -230,7 +230,7 @@ const Bubbles = {
   list: [],
   /* talk: true → metin altyazıda; kişinin üstünde yalnızca "konuşuyor" işareti */
   add(e, text, dur = 3.2, talk) {
-    if (!e || e.remove) return;
+    if (!e || e.remove || G.floorHid(e)) return;
     const P = G.player;
     if (dist2(e.x, e.y, P.x, P.y) > 330 * 330) return;
     this.list = this.list.filter(b => { if (b.e === e) { b.el.remove(); return false; } return true; });

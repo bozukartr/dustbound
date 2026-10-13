@@ -607,6 +607,7 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 
 #fader { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.6s; z-index: 50; display: flex; align-items: center; justify-content: center; }
 #fader.on { opacity: 1; pointer-events: auto; }
+#fader.quick { transition: opacity 0.25s; }
 #fader-text { font-family: var(--sc); font-size: 28px; color: #e8dcc0; letter-spacing: 3px; }
 
 /* ---------------- Karakter yaratma: seyahat belgesi (ön yüz / arka yüz) ----------------

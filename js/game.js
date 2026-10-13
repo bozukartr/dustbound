@@ -52,6 +52,7 @@ const G = {
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
     this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
+    this.upB = null; this.hotelRent = null;   // otelin üst katı (oyuncu oradaysa) ve kiralık oda
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -310,7 +311,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      story: this.saveStory(), hideout: this.hideout, reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -430,6 +431,9 @@ const G = {
     const P = this.player = new Player(p.x, p.y, { name: p.name, look: p.look });
     Object.assign(P, { inv: p.inv, ammo: p.ammo, clip: p.clip, weapon: p.weapon, money: p.money, hp: p.hp, sta: p.sta, de: p.de, hunger: p.hunger, thirst: p.thirst, energy: p.energy, clean: p.clean, deCore: p.deCore, sick: p.sick, immuneT: p.immuneT || 0, painT: p.painT || 0, limberT: p.limberT || 0, coolT: p.coolT || 0, canteen: p.canteen, coat: p.coat, mask: p.mask || null, lastMask: p.lastMask || null, lantern: p.lantern });
     P.weapons = new Set(p.weapons);
+    // otelin üst katında kaydedildiyse o kat geri kurulur (oyuncunun yeri zemin katta bir eşyanın içine düşebilir)
+    this.hotelRent = d.hotelRent || null;
+    if (d.upB != null && isHotel2(this.world.buildings[d.upB]) && this.world.buildingAtPx(P.x, P.y) === this.world.buildings[d.upB]) this.setFloor(this.world.buildings[d.upB], 1);
     // eski kayıtlar: kasaba düzeni değiştiyse duvarın içinde başlama
     if (this.world.blocked(P.x, P.y, 4)) { const t = this.nearestTown(P.x, P.y); P.x = t.spawn.x; P.y = t.spawn.y; }
     if (!this.romances || !Object.keys(this.romances).length) this.initRomances();
@@ -570,6 +574,7 @@ const G = {
       if (db && db.door) Audio_.play(db.type === 'saloon' || db.type === 'cantina' ? 'saloon_door' : 'door_open', { x: db.door.x, y: db.door.y, vol: 0.8 });
       this.insideB = ib;
     }
+    this.floorTick();
     // çıkılan binanın kapısı, oyuncu kapıdan uzaklaşana kadar açık kalır
     if (this.exitB && (ib || dist2(P.x, P.y, this.exitB.door.x, this.exitB.door.y) > 30 * 30)) this.exitB = null;
     const T_ = this.timers;
@@ -969,7 +974,7 @@ const G = {
     // varlıklar
     Juice.sunOn = !this.insideB;   // varlık gölgeleri güneşe göre
     const vis = [];
-    for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P)) vis.push(e);
+    for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !this.floorHid(e)) vis.push(e);
     if (P.riding) vis.push(P.riding);
     vis.push(P);
     const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : 0;   // yerde yatanlar altta çizilir
@@ -1263,4 +1268,5 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(PokerSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BinocSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HomeSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(HotelSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(Story));
