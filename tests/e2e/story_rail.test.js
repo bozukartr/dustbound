@@ -111,7 +111,8 @@ module.exports = {
       await p.evaluate(() => { const R = G.story.rob; TH.goto(R.x + 30, R.y + 10); });
       await waitStep(5, 1);
       await p.waitForFunction(() => G.ents.some(e => e.storyNpc === 'driver'), null, { timeout: 5000 });
-      t.ok(await p.evaluate(() => { const e = G.ents.find(x => x.storyNpc === 'driver'); TH.goto(e.x + 12, e.y); return TH.act(/Yarasını Sar/); }), 'Yarasını Sar ve Dinle');
+      // etkileşim en yakın şeyi seçer: arabacının dibinde ot, çalı, cevher ya da su kenarı varsa öbür yanından yaklaş (oyuncunun yapacağı gibi)
+      t.ok(await p.evaluate(() => { const e = G.ents.find(x => x.storyNpc === 'driver'); return [[12, 0], [-12, 0], [0, 12], [0, -12], [9, -9], [-9, 9]].some(([dx, dy]) => (TH.goto(e.x + dx, e.y + dy), TH.act(/Yarasını Sar/))); }), 'Yarasını Sar ve Dinle');
       await waitStep(5, 2);
       await p.evaluate(() => { G.player.money += 1; TH.inside(G.sBld(['saloon', 'cantina'])); UI.rumor(); UI.closeAll(); });
       await waitStep(6, 0, 20000);
