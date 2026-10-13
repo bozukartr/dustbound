@@ -467,6 +467,22 @@ table.stats td:last-child { text-align: right; font-family: var(--type); }
 .r-s { font-size: 14px; color: #f0b0c8; }
 .guide h3 { font-family: var(--sc); color: var(--gold); margin: 16px 0 4px; font-size: 20px; }
 .guide p { margin: 4px 0; font-size: 16px; line-height: 1.5; }
+/* Rehber el kitabı: içindekiler (yeni konular işaretli), konu başlıkları, listeler, ilaç tablosu */
+.hb-toc { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 8px 0 6px; }
+.hb-toc-i { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--brass-line); background: rgba(0, 0, 0, 0.25); cursor: pointer; font-family: var(--sc); font-size: 15px; color: #e8dcc4; }
+.hb-toc-i:hover { border-color: rgba(240, 212, 135, 0.6); color: #fff3d6; }
+.hb-toc-i.new { border-color: #e8b84a; }
+.hb-toc-i .ic.g, .hb-sec h3 .ic.g { width: 18px; height: 18px; }
+.hb-toc-i em, .hb-new { font-style: normal; font-family: var(--type); font-size: 11px; letter-spacing: 1px; color: #1a120c; background: #e8b84a; padding: 1px 5px; border-radius: 2px; }
+.hb-sec h3 { display: flex; align-items: center; gap: 8px; }
+.guide ul { margin: 4px 0 8px 20px; padding: 0; }
+.guide li { margin: 3px 0; font-size: 16px; line-height: 1.45; }
+.guide .ic.inl { width: 16px; height: 16px; vertical-align: -3px; }
+.hb-tab { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 15px; }
+.hb-tab td { padding: 4px 8px; border-bottom: 1px solid rgba(201, 164, 92, 0.15); vertical-align: top; }
+.hb-tab td:nth-child(2) { white-space: nowrap; color: #e8c070; }
+.tab-new { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: #e8b84a; box-shadow: 0 0 6px rgba(232, 184, 74, 0.8); vertical-align: 2px; }
+.hl-more { display: block; margin-top: 5px; font-size: 14px; color: #c9b48a; }
 table.ctrl { border-collapse: collapse; width: 100%; font-size: 15px; }
 table.ctrl th { text-align: left; font-family: var(--sc); color: var(--gold); padding: 6px 8px; border-bottom: 1px solid rgba(201, 164, 92, 0.3); }
 table.ctrl td { padding: 5px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }

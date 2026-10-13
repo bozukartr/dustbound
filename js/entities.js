@@ -1055,7 +1055,11 @@ class Animal extends Ent {
           this.atkCd = 1.1;
           Juice.hurtFrom(this.x, this.y);
           P.hurt(d.dmg * (G.difficulty === 'hard' ? 1.2 : 1), this.type, false, this);
-          if (d.venom && !G.player.riding) { P.poison = Math.max(P.poison, 90); P.poisonBy = this.type; UI.help(Tr('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.'), 6); }
+          if (d.venom && !G.player.riding) {
+            P.poison = Math.max(P.poison, 90); P.poisonBy = this.type;
+            const msg = Tr('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.');
+            if (!G.hintOnce('poison', msg, 6)) UI.help(msg, 6);
+          }
           if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar' || this.type === 'gator') Audio_.growl(this.type, this.x, this.y);
         }
       }

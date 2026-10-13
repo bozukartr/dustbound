@@ -50,6 +50,7 @@ const GameSystems = {
     this.saveGame(true);
   },
   onBirthday(age) {
+    if (age >= 33) this.hintOnce('aging', Tr('Yaşın ilerliyor: en yüksek dayanıklılığın artık her yıl biraz azalacak.'), 8);
     UI.toast(Tr`${age} Yaşındasın`, age >= GOAL_AGE ? Tr('Bir efsane oldun.') : pick([Tr('Doğum günün kutlu olsun.'), Tr('Bir yıl daha geride kaldı.'), Tr('Batı seni yaşlandırıyor ama yıkamıyor.'), Tr('Zaman akıp gidiyor.')]), 'year');
     // yaşlılık hastalıkları
     if (age >= 62 && Math.random() < 0.15 + (age - 62) * 0.012) {
@@ -269,7 +270,7 @@ const GameSystems = {
     const P = this.player;
     if (P.immuneT > 0) return false;
     P.sick = Math.max(P.sick, v);
-    if (msg) UI.help(msg, t);
+    if (msg && !this.hintOnce('sick', msg, t)) UI.help(msg, t);
     return true;
   },
   drinkCanteen() {

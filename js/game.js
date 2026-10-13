@@ -626,7 +626,10 @@ const G = {
     // dead eye
     if (I.pressed('deadeye')) {
       if (P.deadeye) { P.deadeye = false; }
-      else if (P.aiming && P.isArmed && P.de > 12) { P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60); }
+      else if (P.aiming && P.isArmed && P.de > 12) {
+        P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60);
+        this.hintOnce('deadeye', Tr`Odak zamanı yavaşlatır. Çubuk bitince ya da nişanı bırakınca kapanır; ${I.glyph('deadeye')} ile erken kapatabilirsin.`, 7);
+      }
       else if (!P.aiming && I.device === 'pad' && !this.binds_zoom()) this.quickZoom(0);   // kolda nişan almadan R3: piksel ölçeğini değiştir
       else if (!P.aiming) UI.feed(Tr('Odak için önce nişan al.'), 'warn');
     }
@@ -650,11 +653,23 @@ const G = {
     P.weapon = list[i]; P.reloadT = 0; P.draw_ = 0;
     Audio_.tone(700, 0.04, 'square', 0.04);
   },
+  /* Bir ipucunu yalnızca bir kez göster; true: gösterildi. İpucunun el kitabında bir konusu varsa o konu "yeni"
+     diye işaretlenir ve ipucu oraya yönlendirir. */
   hintOnce(key, html, dur = 8) {
     this.hints = this.hints || {};
-    if (this.hints[key]) return;
+    if (this.hints[key]) return false;
     this.hints[key] = 1;
+    const tp = Handbook.HINT_TOPIC[key];
+    if (tp && this.guideFlag(tp)) html += `<span class="hl-more">${Tr`Ayrıntılar: ${Input.glyph('journal')} Günlük → Rehber`}</span>`;
     UI.help(html, dur);
+    return true;
+  },
+  /* El kitabında bir konuyu "yeni" diye işaretle (her konu bir kez); true: şimdi işaretlendi */
+  guideFlag(topic) {
+    this.hints = this.hints || {};
+    if (this.hints['g:' + topic]) return false;
+    this.hints['g:' + topic] = 1; this.hints['new:' + topic] = 1;
+    return true;
   },
   hintTick() {
     const P = this.player, g = k => Input.glyph(k);
@@ -1227,7 +1242,8 @@ const G = {
     this.cam.x = P.x; this.cam.y = P.y;
     this.state = 'play';
     Audio_.playMusic('explore');
-    UI.help(Tr`${t.n} doktoru seni ölümün kıyısından döndürdü. <b>${fmtMoney(lost)}</b> kaybettin ve vücudunda kalıcı izler kaldı (maks. sağlık -3).`, 9);
+    const msg = Tr`${t.n} doktoru seni ölümün kıyısından döndürdü. <b>${fmtMoney(lost)}</b> kaybettin ve vücudunda kalıcı izler kaldı (maks. sağlık -3).`;
+    if (!this.hintOnce('death', msg, 9)) UI.help(msg, 9);
     this.saveGame(true);
   },
 };
