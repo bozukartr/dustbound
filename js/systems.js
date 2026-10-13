@@ -179,23 +179,48 @@ const GameSystems = {
     if (t === T.DESERT || t === T.REDROCK) this.stats.hoursDesert += hours;
     if (amb < 2) this.stats.hoursCold += hours;
     // sağlık
-    let reg = 0;
-    if (P.hunger > 20 && P.thirst > 20 && P.energy > 10 && P.sick <= 0 && this.coldness < 0.3 && this.hotness < 0.5) {
-      reg = 7 + (P.hunger > 60 && P.thirst > 60 ? 6 : 0) + (sleeping ? 8 : 0);
-      if (this.hasPerk('married')) reg *= 1.25;
-    }
-    let dmg = 0, cause = null;
-    if (P.hunger <= 0) { dmg += 6; cause = Tr('açlık'); }
-    if (P.thirst <= 0) { dmg += 10; cause = 'susuzluk'; }
-    if (this.coldness > 0.1) { dmg += 14 * this.coldness; cause = Tr('soğuk'); }
-    if (this.hotness > 0.5) { dmg += 10 * this.hotness; cause = Tr('sıcak çarpması'); }
-    if (P.energy <= 0) { dmg += 3; cause = cause || 'bitkinlik'; }
-    if (P.sick > 0) { dmg += 2.5; cause = cause || Tr('hastalık'); }
+    const { reg, dmg, cause } = this.survRates(sleeping);
     P.hp = Math.min(P.maxHp, P.hp + reg * hours);
     if (dmg > 0) {
       P.hp -= dmg * hours;
       if (P.hp <= 0) { P.hp = 0; this.playerDied(cause); }
     }
+  },
+  /* Oyun saati başına can yenilenmesi ve hayatta kalma hasarı (açlık, susuzluk, soğuk, sıcak, bitkinlik, hastalık).
+     Tehlike kartının ölüm tahmini de bunu kullanır; sick verilirse o hastalık değeriyle (ör. 0: hastalık geçince). */
+  survRates(sleeping, sick = this.player.sick) {
+    const P = this.player;
+    let reg = 0;
+    if (P.hunger > 20 && P.thirst > 20 && P.energy > 10 && sick <= 0 && this.coldness < 0.3 && this.hotness < 0.5) {
+      reg = 7 + (P.hunger > 60 && P.thirst > 60 ? 6 : 0) + (sleeping ? 8 : 0);
+      if (this.hasPerk('married')) reg *= 1.25;
+    }
+    let dmg = 0, cause = null;
+    if (P.hunger <= 0) { dmg += 6; cause = Tr('açlık'); }
+    if (P.thirst <= 0) { dmg += 10; cause = Tr('susuzluk'); }
+    if (this.coldness > 0.1) { dmg += 14 * this.coldness; cause = Tr('soğuk'); }
+    if (this.hotness > 0.5) { dmg += 10 * this.hotness; cause = Tr('sıcak çarpması'); }
+    if (P.energy <= 0) { dmg += 3; cause = cause || Tr('bitkinlik'); }
+    if (sick > 0) { dmg += 2.5; cause = cause || Tr('hastalık'); }
+    return { reg, dmg, cause };
+  },
+  /* Bu gidişle ölüme kalan süre (gerçek saniye): zehir kalan süresince, hastalık geçene dek, açlık, susuzluk, soğuk,
+     sıcak ve bitkinlik sürdükçe can gider; arada yenilenen can da hesaba katılır. ttd: ölüme kalan süre (yarım saatte
+     ölmüyorsan null); low: canın ineceği en düşük oran (0-1). */
+  dangerForecast() {
+    const P = this.player, k = MIN_PER_SEC / 60;   // gerçek saniyede geçen oyun saati
+    const now = this.survRates(false), well = P.sick > 0 ? this.survRates(false, 0) : now;
+    const sickS = P.sick > 0 ? P.sick / k : 0, painS = P.painT > 0 ? P.painT / MIN_PER_SEC : 0, pois = Math.max(0, P.poison);
+    let hp = P.hp, low = hp;
+    for (let t = 0; t < 1800; t++) {
+      const r = t < sickS ? now : well, h0 = hp;
+      hp = Math.min(P.maxHp, hp + r.reg * k) - r.dmg * k;
+      if (t < pois) hp -= Math.min(1, pois - t) * 1.6 * (t < painS ? 0.6 : 1);   // laudanum zehrin acısını da uyuşturur
+      if (hp <= 0) return { ttd: t + h0 / Math.max(1e-6, h0 - hp), low: 0 };
+      low = Math.min(low, hp);
+      if (t >= pois && t >= sickS && r.dmg <= 0) break;   // can götüren bir şey kalmadı
+    }
+    return { ttd: null, low: clamp(low / P.maxHp, 0, 1) };
   },
   consume(id) {
     const P = this.player, it = ITEMS[id];

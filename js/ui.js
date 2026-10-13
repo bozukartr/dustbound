@@ -369,6 +369,71 @@ const UI = {
       <div class="xi-grid"><span>${Tr`Sağlık`}</span><b>${pct(P.hp / P.maxHp * 100)}</b><span>${Tr`Dayanıklılık`}</span><b>${pct(P.sta / Math.max(1, P.maxSta) * 100)}</b><span>${Tr`Odak`}</span><b>${pct(P.de)}</b>
       <span>${Tr`Açlık`}</span><b>${pct(P.hunger)}</b><span>${Tr`Susuzluk`}</span><b>${pct(P.thirst)}</b><span>${Tr`Uyku`}</span><b>${pct(P.energy)}</b></div>`;
   },
+  /* ================= TEHLİKE KARTI =================
+     Can götüren durumlar (zehir, hastalık, susuzluk, açlık, soğuk, sıcak, bitkinlik) sağ üstte bir kartta görünür: ne
+     kadar süreceği, bu gidişle ölüme kalan süre ve ne yapmalı (çantadaki işe yarar eşyalar ve sayıları, hızlı kullanım
+     tuşu, en yakın doktor). Durum geçince kart kaybolur. */
+  dangerList() {
+    const P = G.player;
+    if (!(P.poison > 0 || P.sick > 0 || P.thirst <= 0 || P.hunger <= 0 || G.coldness > 0.1 || G.hotness > 0.5 || P.energy <= 0)) return [];
+    const sober = e => !e.drunk;
+    return [
+      { id: 'poison', g: 'skull', col: '#b8e070', on: P.poison > 0, t: Tr('ZEHİRLENDİN'), left: P.poison, max: 90, fix: e => e.poison, rank: e => e.health || 0, doc: true, none: Tr('Çantanda panzehir yok.') },
+      { id: 'sick', g: 'sick', col: '#b8d890', on: P.sick > 0, t: Tr('HASTASIN'), left: P.sick * 60 / MIN_PER_SEC, fix: e => e.cure, rank: e => (e.health || 0) + (e.immune || 0), doc: true, none: Tr('Çantanda hastalığa iyi gelen bir şey yok.') },
+      { id: 'thirst', g: 'drop', col: '#8cc8f0', on: P.thirst <= 0, t: Tr('SUSUZSUN'), until: Tr('su içene dek'), fix: e => e.thirst > 0 && sober(e), rank: e => e.thirst },
+      { id: 'hunger', g: 'meat', col: '#e8b080', on: P.hunger <= 0, t: Tr('AÇSIN'), until: Tr('bir şey yiyene dek'), fix: e => e.hunger > 0, rank: (e, it) => e.hunger - (it.raw ? 50 : 0), none: Tr('Yiyeceğin yok: genel mağaza ya da saloondan al, ya da avlan.') },
+      { id: 'cold', g: 'snow', col: '#9cc8ff', on: G.coldness > 0.1, t: Tr('DONUYORSUN'), until: Tr('ısınana dek'), fix: e => e.warmth > 0, rank: e => e.warmth },
+      { id: 'heat', g: 'sun', col: '#ffb060', on: G.hotness > 0.5, t: Tr('SICAK ÇARPIYOR'), until: Tr('serinleyene dek'), fix: e => (e.cool > 0 || e.thirst > 0) && sober(e), rank: e => (e.cool || 0) * 10 + (e.thirst || 0) },
+      { id: 'tired', g: 'moon', col: '#c8b8e8', on: P.energy <= 0, t: Tr('BİTKİNSİN'), until: Tr('uyuyana dek'), fix: e => e.energy > 0, rank: e => e.energy },
+    ].filter(d => d.on);
+  },
+  /* eşyasız yapılabilecekler (matara, su başı, ateş, gölge, uyku) */
+  dangerTips(d, q) {
+    const P = G.player, g = k => Input.glyph(k);
+    switch (d.id) {
+      case 'thirst':
+        if (P.has('canteen') && P.canteen > 0) return [Tr`Mataradan iç (${P.canteen}/5)` + (q === 'canteen' ? g('quick') : '')];
+        return [G.world.nearWater(P.x, P.y, 20) ? Tr`Su kenarındasın: ${g('interact')} ile iç.` : Tr('Bir dereye, göle ya da kuyuya git.')];
+      case 'cold': {
+        const cur = P.coat ? ITEMS[P.coat].coat.warm : 0;
+        const coat = Object.keys(P.inv).filter(id => ITEMS[id] && ITEMS[id].coat && ITEMS[id].coat.warm > cur).sort((a, b) => ITEMS[b].coat.warm - ITEMS[a].coat.warm)[0];
+        return [Tr('Ateşe yaklaş ya da bir binaya gir.') + (P.has('bedroll') ? ' ' + Tr`Kamp ateşi için ${g('camp')} basılı tut.` : ''), coat ? Tr`Daha kalın giysin var: ${ITEMS[coat].n}` : ''];
+      }
+      case 'heat': return [Tr('Gölgeye ya da bir binaya gir, su iç.')];
+      case 'tired': return [Tr`Uyu: otel, evin ya da kamp (${g('camp')} basılı tut).`];
+    }
+    return [];
+  },
+  doctorLine() {
+    const P = G.player, t = G.nearestTown(P.x, P.y, t => t.buildings.some(b => b.type === 'doctor'));
+    if (!t) return '';
+    const b = t.buildings.find(b => b.type === 'doctor');
+    return `${Icons.glyph('cross', '#e8e0c8')} ${Tr`Doktor: ${t.n} · ${fmtDist(dist(P.x, P.y, b.door.x, b.door.y))} ${dirWord(b.door.x - P.x, b.door.y - P.y)}`}`;
+  },
+  dangerCard() {
+    const el = this.cache.dg || (this.cache.dg = $('#hud-danger'));
+    const list = G.state === 'play' ? this.dangerList() : [];
+    let html = '';
+    if (list.length) {
+      const P = G.player, fc = G.dangerForecast(), q = G.quickPick();
+      html = fc.ttd !== null ? `<div class="dg-ttd${fc.ttd < 30 ? ' crit' : ''}">${Icons.glyph('hourglass', '#f2a890')}${Tr`Bu gidişle ölüme <b>${fmtSec(fc.ttd)}</b>`}</div>`
+        : `<div class="dg-ttd ok">${Icons.glyph('heart', '#c8d8a8')}${Tr`Bu gidişle ölmezsin · en düşük can %${Math.round(fc.low * 100)}`}</div>`;
+      for (const d of list.slice(0, 3)) {
+        const ids = Object.keys(P.inv).filter(id => { const it = ITEMS[id]; return it && it.e && it.c !== 'horse' && d.fix(it.e, it); })
+          .sort((a, b) => d.rank(ITEMS[b].e, ITEMS[b]) - d.rank(ITEMS[a].e, ITEMS[a])).slice(0, 3);
+        const lines = [];
+        // hızlı kullanım tuşu, o tuşun kullanacağı eşyanın hemen yanında; hiçbiri değilse sonda çanta tuşu
+        if (ids.length) lines.push(Tr`Kullan: ${ids.map(id => `${Icons.item(id, 'ic inl')} ${ITEMS[id].n} ×${P.count(id)}${id === q ? Input.glyph('quick') : ''}`).join(' · ')}` + (ids.includes(q) ? '' : ` · ${Input.glyph('satchel')}${Tr('Çanta')}`));
+        else if (d.none) lines.push(d.none);
+        lines.push(...this.dangerTips(d, q));
+        if (d.doc && !ids.length) lines.push(this.doctorLine());
+        html += `<div class="dg-c" data-id="${d.id}" style="--c:${d.col}"><div class="dg-h">${Icons.glyph(d.g, d.col)}${d.t}<span>${d.left !== undefined ? fmtSec(d.left) : d.until}</span></div>`
+          + (d.max ? `<div class="dg-bar"><i style="width:${Math.round(clamp(d.left / d.max, 0, 1) * 100)}%"></i></div>` : '')
+          + lines.filter(Boolean).map(l => `<div class="dg-a">${l}</div>`).join('') + '</div>';
+      }
+    }
+    if (el._k !== html) { el._k = html; el.innerHTML = html; el.classList.toggle('hidden', !html); }
+  },
   hudUpdate() {
     const P = G.player;
     if (!P) return;
@@ -419,6 +484,7 @@ const UI = {
       wt.classList.toggle('hidden', !wn);
       if (wn) { $('.wt-t', wt).innerHTML = Icons.glyph('witness', '#f0b050') + (wn > 1 ? Tr('{0} TANIK KANUNA KOŞUYOR', wn) : Tr('TANIK KANUNA KOŞUYOR')); $('.wt-bar i', wt).style.width = Math.round((1 - wp) * 100) + '%'; }
     }
+    this.dangerCard();
     // at
     const h = G.horse;
     const hc = this.cache.hc || (this.cache.hc = $('#horse-cores'));

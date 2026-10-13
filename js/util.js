@@ -112,6 +112,15 @@ const fmtDist = px => {
   return Tr`${typeof I18N !== 'undefined' && I18N.lang === 'tr' ? v.replace('.', ',') : v} mil`;
 };
 const pad2 = n => (n < 10 ? '0' : '') + n;
+/* Gerçek süre: 42 sn, 3 dk 05 sn, 1 sa 12 dk */
+const fmtSec = s => {
+  s = Math.max(0, Math.ceil(s));
+  if (s < 60) return Tr`${s} sn`;
+  const m = Math.floor(s / 60);
+  return m < 60 ? Tr`${m} dk ${pad2(s % 60)} sn` : Tr`${Math.floor(m / 60)} sa ${pad2(m % 60)} dk`;
+};
+/* Yön (ekranda y aşağı = güney): "kuzeydoğuda" gibi */
+const dirWord = (dx, dy) => [Tr('doğuda'), Tr('güneydoğuda'), Tr('güneyde'), Tr('güneybatıda'), Tr('batıda'), Tr('kuzeybatıda'), Tr('kuzeyde'), Tr('kuzeydoğuda')][((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8];
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 function el(tag, cls, html) {

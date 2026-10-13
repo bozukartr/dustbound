@@ -668,15 +668,21 @@ const G = {
     else if (!this.world.townAt(P.x, P.y, 60) && this.hour >= 17) this.hintOnce('camp', P.has('bedroll') ? Tr`Akşam oluyor. Kasabadan uzaktaysan ${g('camp')} tuşunu basılı tutarak kamp kurabilirsin.` : Tr`Vahşi doğada kamp kurmak için bir <b>Uyku Tulumu</b> gerekir (genel mağazada $8). Sonra ${g('camp')} tuşunu basılı tut.`, 10);
     else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', Tr`Su kenarındasın. ${g('interact')} ile su iç; basılı tutarak matara doldurma, yıkanma ve balık tutma seçeneklerine ulaş.`);
   },
-  quickUse() {
+  /* Hızlı kullanımda ne kullanılacağı (tehlike kartı da gösterir): zehirliyken önce panzehir, sonra can, su,
+     yiyecek, dayanıklılık. 'canteen': matara */
+  quickPick() {
     const P = this.player;
-    if (P.hp < P.maxHp * 0.8) {
-      for (const id of ['health_cure', 'herbal_tonic', 'bandage', 'cooked_big', 'cooked_game', 'cooked_fish', 'stew']) if (P.has(id)) { this.consume(id); return; }
-    }
-    if (P.thirst < 70 && P.canteen > 0) { this.drinkCanteen(); return; }
-    if (P.hunger < 70) for (const id of ['cooked_game', 'cooked_big', 'beans', 'bread', 'jerky', 'cooked_fish', 'cooked_bird', 'peaches', 'apple', 'corn', 'berries']) if (P.has(id)) { this.consume(id); return; }
-    if (P.sta < P.maxSta * 0.4) for (const id of ['stamina_tonic', 'chocolate', 'ginseng']) if (P.has(id)) { this.consume(id); return; }
-    UI.feed(Tr('Hızlı kullanılacak bir şey yok.'), 'warn');
+    if (P.poison > 0) for (const id of ['antidote', 'snake_oil']) if (P.has(id)) return id;
+    if (P.hp < P.maxHp * 0.8) for (const id of ['health_cure', 'herbal_tonic', 'bandage', 'cooked_big', 'cooked_game', 'cooked_fish', 'stew']) if (P.has(id)) return id;
+    if (P.thirst < 70 && P.canteen > 0) return 'canteen';
+    if (P.hunger < 70) for (const id of ['cooked_game', 'cooked_big', 'beans', 'bread', 'jerky', 'cooked_fish', 'cooked_bird', 'peaches', 'apple', 'corn', 'berries']) if (P.has(id)) return id;
+    if (P.sta < P.maxSta * 0.4) for (const id of ['stamina_tonic', 'chocolate', 'ginseng']) if (P.has(id)) return id;
+    return null;
+  },
+  quickUse() {
+    const id = this.quickPick();
+    if (!id) { UI.feed(Tr('Hızlı kullanılacak bir şey yok.'), 'warn'); return; }
+    if (id === 'canteen') this.drinkCanteen(); else this.consume(id);
   },
   /* Ortam canlıları: kuş sürüleri, çalı topları, ateşböcekleri */
   ambientLife(dt) {

@@ -145,6 +145,23 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 #hud-witness .wt-bar { height: 4px; margin-top: 4px; background: rgba(0, 0, 0, 0.45); }
 #hud-witness .wt-bar i { display: block; height: 100%; width: 0; margin-left: auto; background: #f0a030; }
 #hud-bounty { margin-top: 8px; font-family: var(--type); font-size: 13px; color: #e8a090; }
+/* Tehlike kartı: can götüren durumlar, bu gidişle ölüme kalan süre ve ne yapmalı */
+#hud-danger { margin: 12px 0 0 auto; width: 310px; padding: 8px 12px 9px; text-align: left; font-family: var(--type); font-size: 13px; line-height: 1.35; color: #efe6d2;
+  background: var(--grain), linear-gradient(90deg, rgba(24, 17, 11, 0.94), rgba(14, 10, 7, 0.9)); border: 1px solid var(--brass-line); border-right: 3px solid #c8563a; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); animation: dgIn 0.35s ease-out; }
+@keyframes dgIn { from { opacity: 0; transform: translateX(14px); } }
+#hud-danger .ic.g { width: 16px; height: 16px; vertical-align: -3px; margin-right: 5px; }
+#hud-danger .ic.inl { width: 14px; height: 14px; vertical-align: -2px; }
+#hud-danger .dg-ttd { font-size: 15px; color: #f2b8a8; padding-bottom: 5px; margin-bottom: 5px; border-bottom: 1px solid rgba(201, 164, 92, 0.25); }
+#hud-danger .dg-ttd b { color: #ffe0d2; font-weight: normal; }
+#hud-danger .dg-ttd.crit { color: #ff9a80; animation: bl 0.9s steps(2) infinite; }
+#hud-danger .dg-ttd.ok { color: #c8d8a8; font-size: 13px; }
+#hud-danger .dg-c + .dg-c { margin-top: 6px; padding-top: 5px; border-top: 1px dashed rgba(201, 164, 92, 0.2); }
+#hud-danger .dg-h { display: flex; align-items: center; font-size: 14px; letter-spacing: 0.6px; color: var(--c); }
+#hud-danger .dg-h span { margin-left: auto; padding-left: 8px; color: #e8dcc4; font-size: 13px; letter-spacing: 0; white-space: nowrap; }
+#hud-danger .dg-bar { height: 3px; margin: 3px 0 2px; background: rgba(0, 0, 0, 0.5); }
+#hud-danger .dg-bar i { display: block; height: 100%; background: var(--c); }
+#hud-danger .dg-a { color: #d8ccb4; margin-top: 2px; }
+#hud-danger .btn { min-width: 17px; height: 17px; padding: 0 4px; margin: 0 2px 0 4px; font-size: 10px; vertical-align: 0; }
 
 /* Yardım kartı: pirinç mühür, alttaki çizgi kalan süreyi gösterir */
 #hud-help { position: absolute; left: 24px; top: 20px; max-width: 460px; padding: 13px 18px 15px 58px; font-size: 17px; line-height: 1.45; color: #efe6d2;
