@@ -50,6 +50,7 @@ const GameSystems = {
     this.saveGame(true);
   },
   onBirthday(age) {
+    if (age >= 33) this.hintOnce('aging', Tr('Yaşın ilerliyor: en yüksek dayanıklılığın artık her yıl biraz azalacak.'), 8);
     UI.toast(Tr`${age} Yaşındasın`, age >= GOAL_AGE ? Tr('Bir efsane oldun.') : pick([Tr('Doğum günün kutlu olsun.'), Tr('Bir yıl daha geride kaldı.'), Tr('Batı seni yaşlandırıyor ama yıkamıyor.'), Tr('Zaman akıp gidiyor.')]), 'year');
     // yaşlılık hastalıkları
     if (age >= 62 && Math.random() < 0.15 + (age - 62) * 0.012) {
@@ -179,23 +180,53 @@ const GameSystems = {
     if (t === T.DESERT || t === T.REDROCK) this.stats.hoursDesert += hours;
     if (amb < 2) this.stats.hoursCold += hours;
     // sağlık
+    const { reg, dmg, key, parts } = this.survRates(sleeping);
+    P.hp = Math.min(P.maxHp, P.hp + reg * hours);
+    if (dmg > 0) {
+      for (const k in parts) this.logHurt(k, Math.min(P.hp, parts[k] * hours));
+      P.hp -= dmg * hours;
+      if (P.hp <= 0) { P.hp = 0; this.playerDied(key); }
+    }
+  },
+  /* Oyun saati başına can yenilenmesi ve hayatta kalma hasarı (açlık, susuzluk, soğuk, sıcak, bitkinlik, hastalık).
+     Tehlike kartının ölüm tahmini de bunu kullanır; sick verilirse o hastalık değeriyle (ör. 0: hastalık geçince). */
+  survRates(sleeping, sick = this.player.sick) {
+    const P = this.player;
     let reg = 0;
-    if (P.hunger > 20 && P.thirst > 20 && P.energy > 10 && P.sick <= 0 && this.coldness < 0.3 && this.hotness < 0.5) {
+    if (P.hunger > 20 && P.thirst > 20 && P.energy > 10 && sick <= 0 && this.coldness < 0.3 && this.hotness < 0.5) {
       reg = 7 + (P.hunger > 60 && P.thirst > 60 ? 6 : 0) + (sleeping ? 8 : 0);
       if (this.hasPerk('married')) reg *= 1.25;
     }
-    let dmg = 0, cause = null;
-    if (P.hunger <= 0) { dmg += 6; cause = Tr('açlık'); }
-    if (P.thirst <= 0) { dmg += 10; cause = 'susuzluk'; }
-    if (this.coldness > 0.1) { dmg += 14 * this.coldness; cause = Tr('soğuk'); }
-    if (this.hotness > 0.5) { dmg += 10 * this.hotness; cause = Tr('sıcak çarpması'); }
-    if (P.energy <= 0) { dmg += 3; cause = cause || 'bitkinlik'; }
-    if (P.sick > 0) { dmg += 2.5; cause = cause || Tr('hastalık'); }
-    P.hp = Math.min(P.maxHp, P.hp + reg * hours);
-    if (dmg > 0) {
-      P.hp -= dmg * hours;
-      if (P.hp <= 0) { P.hp = 0; this.playerDied(cause); }
+    const parts = {};   // can/oyun saati, kaynak kaynak
+    if (P.hunger <= 0) parts.hunger = 6;
+    if (P.thirst <= 0) parts.thirst = 10;
+    if (this.coldness > 0.1) parts.cold = 14 * this.coldness;
+    if (this.hotness > 0.5) parts.heat = 10 * this.hotness;
+    if (P.energy <= 0) parts.tired = 3;
+    if (sick > 0) parts.sick = 2.5;
+    let dmg = 0;
+    for (const k in parts) dmg += parts[k];
+    // ölüm sebebi önceliği: sıcak, soğuk, susuzluk, açlık; bunlar yoksa bitkinlik, hastalık
+    const key = parts.heat ? 'heat' : parts.cold ? 'cold' : parts.thirst ? 'thirst' : parts.hunger ? 'hunger' : parts.tired ? 'tired' : parts.sick ? 'sick' : null;
+    return { reg, dmg, key, parts };
+  },
+  /* Bu gidişle ölüme kalan süre (gerçek saniye): zehir kalan süresince, hastalık geçene dek, açlık, susuzluk, soğuk,
+     sıcak ve bitkinlik sürdükçe can gider; arada yenilenen can da hesaba katılır. ttd: ölüme kalan süre (yarım saatte
+     ölmüyorsan null); low: canın ineceği en düşük oran (0-1). */
+  dangerForecast() {
+    const P = this.player, k = MIN_PER_SEC / 60;   // gerçek saniyede geçen oyun saati
+    const now = this.survRates(false), well = P.sick > 0 ? this.survRates(false, 0) : now;
+    const sickS = P.sick > 0 ? P.sick / k : 0, painS = P.painT > 0 ? P.painT / MIN_PER_SEC : 0, pois = Math.max(0, P.poison);
+    let hp = P.hp, low = hp;
+    for (let t = 0; t < 1800; t++) {
+      const r = t < sickS ? now : well, h0 = hp;
+      hp = Math.min(P.maxHp, hp + r.reg * k) - r.dmg * k;
+      if (t < pois) hp -= Math.min(1, pois - t) * 1.6 * (t < painS ? 0.6 : 1);   // laudanum zehrin acısını da uyuşturur
+      if (hp <= 0) return { ttd: t + h0 / Math.max(1e-6, h0 - hp), low: 0 };
+      low = Math.min(low, hp);
+      if (t >= pois && t >= sickS && r.dmg <= 0) break;   // can götüren bir şey kalmadı
     }
+    return { ttd: null, low: clamp(low / P.maxHp, 0, 1) };
   },
   consume(id) {
     const P = this.player, it = ITEMS[id];
@@ -220,7 +251,7 @@ const GameSystems = {
     if (e.drunk) P.drunk = clamp(P.drunk + e.drunk, 0, 100);
     if (e.warmth) P.warmBuff = Math.max(P.warmBuff, e.warmth * 4);
     if (e.cure) { if (P.sick > 0) UI.feed(Tr('Kendini daha iyi hissediyorsun.')); P.sick = 0; }
-    if (e.poison) { P.poison = 0; UI.feed(Tr('Zehir etkisini yitirdi.')); }
+    if (e.poison) { if (P.poison > 0) UI.feed(Tr('Zehir etkisini yitirdi.')); P.poison = 0; }
     // süreli etkiler (oyun dakikası)
     if (e.immune) P.immuneT = Math.max(P.immuneT, e.immune * 60);
     if (e.pain) P.painT = Math.max(P.painT, e.pain * 60);
@@ -239,7 +270,7 @@ const GameSystems = {
     const P = this.player;
     if (P.immuneT > 0) return false;
     P.sick = Math.max(P.sick, v);
-    if (msg) UI.help(msg, t);
+    if (msg && !this.hintOnce('sick', msg, t)) UI.help(msg, t);
     return true;
   },
   drinkCanteen() {
@@ -951,7 +982,7 @@ const GameSystems = {
     this.parts.tracer(ox, oy, ex, ey);
     if (hit) {
       const was = hit.dead;
-      if (hit === this.player) { if (owner) Juice.hurtFrom(owner.x, owner.y); hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : 'haydut'); }
+      if (hit === this.player) { if (owner) Juice.hurtFrom(owner.x, owner.y); hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : owner && owner.role === 'hunter' ? 'avci' : 'haydut', false, owner, opts.weapon || (owner && owner.weapon)); }
       else hit.hurt(dmg, owner === this.player ? 'player' : 'npc', 'gun');
       if (hit.kind === 'npc' || hit.kind === 'animal' || hit === this.player) Audio_.play('hit_flesh', { x: ex, y: ey, vol: hit === this.player ? 1.2 : 0.8 });
       else if (hit.kind === 'wagon') Audio_.play('hit_wood', { x: ex, y: ey });
@@ -987,7 +1018,8 @@ const GameSystems = {
       if (d >= R) continue;
       const was = e.dead;
       if (e === this.player) Juice.hurtFrom(x, y);
-      e.hurt(WEAPONS.dynamite.dmg * (1 - d / R) + 10, e === this.player ? 'patlama' : (owner === this.player ? 'player' : 'npc'), 'explosion');
+      if (e === this.player) e.hurt(WEAPONS.dynamite.dmg * (1 - d / R) + 10, 'patlama', 'explosion', owner, 'dynamite');
+      else e.hurt(WEAPONS.dynamite.dmg * (1 - d / R) + 10, owner === this.player ? 'player' : 'npc', 'explosion');
       if (e !== this.player && e.dead && !was) { const a = Math.atan2(e.y - y, e.x - x); Juice.knock(e, a, 150 * (1 - d / R) + 40); Juice.hatOff(e, a, 110); }
     }
     Juice.explosion(x, y);
@@ -1039,14 +1071,81 @@ const GameSystems = {
   playerDied(cause) {
     if (this.state !== 'play') return;
     this.state = 'dead';
-    const CAUSES = { train: Tr('tren kazası'), fist: Tr('kavga'), fall: Tr('attan düşme'), patlama: Tr('patlama'), haydut: Tr('haydut kurşunu'), kanun: Tr('kanun adamlarının kurşunu'), zehir: Tr('zehirlenme'), test: Tr('bilinmeyen') };
+    const CAUSES = { train: Tr('tren kazası'), fist: Tr('kavga'), fall: Tr('attan düşme'), patlama: Tr('patlama'), haydut: Tr('haydut kurşunu'), kanun: Tr('kanun adamlarının kurşunu'), avci: Tr('ödül avcısı kurşunu'), duello: Tr('düello kurşunu'), zehir: Tr('zehirlenme'), gocuk: Tr('göçük'),
+      hunger: Tr('açlık'), thirst: Tr('susuzluk'), cold: Tr('soğuk'), heat: Tr('sıcak çarpması'), tired: Tr('bitkinlik'), sick: Tr('hastalık'), test: Tr('bilinmeyen') };
     this.deathCause = ANIMALS[cause] ? ANIMALS[cause].n + Tr(' saldırısı') : (CAUSES[cause] || cause || Tr('bilinmeyen'));
+    this.deathInfo = this.deathReport(cause);
     if (this.difficulty === 'hard') this.deleteSave();
     this.player.deadeye = false;
     if (this.player.riding) this.player.dismount();
     Audio_.stopMusic();
     Audio_.playMusic('death');
     setTimeout(() => UI.showDeath(), 1800);
+  },
+
+  /* ================= SON ANLAR =================
+     Oyuncunun aldığı hasar kaynak kaynak birikir (ölüm ekranındaki "Son anlar"): aynı kaynaktan ve aynı saldırgandan
+     15 sn içinde gelen hasar tek satırda toplanır; 2 dakikadan eski satırlar atılır, en çok 8 satır tutulur.
+     src: hasar anahtarı (haydut, zehir, hayvan türü, hunger...), by: saldıran (NPC ise adı yazılır), weapon: silahı */
+  logHurt(src, dmg, by, weapon) {
+    if (!(dmg > 0) || !src) return;
+    let L = this.dmgLog || (this.dmgLog = []);
+    const now = this.t, key = src + '|' + (by && by.id ? by.id : '');
+    let e = null;
+    for (let i = L.length - 1; i >= 0; i--) if (L[i].key === key && now - L[i].t1 < 15) { e = L[i]; break; }
+    if (!e) {
+      const P = this.player;
+      const who = by && by.kind === 'npc' ? by.name : src === 'zehir' && ANIMALS[P.poisonBy] ? ANIMALS[P.poisonBy].n : null;
+      e = { key, src, who, weapon: weapon || (by && by.kind === 'npc' && by.weapon) || null, sum: 0, n: 0, t0: now, t1: now };
+      L.push(e);
+      if (L.length > 8 || now - L[0].t1 > 120) L = this.dmgLog = L.filter(x => now - x.t1 <= 120).sort((a, b) => a.t1 - b.t1).slice(-8);
+    }
+    e.sum += dmg; e.n++; e.t1 = now;
+    if (weapon) e.weapon = weapon;
+  },
+  /* Son anlar satırının adı (büyük harfle başlar) */
+  hurtLabel(src) {
+    if (ANIMALS[src]) return Tr`${ANIMALS[src].n} saldırısı`;
+    const S = { zehir: Tr('Zehir'), fall: Tr('Attan düşme'), patlama: Tr('Patlama'), train: Tr('Tren çarpması'), fist: Tr('Yumruk'), haydut: Tr('Haydut kurşunu'), kanun: Tr('Kanun adamlarının kurşunu'), avci: Tr('Ödül avcısı kurşunu'), duello: Tr('Düello kurşunu'), gocuk: Tr('Göçük'),
+      hunger: Tr('Açlık'), thirst: Tr('Susuzluk'), cold: Tr('Soğuk'), heat: Tr('Sıcak çarpması'), tired: Tr('Bitkinlik'), sick: Tr('Hastalık') };
+    return S[src] || src;
+  },
+  /* Ölüm anının özeti: sebep, öldüren (adı ve silahı), yer, zaman ve son iki dakikanın hasar dökümü */
+  deathReport(src) {
+    const P = this.player, W = this.world, now = this.t;
+    const tw = W.townAt(P.x, P.y, 60), near = tw ? null : this.nearestTown(P.x, P.y);
+    const log = (this.dmgLog || []).filter(e => now - e.t1 <= 120).sort((a, b) => a.t1 - b.t1).slice(-6);
+    let k = null;
+    for (let i = log.length - 1; i >= 0 && !k; i--) if (log[i].src === src) k = log[i];   // ölümcül darbenin satırı
+    return {
+      src, cause: this.deathCause, who: k ? k.who : null, weapon: k ? k.weapon : null, hits: k ? k.n : 0,
+      place: tw ? tw.n : W.regionAt(P.x, P.y), near: near ? { n: near.n, d: dist(P.x, P.y, near.cx, near.cy), dir: dirWord(near.cx - P.x, near.cy - P.y) } : null,
+      time: this.timeStr(), date: this.dateStr(),
+      log: log.map(e => ({ src: e.src, who: e.who, weapon: e.weapon, sum: e.sum, n: e.n, dur: e.t1 - e.t0, ago: now - e.t1, kill: e === k })),
+      money: P.money, bank: this.bank || 0, scars: this.scars || 0,
+    };
+  },
+  /* Ölüm sebebine göre kısa öğüt (oyunun gerçek işleyişine göre) */
+  deathTip(src) {
+    if (ANIMALS[src]) return Tr('Vahşi hayvanlarla yakın dövüşe girme; uzaktan vur ya da at sırtında kaç.');
+    const g = k => Input.glyph(k);
+    switch (src) {
+      case 'zehir': return Tr`Yılan sokunca hemen Panzehir ya da Yılan Yağı kullan; ${g('quick')} zehirliyken önce panzehiri seçer. At sırtındayken yılan zehirleyemez.`;
+      case 'thirst': return Tr('Mataranı dolu tut; kuyu ve nehir başında doldurulur. Susuzluk sıfıra inince can hızla gider.');
+      case 'hunger': return Tr('Çantanda hep yiyecek bulunsun. Açlık sıfıra inince can yavaş yavaş gider.');
+      case 'cold': return Tr('Soğuk bölgelere kalın paltoyla git; ateş, sıcak yemek ve kahve ısıtır.');
+      case 'heat': return Tr('Çölde sık su iç; Sarsaparilla serinletir, geniş kenarlı şapka korur.');
+      case 'tired': return Tr('Uyku sıfıra inince can gider. Otelde, evinde ya da kampta uyu.');
+      case 'sick': return Tr('Kirli su ve çiğ et hastalık yapar. Kinin hem iyileştirir hem bir gün korur.');
+      case 'haydut': return Tr('Çatışmada canın azalınca geri çekil ve iyileş; Sağlık İksiri ve Bandaj taşı.');
+      case 'kanun': return Tr('Aranırken kasabalardan uzak dur; radardaki kırmızı alanın dışına çıkıp görünmeden bekle.');
+      case 'avci': return Tr('Ödül avcılarıyla parayla anlaşabilir ya da teslim olabilirsin; başındaki ödül büyüdükçe daha kalabalık gelirler.');
+      case 'duello': return Tr('Düelloda «ÇEK!» yazısından önce davranma; sarhoşken düelloya girme.');
+      case 'fall': return Tr('Atın canı biterse yere düşersin. Atın yaralıysa Saman ya da At Toniği ver; çatışmada attan in.');
+      case 'patlama': return Tr('Dinamiti attıktan sonra uzaklaş; patlama yakındaki herkesi yaralar.');
+      case 'train': return Tr('Raylardan uzak dur; tren yaklaşırken raydan çekil.');
+    }
+    return '';
   },
 
   /* ================= AT ================= */
@@ -2112,7 +2211,7 @@ const GameSystems = {
     UI.fade(() => {
       this.advanceClock(120);
       P.energy = Math.max(0, P.energy - 12); P.clean = Math.max(0, P.clean - 25);
-      if (chance(0.12)) { P.hurt(25, Tr('göçük'), true); UI.help(Tr('Tavan çöktü! Molozların altından yaralı ama canlı çıktın.'), 6); return; }
+      if (chance(0.12)) { P.hurt(25, 'gocuk', true); UI.help(Tr('Tavan çöktü! Molozların altından yaralı ama canlı çıktın.'), 6); return; }
       const got = [];
       const n = rndi(1, 3); P.addItem('silver_ore', n, true); got.push(`${ITEMS.silver_ore.n} x${n}`);
       if (chance(0.5)) { P.addItem('iron_ore', 2, true); got.push(`${ITEMS.iron_ore.n} x2`); }

@@ -369,6 +369,71 @@ const UI = {
       <div class="xi-grid"><span>${Tr`Sağlık`}</span><b>${pct(P.hp / P.maxHp * 100)}</b><span>${Tr`Dayanıklılık`}</span><b>${pct(P.sta / Math.max(1, P.maxSta) * 100)}</b><span>${Tr`Odak`}</span><b>${pct(P.de)}</b>
       <span>${Tr`Açlık`}</span><b>${pct(P.hunger)}</b><span>${Tr`Susuzluk`}</span><b>${pct(P.thirst)}</b><span>${Tr`Uyku`}</span><b>${pct(P.energy)}</b></div>`;
   },
+  /* ================= TEHLİKE KARTI =================
+     Can götüren durumlar (zehir, hastalık, susuzluk, açlık, soğuk, sıcak, bitkinlik) sağ üstte bir kartta görünür: ne
+     kadar süreceği, bu gidişle ölüme kalan süre ve ne yapmalı (çantadaki işe yarar eşyalar ve sayıları, hızlı kullanım
+     tuşu, en yakın doktor). Durum geçince kart kaybolur. */
+  dangerList() {
+    const P = G.player;
+    if (!(P.poison > 0 || P.sick > 0 || P.thirst <= 0 || P.hunger <= 0 || G.coldness > 0.1 || G.hotness > 0.5 || P.energy <= 0)) return [];
+    const sober = e => !e.drunk;
+    return [
+      { id: 'poison', g: 'skull', col: '#b8e070', on: P.poison > 0, t: Tr('ZEHİRLENDİN'), left: P.poison, max: 90, fix: e => e.poison, rank: e => e.health || 0, doc: true, none: Tr('Çantanda panzehir yok.') },
+      { id: 'sick', g: 'sick', col: '#b8d890', on: P.sick > 0, t: Tr('HASTASIN'), left: P.sick * 60 / MIN_PER_SEC, fix: e => e.cure, rank: e => (e.health || 0) + (e.immune || 0), doc: true, none: Tr('Çantanda hastalığa iyi gelen bir şey yok.') },
+      { id: 'thirst', g: 'drop', col: '#8cc8f0', on: P.thirst <= 0, t: Tr('SUSUZSUN'), until: Tr('su içene dek'), fix: e => e.thirst > 0 && sober(e), rank: e => e.thirst },
+      { id: 'hunger', g: 'meat', col: '#e8b080', on: P.hunger <= 0, t: Tr('AÇSIN'), until: Tr('bir şey yiyene dek'), fix: e => e.hunger > 0, rank: (e, it) => e.hunger - (it.raw ? 50 : 0), none: Tr('Yiyeceğin yok: genel mağaza ya da saloondan al, ya da avlan.') },
+      { id: 'cold', g: 'snow', col: '#9cc8ff', on: G.coldness > 0.1, t: Tr('DONUYORSUN'), until: Tr('ısınana dek'), fix: e => e.warmth > 0, rank: e => e.warmth },
+      { id: 'heat', g: 'sun', col: '#ffb060', on: G.hotness > 0.5, t: Tr('SICAK ÇARPIYOR'), until: Tr('serinleyene dek'), fix: e => (e.cool > 0 || e.thirst > 0) && sober(e), rank: e => (e.cool || 0) * 10 + (e.thirst || 0) },
+      { id: 'tired', g: 'moon', col: '#c8b8e8', on: P.energy <= 0, t: Tr('BİTKİNSİN'), until: Tr('uyuyana dek'), fix: e => e.energy > 0, rank: e => e.energy },
+    ].filter(d => d.on);
+  },
+  /* eşyasız yapılabilecekler (matara, su başı, ateş, gölge, uyku) */
+  dangerTips(d, q) {
+    const P = G.player, g = k => Input.glyph(k);
+    switch (d.id) {
+      case 'thirst':
+        if (P.has('canteen') && P.canteen > 0) return [Tr`Mataradan iç (${P.canteen}/5)` + (q === 'canteen' ? g('quick') : '')];
+        return [G.world.nearWater(P.x, P.y, 20) ? Tr`Su kenarındasın: ${g('interact')} ile iç.` : Tr('Bir dereye, göle ya da kuyuya git.')];
+      case 'cold': {
+        const cur = P.coat ? ITEMS[P.coat].coat.warm : 0;
+        const coat = Object.keys(P.inv).filter(id => ITEMS[id] && ITEMS[id].coat && ITEMS[id].coat.warm > cur).sort((a, b) => ITEMS[b].coat.warm - ITEMS[a].coat.warm)[0];
+        return [Tr('Ateşe yaklaş ya da bir binaya gir.') + (P.has('bedroll') ? ' ' + Tr`Kamp ateşi için ${g('camp')} basılı tut.` : ''), coat ? Tr`Daha kalın giysin var: ${ITEMS[coat].n}` : ''];
+      }
+      case 'heat': return [Tr('Gölgeye ya da bir binaya gir, su iç.')];
+      case 'tired': return [Tr`Uyu: otel, evin ya da kamp (${g('camp')} basılı tut).`];
+    }
+    return [];
+  },
+  doctorLine() {
+    const P = G.player, t = G.nearestTown(P.x, P.y, t => t.buildings.some(b => b.type === 'doctor'));
+    if (!t) return '';
+    const b = t.buildings.find(b => b.type === 'doctor');
+    return `${Icons.glyph('cross', '#e8e0c8')} ${Tr`Doktor: ${t.n} · ${fmtDist(dist(P.x, P.y, b.door.x, b.door.y))} ${dirWord(b.door.x - P.x, b.door.y - P.y)}`}`;
+  },
+  dangerCard() {
+    const el = this.cache.dg || (this.cache.dg = $('#hud-danger'));
+    const list = G.state === 'play' ? this.dangerList() : [];
+    let html = '';
+    if (list.length) {
+      const P = G.player, fc = G.dangerForecast(), q = G.quickPick();
+      html = fc.ttd !== null ? `<div class="dg-ttd${fc.ttd < 30 ? ' crit' : ''}">${Icons.glyph('hourglass', '#f2a890')}${Tr`Bu gidişle ölüme <b>${fmtSec(fc.ttd)}</b>`}</div>`
+        : `<div class="dg-ttd ok">${Icons.glyph('heart', '#c8d8a8')}${Tr`Bu gidişle ölmezsin · en düşük can %${Math.round(fc.low * 100)}`}</div>`;
+      for (const d of list.slice(0, 3)) {
+        const ids = Object.keys(P.inv).filter(id => { const it = ITEMS[id]; return it && it.e && it.c !== 'horse' && d.fix(it.e, it); })
+          .sort((a, b) => d.rank(ITEMS[b].e, ITEMS[b]) - d.rank(ITEMS[a].e, ITEMS[a])).slice(0, 3);
+        const lines = [];
+        // hızlı kullanım tuşu, o tuşun kullanacağı eşyanın hemen yanında; hiçbiri değilse sonda çanta tuşu
+        if (ids.length) lines.push(Tr`Kullan: ${ids.map(id => `${Icons.item(id, 'ic inl')} ${ITEMS[id].n} ×${P.count(id)}${id === q ? Input.glyph('quick') : ''}`).join(' · ')}` + (ids.includes(q) ? '' : ` · ${Input.glyph('satchel')}${Tr('Çanta')}`));
+        else if (d.none) lines.push(d.none);
+        lines.push(...this.dangerTips(d, q));
+        if (d.doc && !ids.length) lines.push(this.doctorLine());
+        html += `<div class="dg-c" data-id="${d.id}" style="--c:${d.col}"><div class="dg-h">${Icons.glyph(d.g, d.col)}${d.t}<span>${d.left !== undefined ? fmtSec(d.left) : d.until}</span></div>`
+          + (d.max ? `<div class="dg-bar"><i style="width:${Math.round(clamp(d.left / d.max, 0, 1) * 100)}%"></i></div>` : '')
+          + lines.filter(Boolean).map(l => `<div class="dg-a">${l}</div>`).join('') + '</div>';
+      }
+    }
+    if (el._k !== html) { el._k = html; el.innerHTML = html; el.classList.toggle('hidden', !html); }
+  },
   hudUpdate() {
     const P = G.player;
     if (!P) return;
@@ -419,6 +484,7 @@ const UI = {
       wt.classList.toggle('hidden', !wn);
       if (wn) { $('.wt-t', wt).innerHTML = Icons.glyph('witness', '#f0b050') + (wn > 1 ? Tr('{0} TANIK KANUNA KOŞUYOR', wn) : Tr('TANIK KANUNA KOŞUYOR')); $('.wt-bar i', wt).style.width = Math.round((1 - wp) * 100) + '%'; }
     }
+    this.dangerCard();
     // at
     const h = G.horse;
     const hc = this.cache.hc || (this.cache.hc = $('#horse-cores'));
@@ -1254,7 +1320,8 @@ const UI = {
     });
     return m;
   },
-  itemSide(it, extra) {
+  /* Eşyanın etkileri, okunur satırlar hâlinde (eşya kartı ve Rehber'in ilaç tablosu) */
+  itemEffects(it) {
     const e = it.e || {};
     const eff = [];
     const map = { hunger: Tr('Açlık'), thirst: Tr('Susuzluk'), health: Tr('Sağlık'), stamina: Tr('Dayanıklılık'), energy: Tr('Uyku'), deadeye: Tr('Odak'), drunk: Tr('Sarhoşluk'), warmth: Tr('Isınma') };
@@ -1268,20 +1335,27 @@ const UI = {
     if (e.sober) eff.push(Tr('Sarhoşluğu anında giderir'));
     if (it.raw) eff.push(`<span class="bad">${Tr`Çiğ: hastalık riski`}</span>`);
     if (it.coat) eff.push(Tr`Sıcaklık ${it.coat.warm > 0 ? '+' : ''}${it.coat.warm}°C`);
+    return eff;
+  },
+  itemSide(it, extra) {
+    const eff = this.itemEffects(it);
     return `<div class="ps-big">${Icons.item(it.id, 'ic big')}</div><div class="ps-t">${it.n}</div><div class="ps-d">${it.d || ''}</div>${eff.length || extra ? `<div class="ps-e">${extra || eff.join('<br>')}</div>` : ''}<div class="ps-p">${Tr`Değeri: ${fmtMoney(it.p)}`}</div>`;
   },
 
   /* ================= GÜNLÜK ================= */
   openJournal(tab = 0) {
     const tabs = [Tr('Karakter'), Tr('Yetenekler'), Tr('Başarımlar'), Tr('İstatistikler'), Tr('İlişkiler'), Tr('İşlerim'), Tr('Görevler'), Tr('Rehber')];
+    const RB = tabs.length - 1;   // Rehber sekmesi: okunmamış yeni konu varsa rozet
     const el = el_('div', 'modal panel journal');
     const m = this.makeModal(el, { scroll: true, noFocus: true, onTab: (d) => { m.tab = (m.tab + d + tabs.length) % tabs.length; render(); Audio_.ui('move'); } });
     m.tab = tab;
     const render = () => {
-      el.innerHTML = `<div class="p-head"><div class="p-title">${Tr`Günlük`}</div></div><div class="p-tabs">${Input.glyph('tabL')}${tabs.map((t, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${t}</span>`).join('')}${Input.glyph('tabR')}</div><div class="p-body"><div class="scroll jr">${Icons.iconize(this.journalTab(m.tab))}</div></div><div class="p-foot">${Tr`${Input.glyph('back')} Kapat &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme`}</div>`;
+      const fresh = m.tab !== RB && Handbook.unread();
+      el.innerHTML = `<div class="p-head"><div class="p-title">${Tr`Günlük`}</div></div><div class="p-tabs">${Input.glyph('tabL')}${tabs.map((t, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${t}${i === RB && fresh ? '<i class="tab-new"></i>' : ''}</span>`).join('')}${Input.glyph('tabR')}</div><div class="p-body"><div class="scroll jr">${Icons.iconize(this.journalTab(m.tab))}</div></div><div class="p-foot">${Tr`${Input.glyph('back')} Kapat &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme`}</div>`;
       $$('.tab', el).forEach(n => (n.onclick = () => { m.tab = +n.dataset.tab; render(); }));
       const pc = $('#jr-portrait', el);
       if (pc) Spr.portrait(pc.getContext('2d'), pc.width, pc.height, G.player.look, G.age);
+      if (m.tab === RB) Handbook.bind(el);
       const qa = $('[data-qa]', el);
       if (qa) qa.onclick = () => this.confirm(Tr('Hikâyeyi Bırak'), Tr`${G.storyDef().title()} hikâyesini bırakırsan bir daha devam edemezsin. Emin misin?`, () => { G.storyAbandon(); this.closeAll(); });
     };
@@ -1437,17 +1511,7 @@ const UI = {
     Audio_.ui('ok');
     return m;
   },
-  guideHtml() {
-    return `<div class="guide"><p><button class="st-btn" onclick="UI.openWelcome()">${Icons.glyph('book', 'currentColor')} ${Tr`Hoş Geldin Rehberini Aç`}</button></p>
-      <h3>${Tr`Hayatta Kalma`}</h3><p>${Tr`<b>Açlık</b>, <b>susuzluk</b> ve <b>uyku</b> sürekli azalır. Sıfırlanırlarsa sağlığın düşer. Sağlık çekirdeği (♥ içi) açlık ve susuzluktan beslenir. Sıcak çöllerde daha çok su içmen, karlı dağlarda ise kalın giysiler giymen gerekir. Kamp ateşleri ve sıcak yemekler seni ısıtır.`}</p>
-      <h3>${Tr`Yaşlanma`}</h3><p>${Tr`18 yaşında başlarsın. Zaman geçtikçe yaşlanırsın; 30'lardan sonra dayanıklılığın, 50'lerden sonra sağlığın azalır. Hedefin <b>80 yaşına kadar hayatta kalmak.</b>`}</p>
-      <h3>${Tr`Para Kazanma`}</h3><p>${Tr`Avlan ve postları kasapta sat. Bitki topla. Madende, kerestecide, limanda ya da çiftliklerde <b>çalış</b>. Nehirde altın ele. Ödül ilanlarını takip et. Ya da… kanunun yanlış tarafında yaşa.`}</p>
-      <h3>${Tr`İşletmeler`}</h3><p>${Tr`Dükkân sahiplerinin bir kısmı dükkânını satar: tezgâhta ya da ilçe binasında satın al. İşletmeci işi yürütür, gelir kasada birikir. Çoğu işletme mal tüketir: toptancıdan, değirmenden ya da imalathaneden sandık alıp omzunda, atınla ya da ahırdan alacağın yük arabasıyla getir; ya da ahırdan bir nakliyeci tut, bu işi o yapsın. Boş arsalara yeni işletme kurabilirsin. Günlüğün İşlerim sekmesi hepsini gösterir.`}</p>
-      <h3>${Tr`Kanun`}</h3><p>${Tr`Görülürsen suçların başına ödül koydurur. Kanun adamlarının arama alanından (haritadaki kırmızı daire) kaç ve görünmeden bekle. Ödülünü şerif ofisinde ödeyebilirsin. Ödülün kalırsa kasaba dışında ödül avcıları peşine düşer: teslim olabilir, parayla kurtulabilir ya da çatışabilirsin.`}</p>
-      <h3>${Tr`Başarımlar`}</h3><p>${Tr`Başarımlar sana kalıcı kazanımlar (perk) sağlar. Günlüğün Başarımlar sekmesine bak.`}</p>
-      <h3>${Tr`Kontroller`}</h3>${this.controlsTable()}
-    </div>`;
-  },
+  guideHtml() { return Handbook.html(); },
   controlsTable() {
     const B = Input.binds;
     const rows = GAME_ACTIONS.map(g => [g.n, g.kbOnly ? Tr('Sol Analog') : Input.padGlyph(B.pad[g.id]), (B.kb[g.id] || []).filter(Boolean).map(c => Input.kbGlyph(c)).join(' ') || '—']);
@@ -1979,7 +2043,7 @@ const UI = {
       Audio_.shot('pistol', 1);
       G.parts.add('flash', P.x + Math.cos(P.ang) * 8, P.y + Math.sin(P.ang) * 8, 0, 0, 0.08, 5);
       if (win) { e.hurt(999, 'duel'); G.earn(bet, Tr('Düello')); G.addHonor(1); G.skillXp('shooting', 15); G.stat('duels', 1); draw(msg, Tr('KAZANDIN')); }
-      else { P.hurt(55, 'haydut'); if (G.state === 'play') { e.state = 'idle'; e.eventType = null; e.path = null; e.home = { x: e.x + 200, y: e.y, r: 50 }; } draw(msg, Tr('VURULDUN')); }
+      else { P.hurt(55, 'duello', false, e, e.weapon || 'cattleman'); if (G.state === 'play') { e.state = 'idle'; e.eventType = null; e.path = null; e.home = { x: e.x + 200, y: e.y, r: 50 }; } draw(msg, Tr('VURULDUN')); }
       setTimeout(() => { if (m.alive) this.pop(m); }, 2200);
     };
     m.update = (dt) => {
@@ -2623,10 +2687,36 @@ const UI = {
   },
 
   /* ================= ÖLÜM & MİRAS ================= */
+  /* Ölüm ekranı: sebep ve öldüren (adı, silahı, isabet), yer ve zaman, son iki dakikanın hasar dökümü ("Son anlar"),
+     doktorun kurtarmasının bedeli (Tek Hayat'ta kaydın silindiği) ve sebebe göre kısa bir öğüt */
+  deathDetails() {
+    const D = G.deathInfo && G.deathInfo.cause === G.deathCause ? G.deathInfo : null, hard = G.difficulty === 'hard';
+    if (!D) return '';
+    const g = (n, c = '#c9a45c') => Icons.glyph(n, c);
+    const wn = D.weapon && WEAPONS[D.weapon] ? WEAPONS[D.weapon].n : '';
+    const killer = D.who ? `<div class="ds-k">${Tr`Öldüren: <b>${escapeHtml(D.who)}</b>`}${wn ? ' · ' + wn : ''}${D.hits > 1 ? ' · ' + Tr('{0} isabet', D.hits) : ''}</div>` : '';
+    const where = `<div class="ds-w">${g('pin', '#bcb09a')}${escapeHtml(D.place)}${D.near ? ' · ' + Tr`en yakın kasaba ${D.near.n}, ${fmtDist(D.near.d)} ${D.near.dir}` : ''} &nbsp; ${g('hourglass', '#bcb09a')}${D.time} · ${D.date}</div>`;
+    // son anlar: eskiden yeniye; çubuk o satırın can kaybını en büyüğüne göre gösterir
+    const cont = { zehir: 1, hunger: 1, thirst: 1, cold: 1, heat: 1, tired: 1, sick: 1 };
+    const top = Math.max(1, ...D.log.map(e => e.sum));
+    const rows = D.log.map(e => {
+      const sub = [e.who ? escapeHtml(e.who) : '', e.weapon && WEAPONS[e.weapon] ? WEAPONS[e.weapon].n : '', cont[e.src] ? Tr`${fmtSec(Math.max(1, e.dur))} boyunca` : e.n > 1 ? Tr('{0} isabet', e.n) : ''].filter(Boolean).join(' · ');
+      return `<div class="dl-r${e.kill ? ' kill' : ''}"><span class="dl-v">−${Math.max(1, Math.round(e.sum))}</span><span class="dl-l">${G.hurtLabel(e.src)}${sub ? `<small>${sub}</small>` : ''}</span><span class="dl-t">${e.kill ? Tr('ölümcül') : e.ago < 1 ? Tr('az önce') : Tr`${fmtSec(e.ago)} önce`}</span><span class="dl-bar"><i style="width:${Math.round(e.sum / top * 100)}%"></i></span></div>`;
+    }).join('') || `<div class="dl-none">${Tr('Kayıtlı bir hasar yok.')}</div>`;
+    const cost = hard ? `<div class="ds-hard">${Tr('Bu hayat burada biter; kaydı silindi.')}</div>`
+      : [`${g('coin')}${D.money >= 0.01 ? Tr`Cebindeki paranın dörtte biri: <b>−${fmtMoney(D.money * 0.25)}</b>` : Tr('Cebinde para yok; para kaybetmezsin')}`,
+        `${g('bank')}${D.bank > 0 ? Tr`Bankadaki ${fmtMoney(D.bank)} güvende` : Tr('Bankadaki para ölünce kaybolmaz')}`,
+        `${g('heart')}${D.scars < 30 ? Tr('Kalıcı iz: en yüksek can −3') : Tr('Kalıcı izlerin en üst düzeyde')}`,
+        G.law.level > 0 ? `${g('star')}${Tr('Aranman sona erer; başındaki ödül kalır')}` : '',
+        `${g('bed')}${Tr('18 saat sonra %60 canla uyanırsın; zehir ve hastalık geçer')}`].filter(Boolean).map(l => `<div>${l}</div>`).join('');
+    const tip = G.deathTip(D.src);
+    return `${killer}${where}<div class="ds-grid"><div class="ds-box"><h4>${Tr('SON ANLAR')}</h4>${rows}</div><div class="ds-box ds-cost"><h4>${hard ? Tr('TEK HAYAT') : Tr('DOKTOR SENİ KURTARIRSA')}</h4>${cost}</div></div>`
+      + (tip ? `<div class="ds-tip">${g('question', '#e8c070')}${tip}</div>` : '');
+  },
   showDeath() {
     const el = el_('div', 'modal deathscreen');
-    const hard = G.difficulty === 'hard';
-    el.innerHTML = `<div class="ds-inner"><div class="ds-t">${Tr`ÖLDÜN`}</div><div class="ds-rule"></div><div class="ds-c">${Tr`Ölüm sebebi: ${G.deathCause}`}</div><div class="ds-a">${Tr`${G.player.name}, ${G.age} yaşında`}</div>
+    const hard = G.difficulty === 'hard', det = this.deathDetails();
+    el.innerHTML = `<div class="ds-inner${det ? ' full' : ''}"><div class="ds-t">${Tr`ÖLDÜN`}</div><div class="ds-rule"></div><div class="ds-c">${Tr`Ölüm sebebi: ${G.deathCause}`}</div>${det}<div class="ds-a">${Tr`${G.player.name}, ${G.age} yaşında`}</div>
       <div class="ds-items"><div class="p-item nav pref" id="ds-cont">${hard ? Tr('Hayatının Özeti') : Tr('Devam Et (Doktor)')}</div>${!hard ? `<div class="p-item nav" id="ds-legacy">${Tr`Bu Hayatı Bitir`}</div>` : ''}<div class="p-item nav" id="ds-menu">${Tr`Ana Menü`}</div></div></div>`;
     document.body.classList.add('dying');
     const m = this.makeModal(el, { onBack: () => {}, onClose: () => document.body.classList.remove('dying') });

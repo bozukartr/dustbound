@@ -7,7 +7,10 @@ module.exports = {
     const p = await t.newGame();
     const setup = () => p.evaluate(() => {
       UI.closeAll(); const P = G.player, tw = TH.town('harlow');
-      for (let k = 0; k < 80; k++) { P.x = tw.cx + 1600 + k * 23; P.y = tw.cy + 200; if (!G.world.blocked(P.x, P.y, 8) && G.los(P.x, P.y, P.x + 200, P.y)) break; }
+      // tanık doğuya, 420 px ötedeki kanun adamına düz koşar: yolun tamamı açık olmalı (rastgele dünyada aradaki bir kaya
+      // ya da ağaç tanığı takar, rapor ancak süre dolunca gider)
+      const clear = (x, y) => { for (let d = 0; d <= 440; d += 4) if (G.world.blocked(x + d, y, 6)) return false; return true; };
+      for (let k = 0; k < 160; k++) { P.x = tw.cx + 1600 + (k % 80) * 23; P.y = tw.cy + 200 + (k >= 80 ? 120 : 0); if (!G.world.blocked(P.x, P.y, 8) && G.los(P.x, P.y, P.x + 200, P.y) && clear(P.x, P.y)) break; }
       if (P.riding) P.dismount();
       TH.clearNpcs(); G.reports.length = 0; P.money = 100; P.hp = P.maxHp;
       Object.assign(G.law, { level: 0, bounty: 0, maskBounty: 0, masked: false, desc: null, unseen: 0, resist: false, arrestT: 0, fleeT: 0, warned: false });

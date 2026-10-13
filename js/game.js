@@ -51,6 +51,7 @@ const G = {
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null; this.hideout = null;
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
+    this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -550,6 +551,7 @@ const G = {
       if (P.de <= 0 || !P.aiming) { P.de = Math.max(0, P.de); P.deadeye = false; Audio_.tone(300, 0.3, 'sine', 0.08, null, 0, 150); }
     } else P.de = Math.min(100, P.de + dt * (0.6 + P.deCore / 60));
     if (P.poison > 0) { P.poison -= dt; P.hurt(dt * 1.6, 'zehir', true); }
+    P.poisonFx(dt);
     P.hp = Math.min(P.hp, P.maxHp);
     this.lawUpdate(dt);
     this.storyTick(dt);
@@ -624,7 +626,10 @@ const G = {
     // dead eye
     if (I.pressed('deadeye')) {
       if (P.deadeye) { P.deadeye = false; }
-      else if (P.aiming && P.isArmed && P.de > 12) { P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60); }
+      else if (P.aiming && P.isArmed && P.de > 12) {
+        P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60);
+        this.hintOnce('deadeye', Tr`Odak zamanı yavaşlatır. Çubuk bitince ya da nişanı bırakınca kapanır; ${I.glyph('deadeye')} ile erken kapatabilirsin.`, 7);
+      }
       else if (!P.aiming && I.device === 'pad' && !this.binds_zoom()) this.quickZoom(0);   // kolda nişan almadan R3: piksel ölçeğini değiştir
       else if (!P.aiming) UI.feed(Tr('Odak için önce nişan al.'), 'warn');
     }
@@ -648,11 +653,23 @@ const G = {
     P.weapon = list[i]; P.reloadT = 0; P.draw_ = 0;
     Audio_.tone(700, 0.04, 'square', 0.04);
   },
+  /* Bir ipucunu yalnızca bir kez göster; true: gösterildi. İpucunun el kitabında bir konusu varsa o konu "yeni"
+     diye işaretlenir ve ipucu oraya yönlendirir. */
   hintOnce(key, html, dur = 8) {
     this.hints = this.hints || {};
-    if (this.hints[key]) return;
+    if (this.hints[key]) return false;
     this.hints[key] = 1;
+    const tp = Handbook.HINT_TOPIC[key];
+    if (tp && this.guideFlag(tp)) html += `<span class="hl-more">${Tr`Ayrıntılar: ${Input.glyph('journal')} Günlük → Rehber`}</span>`;
     UI.help(html, dur);
+    return true;
+  },
+  /* El kitabında bir konuyu "yeni" diye işaretle (her konu bir kez); true: şimdi işaretlendi */
+  guideFlag(topic) {
+    this.hints = this.hints || {};
+    if (this.hints['g:' + topic]) return false;
+    this.hints['g:' + topic] = 1; this.hints['new:' + topic] = 1;
+    return true;
   },
   hintTick() {
     const P = this.player, g = k => Input.glyph(k);
@@ -667,15 +684,21 @@ const G = {
     else if (!this.world.townAt(P.x, P.y, 60) && this.hour >= 17) this.hintOnce('camp', P.has('bedroll') ? Tr`Akşam oluyor. Kasabadan uzaktaysan ${g('camp')} tuşunu basılı tutarak kamp kurabilirsin.` : Tr`Vahşi doğada kamp kurmak için bir <b>Uyku Tulumu</b> gerekir (genel mağazada $8). Sonra ${g('camp')} tuşunu basılı tut.`, 10);
     else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', Tr`Su kenarındasın. ${g('interact')} ile su iç; basılı tutarak matara doldurma, yıkanma ve balık tutma seçeneklerine ulaş.`);
   },
-  quickUse() {
+  /* Hızlı kullanımda ne kullanılacağı (tehlike kartı da gösterir): zehirliyken önce panzehir, sonra can, su,
+     yiyecek, dayanıklılık. 'canteen': matara */
+  quickPick() {
     const P = this.player;
-    if (P.hp < P.maxHp * 0.8) {
-      for (const id of ['health_cure', 'herbal_tonic', 'bandage', 'cooked_big', 'cooked_game', 'cooked_fish', 'stew']) if (P.has(id)) { this.consume(id); return; }
-    }
-    if (P.thirst < 70 && P.canteen > 0) { this.drinkCanteen(); return; }
-    if (P.hunger < 70) for (const id of ['cooked_game', 'cooked_big', 'beans', 'bread', 'jerky', 'cooked_fish', 'cooked_bird', 'peaches', 'apple', 'corn', 'berries']) if (P.has(id)) { this.consume(id); return; }
-    if (P.sta < P.maxSta * 0.4) for (const id of ['stamina_tonic', 'chocolate', 'ginseng']) if (P.has(id)) { this.consume(id); return; }
-    UI.feed(Tr('Hızlı kullanılacak bir şey yok.'), 'warn');
+    if (P.poison > 0) for (const id of ['antidote', 'snake_oil']) if (P.has(id)) return id;
+    if (P.hp < P.maxHp * 0.8) for (const id of ['health_cure', 'herbal_tonic', 'bandage', 'cooked_big', 'cooked_game', 'cooked_fish', 'stew']) if (P.has(id)) return id;
+    if (P.thirst < 70 && P.canteen > 0) return 'canteen';
+    if (P.hunger < 70) for (const id of ['cooked_game', 'cooked_big', 'beans', 'bread', 'jerky', 'cooked_fish', 'cooked_bird', 'peaches', 'apple', 'corn', 'berries']) if (P.has(id)) return id;
+    if (P.sta < P.maxSta * 0.4) for (const id of ['stamina_tonic', 'chocolate', 'ginseng']) if (P.has(id)) return id;
+    return null;
+  },
+  quickUse() {
+    const id = this.quickPick();
+    if (!id) { UI.feed(Tr('Hızlı kullanılacak bir şey yok.'), 'warn'); return; }
+    if (id === 'canteen') this.drinkCanteen(); else this.consume(id);
   },
   /* Ortam canlıları: kuş sürüleri, çalı topları, ateşböcekleri */
   ambientLife(dt) {
@@ -1210,8 +1233,8 @@ const G = {
     this.scars = Math.min(30, (this.scars || 0) + 3);
     P.x = doc.door.x; P.y = doc.door.y + 10;
     if (P.riding) P.dismount();
-    P.hp = P.maxHp * 0.6; P.hunger = Math.max(P.hunger, 50); P.thirst = Math.max(P.thirst, 50); P.energy = Math.max(P.energy, 60); P.poison = 0; P.sick = 0;
-    P.deadeye = false;
+    P.hp = P.maxHp * 0.6; P.hunger = Math.max(P.hunger, 50); P.thirst = Math.max(P.thirst, 50); P.energy = Math.max(P.energy, 60); P.poison = 0; P.sick = 0; P.retchT = 0;
+    P.deadeye = false; this.dmgLog = [];
     this.law.level = 0;
     for (const e of this.ents) if (e.kind === 'npc' && (e.hostile || e.role === 'bandit')) e.remove = true;
     for (const e of this.ents) if (e.kind === 'animal' && e.state === 'attack') e.remove = true;
@@ -1219,7 +1242,8 @@ const G = {
     this.cam.x = P.x; this.cam.y = P.y;
     this.state = 'play';
     Audio_.playMusic('explore');
-    UI.help(Tr`${t.n} doktoru seni ölümün kıyısından döndürdü. <b>${fmtMoney(lost)}</b> kaybettin ve vücudunda kalıcı izler kaldı (maks. sağlık -3).`, 9);
+    const msg = Tr`${t.n} doktoru seni ölümün kıyısından döndürdü. <b>${fmtMoney(lost)}</b> kaybettin ve vücudunda kalıcı izler kaldı (maks. sağlık -3).`;
+    if (!this.hintOnce('death', msg, 9)) UI.help(msg, 9);
     this.saveGame(true);
   },
 };

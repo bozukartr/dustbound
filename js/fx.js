@@ -34,7 +34,7 @@ const FX = {
   wind: { a: 0.3, s: 0.25, x: 0.25, y: 0, gust: 0, gustT: 5, gustTo: 0 },
   tracks: [], snowTracks: [], prints: new Map(), smoke: [], leaves: [], ripples: [], srcs: [], movers: [], scratches: [],
   cloudOff: { x: 0, y: 0 },
-  g: { gold: 0, blue: 0, desert: 0, rain: 0, cold: 0, swamp: 0, hurt: 0, drunk: 0, frost: 0, de: 0 },
+  g: { gold: 0, blue: 0, desert: 0, rain: 0, cold: 0, swamp: 0, hurt: 0, drunk: 0, frost: 0, poison: 0, de: 0 },
   temp: 20, tempT: 0, hb: 0, dub: false, grainT: 0, grainI: 0, drunkCss: false,
 
   get full() { return !G.settings.fxq; },
@@ -65,6 +65,7 @@ const FX = {
     };
     this.vigRed = vig('rgba(120,0,0,0)', 'rgba(110,4,0,0.95)', 0.42);
     this.vigDark = vig('rgba(20,10,0,0)', 'rgba(20,10,0,0.9)', 0.35);
+    this.vigGreen = vig('rgba(70,96,12,0)', 'rgba(58,84,8,0.92)', 0.4);
     // film greni
     this.grain = [];
     for (let k = 0; k < 4; k++) {
@@ -495,10 +496,11 @@ const FX = {
       hurt: G.state === 'play' || G.state === 'dead' ? clamp((0.42 - P.hp / P.maxHp) / 0.3, 0, 1) : 0,
       drunk: clamp((P.drunk - 22) / 55, 0, 1),
       frost: G.insideB ? 0 : clamp(G.coldness * 1.4 - 0.1, 0, 1),
+      poison: G.state === 'play' && P.poison > 0 ? clamp(0.6 + (1 - P.hp / P.maxHp) * 0.5, 0, 1) : 0,   // can azaldıkça koyulaşır
       de: P.deadeye ? 1 : 0,
     };
     if (G.state === 'dead') tg.hurt = 1;
-    const rate = { gold: 0.5, blue: 0.5, desert: 0.7, rain: 0.5, cold: 0.6, swamp: 0.6, hurt: 1.6, drunk: 0.8, frost: 0.35, de: 6 };
+    const rate = { gold: 0.5, blue: 0.5, desert: 0.7, rain: 0.5, cold: 0.6, swamp: 0.6, hurt: 1.6, drunk: 0.8, frost: 0.35, poison: 0.7, de: 6 };
     if (!this.gradeInit) { this.gradeInit = true; for (const k in tg) g[k] = tg[k]; }
     else for (const k in tg) g[k] += (tg[k] - g[k]) * Math.min(1, dt * rate[k]);
 
@@ -523,6 +525,15 @@ const FX = {
       this.tint(ctx, 'soft-light', '#b8d4ff', g.frost * 0.25);
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = g.frost * 0.9;
       ctx.drawImage(this.frost(vw, vh), 0, 0);
+    }
+    // --- zehir: hastalıklı yeşil renk, bulantı dalgasıyla kabarıp sönen yeşil kenar, hafif çift görme; öğürürken kenar kararır
+    if (g.poison > 0.02) {
+      const k = g.poison, t = G.t, wave = 0.5 + 0.5 * Math.sin(t * 1.6), rk = P.retchT > 0 ? Math.sin((1 - P.retchT / Player.RETCH) * Math.PI) : 0;
+      this.tint(ctx, 'soft-light', '#8fae3a', k * 0.34);
+      this.tint(ctx, 'saturation', '#808080', k * 0.16);
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = Math.min(1, k * (0.42 + wave * 0.3 + rk * 0.4));
+      ctx.drawImage(this.vigGreen, 0, 0, vw, vh);
+      if (this.full) { ctx.globalAlpha = k * (0.1 + rk * 0.14); ctx.drawImage(G.canvas, Math.sin(t * 1.1) * 1.6 * k, Math.cos(t * 0.8) * 1.1 * k, G.vw, G.vh); }   // düşük kalitede tam ekran kopya yok
     }
     // --- düşük sağlık: renk çekilir, kalp atışıyla nabız gibi atan kırmızı kenar
     if (g.hurt > 0.02) {
