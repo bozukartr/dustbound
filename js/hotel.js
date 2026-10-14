@@ -2,7 +2,7 @@
 /* ==========================================================
    FRONTIER'S END — otel: iki kat ve oda kiralama (G nesnesine eklenir)
    - Zemin kat lobidir: girişin karşısında ortada resepsiyon, iki arka köşede üst kata
-     merdiven, önde oturma köşeleri.
+     merdiven, önde oturma köşeleri. Merdivenden yürüyerek çıkılır ve inilir.
    - Üst katta dört oda vardır. Bazıları o gece başka konuklarla doludur; boş odalar da
      kilitlidir, yalnızca resepsiyondan kiralanan odanın kapısı açılır. Otel oyuncunun
      işletmesiyse oda ücretsizdir. Uyumak için üst kata çıkılır, odadaki yatakta uyunur.
@@ -46,20 +46,33 @@ const HotelSystems = {
     this.hotelRent = { b: b.id, room: k, until: this.clock + 24 * 60 };
     if (cost) Audio_.ui('cash');
     UI.feed(own ? Tr`🔑 Kendi otelin: ${k + 1} numaralı oda senin, ücret yok.` : free ? Tr`🔑 ${k + 1} numaralı oda senin.` : Tr`🔑 ${k + 1} numaralı odayı kiraladın (${fmtMoney(cost)}). Kapısı yalnızca sana açık.`);
-    this.hintOnce('hotel', Tr`Odan üst katta. Merdivene yaklaş ve ${Input.glyph('interact')} ile çık; odadaki yatakta uyuyabilirsin. Kira bir gün sürer.`, 8);
+    this.hintOnce('hotel', Tr('Odan üst katta: merdivenden yürüyerek çık, odadaki yatakta uyuyabilirsin. Kira bir gün sürer.'), 8);
     this.qEvent('rent', b);
     return true;
   },
-  /* Merdiven: kısa bir kararmayla öbür kata geçilir; oyuncu merdivenin dibindeki karoya iner (iki katta aynı yer) */
-  hotelStairs(b, i) {
+  /* Merdiven: merdivenin şeridinde kuzey ucuna kadar yürüyünce öbür kata geçilir (zemin katta merdiveni çıkarsın, üst
+     katta merdiven boşluğundan inersin). Aranırken ya da omzunda yükle yukarı çıkılmaz: bir adım geri itilirsin. */
+  hotelStairsTick() {
+    const P = this.player, b = this.insideB;
+    if (!isHotel2(b) || P.riding || UI.state === 'fade') return;
+    const lx = (P.x - b.x * TS) / TS, ly = (P.y - b.y * TS) / TS;
+    if ((lx >= 2 && lx < b.w - 2) || ly < 1 || ly >= 1.65) return;   // merdiven şeridinin kuzey ucunda değil
+    const up = b.floor !== 1;
+    if (up && (this.law.level > 0 || P.carry)) {
+      P.y = (b.y + 2) * TS + 8; P.vx = P.vy = 0;
+      if (!(this.t < this._stairWarnT)) { UI.feed(this.law.level > 0 ? Tr('"Kanun peşindeyken yukarı çıkamazsın!" diye bağırıyor resepsiyondaki.') : Tr('Omzunda yükle merdiveni çıkamazsın.'), 'warn'); this._stairWarnT = this.t + 3; }
+      return;
+    }
+    this.hotelStairs(b, up ? 1 : 0);
+  },
+  /* Kısa bir kararmayla öbür kata geç: öbür katta merdivenin güney ucunda, merdivenden çıkış yönüne (güneye) bakarak
+     durursun. Basılı tutulan yön seni merdivene geri sokmasın diye tuş bırakılana kadar kuzeye yürünmez (stairLatch). */
+  hotelStairs(b, lv) {
     const P = this.player;
-    if (P.riding || P.carry) { UI.feed(Tr('Bu hâlde merdivenden çıkamazsın.'), 'warn'); return; }
-    const lv = b.floor === 1 ? 0 : 1, L = HOTEL_UP.land[(i % WW) - b.x < b.w / 2 ? 0 : 1];
-    // aranırken odalara saklanılmaz (inmek her zaman serbest)
-    if (lv && this.law.level > 0) { UI.feed(Tr('"Kanun peşindeyken yukarı çıkamazsın!" diye bağırıyor resepsiyondaki.'), 'warn'); return; }
     UI.fade(() => {
       this.setFloor(b, lv);
-      P.x = (b.x + L[0]) * TS + 8; P.y = (b.y + L[1]) * TS + 8; P.ang = Math.PI / 2; P.mv = 0;
+      P.y = (b.y + 3) * TS + 8; P.vx = P.vy = 0; P.ang = Math.PI / 2; P.mv = 0;
+      this.stairLatch = true;
       this.cam.x = P.x; this.cam.y = P.y;
       Audio_.step(0.4, true);
     }, '', true);

@@ -1,13 +1,21 @@
 'use strict';
-/* İki katlı otel: lobi düzeni (ortada resepsiyon, iki yanda merdiven, oturma köşeleri), merdivenle kat değişimi,
-   üst katta dört oda (dolu ve boş odalar kilitli), resepsiyondan oda kiralama, kiralanan odanın kapısından geçip
-   yatakta uyuma, üst katta kayıt ve yükleme, otel sahibine ücretsiz oda, alt kattakilerin gizlenmesi, iki çizici */
+/* İki katlı otel: lobi düzeni (ortada resepsiyon, iki yanda merdiven, oturma köşeleri), merdivenden yürüyerek kat
+   değişimi (gerçek tuşlarla), üst katta dört oda (dolu ve boş odalar kilitli), resepsiyondan oda kiralama, kiralanan
+   odanın kapısından geçip yatakta uyuma, üst katta kayıt ve yükleme, otel sahibine ücretsiz oda, alt kattakilerin
+   gizlenmesi, iki çizici */
 module.exports = {
   name: 'Otel',
   timeout: 300000,
   async run(t) {
     const p = await t.newGame();
     const fade = () => t.sleep(900);   // merdivenin kısa kararması
+    /* Gerçek tuşla yürü: kat değişip kararma bitene kadar tuş basılı kalır (en çok 5 sn); tuşu bırakmak çağırana kalır */
+    const walkUntilFloor = async (key) => {
+      const f0 = await p.evaluate(() => HB.floor || 0);
+      await p.keyboard.down(key);
+      for (let k = 0; k < 50; k++) { await t.sleep(100); if (await p.evaluate((f0) => (HB.floor || 0) !== f0 && UI.state !== 'fade', f0)) return true; }
+      return false;
+    };
     await p.evaluate(() => {
       UI.closeAll();
       G.godMode = true;
@@ -15,6 +23,9 @@ module.exports = {
       window.HB = G.world.buildings.find(x => x.type === 'hotel' && x.town === 'harlow');
       window.HT = {
         idx: (lx, ly) => (HB.y + ly) * WW + HB.x + lx,
+        /* merdiven şeritlerinin ortası (yerel piksel x; sol, sağ) ve merdivenin dibi (şeridin güneyindeki karo) */
+        lane: [18.5, 141.5],
+        foot(side) { TH.goto(HB.x * TS + HT.lane[side], (HB.y + 4) * TS + 8); },
         /* karonun ortasına git (lx, ly yerel karo) */
         at(lx, ly) { TH.goto((HB.x + lx) * TS + 8, (HB.y + ly) * TS + 8); },
         objs(o) { let n = 0; for (let ly = 0; ly < HB.h; ly++) for (let lx = 0; lx < HB.w; lx++) if (G.world.obj[HT.idx(lx, ly)] === o) n++; return n; },
@@ -57,38 +68,63 @@ module.exports = {
       t.eq(r.acts[0], 'Resepsiyon', 'tezgâh resepsiyon');
     });
 
-    await t.step('aranırken üst kata çıkılmaz', async () => {
+    await t.step('merdivende yürünür: E istemi yok, korkuluk yandan girişi engeller', async () => {
       const r = await p.evaluate(() => {
-        HT.at(1, 4); G.law.level = 1; TH.feeds.length = 0;
-        TH.act(/Üst Kata Çık/);
-        const out = { feeds: TH.feeds.slice(), fade: UI.state === 'fade' };
-        G.law.level = 0;   // aynı karede geri al: kanun adamı doğmasın
-        return out;
+        HT.foot(0); const foot = TH.actions();
+        TH.goto(HB.x * TS + HT.lane[0], (HB.y + 2) * TS + 8);
+        return { foot, acts: TH.actions(), free: !G.world.blocked(G.player.x, G.player.y, G.player.r) };
       });
-      await t.sleep(400);
-      t.ok(r.feeds.some(f => /Kanun peşindeyken/.test(f)), 'görevli durdurur', r.feeds);
-      t.ok(!r.fade && !(await p.evaluate(() => !!G.upB)), 'kat değişmedi');
+      t.eq(r.foot, [], 'merdivenin dibinde E istemi yok');
+      t.ok(r.free && !r.acts.includes('Merdiven'), 'merdivenin üstünde durulur', r);
+      // lobiden yana doğru yürüyünce korkuluk merdivene girmeyi engeller
+      await p.evaluate(() => TH.goto(HB.x * TS + 42.5, (HB.y + 2) * TS + 8));
+      await p.keyboard.down('KeyA'); await t.sleep(700); await p.keyboard.up('KeyA');
+      const x = await p.evaluate(() => G.player.x - HB.x * TS);
+      t.ok(x > 36, 'korkuluk yandan girişi engeller', x);
     });
 
-    await t.step('merdivenden üst kata çık: dört oda, kapılar kilitli', async () => {
-      const a = await p.evaluate(() => { HT.at(1, 4); return TH.actions(); });
-      t.eq(a, ['Merdiven', 'Üst Kata Çık'], 'merdiven etkileşimi');
-      await p.evaluate(() => TH.act(/Üst Kata Çık/));
-      await fade();
+    await t.step('aranırken ya da omzunda yükle yukarı çıkılmaz: merdivenin ucunda bir adım geri itilirsin', async () => {
+      const r = await p.evaluate(() => {
+        const top = () => TH.goto(HB.x * TS + HT.lane[0], (HB.y + 1) * TS + 8);
+        const st = () => ({ ly: HT.loc()[1], feeds: TH.feeds.slice(), fade: UI.state === 'fade', floor: HB.floor || 0 });
+        G.law.level = 1; TH.feeds.length = 0; top(); G.hotelStairsTick();
+        const wanted = st();
+        G.law.level = 0; G._stairWarnT = 0;   // aynı karede geri al: kanun adamı doğmasın
+        TH.feeds.length = 0; top(); G.player.carry = {}; G.hotelStairsTick(); G.player.carry = null;
+        return { wanted, carry: st() };
+      });
+      await t.sleep(400);
+      t.ok(r.wanted.feeds.some(f => /Kanun peşindeyken/.test(f)), 'aranırken görevli durdurur', r.wanted);
+      t.ok(r.carry.feeds.some(f => /Omzunda yükle/.test(f)), 'omzunda yükle çıkılmaz', r.carry);
+      for (const x of [r.wanted, r.carry]) t.ok(!x.fade && x.floor === 0 && x.ly > 2.4, 'kat değişmedi, geri itildi', x);
+      t.ok(!(await p.evaluate(() => !!G.upB)), 'hâlâ zemin katta');
+    });
+
+    await t.step('merdivenden yürüyerek üst kata çık: dört oda, kapılar kilitli', async () => {
+      await p.evaluate(() => HT.foot(0));
+      const went = await walkUntilFloor('KeyW');
+      const arr = await p.evaluate(() => HT.loc());
+      await t.sleep(1000);   // tuş hâlâ basılı: merdivene geri girilmez
+      const held = await p.evaluate(() => ({ floor: HB.floor, loc: HT.loc() }));
+      await p.keyboard.up('KeyW');
+      t.ok(went, 'merdivenden yürüyünce üst kata çıkılır');
+      t.near(arr[1], 3.5, 0.05, 'üst katta merdivenin güney ucundasın');
+      t.ok(held.floor === 1 && Math.abs(held.loc[1] - arr[1]) < 0.05, 'tuş basılı kalsa da merdivene geri girilmez', held);
+      await p.keyboard.down('KeyS'); await t.sleep(700); await p.keyboard.up('KeyS');
       const r = await p.evaluate(() => ({
         up: G.upB === HB, floor: HB.floor, loc: HT.loc(), rdoor: HT.objs(O.RDOOR), bed: HT.objs(O.BED), down: HT.objs(O.STAIRSD),
         lobby: HT.objs(O.COUNTER) + HT.objs(O.SOFA) + HT.objs(O.STAIRS), open: HB.openRoom, occ: [0, 1, 2, 3].map(k => G.hotelOccupied(HB, k)), acts: TH.actions(), shut: [0, 1, 2, 3].map(k => HT.shut(k)),
         blocked: G.world.blocked(G.player.x, G.player.y, G.player.r),
       }));
       t.ok(r.up && r.floor === 1, 'üst kattayız', r);
-      t.eq(r.loc, [1.5, 4.5], 'merdivenin başındaki karoya çıkıldı');
-      t.ok(!r.blocked, 'çıkılan yer boş');
+      t.ok(r.loc[1] > 3.9, 'merdivenden koridora yürünür', r.loc);
+      t.ok(!r.blocked, 'durulan yer boş');
       t.eq([r.rdoor, r.down], [4, 6], 'dört oda kapısı, iki merdiven boşluğu');
       t.eq(r.bed, 0, 'kira yokken odaların içi boş (eşya yok)');
       t.eq(r.shut, [true, true, true, true], 'bütün odalar kilitli: içleri karanlık örtüyle kapalı');
       t.eq(r.lobby, 0, 'lobinin eşyaları üst katta yok');
       t.eq(r.open, -1, 'kira yokken bütün kapılar kapalı');
-      t.eq(r.acts, ['Merdiven', 'Alt Kata İn'], 'aşağı inen merdiven');
+      t.ok(!r.acts.includes('Merdiven'), 'merdivende E istemi yok', r.acts);
       t.ok(r.occ.some(x => x) && r.occ.some(x => !x), 'bazı odalar dolu, en az biri boş', r.occ);
     });
 
@@ -120,29 +156,35 @@ module.exports = {
     });
 
     await t.step('üst kattayken alt kattakiler görünmez, etkileşilmez ve bekler', async () => {
-      // lobide merdiven başında duran biri; üst katta oyuncu tam onun yerinde
-      await p.evaluate(() => { HT.at(1, 4); TH.act(/Alt Kata İn/); });
-      await fade();
+      // üst katta merdiven boşluğuna yürüyüp aşağı in
+      await p.evaluate(() => HT.foot(0));
+      const went = await walkUntilFloor('KeyW');
+      await p.keyboard.up('KeyW');
+      const arr = await p.evaluate(() => ({ floor: HB.floor, loc: HT.loc() }));
+      t.ok(went && arr.floor === 0, 'merdiven boşluğundan yürüyünce aşağı inilir', arr);
+      t.near(arr.loc[1], 3.5, 0.05, 'zemin katta merdivenin dibindesin');
+      // lobide merdivenin dibinde duran biri; üst katta oyuncu tam onun yerinde
       const r0 = await p.evaluate(() => {
-        const x = (HB.x + 1) * TS + 12, y = (HB.y + 4) * TS + 12;
+        HT.foot(0);
+        const x = G.player.x + 4, y = G.player.y + 4;
         const n = new NPC(x, y, 'clerk', { state: 'static', home: { x, y, r: 6 } }); n.town = HB.town; n.name = 'Lobi Konuğu';
         G.addEnt(n); window.HN = n;
         return { floor: HB.floor, up: !!G.upB, lobby: HT.objs(O.COUNTER), acts: TH.actions() };
       });
       t.eq([r0.floor, r0.up, r0.lobby], [0, false, 4], 'zemin kata inildi, lobi geri geldi');
       t.eq(r0.acts[0], 'Lobi Konuğu', 'aşağıda konuk etkileşilir');
-      await p.evaluate(() => G.hotelStairs(HB, HT.idx(1, 3)));   // konuk istemin önünde: merdiveni doğrudan kullan
+      await p.evaluate(() => G.hotelStairs(HB, 1));
       await fade();
-      const x0 = await p.evaluate(() => [HN.x, HN.y]);
+      const x0 = await p.evaluate(() => { HT.foot(0); return [HN.x, HN.y]; });
       await t.sleep(700);
       const r = await p.evaluate(() => ({ hid: G.floorHid(HN), up: G.upB === HB, acts: TH.actions(), pos: [HN.x, HN.y], d: dist(HN.x, HN.y, G.player.x, G.player.y) }));
       t.ok(r.up && r.hid, 'üst katta konuk gizli', r);
       t.ok(r.d < 10, 'konuk oyuncunun hemen yanında (aşağıda)', r.d);
-      t.eq(r.acts, ['Merdiven', 'Alt Kata İn'], 'gizli konuk etkileşime girmez');
+      t.eq(r.acts, [], 'gizli konuk etkileşime girmez');
       t.eq(r.pos, x0, 'gizli konuk yerinde bekler');
-      await p.evaluate(() => TH.act(/Alt Kata İn/));
+      await p.evaluate(() => G.hotelStairs(HB, 0));
       await fade();
-      t.ok(await p.evaluate(() => !G.floorHid(HN) && TH.actions()[0] === 'Lobi Konuğu'), 'aşağı inince konuk yine görünür');
+      t.ok(await p.evaluate(() => { HT.foot(0); return !G.floorHid(HN) && TH.actions()[0] === 'Lobi Konuğu'; }), 'aşağı inince konuk yine görünür');
       await p.evaluate(() => { HN.remove = true; });
     });
 
@@ -170,11 +212,12 @@ module.exports = {
 
     let room;
     await t.step('üst katta kiralanan odanın kapısı açık: içeri yürünür, yatakta uyunur', async () => {
-      await p.evaluate(() => { UI.closeAll(); HT.at(8, 4); TH.act(/Üst Kata Çık/); });
-      await fade();
+      await p.evaluate(() => { UI.closeAll(); HT.foot(1); });
+      const went = await walkUntilFloor('KeyW');
+      await p.keyboard.up('KeyW');
       const st = await p.evaluate(() => { const k = G.hotelRoom(HB), f = HT.front(k); HT.at(f.lx, f.ly); return { k, f, open: HB.openRoom, loc: HT.loc(), up: G.upB === HB, acts: TH.actions() }; });
       room = st.k;
-      t.ok(st.up, 'sağdaki merdivenden de çıkılır');
+      t.ok(went && st.up, 'sağdaki merdivenden de çıkılır');
       t.eq(st.open, st.k, 'kiralanan odanın kapısı açık');
       const vis = await p.evaluate((k) => ({ beds: HT.objs(O.BED), bedIn: G.world.obj[HT.idx(...HOTEL_UP.rooms[k].bed)] === O.BED, shut: [0, 1, 2, 3].map(q => HT.shut(q)) }), st.k);
       t.ok(vis.beds === 1 && vis.bedIn, 'yalnızca kiralanan odada eşya var', vis);
@@ -251,11 +294,11 @@ module.exports = {
       t.ok(r.feeds.some(f => /Kendi otelin/.test(f)), 'sahibine mesaj', r.feeds);
     });
 
-    await t.step('yatağa duvarın öbür yanından uzanılmaz; merdiven başında merdiven kullanılır', async () => {
+    await t.step('yatağa duvarın öbür yanından uzanılmaz', async () => {
       for (const k of [2, 3]) {   // öndeki odaların yatakları merdiven başının hemen güneyinde, duvarın ardında
         const r = await p.evaluate((k) => {
           G.hotelRent = { b: HB.id, room: k, until: G.clock + 1440 };
-          const [lx, ly] = HOTEL_UP.land[k === 2 ? 0 : 1];
+          const [lx, ly] = k === 2 ? [1, 4] : [8, 4];   // merdivenin dibi
           HT.at(lx, ly); G.setFloor(HB, 1);
           const land = TH.actions();
           const [bx, by] = HT.byBed(k); HT.at(bx, by);
@@ -263,7 +306,7 @@ module.exports = {
           HT.at(lx, ly); G.setFloor(HB, 0);
           return { land, bed };
         }, k);
-        t.eq(r.land, ['Merdiven', 'Alt Kata İn'], `oda ${k + 1}: merdiven başında merdiven`);
+        t.eq(r.land, [], `oda ${k + 1}: merdiven başında duvarın ardındaki yatak çıkmaz`);
         t.eq(r.bed, [`${k + 1} Numaralı Oda`, 'Uyu'], `oda ${k + 1}: odanın içinden yatak`);
       }
     });
@@ -276,14 +319,14 @@ module.exports = {
         t.eq(on, gfx === 0, `çizici ${gfx}: ${gfx ? 'Klasik' : 'Melez'}`);
         await t.sleep(700);
         const f0 = await p.evaluate(() => HY.stat.frames);
-        await p.evaluate(() => TH.act(/Üst Kata Çık/));
+        await p.evaluate(() => G.hotelStairs(HB, 1));
         await fade(); await t.sleep(500);
-        const up = await p.evaluate(() => [G.upB === HB, HB.floor, TH.actions()]);
+        const up = await p.evaluate(() => [G.upB === HB, HB.floor]);
         // parçalar pişene kadar bekle: kilitli odaların ortası karanlık, kiralanan oda aydınlık
         const ok = await p.waitForFunction(() => { const L = [0, 1, 2, 3].map(k => HT.luma(k)); return L[1] > 50 && [0, 2, 3].every(k => L[k] < L[1] * 0.6); }, null, { timeout: 10000 }).then(() => true, () => false);
         const lum = await p.evaluate(() => [0, 1, 2, 3].map(k => HT.luma(k)));
         t.ok(ok, `çizici ${gfx}: kilitli odalar karanlık, kiralanan oda görünür`, lum);
-        await p.evaluate(() => TH.act(/Alt Kata İn/));
+        await p.evaluate(() => G.hotelStairs(HB, 0));
         await fade(); await t.sleep(500);
         const down = await p.evaluate(() => [!G.upB, HB.floor || 0, HY.stat.frames]);
         t.ok(up[0] && up[1] === 1 && down[0] && down[1] === 0, `çizici ${gfx}: çıkılıp inildi`, { up, down });

@@ -52,7 +52,7 @@ const G = {
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
     this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
-    this.upB = null; this.hotelRent = null;   // otelin üst katı (oyuncu oradaysa) ve kiralık oda
+    this.upB = null; this.hotelRent = null; this.stairLatch = false;   // otelin üst katı (oyuncu oradaysa), kiralık oda, merdivenden geçince yön kilidi
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -575,6 +575,7 @@ const G = {
       this.insideB = ib;
     }
     this.floorTick();
+    this.hotelStairsTick();
     // çıkılan binanın kapısı, oyuncu kapıdan uzaklaşana kadar açık kalır
     if (this.exitB && (ib || dist2(P.x, P.y, this.exitB.door.x, this.exitB.door.y) > 30 * 30)) this.exitB = null;
     const T_ = this.timers;

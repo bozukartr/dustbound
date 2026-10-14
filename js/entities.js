@@ -430,7 +430,9 @@ class Player extends Ent {
       this.reloadT -= dt;
       if (this.reloadT <= 0) this.finishReload();
     }
-    const mv = G.uiBlocksMove ? { x: 0, y: 0, m: 0 } : I.moveVec();
+    let mv = G.uiBlocksMove ? { x: 0, y: 0, m: 0 } : I.moveVec();
+    // otel merdiveninden geçince basılı tutulan kuzey yönü bırakılana kadar yürünmez (oyuncu merdivene geri girmesin)
+    if (G.stairLatch) { if (mv.m > 0.1 && mv.y < -0.3 * mv.m) mv = { x: 0, y: 0, m: 0 }; else if (!G.uiBlocksMove) G.stairLatch = false; }
     // nişan
     this.aiming = !G.uiBlocksMove && I.down('aim') && this.weapon !== 'fists' && !this.carry;
     this.updateAim(dt, mv);

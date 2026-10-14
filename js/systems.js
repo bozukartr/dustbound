@@ -877,8 +877,6 @@ const GameSystems = {
       case O.SHELF: case O.RACK: case O.MANNEQUIN:
         return b.def.shop ? { label: Tr('Raflar'), acts: [{ n: Tr('Mallara Bak'), fn: () => (staff || !b.staff ? U.openBuilding(b) : UI.feed(Tr('Satıcı yok.'))) }] } : null;
       case O.WORKBENCH: return b.def.work ? { label: Tr('Tezgah'), acts: svc('work') } : null;
-      case O.STAIRS: return isHotel2(b) ? { label: Tr('Merdiven'), acts: [{ n: Tr('Üst Kata Çık'), fn: () => this.hotelStairs(b, i) }] } : null;
-      case O.STAIRSD: return isHotel2(b) ? { label: Tr('Merdiven'), acts: [{ n: Tr('Alt Kata İn'), fn: () => this.hotelStairs(b, i) }] } : null;
       case O.RDOOR: {
         const k = this.hotelRoomAt(b, i, 'door');
         if (k < 0 || b.openRoom === k) return null;   // açık kapıdan geçilir
