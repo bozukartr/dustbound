@@ -98,7 +98,7 @@ const SOLID_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.SAGUARO, O.BOULDER, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.FENCEH, O.FENCEV, O.CRATE, O.BARREL, O.LAMP, O.WELL, O.TROUGH, O.TENT, O.HAY,
   O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP, O.LOTSIGN,
   O.COUNTER, O.BAR, O.TABLE, O.PIANO, O.CARDTABLE, O.BED, O.STOVE, O.DESK, O.CELL, O.PEW, O.ALTAR, O.SAFE, O.TUB, O.BCHAIR, O.RACK, O.WORKBENCH, O.STALL, O.TICKET,
-  O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN, O.FOUNTAIN, O.HEDGE, O.STATUE, O.STAIRS, O.STAIRSD, O.SOFA].forEach(o => (SOLID_O[o] = 1));   // oda kapısı katı değil: kapalıyken duvar bandı olur (buildingSolid)
+  O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN, O.FOUNTAIN, O.HEDGE, O.STATUE, O.SOFA].forEach(o => (SOLID_O[o] = 1));   // otel merdiveninde yürünür; oda kapısı kapalıyken duvar bandı olur (buildingSolid)
 /* Gövdesi ince olan nesneler: tam kare yerine gövde boyutunda yuvarlak çarpışır (solid = 5) */
 const TRUNK_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.LAMP, O.POLE, O.SIGN, O.SAGUARO].forEach(o => (TRUNK_O[o] = 1));
@@ -123,10 +123,11 @@ const isHerbO = o => o >= 20 && o <= 28;
 /* Otelin üst katı (yerel karo; otel 10x8). Merdiven boşlukları zemin kattaki merdivenlerle aynı sütunlarda (1 ve 8,
    satır 1-3); ortada koridor, arkada iki, önde iki oda. Oda duvarları karo kenarındaki ince bantlardır (wall: karo başına
    çarpışma maskesi: 1 üst, 2 alt, 4 sol, 8 sağ); kapı karosunun bandı yalnızca kapı kapalıyken eklenir (side).
-   area: odanın kapladığı karolar [x0, y0, x1, y1] (yatağa yalnızca odanın içinden uzanılır). */
+   area: odanın kapladığı karolar [x0, y0, x1, y1] (yatağa yalnızca odanın içinden uzanılır).
+   Merdivenlerde yürünür: iki katta da merdivenin şeridi yan duvarla korkuluk arasıdır (sol merdivende karo 0'ın duvar
+   dışı ve karo 1, sağda karo 8 ve karo 9'un duvar dışı) ve şeride yalnızca güney ucundan girilir (G.hotelStairsTick). */
 const HOTEL_UP = {
   stairs: [1, 8],
-  land: [[1, 4], [8, 4]],   // merdivenden çıkınca ya da inince durulan karo (iki katta aynı)
   rooms: [
     { door: [3, 2], side: 2, bed: [2, 1], chair: [4, 1], area: [2, 1, 4, 2] },
     { door: [6, 2], side: 2, bed: [7, 1], chair: [5, 1], area: [5, 1, 7, 2] },
@@ -1705,7 +1706,7 @@ class World {
       if (lx === 0) m |= 4;
       if (lx === b.w - 1) m |= 8;
       if (ly === b.h - 1) m |= 2;
-      if (h2 && ly >= 1 && ly <= 3) { if (lx === 0) m |= 8; if (lx === b.w - 1) m |= 4; }   // merdivenle yan duvar arası (iki katta da)
+      if (h2 && ly >= 1 && ly <= 3) { if (lx === 2) m |= 4; if (lx === b.w - 3) m |= 8; }   // merdiven korkuluğu: merdivene yalnızca güney ucundan girilir (iki katta da)
       if (up) m |= up[ly * b.w + lx];
       this.solid[i] = m ? 16 | m : 0;
     }
