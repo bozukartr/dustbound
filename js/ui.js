@@ -145,6 +145,9 @@ const UI = {
     const render = () => {
       const items = spec.build ? spec.build(m) : spec.items;
       m.items = items;
+      // görev rehberi: görevi ilerleten seçenek parlar; menü (ve sekme) onun üstünde açılır (pref)
+      const goals = items.map(it => !it.header && !it.html && !it.disabled && typeof G.qGoal === 'function' && G.qGoal(it));
+      const g0 = goals.indexOf(true);
       const prevI = m.focusEl ? +m.focusEl.dataset.i : (spec.focus || 0);
       // cüzdan: sağ üstte büyük; para değişince kısa bir parlama
       let wl = '';
@@ -155,17 +158,18 @@ const UI = {
       }
       const sub = spec.sub ? (typeof spec.sub === 'function' ? spec.sub(m) : spec.sub) : '';
       let h = `<div class="p-head${wl ? ' has-wallet' : ''}">${wl}<div class="p-title">${spec.title}</div>${sub ? `<div class="p-sub">${sub}</div>` : ''}</div>`;
-      if (spec.tabs) h += `<div class="p-tabs">${Input.glyph('tabL')}${spec.tabs.map((t, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${t}</span>`).join('')}${Input.glyph('tabR')}</div>`;
+      if (spec.tabs) h += `<div class="p-tabs">${Input.glyph('tabL')}${spec.tabs.map((t, i) => `<span class="tab ${i === m.tab ? 'on' : ''}${i !== m.tab && spec.tabGoal && spec.tabGoal(i) ? ' q-goal' : ''}" data-tab="${i}">${t}</span>`).join('')}${Input.glyph('tabR')}</div>`;
       h += `<div class="p-body"><div class="p-list scroll">`;
+      if (g0 >= 0) h += `<div class="p-quest">${G.questBanner()}</div>`;
       items.forEach((it, i) => {
         if (it.header) { h += `<div class="p-hdr">${it.header}</div>`; return; }
         if (it.html) { h += `<div class="p-html">${it.html}</div>`; return; }
-        h += `<div class="p-item nav ${it.disabled ? 'dis' : ''} ${it.cls || ''}" data-i="${i}">${it.icon ? `<span class="pi-ic">${Icons.iconize(it.icon)}</span>` : ''}<span class="pi-l">${Icons.iconize(it.label)}</span>${it.right !== undefined ? `<span class="pi-r">${Icons.iconize(String(it.right))}</span>` : ''}</div>`;
+        h += `<div class="p-item nav ${it.disabled ? 'dis' : ''} ${it.cls || ''}${goals[i] ? ' q-goal' : ''}${i === g0 ? ' pref' : ''}" data-i="${i}">${it.icon ? `<span class="pi-ic">${Icons.iconize(it.icon)}</span>` : ''}<span class="pi-l">${Icons.iconize(it.label)}</span>${it.right !== undefined ? `<span class="pi-r">${Icons.iconize(String(it.right))}</span>` : ''}</div>`;
       });
       if (!items.some(it => !it.header && !it.html)) h += `<div class="p-empty">${spec.empty || Tr('Burada bir şey yok.')}</div>`;
       h += `</div>`;
       if (spec.side) h += `<div class="p-side"></div>`;
-      h += `</div><div class="p-foot">${spec.footer ? spec.footer(m) : this.footer(spec)}</div>`;
+      h += `</div><div class="p-foot">${spec.footer ? spec.footer(m) : this.footer(spec, items[prevI])}</div>`;
       el.innerHTML = h;
       $$('.p-item', el).forEach(n => {
         n.onclick = () => { m.setFocus(n, true); act(+n.dataset.i); };
@@ -190,7 +194,12 @@ const UI = {
     m = this.makeModal(el, {
       onBack: spec.onBack, onClose: spec.onClose, onAlt: spec.onAlt ? (mm) => { const i = mm.focusEl ? +mm.focusEl.dataset.i : -1; spec.onAlt(m.items[i], m); if (m.alive) render(); } : null,
       onTab: spec.tabs ? (d) => { m.tab = (m.tab + d + spec.tabs.length) % spec.tabs.length; m.focusEl = null; render(); m.focusFirst(); Audio_.ui('move'); } : null,
-      onFocus: (n) => { if (spec.side) { const it = m.items[+n.dataset.i]; $('.p-side', el).innerHTML = it ? spec.side(it, m) : ''; } },
+      onFocus: (n) => {
+        const it = m.items[+n.dataset.i];
+        if (spec.side) $('.p-side', el).innerHTML = it ? spec.side(it, m) : '';
+        // onay tuşunun adı seçili öğeye göre değişebilir (çantada Ye / Giy / Kullan)
+        if (typeof spec.okLabel === 'function' && !spec.footer) { const f = $('.p-foot', el); if (f) f.innerHTML = this.footer(spec, it); }
+      },
     });
     m.tab = spec.tab || 0;
     m.render = render;
@@ -198,8 +207,9 @@ const UI = {
     this.push(m);
     return m;
   },
-  footer(spec) {
-    let s = Tr`${Input.glyph('confirm')} ${spec.okLabel || Tr('Seç')} &nbsp; ${Input.glyph('back')} Geri`;
+  footer(spec, it) {
+    const ok = typeof spec.okLabel === 'function' ? spec.okLabel(it) : spec.okLabel;
+    let s = Tr`${Input.glyph('confirm')} ${ok || Tr('Seç')} &nbsp; ${Input.glyph('back')} Geri`;
     if (spec.altLabel) s += ` &nbsp; ${Input.glyph('alt')} ${spec.altLabel}`;
     if (spec.tabs) s += Tr` &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme`;
     return s;
@@ -579,10 +589,13 @@ const UI = {
     if (shown) {
       const a0 = shown.actions[0];
       const hasMenu = shown.actions.length > 1 && !a0.hold;
+      // görev rehberi: görevi ilerleten eylem işaretlenir; seçeneklerin içindeyse adı istemde yazar
+      if (shown._qgT === undefined || G.t - shown._qgT > 0.25) { shown._qgT = G.t; shown._qg = G.qPromptGoal(shown); shown._qa = !!shown.alt && G.qPromptGoal({ x: shown.x, y: shown.y, actions: [shown.alt] }) === 0; }
+      const gi = shown._qg;
       lines.push(`<div class="prompt-title">${shown.label}</div>`);
-      lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
-      if (hasMenu) lines.push(`<div class="prompt dim">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`}</span></div>`);
-      if (shown.alt) lines.push(`<div class="prompt">${I.glyph('reload')}<span>${shown.alt.n}</span></div>`);
+      lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}${gi === 0 ? ' q-goal' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
+      if (hasMenu) lines.push(gi > 0 ? `<div class="prompt q-goal">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`} → <b>${shown.actions[gi].n}</b></span></div>` : `<div class="prompt dim">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`}</span></div>`);
+      if (shown.alt) lines.push(`<div class="prompt${shown._qa ? ' q-goal' : ''}">${I.glyph('reload')}<span>${shown.alt.n}</span></div>`);
     }
     // nişan almayı henüz öğrenmediyse, ateşli silah elindeyken istemlerde hatırlatılır
     if (P.W.clip && !P.aiming && !P.deadeye && !P.carry && !this.coachLearned('aim')) lines.push(`<div class="prompt dim">${I.glyph('aim')}<span>${Tr`Nişan Al <em>(basılı tut)</em>`}</span></div>`);
@@ -595,7 +608,7 @@ const UI = {
   contextMenu(it) {
     this.menu({
       title: it.label, cls: 'context', items: it.actions.map(a => ({
-        label: a.n, fn: () => {
+        label: a.n, qe: a.qe, qn: a.qn, fn: () => {
           this.pop();
           if (a.hold) { this.fade(() => a.fn(), ''); } else a.fn();
         },
@@ -1299,16 +1312,28 @@ const UI = {
     const tabs = [Tr('Yiyecek'), Tr('İlaç & Bitki'), Tr('Av & Değerli'), Tr('Alet & Giysi'), Tr('Silahlar')];
     const cats = [['food'], ['med', 'herb'], ['animal', 'valuable', 'collect'], ['tool', 'horse', 'doc', 'clothing', 'ammo'], []];
     const m = this.menu({
-      title: Tr('Çanta'), cls: 'satchel', tabs, side: (it) => it.sideHtml || '', altLabel: Tr('Bir Tane At'), okLabel: Tr('Kullan'),
+      title: Tr('Çanta'), cls: 'satchel', tabs, side: (it) => it.sideHtml || '', altLabel: Tr('Bir Tane At'),
+      // onay tuşunun adı seçili eşyaya göre: yiyecekte Ye/İç, giyside Giy/Çıkar, silahta Kuşan
+      okLabel: (it) => {
+        const I = it && it.id && ITEMS[it.id], e = (I && I.e) || {};
+        if (it && it.weapon) return Tr('Kuşan');
+        if (it && it.canteen) return Tr('İç');
+        if (!I) return Tr('Kullan');
+        if (I.c === 'food') return (e.thirst > 0 && !e.hunger) || e.drunk ? Tr('İç') : Tr('Ye');
+        if (I.c === 'clothing') return it.worn ? Tr('Çıkar') : I.mask || I.hat ? Tr('Tak') : Tr('Giy');
+        return Tr('Kullan');
+      },
+      // görevi ilerleten eşyanın bulunduğu sekme işaretlenir
+      tabGoal: (i) => Object.keys(P.inv).some(id => P.count(id) > 0 && cats[i].includes(ITEMS[id].c) && G.qGoal({ label: ITEMS[id].n, qe: ITEMS[id].c === 'food' ? ['eat', id] : null })),
       sub: () => Tr`${fmtMoney(P.money)} • Matara: ${P.canteen}/5 • ${G.age} yaş`,
       build: (m) => {
         const items = [];
-        if (m.tab === 0 && P.has('canteen')) items.push({ icon: Icons.item('canteen'), label: Tr('Matara'), right: `${P.canteen}/5`, fn: () => G.drinkCanteen(), sideHtml: this.itemSide(ITEMS.canteen, Tr`Susuzluk +32`) });
+        if (m.tab === 0 && P.has('canteen')) items.push({ icon: Icons.item('canteen'), label: Tr('Matara'), right: `${P.canteen}/5`, canteen: true, fn: () => G.drinkCanteen(), sideHtml: this.itemSide(ITEMS.canteen, Tr`Susuzluk +32`) });
         if (m.tab === 4) {
           for (const w of P.weapons) {
             const W = WEAPONS[w];
             if (w === 'dynamite') continue;
-            items.push({ icon: Icons.weapon(w), label: W.n + (P.weapon === w ? Tr(' <em>(elinde)</em>') : ''), right: W.clip ? `${P.clip[w] || 0} / ${P.ammo[W.ammo]}` : '', fn: () => { P.weapon = w; this.feed(Tr`${W.n} kuşanıldı`); }, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.lasso ? Tr('Yakala, bağla, taşı. Aranan suçluları canlı teslim et.') : W.melee ? Tr('Yakın dövüş') : Tr('Hasar ') + W.dmg + (W.pellets ? 'x' + W.pellets : '') + Tr(' • Menzil ') + W.range + Tr(' • Şarjör ') + (W.clip || '-')}</div>` });
+            items.push({ icon: Icons.weapon(w), weapon: w, label: W.n + (P.weapon === w ? Tr(' <em>(elinde)</em>') : ''), right: W.clip ? `${P.clip[w] || 0} / ${P.ammo[W.ammo]}` : '', fn: () => { P.weapon = w; this.feed(Tr`${W.n} kuşanıldı`); }, sideHtml: `<div class="ps-big">${Icons.weapon(w, 'ic wpn big')}</div><div class="ps-t">${W.n}</div><div class="ps-d">${W.lasso ? Tr('Yakala, bağla, taşı. Aranan suçluları canlı teslim et.') : W.melee ? Tr('Yakın dövüş') : Tr('Hasar ') + W.dmg + (W.pellets ? 'x' + W.pellets : '') + Tr(' • Menzil ') + W.range + Tr(' • Şarjör ') + (W.clip || '-')}</div>` });
           }
           items.push({ header: Tr('Mühimmat') });
           for (const a in AMMO) items.push({ icon: Icons.glyph('ammo', '#d9c8a4'), label: AMMO[a].n, right: `${P.ammo[a]} / ${AMMO[a].max}`, disabled: true });
@@ -1318,7 +1343,7 @@ const UI = {
         for (const id of ids) {
           const it = ITEMS[id];
           const worn = (P.coat === id) || (it.hat && P.look.hat === it.hat) || (it.mask && P.masked && P.mask === id);
-          items.push({ id, icon: Icons.item(id), label: it.n + (worn ? Tr(' <em>(giyili)</em>') : ''), right: 'x' + P.inv[id], fn: () => { G.consume(id); }, sideHtml: this.itemSide(it) });
+          items.push({ id, worn, qe: it.c === 'food' ? ['eat', id] : null, icon: Icons.item(id), label: it.n + (worn ? Tr(' <em>(giyili)</em>') : ''), right: 'x' + P.inv[id], fn: () => { G.consume(id); }, sideHtml: this.itemSide(it) });
         }
         return items;
       },
@@ -1899,17 +1924,17 @@ const UI = {
     const d = b.def, P = G.player, it = [];
     switch (s) {
       case 'shop': {
-        it.push({ icon: '🛒', label: Tr('Alışveriş'), fn: () => this.openShop(d.shop, b.name) });
+        it.push({ icon: '🛒', label: Tr('Alışveriş'), qn: ['buy', 'sell', 'drink'], fn: () => this.openShop(d.shop, b.name) });
         const L = G.sellables(d.shop);
-        if (L.length) it.push({ icon: '🦌', label: Tr`Getirdiğin Avı Sat (${L.length})`, right: fmtMoney(L.reduce((a, c) => a + G.loadValue(c.e, d.shop), 0)), fn: () => { G.sellCarried(d.shop); this.pop(); } });
+        if (L.length) it.push({ icon: '🦌', qe: ['sell', { carried: L.length }], label: Tr`Getirdiğin Avı Sat (${L.length})`, right: fmtMoney(L.reduce((a, c) => a + G.loadValue(c.e, d.shop), 0)), fn: () => { G.sellCarried(d.shop); this.pop(); } });
         break;
       }
-      case 'meal': it.push({ icon: '🍲', label: Tr('Sıcak Yemek Ye'), right: fmtMoney(0.5 * G.priceMul(true)), fn: () => { if (G.spend(0.5 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); G.qEvent('eat', 'meal'); } } });
-        it.push({ icon: '🥃', label: Tr('Bir Viski İç'), right: fmtMoney(0.2), fn: () => { if (G.spend(0.2)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); G.qEvent('drink', 'whiskey'); } } }); break;
+      case 'meal': it.push({ icon: '🍲', qe: ['eat', 'meal'], label: Tr('Sıcak Yemek Ye'), right: fmtMoney(0.5 * G.priceMul(true)), fn: () => { if (G.spend(0.5 * G.priceMul(true))) { P.hunger = Math.min(100, P.hunger + 60); P.thirst = Math.min(100, P.thirst + 25); P.hp = Math.min(P.maxHp, P.hp + 20); P.warmBuff = 120; G.stat('eaten', 1); this.feed(Tr('🍲 Doyasıya yedin.')); G.advanceClock(20); G.qEvent('eat', 'meal'); } } });
+        it.push({ icon: '🥃', qe: ['drink', 'whiskey'], label: Tr('Bir Viski İç'), right: fmtMoney(0.2), fn: () => { if (G.spend(0.2)) { P.addItem('whiskey', 1, true); G.consume('whiskey'); G.qEvent('drink', 'whiskey'); } } }); break;
       case 'poker': it.push({ icon: '♠', label: Tr('Poker Oyna'), fn: () => this.openPoker(b) }); break;
       case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
       case 'arm': it.push({ icon: '💪', label: Tr('Bilek Güreşi (25¢ bahis)'), fn: () => this.openArmWrestle() }); break;
-      case 'rumor': it.push({ icon: '👂', label: Tr('Söylenti Dinle'), right: fmtMoney(SVC.rumor), fn: () => this.rumor() }); break;
+      case 'rumor': it.push({ icon: '👂', qe: ['rumor'], label: Tr('Söylenti Dinle'), right: fmtMoney(SVC.rumor), fn: () => this.rumor() }); break;
       case 'rob': if (!G.bizOf(b)) it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) }); break;
       case 'news': it.push({ icon: '📰', label: Tr('Gazete Oku'), right: fmtMoney(0.1), fn: () => this.readNews() }); break;
       case 'room': {
@@ -1930,13 +1955,13 @@ const UI = {
         // omuzda ya da kapıdaki atın eyerinde getirilen suçlular
         for (const c of G.carriedAll()) if (c.e.kind === 'npc' && G.wantedValue(c.e)) it.push({ icon: '⚖', label: Tr`Teslim Et: ${c.e.name} ${c.e.dead ? Tr('(ölü)') : Tr('(canlı)')}`, right: fmtMoney(G.wantedValue(c.e)), fn: () => { G.deliverToSheriff(c); this.pop(); } });
         break;
-      case 'board': it.push({ icon: '📜', label: Tr('Ödül İlanları'), fn: () => { this.openBountyBoard(); G.qEvent('board'); } }); break;
-      case 'horses': it.push({ icon: '🐴', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) });
+      case 'board': it.push({ icon: '📜', qe: ['board'], label: Tr('Ödül İlanları'), fn: () => { this.openBountyBoard(); G.qEvent('board'); } }); break;
+      case 'horses': it.push({ icon: '🐴', qn: 'horse', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) });
         if (!G.myWagon) it.push({ icon: '📦', label: Tr('Yük Arabası Satın Al'), right: fmtMoney(WAGON_PRICE * G.priceMul(true)), fn: () => { G.buyWagon(b); this.pop(); } });
         else it.push({ icon: '📦', label: Tr('Arabanı Buraya Getirt'), right: fmtMoney(SVC.fetchWagon), fn: () => G.fetchWagon(b) });
         break;
       case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: Tr`${G.horse.name}'i Tımar Ettir`, right: fmtMoney(SVC.horsecare), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed(Tr('Atın burada değil.'), 'warn'); return; } if (G.spend(SVC.horsecare)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(Tr`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
-      case 'bank': it.push({ icon: '🏦', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
+      case 'bank': it.push({ icon: '🏦', qn: 'deposit', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
       case 'robbank': it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
       case 'train': it.push({ icon: '🚂', label: Tr('Tren Bileti Al'), fn: () => this.openTrain(b) }); break;
       case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); it.push({ icon: '📦', label: G.haulers.length ? Tr`Nakliyeciler (${G.haulers.length}/${HAUL_MAX})` : Tr('Nakliyeci Tut'), fn: () => this.openHaulers(b) }); break;
@@ -1947,7 +1972,7 @@ const UI = {
         for (const h of G.homes.filter(x => !x.legal)) it.push({ icon: '⚖', label: Tr`Tapuya Bağla: ${G.homeName(h)}${h.sealed ? Tr(' (mühürlü)') : h.notice ? Tr(' (ihbarlı)') : ''}`, right: fmtMoney(G.homeLegalPrice(h)), fn: () => { if (G.homeLegalize(h)) this.pop(); } });
         break;
       case 'barber': it.push({ icon: '💈', label: Tr('Tıraş Ol / Saç Kestir'), right: fmtMoney(SVC.barber), fn: () => this.openBarber() }); break;
-      case 'work': it.push({ icon: '⚒', label: JOBS[d.work].n, fn: () => this.openWork(d.work, b.name) }); break;
+      case 'work': it.push({ icon: '⚒', qn: 'work', label: JOBS[d.work].n, fn: () => this.openWork(d.work, b.name) }); break;
     }
     return it;
   },
@@ -1972,7 +1997,7 @@ const UI = {
             items.push({ header: Tr('Mühimmat') });
             for (const a of S.ammo) {
               const A = AMMO[a], pr = A.p * G.priceMul(true);
-              items.push({ icon: Icons.glyph('ammo', '#d9c8a4'), label: `${A.n} (x${A.box})`, right: `${fmtMoney(pr)} <small>[${P.ammo[a]}]</small>`, disabled: P.ammo[a] >= A.max, why: Tr('Taşıyabileceğin en fazla mühimmat bu.'), sideHtml: `<div class="ps-t">${A.n}</div><div class="ps-d">${Tr`Kutu başına ${A.box} adet. Taşıma sınırı: ${A.max}`}</div>`, fn: () => { if (G.spend(pr)) { P.ammo[a] = Math.min(A.max, P.ammo[a] + A.box); Audio_.ui('cash'); G.qEvent('buy', { id: 'ammo_' + a, ammo: a, shop: shopId }); } } });
+              items.push({ qe: ['buy', { id: 'ammo_' + a, ammo: a, shop: shopId }], icon: Icons.glyph('ammo', '#d9c8a4'), label: `${A.n} (x${A.box})`, right: `${fmtMoney(pr)} <small>[${P.ammo[a]}]</small>`, disabled: P.ammo[a] >= A.max, why: Tr('Taşıyabileceğin en fazla mühimmat bu.'), sideHtml: `<div class="ps-t">${A.n}</div><div class="ps-d">${Tr`Kutu başına ${A.box} adet. Taşıma sınırı: ${A.max}`}</div>`, fn: () => { if (G.spend(pr)) { P.ammo[a] = Math.min(A.max, P.ammo[a] + A.box); Audio_.ui('cash'); G.qEvent('buy', { id: 'ammo_' + a, ammo: a, shop: shopId }); } } });
             }
           }
           if (S.sell && S.sell.length) {
@@ -1983,7 +2008,7 @@ const UI = {
               if (id === 'treasure_map' && (G.treasure || P.has('treasure_map'))) continue;
               const pr = (id === 'treasure_map' ? 50 : it.p) * G.priceMul(true) * regional;
               const full = P.count(id) >= it.max;
-              items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, disabled: full, why: Tr('Daha fazla taşıyamazsın.'), sideHtml: this.itemSide(it), fn: () => { if (G.spend(pr)) { P.addItem(id, 1, true); if (id === 'treasure_map') G.makeTreasure(); if (it.autoUse) G.consume(id); Audio_.ui('cash'); G.qEvent('buy', { id, shop: shopId }); if (shopId === 'saloon' && (id === 'beer' || id === 'whiskey' || id === 'sarsaparilla')) G.qEvent('drink', id); } } });
+              items.push({ qe: ['buy', { id, shop: shopId }], icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, disabled: full, why: Tr('Daha fazla taşıyamazsın.'), sideHtml: this.itemSide(it), fn: () => { if (G.spend(pr)) { P.addItem(id, 1, true); if (id === 'treasure_map') G.makeTreasure(); if (it.autoUse) G.consume(id); Audio_.ui('cash'); G.qEvent('buy', { id, shop: shopId }); if (shopId === 'saloon' && (id === 'beer' || id === 'whiskey' || id === 'sarsaparilla')) G.qEvent('drink', id); } } });
             }
           }
         } else {
@@ -1994,14 +2019,14 @@ const UI = {
             const cats = new Set(ids.map(id => ITEMS[id].c));
             if (cats.has('animal')) {
               const tA = ids.filter(id => ITEMS[id].c === 'animal').reduce((s, id) => s + G.sellPrice(id, shopId) * P.count(id), 0);
-              items.push({ icon: '💰', label: Tr('Tüm Av Ürünlerini Sat'), right: fmtMoney(tA), fn: () => { for (const id of ids) if (ITEMS[id].c === 'animal') { const n = P.count(id); P.removeItem(id, n); } G.earn(tA, Tr('Satış')); G.qEvent('sell', { all: 1 }); } });
+              items.push({ qe: ['sell', { all: 1 }], icon: '💰', label: Tr('Tüm Av Ürünlerini Sat'), right: fmtMoney(tA), fn: () => { for (const id of ids) if (ITEMS[id].c === 'animal') { const n = P.count(id); P.removeItem(id, n); } G.earn(tA, Tr('Satış')); G.qEvent('sell', { all: 1 }); } });
             }
             void tot;
           }
           for (const id of ids) {
             const it = ITEMS[id], pr = G.sellPrice(id, shopId);
             const worn = P.coat === id || (P.masked && P.mask === id);
-            items.push({ icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, sideHtml: this.itemSide(it), disabled: worn, why: Tr('Üzerindeki giysiyi satamazsın.'), fn: () => { P.removeItem(id, 1); G.earn(pr, ''); G.skillXp('trade', 1 + pr * 0.1); G.qEvent('sell', { id }); } });
+            items.push({ qe: ['sell', { id }], icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, sideHtml: this.itemSide(it), disabled: worn, why: Tr('Üzerindeki giysiyi satamazsın.'), fn: () => { P.removeItem(id, 1); G.earn(pr, ''); G.skillXp('trade', 1 + pr * 0.1); G.qEvent('sell', { id }); } });
           }
         }
         return items;
@@ -2095,7 +2120,8 @@ const UI = {
     const opts = [[2, Tr('2 Saat Kestir')], [4, Tr('4 Saat Uyu')], [8, Tr('8 Saat Uyu')], [Math.round(untilMorning), Tr`Sabaha Kadar (${Math.round(untilMorning)} saat)`]];
     this.menu({
       title: where === 'hotel' ? Tr('Otel Odası') : where === 'home' ? Tr('Evin') : Tr('Kamp'), cls: 'small', sub: Tr`Uyku: ${Math.round(P.energy)}/100 • ${G.timeStr()}`,
-      items: opts.map(([h, n]) => ({ label: n, fn: () => { if (cost && !G.spend(cost)) return; this.closeAll(); G.sleep(h, where); } })).concat([{ label: Tr('Vazgeç'), fn: () => this.pop() }]),
+      // uyku görevi "sabaha kadar" ister: o seçenek parlar
+      items: opts.map(([h, n], k) => ({ label: n, qe: k === opts.length - 1 ? ['sleep', where] : ['nap'], fn: () => { if (cost && !G.spend(cost)) return; this.closeAll(); G.sleep(h, where); } })).concat([{ label: Tr('Vazgeç'), fn: () => this.pop() }]),
     });
   },
   openWait() {
@@ -2108,7 +2134,7 @@ const UI = {
       title: J.n, sub: place, cls: 'small',
       items: [
         { html: `<p>${J.desc}</p><p>${Tr`<b>Süre:</b> ${J.hours} saat<br><b>Ücret:</b> ${fmtMoney(J.pay[0] * mul)} – ${fmtMoney(J.pay[1] * mul)}<br><b>Yorgunluk:</b> -${J.energy} uyku, -${J.hunger} açlık, -${J.thirst} susuzluk`}</p><p class="dim">${Tr`Çalışma saatleri 06:00 – 18:00`}</p>` },
-        { label: Tr('Çalış'), fn: () => { if (G.work(jobId, place)) this.closeAll(); } },
+        { label: Tr('Çalış'), qe: ['work', jobId], fn: () => { if (G.work(jobId, place)) this.closeAll(); } },
         { label: Tr('Vazgeç'), fn: () => this.pop() },
       ],
     });
@@ -2118,8 +2144,8 @@ const UI = {
     this.menu({
       title: Tr('Kamp'), cls: 'small', sub: () => Tr`Ateşin başında ısınıyorsun • ${G.timeStr()}`,
       items: [
-        { icon: '🛏', label: Tr('Uyu'), fn: () => this.openSleep('camp') },
-        { icon: '🍖', label: Tr('Pişir ve Üret'), fn: () => this.openCook() },
+        { icon: '🛏', label: Tr('Uyu'), qn: 'sleep', fn: () => this.openSleep('camp') },
+        { icon: '🍖', label: Tr('Pişir ve Üret'), qn: 'cook', fn: () => this.openCook() },
         { icon: '⏳', label: Tr('Ateş Başında Bekle'), fn: () => this.openWait() },
         ...(P.has('harmonica') ? [{ icon: '🎵', label: Tr('Mızıka Çal'), fn: () => { const d = Audio_.harmonica(); P.deCore = Math.min(100, P.deCore + 15); P.energy = Math.min(100, P.energy + 3); G.advanceClock(15); this.feed(Tr('🎵 Ateşin başında hüzünlü bir ezgi çaldın.')); } }] : []),
         { icon: '💾', label: Tr('Oyunu Kaydet'), fn: () => G.saveGame() },
@@ -2141,7 +2167,7 @@ const UI = {
     this.menu({
       title: Tr('Pişir ve Üret'), cls: 'shop', side: (it) => it.sideHtml || '',
       build: () => RECIPES.map(R => ({
-        icon: R.out ? Icons.item(Object.keys(R.out)[0]) : Icons.weapon('bow'), label: R.n, right: can(R) ? '✔' : '', disabled: !can(R), why: Tr('Gerekli malzemeler eksik.'),
+        qe: ['cook', R.id], icon: R.out ? Icons.item(Object.keys(R.out)[0]) : Icons.weapon('bow'), label: R.n, right: can(R) ? '✔' : '', disabled: !can(R), why: Tr('Gerekli malzemeler eksik.'),
         sideHtml: `<div class="ps-t">${R.n}</div><div class="ps-d">${Tr`Gerekenler:<br>${Object.keys(R.need).map(k => `${Icons.item(k, 'ic inl')} ${R.anyFish && k === 'raw_fish' ? Tr('Herhangi bir balık') : ITEMS[k].n} x${R.need[k]} <small>[${R.anyFish && k === 'raw_fish' ? fishIds.reduce((s, f) => s + P.count(f), 0) + P.count('raw_fish') : P.count(k)}]</small>`).join('<br>')}`}</div>`,
         fn: () => {
           for (const k in R.need) {
@@ -2243,8 +2269,8 @@ const UI = {
       title: Tr('Banka'), wallet: true, sub: () => Tr`Hesap: <b>${fmtMoney(G.bank)}</b><br><small>Bankadaki para ölünce kaybolmaz ve yıllık %2 faiz kazanır.</small>`, cls: 'small',
       build: () => {
         const it = [];
-        for (const v of [1, 10, 50]) it.push({ label: Tr`${fmtMoney(v)} Yatır`, disabled: P.money < v, fn: () => { P.money -= v; G.bank += v; G.qEvent('deposit', v); } });
-        it.push({ label: Tr('Tümünü Yatır'), disabled: P.money < 0.01, fn: () => { G.qEvent('deposit', P.money); G.bank += P.money; P.money = 0; } });
+        for (const v of [1, 10, 50]) it.push({ label: Tr`${fmtMoney(v)} Yatır`, qe: ['deposit', v], disabled: P.money < v, fn: () => { P.money -= v; G.bank += v; G.qEvent('deposit', v); } });
+        it.push({ label: Tr('Tümünü Yatır'), qe: ['deposit', P.money], disabled: P.money < 0.01, fn: () => { G.qEvent('deposit', P.money); G.bank += P.money; P.money = 0; } });
         for (const v of [1, 10, 50]) it.push({ label: Tr`${fmtMoney(v)} Çek`, disabled: G.bank < v, fn: () => { G.bank -= v; P.money += v; } });
         it.push({ label: Tr('Tümünü Çek'), disabled: G.bank < 0.01, fn: () => { P.money += G.bank; G.bank = 0; } });
         return it;

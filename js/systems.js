@@ -888,7 +888,7 @@ const GameSystems = {
     const P = this.player, U = UI;
     const svc = (...ids) => {
       const acts = [];
-      for (const id of ids) if (b.def.svc.includes(id)) for (const it of U.svcItems(b, id)) acts.push({ n: it.label + (it.right ? ` (${it.right})` : ''), fn: () => { if (P.masked && b.type !== 'fence' && !/rob/.test(id)) { UI.feed(Tr('"Maskeni çıkar, yoksa sana hizmet etmem."'), 'warn'); return; } it.fn(); } });
+      for (const id of ids) if (b.def.svc.includes(id)) for (const it of U.svcItems(b, id)) acts.push({ n: it.label + (it.right ? ` (${it.right})` : ''), qe: it.qe, qn: it.qn, fn: () => { if (P.masked && b.type !== 'fence' && !/rob/.test(id)) { UI.feed(Tr('"Maskeni çıkar, yoksa sana hizmet etmem."'), 'warn'); return; } it.fn(); } });
       return acts;
     };
     const staff = b.staffNpc && !b.staffNpc.dead && !b.staffNpc.remove ? b.staffNpc : null;

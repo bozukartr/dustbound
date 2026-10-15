@@ -198,7 +198,7 @@ STORIES.rail = {
             return [['S', Tr('Fena değil. Traversi düz koyuyorsun, çiviyi eğmiyorsun. Çoğu ilk gün ikisini de beceremez.')], ['S', Tr('Al, güveç. Mick yapmadı, korkma. Ye bakalım.')]];
           } },
         { t: () => Tr('Kampta karnını doyur'), ev: 'eat',
-          hint: () => Tr`${Input.glyph('satchel')} Çanta'dan güveci seç ya da ${Input.glyph('quick')} ile atıştır.`,
+          hint: () => Tr`${Input.glyph('satchel')} ile <b>Çanta</b>'yı aç, <b>Yiyecek</b> sekmesinde güveci seç ve ${Input.glyph('confirm')} ile <b>Ye</b>. Kısa yol: ${Input.glyph('quick')} çantayı açmadan bir şeyler yer.`,
           after: () => [['S', Tr('Yarın erken kalk. Rayın ilerisine kaya düşmüş; tren geçmeden temizlemeliyiz.')]] },
       ],
     },
@@ -221,10 +221,10 @@ STORIES.rail = {
       },
       steps: [
         { t: () => Tr('Raydaki heyelana git'), chk() { const L = this.story.slide, P = this.player; return dist(P.x, P.y, L.x, L.y) < 160; }, at() { return this.story.slide; }, wp: true },
-        { t: () => Tr('Küçük kayaları kazmayla kır'), n: 3, chk() { const S = this.story, n = S.rocks.filter(r => !r.big && r.gone).length; if (n !== S.n) { S.n = n; this.questHud(); } return n >= 3; },
+        { t: () => Tr('Küçük kayaları kazmayla kır'), how: 'pickaxe', n: 3, chk() { const S = this.story, n = S.rocks.filter(r => !r.big && r.gone).length; if (n !== S.n) { S.n = n; this.questHud(); } return n >= 3; },
           at() { const S = this.story, r = S.rocks.find(x => !x.big && !x.gone); return r || S.slide; },
           hint: () => Tr`Kayanın yanında ${Input.glyph('interact')} basılı tut: <b>Kazmayla Kır</b>. Her vuruş seni biraz yorar.` },
-        { t: () => Tr('Büyük kayayı dinamitle patlat'), chk() { return this.story.rocks.some(r => r.big && r.gone); }, at() { const r = this.story.rocks.find(x => x.big); return r; },
+        { t: () => Tr('Büyük kayayı dinamitle patlat'), how: 'dynamite', chk() { return this.story.rocks.some(r => r.big && r.gone); }, at() { const r = this.story.rocks.find(x => x.big); return r; },
           talk: () => [
             ['S', Tr('Dinamit. Dinle beni, çünkü bunu bir kez söyleyeceğim.')],
             ['S', Tr('Fitili yakarsın, atarsın, sonra koşarsın. Sırası önemli. Çoğu adam ikinciyle üçüncüyü karıştırır.')],
@@ -244,7 +244,7 @@ STORIES.rail = {
       talk: () => [['S', Tr('Bilet parası benden. Hale\'e mektubu ver, ağzından çıkanı aklında tut. Yazılı söz yalan söylemez; Hale söyler.')]],
       start(S) { this.earn(Math.max(3, Math.ceil(2 * this.trainPrice(this.sTown(), this.rlDest()))), 'Boone'); },   // gidiş-dönüş bilet parası Boone'dan
       steps: [
-        { t() { return Tr`Trenle ${this.rlDest().n} kasabasına git`; }, chk() { const P = this.player, D = this.rlDest(), t = this.world.townAt(P.x, P.y, 2); return !!(t && t.id === D.id) || !!(D.station && dist(P.x, P.y, D.station.door.x, D.station.door.y) < 300); },   // istasyon kasabanın dışında kalabilir
+        { t() { return Tr`Trenle ${this.rlDest().n} kasabasına git`; }, how: 'train', chk() { const P = this.player, D = this.rlDest(), t = this.world.townAt(P.x, P.y, 2); return !!(t && t.id === D.id) || !!(D.station && dist(P.x, P.y, D.station.door.x, D.station.door.y) < 300); },   // istasyon kasabanın dışında kalabilir
           at() { const t = this.world.townAt(this.player.x, this.player.y, 30), st = t && t.id === this.story.town && this.sBld('station'); return st ? this.sDoor(st, 4) : this.rlDest().spawn; }, wp: true,
           hint: () => Tr`Fort Redstone istasyonunda gişeye git ve <b>Tren Bileti Al</b>. Tren hızlı ve ucuzdur; aranırken seni almazlar.` },
         { t: () => Tr('Hale\'e Boone\'un mektubunu ver'), ev: 'letter', at() { const b = this.world.buildings[this.story.hotel]; return b ? this.sDoor(b, 4) : null; }, wp: true,
@@ -273,7 +273,7 @@ STORIES.rail = {
       },
       steps: [
         { t: () => Tr('Kesim yerine git'), chk() { const C = this.story.cut, P = this.player; return dist(P.x, P.y, C.x, C.y) < 120; }, at() { return this.story.cut; }, wp: true },
-        { t: () => Tr('Travers demetlerini kampa taşı'), n: 2, chk() { const S = this.story, n = this.rlTiesAtCamp(); if (n !== S.n) { S.n = n; this.questHud(); } this.rlTiesRespawn(S); return n >= 2; },
+        { t: () => Tr('Travers demetlerini kampa taşı'), how: 'carry', n: 2, chk() { const S = this.story, n = this.rlTiesAtCamp(); if (n !== S.n) { S.n = n; this.questHud(); } this.rlTiesRespawn(S); return n >= 2; },
           at() { const P = this.player, R = this.story.rc; if (P.carry && P.carry.g === 'ties') return R; const c = this.ents.find(e => e.kind === 'crate' && e.g === 'ties' && !e.remove && dist(e.x, e.y, R.x, R.y) > 110); return c || R; },
           hint: () => Tr`Demetin yanında ${Input.glyph('interact')} ile <b>Omzuna Al</b>, kampa götürüp ${Input.glyph('interact')} ile <b>Yere Bırak</b>. Atın varsa demeti yanında <b>atına yükle</b>.`,
           done() { const R = this.story.rc; for (const e of this.ents) if (e.kind === 'crate' && e.g === 'ties' && dist(e.x, e.y, R.x, R.y) < 120) e.remove = true; this.earn(1, 'Boone'); },
@@ -295,7 +295,7 @@ STORIES.rail = {
       steps: [
         { t: () => Tr('Kazancını bankaya yatır'), ev: 'deposit', at() { const b = this.world.buildings[this.story.bank]; return b ? this.sDoor(b, 4) : null; }, wp: true,
           skip() { return !this.world.buildings[this.story.bank]; },
-          hint: () => Tr`En yakın banka haritada işaretli; trenle gidebilirsin. <b>Banka İşlemleri</b>'nde para yatır: bankadaki para ölünce kaybolmaz ve yıllık faiz getirir.` },
+          hint: () => Tr`En yakın banka haritada işaretli; trenle gidebilirsin. Bankada veznedara ${Input.glyph('interact')} → <b>Banka İşlemleri</b> → <b>Yatır</b>: bankadaki para ölünce kaybolmaz ve yıllık faiz getirir.` },
         { t: () => Tr('Ray kampına dön'), chk() { const R = this.story.rc, P = this.player; return dist(P.x, P.y, R.x, R.y) < 140; }, at() { return this.story.rc; }, wp: true,
           done() { this.story.flags.robbed = 1; } },
       ],
@@ -339,9 +339,9 @@ STORIES.rail = {
         this.earn(Math.ceil((g ? g.p : GOODS.dry.p * 1.5) * 2) + 1, 'Boone');
       },
       steps: [
-        { t: () => Tr('Yük arabasına bin'), chk() { return !!this.myWagon && this.player.riding === this.myWagon; }, at() { return this.myWagon; },
+        { t: () => Tr('Yük arabasına bin'), how: 'wagon', chk() { return !!this.myWagon && this.player.riding === this.myWagon; }, at() { return this.myWagon; },
           hint: () => Tr`Arabanın yanında ${Input.glyph('interact')} ile <b>Arabayı Sür</b>. At gibi sürülür ama dönüşleri geniştir.` },
-        { t: () => Tr('Mağazadan iki sandık erzak al'), n: 2, chk() { const S = this.story, n = Math.min(2, S.flags.dry || 0); if (n !== S.n) { S.n = n; this.questHud(); } return n >= 2; }, at() { return this.sDoor(this.sBld('general'), 4); }, wp: true,
+        { t: () => Tr('Mağazadan iki sandık erzak al'), how: 'wholesale', n: 2, chk() { const S = this.story, n = Math.min(2, S.flags.dry || 0); if (n !== S.n) { S.n = n; this.questHud(); } return n >= 2; }, at() { return this.sDoor(this.sBld('general'), 4); }, wp: true,
           hint: () => Tr`Arabayı mağazanın kapısına sür, in ve tezgâhta <b>Toptan Mal Al</b> → <b>Erzak Sandığı</b>. Araba kapıdayken sandıklar doğrudan arabaya yüklenir.` },
         { t: () => Tr('Erzakı ray kampına götür'), chk() { return this.rlDryAtCamp() >= 2; }, at() { return this.story.rc; }, wp: true,
           hint: () => Tr`Arabayla kampa dön. Yükü kampa getirmen yeter; ekip indirir.`,
@@ -358,12 +358,12 @@ STORIES.rail = {
       ],
       start(S) { S.ti = S.ti || 0; if (!this.player.has('binoculars')) { this.player.addItem('binoculars', 1, true); S.flags.binoc = 1; } },
       steps: [
-        { t: () => Tr('Nal izlerini takip et'), chk() { const S = this.story, P = this.player; const p = S.trail[S.ti]; if (p && dist(P.x, P.y, p.x, p.y) < 80) { S.ti++; Audio_.tone(520, 0.06, 'triangle', 0.04); } if (S.n !== S.ti) { S.n = S.ti; this.questHud(); } return S.ti >= S.trail.length; },
+        { t: () => Tr('Nal izlerini takip et'), how: 'tracks', chk() { const S = this.story, P = this.player; const p = S.trail[S.ti]; if (p && dist(P.x, P.y, p.x, p.y) < 80) { S.ti++; Audio_.tone(520, 0.06, 'triangle', 0.04); } if (S.n !== S.ti) { S.n = S.ti; this.questHud(); } return S.ti >= S.trail.length; },
           n: 6,
           at() { const S = this.story; return S.trail[Math.min(S.ti, S.trail.length - 1)]; }, wp: true,
           hint: () => Tr`Yerdeki nal izlerini izle; her iz bir sonrakini gösterir. İz sürerken ${Input.glyph('crouch')} ile çömelirsen daha az dikkat çekersin.` },
-        { t: () => Tr('Sığınağı dürbünle gözetle'), chk() { const S = this.story, C = this.cam; return !!this.binoc && S.camp.x > C.ox && S.camp.x < C.ox + this.vw && S.camp.y > C.oy && S.camp.y < C.oy + this.vh; }, at() { return this.story.camp; },
-          hint: () => Tr`Fazla yaklaşma. ${Input.glyph('satchel')} Çanta'dan <b>Dürbün</b>'ü kullan ve sığınağa bak.`,
+        { t: () => Tr('Sığınağı dürbünle gözetle'), how: 'binoc', chk() { const S = this.story, C = this.cam; return !!this.binoc && S.camp.x > C.ox && S.camp.x < C.ox + this.vw && S.camp.y > C.oy && S.camp.y < C.oy + this.vh; }, at() { return this.story.camp; },
+          hint: () => Tr`Fazla yaklaşma. ${Input.glyph('satchel')} <b>Çanta</b> → <b>Alet & Giysi</b> sekmesi → <b>Dürbün</b> → ${Input.glyph('confirm')} ile kullan ve sığınağa bak.`,
           after: () => [
             ['P', Tr('Hale. Şirketin maaş memuru, haydutlarla aynı ateşin başında.')],
             ['P', Tr('Önünde bizim sandık. Para sayıyor... ve gülüyor.')],
@@ -387,10 +387,10 @@ STORIES.rail = {
       start(S) { const P = this.player; if (!P.weapons.has('lasso')) { P.giveWeapon('lasso', true); S.flags.lasso = 1; } P.ammo.pistol = Math.max(P.ammo.pistol || 0, 24); },
       talk: (S) => S.flags.lasso ? [['S', Tr('Şu kementi de al. Kazıklarla tren vagonu bağlarım; bir adamı da bağlar.')]] : [],
       steps: [
-        { t: () => Tr('Sığınaktaki haydutları etkisiz hâle getir'), chk() { const S = this.story, P = this.player; if (dist(P.x, P.y, S.camp.x, S.camp.y) > 360) return false; return !this.ents.some(e => e.kind === 'npc' && e.role === 'bandit' && !e.quest && !e.dead && !e.bound && !e.remove && dist(e.x, e.y, S.camp.x, S.camp.y) < 420); },
+        { t: () => Tr('Sığınaktaki haydutları etkisiz hâle getir'), how: 'shoot', chk() { const S = this.story, P = this.player; if (dist(P.x, P.y, S.camp.x, S.camp.y) > 360) return false; return !this.ents.some(e => e.kind === 'npc' && e.role === 'bandit' && !e.quest && !e.dead && !e.bound && !e.remove && dist(e.x, e.y, S.camp.x, S.camp.y) < 420); },
           at() { return this.story.camp; },
           hint: () => Tr`Kayaların ve ağaçların arkasına geç: siperdeyken daha az isabet alırsın. Nişan alırken ${Input.glyph('deadeye')} ile <b>Odak</b>'ı aç; zaman yavaşlar.` },
-        { t: () => Tr('Hale\'i etkisiz hâle getir'), chk() { const j = this.rivalEnt(); return !!(j && (j.dead || j.bound)); }, at() { return this.rivalEnt() || this.story.camp; },
+        { t: () => Tr('Hale\'i etkisiz hâle getir'), how: 'subdue', chk() { const j = this.rivalEnt(); return !!(j && (j.dead || j.bound)); }, at() { return this.rivalEnt() || this.story.camp; },
           hint: () => Tr`Hale'i canlı istiyorsan kementi seç (${Input.glyph('wheel')}), ${Input.glyph('fire')} ile at, sonra yaklaşıp ${Input.glyph('interact')} basılı tutarak bağla.`,
           done() { const j = this.rivalEnt(); this.story.alive = !!(j && !j.dead); } },
         { t: () => Tr('Maaş sandığını al'), ev: 'chest', at() { return this.ents.find(e => e.rlKey === 'chest' && !e.remove) || this.story.camp; },
@@ -406,7 +406,7 @@ STORIES.rail = {
         { t() { return this.story.alive ? Tr('Hale\'i şerife canlı teslim et') : Tr('Hale\'in cesedini şerife götür'); }, ev: 'deliver', ok: (e) => e && e.quest === 'rival',
           at() { const j = this.rivalEnt(), P = this.player; if (j && j !== P.carry && !(this.horse && this.horse.load && this.horse.load.includes(j)) && !(this.myWagon && P.riding === this.myWagon)) return j; return this.sDoor(this.sBld('sheriff'), 4); }, wp: true,
           on(S) { if (S.jack === 'delivered') { const st = this.qStep(); setTimeout(() => { if (this.qStep() === st && !S.wait) this.qDone(); }, 60); } },
-          hint: () => Tr`Hale'i omzuna al (${Input.glyph('interact')}), atın varsa <b>eyere yükle</b> ve Fort Redstone şerif ofisinde teslim et.`,
+          hint: () => Tr`Hale'in yanında ${Input.glyph('interact')} ile <b>Omzuna Al</b>, atının yanında <b>Atına Yükle</b>. Fort Redstone şerif ofisinde şerifin masasına ${Input.glyph('interact')} → <b>Teslim Et</b>.`,
           done() { this.story.jack = 'delivered'; },
           after() {
             return this.story.alive
