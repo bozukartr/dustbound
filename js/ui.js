@@ -466,10 +466,15 @@ const UI = {
     // aranma
     const L = G.law;
     const wz = this.cache.wz || (this.cache.wz = $('#hud-wanted'));
-    const wk = L.level + '|' + Math.round(L.bounty) + '|' + Math.round(L.maskBounty || 0) + L.masked;
+    const tl = G.truce ? Math.max(0, Math.ceil(TRUCE_SEC - G.truce.t)) : -1;
+    const wk = L.level + '|' + Math.round(L.bounty) + '|' + Math.round(L.maskBounty || 0) + L.masked + '|' + tl;
     if (wz._k !== wk) {
       wz._k = wk;
       wz.classList.toggle('hidden', L.level <= 0);
+      // şerif ofisindeki ateşkes: teslim olmak için kalan süre
+      const wtr = $('.wanted-truce', wz);
+      wtr.classList.toggle('hidden', tl < 0);
+      if (tl >= 0) wtr.textContent = Tr('⚖ Ateşkes: teslim olmak için {0} sn', tl);
       $('.wanted-stars', wz).innerHTML = '★'.repeat(L.level) + '<span>' + '★'.repeat(5 - L.level) + '</span>';
       $('.wanted-bounty', wz).innerHTML = L.masked ? Tr('Maskeli yabancı aranıyor') + (L.maskBounty ? ` <span class="mb">${Tr`Ödül: ${fmtMoney(L.maskBounty)}`}</span>` : '') : Tr('Ödül: ') + fmtMoney(L.bounty) + (L.maskBounty ? ` <span class="mb">${Tr`+ maskeli: ${fmtMoney(L.maskBounty)}`}</span>` : '');
       const hb = $('#hud-bounty');
@@ -1918,7 +1923,9 @@ const UI = {
       case 'bath': it.push({ icon: '🛁', label: Tr('Sıcak Banyo'), right: fmtMoney(SVC.bath), fn: () => { if (G.spend(SVC.bath)) { P.clean = 100; P.warmBuff = 60; this.feed(Tr('🛁 Tertemiz oldun. Kokun bile değişti.')); G.advanceClock(30); } } }); break;
       case 'heal': { const c = SVC.heal * (G.hasPerk('saint') ? 0.5 : 1); it.push({ icon: '✚', label: Tr('Tedavi Ol (Sağlık, hastalık, zehir)'), right: fmtMoney(c), fn: () => { if (G.spend(c)) { P.hp = P.maxHp; P.sick = 0; P.poison = 0; this.feed(Tr('✚ Doktor seni muayene edip tedavi etti.')); G.advanceClock(30); } } }); break; }
       case 'bounty':
-        if (G.law.bounty > 0) it.push({ icon: '⚖', label: Tr('Başındaki Ödülü Öde'), right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
+        // aranırken masada teslim olunur (ceza ya da hapis); aranmıyorsan başındaki ödül doğrudan ödenir
+        if (G.law.level > 0 && G.suspect()) it.push({ icon: '⚖', label: Tr('Teslim Ol'), right: fmtMoney(G.law.bounty + (G.law.maskBounty || 0)), fn: () => G.turnIn(b) });
+        else if (G.law.bounty > 0) it.push({ icon: '⚖', label: Tr('Başındaki Ödülü Öde'), right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
         if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: Tr('Ödül Avı Ödülünü Al'), right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, Tr('Ödül avı')); G.addHonor(3); G.activeBounty = null; } });
         // omuzda ya da kapıdaki atın eyerinde getirilen suçlular
         for (const c of G.carriedAll()) if (c.e.kind === 'npc' && G.wantedValue(c.e)) it.push({ icon: '⚖', label: Tr`Teslim Et: ${c.e.name} ${c.e.dead ? Tr('(ölü)') : Tr('(canlı)')}`, right: fmtMoney(G.wantedValue(c.e)), fn: () => { G.deliverToSheriff(c); this.pop(); } });

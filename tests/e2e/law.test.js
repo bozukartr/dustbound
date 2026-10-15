@@ -103,5 +103,124 @@ module.exports = {
       for (const k of [0, 1]) { t.eq(r[k].bumps, k + 1, (k + 1) + '. çarpma sayıldı', r); t.ok(!r[k].assaulted && !r[k].hostile && r[k].hp === r[k].max, (k + 1) + '. çarpma suç değil, hasar yok', r[k]); }
       t.ok(r[2].assaulted && r[2].hp < r[2].max, 'üçüncü çarpma saldırı sayılır', r[2]);
     });
+
+    /* ---- Şerif ofisi: aranan oyuncu ateş yemeden teslim olup cezasını öder ---- */
+    // Harlow şerif ofisinin önüne git, masadaki şerifin gelmesini bekle; kanun adamlarının ateşini say
+    const office = (law) => p.evaluate(async (law) => {
+      UI.closeAll();
+      const P = G.player, b = G.world.buildings.find(x => x.town === 'harlow' && x.type === 'sheriff');
+      if (P.riding) P.dismount();
+      TH.clearNpcs(); G.reports.length = 0; P.money = 100; P.hp = P.maxHp; P.mask = null; P.aiming = false;
+      G.truce = null; G.truceUsed = 0;
+      Object.assign(G.law, { level: 0, bounty: 0, maskBounty: 0, masked: false, desc: null, unseen: 0, resist: false, arrestT: 0, fleeT: 0, warned: false, recog: 0, aimT: 0 });
+      TH.goto(b.door.x, b.door.y + 30);
+      const frame = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      for (let k = 0; k < 150 && !(b.staffNpc && !b.staffNpc.dead && !b.staffNpc.remove); k++) await frame();
+      // aranma durumu şerif yerine geçtikten sonra yazılır (beklerken kimse tanımasın)
+      Object.assign(G.law, law, { lastX: P.x, lastY: P.y, spawnT: 99 });
+      window.ofc = b; window.shots = 0;
+      if (!window.fr0) { window.fr0 = G.fireRay; G.fireRay = function (...a) { if (a[5] && a[5].kind === 'npc' && a[5].isLaw) window.shots++; return window.fr0.apply(this, a); }; }
+      // masanın önünde, etkileşimi şerifin masası olan boş bir karo
+      window.deskSpot = () => {
+        for (let ly = 1; ly < b.h; ly++) for (let lx = 1; lx < b.w - 1; lx++) {
+          const x = (b.x + lx) * TS + 8, y = (b.y + ly) * TS + 8;
+          if (G.world.blocked(x, y, 4) || G.world.buildingAtPx(x, y) !== b) continue;
+          TH.goto(x, y);
+          if (TH.actions()[0] === 'Şerifin Masası') return true;
+        }
+        return false;
+      };
+      return !!b.staffNpc;
+    }, law);
+    await t.step('şerif ofisi: başında ödülle giren tanınmaz, ödülünü masada öder', async () => {
+      t.ok(await office({ bounty: 30 }), 'masada şerif olmalı');
+      // kıyafeti eşkâle uyan, kasabada çoktandır dolaşan biri: ofisin dışında olsa şerif onu hemen tanırdı
+      t.ok(await p.evaluate(() => { G.law.desc = G.outfit(); G.law.recog = 20; return deskSpot(); }), 'masanın önüne gidilmeli');
+      await t.sleep(2500);
+      const r = await p.evaluate(() => ({ lvl: G.law.level, hostile: !!ofc.staffNpc.hostile, acts: TH.actions() }));
+      t.eq(r.lvl, 0, 'ofiste tanınıp aranmamalı'); t.ok(!r.hostile, 'şerif silah çekmemeli');
+      t.ok(r.acts.some(a => /Başındaki Ödülü Öde/.test(a)), 'masada ödül ödenebilmeli', r.acts);
+      const q = await p.evaluate(() => { TH.act(/Başındaki Ödülü Öde/); return { b: G.law.bounty, money: G.player.money }; });
+      t.eq(q.b, 0, 'ödül silinmeli'); t.near(q.money, 70, 0.01, 'ödül paradan düşülmeli');
+    });
+    await t.step('aranırken ofise giren oyuncuya ateşkes: ateş edilmez, teslim olup cezayı öder', async () => {
+      // üç yıldız: normalde kanun gördüğü yerde ateş eder
+      t.ok(await office({ level: 3, bounty: 60 }), 'masada şerif olmalı');
+      await p.evaluate(() => TH.inside(ofc));
+      await t.sleep(4500);
+      const r = await p.evaluate(() => ({ truce: !!G.truce, shots, hp: G.player.hp / G.player.maxHp, moved: dist(ofc.staffNpc.x, ofc.staffNpc.y, ofc.staff.x, ofc.staff.y), hostile: !!ofc.staffNpc.hostile,
+        hud: !document.querySelector('#hud-wanted .wanted-truce').classList.contains('hidden') && document.querySelector('#hud-wanted .wanted-truce').textContent, acts: TH.actions() }));
+      t.ok(r.truce, 'ofiste ateşkes başlamalı'); t.eq(r.shots, 0, 'kanun ateş etmemeli'); t.ok(r.hp > 0.99, 'can azalmamalı', r.hp);
+      t.ok(r.hostile && r.moved < 4, 'şerif masasından kalkmadan silah zoruyla tutmalı', r);
+      t.ok(/2[4-7]/.test(r.hud), 'aranma afişinde kalan süre yazmalı', r.hud);
+      t.ok(r.acts.includes('Teslim Ol'), 'teslim olma seçeneği olmalı', r.acts);
+      await p.evaluate(() => TH.act(/Teslim Ol/)); await t.sleep(300);
+      t.ok(await p.evaluate(() => TH.clickItem(/Cezayı/)), 'ceza ödeme seçeneği olmalı'); await t.sleep(400);
+      const q = await p.evaluate(() => ({ lvl: G.law.level, b: G.law.bounty, money: G.player.money, truce: G.truce, hostile: !!ofc.staffNpc.hostile }));
+      t.eq(q.lvl, 0, 'aranma bitmeli'); t.eq(q.b, 0, 'ödül silinmeli'); t.near(q.money, 40, 0.01, 'ceza düşülmeli');
+      t.ok(!q.truce && !q.hostile, 'ateşkes kapanmalı, şerif silahını indirmeli', q);
+    });
+    await t.step('ateşkes: şerifin masasında da teslim olunur', async () => {
+      t.ok(await office({ level: 2, bounty: 40 }), 'masada şerif olmalı');
+      const r = await p.evaluate(() => {
+        deskSpot();
+        const W = G.world, b = ofc;
+        let i = -1;
+        for (let y = b.y; y < b.y + b.h && i < 0; y++) for (let x = b.x; x < b.x + b.w; x++) if (W.obj[y * WW + x] === O.DESK) { i = y * WW + x; break; }
+        const acts = G.furnActions(b, O.DESK, i).acts.map(a => a.n);
+        G.furnActions(b, O.DESK, i).acts.find(a => /Teslim Ol/.test(a.n)).fn();
+        return { acts, menu: TH.menuLabels() };
+      });
+      t.ok(r.acts.some(a => /Teslim Ol/.test(a)) && !r.acts.some(a => /Başındaki Ödülü/.test(a)), 'aranırken masada teslim olunmalı', r.acts);
+      t.ok(r.menu.some(a => /Cezayı Öde/.test(a)) && r.menu.some(a => /Hapse Gir/.test(a)), 'ceza ya da hapis seçilmeli', r.menu);
+      await p.evaluate(() => TH.clickItem(/Cezayı/)); await t.sleep(300);
+      t.eq(await p.evaluate(() => G.law.level), 0, 'aranma bitmeli');
+    });
+    await t.step('ateşkes: çıkınca durur, kalan süreden sürer; süre dolunca kanun ateş açar', async () => {
+      t.ok(await office({ level: 3, bounty: 60 }), 'masada şerif olmalı');
+      await p.evaluate(() => TH.inside(ofc)); await t.sleep(600);
+      // ofisten çıkınca ateşkes durur, harcanan süre saklanır
+      const a = await p.evaluate(async () => {
+        G.truce.t = 12; G.player.x = ofc.door.x; G.player.y = ofc.door.y + 60;
+        await new Promise(res => setTimeout(res, 300));
+        const out = { truce: !!G.truce, used: G.truceUsed };
+        TH.inside(ofc); await new Promise(res => setTimeout(res, 300));
+        out.back = G.truce && G.truce.t;
+        return out;
+      });
+      t.ok(!a.truce && a.used >= 12, 'dışarıda ateşkes durmalı', a);
+      t.ok(a.back >= 12 && a.back < 13, 'geri girince kalan süreden sürmeli', a);
+      await p.evaluate(() => { G.truce.t = TRUCE_SEC - 0.3; window.shots = 0; });
+      await p.waitForFunction(() => window.shots > 0, null, { timeout: 6000 });
+      const r = await p.evaluate(() => ({ truce: G.truce, resist: G.law.resist, used: G.truceUsed, arrest: G.canArrest() }));
+      t.ok(!r.truce && r.resist && !r.arrest, 'süre dolunca ateşkes bitmeli', r);
+      await p.evaluate(() => { G.player.x = ofc.door.x; G.player.y = ofc.door.y + 60; });
+      await t.sleep(300);
+      await p.evaluate(() => TH.inside(ofc)); await t.sleep(300);
+      t.ok(await p.evaluate(() => !G.truce), 'aynı aranmada yeni ateşkes verilmemeli');
+    });
+    await t.step('ateşkes: ofisin içinde işlenen suçla başlayan aranmada yok; dışarı çıkıp girince verilir', async () => {
+      t.ok(await office({}), 'masada şerif olmalı');
+      await p.evaluate(() => TH.inside(ofc)); await t.sleep(400);
+      await p.evaluate(() => { window.shots = 0; const s = ofc.staffNpc; G.crime('assaultLaw', s.x, s.y, s); });
+      await p.waitForFunction(() => window.shots > 0, null, { timeout: 6000 });
+      const r = await p.evaluate(() => ({ lvl: G.law.level, truce: G.truce }));
+      t.ok(r.lvl > 0 && !r.truce, 'ofiste şerife saldırana ateşkes verilmemeli', r);
+      await p.evaluate(() => { G.player.x = ofc.door.x; G.player.y = ofc.door.y + 60; });
+      await t.sleep(300);
+      await p.evaluate(() => { TH.inside(ofc); G.player.hp = G.player.maxHp; });
+      await t.sleep(300);
+      t.ok(await p.evaluate(() => !!G.truce), 'dışarıdan teslim olmaya gelince ateşkes verilmeli');
+    });
+    await t.step('ateşkes: ofiste ateş eden oyuncuya kanun ateş açar', async () => {
+      t.ok(await office({ level: 1, bounty: 20 }), 'masada şerif olmalı');
+      await p.evaluate(() => TH.inside(ofc)); await t.sleep(800);
+      t.ok(await p.evaluate(() => !!G.truce && window.shots === 0), 'ateşkes başlamalı');
+      await p.evaluate(() => G.onPlayerFire());
+      await p.waitForFunction(() => window.shots > 0, null, { timeout: 6000 });
+      const r = await p.evaluate(() => ({ truce: G.truce, resist: G.law.resist, spent: G.truceUsed >= TRUCE_SEC }));
+      t.ok(!r.truce && r.resist && r.spent, 'ateş edince ateşkes bozulmalı', r);
+      await p.evaluate(() => { G.fireRay = window.fr0; window.fr0 = null; Object.assign(G.law, { level: 0, bounty: 0, resist: false }); G.player.hp = G.player.maxHp; });
+    });
   },
 };

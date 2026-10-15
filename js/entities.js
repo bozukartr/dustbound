@@ -1379,7 +1379,9 @@ class NPC extends Ent {
     const P = G.player;
     const a = Math.atan2(P.y - this.y, P.x - this.x);
     this.ang = turnTo(this.ang, a, dt * 6);
-    if (pd > 30) {
+    // ofisine giren oyuncuyu masasındaki şerif yerinden kalkmadan silah zoruyla tutar
+    const post = this.work !== undefined && G.insideB && G.insideB.id === this.work && this.home && dist2(this.x, this.y, this.home.x, this.home.y) < 12 * 12;
+    if (pd > 30 && !post) {
       if (!this.mounted && pd > 45 && G.world.townAt(this.x, this.y, 10)) { G.navStep(this, P.x, P.y, dt, pd > 80 ? 66 : 46, { ignore: P, near: 28 }); this.ang = turnTo(this.ang, a, dt * 3); }
       else { this.walk(dt, this.mounted ? 110 : pd > 80 ? 66 : 46); if (this.stuck > 1) { this.ang += rnd(-1.5, 1.5); this.stuck = 0; } }
     } else { this.mv = 0; }

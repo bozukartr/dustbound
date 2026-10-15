@@ -139,6 +139,7 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .wanted-stars span { color: rgba(90, 50, 20, 0.22); }
 .wanted-bounty { font-family: var(--type); font-size: 14px; color: #2a160c; border-top: 1px solid rgba(90, 50, 20, 0.35); padding-top: 3px; }
 .wanted-bounty .mb { display: block; color: #6a3a10; font-size: 12px; }
+.wanted-truce { font-family: var(--type); font-size: 12px; color: #6a1a10; border-top: 1px dashed rgba(90, 50, 20, 0.45); margin-top: 3px; padding-top: 3px; }
 #hud-witness { margin-top: 10px; background: linear-gradient(270deg, rgba(120, 72, 8, 0.92), rgba(120, 72, 8, 0)); padding: 5px 12px 7px 40px; border-right: 3px solid #f0a030; text-align: right; }
 #hud-witness .wt-t { font-family: var(--type); font-size: 14px; color: #fff4dc; animation: bl 1.2s steps(2) infinite; }
 #hud-witness .wt-t .ic { width: 18px; height: 18px; vertical-align: -4px; margin-right: 4px; }
