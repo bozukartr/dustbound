@@ -21,6 +21,280 @@ const MODERN_SHOP = new Set(['general', 'tailor', 'bakery', 'pharmacy', 'barber'
 const MODERN_SKIP = new Set(['church', 'station', 'stable', 'barn', 'lighthouse', 'mineentrance', 'ruin', 'docks', 'warehouse', 'lot']);
 const AUTUMN_PAL = [['#7a3416', '#a84e1c', '#d07a2a'], ['#8a5a14', '#b88024', '#e0aa3a'], ['#6a3a1a', '#94501e', '#c07030'], ['#8a6a1a', '#b89424', '#e8c040']];
 
+/* ---- İç mekân kaplamaları: iki çizicinin ortak deseni ----
+   Döşeme, arka duvar bandı ve halılar piksel fonksiyonudur: binanın sol üst köşesine göre dünya pikseli (u, v; kesirli
+   olabilir) alır, 0-1 arası rengi verir (dönen dizi geçicidir, hemen okunmalı). Klasik çizim 1x, melez çizim 2x örnekler;
+   iki görünüm aynı tasarımı taşır. Saint Clement'teki binalar (b.modern) parke, mermer, çini, ipek duvar kâğıdı ve ahşap
+   lambri ile döşenir. Otel kendi çizimini korur. */
+const IntDeco = (() => {
+  const CC = new Map();
+  const rgb = (h) => { let c = CC.get(h); if (!c) { const v = hexToRgb(h); CC.set(h, c = [v[0] / 255, v[1] / 255, v[2] / 255]); } return c; };
+  const TMP = []; for (let i = 0; i < 16; i++) TMP.push([0, 0, 0]);
+  let ti = 0;
+  const sh = (c, k) => {
+    const o = TMP[ti = (ti + 1) & 15];
+    if (k < 0) { o[0] = c[0] * (1 + k); o[1] = c[1] * (1 + k); o[2] = c[2] * (1 + k); }
+    else { o[0] = c[0] + (1 - c[0]) * k; o[1] = c[1] + (1 - c[1]) * k; o[2] = c[2] + (1 - c[2]) * k; }
+    return o;
+  };
+  const mx = (a, b, t) => { const o = TMP[ti = (ti + 1) & 15]; o[0] = a[0] + (b[0] - a[0]) * t; o[1] = a[1] + (b[1] - a[1]) * t; o[2] = a[2] + (b[2] - a[2]) * t; return o; };
+  const hs = (x, y, s) => hash2(x | 0, y | 0, s);
+  const fr = (x) => x - Math.floor(x);
+  /* Bina türüne göre kaplama: [döşeme, renk1, renk2], [duvar, renk]. Döşeme: plank (tahta), wide (geniş cilalı tahta),
+     parquet (örgü parke), checker (dama), marble (mermer), hex (sekizgen beyaz çini), stone (taş),
+     brick (tuğla örgü), ttile (pişmiş toprak), straw (saman). Duvar: paper (desenli kâğıt), stripe (çizgili), damask
+     (işlemeli kâğıt), plaster (sıva), plankv (dikey tahta), log (kütük), brick (tuğla), panel (ahşap lambri), tile (çini) */
+  const STD = {
+    general: [['plank', '#7a5a3a'], ['paper', '#7e6044']], saloon: [['plank', '#5e4028'], ['paper', '#6a2a24']], sheriff: [['plank', '#6e5a40'], ['plankv', '#8a7a60']],
+    doctor: [['plank', '#a08a6a'], ['plaster', '#d8d0c0']], gunsmith: [['plank', '#6a4a30'], ['plankv', '#5e4e3e']], butcher: [['plank', '#8a6a4a', 'saw'], ['plaster', '#bfae94']],
+    stable: [['straw', '#8a7250'], ['plankv', '#7a5a38']], barn: [['straw', '#8a7250'], ['plankv', '#7a2e22']], bank: [['checker', '#8a7a64', '#c8b89a'], ['paper', '#2e4234']],
+    station: [['plank', '#6a5a44'], ['paper', '#6a5e4a']], church: [['plank', '#9a7a52'], ['plaster', '#e8e0d0']], land: [['plank', '#7a5a3a'], ['paper', '#8a7a5a']],
+    barber: [['hex', '#dcd6c8', '#2a2a2a'], ['paper', '#b8a890']], tailor: [['plank', '#7a5a3a'], ['stripe', '#7a6078']], fence: [['plank', '#4e3a28'], ['plankv', '#4a3a2a']],
+    mine: [['plank', '#6a5a48', 'saw'], ['plankv', '#5a5048']], lumber: [['plank', '#8a6a44', 'saw'], ['plankv', '#7a5a34']], docks: [['plank', '#6a6258'], ['plankv', '#5a5a54']],
+    ranch: [['plank', '#7a5a3a'], ['log', '#7a5434']], house: [['plank', '#7a5a3a'], ['paper', '#8a7058']], property: [['plank', '#7a5a3a'], ['log', '#7a5434']],
+    cabin: [['plank', '#5a4430'], ['log', '#5a3a1e']], hs_shack: [['plank', '#6a5038'], ['plankv', '#6a4a2e']], hs_cabin: [['plank', '#6e5236'], ['log', '#6a4424']],
+    hs_house: [['plank', '#7a5a3a'], ['paper', '#9a8262']], bakery: [['brick', '#9a5a3a'], ['plaster', '#d8c8a8']], smith: [['stone', '#5a5550'], ['brick', '#6a3a2a']],
+    pharmacy: [['hex', '#e8e4da', '#2a3a3a'], ['paper', '#3a5a4a']], laundry: [['plank', '#7a6c5c'], ['plaster', '#c8c8c0']], gambling: [['plank', '#4a3020'], ['paper', '#5a1a1a']],
+    brewery: [['brick', '#7a4a30'], ['brick', '#7a4a30']], mill: [['plank', '#9a8060', 'saw'], ['plankv', '#8a7050']], county: [['plank', '#6e5232'], ['paper', '#8a8468']],
+    post: [['plank', '#7a5a3a'], ['paper', '#5a6a70']], warehouse: [['wide', '#7a6a50'], ['plankv', '#6a5a48']], cantina: [['ttile', '#9e5a3c'], ['plaster', '#d8b888']],
+  };
+  const RICH = {
+    general: [['parquet', '#8a5a32'], ['stripe', '#2e4a3e']], saloon: [['wide', '#4a2a18'], ['damask', '#5a1420']], sheriff: [['parquet', '#7a5030'], ['panel', '#5a3a24']],
+    doctor: [['hex', '#ecebe4', '#2a4a5a'], ['stripe', '#b8c8c0']], gunsmith: [['parquet', '#6a4228'], ['panel', '#4a2e1c']], butcher: [['hex', '#ecebe4', '#7a2a2a'], ['tile', '#dcdcd4']],
+    stable: [['stone', '#7a7268', 'straw'], ['brick', '#7a4030']], bank: [['marble', '#e6e0d4', '#2e4a3e'], ['panel', '#3a2414']], station: [['marble', '#d8d0c0', '#6a3a2a'], ['stripe', '#4a5a4a']],
+    church: [['marble', '#e4e0d8', '#8a8478'], ['plaster', '#efe8da']], land: [['parquet', '#7a5030'], ['panel', '#4a3020']], barber: [['checker', '#33302c', '#e6e0d4'], ['stripe', '#d8ccb8']],
+    tailor: [['parquet', '#8a5a32'], ['damask', '#6a3a5a']], docks: [['wide', '#6a6258'], ['panel', '#4a3a2a']], house: [['parquet', '#7a5030'], ['damask', '#3a4a5a']],
+    bakery: [['checker', '#a85a3a', '#ece0c8'], ['tile', '#e8e0d0']], pharmacy: [['hex', '#ecebe4', '#1e3a3a'], ['stripe', '#3a5a4a']], gambling: [['wide', '#3a2014'], ['damask', '#4a1018']],
+    post: [['parquet', '#7a5030'], ['stripe', '#4a5a6a']], county: [['marble', '#dcd4c4', '#5a5040'], ['panel', '#4a3420']], laundry: [['hex', '#ecebe4', '#3a5a6a'], ['tile', '#d8e0e0']],
+    warehouse: [['wide', '#6e6048'], ['brick', '#6a3a2a']], brewery: [['brick', '#7a4a30'], ['brick', '#6a3424']],
+  };
+  const HOUSE_RICH = ['#3a4a5a', '#5a2a3a', '#2e4a3e'];
+  const cache = new WeakMap();
+  function style(b) {
+    let st = cache.get(b);
+    if (st) return st;
+    const t = b.type, rich = !!b.modern && !!RICH[t], S = (rich ? RICH[t] : STD[t]) || [['plank', '#7a5a3a'], ['paper', shadeHex(b.def.wall, -0.05)]];
+    const pl = typeof INT_PLANS !== 'undefined' && INT_PLANS[t], lay = b.lay || 's0', tier = pl && (lay[0] === 'r' ? pl.rich : pl.std), plan = tier && tier[+lay.slice(1)];
+    let wc = S[1][1];
+    if (rich && (t === 'house')) wc = HOUSE_RICH[Math.floor(hash2(b.x, b.y, 7) * 3)];
+    st = {
+      fl: S[0][0], c1: rgb(S[0][1]), c2: rgb(S[0][2] && S[0][2][0] === '#' ? S[0][2] : S[0][1]), dust: S[0][2] === 'saw', straw: S[0][2] === 'straw',
+      wl: S[1][0], wc: rgb(wc), rich, trim: rgb(rich ? '#c8a050' : '#3a2416'), id: b.id, w: b.w * TS, h: b.h * TS, dx: b.door.x - b.x * TS,
+      rugs: ((plan && plan.rug) || []).map(r => ({ x: r[0] * TS, y: r[1] * TS, w: r[2] * TS, h: r[3] * TS, k: r[4], c: rgb(r[5]), a: rgb(r[4] === 'c' ? '#c8a040' : rich ? '#c8a050' : '#d8c8a0') })),
+    };
+    cache.set(b, st);
+    return st;
+  }
+  /* ---- döşeme ---- */
+  function floor(st, u, v) {
+    const c1 = st.c1, c2 = st.c2;
+    let c, k = 0;
+    switch (st.fl) {
+      case 'plank': case 'wide': {
+        const ph = st.fl === 'wide' ? 8 : 5, sl = st.fl === 'wide' ? 37 : 23, row = Math.floor(v / ph), pv = v - row * ph;
+        const off = (row * 11) % sl, seg = Math.floor((u + off) / sl), pu = u + off - seg * sl;
+        k = (hs(row, seg, st.id) - 0.5) * (st.fl === 'wide' ? 0.12 : 0.2);
+        if (pv < 0.5) k = -0.4; else if (pu < 0.5) k = -0.32;
+        else {
+          const gr = Math.sin((u * 0.9 + hs(row, seg, 3) * 40) * 0.7 + pv * 0.3);
+          if (gr > 0.85) k -= 0.08; else if (gr < -0.9) k += 0.06;
+          if (st.fl === 'wide' && pv > 1 && pv < 2) k += 0.1;   // cilanın parıltısı
+          if (Math.abs(pu - 1.5) < 0.45 && Math.abs(pv - ph / 2) < 0.45) k = -0.45;   // çivi
+        }
+        c = c1;
+        break;
+      }
+      case 'parquet': case 'brick': {
+        // örgü: 8 piksellik karelerde iki yönlü dörder lata (tuğlada ikişer tuğla); kenar boyunca bordür
+        const brick = st.fl === 'brick', q = 8, sx = Math.floor(u / q), sy = Math.floor(v / q), fu = u - sx * q, fv = v - sy * q, hor = (sx + sy) % 2 === 0;
+        const n = brick ? 2 : 4, a = hor ? fv : fu, b = hor ? fu : fv, lane = Math.floor(a / (q / n)), la = a - lane * (q / n);
+        const bord = !brick && (u < 20 || u > st.w - 20 || v > st.h - 12);
+        c = c1; k = (hs(sx * 4 + lane, sy, st.id + 5) - 0.5) * 0.22 + (hor ? 0.04 : -0.04);
+        if (brick) { if (la < 0.7 || b < 0.7) { c = rgb('#8a8070'); k = -0.25; } else if (la > 3) k -= 0.06; }
+        else if (la < 0.45 || b < 0.45) k = -0.38;
+        else if (Math.sin(b * 1.7 + hs(sx, sy * 3 + lane, 9) * 6) > 0.9) k -= 0.07;
+        if (bord) { c = sh(c1, -0.22); k = (fr(v / 5) < 0.12 ? -0.3 : 0) + (hs(Math.floor(v / 5), Math.floor(u / 23), 4) - 0.5) * 0.1; }
+        break;
+      }
+      case 'checker': {
+        const q = 8, sx = Math.floor(u / q), sy = Math.floor(v / q), fu = u - sx * q, fv = v - sy * q;
+        c = (sx + sy) % 2 ? c2 : c1; k = (hs(sx, sy, 2) - 0.5) * 0.08;
+        if (fu < 0.5 || fv < 0.5) k -= 0.22;
+        else if (fu < 1.4 && fv < 1.4) k += 0.06;
+        break;
+      }
+      case 'marble': {
+        const q = 16, sx = Math.floor(u / q), sy = Math.floor(v / q), fu = u - sx * q, fv = v - sy * q, dark = (sx + sy) % 2;
+        c = dark ? c2 : c1;
+        const vein = Math.sin(u * 0.47 + v * 0.29 + Math.sin(v * 0.37 + u * 0.11 + sx * 1.7) * 1.5 + hs(sx, sy, 6) * 6);
+        k = (hs(sx, sy, 3) - 0.5) * 0.06 + (vein > 0.975 ? (dark ? 0.12 : -0.1) : vein > 0.91 ? (dark ? 0.04 : -0.035) : 0);
+        if (fu < 0.5 || fv < 0.5) k = -0.2;
+        else if (fu < 2 && fv < 2 && fu + fv < 2.6) k += 0.12;   // cila
+        break;
+      }
+      case 'hex': {
+        // sekizgen ve nokta: beyaz sekizgenlerin köşelerinde koyu küçük kareler
+        const q = 6, sx = Math.floor(u / q), sy = Math.floor(v / q), fu = u - sx * q, fv = v - sy * q, eu = Math.min(fu, q - fu), ev = Math.min(fv, q - fv);
+        if (eu + ev < 1.6) { c = c2; k = (hs(sx, sy, 4) - 0.5) * 0.1; }
+        else if (eu < 0.35 || ev < 0.35 || Math.abs(eu + ev - 1.6) < 0.3) { c = c1; k = -0.2; }
+        else { c = c1; k = (hs(sx, sy, 5) - 0.5) * 0.05 + (fu < 2 && fv < 2 ? 0.04 : 0); }
+        break;
+      }
+      case 'stone': {
+        // düzensiz kesme taş: kaydırılmış ızgaradaki en yakın iki merkez arası derz olur (her taş kendi tonunda)
+        const q = 7, gx = Math.floor(u / q), gy = Math.floor(v / q);
+        let d1 = 1e9, d2 = 1e9, id = 0;
+        for (let yy = gy - 1; yy <= gy + 1; yy++) for (let xx = gx - 1; xx <= gx + 1; xx++) {
+          const px = (xx + 0.15 + hs(xx, yy, st.id) * 0.7) * q, py = (yy + 0.15 + hs(xx, yy, st.id + 9) * 0.7) * q, d = (u - px) * (u - px) + (v - py) * (v - py);
+          if (d < d1) { d2 = d1; d1 = d; id = xx * 7919 + yy; } else if (d < d2) d2 = d;
+        }
+        const e = Math.sqrt(d2) - Math.sqrt(d1);
+        c = c1; k = (hs(id, 0, 3) - 0.5) * 0.3 + (hs(Math.floor(u), Math.floor(v), 8) > 0.9 ? -0.06 : 0);
+        if (e < 0.7) k = -0.45; else if (e < 1.4) k += 0.07;
+        if (st.straw && hs(Math.floor(u * 0.7), Math.floor(v * 2), 5) > 0.93) { c = rgb('#c8a860'); k = 0; }
+        break;
+      }
+      case 'ttile': {
+        const q = 8, sx = Math.floor(u / q), sy = Math.floor(v / q), fu = u - sx * q, fv = v - sy * q;
+        c = c1; k = (hs(sx, sy, 2) - 0.5) * 0.22;
+        if (fu < 0.7 || fv < 0.7) { c = rgb('#c8b8a0'); k = -0.1; }
+        else if (hs(Math.floor(u), Math.floor(v), 9) > 0.95) k -= 0.12;
+        else if (fu < 2 && fv < 2) k += 0.07;
+        break;
+      }
+      case 'straw': default: {
+        const r = hs(Math.floor(u * 0.5), Math.floor(v), st.id);
+        c = r > 0.8 ? rgb('#c8a860') : r > 0.6 ? rgb('#a88a50') : c1;
+        k = c === c1 ? (hs(Math.floor(u / 4), Math.floor(v / 4), 3) - 0.5) * 0.1 : 0;
+        break;
+      }
+    }
+    if (st.dust && hs(Math.floor(u * 1.3), Math.floor(v * 1.3), 11) > 0.94) k += 0.22;   // talaş, un tozu
+    // kapı önünde aşınma
+    const dd = Math.hypot(u - st.dx, (v - st.h) * 1.6);
+    if (dd < 22) k += 0.08 * (1 - dd / 22);
+    return sh(c, k);
+  }
+  /* ---- arka duvar bandı (v: 0-16) ---- */
+  function wall(st, u, v) {
+    const c = st.wc;
+    if (v < 2) return rgb('#1e140c');
+    if (st.rich && v < 3.2) return sh(st.trim, v < 2.6 ? 0.1 : -0.25);   // tavan pervazı
+    const solid = st.wl === 'plankv' || st.wl === 'log' || st.wl === 'brick' || st.wl === 'tile';
+    if (!solid && v >= 11) {
+      // ahşap lambri: dikey çıtalar, ortası çökük pano
+      const q = u % 12, wn = st.rich ? rgb('#4a2a18') : sh(c, -0.3);
+      if (st.rich && v < 11.8) return sh(st.trim, -0.1);   // lambri pervazı
+      let k = 0; if (q < 0.6 || v < 11.6 || v > 15.4) k = -0.3; else if (q > 2 && q < 10 && v > 12.4 && v < 14.6) k = 0.1;
+      return sh(st.rich ? wn : c, st.rich ? k : -0.3 + k * 0.6);
+    }
+    if (v >= 15.2) return sh(c, -0.5);   // süpürgelik
+    switch (st.wl) {
+      case 'plankv': { const q = Math.floor(u / 4), f = u - q * 4; let k = (hs(q, 0, st.id) - 0.5) * 0.18; if (f < 0.6) k = -0.4; else if (Math.sin(v * 1.3 + q * 2.1) > 0.92) k -= 0.08; return sh(c, k); }
+      case 'log': { const rw = 3, r = Math.floor((v - 2) / rw), f = (v - 2) - r * rw; let k = 0.12 - Math.abs(f - 1.4) * 0.12 + (hs(r, Math.floor(u / 29), st.id) - 0.5) * 0.12; if (f < 0.45) return rgb('#b8a888'); return sh(c, k); }
+      case 'brick': { const r = Math.floor((v - 2) / 3), f = (v - 2) - r * 3, off = r % 2 ? 3 : 0, bq = Math.floor((u + off) / 6), bu = u + off - bq * 6; if (f < 0.6 || bu < 0.6) return rgb('#8a7e6e'); return sh(c, (hs(bq, r, st.id) - 0.5) * 0.24 + (f > 2.2 ? -0.08 : 0)); }
+      case 'tile': { const q = 4, sx = Math.floor(u / q), sy = Math.floor((v - 2) / q), fu = u - sx * q, fv = v - 2 - sy * q; if (fu < 0.5 || fv < 0.5) return sh(c, -0.18); return sh(c, (fu < 1.4 && fv < 1.4 ? 0.12 : 0) + (hs(sx, sy, 3) - 0.5) * 0.05); }
+      case 'plaster': { const n = hs(Math.floor(u / 3), Math.floor(v / 2), st.id); return sh(c, (n - 0.5) * 0.06 + (v > 10 ? -0.05 : 0)); }
+      case 'stripe': { const q = u % 6; let k = q < 3 ? 0.1 : -0.04; if (Math.abs(q - 3) < 0.35) k = st.rich ? 0.25 : -0.12; if (st.rich && Math.abs(q - 3) < 0.35) return mx(c, st.trim, 0.55); return sh(c, k); }
+      case 'damask': {
+        const pu = ((u % 8) + 8) % 8 - 4, pv = ((v - 2) % 8 + 8) % 8 - 4, d = Math.abs(pu) + Math.abs(pv) * 0.8;
+        if (d < 1) return mx(c, st.trim, 0.45);
+        if (Math.abs(d - 2.6) < 0.35) return sh(c, 0.16);
+        return sh(c, (Math.abs(pu) < 0.3 || Math.abs(pv) < 0.3) && d > 3.2 ? 0.07 : 0);
+      }
+      case 'panel': { const q = u % 10, k = (q < 0.7 || v < 3.8 || v > 10.4) ? -0.25 : (q < 1.6 || v < 4.6) ? 0.12 : (q > 9 || v > 9.6) ? -0.12 : (Math.sin(u * 0.8 + v * 0.2) > 0.9 ? -0.05 : 0); return sh(c, k); }
+      case 'paper': default: {
+        const dm = Math.abs(((u % 6) + 6) % 6 - 3) + Math.abs(((v - 2) % 6 + 6) % 6 - 3);
+        let k = 0; if (dm < 0.9) k = 0.22; else if (Math.abs(dm - 2.4) < 0.3) k = -0.12;
+        if (v > 10 && v < 11) k = -0.4;
+        return sh(c, k);
+      }
+    }
+  }
+  /* ---- halı: (u, v) halının içindeyse renk, değilse null ---- */
+  function rugAt(st, r, u, v) {
+    let x = u - r.x, y = v - r.y;
+    const long = r.w >= r.h, L = long ? r.w : r.h, S = long ? r.h : r.w;
+    if (!long) { const t = x; x = y; y = t; }   // uzun kenar x boyunca
+    if (y < 0 || y >= S) return null;
+    if (x < -2 || x >= L + 2) return null;
+    if (x < 0 || x >= L) {
+      // saçak: kısa kenarlarda açık renkli ipler
+      if (r.k === 'c' || y < 1 || y > S - 1) return null;
+      return (Math.floor(y) % 2 === 0) ? sh(r.a, -0.1) : null;
+    }
+    const e = Math.min(x, y, L - x, S - y), c = r.c, a = r.a;
+    switch (r.k) {
+      case 'c': return (e < 0.8) ? a : sh(c, (hs(Math.floor(x / 2), 0, 2) - 0.5) * 0.08);
+      case 'r': {
+        if (e < 0.8) return sh(c, -0.35);
+        const yy = Math.abs(y - S / 2) / (S / 2);
+        if (yy > 0.62 && yy < 0.78) return sh(a, -0.15);
+        if (yy < 0.3 && Math.abs(((x % 8) + 8) % 8 - 4) + yy * 6 < 1.8) return sh(a, -0.05);
+        return sh(c, ((Math.floor(x) + Math.floor(y)) % 5 === 0) ? -0.08 : 0);
+      }
+      case 'g': {
+        if (e < 0.8) return sh(c, -0.4);
+        const band = Math.floor(x / 6), bx = x - band * 6, cy = Math.abs(y - S / 2);
+        if (Math.abs(bx - 3) + cy * 0.6 < 2.2 && band % 2 === 0) return a;
+        if (e < 2.2) return sh(a, -0.35);
+        if (Math.abs(((x + y * 0.8) % 4 + 4) % 4 - 2) < 0.5 && band % 2) return sh(c, 0.22);
+        return sh(c, band % 2 ? 0.06 : 0);
+      }
+      case 'p': {
+        if (e < 1) return sh(c, -0.25);
+        if (e > 2.2 && e < 3.2) return sh(c, 0.45);
+        if (e < 5 && ((Math.floor(x) + Math.floor(y)) % 3 === 0)) return sh(c, 0.25);
+        return sh(c, (Math.floor(x) + Math.floor(y * 2)) % 7 === 0 ? -0.06 : 0);
+      }
+      case 'o': default: {
+        // işlemeli halı: koyu dış çizgi, açık bordür bandı (yinelenen motif), iç alan ve ortada madalyon
+        if (e < 0.8) return sh(c, -0.45);
+        if (e < 3.4) { const m = Math.abs(((x + y) % 4 + 4) % 4 - 2); return e > 1.4 && e < 2.8 && m < 0.7 ? sh(c, -0.2) : sh(a, -0.12 + (e < 1.4 ? -0.1 : 0)); }
+        if (e < 4) return sh(c, -0.3);
+        const cx = x - L / 2, cy = y - S / 2, md = Math.abs(cx) / (L * 0.24) + Math.abs(cy) / (S * 0.32);
+        if (md < 1) return md < 0.35 ? sh(a, 0.05) : Math.abs(md - 0.7) < 0.12 ? sh(a, -0.2) : sh(c, 0.18);
+        const cm = Math.min(Math.hypot(x - 4, y - 4), Math.hypot(L - 4 - x, y - 4), Math.hypot(x - 4, S - 4 - y), Math.hypot(L - 4 - x, S - 4 - y));
+        if (cm < 2.2) return sh(a, -0.25);
+        const dm = Math.abs(((cx % 6) + 6) % 6 - 3) + Math.abs(((cy % 6) + 6) % 6 - 3);
+        return dm < 0.8 ? sh(c, 0.12) : sh(c, (hs(Math.floor(x), Math.floor(y), 3) - 0.5) * 0.05);
+      }
+    }
+  }
+  function rug(st, u, v) {
+    let out = null;
+    for (const r of st.rugs) { const c = rugAt(st, r, u, v); if (c) out = c; }
+    return out;
+  }
+  /* Klasik çizim: döşeme + halılar + arka duvar bandı 1x tuvale (son birkaç bina önbellekte) */
+  const LRU = new Map();
+  function canvas(b) {
+    const st = style(b), key = b;
+    let cv = LRU.get(key);
+    if (cv) { LRU.delete(key); LRU.set(key, cv); return cv; }
+    const w = st.w, h = st.h;
+    cv = makeCanvas(w, h);
+    const g = cv.getContext('2d'), img = g.createImageData(w, h), d = img.data;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const u = x + 0.5, v = y + 0.5, c = v < 16 ? wall(st, u, v) : (rug(st, u, v) || floor(st, u, v)), k = (y * w + x) * 4;
+      d[k] = c[0] * 255; d[k + 1] = c[1] * 255; d[k + 2] = c[2] * 255; d[k + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    LRU.set(key, cv);
+    if (LRU.size > 6) LRU.delete(LRU.keys().next().value);
+    return cv;
+  }
+  /* Duvar lambası (aplik) sayısı: zengin binalarda ve saloonlarda arka duvarda iki ya da üç; yerleri duvar süsleri
+     çizilirken boş kalan aralıklardan seçilir (b._sc), melez çizimde camları gece yanar */
+  function sconces(b) {
+    const t = b.type;
+    if (t === 'hotel' || t === 'stable' || t === 'barn' || t === 'warehouse' || t === 'docks' || t === 'church') return 0;
+    if (!b.modern && t !== 'saloon' && t !== 'gambling' && t !== 'cantina') return 0;
+    return b.w >= 10 ? 3 : 2;
+  }
+  return { style, floor, wall, rug, rugAt, canvas, sconces, rgb };
+})();
+
 /* Toplanabilir bitkilerin renkleri (sap, çiçek/meyve): bir kez kurulur, her karede yeniden yaratılmaz */
 const HERB_COLS = {
   [O.BERRY]: ['#3a5a26', '#3048a0'], [O.GINSENG]: ['#4a7a2e', '#c03020'], [O.YARROW]: ['#5a7a3a', '#f0f0e0'], [O.SAGE]: ['#8aa080', '#b0c0a8'],
@@ -494,43 +768,42 @@ const Spr = {
   /* ---------- İç mekân ---------- */
   interior(g, b, world) {
     const X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS, t = b.type;
-    const hs = (k) => hash2(b.x + k, b.y - k, 41);
-    // zemin
-    const FL = { saloon: '#5e4028', church: '#9a7a52', doctor: '#a08a6a', sheriff: '#6e5a40', station: '#6a5a44', bank: '#8a7a64', hotel: '#6e4a32', stable: '#8a7250', barn: '#8a7250', lumber: '#8a6a44', docks: '#6a6258' }[t] || '#7a5a3a';
-    g.fillStyle = FL; g.fillRect(X, Y, W, H);
-    if (t === 'stable' || t === 'barn') {
-      for (let k = 0; k < b.w * b.h * 5; k++) { g.fillStyle = hash2(k, b.x, 3) < 0.5 ? '#c8a860' : '#a88a50'; g.fillRect(X + hash2(k, b.y, 4) * W, Y + 16 + hash2(k, b.x, 5) * (H - 16), 3, 1); }
-    } else if (t === 'bank') {
-      for (let yy = Y; yy < Y + H; yy += 8) for (let xx = X; xx < X + W; xx += 8) if (((xx - X) / 8 + (yy - Y) / 8) % 2 === 0) { g.fillStyle = '#c8b89a'; g.fillRect(xx, yy, 8, 8); }
-    } else {
-      g.fillStyle = 'rgba(0,0,0,0.22)';
-      for (let yy = Y + 4; yy < Y + H; yy += 5) {
-        g.fillRect(X, yy, W, 1);
-        const off = ((yy - Y) / 5 | 0) * 11 % 23;
-        for (let xx = X + off; xx < X + W; xx += 23) g.fillRect(xx, yy - 4, 1, 4);
-      }
-      g.fillStyle = 'rgba(255,240,210,0.05)'; for (let yy = Y + 2; yy < Y + H; yy += 10) g.fillRect(X, yy, W, 2);
-    }
-    // halılar (otelin üst katında koridor boyunca uzun yolluk)
-    const rug = { hotel: '#7a2a2a', sheriff: '#5a3a2a', bank: '#2a4a3a', land: '#4a3a5a', doctor: '#3a5a6a', property: '#7a4a2a', house: '#6a3a2a', saloon: '#4a2418', ranch: '#6a4a2a' }[t];
     const up = isHotel2(b) && b.floor === 1;
-    if (rug) {
-      const rw = up ? W - 48 : Math.min(W - 40, 64), rh = up ? 20 : Math.min(H - 40, 34), rx = X + W / 2 - rw / 2 + (t === 'saloon' ? 20 : 0), ry = up ? Y + 54 : Y + H / 2 - rh / 2 + 6;
-      g.fillStyle = rug; g.fillRect(rx, ry, rw, rh);
-      g.strokeStyle = shadeHex(rug, 0.35); g.lineWidth = 1; g.strokeRect(rx + 2.5, ry + 2.5, rw - 5, rh - 5);
-      g.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = 0; k < rw; k += 4) g.fillRect(rx + k, ry + rh, 2, 2);
+    if (t === 'hotel') this.hotelBase(g, b, X, Y, W, H, up);
+    else {
+      // döşeme, halılar ve arka duvar ortak desenden (IntDeco); duvarın döşemeye düşen gölgesi
+      g.drawImage(IntDeco.canvas(b), X, Y);
+      g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(X, Y + 16, W, 3);
     }
-    if (t === 'church') { g.fillStyle = '#8a2020'; g.fillRect(X + W / 2 - 6, Y + 26, 12, H - 30); g.fillStyle = '#c8a040'; g.fillRect(X + W / 2 - 6, Y + 26, 1, H - 30); g.fillRect(X + W / 2 + 5, Y + 26, 1, H - 30); }
-    // arka duvar
-    const WP = { saloon: '#6a2a24', hotel: '#4e5e40', bank: '#2e4234', church: '#e8e0d0', doctor: '#d8d0c0', sheriff: '#8a7a60', station: '#6a5e4a', barber: '#b8a890', tailor: '#7a6078', land: '#8a7a5a' }[t] || shadeHex(b.def.wall, -0.05);
+    this.wallDecor(g, b, X, Y, W, world);
+    this.interiorShell(g, b, X, Y, W, H, up, world);
+  },
+  /* Otelin zemini ve arka duvarı (otel kendi çizimini korur): tahta döşeme, ortada halı (üst katta koridor boyunca
+     uzun yolluk), desenli duvar kâğıdı ve lambri */
+  hotelBase(g, b, X, Y, W, H, up) {
+    g.fillStyle = '#6e4a32'; g.fillRect(X, Y, W, H);
+    g.fillStyle = 'rgba(0,0,0,0.22)';
+    for (let yy = Y + 4; yy < Y + H; yy += 5) {
+      g.fillRect(X, yy, W, 1);
+      const off = ((yy - Y) / 5 | 0) * 11 % 23;
+      for (let xx = X + off; xx < X + W; xx += 23) g.fillRect(xx, yy - 4, 1, 4);
+    }
+    g.fillStyle = 'rgba(255,240,210,0.05)'; for (let yy = Y + 2; yy < Y + H; yy += 10) g.fillRect(X, yy, W, 2);
+    const rug = '#7a2a2a';
+    const rw = up ? W - 48 : Math.min(W - 40, 64), rh = up ? 20 : Math.min(H - 40, 34), rx = X + W / 2 - rw / 2, ry = up ? Y + 54 : Y + H / 2 - rh / 2 + 6;
+    g.fillStyle = rug; g.fillRect(rx, ry, rw, rh);
+    g.strokeStyle = shadeHex(rug, 0.35); g.lineWidth = 1; g.strokeRect(rx + 2.5, ry + 2.5, rw - 5, rh - 5);
+    g.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = 0; k < rw; k += 4) g.fillRect(rx + k, ry + rh, 2, 2);
+    const WP = '#4e5e40';
     g.fillStyle = WP; g.fillRect(X, Y, W, 16);
-    if (t === 'saloon' || t === 'hotel' || t === 'tailor') { g.fillStyle = 'rgba(255,230,180,0.08)'; for (let xx = X + 2; xx < X + W; xx += 5) g.fillRect(xx, Y, 2, 12); }
-    else { g.fillStyle = 'rgba(0,0,0,0.12)'; for (let xx = X + 3; xx < X + W; xx += 4) g.fillRect(xx, Y, 1, 12); }
+    g.fillStyle = 'rgba(255,230,180,0.08)'; for (let xx = X + 2; xx < X + W; xx += 5) g.fillRect(xx, Y, 2, 12);
     g.fillStyle = shadeHex(WP, -0.22); g.fillRect(X, Y + 11, W, 5);
     g.fillStyle = shadeHex(WP, -0.2); g.fillRect(X, Y + 11, W, 1);
     g.fillStyle = '#1e140c'; g.fillRect(X, Y, W, 2);
     g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(X, Y + 16, W, 3);
-    this.wallDecor(g, b, X, Y, W);
+  },
+  /* Yan ve ön duvarlar, pencereler, otelin kilitli odaları ve eşyalar */
+  interiorShell(g, b, X, Y, W, H, up, world) {
     // yan duvarlar ve ön duvar
     const WD = '#3a2818';
     g.fillStyle = WD; g.fillRect(X, Y, 5, H); g.fillRect(X + W - 5, Y, 5, H);
@@ -567,87 +840,203 @@ const Spr = {
       if (isFurnO(o)) this.furn(g, o, cx, cy, world, i, b, hash2(tx, ty, 17));
       else Spr.object(g, g, o, cx, cy, hash2(tx, ty, 77), world);
     }
-    void hs;
   },
-  wallDecor(g, b, X, Y, W) {
-    const t = b.type, h = (k) => hash2(b.x * 3 + k, b.y, 29);
-    const win = (x) => { g.fillStyle = '#3a2a1c'; g.fillRect(x - 5, Y + 2, 10, 9); g.fillStyle = '#8ab0c8'; g.fillRect(x - 4, Y + 3, 8, 7); g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x - 4, Y + 3, 3, 7); g.fillStyle = '#3a2a1c'; g.fillRect(x - 0.5, Y + 3, 1, 7); };
-    const shelf = (x0, x1) => {
-      g.fillStyle = '#4a3020'; g.fillRect(x0, Y + 5, x1 - x0, 1.5); g.fillRect(x0, Y + 10, x1 - x0, 1.5);
-      const cols = ['#c8402c', '#e0c060', '#4a7aa8', '#6a9a4a', '#d8d0c0', '#8a5a2a', '#b070a0'];
-      for (let x = x0 + 1; x < x1 - 2; x += 3) { g.fillStyle = cols[Math.floor(h(x) * cols.length)]; g.fillRect(x, Y + 2 + h(x + 1) * 1.5, 2, 3); g.fillStyle = cols[Math.floor(h(x + 7) * cols.length)]; g.fillRect(x, Y + 7 + h(x + 2) * 1.5, 2, 3); }
+  /* Arka duvarın süsleri: bina türüne göre raflar, tablolar, aynalar, afişler, aletler; zengin şehirde yaldızlı
+     çerçeveler ve aplikler. Önünde uzun eşya (dolap, saat, şömine...) duran yerlere süs konmaz. */
+  wallDecor(g, b, X, Y, W, world) {
+    const t = b.type, h = (k) => hash2(b.x * 3 + k, b.y, 29), rich = !!b.modern;
+    const TALL = new Set([O.BOOKCASE, O.GCLOCK, O.WARDROBE, O.CABINET, O.FIREPLACE, O.PALM, O.ORGAN, O.OVEN, O.FORGE, O.DRESSER, O.LAMPSTAND]);
+    const objAt = (x) => world ? world.obj[(b.y + 1) * WW + Math.floor(x / TS)] : 0;
+    const free = (x, r = 5) => !world || (!TALL.has(objAt(x - r)) && !TALL.has(objAt(x + r)) && x - r > X + 5 && x + r < X + W - 5);
+    const used = [], use = (a, z) => used.push([a, z]), busy = (a, z) => used.some(([p, q]) => a < q && z > p);
+    const spot = (x, r = 5) => { for (const d of [0, 6, -6, 12, -12, 18, -18]) if (free(x + d, r) && !busy(x + d - r, x + d + r)) return x + d; return null; };
+    const gold = rich ? '#c8a040' : '#8a6a30';
+    const win = (x) => { g.fillStyle = '#3a2a1c'; g.fillRect(x - 5, Y + 2, 10, 9); g.fillStyle = '#8ab0c8'; g.fillRect(x - 4, Y + 3, 8, 7); g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x - 4, Y + 3, 3, 7); g.fillStyle = '#3a2a1c'; g.fillRect(x - 0.5, Y + 3, 1, 7); g.fillRect(x - 4, Y + 6, 8, 0.8); if (rich) { g.fillStyle = '#7a2a30'; g.fillRect(x - 6, Y + 2, 2, 9); g.fillRect(x + 4, Y + 2, 2, 9); } };
+    const shelf = (x0, x1, jars) => {
+      use(x0, x1);
+      g.fillStyle = rich ? '#3a2014' : '#4a3020'; g.fillRect(x0, Y + 5, x1 - x0, 1.5); g.fillRect(x0, Y + 10, x1 - x0, 1.5);
+      const cols = jars ? ['#7aa0a8', '#c8a060', '#a8c0a0', '#d8d0c0', '#b07050'] : ['#c8402c', '#e0c060', '#4a7aa8', '#6a9a4a', '#d8d0c0', '#8a5a2a', '#b070a0'];
+      for (let x = x0 + 1; x < x1 - 2; x += 3) for (const [y0, k] of [[Y + 2, 1], [Y + 7, 7]]) {
+        const c = cols[Math.floor(h(x + k) * cols.length)], hh = 2.4 + h(x + k + 3) * 0.8;
+        g.fillStyle = c; g.fillRect(x, y0 + 3 - hh, 2, hh);
+        if (jars) { g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x, y0 + 3 - hh, 0.6, hh); g.fillStyle = '#5a4a3a'; g.fillRect(x, y0 + 2.4 - hh, 2, 0.7); }
+      }
+      if (rich) { g.fillStyle = gold; g.fillRect(x0, Y + 5, x1 - x0, 0.5); g.fillRect(x0, Y + 10, x1 - x0, 0.5); }
     };
-    const poster = (x) => { g.fillStyle = '#e8dcb8'; g.fillRect(x - 3, Y + 2, 6, 8); g.fillStyle = '#3a2a1c'; g.fillRect(x - 2, Y + 3, 4, 1); g.fillRect(x - 1.5, Y + 5, 3, 3); g.fillRect(x - 2, Y + 8.5, 4, 0.8); };
-    const frame = (x, col) => { g.fillStyle = '#8a6a30'; g.fillRect(x - 5, Y + 2, 10, 8); g.fillStyle = col; g.fillRect(x - 4, Y + 3, 8, 6); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(x - 4, Y + 3, 8, 2); };
+    const poster = (x) => { use(x - 3, x + 3); g.fillStyle = '#e8dcb8'; g.fillRect(x - 3, Y + 2, 6, 8); g.fillStyle = '#3a2a1c'; g.fillRect(x - 2, Y + 3, 4, 1); g.fillRect(x - 1.5, Y + 5, 3, 3); g.fillRect(x - 2, Y + 8.5, 4, 0.8); g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(x + 3, Y + 3, 0.6, 7.6); };
+    // manzara tablosu: gökyüzü, tepeler, ova (zenginde yaldızlı çerçeve)
+    const frame = (x, col, w = 10) => {
+      g.fillStyle = gold; g.fillRect(x - w / 2, Y + 2, w, 8); g.fillStyle = col; g.fillRect(x - w / 2 + 1, Y + 3, w - 2, 6);
+      g.fillStyle = shadeHex(col, 0.35); g.fillRect(x - w / 2 + 1, Y + 3, w - 2, 2);
+      g.fillStyle = shadeHex(col, -0.3); g.beginPath(); g.moveTo(x - w / 2 + 1, Y + 7); g.lineTo(x - 1, Y + 5); g.lineTo(x + 2, Y + 6.5); g.lineTo(x + w / 2 - 1, Y + 5.5); g.lineTo(x + w / 2 - 1, Y + 9); g.lineTo(x - w / 2 + 1, Y + 9); g.fill();
+      if (rich) { g.fillStyle = '#f0d070'; g.fillRect(x - w / 2, Y + 2, w, 0.6); }
+    };
+    // portre: koyu zemin önünde omuz ve baş silueti
+    const portrait = (x) => { g.fillStyle = gold; g.fillRect(x - 4, Y + 1.5, 8, 9.5); g.fillStyle = '#2a2420'; g.fillRect(x - 3, Y + 2.5, 6, 7.5); g.fillStyle = '#4a3a30'; g.fillRect(x - 2.5, Y + 7, 5, 3); this.circ(g, x, Y + 5.2, 1.6, '#c8a088'); g.fillStyle = '#3a2a20'; g.fillRect(x - 1.6, Y + 3.4, 3.2, 1); };
+    const mirror = (x, w) => { g.fillStyle = gold; g.fillRect(x - w / 2 - 1, Y + 1.5, w + 2, 9.5); g.fillStyle = '#9ab4c0'; g.fillRect(x - w / 2, Y + 2.5, w, 7.5); g.fillStyle = 'rgba(255,255,255,0.35)'; for (let k = 0; k < w - 2; k += 5) g.fillRect(x - w / 2 + 1 + k, Y + 3, 1.2, 6.5); g.fillStyle = 'rgba(40,60,70,0.25)'; g.fillRect(x - w / 2, Y + 8, w, 2); };
+    const clock = (x) => { this.circ(g, x, Y + 6, 4, gold); this.circ(g, x, Y + 6, 3, '#f0ead8'); g.fillStyle = '#1a1a1a'; g.fillRect(x - 0.4, Y + 3.5, 0.8, 2.5); g.fillRect(x, Y + 5.6, 2, 0.8); };
+    const antlers = (x) => {
+      g.fillStyle = '#5a3a22'; g.fillRect(x - 2.5, Y + 6, 5, 4); g.fillStyle = '#8a6a48'; g.fillRect(x - 1.5, Y + 6.5, 3, 2);
+      g.strokeStyle = '#d8c8a8'; g.lineWidth = 0.9; g.beginPath();
+      for (const s of [-1, 1]) { g.moveTo(x + s, Y + 6.5); g.lineTo(x + s * 4, Y + 3); g.lineTo(x + s * 6, Y + 2); g.moveTo(x + s * 2.8, Y + 4.5); g.lineTo(x + s * 2.5, Y + 2); g.moveTo(x + s * 4.6, Y + 2.6); g.lineTo(x + s * 4.6, Y + 1.2); }
+      g.stroke();
+    };
+    const sconce = (x) => { g.fillStyle = '#6a5a3a'; g.fillRect(x - 0.5, Y + 6, 1, 4); g.fillStyle = gold; g.fillRect(x - 2, Y + 9, 4, 1); g.fillStyle = 'rgba(240,230,200,0.85)'; g.fillRect(x - 1.5, Y + 4, 3, 5); g.fillStyle = '#ffd070'; g.fillRect(x - 0.5, Y + 5.5, 1, 2); };
+    const rifles = (x0, x1) => { use(x0 - 1, x1); for (let x = x0; x < x1; x += 6) { g.fillStyle = '#2a2a2e'; g.fillRect(x, Y + 2, 1.5, 9); g.fillStyle = '#6a4428'; g.fillRect(x - 0.5, Y + 7, 2.5, 4); } };
+    const hooks = (x0, x1) => { use(x0 - 2, x1); for (let x = x0; x < x1; x += 6) { g.fillStyle = '#6a6a6a'; g.fillRect(x, Y + 2, 1, 2); this.ell(g, x + 0.5, Y + 6.5, 2, 3, h(x) < 0.5 ? '#9a3a2a' : '#b8584a'); g.fillStyle = 'rgba(255,230,220,0.3)'; g.fillRect(x - 0.5, Y + 5, 1, 2); } };
+    const pelt = (x) => { g.strokeStyle = '#5a3a1e'; g.lineWidth = 0.8; g.strokeRect(x - 4, Y + 1.5, 8, 9); this.ell(g, x, Y + 6, 3.2, 4, h(x) < 0.5 ? '#7a5434' : '#9a7a54'); this.ell(g, x, Y + 6, 1.8, 2.6, h(x) < 0.5 ? '#9a7450' : '#b89a74'); };
+    const map = (x, w) => { g.fillStyle = '#5a3a22'; g.fillRect(x - w / 2 - 0.5, Y + 1.5, w + 1, 9.5); g.fillStyle = '#d8c8a0'; g.fillRect(x - w / 2, Y + 2, w, 8.5); g.strokeStyle = '#8a6a48'; g.lineWidth = 0.5; g.beginPath(); for (let k = 0; k < 3; k++) { g.moveTo(x - w / 2 + 1, Y + 3.5 + k * 2.4); g.lineTo(x + w / 2 - 1, Y + 4.5 + k * 2.4 - h(k) * 1.6); } g.stroke(); g.strokeStyle = '#4a7a9a'; g.lineWidth = 0.7; g.beginPath(); g.moveTo(x - w / 2 + 2, Y + 9.5); g.quadraticCurveTo(x, Y + 3, x + w / 2 - 2, Y + 7); g.stroke(); g.fillStyle = '#a03a2a'; g.fillRect(x + w * 0.15, Y + 5, 1, 1); };
+    const board = (x, w, col = '#2e3a30') => { g.fillStyle = '#5a3a22'; g.fillRect(x - w / 2 - 1, Y + 1.5, w + 2, 9.5); g.fillStyle = col; g.fillRect(x - w / 2, Y + 2.5, w, 7.5); g.fillStyle = 'rgba(240,236,220,0.75)'; for (let k = 0; k < 3; k++) g.fillRect(x - w / 2 + 1.5, Y + 4 + k * 2, (w - 3) * (0.5 + h(x + k) * 0.5), 0.6); };
+    const diploma = (x) => { g.fillStyle = '#3a2416'; g.fillRect(x - 3.5, Y + 2.5, 7, 6); g.fillStyle = '#f0ead8'; g.fillRect(x - 2.8, Y + 3.2, 5.6, 4.6); g.fillStyle = '#6a5a4a'; g.fillRect(x - 2, Y + 4, 4, 0.5); g.fillRect(x - 2, Y + 5.2, 3, 0.5); g.fillStyle = '#b02a2a'; g.fillRect(x + 1, Y + 6.2, 1.2, 1.2); };
+    const chart = (x) => { g.fillStyle = '#f4f0e8'; g.fillRect(x - 3, Y + 1.5, 6, 9); g.fillStyle = '#1a1a1a'; for (let k = 0; k < 4; k++) g.fillRect(x - 2.2 + k * 0.4, Y + 2.5 + k * 2, 4.4 - k * 0.8, 1.1 - k * 0.15); };
+    const shoes = (x0, x1) => { use(x0 - 2, x1); g.strokeStyle = '#6a6a6e'; g.lineWidth = 0.9; for (let x = x0; x < x1; x += 7) { g.beginPath(); g.arc(x, Y + 5 + (h(x) < 0.5 ? 0 : 3), 2, 0.3, Math.PI - 0.3, true); g.stroke(); } };
+    const tools = (x0, x1) => {
+      use(x0 - 3, x1);
+      for (let x = x0; x < x1; x += 9) {
+        const k = Math.floor(h(x) * 3);
+        if (k === 0) { g.fillStyle = '#9aa0a6'; g.beginPath(); g.moveTo(x - 3, Y + 3); g.lineTo(x + 3, Y + 3); g.lineTo(x + 3, Y + 6); g.lineTo(x - 3, Y + 4.4); g.fill(); g.fillStyle = '#6a4428'; g.fillRect(x + 3, Y + 2.6, 1.6, 3.6); }
+        else if (k === 1) { g.fillStyle = '#6a4428'; g.fillRect(x - 0.5, Y + 3, 1, 8); g.fillStyle = '#5a5a5e'; g.fillRect(x - 2, Y + 2.5, 4, 2); }
+        else { g.strokeStyle = '#4a4a4e'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(x - 1.5, Y + 2.5); g.lineTo(x + 1, Y + 10); g.moveTo(x + 1.5, Y + 2.5); g.lineTo(x - 1, Y + 10); g.stroke(); }
+      }
+    };
+    const pigeon = (x0, x1) => { use(x0, x1); g.fillStyle = '#4a3020'; g.fillRect(x0, Y + 2, x1 - x0, 9); for (let x = x0 + 1; x < x1 - 2; x += 3.5) for (let y = Y + 2.8; y < Y + 10; y += 2.6) { g.fillStyle = '#2a1a10'; g.fillRect(x, y, 2.8, 2); if (h(x * 3 + y) < 0.6) { g.fillStyle = h(x + y) < 0.5 ? '#e8e0c8' : '#d8c8a0'; g.fillRect(x + 0.3, y + 0.6, 2.2, 1.2); } } };
+    const clothes = (x0, x1) => { use(x0, x1); g.strokeStyle = '#d8d0c0'; g.lineWidth = 0.5; g.beginPath(); g.moveTo(x0, Y + 3); g.lineTo(x1, Y + 3); g.stroke(); for (let x = x0 + 3; x < x1 - 4; x += 8) { const c = ['#e8e4dc', '#9ab0c8', '#c8b8a0', '#e0d0d0'][Math.floor(h(x) * 4)]; g.fillStyle = c; g.fillRect(x - 2.5, Y + 3, 5, 5); g.fillRect(x - 3.5, Y + 3, 1.5, 2.5); g.fillRect(x + 2, Y + 3, 1.5, 2.5); g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(x - 2.5, Y + 6.5, 5, 1.5); } };
+    const ristra = (x) => { g.fillStyle = '#6a5a3a'; g.fillRect(x - 0.3, Y + 1.5, 0.6, 2); for (let k = 0; k < 4; k++) { this.ell(g, x - 0.8, Y + 4 + k * 1.8, 1.1, 0.9, '#b02a1a'); this.ell(g, x + 0.9, Y + 4.8 + k * 1.8, 1.1, 0.9, '#c8381e'); } };
+    const plate = (x, c) => { this.circ(g, x, Y + 6, 2.6, '#e8e0d0'); this.circ(g, x, Y + 6, 1.8, c); this.circ(g, x, Y + 6, 0.8, '#e8e0d0'); };
+    const wheel = (x) => { g.strokeStyle = '#6a4428'; g.lineWidth = 1; g.beginPath(); g.arc(x, Y + 6, 3.5, 0, TAU); g.stroke(); g.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; g.moveTo(x + Math.cos(a) * 1, Y + 6 + Math.sin(a) * 1); g.lineTo(x + Math.cos(a) * 5, Y + 6 + Math.sin(a) * 5); } g.stroke(); this.circ(g, x, Y + 6, 1, '#8a6440'); };
+    const ring = (x) => { g.strokeStyle = '#d8d0c8'; g.lineWidth = 2; g.beginPath(); g.arc(x, Y + 6, 3, 0, TAU); g.stroke(); g.strokeStyle = '#c83a2a'; g.lineWidth = 2; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x, Y + 6, 3, k * Math.PI / 2, k * Math.PI / 2 + 0.5); g.stroke(); } };
+    const pans = (x0, x1) => { use(x0 - 3, x1); for (let x = x0; x < x1; x += 6) { g.fillStyle = '#5a4a3a'; g.fillRect(x - 0.3, Y + 2, 0.6, 2); this.circ(g, x, Y + 6.5, 2.4, '#b8683a'); this.circ(g, x - 0.6, Y + 6, 1.2, '#d8905a'); g.fillStyle = '#6a3a1e'; g.fillRect(x - 0.4, Y + 3.2, 0.8, 1.4); } };
+    const bottles = (x0, x1) => {
+      // bar arkası: aynanın iki yanında şişe rafları
+      use(x0, x1);
+      const mw = Math.min(26, (x1 - x0) * 0.42), mx = (x0 + x1) / 2;
+      mirror(mx, mw);
+      for (const [a, c] of [[x0, mx - mw / 2 - 2], [mx + mw / 2 + 2, x1]]) {
+        if (c - a < 4) continue;
+        g.fillStyle = '#4a2a18'; g.fillRect(a, Y + 6, c - a, 1.2); g.fillRect(a, Y + 10.5, c - a, 1.2);
+        for (let x = a + 0.5; x < c - 1.5; x += 2.2) for (const y0 of [Y + 6, Y + 10.5]) { const k = h(x * 7 + y0); g.fillStyle = ['#6a3a1a', '#3a5a2a', '#8a7a4a', '#5a2a2a', '#c8b890'][Math.floor(k * 5)]; g.fillRect(x, y0 - 3.4 + k, 1.4, 3.4 - k); g.fillRect(x + 0.3, y0 - 4.4 + k, 0.8, 1); }
+      }
+    };
+    const stained = (x) => { g.fillStyle = '#3a2a1c'; g.fillRect(x - 4, Y + 1, 8, 10); const c = ['#c83a3a', '#3a6ac8', '#e0c040', '#3a9a5a']; for (let k = 0; k < 4; k++) { g.fillStyle = c[(k + Math.floor(x)) % 4]; g.fillRect(x - 3 + (k % 2) * 3, Y + 2 + (k >> 1) * 4, 3, 4); } g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(x - 3, Y + 2, 1, 8); };
+    const cross = (x) => { g.fillStyle = rich ? '#e0b848' : '#c8a040'; g.fillRect(x - 0.8, Y + 2, 1.6, 9); g.fillRect(x - 3, Y + 4, 6, 1.6); };
+    // yerleştirme yardımcıları: önü boşsa çiz
+    const at = (fn, x, r = 5) => { const s = spot(x, r); if (s !== null) { use(s - r, s + r); fn(s); } return s; };
     const x0 = X + 8, x1 = X + W - 8;
+    // barın duvardaki genişliği (bar arkası rafları ve ayna onun üstüne)
+    const barSpan = () => { let a = null, z = null; if (world) for (let lx = 1; lx < b.w - 1; lx++) if (world.obj[(b.y + 2) * WW + b.x + lx] === O.BAR) { if (a === null) a = lx; z = lx; } return a === null ? null : [X + a * TS + 2, X + (z + 1) * TS - 2]; };
     switch (t) {
-      case 'general': case 'fence': case 'mine': case 'cabin': shelf(x0, x1); break;
-      case 'doctor': shelf(x0, X + W * 0.55); win(X + W * 0.78); break;
-      case 'gunsmith': case 'butcher': {
-        for (let x = x0; x < x1; x += 6) {
-          if (t === 'gunsmith') { g.fillStyle = '#2a2a2e'; g.fillRect(x, Y + 2, 1.5, 9); g.fillStyle = '#6a4428'; g.fillRect(x - 0.5, Y + 7, 2.5, 4); }
-          else { g.fillStyle = '#6a6a6a'; g.fillRect(x, Y + 2, 1, 2); this.ell(g, x + 0.5, Y + 6.5, 2, 3, h(x) < 0.5 ? '#9a3a2a' : '#b8584a'); }
+      case 'general': shelf(x0, x1, rich); break;
+      case 'fence': shelf(x0, X + W * 0.6); at(pelt, X + W * 0.78); break;
+      case 'mine': tools(x0, X + W * 0.45); at((x) => map(x, 14), X + W * 0.72, 8); break;
+      case 'cabin': at(pelt, X + W * 0.3); at(pelt, X + W * 0.5); shelf(X + W * 0.62, x1); break;
+      case 'doctor': shelf(x0, X + W * 0.42, true); at(diploma, X + W * 0.55); at(chart, X + W * 0.66); at(win, X + W * 0.84); if (rich) at(portrait, X + W * 0.48); break;
+      case 'pharmacy': shelf(x0, x1, true); break;
+      case 'gunsmith': rifles(x0, x1); if (rich) at(antlers, X + W * 0.5, 7); break;
+      case 'butcher': hooks(x0, X + W * 0.62); at(pelt, X + W * 0.74); at(pelt, X + W * 0.88); break;
+      case 'saloon': case 'gambling': case 'cantina': {
+        const bs = barSpan();
+        if (bs && t !== 'cantina') bottles(bs[0], bs[1]); else if (bs) shelf(bs[0], bs[1]);
+        const rest = bs ? (bs[0] - X > W / 2 ? [x0, bs[0] - 6] : [bs[1] + 6, x1]) : [x0, x1];
+        const n = Math.max(1, Math.floor((rest[1] - rest[0]) / 26));
+        for (let k = 0; k < n; k++) {
+          const x = rest[0] + (k + 0.5) * (rest[1] - rest[0]) / n;
+          if (t === 'cantina') { at(ristra, x - 6); at((xx) => plate(xx, ['#2a6a8a', '#c86a2a', '#3a8a5a'][k % 3]), x + 2); at(ristra, x + 9); }
+          else if (k % 2 === 0) at(antlers, x, 7); else at((xx) => frame(xx, ['#6a7a5a', '#7a6a4a', '#5a6a7a'][k % 3], 12), x, 7);
         }
         break;
       }
-      case 'saloon': {
-        g.fillStyle = '#7a8a90'; g.fillRect(X + 12, Y + 2, 58, 8); g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(X + 12, Y + 2, 58, 3);
-        g.fillStyle = '#8a6a30'; g.strokeStyle = '#8a6a30'; g.lineWidth = 1; g.strokeRect(X + 11.5, Y + 1.5, 59, 9);
-        for (let x = X + 14; x < X + 68; x += 4) { g.fillStyle = ['#6a3a1a', '#3a5a2a', '#8a7a4a', '#5a2a2a'][Math.floor(h(x) * 4)]; g.fillRect(x, Y + 5, 2, 5); }
-        frame(X + W * 0.72, '#6a7a5a'); this.ell(g, X + W * 0.86, Y + 6, 5, 3, '#6a4a2a'); g.fillStyle = '#e8dcc8'; g.fillRect(X + W * 0.86 - 6, Y + 3, 3, 2); g.fillRect(X + W * 0.86 + 3, Y + 3, 3, 2);
-        break;
-      }
-      case 'sheriff': poster(X + 14); poster(X + 24); poster(X + 34); win(X + W * 0.72); break;
+      case 'sheriff': for (const f of [0.3, 0.38, 0.46]) at(poster, X + W * f, 3); at((x) => map(x, 12), X + W * 0.62, 7); at(win, X + W * 0.8); if (rich) at(portrait, X + W * 0.45); else at(clock, X + W * 0.45, 4); break;
       case 'church': {
-        const cx = X + W / 2;
-        g.fillStyle = '#c8a040'; g.fillRect(cx - 0.8, Y + 2, 1.6, 9); g.fillRect(cx - 3, Y + 4, 6, 1.6);
-        for (const x of [X + W * 0.2, X + W * 0.8]) { g.fillStyle = '#3a2a1c'; g.fillRect(x - 4, Y + 1, 8, 10); const c = ['#c83a3a', '#3a6ac8', '#e0c040', '#3a9a5a']; for (let k = 0; k < 4; k++) { g.fillStyle = c[k]; g.fillRect(x - 3 + (k % 2) * 3, Y + 2 + (k >> 1) * 4, 3, 4); } }
+        const cx = X + W / 2; cross(cx);
+        for (const x of rich ? [X + W * 0.14, X + W * 0.3, X + W * 0.7, X + W * 0.86] : [X + W * 0.2, X + W * 0.8]) at(stained, x);
         break;
       }
-      case 'bank': { frame(X + W * 0.3, '#5a4a3a'); this.circ(g, X + W * 0.6, Y + 6, 4, '#c8b060'); this.circ(g, X + W * 0.6, Y + 6, 3, '#f0ead8'); g.fillStyle = '#1a1a1a'; g.fillRect(X + W * 0.6 - 0.4, Y + 3.5, 0.8, 2.5); g.fillRect(X + W * 0.6, Y + 5.6, 2, 0.8); frame(X + W * 0.85, '#3a5a4a'); break; }
+      case 'bank': at((x) => frame(x, '#5a4a3a', 12), X + W * 0.28, 7); at(clock, X + W * 0.5, 4); at((x) => frame(x, '#3a5a4a', 12), X + W * 0.72, 7); if (rich) { at(portrait, X + W * 0.14); at(portrait, X + W * 0.86); } break;
+      case 'county': at(portrait, X + W * 0.15); at((x) => map(x, 16), X + W * 0.38, 9); at(clock, X + W * 0.6, 4); at(portrait, X + W * 0.8); break;
+      case 'station': at((x) => { g.fillStyle = '#1a1a1a'; g.fillRect(x - 13, Y + 2, 26, 9); g.fillStyle = '#d8d0c0'; for (let k = 0; k < 3; k++) g.fillRect(x - 11, Y + 4 + k * 2.4, 22 * (0.6 + h(k) * 0.4), 0.8); }, X + W * 0.68, 14); at(clock, X + W * 0.46, 4); at(poster, X + W * 0.24, 3); break;
+      case 'land': at((x) => map(x, 22), X + W * 0.5, 12); at(diploma, X + W * 0.18); if (rich) at(portrait, X + W * 0.84); else at(win, X + W * 0.84); break;
+      case 'barber': { for (const x of [X + 24, X + W - 24]) { g.fillStyle = gold; g.fillRect(x - 6, Y + 1, 12, 10); g.fillStyle = '#a8c0c8'; g.fillRect(x - 5, Y + 2, 10, 8); g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(x - 4, Y + 2.5, 1.5, 7); } g.fillStyle = '#e8e0d0'; g.fillRect(X + W / 2 - 1, Y + 1, 2, 10); g.fillStyle = '#c83030'; for (let k = 0; k < 4; k++) g.fillRect(X + W / 2 - 1, Y + 2 + k * 2.5, 2, 1); break; }
+      case 'tailor': { for (let x = x0; x < X + W * 0.55; x += 5) { g.fillStyle = ['#6a2a4a', '#2a4a6a', '#8a6a2a', '#3a5a3a', '#7a3a2a'][Math.floor(h(x) * 5)]; g.fillRect(x, Y + 2, 4, 9); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(x, Y + 2, 1, 9); } at((x) => mirror(x, 8), X + W * 0.68, 6); at(win, X + W - 16); break; }
+      case 'stable': case 'barn': { for (let x = x0 + 4; x < x1; x += 14) { g.strokeStyle = '#6a6a6a'; g.lineWidth = 1; g.beginPath(); g.arc(x, Y + 6, 2.5, 0.3, Math.PI - 0.3, true); g.stroke(); } g.fillStyle = '#5a3a1a'; g.fillRect(X + W * 0.4, Y + 3, 10, 2); shoes(X + W * 0.62, X + W * 0.8); break; }
+      case 'smith': tools(x0, X + W * 0.5); shoes(X + W * 0.56, x1); break;
+      case 'lumber': tools(x0, X + W * 0.4); at(win, X + W * 0.55); at((x) => board(x, 12), X + W * 0.75, 8); break;
+      case 'docks': at(wheel, X + W * 0.25, 6); at(ring, X + W * 0.42); at((x) => board(x, 12, '#3a3a3a'), X + W * 0.6, 8); at(win, X + W * 0.82); break;
+      case 'ranch': at(antlers, X + W * 0.3, 7); at(win, X + W * 0.5); rifles(X + W * 0.68, X + W * 0.8); break;
+      case 'bakery': at((x) => board(x, 14), X + W * 0.3, 8); pans(X + W * 0.52, X + W * 0.72); at(win, X + W * 0.86); break;
+      case 'laundry': clothes(x0, X + W * 0.7); at(win, X + W * 0.84); break;
+      case 'brewery': at((x) => board(x, 16, '#3a2a1a'), X + W * 0.4, 9); at(win, X + W * 0.62); at(win, X + W * 0.82); break;
+      case 'mill': at(win, X + W * 0.3); tools(X + W * 0.45, X + W * 0.62); at(win, X + W * 0.78); break;
+      case 'post': pigeon(x0, X + W * 0.42); at(clock, X + W * 0.55, 4); at((x) => board(x, 12, '#4a3a2a'), X + W * 0.76, 8); break;
+      case 'warehouse': at((x) => board(x, 16, '#3a2a1a'), X + W * 0.3, 9); at(win, X + W * 0.55); tools(X + W * 0.68, X + W * 0.86); break;
       case 'hotel': {
-        if (isHotel2(b) && b.floor === 1) { win(X + 56); win(X + W - 56); frame(X + 40, '#5a6a4a'); frame(X + W - 40, '#6a4a5a'); break; }   // üst kat: arka odaların pencereleri, yatakların üstünde tablo
+        // otel eski pencere ve tablo çizimini korur
+        const win0 = (x) => { g.fillStyle = '#3a2a1c'; g.fillRect(x - 5, Y + 2, 10, 9); g.fillStyle = '#8ab0c8'; g.fillRect(x - 4, Y + 3, 8, 7); g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x - 4, Y + 3, 3, 7); g.fillStyle = '#3a2a1c'; g.fillRect(x - 0.5, Y + 3, 1, 7); };
+        const frame0 = (x, col) => { g.fillStyle = '#8a6a30'; g.fillRect(x - 5, Y + 2, 10, 8); g.fillStyle = col; g.fillRect(x - 4, Y + 3, 8, 6); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(x - 4, Y + 3, 8, 2); };
+        if (isHotel2(b) && b.floor === 1) { win0(X + 56); win0(X + W - 56); frame0(X + 40, '#5a6a4a'); frame0(X + W - 40, '#6a4a5a'); break; }   // üst kat: arka odaların pencereleri, yatakların üstünde tablo
         // zemin kat: resepsiyonun arkasında, ortada anahtar panosu; iki yanda tablo
         const kc = isHotel2(b) ? X + W / 2 : X + 22;
         if (isHotel2(b)) { g.fillStyle = '#4a3020'; g.fillRect(kc - 14, Y + 2, 28, 10); g.fillStyle = '#6a4a2a'; g.fillRect(kc - 13, Y + 3, 26, 8); }
         for (let k = 0; k < 8; k++) { g.fillStyle = isHotel2(b) ? '#3a2416' : '#6a4a2a'; g.fillRect(kc - 12 + k * 3, Y + 4 + (k % 2) * 3, 2, 2); g.fillStyle = '#c8a040'; g.fillRect(kc - 11.5 + k * 3, Y + 6 + (k % 2) * 3, 1, 1.5); }
-        if (isHotel2(b)) { frame(X + 40, '#6a5a3a'); frame(X + W - 40, '#5a6a4a'); } else { frame(X + W * 0.5, '#6a5a3a'); win(X + W * 0.8); }
+        if (isHotel2(b)) { frame0(X + 40, '#6a5a3a'); frame0(X + W - 40, '#5a6a4a'); } else { frame0(X + W * 0.5, '#6a5a3a'); win0(X + W * 0.8); }
         break;
       }
-      case 'station': { g.fillStyle = '#1a1a1a'; g.fillRect(X + W * 0.55, Y + 2, 26, 9); g.fillStyle = '#d8d0c0'; for (let k = 0; k < 3; k++) g.fillRect(X + W * 0.55 + 2, Y + 4 + k * 2.4, 22 * (0.6 + h(k) * 0.4), 0.8); this.circ(g, X + 20, Y + 6, 4, '#f0ead8'); break; }
-      case 'barber': { for (const x of [X + 24, X + W - 24]) { g.fillStyle = '#8a6a30'; g.fillRect(x - 6, Y + 1, 12, 10); g.fillStyle = '#a8c0c8'; g.fillRect(x - 5, Y + 2, 10, 8); } g.fillStyle = '#e8e0d0'; g.fillRect(X + W / 2 - 1, Y + 1, 2, 10); g.fillStyle = '#c83030'; for (let k = 0; k < 4; k++) g.fillRect(X + W / 2 - 1, Y + 2 + k * 2.5, 2, 1); break; }
-      case 'tailor': { for (let x = x0; x < x1 - 20; x += 5) { g.fillStyle = ['#6a2a4a', '#2a4a6a', '#8a6a2a', '#3a5a3a', '#7a3a2a'][Math.floor(h(x) * 5)]; g.fillRect(x, Y + 2, 4, 9); } win(X + W - 16); break; }
-      case 'stable': case 'barn': { for (let x = x0 + 4; x < x1; x += 14) { g.strokeStyle = '#6a6a6a'; g.lineWidth = 1; g.beginPath(); g.arc(x, Y + 6, 2.5, 0.3, Math.PI - 0.3, true); g.stroke(); } g.fillStyle = '#5a3a1a'; g.fillRect(X + W * 0.4, Y + 3, 10, 2); break; }
-      default: win(X + W * 0.3); if (b.w >= 7) frame(X + W * 0.7, '#5a6a4a'); break;
+      case 'house': case 'property': case 'hs_shack': case 'hs_cabin': case 'hs_house': default:
+        at(win, X + W * 0.3);
+        if (b.w >= 7) at((x) => frame(x, ['#5a6a4a', '#6a5a4a', '#4a5a6a'][Math.floor(h(5) * 3)]), X + W * 0.7);
+        if (rich) { at((x) => mirror(x, 8), X + W * 0.52, 6); at(portrait, X + W * 0.84); }
+        else if (b.w >= 8) at(clock, X + W * 0.52, 4);
+        break;
     }
+    // aplikler: zengin binalarda (ve saloonlarda) süslerin arasındaki boşluklara duvar lambası
+    const n = IntDeco.sconces(b), sc = [];
+    for (let k = 0; k < n; k++) {
+      const want = X + W * (k + 1) / (n + 1), span = W / (n + 1) / 2;
+      for (let d = 0; d <= span; d += 2) { const x = [want + d, want - d].find(q => free(q, 3) && !busy(q - 4, q + 4)); if (x !== undefined) { use(x - 4, x + 4); sc.push(Math.round(x)); sconce(Math.round(x)); break; } }
+    }
+    b._sc = sc;
   },
   furn(g, o, cx, cy, world, i, b, h) {
     const same = (d) => world.obj[i + d] === o;
-    const legs = '#3a2416';
+    const t = b.type, rich = !!b.modern && t !== 'hotel';   // zengin şehir (otel kendi eşyasını korur)
     switch (o) {
       case O.COUNTER: case O.BAR: case O.TICKET: {
-        const top = o === O.BAR ? '#4a2a18' : o === O.TICKET ? '#6a5236' : b.type === 'bank' ? '#5a3a22' : '#9a7048';
+        // zengin şehirde: mermer tezgâh üstü ve maun ön yüz (bar koyu maun, pirinç ayaklık)
+        const top = o === O.BAR ? (rich ? '#3a1a0e' : '#4a2a18') : o === O.TICKET ? '#6a5236' : rich ? '#d8d2c8' : t === 'bank' ? '#5a3a22' : '#9a7048';
+        const fr = rich && o !== O.TICKET ? (o === O.BAR ? '#2e140a' : '#4a2416') : shadeHex(top, -0.3);
         g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(cx - 8, cy + 5, 16, 3);
-        g.fillStyle = shadeHex(top, -0.3); g.fillRect(cx - 8, cy + 1, 16, 6);
+        g.fillStyle = fr; g.fillRect(cx - 8, cy + 1, 16, 6);
+        if (rich && o !== O.TICKET) { g.fillStyle = shadeHex(fr, 0.18); g.fillRect(cx - 6, cy + 2.5, 5, 3); g.fillRect(cx + 1, cy + 2.5, 5, 3); g.fillStyle = shadeHex(fr, -0.3); g.fillRect(cx - 6, cy + 5, 5, 0.6); g.fillRect(cx + 1, cy + 5, 5, 0.6); }
         g.fillStyle = top; g.fillRect(cx - 8, cy - 5, 16, 7);
+        if (rich && o === O.COUNTER) { g.fillStyle = 'rgba(120,110,100,0.35)'; g.fillRect(cx - 7 + h * 6, cy - 3.5, 5, 0.5); g.fillRect(cx - 2 + h * 4, cy - 1.5, 4, 0.5); }
         g.fillStyle = shadeHex(top, 0.2); g.fillRect(cx - 8, cy - 5, 16, 1);
-        if (!same(-1)) { g.fillStyle = shadeHex(top, -0.45); g.fillRect(cx - 8, cy - 5, 1.5, 12); }
-        if (!same(1)) { g.fillStyle = shadeHex(top, -0.45); g.fillRect(cx + 6.5, cy - 5, 1.5, 12); }
+        const edge = rich && o !== O.TICKET ? shadeHex(fr, -0.3) : shadeHex(top, -0.45);
+        if (!same(-1)) { g.fillStyle = edge; g.fillRect(cx - 8, cy - 5, 1.5, 12); }
+        if (!same(1)) { g.fillStyle = edge; g.fillRect(cx + 6.5, cy - 5, 1.5, 12); }
         if (o === O.BAR) { g.fillStyle = '#c8a040'; g.fillRect(cx - 8, cy + 5, 16, 1); if (h < 0.5) { g.fillStyle = 'rgba(220,230,240,0.8)'; g.fillRect(cx - 3 + h * 6, cy - 3, 2, 3); } if (h > 0.6) { g.fillStyle = '#5a2a14'; g.fillRect(cx + 2, cy - 5, 2, 4); } }
-        else if (b.type === 'bank' || o === O.TICKET) { g.fillStyle = '#c8b060'; for (let x = cx - 7; x < cx + 8; x += 3) g.fillRect(x, cy - 12, 0.8, 8); g.fillRect(cx - 8, cy - 12, 16, 1); }
+        else if (t === 'bank' || o === O.TICKET) { g.fillStyle = rich ? '#d8b850' : '#c8b060'; for (let x = cx - 7; x < cx + 8; x += 3) g.fillRect(x, cy - 12, 0.8, 8); g.fillRect(cx - 8, cy - 12, 16, 1); }
         else if (h < 0.25) { g.fillStyle = '#c8b890'; g.fillRect(cx - 3, cy - 4, 5, 4); g.fillStyle = '#e0d0a0'; g.fillRect(cx - 2, cy - 5, 3, 1); }
         else if (h < 0.45) { g.fillStyle = '#8a8a8a'; g.fillRect(cx - 4, cy - 3, 6, 1); g.fillRect(cx - 1.5, cy - 5, 1, 3); g.fillStyle = '#c8a040'; g.fillRect(cx - 5, cy - 4, 2, 1); g.fillRect(cx + 1, cy - 4, 2, 1); }
         else if (h < 0.6) { g.fillStyle = 'rgba(200,220,230,0.8)'; g.fillRect(cx + 1, cy - 5, 4, 4); g.fillStyle = '#c84030'; g.fillRect(cx + 2, cy - 3, 2, 2); }
         break;
       }
       case O.TABLE: case O.CARDTABLE: {
-        const chair = (x) => { g.fillStyle = '#4a2e1a'; g.fillRect(x - 2.5, cy - 2, 5, 5); g.fillStyle = '#6a4428'; g.fillRect(x - 2.5, cy - 2, 5, 1); };
-        chair(cx - 11); chair(cx + 11);
+        // iki yandaki sandalye: yan karo odanın içinde, boş ve kapı yolunda değilse (zenginde döşemeli)
+        const lx = (i % WW) - b.x, ly = Math.floor(i / WW) - b.y;
+        const room = (x) => x >= 1 && x <= b.w - 2 && !world.obj[i + x - lx] && !(x === b.w >> 1 && ly >= b.h - 3);
+        const chair = (x) => { g.fillStyle = '#4a2e1a'; g.fillRect(x - 2.5, cy - 2, 5, 5); g.fillStyle = rich ? '#7a2430' : '#6a4428'; g.fillRect(x - 2.5, cy - 2, 5, rich ? 2.5 : 1); };
+        if (room(lx - 1)) chair(cx - 11);
+        if (room(lx + 1)) chair(cx + 11);
         this.ell(g, cx + 1, cy + 3, 7, 3, 'rgba(0,0,0,0.25)');
         if (o === O.CARDTABLE) {
-          this.circ(g, cx, cy, 7, '#4a2e1a'); this.circ(g, cx, cy, 6, '#2e6a3a');
+          this.circ(g, cx, cy, 7, rich ? '#c8a040' : '#4a2e1a'); this.circ(g, cx, cy, 6, rich ? '#1e5a34' : '#2e6a3a');
           g.fillStyle = '#f0ece0'; g.fillRect(cx - 3, cy - 2, 2, 3); g.fillRect(cx + 1, cy - 1, 2, 3); g.fillRect(cx - 1, cy + 2, 2, 2);
           g.fillStyle = '#c83030'; g.fillRect(cx + 3, cy - 3, 1.5, 1.5); g.fillStyle = '#3050c0'; g.fillRect(cx - 4.5, cy + 1, 1.5, 1.5);
+        } else if (rich) {
+          // beyaz örtülü masa, ortada vazo ve mum
+          this.circ(g, cx, cy, 6.6, '#d8d2c4'); this.circ(g, cx, cy - 0.5, 6, '#f4f0e8');
+          g.fillStyle = 'rgba(200,190,170,0.6)'; for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; g.fillRect(cx + Math.cos(a) * 6.2 - 0.4, cy + Math.sin(a) * 6.2 - 0.4, 0.8, 0.8); }
+          this.circ(g, cx - 1.5, cy - 1, 1.3, '#4a6a8a'); this.circ(g, cx - 1.5, cy - 2.2, 1.2, '#c83a4a'); this.circ(g, cx - 0.6, cy - 2.6, 0.8, '#e8a0b0');
+          g.fillStyle = '#f4ecd8'; g.fillRect(cx + 1.6, cy - 3.5, 1, 2.6); g.fillStyle = '#ffc860'; g.fillRect(cx + 1.6, cy - 4.3, 1, 0.8);
         } else {
           this.circ(g, cx, cy, 6, '#4a2e1a'); this.circ(g, cx, cy - 0.5, 5.2, '#6e4a2c');
           g.fillStyle = 'rgba(255,230,190,0.15)'; g.fillRect(cx - 3, cy - 4, 5, 1);
@@ -664,13 +1053,14 @@ const Spr = {
         break;
       }
       case O.BED: {
-        const bl = ['#8a2a2a', '#2a4a6a', '#6a5a2a', '#4a6a3a'][Math.floor(h * 4)];
+        const bl = rich ? ['#7a2430', '#2e4a6a', '#5a3a6a'][Math.floor(h * 3)] : ['#8a2a2a', '#2a4a6a', '#6a5a2a', '#4a6a3a'][Math.floor(h * 4)];
         g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(cx - 5, cy - 5, 13, 23);
         g.fillStyle = '#5a3a22'; g.fillRect(cx - 7, cy - 7, 13, 23);
         g.fillStyle = '#e8e4d8'; g.fillRect(cx - 6, cy - 6, 11, 21);
         g.fillStyle = '#f8f4ec'; g.fillRect(cx - 5, cy - 5, 9, 4);
         g.fillStyle = bl; g.fillRect(cx - 6, cy + 1, 11, 14); g.fillStyle = shadeHex(bl, 0.2); g.fillRect(cx - 6, cy + 1, 11, 1.5);
         g.fillStyle = '#3a2416'; g.fillRect(cx - 7, cy - 8, 13, 2);
+        if (rich) { g.fillStyle = '#c8a040'; g.fillRect(cx - 7, cy - 9, 13, 1); g.fillRect(cx - 7, cy - 9, 1, 3); g.fillRect(cx + 5, cy - 9, 1, 3); for (let x = cx - 5; x < cx + 5; x += 2.5) g.fillRect(x, cy - 8.5, 0.6, 2); g.fillStyle = shadeHex(bl, -0.2); for (let x = cx - 5; x < cx + 5; x += 2.5) g.fillRect(x, cy + 3, 1, 1); }
         break;
       }
       case O.STOVE: {
@@ -678,12 +1068,15 @@ const Spr = {
         g.fillStyle = '#3a3a3a'; g.fillRect(cx - 1.5, cy - 14, 3, 10);
         g.fillStyle = '#222226'; g.fillRect(cx - 5, cy - 5, 10, 10); g.fillStyle = '#3a3a40'; g.fillRect(cx - 5, cy - 5, 10, 2);
         g.fillStyle = '#e87020'; g.fillRect(cx - 3, cy + 1, 6, 2); g.fillStyle = '#ffc060'; g.fillRect(cx - 1, cy + 1, 2, 1);
+        if (rich) { g.fillStyle = '#c8ccd0'; g.fillRect(cx - 5, cy - 5, 10, 0.6); g.fillRect(cx - 5.5, cy + 4, 11, 1); g.fillRect(cx - 1.5, cy - 9, 3, 0.6); }   // nikel süsler
+        g.fillStyle = '#5a3a2a'; g.fillRect(cx + 2, cy - 7, 2.4, 2); g.fillStyle = '#3a2416'; g.fillRect(cx + 4.2, cy - 6.6, 1, 0.6);   // cezve
         break;
       }
       case O.DESK: {
         g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(cx - 7, cy + 4, 29, 3);
-        g.fillStyle = '#4a2e1a'; g.fillRect(cx - 7, cy - 1, 29, 6);
-        g.fillStyle = '#6e4a2c'; g.fillRect(cx - 7, cy - 6, 29, 7); g.fillStyle = 'rgba(255,230,190,0.15)'; g.fillRect(cx - 7, cy - 6, 29, 1);
+        g.fillStyle = rich ? '#3a1c10' : '#4a2e1a'; g.fillRect(cx - 7, cy - 1, 29, 6);
+        g.fillStyle = rich ? '#5a2e1a' : '#6e4a2c'; g.fillRect(cx - 7, cy - 6, 29, 7); g.fillStyle = 'rgba(255,230,190,0.15)'; g.fillRect(cx - 7, cy - 6, 29, 1);
+        if (rich) { g.fillStyle = '#2e5a3a'; g.fillRect(cx - 5, cy - 5, 25, 5); g.fillStyle = '#c8a040'; g.fillRect(cx - 5, cy - 5, 25, 0.4); g.fillRect(cx - 5, cy - 0.4, 25, 0.4); g.fillStyle = shadeHex('#3a1c10', 0.15); g.fillRect(cx - 4, cy + 1, 7, 2.5); g.fillRect(cx + 12, cy + 1, 7, 2.5); }
         g.fillStyle = '#f0e8d0'; g.fillRect(cx - 3, cy - 5, 6, 4); g.fillRect(cx + 4, cy - 4, 4, 3);
         g.fillStyle = '#1a1a1a'; g.fillRect(cx + 10, cy - 4, 2, 2);
         g.fillStyle = '#e8d070'; this.circ(g, cx + 16, cy - 3, 1.8, '#e8d070'); g.fillStyle = '#6a6a6a'; g.fillRect(cx + 15.5, cy - 2, 1, 2);
@@ -698,8 +1091,9 @@ const Spr = {
       }
       case O.PEW: {
         g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(cx - 8, cy + 3, 16, 2);
-        g.fillStyle = '#5a3a22'; g.fillRect(cx - 8, cy - 5, 16, 3);
-        g.fillStyle = '#7a5434'; g.fillRect(cx - 8, cy - 2, 16, 5);
+        g.fillStyle = rich ? '#3e2214' : '#5a3a22'; g.fillRect(cx - 8, cy - 5, 16, 3);
+        g.fillStyle = rich ? '#5a3420' : '#7a5434'; g.fillRect(cx - 8, cy - 2, 16, 5);
+        if (rich) { g.fillStyle = '#7a1a24'; g.fillRect(cx - 8, cy - 1.5, 16, 2.5); g.fillStyle = '#9a2a34'; g.fillRect(cx - 8, cy - 1.5, 16, 0.6); }
         if (!same(-1)) { g.fillStyle = '#3a2416'; g.fillRect(cx - 8, cy - 5, 1.5, 8); }
         if (!same(1)) { g.fillStyle = '#3a2416'; g.fillRect(cx + 6.5, cy - 5, 1.5, 8); }
         break;
@@ -749,14 +1143,16 @@ const Spr = {
       }
       case O.SHELF: {
         g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(cx - 6, cy + 5, 14, 2);
-        g.fillStyle = '#4a2e1a'; g.fillRect(cx - 7, cy - 7, 14, 13);
+        g.fillStyle = rich ? '#3a2014' : '#4a2e1a'; g.fillRect(cx - 7, cy - 7, 14, 13);
+        if (rich) { g.fillStyle = '#c8a040'; g.fillRect(cx - 7, cy - 7.5, 14, 0.6); }
         const cols = ['#c8402c', '#e0c060', '#4a7aa8', '#6a9a4a', '#d8d0c0', '#8a5a2a'];
         for (let r = 0; r < 3; r++) { g.fillStyle = '#6a4428'; g.fillRect(cx - 6, cy - 6 + r * 4 + 3, 12, 1); for (let k = 0; k < 4; k++) { g.fillStyle = cols[Math.floor(hash2(i, r * 4 + k, 5) * cols.length)]; g.fillRect(cx - 5.5 + k * 3, cy - 6 + r * 4, 2, 3); } }
         break;
       }
       case O.CHAIR: { g.fillStyle = '#4a2e1a'; g.fillRect(cx - 3, cy - 5, 6, 2); g.fillStyle = '#6a4428'; g.fillRect(cx - 3, cy - 3, 6, 6); break; }
       case O.PLANT: {
-        g.fillStyle = '#8a4a2a'; g.fillRect(cx - 3, cy + 1, 6, 5); g.fillStyle = '#6a3a1e'; g.fillRect(cx - 3.5, cy + 1, 7, 1.5);
+        if (rich) { g.fillStyle = '#e8e4dc'; g.fillRect(cx - 3.2, cy + 1, 6.4, 5); g.fillStyle = '#3a5a9a'; g.fillRect(cx - 3.2, cy + 2.6, 6.4, 1); g.fillRect(cx - 1, cy + 4, 2, 1); g.fillStyle = '#d8d4cc'; g.fillRect(cx - 3.6, cy + 1, 7.2, 1.2); }
+        else { g.fillStyle = '#8a4a2a'; g.fillRect(cx - 3, cy + 1, 6, 5); g.fillStyle = '#6a3a1e'; g.fillRect(cx - 3.5, cy + 1, 7, 1.5); }
         for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + h; this.ell(g, cx + Math.cos(a) * 3, cy - 2 + Math.sin(a) * 2.5, 2.4, 1.2, k % 2 ? '#4a7a3a' : '#5a8a44', a); }
         break;
       }
@@ -770,6 +1166,372 @@ const Spr = {
         g.fillStyle = '#5a3a22'; g.fillRect(cx - 0.5, cy, 1, 6); g.fillRect(cx - 3, cy + 5, 6, 1);
         const c = ['#6a2a4a', '#2a4a6a', '#8a6a2a', '#3a5a3a'][Math.floor(h * 4)];
         this.ell(g, cx, cy - 2, 4, 3.5, c); this.ell(g, cx, cy - 6, 2.2, 1.5, '#d8c8a8');
+        break;
+      }
+      /* ---- iç mekânı zenginleştiren eşyalar ---- */
+      case O.ARMCHAIR: {
+        // koltuk: arkalığı duvara (kuzeye), oturağı güneye bakar; zenginde kadife ve pirinç çiviler
+        const fab = rich ? ['#7a2430', '#2e5a44', '#5a3a6a'][Math.floor(h * 3)] : ['#6a4428', '#5a3a2a', '#7a5a3a'][Math.floor(h * 3)];
+        const dk = shadeHex(fab, -0.38), lt = shadeHex(fab, 0.2);
+        this.ell(g, cx + 1, cy + 6.5, 7, 2, 'rgba(0,0,0,0.3)');
+        g.fillStyle = dk; g.fillRect(cx - 6, cy - 8.5, 12, 6.5);
+        g.fillStyle = fab; g.fillRect(cx - 5, cy - 8, 10, 5);
+        g.fillStyle = lt; g.fillRect(cx - 5, cy - 8, 10, 1);
+        g.fillStyle = fab; g.fillRect(cx - 5, cy - 3, 10, 6);
+        g.fillStyle = lt; g.fillRect(cx - 5, cy - 3, 10, 0.8);
+        g.fillStyle = dk; g.fillRect(cx - 7, cy - 5, 2.5, 9); g.fillRect(cx + 4.5, cy - 5, 2.5, 9);
+        g.fillStyle = lt; g.fillRect(cx - 7, cy - 5, 2.5, 1); g.fillRect(cx + 4.5, cy - 5, 2.5, 1);
+        g.fillStyle = shadeHex(fab, -0.5); g.fillRect(cx - 6, cy + 3, 12, 2);
+        g.fillStyle = '#2a1a10'; g.fillRect(cx - 6, cy + 5, 1.5, 1.5); g.fillRect(cx + 4.5, cy + 5, 1.5, 1.5);
+        if (rich) { g.fillStyle = '#d8b050'; for (let x = cx - 4.5; x < cx + 5; x += 2) g.fillRect(x, cy - 8.4, 0.6, 0.6); g.fillStyle = shadeHex(fab, -0.25); for (const [x, y] of [[-2.5, -6], [0, -5], [2.5, -6]]) g.fillRect(cx + x, cy + y, 0.8, 0.8); }
+        break;
+      }
+      case O.BOOKCASE: {
+        const wd = rich ? '#3a2014' : '#4a2e1a';
+        g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(cx - 6, cy + 5, 14, 2.5);
+        g.fillStyle = wd; g.fillRect(cx - 7, cy - 14, 14, 20);
+        g.fillStyle = shadeHex(wd, 0.18); g.fillRect(cx - 7.5, cy - 15.5, 15, 1.8);
+        const cols = ['#7a2a22', '#2a4a3a', '#5a3a1e', '#2a3a5a', '#8a6a2a', '#4a2a3a', '#6a5a3a'];
+        for (let r = 0; r < 4; r++) {
+          const y0 = cy - 13 + r * 4.4;
+          g.fillStyle = shadeHex(wd, -0.4); g.fillRect(cx - 6, y0, 12, 3.8);
+          let x = cx - 6;
+          while (x < cx + 5.6) {
+            const k = hash2(i, r * 31 + Math.round(x * 3), 7), bw = k < 0.3 ? 1.6 : 1.1, bh = 2.5 + k * 1.2;
+            if (k > 0.92) { x += 1.3; continue; }
+            g.fillStyle = cols[Math.floor(k * 997) % cols.length]; g.fillRect(x, y0 + 3.8 - bh, bw, bh);
+            if (rich || k > 0.6) { g.fillStyle = '#d8b860'; g.fillRect(x, y0 + 4.4 - bh, bw, 0.4); }
+            x += bw + 0.2;
+          }
+          g.fillStyle = shadeHex(wd, 0.12); g.fillRect(cx - 6.5, y0 + 3.8, 13, 0.7);
+        }
+        g.fillStyle = shadeHex(wd, -0.2); g.fillRect(cx - 7, cy + 4.6, 14, 1.6);
+        break;
+      }
+      case O.GCLOCK: {
+        // ayaklı saat: tepede kadran, gövdede camın ardında sarkaç
+        const wd = rich ? '#4a2414' : '#5a3a22', lt = shadeHex(wd, 0.22);
+        g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(cx - 3, cy + 5, 8, 2);
+        g.fillStyle = wd; g.fillRect(cx - 4, cy - 15, 8, 7.5);
+        g.fillStyle = lt; g.fillRect(cx - 4.5, cy - 15.5, 9, 1.2);
+        this.circ(g, cx, cy - 11, 2.8, rich ? '#d8b050' : '#a88a40'); this.circ(g, cx, cy - 11, 2.2, '#f0ead8');
+        g.fillStyle = '#1a1a1a'; g.fillRect(cx - 0.3, cy - 12.6, 0.6, 1.7); g.fillRect(cx, cy - 11.2, 1.3, 0.5);
+        g.fillStyle = wd; g.fillRect(cx - 3, cy - 7.5, 6, 10);
+        g.fillStyle = '#2a1a10'; g.fillRect(cx - 2, cy - 6.5, 4, 7.5);
+        g.fillStyle = '#c8a040'; g.fillRect(cx - 0.3, cy - 6.3, 0.6, 5); this.circ(g, cx, cy - 1, 1.2, '#d8b050');
+        g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(cx - 2, cy - 6.5, 0.8, 7.5);
+        g.fillStyle = wd; g.fillRect(cx - 3.8, cy + 2.5, 7.6, 3.5);
+        g.fillStyle = lt; g.fillRect(cx - 3.8, cy + 2.5, 7.6, 0.7);
+        break;
+      }
+      case O.FIREPLACE: {
+        // şömine: taş (zenginde mermer) gövde, pervaz rafında mumlar, kemerli ağızda ateş
+        const st = rich ? '#d8d0c4' : '#7a6a5a', dk = shadeHex(st, -0.35), lt = shadeHex(st, 0.18), mant = rich ? '#4a2a18' : '#5a3a22';
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(cx - 8, cy + 5.5, 16, 2);
+        g.fillStyle = rich ? '#8a8078' : '#5a5048'; g.fillRect(cx - 8, cy + 3, 16, 3);
+        g.fillStyle = st; g.fillRect(cx - 8, cy - 12, 16, 15.5);
+        if (!rich) { g.fillStyle = dk; for (let y = cy - 9, r = 0; y < cy + 3; y += 3, r++) { g.fillRect(cx - 8, y, 16, 0.5); for (let x = cx - 8 + (r % 2 ? 2 : 0); x < cx + 8; x += 4) g.fillRect(x, y - 3, 0.5, 3); } }
+        else { g.fillStyle = 'rgba(120,110,100,0.35)'; g.fillRect(cx - 6, cy - 9, 5, 0.5); g.fillRect(cx + 2, cy - 7, 4, 0.5); g.fillRect(cx - 7, cy - 4, 2, 0.5); }
+        g.fillStyle = mant; g.fillRect(cx - 9, cy - 12.5, 18, 2);
+        g.fillStyle = shadeHex(mant, 0.25); g.fillRect(cx - 9, cy - 12.5, 18, 0.6);
+        g.fillStyle = '#f0e8d0'; g.fillRect(cx - 6.5, cy - 15, 1, 2.5); g.fillRect(cx + 5.5, cy - 15, 1, 2.5);
+        g.fillStyle = '#ffc860'; g.fillRect(cx - 6.5, cy - 15.8, 1, 0.8); g.fillRect(cx + 5.5, cy - 15.8, 1, 0.8);
+        if (rich) { this.circ(g, cx, cy - 14, 1.6, '#d8b050'); this.circ(g, cx, cy - 14, 1, '#f0ead8'); }
+        else { g.fillStyle = '#8a7a6a'; g.fillRect(cx - 1.5, cy - 15, 3, 2.5); g.fillStyle = '#a89a8a'; g.fillRect(cx - 1.5, cy - 15, 3, 0.6); }
+        g.fillStyle = '#1a120c'; g.fillRect(cx - 5, cy - 7, 10, 10); this.ell(g, cx, cy - 7, 5, 2.2, '#1a120c');
+        g.fillStyle = '#3a2a1e'; g.fillRect(cx - 4, cy + 1.5, 8, 1.5);
+        this.ell(g, cx, cy, 3.6, 2.6, '#c84a14'); this.ell(g, cx, cy - 0.8, 2.6, 2.4, '#f08a24'); this.ell(g, cx, cy - 1.2, 1.4, 1.8, '#ffd870');
+        if (rich) { g.fillStyle = '#c8a040'; g.fillRect(cx - 6, cy + 2.8, 12, 0.8); for (let x = cx - 5; x <= cx + 5; x += 2) g.fillRect(x, cy + 1.2, 0.5, 1.6); }
+        g.fillStyle = lt; g.fillRect(cx - 8, cy - 10.5, 1, 13.5); g.fillStyle = dk; g.fillRect(cx + 7, cy - 10.5, 1, 13.5);
+        break;
+      }
+      case O.CABINET: {
+        // camlı dolap: içindekiler bina türüne göre (şişe, kumaş, silah, kavanoz)
+        const wd = rich ? '#3a2014' : '#5a3a22';
+        g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(cx - 6, cy + 5, 14, 2.5);
+        g.fillStyle = wd; g.fillRect(cx - 7, cy - 13.5, 14, 19.5);
+        g.fillStyle = shadeHex(wd, 0.2); g.fillRect(cx - 7.5, cy - 15, 15, 1.6);
+        g.fillStyle = '#8aa0a6'; g.fillRect(cx - 6, cy - 12.5, 5.5, 13); g.fillRect(cx + 0.5, cy - 12.5, 5.5, 13);
+        const kind = t === 'pharmacy' || t === 'doctor' ? 'b' : t === 'tailor' ? 'f' : t === 'gunsmith' ? 'g' : 'j';
+        for (let r = 0; r < 3; r++) {
+          const y0 = cy - 12.5 + r * 4.4;
+          g.fillStyle = shadeHex(wd, 0.1); g.fillRect(cx - 6, y0 + 3.8, 12, 0.6);
+          for (let k = 0; k < 4; k++) {
+            const x = cx - 5.5 + k * 3 + (k > 1 ? 0.5 : 0), q = hash2(i, r * 4 + k, 3);
+            if (kind === 'b') { g.fillStyle = ['#8a3a2a', '#3a6a5a', '#a88a3a', '#4a4a8a'][Math.floor(q * 4)]; g.fillRect(x, y0 + 1.2, 1.6, 2.6); g.fillRect(x + 0.4, y0 + 0.4, 0.8, 0.8); }
+            else if (kind === 'f') { g.fillStyle = ['#6a2a4a', '#2a4a6a', '#8a6a2a', '#e8e0d0'][Math.floor(q * 4)]; g.fillRect(x - 0.3, y0 + 2, 2.4, 1.8); }
+            else if (kind === 'g') { g.fillStyle = '#2a2a2e'; g.fillRect(x - 0.5, y0 + 2.2, 2.6, 0.8); g.fillStyle = '#6a4428'; g.fillRect(x + 1.2, y0 + 2.2, 0.9, 1.6); }
+            else { g.fillStyle = ['#e8e0d0', '#c8a060', '#d8c8e0', '#a8c8b0'][Math.floor(q * 4)]; g.fillRect(x, y0 + 1.6, 1.8, 2.2); g.fillStyle = rich ? '#c8a040' : '#8a7a6a'; g.fillRect(x, y0 + 1.3, 1.8, 0.5); }
+          }
+        }
+        g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(cx - 5.6, cy - 12.2, 0.9, 12.4); g.fillRect(cx + 0.9, cy - 12.2, 0.9, 12.4);
+        g.fillStyle = wd; g.fillRect(cx - 0.5, cy - 13, 1, 14);
+        g.fillStyle = shadeHex(wd, -0.2); g.fillRect(cx - 7, cy + 1.5, 14, 4.5);
+        g.fillStyle = rich ? '#d8b050' : '#a88a50'; g.fillRect(cx - 1.8, cy + 3, 1, 1); g.fillRect(cx + 0.8, cy + 3, 1, 1);
+        break;
+      }
+      case O.SACKS: {
+        this.ell(g, cx + 1, cy + 5, 7.5, 2.4, 'rgba(0,0,0,0.28)');
+        const c = t === 'mill' || t === 'bakery' ? '#d8ccb0' : t === 'post' ? '#8a8a70' : '#b89a6a';
+        const sack = (x, y, sc) => {
+          this.ell(g, x, y + 1, 3.6 * sc, 4 * sc, shadeHex(c, -0.25)); this.ell(g, x - 0.4, y + 0.4, 3.2 * sc, 3.6 * sc, c);
+          g.fillStyle = shadeHex(c, -0.35); g.fillRect(x - 1.2 * sc, y - 4 * sc, 2.4 * sc, 1.4 * sc);
+          g.fillStyle = '#8a6a3a'; g.fillRect(x - 1.4 * sc, y - 2.8 * sc, 2.8 * sc, 0.6);
+          g.fillStyle = 'rgba(90,60,30,0.45)'; g.fillRect(x - 1.6 * sc, y + 0.5, 3.2 * sc, 0.6); g.fillRect(x - 0.3, y - 0.6, 0.6, 2.4);
+        };
+        sack(cx - 3.5, cy + 1, 1); sack(cx + 3.5, cy + 1.5, 1); sack(cx, cy - 3, 0.95);
+        break;
+      }
+      case O.COATRACK: {
+        this.ell(g, cx, cy + 5, 4, 1.6, 'rgba(0,0,0,0.3)');
+        g.fillStyle = '#3a2416'; g.fillRect(cx - 3.5, cy + 4, 7, 1); g.fillRect(cx - 0.6, cy - 13, 1.2, 17.5); g.fillRect(cx - 3, cy - 12, 6, 0.8);
+        g.fillStyle = '#5a3a22'; g.fillRect(cx - 0.2, cy - 13, 0.4, 17);
+        const c = ['#3a3a40', '#5a3a2a', '#2a3a4a'][Math.floor(h * 3)];
+        g.fillStyle = c; g.beginPath(); g.moveTo(cx - 2.5, cy - 11.5); g.lineTo(cx - 4.5, cy - 2); g.lineTo(cx - 0.8, cy - 2); g.lineTo(cx - 0.8, cy - 11.5); g.fill();
+        g.fillStyle = shadeHex(c, 0.15); g.fillRect(cx - 2.5, cy - 11.5, 1.6, 1);
+        this.ell(g, cx + 1.5, cy - 13.5, 3.2, 1.2, '#4a3220'); g.fillStyle = '#5a3e28'; g.fillRect(cx + 0.2, cy - 15.6, 2.6, 2.2); g.fillStyle = '#2a1a10'; g.fillRect(cx + 0.2, cy - 14, 2.6, 0.5);
+        break;
+      }
+      case O.BILLIARD: case O.ROULETTE: {
+        // iki karoluk oyun masası (sağdaki karo IBLOCK)
+        const x0 = cx - 7, x1 = cx + 23, y0 = cy - 6, y1 = cy + 5, wd = o === O.ROULETTE ? '#5a3a22' : rich ? '#4a2010' : '#5a3a22';
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x0 + 1, y1 + 1, x1 - x0, 2.5);
+        g.fillStyle = shadeHex(wd, -0.3); g.fillRect(x0, y1 - 1, x1 - x0, 3.5);
+        g.fillStyle = '#2a1a10'; g.fillRect(x0 + 1, y1 + 2.5, 2, 1.5); g.fillRect(x1 - 3, y1 + 2.5, 2, 1.5); g.fillRect((x0 + x1) / 2 - 1, y1 + 2.5, 2, 1.5);
+        g.fillStyle = wd; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+        g.fillStyle = shadeHex(wd, 0.2); g.fillRect(x0, y0, x1 - x0, 0.8);
+        if (o === O.BILLIARD) {
+          g.fillStyle = rich ? '#1e6a44' : '#2a6a3a'; g.fillRect(x0 + 2, y0 + 2, x1 - x0 - 4, y1 - y0 - 4);
+          g.fillStyle = 'rgba(255,255,255,0.06)'; g.fillRect(x0 + 2, y0 + 2, x1 - x0 - 4, 2);
+          for (const [x, y] of [[x0 + 2, y0 + 2], [(x0 + x1) / 2, y0 + 1.8], [x1 - 2, y0 + 2], [x0 + 2, y1 - 2], [(x0 + x1) / 2, y1 - 1.8], [x1 - 2, y1 - 2]]) this.circ(g, x, y, 1.2, '#0e0a08');
+          const balls = ['#f4f0e4', '#e0c030', '#2a4aa8', '#c83030', '#6a2a8a', '#e07020', '#1e1e1e'];
+          for (let k = 0; k < 7; k++) this.circ(g, x0 + 5 + hash2(i, k, 5) * (x1 - x0 - 10), y0 + 3.5 + hash2(i, k, 6) * (y1 - y0 - 7), 0.9, balls[k]);
+          g.strokeStyle = '#c8a070'; g.lineWidth = 0.7; g.beginPath(); g.moveTo(x0 + 4, y1 - 3); g.lineTo(x0 + 17, y0 + 4); g.stroke();
+          if (rich) { g.fillStyle = '#c8a040'; g.fillRect(x0, y0 + 2, 0.6, y1 - y0 - 4); g.fillRect(x1 - 0.6, y0 + 2, 0.6, y1 - y0 - 4); }
+        } else {
+          g.fillStyle = '#1e5a34'; g.fillRect(x0 + 1.5, y0 + 1.5, x1 - x0 - 3, y1 - y0 - 3);
+          const wx = x0 + 6.5, wy = (y0 + y1) / 2;
+          this.circ(g, wx, wy, 5, '#4a2a18'); this.circ(g, wx, wy, 4.2, '#2a1a10');
+          for (let k = 0; k < 16; k++) { g.fillStyle = k === 0 ? '#2a8a3a' : k % 2 ? '#b82020' : '#141414'; g.beginPath(); g.moveTo(wx, wy); g.arc(wx, wy, 4, k * TAU / 16, (k + 1) * TAU / 16); g.fill(); }
+          this.circ(g, wx, wy, 2.2, '#8a6a3a'); this.circ(g, wx, wy, 0.9, '#d8b050'); this.circ(g, wx + 2.9, wy - 1.2, 0.6, '#f4f0e4');
+          for (let r = 0; r < 3; r++) for (let q = 0; q < 6; q++) { g.fillStyle = (r + q) % 2 ? '#b82020' : '#141414'; g.fillRect(x0 + 13 + q * 2.6, y0 + 2.5 + r * 2.2, 2.1, 1.7); }
+          g.strokeStyle = 'rgba(240,236,220,0.7)'; g.lineWidth = 0.4; g.strokeRect(x0 + 12.6, y0 + 2.2, 16, 6.8);
+          for (let k = 0; k < 4; k++) this.circ(g, x0 + 14 + hash2(i, k, 2) * 13, y0 + 3 + hash2(i, k, 3) * 5, 0.7, ['#e8e0d0', '#c83030', '#3050c0', '#e0c040'][k]);
+        }
+        break;
+      }
+      case O.FORGE: {
+        // demirci ocağı: tuğla ocak, kor yatağı, duvara giden davlumbaz, yanda körük
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(cx - 8, cy + 5, 16, 2);
+        g.fillStyle = '#3a3634'; g.beginPath(); g.moveTo(cx - 6, cy - 6); g.lineTo(cx + 6, cy - 6); g.lineTo(cx + 3, cy - 13); g.lineTo(cx - 3, cy - 13); g.fill();
+        g.fillStyle = '#2a2624'; g.fillRect(cx - 2.5, cy - 16, 5, 3.5);
+        g.fillStyle = '#7a3a26'; g.fillRect(cx - 8, cy - 6, 16, 11);
+        g.fillStyle = '#5a2a1a'; for (let y = cy - 6, r = 0; y < cy + 5; y += 2.5, r++) { g.fillRect(cx - 8, y, 16, 0.5); for (let x = cx - 8 + (r % 2 ? 2 : 0); x < cx + 8; x += 4) g.fillRect(x, y, 0.5, 2.5); }
+        g.fillStyle = '#2a1a14'; g.fillRect(cx - 5.5, cy - 4.5, 11, 5);
+        this.ell(g, cx, cy - 2, 4.6, 1.8, '#a83a12'); this.ell(g, cx - 0.5, cy - 2.2, 3, 1.2, '#f07a22'); this.ell(g, cx - 0.5, cy - 2.4, 1.4, 0.7, '#ffd060');
+        for (let k = 0; k < 5; k++) { g.fillStyle = '#3a2a24'; g.fillRect(cx - 4 + hash2(i, k, 2) * 8, cy - 3.6 + hash2(i, k, 3) * 2.4, 1.2, 0.8); }
+        g.fillStyle = '#5a3a22'; g.beginPath(); g.moveTo(cx + 4, cy + 2); g.lineTo(cx + 9, cy + 0.5); g.lineTo(cx + 9, cy + 4.5); g.fill();
+        g.fillStyle = '#3a2416'; g.fillRect(cx + 7.5, cy + 0.5, 1, 4);
+        break;
+      }
+      case O.ANVIL: {
+        this.ell(g, cx, cy + 5, 6, 2, 'rgba(0,0,0,0.3)');
+        this.ell(g, cx, cy + 4, 4.5, 2, '#4a3220'); g.fillStyle = '#6a4a2e'; g.fillRect(cx - 4.5, cy - 1, 9, 5); this.ell(g, cx, cy - 1, 4.5, 2, '#8a6a46');
+        g.strokeStyle = '#6a4e30'; g.lineWidth = 0.4; g.beginPath(); g.arc(cx, cy - 1, 2.6, 0, TAU); g.stroke();
+        g.fillStyle = '#2a2a2e'; g.fillRect(cx - 2, cy - 4, 4, 3);
+        g.fillStyle = '#3a3a40'; g.beginPath(); g.moveTo(cx - 5.5, cy - 7); g.lineTo(cx + 4, cy - 7); g.lineTo(cx + 4, cy - 4.5); g.lineTo(cx - 2, cy - 4.5); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(cx - 5.5, cy - 7); g.lineTo(cx - 8, cy - 6); g.lineTo(cx - 5, cy - 5.2); g.fill();
+        g.fillStyle = '#6a6a72'; g.fillRect(cx - 5, cy - 7, 9, 0.8);
+        g.fillStyle = '#6a4428'; g.fillRect(cx + 1, cy - 9.5, 0.9, 4); g.fillStyle = '#4a4a50'; g.fillRect(cx - 0.2, cy - 10, 3.2, 1.4);
+        break;
+      }
+      case O.OVEN: {
+        // ekmek fırını: tuğla kubbe, kemerli ağızda kor, yanda fırın küreği
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(cx - 8, cy + 5, 16, 2);
+        g.fillStyle = '#2a2624'; g.fillRect(cx - 2, cy - 16, 4, 4);
+        this.ell(g, cx, cy - 6, 8, 7, '#9a5a3a');
+        g.fillStyle = '#9a5a3a'; g.fillRect(cx - 8, cy - 6, 16, 11);
+        g.fillStyle = '#7a3e26'; for (let y = cy - 11; y < cy + 5; y += 2.5) { const w = y < cy - 6 ? Math.sqrt(Math.max(0, 1 - ((y - cy + 6) / 7) ** 2)) * 8 : 8; g.fillRect(cx - w, y, w * 2, 0.5); }
+        this.ell(g, cx - 2, cy - 10, 3, 1.4, 'rgba(255,220,180,0.18)');
+        g.fillStyle = '#1a100a'; g.fillRect(cx - 4, cy - 3, 8, 6); this.ell(g, cx, cy - 3, 4, 2.2, '#1a100a');
+        this.ell(g, cx, cy + 1.5, 3, 1.2, '#c84a14'); this.ell(g, cx, cy + 1.2, 1.8, 0.8, '#f0a030');
+        g.fillStyle = '#c8b090'; g.fillRect(cx - 7, cy + 3.5, 14, 1.5);
+        g.fillStyle = '#8a6a40'; g.fillRect(cx + 5.5, cy - 9, 0.9, 11); this.ell(g, cx + 6, cy + 2.5, 1.6, 1, '#a88050');
+        break;
+      }
+      case O.VAT: {
+        // bakır mayşe kazanı: kubbe kapak, duvara giden boru, perçinli kuşak, musluk
+        this.ell(g, cx + 1, cy + 5.5, 7.5, 2.4, 'rgba(0,0,0,0.3)');
+        g.fillStyle = '#8a4a26'; g.fillRect(cx - 7, cy - 4, 14, 8.5); this.ell(g, cx, cy + 4.5, 7, 2, '#7a3e20');
+        g.fillStyle = '#c8783a'; g.fillRect(cx - 5.5, cy - 4, 3, 8.5); g.fillStyle = 'rgba(255,220,180,0.35)'; g.fillRect(cx - 4.5, cy - 4, 1, 8);
+        this.ell(g, cx, cy - 4, 7, 3, '#b0683a'); this.ell(g, cx, cy - 4.6, 5, 2.2, '#c8803e'); this.ell(g, cx - 1.5, cy - 5.2, 2, 0.8, 'rgba(255,230,190,0.45)');
+        g.fillStyle = '#a8602e'; g.fillRect(cx - 0.8, cy - 13, 1.6, 8); g.fillRect(cx - 0.8, cy - 13, 5, 1.6);
+        g.fillStyle = '#5a2e14'; g.fillRect(cx - 7, cy, 14, 0.8); g.fillStyle = '#e0a060'; for (let x = cx - 6; x < cx + 7; x += 2.4) g.fillRect(x, cy - 0.2, 0.6, 0.6);
+        g.fillStyle = '#c8a040'; g.fillRect(cx + 5, cy + 1.5, 3, 1); g.fillRect(cx + 7.2, cy + 1.5, 0.8, 2);
+        break;
+      }
+      case O.WARDROBE: {
+        const wd = rich ? '#4a2414' : ['#6a4428', '#5a3a22', '#7a5032'][Math.floor(h * 3)], lt = shadeHex(wd, 0.2), dk = shadeHex(wd, -0.3);
+        g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(cx - 6, cy + 5, 14, 2.5);
+        g.fillStyle = wd; g.fillRect(cx - 7, cy - 14, 14, 20);
+        g.fillStyle = lt; g.fillRect(cx - 7.5, cy - 15.5, 15, 1.8);
+        g.fillStyle = dk; g.fillRect(cx - 0.4, cy - 13, 0.8, 16);
+        g.strokeStyle = dk; g.lineWidth = 0.6;
+        for (const x of [cx - 6, cx + 1]) { g.strokeRect(x + 0.5, cy - 12.5, 4, 6.5); g.strokeRect(x + 0.5, cy - 5, 4, 7); }
+        g.fillStyle = rich ? '#d8b050' : '#a88a50'; g.fillRect(cx - 1.6, cy - 5, 0.8, 1.6); g.fillRect(cx + 0.8, cy - 5, 0.8, 1.6);
+        g.fillStyle = dk; g.fillRect(cx - 7, cy + 3, 14, 3);
+        g.fillStyle = lt; g.fillRect(cx - 7, cy + 3, 14, 0.6);
+        break;
+      }
+      case O.WASHSTAND: {
+        // lavabo dolabı: leğen, sürahi, havlu (zenginde mermer tabla)
+        const wd = rich ? '#4a2a18' : '#6a4a2e';
+        g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(cx - 5, cy + 5, 12, 2);
+        g.fillStyle = shadeHex(wd, -0.3); g.fillRect(cx - 6, cy - 1, 12, 6.5);
+        g.fillStyle = rich ? '#e8e4dc' : wd; g.fillRect(cx - 6, cy - 4, 12, 3.5);
+        g.fillStyle = shadeHex(rich ? '#e8e4dc' : wd, 0.15); g.fillRect(cx - 6, cy - 4, 12, 0.6);
+        this.ell(g, cx - 1.5, cy - 2.4, 3.6, 1.6, '#f0ece4'); this.ell(g, cx - 1.5, cy - 2.4, 2.6, 1, '#9ab8c8');
+        g.fillStyle = '#e8e4dc'; g.fillRect(cx + 2.8, cy - 6.5, 2.4, 4); g.fillRect(cx + 2.4, cy - 7, 1.2, 0.8); g.fillStyle = '#5a7aa0'; g.fillRect(cx + 2.8, cy - 5.2, 2.4, 0.6);
+        g.fillStyle = '#e8e0d0'; g.fillRect(cx - 6.5, cy - 1, 1.2, 4); g.fillStyle = '#b84040'; g.fillRect(cx - 6.5, cy + 1.5, 1.2, 0.5);
+        g.fillStyle = rich ? '#c8a040' : '#3a2416'; g.fillRect(cx - 0.6, cy + 1.5, 1.2, 1);
+        break;
+      }
+      case O.PALM: {
+        this.ell(g, cx + 1, cy + 6, 5, 1.8, 'rgba(0,0,0,0.3)');
+        const pot = rich ? '#c8a040' : '#8a4a2a';
+        g.fillStyle = shadeHex(pot, -0.25); g.beginPath(); g.moveTo(cx - 4.5, cy); g.lineTo(cx + 4.5, cy); g.lineTo(cx + 3.2, cy + 6); g.lineTo(cx - 3.2, cy + 6); g.fill();
+        g.fillStyle = pot; g.fillRect(cx - 4.8, cy - 0.5, 9.6, 1.6); g.fillStyle = shadeHex(pot, 0.3); g.fillRect(cx - 4.8, cy - 0.5, 9.6, 0.5);
+        g.fillStyle = '#6a5030'; g.fillRect(cx - 0.6, cy - 6, 1.2, 6);
+        for (let k = 0; k < 9; k++) {
+          const a = -Math.PI / 2 + (k - 4) * 0.42 + (h - 0.5) * 0.2, L = 8 + (k % 2) * 2, ex = cx + Math.cos(a) * L, ey = cy - 6 + Math.sin(a) * L * 0.85, my = Math.min(ey, cy - 6) - 2.5;
+          for (const [c, w] of [[k % 2 ? '#3a6a2a' : '#4a7a32', 1.6], ['#5a8a3a', 0.5]]) { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(cx, cy - 6); g.quadraticCurveTo((cx + ex) / 2, my, ex, ey + 1.5); g.stroke(); }
+        }
+        break;
+      }
+      case O.LECTERN: {
+        this.ell(g, cx, cy + 5.5, 4.5, 1.6, 'rgba(0,0,0,0.3)');
+        const wd = rich ? '#4a2414' : '#5a3a22';
+        g.fillStyle = shadeHex(wd, -0.2); g.fillRect(cx - 4, cy + 3.5, 8, 2);
+        g.fillStyle = wd; g.fillRect(cx - 1.5, cy - 2, 3, 6);
+        g.fillStyle = shadeHex(wd, 0.15); g.fillRect(cx - 1.5, cy - 2, 0.8, 6);
+        g.fillStyle = wd; g.beginPath(); g.moveTo(cx - 5.5, cy - 6.5); g.lineTo(cx + 5.5, cy - 6.5); g.lineTo(cx + 6, cy - 2); g.lineTo(cx - 6, cy - 2); g.fill();
+        g.fillStyle = '#f4f0e4'; g.fillRect(cx - 4.5, cy - 6, 4.3, 3.4); g.fillRect(cx + 0.2, cy - 6, 4.3, 3.4);
+        g.fillStyle = '#8a7a6a'; for (let k = 0; k < 3; k++) { g.fillRect(cx - 4, cy - 5.3 + k, 3.4, 0.35); g.fillRect(cx + 0.7, cy - 5.3 + k, 3.4, 0.35); }
+        g.fillStyle = '#a02020'; g.fillRect(cx - 0.3, cy - 6, 0.6, 4.5);
+        if (rich) { g.fillStyle = '#c8a040'; g.fillRect(cx - 6, cy - 2.2, 12, 0.6); }
+        break;
+      }
+      case O.ORGAN: {
+        // org: gövdenin üstünde yaldızlı borular, klavye, pedal kasası
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(cx - 8, cy + 5, 16, 2);
+        const wd = '#3a2416';
+        for (let k = 0; k < 7; k++) { const x = cx - 6.5 + k * 2.1, hh = 9 - Math.abs(3 - k) * 0.9; g.fillStyle = rich ? '#d8b860' : '#b8a070'; g.fillRect(x, cy - 7 - hh, 1.5, hh); g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(x, cy - 7 - hh, 0.5, hh); g.fillStyle = '#2a1a10'; g.fillRect(x + 0.3, cy - 9, 0.9, 0.7); }
+        g.fillStyle = wd; g.fillRect(cx - 8, cy - 7, 16, 8);
+        g.fillStyle = shadeHex(wd, 0.2); g.fillRect(cx - 8, cy - 7, 16, 0.8);
+        g.fillStyle = rich ? '#c8a040' : '#8a6a30'; g.fillRect(cx - 7, cy - 5.5, 14, 0.6);
+        g.fillStyle = '#f0ece0'; g.fillRect(cx - 7, cy + 1, 14, 2.5); g.fillStyle = '#1a1a1a'; for (let x = cx - 6; x < cx + 7; x += 2) g.fillRect(x, cy + 1, 1, 1.5);
+        g.fillStyle = shadeHex(wd, -0.25); g.fillRect(cx - 8, cy + 3.5, 16, 3);
+        g.fillStyle = '#2a1a10'; g.fillRect(cx - 4, cy + 4.5, 3, 1.2); g.fillRect(cx + 1, cy + 4.5, 3, 1.2);
+        break;
+      }
+      case O.SADDLE: {
+        // sehpada eyer ve battaniye
+        this.ell(g, cx, cy + 5.5, 6.5, 1.8, 'rgba(0,0,0,0.3)');
+        g.fillStyle = '#5a3a22'; g.fillRect(cx - 6, cy + 1, 1.2, 5); g.fillRect(cx + 4.8, cy + 1, 1.2, 5); g.fillRect(cx - 6, cy - 1, 12, 2);
+        const bl = ['#8a2a2a', '#2a4a7a', '#7a6a2a'][Math.floor(h * 3)];
+        g.fillStyle = bl; g.fillRect(cx - 6.5, cy - 4, 13, 5); g.fillStyle = '#e8d8b0'; g.fillRect(cx - 6.5, cy - 2, 13, 0.8); g.fillStyle = shadeHex(bl, -0.3); g.fillRect(cx - 6.5, cy + 0.4, 13, 0.6);
+        g.fillStyle = '#6a3e1e'; g.beginPath(); g.moveTo(cx - 5, cy - 3); g.quadraticCurveTo(cx, cy - 6, cx + 5, cy - 3); g.lineTo(cx + 4, cy - 1); g.quadraticCurveTo(cx, cy - 3, cx - 4, cy - 1); g.fill();
+        g.fillStyle = '#8a5a30'; g.fillRect(cx - 2.5, cy - 4.6, 5, 1.6);
+        g.fillStyle = '#4a2a14'; g.fillRect(cx + 3, cy - 6.5, 1.2, 2.5); this.circ(g, cx + 3.6, cy - 6.8, 1, '#5a3418');
+        g.fillStyle = '#4a2a14'; g.fillRect(cx - 0.6, cy - 1.5, 1.2, 4); g.fillStyle = '#9a9aa0'; g.fillRect(cx - 1.2, cy + 2.4, 2.4, 0.8);
+        break;
+      }
+      case O.BUST: {
+        // kaidede mermer büst
+        this.ell(g, cx, cy + 5.5, 4, 1.5, 'rgba(0,0,0,0.3)');
+        const m = '#e4e0d8', d = '#a8a49c';
+        g.fillStyle = d; g.fillRect(cx - 3.2, cy + 3.5, 6.4, 2);
+        g.fillStyle = m; g.fillRect(cx - 2.4, cy - 3, 4.8, 6.5);
+        g.fillStyle = d; g.fillRect(cx + 1, cy - 3, 1.4, 6.5); g.fillRect(cx - 3, cy - 3.6, 6, 1);
+        this.ell(g, cx, cy - 5.4, 3.6, 1.8, m); this.ell(g, cx + 0.8, cy - 5.2, 2, 1.2, d);
+        this.ell(g, cx, cy - 9, 2.1, 2.6, m); g.fillStyle = d; g.fillRect(cx + 0.9, cy - 10, 1, 2.6); g.fillRect(cx - 1.4, cy - 11.4, 2.8, 0.8);
+        break;
+      }
+      case O.DISPLAY: {
+        // alçak vitrin: cam üstün altında bina türüne göre mallar
+        const wd = rich ? '#3a2014' : '#5a3a22';
+        g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(cx - 6, cy + 5, 14, 2.4);
+        g.fillStyle = shadeHex(wd, -0.25); g.fillRect(cx - 7, cy + 0.5, 14, 5);
+        g.fillStyle = wd; g.fillRect(cx - 7, cy - 6, 14, 7);
+        g.fillStyle = '#a8bcc0'; g.fillRect(cx - 6, cy - 5, 12, 5);
+        for (let k = 0; k < 5; k++) {
+          const x = cx - 5 + k * 2.3, y = cy - 4 + hash2(i, k, 4) * 2.5, q = hash2(i, k, 5);
+          if (t === 'gunsmith') { g.fillStyle = '#2a2a2e'; g.fillRect(x - 0.5, y, 2.4, 0.8); g.fillStyle = '#6a4428'; g.fillRect(x + 1.2, y, 0.8, 1.6); }
+          else if (t === 'tailor') { g.fillStyle = ['#c8a040', '#e8e0d0', '#6a2a4a'][Math.floor(q * 3)]; g.fillRect(x, y, 1.6, 1.2); }
+          else if (t === 'bakery') this.ell(g, x + 0.8, y + 0.8, 1, 0.8, ['#c87a3a', '#e8c890', '#6a3a1e'][Math.floor(q * 3)]);
+          else if (t === 'butcher') this.ell(g, x + 0.8, y + 0.8, 1.1, 0.8, q < 0.5 ? '#b84a3a' : '#d88a7a');
+          else if (t === 'pharmacy' || t === 'doctor') { g.fillStyle = ['#8a3a2a', '#3a6a5a', '#a88a3a'][Math.floor(q * 3)]; g.fillRect(x, y - 0.6, 1.2, 2); }
+          else this.circ(g, x + 0.8, y + 0.8, 0.7, ['#e0c040', '#c83030', '#3a7ac8', '#e8e0d0'][Math.floor(q * 4)]);
+        }
+        g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.moveTo(cx - 6, cy - 0.5); g.lineTo(cx - 2, cy - 5); g.lineTo(cx - 0.5, cy - 5); g.lineTo(cx - 4.5, cy - 0.5); g.fill();
+        g.fillStyle = shadeHex(wd, 0.2); g.fillRect(cx - 7, cy - 6, 14, 0.6);
+        if (rich) { g.fillStyle = '#c8a040'; g.fillRect(cx - 7, cy + 0.5, 14, 0.5); }
+        break;
+      }
+      case O.LAMPSTAND: {
+        // ayaklı lamba: pirinç direk, püsküllü abajur (melez çizimde gece yanar)
+        this.ell(g, cx, cy + 5.5, 3.5, 1.3, 'rgba(0,0,0,0.3)');
+        const br = '#b89040', sc = ['#e8c890', '#d8a878', '#c8a0a0'][Math.floor(h * 3)];
+        this.ell(g, cx, cy + 4.5, 2.6, 1, shadeHex(br, -0.2));
+        g.fillStyle = br; g.fillRect(cx - 0.5, cy - 8, 1, 12.5); g.fillStyle = shadeHex(br, 0.3); g.fillRect(cx - 0.5, cy - 8, 0.4, 12);
+        g.fillStyle = sc; g.beginPath(); g.moveTo(cx - 2.5, cy - 14); g.lineTo(cx + 2.5, cy - 14); g.lineTo(cx + 4.5, cy - 8.5); g.lineTo(cx - 4.5, cy - 8.5); g.fill();
+        g.fillStyle = 'rgba(255,240,200,0.5)'; g.fillRect(cx - 1.5, cy - 13.5, 1.2, 4.5);
+        g.fillStyle = shadeHex(sc, -0.3); for (let x = cx - 4.5; x <= cx + 4.3; x += 1.2) g.fillRect(x, cy - 8.5, 0.6, 1);
+        break;
+      }
+      case O.STOOL: {
+        // bar taburesi: barın hemen önünde
+        const y = cy - 3;
+        this.ell(g, cx, y + 4, 3, 1.2, 'rgba(0,0,0,0.3)');
+        g.fillStyle = '#3a2416'; g.fillRect(cx - 2.5, y, 0.8, 4); g.fillRect(cx + 1.7, y, 0.8, 4);
+        g.fillStyle = '#2a1a10'; g.fillRect(cx - 2.2, y + 2.2, 4.4, 0.5);
+        this.ell(g, cx, y - 0.5, 3, 1.6, rich ? '#7a2430' : '#5a3a22'); this.ell(g, cx - 0.5, y - 0.9, 1.6, 0.8, rich ? '#9a3440' : '#7a5434');
+        break;
+      }
+      case O.DRESSER: {
+        // aynalı konsol: üç çekmece, üstünde tarak ve şişe
+        const wd = rich ? '#4a2414' : ['#6a4428', '#7a5032'][Math.floor(h * 2)], lt = shadeHex(wd, 0.2), dk = shadeHex(wd, -0.3);
+        g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(cx - 6, cy + 5, 14, 2.2);
+        g.fillStyle = dk; g.fillRect(cx - 0.6, cy - 7, 1.2, 2); this.ell(g, cx, cy - 10, 4.2, 4, rich ? '#c8a040' : lt); this.ell(g, cx, cy - 10, 3.4, 3.2, '#9ab4c0');
+        g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(cx - 2, cy - 12, 0.9, 4);
+        g.fillStyle = wd; g.fillRect(cx - 7, cy - 5, 14, 11);
+        g.fillStyle = lt; g.fillRect(cx - 7.4, cy - 5.5, 14.8, 1.2);
+        for (let k = 0; k < 3; k++) { const y = cy - 3.4 + k * 3; g.fillStyle = dk; g.fillRect(cx - 6, y + 2.4, 12, 0.5); g.fillStyle = rich ? '#d8b050' : '#a88a50'; g.fillRect(cx - 3.5, y + 1, 1, 0.8); g.fillRect(cx + 2.5, y + 1, 1, 0.8); }
+        g.fillStyle = '#e8e0d0'; g.fillRect(cx + 3.5, cy - 7.5, 1.2, 2); g.fillStyle = '#7a5aa0'; g.fillRect(cx - 5, cy - 7, 1.4, 1.6);
+        break;
+      }
+      case O.TELEGRAPH: {
+        // telgraf masası: manipülatör, alıcı, pil kavanozları, kâğıt şerit; duvara giden tel
+        g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(cx - 6, cy + 5, 13, 2);
+        g.fillStyle = '#4a2e1a'; g.fillRect(cx - 7, cy - 1, 14, 6);
+        g.fillStyle = '#6e4a2c'; g.fillRect(cx - 7, cy - 5, 14, 4.5); g.fillStyle = 'rgba(255,230,190,0.15)'; g.fillRect(cx - 7, cy - 5, 14, 0.6);
+        g.fillStyle = '#2a2a2e'; g.fillRect(cx - 5, cy - 3.6, 4, 1.4); g.fillStyle = '#c8a040'; g.fillRect(cx - 4.4, cy - 4.2, 2.6, 0.7); this.circ(g, cx - 1.6, cy - 4.4, 0.6, '#1a1a1a');
+        g.fillStyle = '#c8a040'; g.fillRect(cx + 0.5, cy - 4.6, 2.4, 2.2); g.fillStyle = '#5a3a22'; g.fillRect(cx + 0.3, cy - 2.6, 2.8, 0.6);
+        for (const x of [cx + 4, cx + 5.6]) { g.fillStyle = 'rgba(180,210,220,0.85)'; g.fillRect(x, cy - 6, 1.3, 2.6); g.fillStyle = '#4a4a4e'; g.fillRect(x, cy - 6.4, 1.3, 0.5); }
+        g.fillStyle = '#f0ead8'; g.fillRect(cx - 6.5, cy - 1.6, 5, 0.9);
+        g.strokeStyle = '#5a5a5e'; g.lineWidth = 0.4; g.beginPath(); g.moveTo(cx + 1.7, cy - 4.6); g.lineTo(cx + 1.7, cy - 12); g.stroke();
+        break;
+      }
+      case O.SCALE: {
+        // baskül: demir platform, dikme, pirinç kantar kolu
+        this.ell(g, cx + 0.5, cy + 5, 6, 1.8, 'rgba(0,0,0,0.3)');
+        g.fillStyle = '#3a3a40'; g.fillRect(cx - 5.5, cy + 0.5, 11, 4);
+        g.fillStyle = '#5a5a62'; g.fillRect(cx - 5.5, cy - 1.5, 11, 2.4);
+        g.fillStyle = '#7a7a82'; g.fillRect(cx - 5, cy - 1.2, 10, 0.5);
+        g.fillStyle = '#2a2a30'; g.fillRect(cx + 3.2, cy - 11, 1.4, 10);
+        g.fillStyle = '#c8a040'; g.fillRect(cx - 3.5, cy - 11.5, 8.5, 1); this.ell(g, cx - 2, cy - 11, 0.9, 1, '#2a2a30');
+        g.fillStyle = '#8a8a90'; g.fillRect(cx + 4.8, cy - 11.5, 0.6, 3);
+        if (h > 0.4) { g.fillStyle = '#b89a6a'; g.fillRect(cx - 3, cy - 4, 4, 3); g.fillStyle = '#8a6a3a'; g.fillRect(cx - 3, cy - 4, 4, 0.6); }
         break;
       }
       case O.STAIRS: case O.STAIRSD: {
@@ -829,7 +1591,6 @@ const Spr = {
         break;
       }
     }
-    void legs;
   },
   building(g, o, b, world) {
     const d = b.def, X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS;

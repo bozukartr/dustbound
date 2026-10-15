@@ -94,7 +94,7 @@ const WorldSave = {
           if (b.res && b.town) { const t = town(b.town); if (t) e.res = { id: b.res, t }; }
           if (b.seatB !== undefined) {
             const sb = W.buildings[b.seatB], s = sb && sb.seats && sb.seats[b.seat];
-            if (s) { e.seatB = sb; e.seat = s; (sb.patrons = sb.patrons || []).push(e); e.state = 'sit'; }
+            if (s) { e.seatB = sb; e.seat = s; (sb.patrons = sb.patrons || []).push(e); e.state = 'sit'; e.x = s.x; e.y = s.y; if (s.ang !== undefined) e.ang = s.ang; }   // iç düzen değişmiş olabilir: sandalyesine oturur
           }
         } else if (b.k === 'animal') {
           if (!ANIMALS[b.type]) continue;

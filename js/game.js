@@ -1202,8 +1202,8 @@ const G = {
       if (!inView(L.x, L.y, L.r)) continue;
       if (L.type === 'window' && (!night || !Juice.windowLit(L))) continue;
       if (L.type === 'lamp' && !night) continue;
-      if (L.type === 'inner' && !(this.insideB && this.insideB.id === L.b)) continue;
-      const fl = L.type === 'fire' ? Juice.flicker(L.x, this.t, 0.08) : L.type === 'lamp' ? Juice.flicker(L.x + L.y, this.t * 0.6, 0.035) : 1;
+      if ((L.type === 'inner' || L.type === 'hearth') && !(this.insideB && this.insideB.id === L.b)) continue;
+      const fl = L.type === 'fire' || L.type === 'hearth' ? Juice.flicker(L.x, this.t, 0.08) : L.type === 'lamp' ? Juice.flicker(L.x + L.y, this.t * 0.6, 0.035) : 1;
       lights.push([L.x, L.y, L.r * fl, L.type === 'window' ? 0.75 : 1]);
     }
     for (const [x, y] of fires) lights.push([x, y, 80 * Juice.flicker(x * 0.37 + y, this.t, 0.07), 1]);

@@ -77,7 +77,7 @@ const HY = (() => {
   // geçici tuval boyuta göre yeniden kullanılır (kaktüs, mezar, mobilya... her nesnede yeni tuval açılıp çöpe gitmesin);
   // reset() pikselleri ve çizim durumunu (dönüşüm, stiller, yol) yeni açılmış tuvaldeki gibi sıfırlar
   const SCV = new Map();
-  function* stampSteps(draw, ox, oy, w, h, hFn, n, filter, step) {
+  function* stampSteps(draw, ox, oy, w, h, hFn, n, filter, step, emFn) {
     const cw = Math.ceil(w * S), chh = Math.ceil(h * S), key = cw * 8192 + chh, free = SCV.get(key);
     let cv = free && free.pop(), g;
     if (cv) { g = cv.getContext('2d', { willReadFrequently: true }); g.reset(); }
@@ -89,12 +89,12 @@ const HY = (() => {
       for (let x = 0; x < cw; x++) {
         const k = (y * cw + x) * 4; if (d[k + 3] < 150) continue;
         SC[0] = d[k] / 255; SC[1] = d[k + 1] / 255; SC[2] = d[k + 2] / 255; if (filter && !filter(SC)) continue;
-        put(x0 + x, y0 + y, SC, hFn(x0 + x, y0 + y), typeof n === 'function' ? n(x0 + x, y0 + y) : n, 0);
+        put(x0 + x, y0 + y, SC, hFn(x0 + x, y0 + y), typeof n === 'function' ? n(x0 + x, y0 + y) : n, emFn ? emFn(SC, x0 + x, y0 + y) : 0);
       }
       if (step) yield* step();
     }
   }
-  function stamp(draw, ox, oy, w, h, hFn, n, filter) { for (const _ of stampSteps(draw, ox, oy, w, h, hFn, n, filter)); }
+  function stamp(draw, ox, oy, w, h, hFn, n, filter, emFn) { for (const _ of stampSteps(draw, ox, oy, w, h, hFn, n, filter, null, emFn)); }
   function signText(txt, x0, y0, w, h, bg, fg, baseW) {
     rect(x0, y0, w, h, (x, y) => (x === x0 || x === x0 + w - 1 || y === y0 || y === y0 + h - 1) ? shT(bg, -0.45) : bg, facadeH(baseW), SOUTH);
     const fc = signText.c || (signText.c = makeCanvas(256, 32)), c = fc.getContext('2d', { willReadFrequently: true });
@@ -595,58 +595,70 @@ const HY = (() => {
   }
 
   /* ---------------- iç mekân (parçaya pişer) ---------------- */
-  const FLOOR = { saloon: '#5e4028', church: '#9a7a52', doctor: '#a08a6a', sheriff: '#6e5a40', station: '#6a5a44', bank: '#8a7a64', hotel: '#6e4a32', stable: '#8a7250', barn: '#8a7250', lumber: '#8a6a44', docks: '#6a6258' };
-  const WALLP = { saloon: '#6a2a24', hotel: '#4e5e40', bank: '#2e4234', church: '#e8e0d0', doctor: '#d8d0c0', sheriff: '#8a7a60', station: '#6a5e4a', barber: '#b8a890', tailor: '#7a6078', land: '#8a7a5a' };
-  const RUG = { hotel: '#7a2a2a', sheriff: '#5a3a2a', bank: '#2a4a3a', land: '#4a3a5a', doctor: '#3a5a6a', property: '#7a4a2a', house: '#6a3a2a', saloon: '#4a2418', ranch: '#6a4a2a' };
-  // adım adım: büyük bir saloonun döşemesi tek seferde ~20 ms sürer
-  function* interiorBase(b, tg, step) {
-    const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, t = b.type, id = b.id;
-    const fl = rgb(FLOOR[t] || '#7a5a3a'), x0 = bx(X), y0 = by(Y), x1 = bx(X + Wd), y1 = by(Y + Hd), dxs = bx(b.door.x);
-    LAYER = 0;
-    const floor = t === 'stable' || t === 'barn' ? (x, y) => { const r = hs(x >> 1, y, id); return r > 0.8 ? rgb('#c8a860') : r > 0.6 ? rgb('#a88a50') : shT(fl, (hs(x >> 2, y >> 2, 3) - 0.5) * 0.1); }
-      : t === 'bank' ? (x, y) => { const u = (wxOf(x) - X), v = (wyOf(y) - Y); const c = ((Math.floor(u / 8) + Math.floor(v / 8)) % 2) ? rgb('#c8b89a') : fl; return (u % 8 < 0.5 || v % 8 < 0.5) ? shT(c, -0.25) : shT(c, (hs(Math.floor(u / 8), Math.floor(v / 8), 2) - 0.5) * 0.08); }
-      // döşeme: yatay tahtalar, kaydırmalı ekler, damar, çivi, kapı önünde aşınma
-      : (x, y) => {
-        const wx = wxOf(x), wy = wyOf(y), row = Math.floor((wy - Y) / 5), v = (wy - Y) - row * 5;
-        const off = (row * 11) % 23, seg = Math.floor((wx - X + off) / 23), u = (wx - X + off) - seg * 23;
-        let c = shT(fl, (hs(row, seg, id) - 0.5) * 0.2);
-        if (v < 0.5) c = shT(fl, -0.4); else if (u < 0.5) c = shT(fl, -0.32);
-        else { const gr = Math.sin((wx * 0.9 + hs(row, seg, 3) * 40) * 0.7 + v * 0.3); if (gr > 0.85) c = shT(c, -0.08); else if (gr < -0.9) c = shT(c, 0.06); }
-        if (Math.abs(u - 1.5) < 0.4 && Math.abs(v - 2.5) < 0.4) c = shT(c, -0.45);
-        const dd = Math.hypot(wx - b.door.x, (wy - Y - Hd) * 1.6); if (dd < 22) c = shT(c, 0.1 * (1 - dd / 22));
-        return c;
-      };
+  /* Döşeme, halılar ve arka duvar ortak desenden (IntDeco, klasik çizimle aynı tasarım) iki kat çözünürlükte örneklenir;
+     otel kendi döşemesini korur (tahta, ortada halı, üst katta koridor yolluğu, desenli kâğıt). */
+  // otelin döşemesi: yatay tahtalar, kaydırmalı ekler, damar, çivi, kapı önünde aşınma
+  function* hotelBase(b, tg, step, up) {
+    const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, id = b.id;
+    const fl = rgb('#6e4a32'), x0 = bx(X), y0 = by(Y), x1 = bx(X + Wd), y1 = by(Y + Hd);
+    const floor = (x, y) => {
+      const wx = wxOf(x), wy = wyOf(y), row = Math.floor((wy - Y) / 5), v = (wy - Y) - row * 5;
+      const off = (row * 11) % 23, seg = Math.floor((wx - X + off) / 23), u = (wx - X + off) - seg * 23;
+      let c = shT(fl, (hs(row, seg, id) - 0.5) * 0.2);
+      if (v < 0.5) c = shT(fl, -0.4); else if (u < 0.5) c = shT(fl, -0.32);
+      else { const gr = Math.sin((wx * 0.9 + hs(row, seg, 3) * 40) * 0.7 + v * 0.3); if (gr > 0.85) c = shT(c, -0.08); else if (gr < -0.9) c = shT(c, 0.06); }
+      if (Math.abs(u - 1.5) < 0.4 && Math.abs(v - 2.5) < 0.4) c = shT(c, -0.45);
+      const dd = Math.hypot(wx - b.door.x, (wy - Y - Hd) * 1.6); if (dd < 22) c = shT(c, 0.1 * (1 - dd / 22));
+      return c;
+    };
     // döşeme şerit şerit; hedefin dışındaki şeritler atlanır
     for (let y = Math.max(y0, 0); y < Math.min(y1, tg.h); y += 8) { rect(x0, y, x1 - x0, Math.min(8, y1 - y), floor, 0, UP); yield* step(); }
-    const rug = RUG[t], up = isHotel2(b) && b.floor === 1;   // otelin üst katı: koridor boyunca uzun yolluk
-    if (rug) {
-      const rw = up ? Wd - 48 : Math.min(Wd - 40, 64), rh = up ? 20 : Math.min(Hd - 40, 34), rx = X + Wd / 2 - rw / 2 + (t === 'saloon' ? 20 : 0), ry = up ? Y + 54 : Y + Hd / 2 - rh / 2 + 6, rc = rgb(rug);
-      rect(bx(rx), by(ry), Math.round(rw * S), Math.round(rh * S), (x, y) => {
-        const u = (x - bx(rx)) / S, v = (y - by(ry)) / S, e = Math.min(u, v, rw - u, rh - v);
-        if (e < 1) return shT(rc, -0.25);
-        if (e < 3.2 && e > 2.2) return shT(rc, 0.45);
-        if (e < 5 && ((Math.floor(u) + Math.floor(v)) % 3 === 0)) return shT(rc, 0.25);
-        const dm = Math.abs(((u - rw / 2) % 8 + 8) % 8 - 4) + Math.abs(((v - rh / 2) % 8 + 8) % 8 - 4);
-        return dm < 1.2 ? shT(rc, 0.3) : dm < 2 ? shT(rc, -0.12) : rc;
-      }, 0.3, UP);
-      for (let x = bx(rx); x < bx(rx + rw); x += 2) { put(x, by(ry) - 1, shT(rc, 0.4), 0.2, UP, 0); put(x, by(ry + rh), shT(rc, 0.4), 0.2, UP, 0); }
-      yield* step();
-    }
-    if (t === 'church') rect(bx(X + Wd / 2 - 6), by(Y + 26), 24, by(Y + Hd - 4) - by(Y + 26), (x) => (x === bx(X + Wd / 2 - 6) || x === bx(X + Wd / 2 + 6) - 1) ? rgb('#c8a040') : shT(rgb('#8a2020'), (hs(x >> 1, 0, 2) - 0.5) * 0.08), 0.3, UP);
+    // halı (üst katta koridor boyunca uzun yolluk)
+    const rw = up ? Wd - 48 : Math.min(Wd - 40, 64), rh = up ? 20 : Math.min(Hd - 40, 34), rx = X + Wd / 2 - rw / 2, ry = up ? Y + 54 : Y + Hd / 2 - rh / 2 + 6, rc = rgb('#7a2a2a');
+    rect(bx(rx), by(ry), Math.round(rw * S), Math.round(rh * S), (x, y) => {
+      const u = (x - bx(rx)) / S, v = (y - by(ry)) / S, e = Math.min(u, v, rw - u, rh - v);
+      if (e < 1) return shT(rc, -0.25);
+      if (e < 3.2 && e > 2.2) return shT(rc, 0.45);
+      if (e < 5 && ((Math.floor(u) + Math.floor(v)) % 3 === 0)) return shT(rc, 0.25);
+      const dm = Math.abs(((u - rw / 2) % 8 + 8) % 8 - 4) + Math.abs(((v - rh / 2) % 8 + 8) % 8 - 4);
+      return dm < 1.2 ? shT(rc, 0.3) : dm < 2 ? shT(rc, -0.12) : rc;
+    }, 0.3, UP);
+    for (let x = bx(rx); x < bx(rx + rw); x += 2) { put(x, by(ry) - 1, shT(rc, 0.4), 0.2, UP, 0); put(x, by(ry + rh), shT(rc, 0.4), 0.2, UP, 0); }
+    yield* step();
     // arka duvar: desenli kâğıt, lambri, kiriş
-    const wp = rgb(WALLP[t] || hex(sh(rgb(b.def.wall), -0.05)));
+    const wp = rgb('#4e5e40');
     rect(x0, y0, x1 - x0, by(Y + 16) - y0, (x, y) => {
       const u = wxOf(x) - X, v = wyOf(y) - Y;
       if (v < 2) return rgb('#1e140c');
       if (v >= 11) { const q = u % 12; let c = shT(wp, -0.3); if (q < 0.6 || v < 11.6 || v > 15.4) c = shT(wp, -0.48); else if (q > 2 && q < 10 && v > 12.4 && v < 14.6) c = shT(wp, -0.22); return c; }
       const dm = Math.abs(((u % 6) + 6) % 6 - 3) + Math.abs(((v - 2) % 6 + 6) % 6 - 3);
-      let c = wp; if (dm < 0.9) c = shT(wp, t === 'church' || t === 'doctor' ? -0.1 : 0.22); else if (Math.abs(dm - 2.4) < 0.3) c = shT(wp, -0.12);
+      let c = wp; if (dm < 0.9) c = shT(wp, 0.22); else if (Math.abs(dm - 2.4) < 0.3) c = shT(wp, -0.12);
       if (v > 10 && v < 11) c = shT(wp, -0.4);
       return c;
     }, facadeH(Y + 16), SOUTH);
     yield* step();
     stamp((g) => Spr.wallDecor(g, b, X, Y, Wd), X, Y, Wd, 16, facadeH(Y + 16), SOUTH, (c) => !(Math.abs(c[0] - wp[0]) < 0.06 && Math.abs(c[1] - wp[1]) < 0.06 && Math.abs(c[2] - wp[2]) < 0.06));
     yield* step();
+  }
+  // adım adım: büyük bir saloonun döşemesi tek seferde ~20 ms sürer
+  function* interiorBase(b, tg, step, W) {
+    const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, t = b.type;
+    const x0 = bx(X), y0 = by(Y), x1 = bx(X + Wd), y1 = by(Y + Hd), dxs = bx(b.door.x);
+    LAYER = 0;
+    const up = isHotel2(b) && b.floor === 1;
+    if (t === 'hotel') yield* hotelBase(b, tg, step, up);
+    else {
+      const st = IntDeco.style(b);
+      for (let y = Math.max(y0, 0); y < Math.min(y1, tg.h); y += 8) { rect(x0, y, x1 - x0, Math.min(8, y1 - y), (x, yy) => IntDeco.floor(st, wxOf(x) - X, wyOf(yy) - Y), 0, UP); yield* step(); }
+      // halılar (saçaklar kısa kenarlardan taşar)
+      for (const r of st.rugs) { rect(bx(X + r.x - 2), by(Y + r.y - 2), Math.round((r.w + 4) * S), Math.round((r.h + 4) * S), (x, y) => IntDeco.rugAt(st, r, wxOf(x) - X, wyOf(y) - Y), 0.3, UP); yield* step(); }
+      rect(x0, y0, x1 - x0, by(Y + 16) - y0, (x, y) => IntDeco.wall(st, wxOf(x) - X, wyOf(y) - Y), facadeH(Y + 16), SOUTH);
+      yield* step();
+      stamp((g) => Spr.wallDecor(g, b, X, Y, Wd, W), X, Y, Wd, 16, facadeH(Y + 16), SOUTH, null);
+      // aplik camları gece yanar
+      for (const sx of b._sc || []) rect(bx(sx - 1.5), by(Y + 4), 3 * S, by(Y + 9) - by(Y + 4), (x, y) => (wyOf(y) > Y + 5.5 && wyOf(y) < Y + 7.5 && Math.abs(wxOf(x) - sx) < 0.6 ? rgb('#ffd070') : rgb('#f4ead0')), facadeH(Y + 16), SOUTH, E_WIN);
+      yield* step();
+    }
     // yan ve ön duvarların tepesi (kesit), kapı eşiği, pencere camları
     const wd = rgb('#3a2818');
     const wallTop = (x, y) => { const wx = wxOf(x), wy = wyOf(y); const inner = (wx > X + 4 && wx < X + 5) || (wx > X + Wd - 5 && wx < X + Wd - 4) || (wy > Y + Hd - 4 && wy < Y + Hd - 3); return inner ? shT(wd, 0.35) : (Math.floor(wy / 3) % 2 ? wd : shT(wd, -0.12)); };
@@ -679,39 +691,55 @@ const HY = (() => {
     }
   }
   function furniture(o, cx, cy, i, b, W) {
-    const h = hash2(cx >> 4, cy >> 4, 17), same = (dd) => W.obj[i + dd] === o;
+    const h = hash2(cx >> 4, cy >> 4, 17), same = (dd) => W.obj[i + dd] === o, lux = !!b.modern && b.type !== 'hotel';   // zengin şehir (otel kendi eşyasını korur)
     const top = (x0, y0, w, hh, c, ht, em) => rect(bx(x0), by(y0), Math.round(w * S), by(y0 + hh) - by(y0), c, ht, UP, em || 0);
     const front = (x0, y0, w, hh, c, base, em) => rect(bx(x0), by(y0), Math.round(w * S), by(y0 + hh) - by(y0), c, facadeH(base), SOUTH, em || 0);
     const wood = (base, x, y, k = 4) => shT(rgb(base), ((hs(Math.floor(x / k), Math.floor(y / 9), 5) - 0.5) * 0.16) + (Math.sin(x * 0.9 + y * 0.05) > 0.9 ? -0.08 : 0));
     LAYER = 0;
     switch (o) {
       case O.BAR: case O.COUNTER: case O.TICKET: {
-        const tc = o === O.BAR ? '#5a3220' : o === O.TICKET ? '#6a5236' : b.type === 'bank' ? '#5a3a22' : '#9a7048', dark = hex(sh(rgb(tc), -0.28)), edge = sh(rgb(tc), -0.45);
-        front(cx - 8, cy + 1, 16, 7, (x, y) => { const u = (x - bx(cx - 8)) / S; const c = wood(dark, x, y); return (u % 8 < 0.7) ? shT(c, -0.35) : (o === O.BAR && y >= by(cy + 5) && y < by(cy + 6)) ? rgb('#d8b048') : c; }, cy + 8);
-        top(cx - 8, cy - 5, 16, 6, (x, y) => { const c = wood(tc, x, y, 8); return y < by(cy - 4.5) ? shT(c, 0.3) : c; }, 10);
+        // zengin şehirde mermer tezgâh üstü ve maun ön yüz (pano çerçeveli), bar koyu maun
+        const rich = lux && o !== O.TICKET, marble = rich && o === O.COUNTER;
+        const tc = o === O.BAR ? (rich ? '#3a1a0e' : '#5a3220') : o === O.TICKET ? '#6a5236' : marble ? '#d8d2c8' : b.type === 'bank' ? '#5a3a22' : '#9a7048';
+        const dark = rich ? (o === O.BAR ? '#2e140a' : '#4a2416') : hex(sh(rgb(tc), -0.28)), edge = rich ? sh(rgb(dark), -0.3) : sh(rgb(tc), -0.45);
+        front(cx - 8, cy + 1, 16, 7, (x, y) => {
+          const u = (x - bx(cx - 8)) / S, v = (y - by(cy + 1)) / S, c = wood(dark, x, y);
+          if (rich && (u % 8 > 1.5 && u % 8 < 6.5) && v > 1.4 && v < 4.6) return (u % 8 < 2.1 || v < 2) ? shT(c, 0.22) : (u % 8 > 5.9 || v > 4) ? shT(c, -0.3) : shT(c, 0.08);
+          return (u % 8 < 0.7) ? shT(c, -0.35) : (o === O.BAR && y >= by(cy + 5) && y < by(cy + 6)) ? rgb('#d8b048') : c;
+        }, cy + 8);
+        top(cx - 8, cy - 5, 16, 6, (x, y) => {
+          if (marble) { const wx = wxOf(x), wy = wyOf(y), vein = Math.sin(wx * 0.5 + Math.sin(wy * 0.9 + wx * 0.13) * 2.4); return y < by(cy - 4.5) ? rgb('#f0ece6') : vein > 0.94 ? rgb('#a8a49c') : shT(rgb(tc), (hs(Math.floor(wx), Math.floor(wy), 3) - 0.5) * 0.05); }
+          const c = wood(tc, x, y, 8); return y < by(cy - 4.5) ? shT(c, 0.3) : c;
+        }, 10);
         if (!same(-1)) front(cx - 8, cy - 5, 1.5, 13, edge, cy + 8);
         if (!same(1)) front(cx + 6.5, cy - 5, 1.5, 13, edge, cy + 8);
         if (o === O.BAR) {
           if (h < 0.5) top(cx - 3 + h * 6, cy - 3.5, 2, 2.5, (x, y) => (x + y) % 3 ? rgb('#d8e4ea') : rgb('#a8bcc8'), 11);
           if (h > 0.6) front(cx + 2, cy - 7, 2, 5, (x, y) => y < by(cy - 6) ? rgb('#c8a040') : rgb('#5a2a14'), cy - 2);
           if (h > 0.3 && h < 0.45) top(cx - 6, cy - 3, 3, 2, rgb('#e0c060'), 11);
-        } else if (b.type === 'bank' || o === O.TICKET) { for (let x = cx - 7; x < cx + 8; x += 3) front(x, cy - 12, 0.8, 8, rgb('#c8b060'), cy - 4); front(cx - 8, cy - 12, 16, 1, rgb('#c8b060'), cy - 4); }
+        } else if (b.type === 'bank' || o === O.TICKET) { const br = rgb(rich ? '#d8b850' : '#c8b060'); for (let x = cx - 7; x < cx + 8; x += 3) front(x, cy - 12, 0.8, 8, br, cy - 4); front(cx - 8, cy - 12, 16, 1, br, cy - 4); }
         else if (h < 0.3) top(cx - 3, cy - 4, 5, 4, rgb('#c8b890'), 12);
         return;
       }
       case O.TABLE: case O.CARDTABLE: {
-        const chair = (x, flip) => { top(x - 2.5, cy - 1, 5, 4, (xx, yy) => wood('#6a4428', xx, yy), 5); front(x - 2.5, cy + 3, 5, 2, rgb('#3a2416'), cy + 5); front(x - 2.5 + (flip ? 4 : 0), cy - 5, 1, 4, rgb('#4a2e1a'), cy - 1); };
-        chair(cx - 11, false); chair(cx + 11, true);
-        const RS = 13;
+        // iki yanda sandalye (yan karo boş, odanın içinde ve kapı yolunda değilse); zenginde döşemeli sandalye, örtülü masa
+        const rich = lux, lx = (i % WW) - b.x, ly = Math.floor(i / WW) - b.y;
+        const room = (x) => x >= 1 && x <= b.w - 2 && !W.obj[i + x - lx] && !(x === b.w >> 1 && ly >= b.h - 3);
+        const chair = (x, flip) => { top(x - 2.5, cy - 1, 5, 4, (xx, yy) => (rich ? shT(rgb('#7a2430'), (hs(xx >> 1, yy >> 1, 3) - 0.5) * 0.1) : wood('#6a4428', xx, yy)), 5); front(x - 2.5, cy + 3, 5, 2, rgb('#3a2416'), cy + 5); front(x - 2.5 + (flip ? 4 : 0), cy - 5, 1, 4, rgb('#4a2e1a'), cy - 1); };
+        if (room(lx - 1)) chair(cx - 11, false);
+        if (room(lx + 1)) chair(cx + 11, true);
+        const RS = 13, cloth = rich && o === O.TABLE;
         for (let yy = -RS; yy <= RS; yy++) for (let xx = -RS; xx <= RS; xx++) {
           const dd = Math.hypot(xx, yy) / RS; if (dd > 1) continue;
           let c;
-          if (o === O.CARDTABLE) c = dd > 0.86 ? rgb('#4a2e1a') : shT(rgb('#2e6a3a'), (hs(xx, yy, 4) - 0.5) * 0.08);
+          if (o === O.CARDTABLE) c = dd > 0.86 ? rgb(rich ? '#c8a040' : '#4a2e1a') : shT(rgb(rich ? '#1e5a34' : '#2e6a3a'), (hs(xx, yy, 4) - 0.5) * 0.08);
+          else if (cloth) c = dd > 0.93 ? rgb('#d8d2c4') : dd > 0.84 && ((Math.atan2(yy, xx) * 6 / Math.PI + 12) % 1 < 0.5) ? rgb('#e4dccc') : shT(rgb('#f4f0e8'), (hs(xx >> 1, yy >> 1, 4) - 0.5) * 0.04);
           else { c = dd > 0.88 ? rgb('#4a2e1a') : wood('#7a5232', xx + 100, yy + 100, 3); if (dd > 0.8 && dd <= 0.88) c = shT(c, 0.18); }
           put(bx(cx) + xx, by(cy - 1) + yy, c, 8, UP, 0);
         }
         for (let yy = 0; yy < 4; yy++) for (let xx = -12; xx <= 12; xx++) put(bx(cx) + xx, by(cy - 1) + Math.round(RS * Math.sqrt(1 - (xx / RS) ** 2)) + yy, rgb('#2e1c10'), 7, SOUTH, 0);
         if (o === O.CARDTABLE) { for (const [qx, qy] of [[-3, -2], [1, -1], [-1, 2]]) top(cx + qx, cy - 1 + qy, 2, 2.6, (xx, yy) => (yy === by(cy - 1 + qy)) ? rgb('#c83030') : rgb('#f4f0e4'), 8.3); top(cx + 3, cy - 4, 1.6, 1.6, rgb('#c83030'), 8.4); top(cx - 4.6, cy, 1.6, 1.6, rgb('#3050c0'), 8.4); }
+        else if (cloth) { top(cx - 2.6, cy - 2.4, 2.4, 2.4, rgb('#4a6a8a'), 10); top(cx - 2.8, cy - 3.6, 2.6, 1.8, rgb('#c83a4a'), 11); top(cx + 1.2, cy - 4.4, 1, 2.6, rgb('#f4ecd8'), 12); }
         else { if (h < 0.6) top(cx - 2.5, cy - 3, 2, 2.6, (xx, yy) => yy < by(cy - 2.4) ? rgb('#f4f0e4') : rgb('#d8a840'), 9.5); if (h > 0.4) top(cx + 1.5, cy - 4, 1.6, 3.6, rgb('#4a2a14'), 11); }
         // masada gaz lambası: gece yanar
         if (hs(cx, cy, 9) > 0.45) top(cx - 0.8, cy - 1.8, 1.6, 1.6, rgb('#f8e8b0'), 12, E_WIN);
@@ -729,11 +757,14 @@ const HY = (() => {
         top(cx - 5, cy - 5, 10, 4, (x, y) => (x + y) % 5 === 0 ? rgb('#4a4a50') : rgb('#2e2e34'), 10);
         front(cx - 5, cy - 1, 10, 6, (x, y) => { const v = (y - by(cy - 1)) / S; return v > 1.5 && v < 4 && Math.abs(x - bx(cx)) < 3 * S ? rgb('#ff8a30') : rgb('#1e1e22'); }, cy + 5, (x, y) => { const v = (y - by(cy - 1)) / S; return v > 1.5 && v < 4 && Math.abs(x - bx(cx)) < 3 * S ? E_FIRE : 0; });
         front(cx - 1.5, cy - 16, 3, 11, (x) => x === bx(cx - 1.5) ? rgb('#5a5a5e') : rgb('#34343a'), cy + 11);
+        if (lux) { top(cx - 5, cy - 5, 10, 0.6, rgb('#c8ccd0'), 10.5); front(cx - 5.5, cy + 4, 11, 1, rgb('#c8ccd0'), cy + 5); }   // nikel süsler
+        top(cx + 2, cy - 7, 2.4, 2, rgb('#5a3a2a'), 12); top(cx + 4.2, cy - 6.6, 1, 0.6, rgb('#3a2416'), 12);   // cezve
         return;
       }
       case O.SHELF: {
+        const fr = rgb(lux ? '#3a2014' : '#4a2e1a');
         front(cx - 7, cy - 7, 14, 13, (x, y) => {
-          const u = (x - bx(cx - 7)) / S, v = (y - by(cy - 7)) / S; if (u < 1 || u > 13 || v < 0.8) return rgb('#4a2e1a');
+          const u = (x - bx(cx - 7)) / S, v = (y - by(cy - 7)) / S; if (u < 1 || u > 13 || v < 0.8) return lux && v < 0.5 ? rgb('#c8a040') : fr;
           const r = Math.floor((v - 0.8) / 4), rv = (v - 0.8) - r * 4; if (rv > 3.2) return rgb('#6a4428');
           const k = Math.floor((u - 1) / 3), cols = ['#c8402c', '#e0c060', '#4a7aa8', '#6a9a4a', '#d8d0c0', '#8a5a2a'];
           const hc = hs(i, r * 4 + k, 5); if (rv < (1 - hc) * 1.2) return rgb('#2a1a10');
@@ -741,6 +772,22 @@ const HY = (() => {
         }, cy + 6);
         return;
       }
+    }
+    const tall = (x, y) => Math.max(0, (by(cy + 6) - y) / S);
+    // ocaklı eşyalar: ateş renkli pikseller hep yanar; ayaklı lambanın abajuru gece yanar
+    if (o === O.FIREPLACE || o === O.FORGE || o === O.OVEN) {
+      stamp((g) => Spr.furn(g, o, cx, cy, W, i, b, h), cx - 16, cy - 16, 40, 32, tall, SOUTH, (c) => c[0] + c[1] + c[2] > 0.05, (c) => ((c[0] > 0.9 && c[2] < 0.5) || (c[0] > 0.62 && c[1] < 0.56 && c[2] < 0.3 && c[0] - c[1] > 0.25)) ? E_FIRE : 0);
+      return;
+    }
+    if (o === O.LAMPSTAND) {
+      stamp((g) => Spr.furn(g, o, cx, cy, W, i, b, h), cx - 16, cy - 16, 40, 32, tall, SOUTH, (c) => c[0] + c[1] + c[2] > 0.05, (c, x, y) => (wyOf(y) > cy - 14.2 && wyOf(y) < cy - 8.6 && Math.abs(wxOf(x) - cx) < 4.6 && c[0] > 0.6 ? E_WIN : 0));
+      return;
+    }
+    // masalar ve vitrin: üstü düz (yukarı bakar), önü dikey
+    if (o === O.BILLIARD || o === O.ROULETTE || o === O.DISPLAY) {
+      const lip = o === O.DISPLAY ? cy + 0.5 : cy + 4, ht = o === O.DISPLAY ? 7 : 8;
+      stamp((g) => Spr.furn(g, o, cx, cy, W, i, b, h), cx - 16, cy - 16, 40, 32, (x, y) => (wyOf(y) > lip ? Math.max(0, ht - (wyOf(y) - lip) * ht / 6) : ht), (x, y) => (wyOf(y) > lip ? SOUTH : UP), (c) => c[0] + c[1] + c[2] > 0.05);
+      return;
     }
     // otel merdiveni yan duvara kadar uzanır (geniş kutu); yükseklik: çıkan merdiven kuzeye doğru yükselir, inen boşluk
     // zemin seviyesinde, kapı kanadı ve kanepe kendi boyunda
@@ -756,7 +803,7 @@ const HY = (() => {
   // iç mekân: döşeme, duvar, mobilya (büyük bir saloon tek adımda onlarca ms sürerdi)
   function* interior(b, W, tg) {
     const step = pacer(tg);
-    TG = tg; yield* interiorBase(b, tg, step);
+    TG = tg; yield* interiorBase(b, tg, step, W);
     for (let ly = 1; ly < b.h; ly++) {
       for (let lx = 0; lx < b.w; lx++) {
         const tx = b.x + lx, ty = b.y + ly, i = ty * WW + tx, o = W.obj[i]; if (!o) continue;
@@ -1231,6 +1278,7 @@ const HY = (() => {
       if (L.type === 'window') { if (night && Juice.windowLit(L) && !IB) add(L.x, L.y + 22, 6, L.r * 1.35, [1.0, 0.75, 0.42], 1.0 * nk); }
       else if (L.type === 'lamp') { if (night) add(L.x, L.y + 6, 14, 84 * Juice.flicker(L.x + L.y, G.t * 0.6, 0.035), [1.0, 0.72, 0.42], 1.7 * nk); }
       else if (L.type === 'inner') { if (IB && IB.id === L.b) add(L.x, L.y, 30, L.r * 1.5, [1.0, 0.8, 0.52], night ? 1.5 : 0.2, true); }
+      else if (L.type === 'hearth') { if (IB && IB.id === L.b) add(L.x, L.y, 10, L.r * 1.3 * Juice.flicker(L.x + L.y * 0.3, G.t, 0.07), [1.0, 0.6, 0.3], night ? 1.2 : 0.35, true); }
       else if (L.type === 'fire') add(L.x, L.y, 8, L.r * 1.2 * Juice.flicker(L.x, G.t, 0.08), [1.0, 0.6, 0.28], 0.4 + nk);
       else if (L.type === 'beacon') { if (night) add(L.x, L.y, 76, L.r, [1.0, 0.92, 0.6], nk); }
     }

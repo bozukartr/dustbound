@@ -89,16 +89,21 @@ const O = {
   RACK: 84, WORKBENCH: 85, STALL: 86, TICKET: 87, SHELF: 88, CHAIR: 89, PLANT: 90, HOMECHEST: 91, IBLOCK: 92, MANNEQUIN: 93,
   // otel: zemin katta yukarı çıkan merdiven, üst katta aşağı inen merdiven boşluğu, oda kapısı, lobi kanepesi
   STAIRS: 98, STAIRSD: 99, RDOOR: 100, SOFA: 101,
+  // iç mekân: oturma, depolama, ocaklar, oyun masaları, zanaat ve süs eşyaları (bilardo ve rulet iki karo: sağında IBLOCK)
+  ARMCHAIR: 102, BOOKCASE: 103, GCLOCK: 104, FIREPLACE: 105, CABINET: 106, SACKS: 107, COATRACK: 108, BILLIARD: 109, FORGE: 110, ANVIL: 111,
+  OVEN: 112, VAT: 113, WARDROBE: 114, WASHSTAND: 115, PALM: 116, LECTERN: 117, ORGAN: 118, ROULETTE: 119, SADDLE: 120, BUST: 121, DISPLAY: 122,
+  LAMPSTAND: 123, STOOL: 124, DRESSER: 125, TELEGRAPH: 126, SCALE: 127,
   LOTSIGN: 69,
   // zengin şehir: park ve meydan süsleri
   FOUNTAIN: 94, HEDGE: 95, FLOWERBED: 96, STATUE: 97,
 };
-const isFurnO = o => (o >= 70 && o <= 93) || (o >= 98 && o <= 101);
+const isFurnO = o => (o >= 70 && o <= 93) || (o >= 98 && o <= 127);
 const SOLID_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.SAGUARO, O.BOULDER, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.FENCEH, O.FENCEV, O.CRATE, O.BARREL, O.LAMP, O.WELL, O.TROUGH, O.TENT, O.HAY,
   O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP, O.LOTSIGN,
   O.COUNTER, O.BAR, O.TABLE, O.PIANO, O.CARDTABLE, O.BED, O.STOVE, O.DESK, O.CELL, O.PEW, O.ALTAR, O.SAFE, O.TUB, O.BCHAIR, O.RACK, O.WORKBENCH, O.STALL, O.TICKET,
   O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN, O.FOUNTAIN, O.HEDGE, O.STATUE, O.SOFA].forEach(o => (SOLID_O[o] = 1));   // otel merdiveninde yürünür; oda kapısı kapalıyken duvar bandı olur (buildingSolid)
+for (let o = O.ARMCHAIR; o <= O.SCALE; o++) if (o !== O.STOOL) SOLID_O[o] = 1;   // bar taburesinin üstünden geçilir (sandalye gibi)
 /* Gövdesi ince olan nesneler: tam kare yerine gövde boyutunda yuvarlak çarpışır (solid = 5) */
 const TRUNK_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.LAMP, O.POLE, O.SIGN, O.SAGUARO].forEach(o => (TRUNK_O[o] = 1));
@@ -153,6 +158,166 @@ const hotelShut = (b) => {
   });
   return out;
 };
+
+/* ---- İç mekân planları ----
+   Her bina türünün standart (std) ve zengin şehirdeki (rich, Saint Clement) tasarımları. Plan, iç alanın karakter
+   haritasıdır: sütunlar yan duvarların arası (yerel x 1..W-2), satırlar arka duvarın altından başlar (yerel y 1..H-2);
+   en öndeki sıra (H-1) ve kapı sütununun son iki sırası yürüyüş yolu olarak boş kalır. Birden çok plan varsa bina
+   konumuna göre biri seçilir (oyuncu yapılarında b.design). at: tezgâhtaki kişinin kesirli yeri (yoksa '@'),
+   rug: halılar [x, y, gen, boy (karo), desen (o: işlemeli, r: yolluk, g: geometrik, c: kilise halısı), renk].
+   Masa ve kart masasının iki yanı sandalyedir (boş kalmalı); bar taburesi barın önündedir. */
+const INT_KEY = {
+  C: O.COUNTER, R: O.BAR, K: O.TICKET, T: O.TABLE, P: O.CARDTABLE, p: O.PIANO, B: O.BED, S: O.STOVE, D: O.DESK, X: O.CELL, w: O.PEW, A: O.ALTAR,
+  $: O.SAFE, U: O.TUB, Y: O.BCHAIR, r: O.RACK, W: O.WORKBENCH, L: O.STALL, s: O.SHELF, c: O.CHAIR, g: O.PLANT, H: O.HOMECHEST, M: O.MANNEQUIN,
+  o: O.SOFA, a: O.ARMCHAIR, k: O.BOOKCASE, q: O.GCLOCK, F: O.FIREPLACE, i: O.CABINET, n: O.SACKS, h: O.COATRACK, l: O.BILLIARD, f: O.FORGE,
+  v: O.ANVIL, O: O.OVEN, V: O.VAT, d: O.WARDROBE, j: O.WASHSTAND, G: O.PALM, y: O.LECTERN, z: O.ORGAN, e: O.ROULETTE, t: O.SADDLE, u: O.BUST,
+  m: O.DISPLAY, Q: O.LAMPSTAND, 1: O.STOOL, E: O.DRESSER, '#': O.TELEGRAPH, '%': O.SCALE, x: O.CRATE, b: O.BARREL, Z: O.HAY, '~': O.TROUGH,
+  '|': O.IBLOCK, '=': O.IBLOCK,
+};
+const INT_PLANS = {
+  general: {
+    std: [
+      { m: ['s...@.%s', '.CCCCCC.', '........', 'n.m..cSc', 'xn.....b'], rug: [[2, 3.05, 6, 0.9, 'r', '#6a3a2a']] },
+      { m: ['s@s..%ss', 'CCC.....', '.....s.s', 'n.m..s.s', 'xb.....n'], rug: [[1.2, 3.1, 3.4, 1.7, 'g', '#7a4a2a']] },
+    ],
+    rich: [{ m: ['i.s.@.si', '.CCCCCC.', '........', 'G.m..m.G', 'i.Q...Qi'], rug: [[2.6, 3.15, 4.8, 2.1, 'o', '#6a2430']] }],
+  },
+  saloon: {
+    std: [
+      { m: ['b.@......p', 'RRRRR.....', '1.1.1.....', '.......P.S', '.T........', '.......T..', 'g.T......g'], rug: [[5.6, 3.3, 4.6, 1.5, 'o', '#4a2418']] },
+      { m: ['p......@.b', '.....RRRRR', '.....1.1.1', 'S.P.......', '........T.', '..T.......', 'g......T.g'], rug: [[1.4, 3.3, 3.4, 1.5, 'g', '#5a2a1a']] },
+    ],
+    rich: [
+      { m: ['b.@...F..p', 'RRRRR.....', '1.1.1.....', '......l=..', '.T........', '.......P..', 'G.T......G'], rug: [[5.7, 3.25, 4.2, 1.6, 'o', '#5a1a24'], [5.9, 5.3, 3.8, 1.5, 'o', '#2a3a4a']] },
+      { m: ['p..F...@.b', '.....RRRRR', '.....1.1.1', '..l=......', '........T.', '..P.......', 'G......T.G'], rug: [[1.4, 3.25, 4.2, 1.6, 'o', '#5a1a24'], [1.3, 5.3, 3.8, 1.5, 'o', '#2a3a4a']] },
+    ],
+  },
+  sheriff: {
+    std: [{ m: ['k@.rX.B', '.D=.X.|', 'bc..XXX', '.......', 'hww...S'], rug: [[1.2, 3.1, 3.2, 1.6, 'g', '#5a3a2a']] }],
+    rich: [{ m: ['k@.kX.B', '.D=.X.|', 'qc..XXX', '.......', 'aaQ...S'], rug: [[1.1, 2.9, 3.4, 1.9, 'o', '#3a2430']] }],
+  },
+  doctor: {
+    std: [{ m: ['i@s.jk', 'CCC..B', '.....|', 'cc....', 'g....i'], rug: [[1.2, 3.2, 2.6, 1.5, 'p', '#3a5a6a']] }],
+    rich: [{ m: ['i@i.kk', 'CCC..B', 'j....|', 'aa....', 'G.Q..i'], rug: [[1, 3.15, 3.4, 1.9, 'o', '#2a4a5a']] }],
+  },
+  gunsmith: {
+    std: [{ m: ['Wr.@.r', '.CCCC.', 'm....r', 'x....b'], rug: [[2, 3.05, 4, 0.9, 'r', '#5a3a24']] }],
+    rich: [{ m: ['Wk.@.r', '.CCCC.', 'm....m', 'Q....G'], rug: [[1.9, 3.05, 4.2, 1.6, 'o', '#3a2a3a']] }],
+  },
+  butcher: {
+    std: [{ m: ['W.@.%b', '.CCCC.', 'b....x', 'x....n'] }],
+    rich: [{ m: ['W.@.%i', '.CCCC.', 'm....m', 'b....g'] }],
+  },
+  stable: {
+    std: [{ m: ['ZL~.L.ZL.', '.L..L..L.', '.......@.', 'tt....CC.', 'b.n...x.b'] }],
+    rich: [{ m: ['ZL~.L.~LZ', '.L..L..L.', '.......@.', 'tt.t..CC.', 'g.n...i.g'] }],
+  },
+  bank: {
+    std: [{ m: ['D=.q...$', '...@....', '.CCCCCC.', '........', 'ww.....g', 'g......h'], rug: [[2.2, 4.1, 5.6, 1.6, 'p', '#2a4a3a']] }],
+    rich: [{ m: ['D=.q.k.$', '...@....', '.CCCCCC.', '........', 'oo.....u', 'G..Q...G'], rug: [[2.4, 4.1, 5.2, 2.2, 'o', '#1e3a2e']] }],
+  },
+  station: {
+    std: [{ m: ['i@.q....S', 'KKK..www.', '.........', 'xx...www.'], rug: [[5.6, 3.1, 4.2, 0.85, 'r', '#4a3a2a']] }],
+    rich: [{ m: ['i@.q...GS', 'KKK..www.', '.........', 'xx...wwwG'], rug: [[5.6, 3.1, 4.2, 0.85, 'r', '#3a2430']] }],
+  },
+  church: {
+    std: [{ m: ['z.A=.g', '....y.', '......', 'ww..ww', '......', 'ww..ww', '......', 'ww..ww'], at: [3.5, 2.1], rug: [[3.625, 1.625, 0.75, 8.1, 'c', '#8a2020']] }],
+    rich: [{ m: ['z.A=.G', '.....y', 'u....u', 'ww..ww', '......', 'ww..ww', '......', 'ww..ww'], at: [3.5, 2.1], rug: [[3.5, 1.6, 1, 8.15, 'c', '#7a1420']] }],
+  },
+  land: {
+    std: [{ m: ['@.k.s', 'D=...', '.c..i', 'g...h'], rug: [[1.1, 2.9, 3.2, 1.5, 'g', '#4a3a5a']] }],
+    rich: [{ m: ['@.kqk', 'D=...', '.c..a', 'G...Q'], rug: [[1, 2.85, 3.6, 1.8, 'o', '#3a2a4a']] }],
+  },
+  barber: {
+    std: [{ m: ['jE.Sj', 'Y@..Y', '.....', 'cc..h'], rug: [[1.6, 2.9, 3.8, 0.9, 'r', '#6a2a2a']] }],
+    rich: [{ m: ['jE.ij', 'Y@..Y', '.....', 'aa..G'], rug: [[1.4, 2.85, 4.2, 1.3, 'o', '#5a1a24']] }],
+  },
+  tailor: {
+    std: [{ m: ['s@.EMs', 'CCC...', '.....M', 'M....W'], rug: [[1.2, 3.1, 4.4, 1.5, 'g', '#5a3a5a']] }],
+    rich: [{ m: ['i@.iMi', 'CCC...', '.....M', 'M.a.oo'], rug: [[1.1, 2.95, 4.6, 1.8, 'o', '#4a2440']] }],
+  },
+  fence: { std: [{ m: ['@.xbx', 'CC.xb', '....x', 'nb..x'] }] },
+  mine: { std: [{ m: ['r@.%rx', 'CCC...', '.....x', 'b....n'] }] },
+  lumber: { std: [{ m: ['rk....D=s', '.WWW.....', '.........', 'xx.....xb', 'xxn....xb'], at: [8, 2.2] }] },
+  docks: {
+    std: [{ m: ['xxn...@s', 'xb...CC.', 'n......b', 'xx....xb'] }],
+    rich: [{ m: ['xxnk..@s', 'xb...CC.', 'n......b', 'xx.%..xb'], rug: [[2.4, 3.05, 4.6, 0.9, 'r', '#2a3a4a']] }],
+  },
+  ranch: { std: [{ m: ['S.D=.B', '.....|', '.T....', 'r....d'], at: [4, 2.2], rug: [[1.2, 2.6, 3.6, 1.7, 'g', '#6a4a2a']] }] },
+  barn: { std: [{ m: ['ZZ.~.Z', 'Z...LZ', '....L.', 't.....', 'b.n..x'] }] },
+  house: {
+    std: [
+      { m: ['B.SE', '|..T', 'j..a', 'd..g'], rug: [[1.3, 2.8, 3.3, 1.7, 'g', '#6a3a2a']] },
+      { m: ['Sd.B', 'T..|', 'a..j', 'E..g'], rug: [[1.4, 2.8, 3.2, 1.7, 'g', '#4a3a5a']] },
+      { m: ['BEFB', '|..|', 'T..a', 'c..g'], rug: [[1.5, 2.6, 3, 1.8, 'p', '#5a3a24']] },
+    ],
+    rich: [
+      { m: ['B.FE', '|...', 'a..a', 'G..Q'], rug: [[1.2, 2.5, 3.6, 2, 'o', '#5a1a24']] },
+      { m: ['kF.B', '...|', 'a..d', 'Q..G'], rug: [[1.2, 2.5, 3.4, 2, 'o', '#1e3a4a']] },
+      { m: ['BqEB', '|..|', 'oo.a', 'G..p'], rug: [[1.1, 2.6, 3.8, 1.9, 'o', '#3a2a4a']] },
+    ],
+  },
+  property: { std: [{ m: ['B.H.S', '|.T..', 'd...a', 'g...E'], rug: [[1.6, 2.7, 3.6, 1.8, 'g', '#7a4a2a']] }] },
+  cabin: { std: [{ m: ['@.rS', 'CC..', 'x..b'] }] },
+  hs_shack: {
+    std: [
+      { m: ['B.bH', '|...', 'j..c'] },
+      { m: ['Hx.B', '...|', 'c..j'] },
+      { m: ['H.ns', 'B...', '|..g'] },
+    ],
+  },
+  hs_cabin: {
+    std: [
+      { m: ['BH.dS', '|....', 'a...T', 'g...j'], rug: [[1.6, 2.6, 2.8, 1.6, 'g', '#6a3a2a']] },
+      { m: ['Ss.HB', '....|', 'T...a', 'j...g'], rug: [[1.6, 2.6, 2.8, 1.6, 'g', '#4a3a5a']] },
+      { m: ['H.ksS', 'B....', '|...T', 'j...c'], rug: [[1.8, 2.3, 2.6, 1.8, 'p', '#5a3a24']] },
+    ],
+  },
+  hs_house: {
+    std: [
+      { m: ['BBH.dES', '||.....', '.....T.', 'a......', 'g.....U'], rug: [[2.4, 2.6, 3.4, 2, 'g', '#6a3a2a']] },
+      { m: ['Ss.dHBB', '.....||', '.T.....', '......a', 'Uj....g'], rug: [[2.2, 2.6, 3.6, 2, 'g', '#4a3a5a']] },
+      { m: ['H.dS.Es', '....T..', 'B.....B', '|.....|', '.Uj...g'], rug: [[2.3, 3.1, 3.4, 1.9, 'p', '#5a3a24']] },
+    ],
+  },
+  bakery: {
+    std: [{ m: ['O.s@Wn', '.CCCC.', '.....n', 's.T..b'] }],
+    rich: [{ m: ['O.i@Wn', '.CCCC.', '.....m', 'm.T..T'], rug: [[1.9, 3.05, 4.2, 0.9, 'r', '#5a3a24']] }],
+  },
+  smith: { std: [{ m: ['fb.W.rr', '.v...@.', '....CC.', 'nx....b'] }] },
+  pharmacy: {
+    std: [{ m: ['i@s.i', 'CCC..', '....s', 'g...m'], rug: [[1.1, 3.05, 3.4, 0.9, 'r', '#2a4a4a']] }],
+    rich: [{ m: ['i@i.i', 'CCC..', '....i', 'G...m'], rug: [[1, 3, 3.6, 1.3, 'o', '#1e3a3a']] }],
+  },
+  laundry: {
+    std: [{ m: ['@.S.UU', 'CC....', 'n...U.', 'xb...b'] }],
+    rich: [{ m: ['@.S.UU', 'CC....', 'j...U.', 'Gb...j'] }],
+  },
+  gambling: {
+    std: [{ m: ['b@.....gp', 'RRR......', '1.1..e=..', '.P.....P.', '.........', '.P.....P.'], rug: [[4.6, 2.6, 3.6, 2, 'o', '#3a1418']] }],
+    rich: [{ m: ['b@..F..Gp', 'RRR......', '1.1..e=..', '.P.....P.', '.........', 'Ql=...l=Q'], rug: [[4.5, 2.55, 3.8, 2.1, 'o', '#4a1420'], [1.2, 3.6, 2.8, 1.8, 'o', '#1e2a3a'], [6.8, 3.6, 2.8, 1.8, 'o', '#1e2a3a']] }],
+  },
+  brewery: {
+    std: [{ m: ['D=..V.V.V', '.........', '.....bbbb', 'nn.......', 'x......bb', 'xx.....W.'], at: [1.5, 2.2] }],
+    rich: [{ m: ['D=.kV.V.V', '.........', '.....bbbb', 'nn.......', 'x......bb', 'xx.%...W.'], at: [1.5, 2.2] }],
+  },
+  mill: { std: [{ m: ['nn.%@.', 'n..CC.', '......', 'nn...x', 'Zb...x'] }] },
+  county: {
+    std: [{ m: ['..k.q.k$', 'D=...D=.', '........', '........', 'www..www', 'g......g'], at: [1.5, 1], rug: [[2.1, 3.1, 5.8, 1.7, 'p', '#3a3a5a']] }],
+    rich: [{ m: ['..k.q.k$', 'D=...D=.', '........', 'u......u', 'www..www', 'G..Q...G'], at: [1.5, 1], rug: [[2.1, 3, 5.8, 1.9, 'o', '#2a2a4a']] }],
+  },
+  post: {
+    std: [{ m: ['#@.n.s', 'CCCC..', '.....%', 'cc...x'], rug: [[1.1, 3.05, 4.4, 0.9, 'r', '#3a4a5a']] }],
+    rich: [{ m: ['#@.n.i', 'CCCC..', '.....%', 'aG...x'], rug: [[1, 3, 4.6, 1.3, 'o', '#2a3a4a']] }],
+  },
+  warehouse: {
+    std: [{ m: ['xxx.nn.xxx', 'bbb.nn.bbb', '..........', 'xx......@.', 'xn.....CC.', 'xx..%....b'] }],
+    rich: [{ m: ['xxx.nn.xxx', 'bbb.nn.bbb', '..........', 'xx......@.', 'xn..k..CC.', 'xx..%..q.b'] }],
+  },
+  cantina: { std: [{ m: ['b@...b.g', 'RRR.....', '1.1.....', '......T.', '.T......', 'g.....P.'], rug: [[1.2, 4.1, 3.6, 1.6, 'g', '#a04a2a'], [5.4, 3.2, 3.4, 1.4, 'g', '#2a6a6a']] }] },
+};
+/* Ateşli eşyalar (şömine, ocak, fırın): içerideyken titreyen sıcak ışık verir */
+const HEARTH_O = { [O.FIREPLACE]: 62, [O.FORGE]: 70, [O.OVEN]: 56 };
 
 class World {
   constructor(seed) {
@@ -558,86 +723,51 @@ class World {
     if (t) t._grid = null;
     this.refreshChunks();
   }
-  /* İç mekân yerleşimi: yerel karo koordinatları (0,0 sol üst; üst sıra arka duvar) */
+  /* İç mekân yerleşimi: yerel karo koordinatları (0,0 sol üst; üst sıra arka duvar). Otelin kendi iki katlı planı
+     vardır; diğer binalar INT_PLANS haritasından döşenir (zengin şehirde rich planı) */
   furnish(b) {
     const W = b.w, H = b.h, D = W >> 1, F = H - 2;
     const put = (lx, ly, o) => { if (lx < 1 || lx > W - 2 || ly < 1 || ly > F) return; const i = (b.y + ly) * WW + b.x + lx; this.obj[i] = o; };
     const row = (ly, x0, x1, o) => { for (let lx = x0; lx <= x1; lx++) put(lx, ly, o); };
     const bed = (lx, ly) => { put(lx, ly, O.BED); put(lx, ly + 1, O.IBLOCK); };
-    const desk = (lx, ly) => { put(lx, ly, O.DESK); put(lx + 1, ly, O.IBLOCK); };
     const at = (lx, ly) => ({ x: (b.x + lx) * TS + 8, y: (b.y + ly) * TS + 8 });
     b.staff = null; b.seats = [];
-    const seat = (lx, ly) => { b.seats.push(at(lx - 0.72, ly), at(lx + 0.72, ly)); };
-    switch (b.type) {
-      case 'general': row(2, 2, W - 3, O.COUNTER); b.staff = at(D, 1); put(1, 1, O.STOVE); put(1, 4, O.SHELF); put(W - 2, 4, O.SHELF); put(W - 2, F, O.BARREL); put(1, F, O.CRATE); break;
-      case 'saloon': row(2, 1, 4, O.BAR); b.staff = at(2, 1); put(W - 2, 1, O.PIANO); b.piano = at(W - 2, 2);
-        put(3, 5, O.TABLE); seat(3, 5); put(W - 3, 4, O.TABLE); seat(W - 3, 4); put(W - 3, 6, O.CARDTABLE); seat(W - 3, 6); put(2, 7, O.TABLE); seat(2, 7); put(W - 2, F, O.STOVE); break;
-      case 'sheriff': desk(2, 2); b.staff = at(2, 1); [[5, 1], [5, 2], [5, 3], [6, 3], [7, 3]].forEach(([x, y]) => put(x, y, O.CELL)); put(1, 3, O.RACK); put(W - 2, F, O.STOVE); b.cell = at(6.5, 1.5); break;
-      case 'doctor': row(2, 1, 3, O.COUNTER); b.staff = at(2, 1); bed(W - 2, 2); put(1, F, O.PLANT); put(W - 2, F, O.SHELF); break;
-      case 'gunsmith': row(2, 2, W - 3, O.COUNTER); b.staff = at(D, 1); put(1, 1, O.WORKBENCH); put(1, 3, O.RACK); put(W - 2, 3, O.RACK); break;
-      case 'butcher': row(2, 2, W - 3, O.COUNTER); b.staff = at(3, 1); put(W - 2, 1, O.WORKBENCH); put(1, F, O.BARREL); put(W - 2, F, O.CRATE); break;
-      case 'tailor': row(2, 1, 3, O.COUNTER); b.staff = at(2, 1); put(W - 2, 1, O.SHELF); put(W - 2, 3, O.MANNEQUIN); put(W - 3, 1, O.MANNEQUIN); put(1, F, O.MANNEQUIN); break;
-      case 'fence': row(2, 1, 2, O.COUNTER); b.staff = at(1, 1); put(W - 2, 1, O.CRATE); put(W - 2, 2, O.BARREL); put(W - 2, F, O.CRATE); put(W - 3, 1, O.CRATE); break;
-      case 'land': desk(1, 2); b.staff = at(1, 1); put(W - 2, 1, O.SHELF); put(W - 2, F, O.PLANT); break;
-      case 'barber': put(1, 2, O.BCHAIR); put(W - 2, 2, O.BCHAIR); b.staff = at(2, 2); put(1, F, O.PLANT); put(W - 2, F, O.CHAIR); break;
-      case 'hotel':
-        if (isHotel2(b)) {
-          // lobi: resepsiyon girişin karşısında, binanın tam ortasında; iki arka köşede üst kata merdiven; önde iki oturma köşesi
-          for (let ly = 1; ly <= 3; ly++) { put(1, ly, O.STAIRS); put(W - 2, ly, O.STAIRS); }
-          row(2, 3, W - 4, O.COUNTER); b.staff = at(W / 2 - 0.5, 1); put(3, 1, O.SHELF); put(W - 4, 1, O.SHELF);
-          put(2, F - 1, O.TABLE); put(W - 3, F - 1, O.TABLE);
-          put(2, F, O.SOFA); put(3, F, O.SOFA); put(W - 4, F, O.SOFA); put(W - 3, F, O.SOFA);
-          put(1, F, O.PLANT); put(W - 2, F, O.PLANT);
-        } else { row(3, 1, 3, O.COUNTER); b.staff = at(2, 2); bed(W - 3, 1); bed(W - 2, 1); put(D - 1, 1, O.TUB); put(W - 2, F, O.PLANT); put(1, F, O.CHAIR); }
-        break;
-      case 'bank': row(3, 2, W - 3, O.COUNTER); b.staff = at(4, 2); put(W - 2, 1, O.SAFE); desk(1, 1); put(1, F, O.PLANT); put(W - 2, F, O.PLANT); break;
-      case 'station': row(2, 1, 3, O.TICKET); b.staff = at(2, 1); row(2, D + 1, W - 3, O.PEW); row(F, D + 1, W - 3, O.PEW); put(W - 2, 1, O.STOVE); break;
-      case 'church': put(D - 1, 1, O.ALTAR); put(D, 1, O.IBLOCK); b.staff = at(D - 0.5, 2.1);
-        for (let ly = 4; ly <= F - 1; ly += 2) { row(ly, 1, D - 2, O.PEW); row(ly, D + 1, W - 2, O.PEW); } break;
-      case 'stable': [[2, 1], [2, 2], [5, 1], [5, 2], [8, 1], [8, 2]].forEach(([x, y]) => put(x, y, O.STALL)); put(1, 1, O.HAY); put(W - 2, 1, O.HAY); row(4, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, 3); put(1, F, O.BARREL); break;
-      case 'lumber': row(2, 2, 4, O.WORKBENCH); desk(W - 4, 1); b.staff = at(W - 3, 2.2); put(1, F, O.CRATE); put(2, F, O.CRATE); put(W - 2, F, O.BARREL); break;
-      case 'docks': row(2, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, 1); put(1, 1, O.CRATE); put(2, 1, O.CRATE); put(1, 2, O.BARREL); put(1, F, O.CRATE); put(W - 2, F, O.BARREL); break;
-      case 'mine': row(2, 1, 3, O.COUNTER); b.staff = at(2, 1); put(W - 2, 1, O.CRATE); put(W - 2, F, O.BARREL); put(W - 3, 1, O.RACK); break;
-      case 'ranch': desk(D - 1, 1); b.staff = at(D, 2.2); put(1, 1, O.STOVE); bed(W - 2, 1); put(2, F - 1, O.TABLE); break;
-      case 'barn': put(1, 1, O.HAY); put(2, 1, O.HAY); put(W - 2, 1, O.HAY); put(W - 2, 2, O.HAY); put(D + 1, 2, O.STALL); put(D + 1, 3, O.STALL); put(1, F, O.BARREL); break;
-      case 'house': bed(1, 1); put(W - 2, 1, O.STOVE); put(W - 2, 3, O.TABLE); break;
-      case 'property': bed(1, 1); put(D, 1, O.HOMECHEST); put(W - 2, 1, O.STOVE); put(W - 2, 3, O.TABLE); break;
-      case 'cabin': row(2, 1, 2, O.COUNTER); b.staff = at(1, 1); put(W - 2, 1, O.STOVE); break;
-      // oyuncunun kurduğu yapılar: her yapı türü için birkaç iç tasarımdan biri (b.design)
-      case 'hs_shack': [
-        () => { bed(1, 1); put(4, 1, O.HOMECHEST); put(4, 3, O.CHAIR); },
-        () => { bed(4, 1); put(1, 1, O.HOMECHEST); put(1, 3, O.CHAIR); },
-        () => { bed(1, 2); put(1, 1, O.HOMECHEST); put(4, 1, O.SHELF); put(4, 3, O.PLANT); },
-      ][(b.design || 0) % 3](); break;
-      case 'hs_cabin': [
-        () => { bed(1, 1); put(2, 1, O.HOMECHEST); put(5, 1, O.STOVE); put(5, 3, O.TABLE); put(1, 4, O.PLANT); },
-        () => { bed(5, 1); put(4, 1, O.HOMECHEST); put(1, 1, O.STOVE); put(2, 1, O.SHELF); put(1, 3, O.TABLE); },
-        () => { bed(1, 2); put(1, 1, O.HOMECHEST); put(5, 1, O.STOVE); put(4, 1, O.SHELF); put(5, 3, O.TABLE); put(5, 4, O.CHAIR); },
-      ][(b.design || 0) % 3](); break;
-      case 'hs_house': [
-        () => { bed(1, 1); bed(2, 1); put(3, 1, O.HOMECHEST); put(7, 1, O.STOVE); put(6, 3, O.TABLE); put(7, 5, O.TUB); put(1, 5, O.PLANT); },
-        () => { bed(7, 1); bed(6, 1); put(5, 1, O.HOMECHEST); put(1, 1, O.STOVE); put(2, 1, O.SHELF); put(2, 3, O.TABLE); put(1, 5, O.TUB); put(7, 5, O.PLANT); },
-        () => { bed(1, 3); bed(7, 3); put(1, 1, O.HOMECHEST); put(4, 1, O.STOVE); put(7, 1, O.SHELF); put(5, 2, O.TABLE); put(2, 5, O.TUB); put(7, 5, O.PLANT); },
-      ][(b.design || 0) % 3](); break;
-      // büyük dünya binaları
-      case 'bakery': row(2, 2, W - 3, O.COUNTER); b.staff = at(D, 1); put(1, 1, O.STOVE); put(W - 2, 1, O.STOVE); put(1, 4, O.SHELF); put(W - 2, F, O.BARREL); put(W - 3, F - 1, O.TABLE); break;
-      case 'smith': put(1, 1, O.WORKBENCH); put(2, 1, O.WORKBENCH); put(W - 2, 1, O.STOVE); row(3, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, 2); put(1, F, O.RACK); put(2, F, O.CRATE); put(W - 2, F, O.BARREL); break;
-      case 'pharmacy': row(2, 1, W - 4, O.COUNTER); b.staff = at(2, 1); put(W - 2, 1, O.SHELF); put(W - 2, 3, O.SHELF); put(1, F, O.PLANT); break;
-      case 'laundry': row(2, 1, 2, O.COUNTER); b.staff = at(1, 1); put(W - 2, 1, O.TUB); put(W - 3, 3, O.TUB); put(W - 2, F, O.BARREL); put(1, F, O.CRATE); break;
-      case 'gambling': row(2, 1, 3, O.BAR); b.staff = at(2, 1); put(W - 2, 1, O.PIANO); b.piano = at(W - 2, 2);
-        put(D - 2, 4, O.CARDTABLE); seat(D - 2, 4); put(W - 3, 4, O.CARDTABLE); seat(W - 3, 4); put(2, 6, O.CARDTABLE); seat(2, 6); put(W - 3, 6, O.CARDTABLE); seat(W - 3, 6); put(1, F, O.PLANT); break;
-      case 'brewery': desk(1, 1); b.staff = at(1.5, 2.2); for (let lx = D + 1; lx <= W - 2; lx++) { put(lx, 1, O.BARREL); put(lx, 3, O.BARREL); } put(1, F, O.CRATE); put(2, F, O.CRATE); put(W - 2, F, O.WORKBENCH); break;
-      case 'mill': put(1, 1, O.CRATE); put(2, 1, O.CRATE); put(1, 2, O.HAY); row(2, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, 1); put(1, F, O.BARREL); put(W - 2, F, O.CRATE); break;
-      case 'county': desk(1, 2); b.staff = at(1.5, 1); desk(W - 4, 2); put(W - 2, 1, O.SAFE); row(F - 1, 1, 3, O.PEW); put(1, 1, O.SHELF); put(W - 2, F, O.PLANT); break;
-      case 'post': row(2, 1, W - 4, O.COUNTER); b.staff = at(2, 1); put(W - 2, 1, O.SHELF); put(W - 2, F, O.CRATE); put(1, F, O.CHAIR); break;
-      case 'warehouse': for (const [lx, ly] of [[1, 1], [2, 1], [3, 1], [1, 2], [2, 2], [W - 2, 1], [W - 3, 1], [W - 4, 1], [W - 2, 2], [W - 3, 2], [1, 4], [2, 4], [W - 2, 4]]) put(lx, ly, ly === 2 ? O.BARREL : O.CRATE);
-        row(F - 1, W - 4, W - 3, O.COUNTER); b.staff = at(W - 3, F - 2); put(1, F, O.CRATE); break;
-      case 'cantina': row(2, 1, 3, O.BAR); b.staff = at(2, 1);
-        put(W - 3, 4, O.TABLE); seat(W - 3, 4); put(3, 5, O.TABLE); seat(3, 5); put(W - 3, 6, O.CARDTABLE); seat(W - 3, 6); put(W - 2, 1, O.PLANT); break;
+    if (b.type === 'hotel') {
+      if (isHotel2(b)) {
+        // lobi: resepsiyon girişin karşısında, binanın tam ortasında; iki arka köşede üst kata merdiven; önde iki oturma köşesi
+        for (let ly = 1; ly <= 3; ly++) { put(1, ly, O.STAIRS); put(W - 2, ly, O.STAIRS); }
+        row(2, 3, W - 4, O.COUNTER); b.staff = at(W / 2 - 0.5, 1); put(3, 1, O.SHELF); put(W - 4, 1, O.SHELF);
+        put(2, F - 1, O.TABLE); put(W - 3, F - 1, O.TABLE);
+        put(2, F, O.SOFA); put(3, F, O.SOFA); put(W - 4, F, O.SOFA); put(W - 3, F, O.SOFA);
+        put(1, F, O.PLANT); put(W - 2, F, O.PLANT);
+      } else { row(3, 1, 3, O.COUNTER); b.staff = at(2, 2); bed(W - 3, 1); bed(W - 2, 1); put(D - 1, 1, O.TUB); put(W - 2, F, O.PLANT); put(1, F, O.CHAIR); }
+    } else {
+      const pl = INT_PLANS[b.type], tier = pl && (b.modern && pl.rich ? pl.rich : pl.std);
+      if (tier) {
+        const k = b.design !== undefined ? b.design % tier.length : Math.floor(hash2(b.x, b.y, 53) * tier.length), plan = tier[k];
+        b.lay = (tier === pl.std ? 's' : 'r') + k;
+        plan.m.forEach((line, r) => {
+          for (let c = 0; c < line.length; c++) {
+            const ch = line[c], lx = c + 1, ly = r + 1;
+            if (ch === '.') continue;
+            if (ch === '@') { b.staff = at(lx, ly); continue; }
+            const o = INT_KEY[ch];
+            if (o === undefined) continue;
+            put(lx, ly, o);
+            // masa ve kart masası: iki yanda sandalye (oturan sakin masaya döner); bar taburesi bara (kuzeye) bakar
+            if (o === O.TABLE || o === O.CARDTABLE) b.seats.push({ ...at(lx - 0.72, ly), ang: 0 }, { ...at(lx + 0.72, ly), ang: Math.PI });
+            else if (o === O.STOOL) b.seats.push({ ...at(lx, ly - 0.3), ang: -Math.PI / 2 });
+            else if (o === O.PIANO) b.piano = at(lx, ly + 1);
+            if (HEARTH_O[o]) this.lights.push({ x: (b.x + lx) * TS + 8, y: (b.y + ly) * TS + 6, r: HEARTH_O[o], type: 'hearth', b: b.id });
+          }
+        });
+        if (plan.at) b.staff = at(plan.at[0], plan.at[1]);
+      }
     }
     // kapı ve kapı önü açık kalsın
     for (let ly = 2; ly <= H - 1; ly++) { const i = (b.y + ly) * WW + b.x + D; if (ly >= F - 1 && this.obj[i] !== O.COUNTER) this.obj[i] = 0; }
   }
+
   genTowns() {
     const big = WW > WORLD_OLD;
     const RAD = big ? { s: 36, m: 48, l: 62 } : { s: 32, m: 42, l: 54 };   // büyük dünyada kasabalar daha çok bina taşır
@@ -1187,6 +1317,7 @@ class World {
   setObj(x, y, o) { if (this.inb(x, y)) { const i = y * WW + x; if (!(this.flags[i] & 8)) { this.obj[i] = o; this.flags[i] |= 1; } } }
   clearArea(cx, cy, r, ground) {
     this.carveCircle(cx, cy, r, (x, y, d, i) => {
+      if (this.flags[i] & 8) return;   // önceden kurulmuş binanın içi (eşyaları) silinmez
       this.obj[i] = 0; this.flags[i] |= 1;
       const t = this.tile[i];
       if (isCliffT(t) || t === T.DEEP) this.tile[i] = T.ROCK;
@@ -2178,7 +2309,7 @@ const WorldCache = {
     for (const k of Object.getOwnPropertyNames(World.prototype)) { const d = Object.getOwnPropertyDescriptor(World.prototype, k); parts.push(k, String(d.value || d.get || '')); }
     for (const f of [Noise, RNG, mulberry32, hash2, clamp, lerp, dist, dist2, turnTo, angDiff, hexToRgb, shadeHex, mixHex, segDist2, isWaterT, isCliffT, isStoneT, inWorld, isHotel2]) parts.push(String(f));
     parts.push(JSON.stringify([T, O, TINFO, SOLID_O, TRUNK_O, TRUNK_R, TRUNK_DY, SNOWABLE, LEAFY, [...AREA_NEUTRAL], HARVEST, SNOW_LINE, CHUNK, CG,
-      BUILDINGS, TOWNS, RAIL_LINES, REGIONS, LANDMARKS, CAMPS, FARMS, PROPERTIES, typeof CITY_ZONE !== 'undefined' ? [CITY_ZONE, CITY_PRIO, CITY_CARTS, CITY_RIDERS] : null]));
+      BUILDINGS, TOWNS, RAIL_LINES, REGIONS, LANDMARKS, CAMPS, FARMS, PROPERTIES, HOTEL_UP, INT_KEY, INT_PLANS, HEARTH_O, typeof CITY_ZONE !== 'undefined' ? [CITY_ZONE, CITY_PRIO, CITY_CARTS, CITY_RIDERS] : null]));
     const s = parts.join('\u0001');
     let h1 = 0x811c9dc5, h2 = 0x9e3779b9;
     for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 ^ c, 0x5bd1e995); h2 ^= h2 >>> 15; }
