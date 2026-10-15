@@ -37,7 +37,7 @@ const G = {
     this.clock = 8 * 60; this.pace = 'normal'; this.difficulty = 'story';
     this.weather = { type: 'clear', t: 180, i: 0, cloud: 0, fogI: 0 };
     this.law = { level: 0, bounty: 0, lastX: 0, lastY: 0, unseen: 0, spawnT: 0, radius: 0, maskBounty: 0, masked: false, desc: null };
-    this.reports = []; this.nomads = null;
+    this.reports = []; this.nomads = null; this.truce = null; this.truceUsed = 0; this.truceArm = false;
     this.talks = []; this.townNews = {}; this.teaseT = 0;
     this.honor = 0; this.bank = 0; this.scars = 0;
     this.stats = { animals: 0, bears: 0, discoveries: 0, towns: 0, rideMiles: 0, walkMiles: 0, eaten: 0, herbs: 0, fish: 0, longKills: 0, bandits: 0, kills: 0, maxCash: 0, earned: 0, shifts: 0, helped: 0, maxBounty: 0, maxHonor: 0, minHonor: 0, properties: 0, married: 0, children: 0, bjWins: 0, armWins: 0, pokerWins: 0, locksPicked: 0, homesBuilt: 0, hoursDesert: 0, hoursCold: 0, nuggets: 0, collectibles: 0, tamed: 0, camps: 0, treasures: 0, trainRides: 0, deadeyes: 0, age: START_AGE };

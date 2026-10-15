@@ -6,6 +6,7 @@
    ========================================================== */
 
 const MIN_PER_SEC = 2.2; // gerçek saniye başına oyun dakikası
+const TRUCE_SEC = 30;    // aranan oyuncu şerif ofisine girince kanunun ateş etmeden teslim olmasını beklediği süre (sn)
 
 const GameSystems = {
   /* ================= ZAMAN ================= */
@@ -423,6 +424,7 @@ const GameSystems = {
     if (type === 'livestock' && victim && victim.type === 'chicken') { bounty = 0.5; honor = -1; name = Tr('Tavuk öldürme'); }
     if (!opts.noHonor) this.addHonor(honor);
     if (lvl === 0 && !minor) return;
+    if (this.truce && lvl > 0) this.lawResist(name);   // şerif ofisindeki ateşkes sırasında işlenen suç ateşkesi bozar
     const P = this.player;
     // dükkan ve banka soygununda alarm hemen verilir
     let instant = type === 'storerob' || type === 'bankrob';
@@ -651,7 +653,11 @@ const GameSystems = {
   lawUpdate(dt) {
     const L = this.law, P = this.player;
     if (L.level <= 0) {
-      // tanınma
+      // ateşkes yalnızca aranırken ofise dışarıdan girene verilir (ofisin içinde işlenen suçla başlayan aranmada yok)
+      const off = this.officeIn();
+      this.truce = null; this.truceUsed = 0; this.truceArm = !off;
+      this.officeGreet(off);
+      // tanınma (şerif ofisinin içinde değil: oraya gelen, başındaki ödülü ödemeye gelmiştir)
       if (L.bounty >= 20 && !P.masked) {
         const town = this.world.townAt(P.x, P.y);
         // kıyafet eşkâle ne kadar uyuyor? (şapka + palto)
@@ -659,7 +665,7 @@ const GameSystems = {
         const [need, near] = match === 2 ? [6, 70] : match === 1 ? [14, 45] : L.bounty >= 90 ? [20, 34] : [1e9, 0];
         if (town) {
           L.recog = (L.recog || 0) + dt;
-          for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && dist(e.x, e.y, P.x, P.y) < near && L.recog > need && e.canSee(P.x, P.y, near)) {
+          if (!off) for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && dist(e.x, e.y, P.x, P.y) < near && L.recog > need && e.canSee(P.x, P.y, near)) {
             L.level = 1; L.lastX = P.x; L.lastY = P.y; L.unseen = 0; e.hostile = true;
             UI.wanted(Tr('Tanındın! Başında ödül var'), 0); e.say(Tr('Seni tanıyorum! Başında ödül var!')); L.recog = 0; break;
           }
@@ -667,6 +673,7 @@ const GameSystems = {
       }
       return;
     }
+    this.truceUpdate(dt);
     this.arrestUpdate(dt);
     const lawmen = this.ents.filter(e => e.kind === 'npc' && e.isLaw && !e.dead && !e.bound);
     let seen = false;
@@ -699,8 +706,60 @@ const GameSystems = {
       }
     }
   },
+  /* ---- Şerif ofisi: aranan oyuncu ofise kendi ayağıyla girerse kanun ateş etmez, silah zoruyla tutup teslim olmasını
+     bekler (cezayı öder ya da hapse girer). Ateşkes bir aranma boyunca toplam TRUCE_SEC saniye sürer; ofisten çıkınca
+     durur, geri girince kalan süreden devam eder. Ateş etmek, kanun adamına silah doğrultmak ya da suç işlemek
+     ateşkesi bozar ve o aranmada yenisi verilmez. Aranma ofisin içinde işlenen bir suçla başladıysa ateşkes için
+     önce dışarı çıkıp yeniden girmek gerekir. ---- */
+  officeIn() { const P = this.player, b = this.world.buildingAtPx(P.x, P.y); return b && b.type === 'sheriff' ? b : null; },
+  /* Ofisteki kanun adamı: masadaki şerif, yoksa binanın içindeki en yakın kanun adamı */
+  officeCop(b) {
+    const s = b.staffNpc, P = this.player, W = this.world;
+    if (s && !s.dead && !s.remove && !s.bound) return s;
+    let best = null, bd = Infinity;
+    for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && !e.remove && !e.bound && W.buildingAtPx(e.x, e.y) === b) { const d = dist2(e.x, e.y, P.x, P.y); if (d < bd) { bd = d; best = e; } }
+    return best;
+  },
+  truceUpdate(dt) {
+    const P = this.player, off = this.officeIn(), b = off && this.suspect() ? off : null;
+    if (!b) {
+      if (this.truce) { this.truceUsed = this.truce.t; this.truce = null; if (!off) UI.feed(Tr('Şerif ofisinden çıktın: dışarıda ateşkes yok!'), 'warn'); }
+      if (!off) this.truceArm = true;
+      return;
+    }
+    if (!this.truce) {
+      const used = this.truceUsed || 0;
+      if (!this.truceArm || used >= TRUCE_SEC) return;
+      const last = used > TRUCE_SEC - 10;
+      this.truce = { t: used, warned: last };
+      const cop = this.officeCop(b);
+      if (cop) cop.say(last ? Tr('Son kez söylüyorum: teslim ol!') : P.aiming && P.isArmed ? Tr('Silahını indir! Hemen!') : pick([Tr('Olduğun yerde dur! Ellerini görebileceğim yerde tut.'), Tr('Teslim olmaya geldiysen silahına dokunma.')]), 3);
+      UI.feed(Tr('⚖ Şerif ofisindesin: silahına dokunmazsan ateş etmezler. Teslim olup cezanı ödeyebilirsin.'), 'law');
+      this.hintOnce('office', Tr`Aranırken şerif ofisine girersen kanun <b>${TRUCE_SEC} saniye</b> ateş etmez. Kanun adamının yanında ya da şerifin masasında ${Input.glyph('interact')} ile <b>teslim ol</b>: cezanı ödeyebilir ya da hapis yatabilirsin. Ateş eder ya da silah doğrultursan ateşkes bozulur.`, 10);
+      return;
+    }
+    const T = this.truce;
+    T.t += dt;
+    if (!T.warned && T.t > TRUCE_SEC - 10) { T.warned = true; const cop = this.officeCop(b); if (cop) cop.say(Tr('Son kez söylüyorum: teslim ol!'), 3); }
+    if (T.t >= TRUCE_SEC) this.lawResist(Tr('Teslim olmadın'));
+  },
+  /* Başında ödülle (aranmadan) şerif ofisine giren oyuncuyu şerif masaya çağırır; ofiste tanınıp aranmaz */
+  officeGreet(b) {
+    const L = this.law, P = this.player;
+    if (!b) { this._greetB = null; return; }
+    if (this._greetB === b.id || L.bounty <= 0 || P.masked) return;
+    const cop = this.officeCop(b);
+    if (!cop || !cop.canSee(P.x, P.y, 160)) return;
+    this._greetB = b.id;
+    cop.say(Tr('Başındaki ödülü ödemeye geldiysen masaya gel.'), 3);
+  },
+  /* Şerifin masasında teslim ol (aranırken) */
+  turnIn(b) {
+    const cop = this.officeCop(b);
+    this.surrender(cop || { say() {} });
+  },
   /* ---- Tutuklama: düşük aranma seviyesinde kanun önce teslim olmanı ister ---- */
-  canArrest() { const L = this.law; return L.level > 0 && L.level <= 2 && !L.resist && this.suspect(); },
+  canArrest() { const L = this.law; return L.level > 0 && this.suspect() && (!!this.truce || (L.level <= 2 && !L.resist)); },
   arrestingCop(r) {
     if (!this.canArrest()) return null;
     const P = this.player;
@@ -711,12 +770,13 @@ const GameSystems = {
   /* Oyuncu ateş etti: kanun tutuklamaya geliyorsa direniş sayılır */
   onPlayerFire() {
     const L = this.law, P = this.player;
-    if (L.level <= 0 || L.resist) return;
+    if (L.level <= 0 || (L.resist && !this.truce)) return;
     if (this.ents.some(e => e.kind === 'npc' && e.isLaw && e.hostile && !e.dead && dist2(e.x, e.y, P.x, P.y) < 450 * 450)) this.lawResist(Tr('Ateş ettin'));
   },
   lawResist(why) {
     const L = this.law;
-    if (L.level <= 0 || L.resist) return;
+    if (L.level <= 0 || (L.resist && !this.truce)) return;
+    if (this.truce) { this.truce = null; this.truceUsed = TRUCE_SEC; }   // bozulan ateşkes bu aranmada yeniden verilmez
     L.resist = true; L.arrestT = 0;
     const P = this.player;
     const cop = this.ents.find(e => e.kind === 'npc' && e.isLaw && e.hostile && !e.dead && dist(e.x, e.y, P.x, P.y) < 300);
@@ -730,9 +790,11 @@ const GameSystems = {
     const cop = this.arrestingCop(260);
     if (!cop) { L.fleeT = Math.max(0, (L.fleeT || 0) - dt); return; }
     const d = dist(cop.x, cop.y, P.x, P.y);
-    this.hintOnce('surrender', Tr`Kanun seni tutuklamak istiyor. Kanun adamının yanında ${Input.glyph('interact')} basılı tutarak <b>teslim olabilirsin</b>. Ateş edersen, silah doğrultursan ya da kaçarsan ateş açarlar.`, 9);
+    if (!this.truce) this.hintOnce('surrender', Tr`Kanun seni tutuklamak istiyor. Kanun adamının yanında ${Input.glyph('interact')} basılı tutarak <b>teslim olabilirsin</b>. Ateş edersen, silah doğrultursan ya da kaçarsan ateş açarlar.`, 9);
     // kanun adamına silah doğrultmak
     if (P.aiming && P.isArmed && Math.abs(angDiff(P.aimAng, Math.atan2(cop.y - P.y, cop.x - P.x))) < 0.3) { L.aimT = (L.aimT || 0) + dt; if (L.aimT > 1.1) { this.lawResist(Tr('Kanun adamına silah doğrulttun')); return; } } else L.aimT = 0;
+    // şerif ofisinde kaçmak ve beklemek sayılmaz: süreyi ateşkes tutar, ofisten çıkınca ateşkes biter
+    if (this.truce) { L.lastD = d; L.fleeT = 0; return; }
     // kaçmak
     const away = L.lastD !== undefined && d > L.lastD + 0.05;
     if (d > 70 && away) { L.fleeT = (L.fleeT || 0) + dt * (P.sprinting || P.riding ? 1.4 : 1); if (L.fleeT > 5) { this.lawResist(Tr('Kaçmaya çalıştın')); return; } }
@@ -760,6 +822,7 @@ const GameSystems = {
     cop.say(pick([Tr('Akıllıca bir karar.'), Tr('Eller arkaya. Yavaşça.'), Tr('Hadi bakalım, şerif ofisine.')]), 3);
     Audio_.ui('back');
     const finish = (paid) => {
+      this.truce = null; this.truceUsed = 0;
       L.level = 0; L.bounty = 0; L.maskBounty = 0; L.masked = false; L.resist = false; L.desc = null; L.arrestT = 0; L.fleeT = 0; L.warned = false; L.fleeWarn = false;
       for (const r of this.reports) r.done = true;
       for (const e of this.ents) if (e.kind === 'npc' && e.isLaw) { e.hostile = false; e.state = e.work !== undefined ? 'static' : 'idle'; if (!e.town) e.remove = true; }

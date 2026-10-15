@@ -9,7 +9,7 @@
 const Handbook = {
   /* ipucu anahtarı → el kitabı konusu (G.hintOnce ilk kez gösterince konuyu işaretler) */
   HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison',
-    deadeye: 'deadeye', ride: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', death: 'death', aging: 'aging', hotel: 'needs' },
+    deadeye: 'deadeye', ride: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs' },
 
   unread() { const H = G.hints || {}; return this.topics().some(T => H['new:' + T.id]); },
 
@@ -83,6 +83,7 @@ const Handbook = {
         Tr`Tanığa silah doğrultup ${g('interact')} ile tehdit edebilir ya da rüşvet verebilirsin; tanık kalmazsa suç kayda geçmez. Maskeliyken işlediğin suç maskeli bir yabancıya yazılır.`,
         Tr('Radardaki kırmızı alan seni en son gördükleri yerin çevresidir ve her yıldızda büyür. Alanın dışına çıkıp 12 saniye görünmezsen aranman biter; başındaki ödül kalır.'),
         Tr('Ödülünü şerif ofisinde ödeyebilir ya da kanun adamına teslim olabilirsin (para cezası ya da birkaç gün hapis).'),
+        Tr`Aranırken şerif ofisine girersen kanun ${TRUCE_SEC} saniye ateş etmez: kanun adamının yanında ya da şerifin masasında teslim olup cezanı ödeyebilir ya da hapis yatabilirsin. Ofisten çıkınca süre durur; ateş eder, silah doğrultur ya da suç işlersen ateşkes bozulur.`,
         Tr`Başındaki ödül ${fmtMoney(HUNTER_MIN)} ve üstündeyse birkaç saat sonra kasaba dışında ödül avcıları peşine düşebilir; ödül arttıkça daha sık ve daha kalabalık gelirler (2-4 kişi). Parayla anlaşabilir (ödülün %60'ı), teslim olabilir ya da çatışabilirsin; onları öldürmek suç değildir.`,
       ]) },
       { id: 'death', ic: 'grave', t: Tr('Ölüm ve Doktor'), b: () => li([
