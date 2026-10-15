@@ -1232,6 +1232,11 @@ body.binoc-on #hud-help, body.binoc-on #hud-tr, body.binoc-on #hud-bl, body.bino
 #hud-quest .hq-o.done i { background: var(--gold); }
 #hud-quest .hq-n { color: var(--gold); }
 #hud-quest .hq-d { font-family: var(--type); font-size: 13px; color: var(--gold); margin-top: 2px; letter-spacing: 0.5px; }
+/* görev rehberi: hedefin altında "nasıl" satırı (tuşlarla) */
+#hud-quest .hq-h { font-family: var(--type); font-size: 14px; line-height: 1.45; color: #e2d6bc; margin-top: 4px; text-align: right; }
+#hud-quest .hq-h b { color: #fff4dc; font-weight: normal; border-bottom: 1px dotted rgba(226, 182, 74, 0.7); white-space: nowrap; }
+#hud-quest .hq-h .hq-hs { display: inline-block; }
+#hud-quest .hq-h .btn { transform: scale(0.88); }
 #hud-quest .hq-d:empty { display: none; }
 .toast.tk-quest .t-t { font-family: var(--west); letter-spacing: 1px; }
 .qj-h { font-family: var(--west); font-size: 30px; color: var(--gold); margin-bottom: 4px; }
@@ -1241,6 +1246,19 @@ body.binoc-on #hud-help, body.binoc-on #hud-tr, body.binoc-on #hud-bl, body.bino
 .qj-l > li.ok { color: #c8bca4; }
 .qj-l > li.ok::after { content: ' ✔'; color: var(--gold); }
 .qj-l > li.on { color: #fff; }
+.qj-how { font-family: var(--type); font-size: 14px; color: #d8cdb4; margin: 3px 0 2px 14px; }
+.qj-how b { font-family: var(--sc); color: var(--gold); }
+/* görev rehberi: menüde ve istemde görevi ilerleten seçenek */
+.p-quest { margin: 2px 14px 8px; padding: 5px 12px; font-family: var(--type); font-size: 14px; color: #f3e6c8; background: linear-gradient(90deg, rgba(120, 84, 24, 0.55), rgba(120, 84, 24, 0.12)); border-left: 3px solid var(--gold); }
+.p-quest b { color: var(--gold); font-family: var(--sc); letter-spacing: 1px; font-weight: normal; }
+.p-item.q-goal { background: linear-gradient(90deg, rgba(226, 182, 74, 0.2), rgba(226, 182, 74, 0.04) 70%, transparent); box-shadow: inset 0 0 0 1px rgba(226, 182, 74, 0.55); animation: qgoal 1.6s ease-in-out infinite; }
+.p-item.q-goal .pi-l::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 9px; background: var(--gold); transform: rotate(45deg) translateY(-2px); box-shadow: 0 0 6px rgba(226, 182, 74, 0.8); }
+@keyframes qgoal { 50% { box-shadow: inset 0 0 0 1px rgba(240, 212, 135, 0.95), 0 0 14px rgba(226, 182, 74, 0.35); } }
+.tab.q-goal { color: #f6e2b0; }
+.tab.q-goal::before { content: ''; position: absolute; right: 2px; top: 2px; width: 6px; height: 6px; background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 6px rgba(226, 182, 74, 0.8); animation: qgoal 1.6s ease-in-out infinite; }
+.prompt.q-goal { border-right-color: var(--gold); box-shadow: 0 0 0 1px rgba(226, 182, 74, 0.6), 0 0 14px rgba(226, 182, 74, 0.35); }
+.prompt.q-goal > span:last-child::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; background: var(--gold); transform: rotate(45deg) translateY(-2px); }
+.prompt.q-goal b { color: #fff4dc; font-weight: normal; }
 .qj-l ul { margin: 6px 0 2px 22px; padding: 0; list-style: '◆  '; font-size: 15px; }
 .qj-l ul li { color: #e8dcc6; padding: 2px 0; }
 .qj-l ul li.ok { color: #8a8070; text-decoration: line-through; }

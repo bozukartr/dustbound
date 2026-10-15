@@ -304,6 +304,7 @@ const Story = {
     const S = this.story;
     if (!S || !S.on) return;
     this.storyTalkTick(dt);
+    if (!S.done) this.questNudge(dt);
     this.storyMentor(dt);
     if (!S.done) this.storyRival();
     const D = this.storyDef();
@@ -579,6 +580,97 @@ const Story = {
     this.questHud();
   },
 
+  /* ---------------- görev rehberi ----------------
+     Oyuncu hedefin ne olduğunu ve nasıl yapılacağını hep görebilsin:
+     - HUD'da hedefin altında kısa bir "nasıl" satırı (tuşlar o anki cihaza göre; günlükte de yazar): adımın how'u
+       (QUEST_HOW'daki bir tarifin adı ya da kendi işlevi), yoksa olay türünün tarifi, seçim adımında seçim, işaretli
+       adımda işarete gitme, hiçbiri yoksa ipucunun ilk cümlesi.
+     - Menülerde ve etkileşim isteminde adımı ilerleten seçenek parlar (qGoal): seçeneğin tetiklediği olay (qe) adımın
+       olayıyla ve ok koşuluyla eşleşirse, ara menü (qn) o olaya götürüyorsa; ikisi de yoksa adı ipucundaki ya da
+       tarifteki kalın bir yazıyla (<b>…</b>) aynıysa.
+     - Oyuncu bir süre ilerleyemezse ipucu yeniden gösterilir (questNudge); işarete yaklaşmak ilerleme sayılır. */
+  questHow(st, S) {
+    if (!st) return '';
+    S = S || this.story;
+    try {
+      if (typeof st.how === 'function') return st.how.call(this, S) || '';
+      const f = QUEST_HOW[st.how] || (st.ev && (QUEST_HOW[st.ev] || QUEST_HOW.act)) || (st.choice && QUEST_HOW.choice) || (st.at && QUEST_HOW.travel);
+      const h = f ? f.call(this, st, S) : '';
+      return h || (st.hint ? qFirstSentence(st.hint.call(this, S)) : '');
+    } catch (e) { return ''; }
+  },
+  /* adımın kalın yazıları (menü ve istem seçeneklerinin adları); dil değişene kadar saklanır.
+     hintOnly: yalnızca ipucundakiler (tarifin kendisi bunlardan kurulurken) */
+  qTerms(st, hintOnly) {
+    const lang = I18N.lang, k = hintOnly ? 'h' : 'a';
+    if (!st._qt || st._qt.lang !== lang) st._qt = { lang };
+    if (st._qt[k]) return st._qt[k];
+    let src = '';
+    try { if (st.hint) src += st.hint.call(this, this.story); } catch (e) {}
+    if (!hintOnly) try {
+      if (typeof st.how === 'function') src += ' ' + st.how.call(this, this.story);
+      else { const f = QUEST_HOW[st.how] || (st.ev && QUEST_HOW[st.ev]); if (f) src += ' ' + f.call(this, st, this.story); }
+    } catch (e) {}
+    const terms = [];
+    for (const m of src.matchAll(/<b>([\s\S]*?)<\/b>/g)) { const t = qNorm(m[1]); if (t.length >= 2 && !terms.includes(t)) terms.push(t); }
+    return (st._qt[k] = terms);
+  },
+  /* bu seçenek (menü öğesi ya da etkileşim eylemi: label/n, qe, qn) görevin şu anki adımını ilerletir mi */
+  qGoal(o) {
+    const S = this.story;
+    if (!o || !S || !S.on || S.done || S.wait || this.cine) return false;
+    const st = this.qStep();
+    if (!st) return false;
+    // olayı bilinen seçenek yalnızca olayıyla karar verir (ör. "4 Saat Uyu" adı "Uyu"yu içerse de "sabaha kadar" değildir)
+    if (o.qe) { if (o.qe[0] !== st.ev) return false; try { return !st.ok || !!st.ok.call(this, o.qe[1], S); } catch (e) { return false; } }
+    if (o.qn) return [].concat(o.qn).includes(st.ev);
+    const L = qNorm(o.label !== undefined ? o.label : o.n);
+    return !!L && this.qTerms(st).some(t => L === t || L.startsWith(t + ' ') || L.endsWith(' ' + t) || L.includes(' ' + t + ' '));
+  },
+  /* etkileşim isteminde görevi ilerleten eylemin sırası (-1: yok). İşaretli adımda yalnızca işaretin yakınındaki
+     şeyler sayılır (ör. konuşulacak kişi; kasabadaki her "Konuş" değil) */
+  qPromptGoal(it) {
+    const S = this.story;
+    if (!it || !it.actions || !S || !S.on || S.done || S.wait) return -1;
+    const m = this.questMark();
+    if (m && it.x !== undefined && dist(m.x, m.y, it.x, it.y) > 200) return -1;
+    return it.actions.findIndex(a => this.qGoal(a));
+  },
+  /* görevi ilerleten seçeneği olan menünün başındaki hatırlatma */
+  questBanner() {
+    const S = this.story, st = this.qStep();
+    let t = '';
+    try { t = st ? st.t.call(this, S) : ''; } catch (e) {}
+    return Tr`<b>Görev:</b> ${t} — parlayan seçeneği seç`;
+  },
+  /* takılan oyuncuya ipucu: adımda ilerleme olmadan 45 sn, sonra 75 sn'de bir (en çok dört kez) */
+  questNudge(dt) {
+    const S = this.story, st = this.qStep();
+    if (!st || S.wait || this.cine || this.state !== 'play' || UI.isModal() || this.storyTalking()) return;
+    const k = S.ch + '|' + S.st;
+    const N = this._qNudge && this._qNudge.k === k ? this._qNudge : (this._qNudge = { k, t: 0, n: 0, best: Infinity });
+    const m = this.questMark();
+    if (m) { const d = dist(this.player.x, this.player.y, m.x, m.y); if (d < N.best - 40) { N.best = d; N.t = 0; } }
+    N.t += dt;
+    if (N.n >= 4 || N.t < (N.n ? 75 : 45)) return;
+    N.t = 0; N.n++;
+    let hint = '';
+    try { hint = st.hint ? st.hint.call(this, S) : ''; } catch (e) {}
+    UI.help(Tr`<b>Takıldın mı?</b> ${st.t.call(this, S)}<br>${hint || this.questHow(st, S)}`, 11);
+    const el = document.getElementById('hud-quest');
+    if (el) { el.classList.remove('hq-pulse'); void el.offsetWidth; el.classList.add('hq-pulse'); }
+  },
+  /* görev "bir şeyler ye" diyorsa hızlı kullanımda yenecek şey: pişmiş ve doyurucu olan önce, çiğ et asla
+     (yoksa susuzken matara içilir, tokken hiçbir şey seçilmez, adım hiç bitmezdi) */
+  questFood() {
+    const S = this.story, st = S && S.on && !S.done && !S.wait && this.qStep();
+    if (!st || st.ev !== 'eat') return null;
+    const P = this.player, ok = (id) => { try { return !st.ok || st.ok.call(this, id, S); } catch (e) { return false; } };
+    const ids = Object.keys(P.inv).filter(id => P.count(id) > 0 && ITEMS[id] && ITEMS[id].c === 'food' && !ITEMS[id].raw && !(ITEMS[id].e || {}).drunk && ok(id));
+    ids.sort((a, b) => ((ITEMS[b].e || {}).hunger || 0) - ((ITEMS[a].e || {}).hunger || 0));
+    return ids[0] || null;
+  },
+
   /* ---------------- arayüz ---------------- */
   questHud() {
     const el = document.getElementById('hud-quest');
@@ -592,13 +684,17 @@ const Story = {
     const n = shown && shown.n > 1 ? ` <span class="hq-n">${pv ? 0 : S.n}/${shown.n}</span>` : '';
     let txt;
     try { txt = shown ? shown.t.call(this, S) + n : '…'; } catch (e) { txt = '…'; }
-    const key = S.ch + '|' + idx + '|' + S.n + '|' + done + '|' + txt;
+    // hedefin altında "nasıl": tuşlarla kısa tarif (cihaz değişince tuşlar da değişir)
+    const how = shown && !done ? this.questHow(shown, S) : '';
+    const key = S.ch + '|' + idx + '|' + S.n + '|' + done + '|' + txt + '|' + how;
     if (el._k === key) return;
     el._k = key;
     // yeni bir hedef: panel parlayarak kayıp gelir, kısa süre "Yeni Hedef" etiketi görünür (önizlemede bir kez)
     const sk = S.ch + '|' + idx, fresh = shown && !done && el._sk !== sk;
     if (fresh) el._sk = sk;
-    el.innerHTML = `<div class="hq-t">${fresh ? `<span class="hq-new">${Tr`Yeni Hedef`}</span>` : ''}${Tr`Bölüm ${S.ch + 1}`} · ${c.t()}</div><div class="hq-o ${done ? 'done' : ''}"><i></i>${txt}</div><div class="hq-d"></div>`;
+    // "nasıl" satırı · ile ayrılan parçalarından bölünür (kısa yol bir alt satıra iner, seçenek adı ikiye bölünmez)
+    const howH = how ? Icons.iconize(how).split(' · ').map(s => `<span class="hq-hs">${s}</span>`).join(' · ') : '';
+    el.innerHTML = `<div class="hq-t">${fresh ? `<span class="hq-new">${Tr`Yeni Hedef`}</span>` : ''}${Tr`Bölüm ${S.ch + 1}`} · ${c.t()}</div><div class="hq-o ${done ? 'done' : ''}"><i></i>${txt}</div>${how ? `<div class="hq-h">${howH}</div>` : ''}<div class="hq-d"></div>`;
     if (fresh) { el.classList.remove('hq-pulse'); void el.offsetWidth; el.classList.add('hq-pulse'); }
   },
   /* Günlük: Görevler sekmesi */
@@ -610,7 +706,7 @@ const Story = {
     D.chapters.forEach((c, i) => {
       const cls = S.done || i < S.ch ? 'ok' : i === S.ch && S.on ? 'on' : '';
       h += `<li class="${cls}"><b>${Tr`Bölüm ${i + 1}`}</b> ${i <= S.ch || S.done ? c.t() : '???'}`;
-      if (i === S.ch && S.on && !S.done) h += `<ul>${c.steps.map((st, k) => k < S.st ? `<li class="ok">${st.t.call(this, S)}</li>` : k === S.st ? `<li class="on">${st.t.call(this, S)}</li>` : '').join('')}</ul>`;
+      if (i === S.ch && S.on && !S.done) h += `<ul>${c.steps.map((st, k) => { if (k < S.st) return `<li class="ok">${st.t.call(this, S)}</li>`; if (k !== S.st) return ''; const how = this.questHow(st, S); return `<li class="on">${st.t.call(this, S)}${how ? `<div class="qj-how"><b>${Tr`Nasıl:`}</b> ${how}</div>` : ''}</li>`; }).join('')}</ul>`;
       h += '</li>';
     });
     h += '</ol>';
@@ -640,9 +736,79 @@ const Story = {
 };
 
 /* ==========================================================
+   Görev rehberi: "nasıl yapılır" tarifleri. Adımın how'u buradaki bir tarifin adı ya da kendi işlevidir; yoksa
+   olay türünün (ev) tarifi kullanılır. Tarifler tek satırlık, tuşları oyuncunun o anki cihazına göre gösterir;
+   kalın yazılar (<b>…</b>) menüde ve etkileşim isteminde aynı adlı seçeneği parlatır. Kalın yazılar oyundaki
+   seçeneklerin adlarıyla birebir aynı olmalı (çeviride de).
+   ========================================================== */
+const QK = (a) => Input.glyph(a);
+const QUEST_HOW = {
+  // olay türleri
+  talk: () => Tr`Yanına git → ${QK('interact')} <b>Konuş</b>`,
+  greet: () => Tr`Birine yaklaş → ${QK('interact')} basılı tut → <b>Selamla</b>`,
+  enter: () => Tr`İşaretli binanın kapısından içeri yürü`,
+  buy: () => Tr`Satıcıya ${QK('interact')} → <b>Alışveriş</b> → parlayan eşyayı al`,
+  sell: () => Tr`Satıcıya ${QK('interact')} → <b>Alışveriş</b> → <b>Sat</b> sekmesi`,
+  eat: () => Tr`${QK('satchel')} <b>Çanta</b> → yiyeceği seç → ${QK('confirm')} <b>Ye</b> · kısa yol: ${QK('quick')}`,
+  fill: () => Tr`Kuyunun yanında ${QK('interact')} basılı tut → <b>Matarayı Doldur</b>`,
+  whistle: () => Tr`${QK('whistle')} ile ıslık çal`,
+  kill: () => Tr`${QK('wheel')} silahını seç → ${QK('aim')} nişan al → ${QK('fire')} ateş et`,
+  skin: () => Tr`Avın yanında ${QK('interact')} basılı tut → <b>Derisini Yüz</b>`,
+  work: () => Tr`İşverene ${QK('interact')} → parlayan işi seç → <b>Çalış</b>`,
+  deposit: () => Tr`Bankada ${QK('interact')} → <b>Banka İşlemleri</b> → <b>Yatır</b>`,
+  board: () => Tr`Şerifin masasında ${QK('interact')} → <b>Ödül İlanları</b>`,
+  drink: () => Tr`Barmene ${QK('interact')} → <b>Bir Viski İç</b> ya da <b>Alışveriş</b>`,
+  rumor: () => Tr`Görevliye ${QK('interact')} → <b>Söylenti Dinle</b>`,
+  camp: () => Tr`Kasabanın dışında ${QK('camp')} basılı tut: kamp kur`,
+  cook: () => Tr`Kamp ateşinde ${QK('interact')} <b>Kamp Menüsü</b> → <b>Pişir ve Üret</b> → parlayan tarif`,
+  sleep: () => Tr`Yatağa ya da kamp ateşine ${QK('interact')} → <b>Uyu</b> → <b>Sabaha Kadar</b>`,
+  mask: () => Tr`${QK('mask')} ile tak · ya da ${QK('satchel')} <b>Çanta</b> → <b>Bandana</b>`,
+  reload: () => Tr`${QK('wheel')} tabancanı seç → ${QK('reload')} doldur`,
+  brush: () => Tr`Atının yanında ${QK('interact')} basılı tut → <b>Fırçala</b>`,
+  horse: () => Tr`Ahırda seyise ${QK('interact')} → <b>At Satın Al</b>`,
+  free: () => Tr`${QK('crouch')} çömelerek yaklaş → ${QK('interact')} basılı tut → <b>İplerini Kes</b>`,
+  deliver: () => Tr`${QK('interact')} omzuna al → atına yükle → şerifin masasında <b>Teslim Et</b>`,
+  explore: () => Tr`Fener çantanda olsun → girişte ${QK('interact')} basılı tut → <b>Madene Gir</b>`,
+  // başka olaylar: ipucundaki ilk kalın seçenek (Tapuyu Al, Evi Ara, Posta Çantasını Ara...)
+  act(st) { const t = this.qTerms(st, true)[0], raw = t && qBold(st, this, t); return raw ? Tr`İşarete git → ${QK('interact')} → <b>${raw}</b>` : ''; },
+  // koşullu (chk) adımlar
+  travel: () => Tr`Haritadaki işarete git · ${QK('map')} Harita`,
+  ride: () => Tr`Posta arabası, tren ya da atınla git · ${QK('map')} Harita`,
+  train: () => Tr`İstasyonda gişeye ${QK('interact')} → <b>Tren Bileti Al</b> · ${QK('map')} Harita`,
+  mount: () => Tr`Atına yaklaş → ${QK('interact')} <b>Bin</b> · uzaktaysa ${QK('whistle')} ıslık`,
+  gallop: () => Tr`Atın üstünde ${QK('sprint')} basılı tut: dörtnala`,
+  shoot: () => Tr`${QK('wheel')} silahını seç → ${QK('aim')} nişan al → ${QK('fire')} ateş et`,
+  bow: () => Tr`${QK('wheel')} <b>Yay</b>'ı seç → ${QK('fire')} basılı tutup ger, bırakınca atar`,
+  binoc: () => Tr`${QK('satchel')} <b>Çanta</b> → <b>Dürbün</b> → ${QK('confirm')} kullan, hedefe bak`,
+  crouch: () => Tr`${QK('crouch')} ile çömel, yavaşça yaklaş`,
+  subdue: () => Tr`Canlı için ${QK('wheel')} <b>Kement</b> → ${QK('fire')} at → ${QK('interact')} basılı tut: bağla`,
+  lasso: () => Tr`${QK('wheel')} <b>Kement</b>'i seç → ${QK('aim')} nişan → ${QK('fire')} at`,
+  carry: () => Tr`${QK('interact')} <b>Omzuna Al</b> → işarete götür → ${QK('interact')} <b>Yere Bırak</b>`,
+  loadhorse: () => Tr`${QK('interact')} <b>Omzuna Al</b> → atının yanında <b>Atına Yükle</b>`,
+  wear: () => Tr`${QK('satchel')} <b>Çanta</b> → <b>Alet & Giysi</b> → giysiyi seç → ${QK('confirm')} <b>Giy</b>`,
+  tracks: () => Tr`${QK('crouch')} çömel, yerdeki izlerin üstünden yürü`,
+  escape: () => Tr`Radardaki kırmızı alanın dışına çık, görünmeden bekle`,
+  unseen: () => Tr`Kanun adamlarından uzak dur, kasabanın dışına çık`,
+  roam: () => Tr`Atına bin, kamptan uzaklaşıp etrafta dolaş`,
+  hunters: () => Tr`Liderine git → ${QK('interact')}: parayla kurtul, teslim ol ya da çatış`,
+  pickaxe: () => Tr`Kayanın yanında ${QK('interact')} basılı tut → <b>Kazmayla Kır</b>`,
+  dynamite: () => Tr`${QK('wheel')} <b>Dinamit</b> → ${QK('aim')} nişan → ${QK('fire')} at, sonra uzaklaş`,
+  wagon: () => Tr`Arabanın yanında ${QK('interact')} → <b>Arabayı Sür</b>`,
+  wholesale: () => Tr`Arabayı mağaza kapısına sür → tezgâhta <b>Toptan Mal Al</b>`,
+  choice: () => Tr`Açılan menüden yolunu seç`,
+};
+/* seçenek adlarını karşılaştırmak için: etiketler, ayraç içleri (fiyat, adet) ve noktalama atılır, küçük harf */
+const qNorm = (s) => String(s || '').replace(/<[^>]*>/g, ' ').replace(/\([^)]*\)/g, ' ').replace(/[:;,.!?·→"“”'’&]/g, ' ').toLocaleLowerCase(I18N.lang === 'tr' ? 'tr' : 'en').replace(/\s+/g, ' ').trim();
+/* ipucunun ilk cümlesi (tarifi olmayan adımda "nasıl" satırı) */
+const qFirstSentence = (h) => { const s = String(h || '').trim(), m = s.match(/^[\s\S]*?[.!?](?=\s|$)/); return m ? m[0] : s; };
+/* ipucundaki kalın yazının özgün hâli (büyük harfiyle) */
+const qBold = (st, G0, t) => { let src = ''; try { src = st.hint ? st.hint.call(G0, G0.story) : ''; } catch (e) {} for (const m of src.matchAll(/<b>([\s\S]*?)<\/b>/g)) if (qNorm(m[1]) === t) return m[1].replace(/<[^>]*>/g, ''); return ''; };
+
+/* ==========================================================
    Bölümler. Her adım: t (hedef yazısı), ev/n/ok ya da chk, at (işaret),
-   wp (uzaksa rota), hint (ipucu), on (başlarken), say (Sully'ye konuşunca),
-   talk (başlarken konuşma), after (bitince konuşma), cine (bitince sinematik)
+   wp (uzaksa rota), hint (ipucu), how (nasıl: QUEST_HOW tarifi ya da işlev),
+   on (başlarken), say (Sully'ye konuşunca), talk (başlarken konuşma),
+   after (bitince konuşma), cine (bitince sinematik)
    ========================================================== */
 const STORY_SULLY = [
   /* 1 — Tanıdık Yüzler: Sully'den iş iste, selamlaş, mağazaya gir */
@@ -689,7 +855,7 @@ const STORY_SULLY = [
       { t: () => Tr('Mağazadan yiyecek satın al'), ev: 'buy', ok: (d) => ITEMS[d.id] && ITEMS[d.id].c === 'food', at() { return this.sDoor(this.sBld('general'), -18); },
         hint: () => Tr`Tezgâhtaki satıcıya yaklaş, ${Input.glyph('interact')} ile <b>Alışveriş</b>'i aç ve bir yiyecek al.` },
       { t: () => Tr('Bir şeyler ye'), ev: 'eat',
-        hint: () => Tr`${Input.glyph('satchel')} Çanta'dan bir yiyecek seç ya da ${Input.glyph('quick')} ile hızlıca atıştır.`,
+        hint: () => Tr`${Input.glyph('satchel')} ile <b>Çanta</b>'yı aç, <b>Yiyecek</b> sekmesinde aldığın yiyeceği seç ve ${Input.glyph('confirm')} ile <b>Ye</b>. Kısa yol: ${Input.glyph('quick')} çantayı açmadan bir şeyler yer.`,
         after: () => [['S', Tr('Hah. Şimdi biraz insana benzedin.')]] },
       { t: () => Tr('Mataranı bir kuyudan doldur'), ev: 'fill', at() { return this.storyWell(); },
         hint: () => Tr`Kasabadaki kuyuya ya da yalağa yaklaş: ${Input.glyph('interact')} basılı tut, <b>Matarayı Doldur</b>. Susayınca matarandan içersin.`,
@@ -713,7 +879,7 @@ const STORY_SULLY = [
     },
     steps: [
       { t: () => Tr('Atını ıslıkla çağır'), ev: 'whistle', hint: () => Tr`${Input.glyph('whistle')} ile atını çağır. Uzaktaysa koşarak gelir.` },
-      { t: () => Tr('Atına bin'), chk() { return this.player.riding && this.player.riding === this.horse; }, at() { return this.horse; },
+      { t: () => Tr('Atına bin'), how: 'mount', chk() { return this.player.riding && this.player.riding === this.horse; }, at() { return this.horse; },
         hint: () => Tr`Atına yaklaş ve ${Input.glyph('interact')} ile bin.`,
         done() { const R = this.story.ranch; this.sullyGo(R.x - 30, R.y + 10, true); } },
       { t: () => Tr('Sully\'nin peşinden çiftliğe git'), chk() { const R = this.story.ranch, P = this.player; return dist(P.x, P.y, R.x, R.y) < 150; }, at() { return this.story.ranch; }, wp: true,
@@ -749,7 +915,7 @@ const STORY_SULLY = [
     },
     resume(S) { if (S.st === 0) this.storyCoyotes(S); if (S.st === 1) this.storyGame(S); },
     steps: [
-      { t: () => Tr('Çakalları kümesten uzaklaştır'), n: 3, chk() { return this.storyCoyCount() >= 3; },
+      { t: () => Tr('Çakalları kümesten uzaklaştır'), how: 'shoot', n: 3, chk() { return this.storyCoyCount() >= 3; },
         tick(S) { const n = this.storyCoyCount(); if (n !== S.n) { S.n = n; if (n === 1) this.qSay([['S', Tr('Biri gitti! Devam et!')]], null, 0, this.qStep()); } },
         at() { const R = this.story.ranch; let best = null, bd = 1e9; for (const e of this.ents) if (e.storyCoy && !e.dead && !e.remove) { const d = dist(e.x, e.y, R.cx, R.cy); if (d < bd) { bd = d; best = e; } } return best; },
         hint: () => Tr`${Input.glyph('aim')} ile nişan al, ${Input.glyph('fire')} ile ateş et. Tavukları vurma, Sully'nin siniri bozulur.`,
@@ -819,7 +985,7 @@ const STORY_SULLY = [
       { t: () => Tr('Kazancını bankaya yatır'), ev: 'deposit', at() { return this.sDoor(this.sBld('bank'), 4); },
         skip() { return !this.sBld('bank'); },
         talk: () => [['S', Tr('Önce bankaya uğra. Cebinde para taşıma; buralarda cepler kendi kendine boşalır.')]],
-        hint: () => Tr`Bankada <b>Banka İşlemleri</b>: yatırdığın para ölsen de kaybolmaz ve faiz getirir.` },
+        hint: () => Tr`Bankaya gir, veznedara ${Input.glyph('interact')} → <b>Banka İşlemleri</b> → <b>Yatır</b>. Bankadaki para ölsen de kaybolmaz ve faiz getirir.` },
       { t: () => Tr('Şerif ofisine gir'), ev: 'enter', ok: (b) => b && b.type === 'sheriff', at() { return this.sDoor(this.sBld('sheriff'), 4); },
         on() { const p = this.sDoor(this.sBld('sheriff'), 22); if (p) this.sullyGo(p.x - 14, p.y); },
         after: () => [
@@ -830,7 +996,7 @@ const STORY_SULLY = [
           ['W', Tr('Var. Panoya bak. Canlı getirene tam ödül... ama kimse getirmiyor.')],
         ] },
       { t: () => Tr('İlan panosuna bak'), ev: 'board', at() { return this.sDoor(this.sBld('sheriff'), -14); },
-        hint: () => Tr`Şerif ofisinde <b>Ödül İlanları</b>'na bak. Buradan ödül avı da alabilirsin.`,
+        hint: () => Tr`Şerif ofisinde şerifin masasına ${Input.glyph('interact')} → <b>Ödül İlanları</b>. Buradan ödül avı da alabilirsin.`,
         after: () => [['S', Tr('Yirmi beş dolar. Demek benim tapum yirmi beş dolar etmiyor.')], ['S', Tr('Akşam saloona gidelim. Şerifin bilmediğini barmen bilir.')]] },
     ],
   },
@@ -879,10 +1045,10 @@ const STORY_SULLY = [
           ['S', Tr('Belki bana edilmeyen yardımı ödüyorumdur. Belki de konuşacak birini arıyordum.')],
           ['S', Tr('Ye bir şeyler, sonra uyu. Nöbeti ben tutarım; zaten uyuyamam.')],
         ], after() { this.sSkipTo(21.5, 20); const c = this.camp; if (c) { this.sullyGo(c.x - 26, c.y + 4, false); const e = this.sullyEnt(); if (e) { e.x = c.x - 26; e.y = c.y + 4; e.mounted = null; } } if (c && !UI.isModal()) UI.openCamp(); } }) },
-      { t: () => Tr('Ateşte et pişir'), ev: 'cook', skip() { return !this.player.has('raw_game') && !this.player.has('raw_big') && !this.player.has('raw_bird'); },
-        hint: () => Tr`Kamp menüsünde <b>Pişir ve Üret</b>: çiğ et pişince hem daha çok doyurur hem hasta etmez.` },
+      { t: () => Tr('Ateşte et pişir'), ev: 'cook', ok: (r) => /^cook_/.test(r), skip() { return !this.player.has('raw_game') && !this.player.has('raw_big') && !this.player.has('raw_bird'); },
+        hint: () => Tr`Kamp ateşinin yanında ${Input.glyph('interact')} ile <b>Kamp Menüsü</b>'nü aç → <b>Pişir ve Üret</b> → parlayan tarifi seç. Çiğ et pişince hem daha çok doyurur hem hasta etmez.` },
       { t: () => Tr('Sabaha kadar uyu'), ev: 'sleep', ok: (d) => d === 'camp',
-        hint: () => Tr`Kamp menüsünde <b>Uyu</b> → <b>Sabaha Kadar</b>. Uyurken oyun kaydedilir.` },
+        hint: () => Tr`Kamp ateşinin yanında ${Input.glyph('interact')} ile <b>Kamp Menüsü</b>'nü aç → <b>Uyu</b> → <b>Sabaha Kadar</b>. Uyurken oyun kaydedilir.` },
     ],
   },
   /* 10 — Kızıl Jack: gözetle, yaklaş, yakala, teslim et, tapuyu ver */
@@ -900,12 +1066,12 @@ const STORY_SULLY = [
     talk(S) { return S.flags.lasso ? [['S', Tr('Şu kementi de al. Bağlamayı bilirsin, değil mi? Bilmiyorsan öğrenirsin.')]] : []; },
     start(S) { const P = this.player; if (!P.weapons.has('lasso')) { P.giveWeapon('lasso', true); S.flags.lasso = 1; } if (!P.has('binoculars')) P.addItem('binoculars', 1, true); },
     steps: [
-      { t: () => Tr('Kampı dürbünle gözetle'), chk() { const S = this.story, C = this.cam; return !!this.binoc && S.camp.x > C.ox && S.camp.x < C.ox + this.vw && S.camp.y > C.oy && S.camp.y < C.oy + this.vh; }, at() { return this.story.camp; },
-        hint: () => Tr`${Input.glyph('satchel')} Çanta'dan <b>Dürbün</b>'ü kullan ve kampa doğru bak. Gördüğün kişiler etiketlenir.`,
+      { t: () => Tr('Kampı dürbünle gözetle'), how: 'binoc', chk() { const S = this.story, C = this.cam; return !!this.binoc && S.camp.x > C.ox && S.camp.x < C.ox + this.vw && S.camp.y > C.oy && S.camp.y < C.oy + this.vh; }, at() { return this.story.camp; },
+        hint: () => Tr`${Input.glyph('satchel')} <b>Çanta</b> → <b>Alet & Giysi</b> sekmesi → <b>Dürbün</b> → ${Input.glyph('confirm')} ile kullan ve kampa doğru bak. Gördüğün kişiler etiketlenir.`,
         after: () => [['P', Tr('Dört kişi... Jack ateşin başında.')]] },
-      { t: () => Tr('Kampa sessizce yaklaş'), chk() { const S = this.story, P = this.player; return dist(P.x, P.y, S.camp.x, S.camp.y) < 300; }, at() { return this.story.camp; },
+      { t: () => Tr('Kampa sessizce yaklaş'), how: 'crouch', chk() { const S = this.story, P = this.player; return dist(P.x, P.y, S.camp.x, S.camp.y) < 300; }, at() { return this.story.camp; },
         hint: () => Tr`${Input.glyph('crouch')} ile çömel: daha az ses çıkarır, daha geç fark edilirsin. Atını geride bırakmak iyi fikir.` },
-      { t: () => Tr('Kızıl Jack\'i etkisiz hâle getir'), chk() { const j = this.jackEnt(); return !!(j && (j.dead || j.bound)); }, at() { return this.jackEnt() || this.story.camp; },
+      { t: () => Tr('Kızıl Jack\'i etkisiz hâle getir'), how: 'subdue', chk() { const j = this.jackEnt(); return !!(j && (j.dead || j.bound)); }, at() { return this.jackEnt() || this.story.camp; },
         hint: () => Tr`Nişan alırken ${Input.glyph('deadeye')} ile <b>Odak</b>'ı aç: zaman yavaşlar. Jack'i canlı istiyorsan <b>kementi</b> seç (${Input.glyph('wheel')}), ${Input.glyph('fire')} ile at, sonra yaklaşıp ${Input.glyph('interact')} basılı tutarak bağla.`,
         done() { const j = this.jackEnt(); this.story.alive = !!(j && !j.dead); } },
       { t: () => Tr('Tapuyu Jack\'in üstünden al'), ev: 'deed', at() { return this.jackEnt(); }, skip() { return this.story.deed; }, chk() { return this.story.deed; },
@@ -916,7 +1082,7 @@ const STORY_SULLY = [
           // tapu alınmadan teslim edildiyse bu adım zaten olmuştur
           if (S.jack === 'delivered') { const st = this.qStep(); setTimeout(() => { if (this.qStep() === st && !S.wait) this.qDone(); }, 60); }
         },
-        hint: () => Tr`Jack'in yanında ${Input.glyph('interact')} ile omzuna al, atının yanında <b>eyere yükle</b>. Şerif ofisinde teslim et.`,
+        hint: () => Tr`Jack'in yanında ${Input.glyph('interact')} ile <b>Omzuna Al</b>, atının yanında <b>Atına Yükle</b>. Şerif ofisinde şerifin masasına ${Input.glyph('interact')} → <b>Teslim Et</b>.`,
         done() { this.story.jack = 'delivered'; },
         after() { return this.story.alive ? [['W', Tr('Kızıl Jack. Hem de canlı! On yıldır bu masada bunu bekliyordum.')], ['W', Tr('Sully\'ye söyle... Neyse, ben söylerim. Borcum var ona.')]] : [['W', Tr('Kızıl Jack... Keşke canlı olsaydı. Ama bu da bir şey.')]]; } },
       { t: () => Tr('Tapuyu Sully\'ye ver'), ev: 'talk', at() { return this.sullyEnt() || this.story.sully; },

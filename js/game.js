@@ -695,6 +695,9 @@ const G = {
   quickPick() {
     const P = this.player;
     if (P.poison > 0) for (const id of ['antidote', 'snake_oil']) if (P.has(id)) return id;
+    // görev "bir şeyler ye" diyorsa önce yiyecek (can ve su acil değilse)
+    const qf = P.hp >= P.maxHp * 0.35 && P.thirst >= 10 ? this.questFood() : null;
+    if (qf) return qf;
     if (P.hp < P.maxHp * 0.8) for (const id of ['health_cure', 'herbal_tonic', 'bandage', 'cooked_big', 'cooked_game', 'cooked_fish', 'stew']) if (P.has(id)) return id;
     if (P.thirst < 70 && P.canteen > 0) return 'canteen';
     if (P.hunger < 70) for (const id of ['cooked_game', 'cooked_big', 'beans', 'bread', 'jerky', 'cooked_fish', 'cooked_bird', 'peaches', 'apple', 'corn', 'berries']) if (P.has(id)) return id;

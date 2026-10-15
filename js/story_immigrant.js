@@ -217,7 +217,7 @@ STORIES.immigrant = {
         { t: () => Tr('Ahırdan bir at satın al'), ev: 'horse', at() { return this.sDoor(this.sBld('stable'), 4); }, wp: true,
           skip() { return !!(this.horse && !this.horse.dead) || !this.sBld('stable'); },
           hint: () => Tr`Ahırda seyisle konuş, <b>At Satın Al</b>'ı seç. Hız, dayanıklılık ve sağlık çubuklarına bak.` },
-        { t: () => Tr('Atına bin'), chk() { return this.player.riding && this.player.riding === this.horse; }, at() { return this.horse; },
+        { t: () => Tr('Atına bin'), how: 'mount', chk() { return this.player.riding && this.player.riding === this.horse; }, at() { return this.horse; },
           skip() { return !this.horse || this.horse.dead; },
           hint: () => Tr`Atına yaklaş ve ${Input.glyph('interact')} ile bin. ${Input.glyph('whistle')} ile çağırabilirsin.`,
           after: () => [['S', Tr('Yakışmış. Bir adı olsun ama; adsız ata kimse güvenmez.')], ['S', Tr('Ben de geliyorum. Anton\'un kirası için değil... Tamam, biraz da onun için.')]] },
@@ -229,7 +229,7 @@ STORIES.immigrant = {
       talk: () => [['S', Tr('Silver Ridge dağların ardında. Atla günler sürer; posta arabası daha çabuk, at da arkadan bağlı gelir.')], ['S', Tr('Bilet parası benden. Pazarlık edersen bir dahakine sen ısmarlarsın.')]],
       start(S) { S.stageTo = S.mine; const port = this.world.towns.find(t => t.id === S.port); this.earn(Math.max(6, Math.ceil(port ? this.stagePrice(port, this.imMine()) : 6)), 'Greta'); },   // bilet parası Greta'dan: en az biletin fiyatı
       steps: [
-        { t() { return Tr`${this.imMine().n} kasabasına git`; }, chk() { const t = this.world.townAt(this.player.x, this.player.y, 2); return !!(t && t.id === this.story.mine); },   // posta arabası postanenin önüne bırakır; postane kasabanın kenarındaysa orası sınırın bir iki karo dışında kalabilir (kenar payı karo cinsinden)
+        { t() { return Tr`${this.imMine().n} kasabasına git`; }, how: 'ride', chk() { const t = this.world.townAt(this.player.x, this.player.y, 2); return !!(t && t.id === this.story.mine); },   // posta arabası postanenin önüne bırakır; postane kasabanın kenarındaysa orası sınırın bir iki karo dışında kalabilir (kenar payı karo cinsinden)
           at() { const t = this.world.townAt(this.player.x, this.player.y, 30), b = t && t.id === this.story.port && (this.sBld('post') || this.sBld('station')); return b ? this.sDoor(b, 4) : this.imMine().spawn; }, wp: true,
           on(S) { const M = this.imMine(); this.sullyGo(M.spawn.x + 24, M.spawn.y + 6, true); },
           hint: () => Tr`Postanede <b>Posta Arabası Bileti</b> al ya da istasyondan trene bin. İstersen atınla da gidebilirsin; ${Input.glyph('map')} Harita'da rota görünür.`,
@@ -333,8 +333,8 @@ STORIES.immigrant = {
         const s = S.site; this.sullyGo(s.x + 30, s.y - 10, true);
       },
       steps: [
-        { t: () => Tr('Kampı dürbünle gözetle'), chk() { const S = this.story, C = this.cam; return !!this.binoc && S.camp.x > C.ox && S.camp.x < C.ox + this.vw && S.camp.y > C.oy && S.camp.y < C.oy + this.vh; }, at() { return this.story.camp; }, wp: true,
-          hint: () => Tr`Kampa fazla yaklaşmadan ${Input.glyph('satchel')} Çanta'dan <b>Dürbün</b>'ü kullan ve kampa bak.`,
+        { t: () => Tr('Kampı dürbünle gözetle'), how: 'binoc', chk() { const S = this.story, C = this.cam; return !!this.binoc && S.camp.x > C.ox && S.camp.x < C.ox + this.vw && S.camp.y > C.oy && S.camp.y < C.oy + this.vh; }, at() { return this.story.camp; }, wp: true,
+          hint: () => Tr`Kampa fazla yaklaşmadan ${Input.glyph('satchel')} <b>Çanta</b> → <b>Alet & Giysi</b> sekmesi → <b>Dürbün</b> → ${Input.glyph('confirm')} ile kullan ve kampa bak.`,
           after: () => [['P', Tr('Anton... ateşin yanında, elleri bağlı. Etrafında silahlı adamlar.')]] },
         { t: () => Tr('Anton\'u kurtar'), ev: 'free', at() { return this.kinEnt() || this.story.kin; },
           hint: () => Tr`Çömelerek yaklaş (${Input.glyph('crouch')}). Nöbetçileri kementle bağla ya da etkisiz hâle getir. Anton'un yanında ${Input.glyph('interact')} basılı tut: <b>İplerini Kes</b>.`,
@@ -363,7 +363,7 @@ STORIES.immigrant = {
         ], after() { if (this.hour < 7 || this.hour > 17) this.sSkipTo(8); } };
       },
       steps: [
-        { t: () => Tr('Pike\'ı etkisiz hâle getir'), chk() { const j = this.rivalEnt(); return !!(j && (j.dead || j.bound)); }, at() { return this.rivalEnt() || this.story.camp; }, wp: true,
+        { t: () => Tr('Pike\'ı etkisiz hâle getir'), how: 'subdue', chk() { const j = this.rivalEnt(); return !!(j && (j.dead || j.bound)); }, at() { return this.rivalEnt() || this.story.camp; }, wp: true,
           hint: () => Tr`Pike'ı canlı istiyorsan kementi seç (${Input.glyph('wheel')}), ${Input.glyph('fire')} ile at, sonra yaklaşıp ${Input.glyph('interact')} basılı tutarak bağla. ${Input.glyph('deadeye')} ile <b>Odak</b>'ı açmayı unutma.`,
           done() { const j = this.rivalEnt(); this.story.alive = !!(j && !j.dead); } },
         { t: () => Tr('Borç senetlerini Pike\'ın üstünden al'), ev: 'deed', at() { return this.rivalEnt(); }, skip() { return this.story.deed; }, chk() { return this.story.deed; },
@@ -371,7 +371,7 @@ STORIES.immigrant = {
         { t() { return this.story.alive ? Tr('Pike\'ı şerife canlı teslim et') : Tr('Pike\'ın cesedini şerife götür'); }, ev: 'deliver', ok: (e) => e && e.quest === 'rival',
           at() { const j = this.rivalEnt(), P = this.player; if (j && j !== P.carry && !(this.horse && this.horse.load && this.horse.load.includes(j))) return j; return this.sDoor(this.sBld('sheriff'), 4); }, wp: true,
           on(S) { if (S.jack === 'delivered') { const st = this.qStep(); setTimeout(() => { if (this.qStep() === st && !S.wait) this.qDone(); }, 60); } },
-          hint: () => Tr`Pike'ı omzuna al (${Input.glyph('interact')}), atının yanında <b>eyere yükle</b> ve şerif ofisinde teslim et.`,
+          hint: () => Tr`Pike'ın yanında ${Input.glyph('interact')} ile <b>Omzuna Al</b>, atının yanında <b>Atına Yükle</b>. Şerif ofisinde şerifin masasına ${Input.glyph('interact')} → <b>Teslim Et</b>.`,
           done() { this.story.jack = 'delivered'; },
           after() {
             const S = this.story, b = this.world.buildings[S.store];
