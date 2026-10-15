@@ -874,9 +874,22 @@ const GameSystems = {
         if (b.type === 'property' && this.props.includes(b.prop)) return { label: Tr('Ocak'), acts: [{ n: Tr('Yemek Pişir'), fn: () => U.openCook() }] };
         return { label: Tr('Soba'), acts: [{ n: Tr('Isın'), fn: () => { P.warmBuff = Math.max(P.warmBuff, 90); UI.feed(Tr('Sobanın başında ısındın.')); this.advanceClock(10); } }] };
       case O.HOMECHEST: return this.props.includes(b.prop) ? { label: Tr('Sandık'), acts: [{ n: Tr('Sandığı Aç'), fn: () => U.openStash() }] } : null;
-      case O.SHELF: case O.RACK: case O.MANNEQUIN:
-        return b.def.shop ? { label: Tr('Raflar'), acts: [{ n: Tr('Mallara Bak'), fn: () => (staff || !b.staff ? U.openBuilding(b) : UI.feed(Tr('Satıcı yok.'))) }] } : null;
+      case O.SHELF: case O.RACK: case O.MANNEQUIN: case O.CABINET: case O.DISPLAY: case O.SADDLE:
+        return b.def.shop ? { label: o === O.CABINET || o === O.DISPLAY ? Tr('Vitrin') : Tr('Raflar'), acts: [{ n: Tr('Mallara Bak'), fn: () => (staff || !b.staff ? U.openBuilding(b) : UI.feed(Tr('Satıcı yok.'))) }] } : null;
       case O.WORKBENCH: return b.def.work ? { label: Tr('Tezgah'), acts: svc('work') } : null;
+      case O.VAT: return b.def.work ? { label: Tr('Kazan'), acts: svc('work') } : null;
+      case O.TELEGRAPH: return counter(Tr('Telgraf'));
+      case O.FIREPLACE: case O.FORGE: case O.OVEN: {
+        const fire = o === O.FIREPLACE;
+        return { label: fire ? Tr('Şömine') : o === O.FORGE ? Tr('Demirci Ocağı') : Tr('@ocak|Fırın'), acts: [{ n: Tr('Isın'), fn: () => { P.warmBuff = Math.max(P.warmBuff, 90); UI.feed(fire ? Tr('Şöminenin başında ısındın.') : Tr('Ocağın sıcağında ısındın.')); this.advanceClock(10); } }] };
+      }
+      case O.ARMCHAIR: return { label: Tr('Koltuk'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
+      case O.GCLOCK: return { label: Tr('Ayaklı Saat'), acts: [{ n: Tr('Saate Bak'), fn: () => UI.feed(Tr`🕰️ Saat ${this.timeStr()}.`) }] };
+      case O.WASHSTAND: return { label: Tr('Lavabo'), acts: [{ n: Tr('Elini Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Elini yüzünü yıkadın.')); this.advanceClock(5); } }] };
+      case O.BOOKCASE: return { label: Tr('Kitaplık'), acts: [{ n: Tr('Kitaplara Göz At'), fn: () => { this.advanceClock(15); UI.feed(pick([Tr('Tozlu bir almanak, bir ilahi kitabı ve yarım kalmış bir roman.'), Tr('Bir kanun kitabının sayfaları kıvrılmış, kenarlarına notlar düşülmüş.'), Tr('Bir atlasta demiryolu hatları kurşun kalemle işaretlenmiş.')])); } }] };
+      case O.ORGAN: return { label: Tr('Org'), acts: [{ n: Tr('Org Çal'), fn: () => this.playPiano(b, true) }] };
+      case O.LECTERN: return b.type === 'church' ? { label: Tr('Kürsü'), acts: svc('pray') } : null;
+      case O.WARDROBE: case O.DRESSER: return b.type === 'house' ? { label: o === O.WARDROBE ? Tr('Gardırop') : Tr('Konsol'), acts: [{ n: Tr('Evi Ara'), hold: 1.2, fn: () => this.searchHouse(b) }] } : null;
       case O.RDOOR: {
         const k = this.hotelRoomAt(b, i, 'door');
         if (k < 0 || b.openRoom === k) return null;   // açık kapıdan geçilir
@@ -888,11 +901,12 @@ const GameSystems = {
     }
     return null;
   },
-  playPiano(b) {
+  playPiano(b, organ) {
     Audio_.pianoHold = 4;
     const sc = [262, 294, 330, 349, 392, 440, 494, 523];
-    const tune = [0, 2, 4, 4, 5, 4, 2, 0, 1, 2, 4, 2, 0];
-    tune.forEach((n, k) => setTimeout(() => { Audio_.pluck(sc[n], 0.12); if (k % 3 === 0) Audio_.pluck(sc[n] / 2, 0.08); }, k * 230));
+    const tune = organ ? [0, 4, 7, 4, 5, 4, 2, 0, 2, 4, 0] : [0, 2, 4, 4, 5, 4, 2, 0, 1, 2, 4, 2, 0];
+    tune.forEach((n, k) => setTimeout(() => { Audio_.pluck(sc[n], 0.12); if (organ || k % 3 === 0) Audio_.pluck(sc[n] / 2, 0.08); }, k * (organ ? 380 : 230)));
+    if (organ) { UI.feed(Tr('🎵 Orgda ağır bir ilahi çaldın.')); return; }
     UI.feed(Tr('🎵 Piyanoda eski bir türkü çaldın.'));
     const k = 'piano' + b.id;
     if (!this.dailyTalk[k]) { this.dailyTalk[k] = 1; if (chance(0.5)) { const tip = rnd(0.05, 0.3); setTimeout(() => this.earn(tip, Tr('Bahşiş')), tune.length * 230); } this.skillXp('charisma', 1); }
@@ -972,7 +986,7 @@ const GameSystems = {
         if (sv === 3) { if (W.doorOpen(idx)) continue; wallD = s; break; }
         if (sv >= 16) { if (W.isSolidPx(x, y)) { wallD = s; break; } continue; }
         const o = W.obj[idx];
-        if (isFurnO(o) && o !== O.SAFE && o !== O.STOVE) continue;
+        if (isFurnO(o) && o !== O.SAFE && o !== O.STOVE && o !== O.FIREPLACE && o !== O.FORGE && o !== O.ANVIL && o !== O.OVEN) continue;   // demir ve taş eşyalar mermiyi tutar
         if ((W.flags[idx] & 8) || isCliffT(W.tile[idx]) || o === O.BOULDER || o === O.RUINWALL || o === O.CRATE || o === O.BARREL || o === O.WAGON || (o && o < 20 && Math.random() < 0.6)) { wallD = s; break; }
       }
     }

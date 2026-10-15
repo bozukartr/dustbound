@@ -768,7 +768,7 @@ const TownLifeSystems = {
     if (!s || b.patrons.length >= 7 || (this.insideB === b && chance(0.93))) return;
     const n = new NPC(s.x, s.y, 'town', { look: r.look, name: r.name, state: 'sit', money: rnd(0.1, 1.5) });
     n.seat = s; n.seatB = b; n.town = r.t.id; n.keepTown = true; n.res = r; n.plan = { act: 'saloon', b }; n.planKey = 'saloon:' + b.id;
-    n.ang = s.x < b.x * TS + b.w * 8 ? 0 : Math.PI;
+    n.ang = s.ang !== undefined ? s.ang : s.x < b.x * TS + b.w * 8 ? 0 : Math.PI;   // masaya ya da bara döner
     r.ent = n; r.inside = null;
     b.patrons.push(n);
     this.addEnt(n);
