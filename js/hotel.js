@@ -85,11 +85,16 @@ const HotelSystems = {
     if (lv) this.hintOnce('hotelup', this.hotelRoom(b) >= 0 ? Tr`Kiraladığın odanın kapısı açık. Yatağa yaklaşıp ${Input.glyph('interact')} ile uyuyabilirsin.` : Tr('Odalar kilitli. Oda kiralamak için aşağıdaki resepsiyona git.'), 6);
     return true;
   },
-  /* Üst kattayken alt kattaki (binanın içindeki) varlıklar görünmez, etkileşilmez, beklemede kalır */
-  floorHid(e) {
+  /* Oyuncu otelin üst katındayken bu nokta o binanın içinde mi (oyuncunun yanında bu, üst kattaki bir nokta demektir) */
+  upAt(x, y) {
     const B = this.upB;
-    if (!B || !e || e === this.player || (this.player && e === this.player.carry)) return false;
-    return e.x >= B.x * TS && e.x < (B.x + B.w) * TS && e.y >= B.y * TS && e.y < (B.y + B.h) * TS;
+    return !!B && x >= B.x * TS && x < (B.x + B.w) * TS && y >= B.y * TS && y < (B.y + B.h) * TS;
+  },
+  /* Üst kattayken alt kattaki (binanın içindeki) varlıklar görünmez, etkileşilmez, beklemede kalır; vurulamaz,
+     hiçbir şey görmez (tanık olmaz, ceset bulmaz) */
+  floorHid(e) {
+    if (!this.upB || !e || e === this.player || (this.player && e === this.player.carry)) return false;
+    return this.upAt(e.x, e.y);
   },
   /* Üst kattan başka bir yolla çıkılınca (ölüm, ışınlanma, yolculuk) bina zemin katına döner */
   floorTick() {

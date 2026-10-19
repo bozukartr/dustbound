@@ -431,7 +431,7 @@ const GameSystems = {
     const ws = [];
     for (const e of this.ents) {
       if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'gang' || e.role === 'hunter' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
-      if (e.state === 'hurt' || e.bound) continue;
+      if (e.state === 'hurt' || e.bound || this.floorHid(e)) continue;   // oyuncu otelin üst katındayken alt kattakiler bir şey görmez
       if (e.res && e !== victim && this.opOf(e.res) >= 50 && chance(0.5)) continue;   // oyuncuyu seven sakin bazen görmezden gelir
       const see = e === victim ? dist2(e.x, e.y, x, y) < 60 * 60 : dist2(e.x, e.y, x, y) < 340 * 340 && this.los(e.x, e.y, x, y);
       if (!see) continue;
@@ -996,6 +996,8 @@ const GameSystems = {
   /* Görüş hattı: çizginin geçtiği her karo sırayla denetlenir (DDA). Bina duvarları karonun kenarındaki ince
      bantlardır; çizginin bantla kesişip kesişmediği tam hesaplanır, böylece duvarın ardı hiçbir açıdan görünmez. */
   los(x1, y1, x2, y2) {
+    // oyuncu otelin üst katındayken üst kat ile dışarısı (ve alt kat) arasında görüş yok: kapıdan bakan onu görmez
+    if (this.upB && this.upAt(x1, y1) !== this.upAt(x2, y2)) return false;
     const W = this.world;
     const dx = x2 - x1, dy = y2 - y1;
     let tx = Math.floor(x1 / 16), ty = Math.floor(y1 / 16);
@@ -1058,6 +1060,7 @@ const GameSystems = {
     for (const e of cands) {
       if (e === owner || e.dead || e.remove || e.hide || this.floorHid(e)) continue;   // üst kattayken alt kattakiler vurulmaz
       if (e === this.player && !opts.npc) continue;
+      if (e === this.player && this.upB && !this.upAt(ox, oy)) continue;   // dışarıdan (kapıdan) atılan mermi üst kattaki oyuncuya ulaşmaz
       if (e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' || (e === this.horse && owner === this.player)) continue;
       if (e === this.player.riding && owner === this.player) continue;
       if (opts.npc && e.kind === 'npc' && owner.role === e.role) continue;
@@ -1104,7 +1107,7 @@ const GameSystems = {
     Input.rumble(1, 1, 400);
     const R = 55;
     for (const e of [...this.ents, this.player]) {
-      if (e.dead || !e.hurt) continue;
+      if (e.dead || !e.hurt || this.floorHid(e)) continue;   // üst kattaki patlama alt kattakilere değmez
       const d = dist(x, y, e.x, e.y);
       if (d >= R) continue;
       const was = e.dead;

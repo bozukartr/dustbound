@@ -792,7 +792,7 @@ const G = {
           p.x += p.vx * dt / steps; p.y += p.vy * dt / steps;
           if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { done = true; break; }
           for (const e of this.ents) {
-            if (e.dead || e === p.owner || e === this.player.riding || e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' || e === this.horse) continue;
+            if (e.dead || e === p.owner || e === this.player.riding || e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' || e === this.horse || this.floorHid(e)) continue;
             if (dist2(e.x, e.y, p.x, p.y) < (e.r + 2) * (e.r + 2)) { e.hurt(p.dmg, 'player', 'arrow'); done = true; break; }
           }
         }
@@ -807,7 +807,7 @@ const G = {
         const end = () => { if (p.snd) p.snd.stop(0.15); L.splice(i, 1); };   // ip sesi ilmekle biter
         if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { end(); continue; }
         for (const e of this.ents) {
-          if (e.dead || e.remove || e.bound) continue;
+          if (e.dead || e.remove || e.bound || this.floorHid(e)) continue;
           let r;
           if (e.kind === 'npc') { if (e.role === 'spouse' || e.role === 'child') continue; r = e.r + (e.mounted ? 7 : 4); }
           else if (e.kind === 'animal') { if (e.def.shape === 'snake' || e.def.shape === 'gator') continue; r = e.r + 4; }
