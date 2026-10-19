@@ -98,7 +98,8 @@ class Ent {
   move(dx, dy) {
     const W = G.world;
     // noIndoor: bina içine giremez; uzun gövdeliler (at) için burun ve sağrı da denetlenir, baş kapıdan içeri uzanmasın
-    const c = this.len ? Math.cos(this.ang) : 0, s = this.len ? Math.sin(this.ang) : 0;
+    const ba = this.mounted && this.hAng !== undefined ? this.hAng : this.ang;   // atlı NPC'de gövde atın baktığı yöndedir
+    const c = this.len ? Math.cos(ba) : 0, s = this.len ? Math.sin(ba) : 0;
     // trenin vagonları ve arabalar katıdır; içinde kalmış biri (çarpışma anı, üstüne gelen araba) dışarı çıkabilir
     const inSolid = G.solidAt ? G.solidAt(this.x, this.y, this.r, this) : null;
     const ok = (x, y) => !W.blocked(x, y, this.r) && (inSolid || !G.solidAt || !G.solidAt(x, y, this.r, this)) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)
@@ -484,7 +485,7 @@ class Player extends Ent {
     return -1;
   }
   validTarget(e, range) {
-    if (!e || e.dead || e.remove || e === this.riding || e.kind === 'prop') return false;
+    if (!e || e.dead || e.remove || e === this.riding || e.kind === 'prop' || G.floorHid(e)) return false;
     if (e.kind === 'horse' || e.kind === 'camp') return false;
     const d = dist(this.x, this.y, e.x, e.y);
     return d >= 6 && d <= range * 1.05 && G.los(this.x, this.y, e.x, e.y);
@@ -879,11 +880,11 @@ class Player extends Ent {
     let hitAny = false;
     const ang = this.aiming ? this.aimAng : this.ang;
     for (const e of G.ents) {
-      if (e.dead || e === this.riding || e.kind === 'horse' && e.owner === 'player') continue;
+      if (e.dead || e === this.riding || e.kind === 'horse' && e.owner === 'player' || G.floorHid(e)) continue;   // otelin üst katından alttakine uzanılmaz
       const d = dist(this.x, this.y, e.x, e.y);
       if (d > reach + (e.r || 4)) continue;
       const da = Math.abs(angDiff(ang, Math.atan2(e.y - this.y, e.x - this.x)));
-      if (da > 1.1) continue;
+      if (da > 1.1 || !G.los(this.x, this.y, e.x, e.y)) continue;   // duvarın ardındakine bıçak da yumruk da değmez
       if (e.hurt) e.hurt(dmg, 'player', this.weapon === 'knife' && !bash ? 'knife' : this.weapon === 'fists' && !bash ? 'fist' : 'melee');
       e.x += Math.cos(ang) * 5; e.y += Math.sin(ang) * 5;
       hitAny = true;
@@ -1129,6 +1130,25 @@ class NPC extends Ent {
     Object.assign(this, opts.extra || {});
   }
   get isLaw() { return this.role === 'law'; }
+  /* Atlı binaya giremez: at kapıdan geçmez, burnu da içeri uzanmaz (at gibi) */
+  get noIndoor() { return !!this.mounted; }
+  get len() { return this.mounted ? 10 : 0; }
+  /* Atlının atının başı ya da sağrısı (a yönünde) bir binanın içinde mi */
+  noseIn(a) { const W = G.world, c = Math.cos(a) * this.len, s = Math.sin(a) * this.len; return W.indoorPx(this.x + c, this.y + s) || W.indoorPx(this.x - c * 0.8, this.y - s * 0.8); }
+  /* Atından in: at bir adım arkasında kalır (önünde durup yolunu kesmesin), kendisi yürüyerek devam eder */
+  alight() {
+    if (!this.mounted) return;
+    const W = G.world, P = G.player, a = Math.atan2(P.y - this.y, P.x - this.x);   // kovaladığı oyuncuya doğru gidecek
+    let hx = this.x, hy = this.y;
+    for (const off of [Math.PI, Math.PI * 0.7, -Math.PI * 0.7, Math.PI / 2, -Math.PI / 2]) {
+      const x = this.x + Math.cos(a + off) * 12, y = this.y + Math.sin(a + off) * 12;
+      if (!W.blocked(x, y, 5) && !W.indoorPx(x, y) && !W.isWaterPx(x, y)) { hx = x; hy = y; break; }
+    }
+    const h = new Horse(hx, hy, 'mustang', { look: this.mounted, owner: 'npc' });
+    h.ang = this.hAng === undefined ? this.ang : this.hAng; h.state = 'idle'; h.t = rnd(20, 40);
+    G.addEnt(h);
+    this.mounted = null; this.hAng = undefined; this.wspd = 0; this.stuck = 0;
+  }
   /* Kementte, bağlı ya da yaralı yerde: savaşamaz, kaçamaz, tanıklık edemez */
   get bound() { return this.state === 'lassoed' || this.state === 'tied' || this.state === 'downed'; }
   hurt(dmg, by, how) {
@@ -1240,6 +1260,13 @@ class NPC extends Ent {
     if (this.bound) { this.boundUpdate(dt); if (!this.dead) this.waterTick(dt); return; }
     if (this.hide) { if (this.job) G.jobUpdate(this, dt); return; }   // dükkânın içinde (sandık taşıyor)
     if (G.floorHid(this)) { this.mv = 0; return; }   // oyuncu otelin üst katındayken alt kattakiler bekler
+    if (this.mounted) {
+      // binaya kaçan oyuncunun peşindeki atlı, kasabaya girince ya da yaklaşınca atından iner, sokaklardan yürüyerek
+      // kapıya gelir (atlı yol bulamaz, duvara takılırdı); at olduğu yerde kalır. Bir şekilde içeride kalmış atlı da iner.
+      const P = G.player, W = G.world, chase = G.insideB && (this.hostile || this.role === 'hunter') && dist2(this.x, this.y, P.x, P.y) < 500 * 500;
+      this.blockT = chase && (this.mv || 0) < 0.3 ? (this.blockT || 0) + dt : 0;   // atlı bir engele dayanıp kaldı
+      if (W.indoorPx(this.x, this.y) || (chase && (dist2(this.x, this.y, P.x, P.y) < 200 * 200 || W.townAt(this.x, this.y, 10) || this.blockT > 0.8))) this.alight();
+    }
     G.animTick(this, dt);
     if (G.railDodge(this, dt)) return;   // yaklaşan tren: raydan çekil ya da geçmeden bekle
     if (this.quest && G.questNpc(this, dt)) return;   // hikâyenin akıl hocası kendi yolunu izler
@@ -1364,13 +1391,17 @@ class NPC extends Ent {
     this.wspd += (sp - this.wspd) * (1 - Math.exp(-dt * wr));
     let a = dir === undefined ? this.ang : dir, s = this.wspd * this.slow();
     if (this.mounted) {
-      this.hAng = turnTo(this.hAng === undefined ? this.ang : this.hAng, a, dt * (s > 100 ? 2.2 : 3));
+      const h0 = this.hAng === undefined ? this.ang : this.hAng, h1 = turnTo(h0, a, dt * (s > 100 ? 2.2 : 3));
+      this.hAng = this.noseIn(h1) && !this.noseIn(h0) ? h0 : h1;   // kapının önünde dönerken atın başı içeri uzanmaz
       s *= Math.max(0.3, Math.cos(angDiff(this.hAng, a)));
       a = this.hAng;
     }
     this.move(Math.cos(a) * s * dt, Math.sin(a) * s * dt);
     const moved = dist(ox, oy, this.x, this.y);
-    if (moved < s * dt * 0.3) { this.stuck = (this.stuck || 0) + dt; this.ang += rnd(-1.5, 1.5) * dt * 4; if (this.mounted) this.hAng += rnd(-1.5, 1.5) * dt * 4; } else this.stuck = 0;
+    if (moved < s * dt * 0.3) {
+      this.stuck = (this.stuck || 0) + dt; this.ang += rnd(-1.5, 1.5) * dt * 4;
+      if (this.mounted) { const h = this.hAng + rnd(-1.5, 1.5) * dt * 4; if (!this.noseIn(h)) this.hAng = h; }
+    } else this.stuck = 0;
     this.mv = moved / Math.max(0.001, dt) / 50;
     this.phase += dt * sp * 0.2;
   }
@@ -1382,7 +1413,7 @@ class NPC extends Ent {
     // ofisine giren oyuncuyu masasındaki şerif yerinden kalkmadan silah zoruyla tutar
     const post = this.work !== undefined && G.insideB && G.insideB.id === this.work && this.home && dist2(this.x, this.y, this.home.x, this.home.y) < 12 * 12;
     if (pd > 30 && !post) {
-      if (!this.mounted && pd > 45 && G.world.townAt(this.x, this.y, 10)) { G.navStep(this, P.x, P.y, dt, pd > 80 ? 66 : 46, { ignore: P, near: 28 }); this.ang = turnTo(this.ang, a, dt * 3); }
+      if (!this.mounted && pd > 45 && G.world.townAt(this.x, this.y, 10)) { G.navStep(this, P.x, P.y, dt, pd > 80 ? 66 : 46, { ignore: P, near: 28, enter: true }); this.ang = turnTo(this.ang, a, dt * 3); }
       else { this.walk(dt, this.mounted ? 110 : pd > 80 ? 66 : 46); if (this.stuck > 1) { this.ang += rnd(-1.5, 1.5); this.stuck = 0; } }
     } else { this.mv = 0; }
     this.arrT = (this.arrT || 0) - dt;
@@ -1428,7 +1459,7 @@ class NPC extends Ent {
       // son görüldüğü yere gider (kapının önü gibi); varınca orayı gözetler, ateş etmez
       if (td > 36) {
         if (this.mounted) this.walk(dt, 90, a);
-        else if (G.navStep(this, tx, ty, dt, 46, { near: 30 }) === 'fail') this.walk(dt, 40, a);
+        else if (G.navStep(this, tx, ty, dt, 46, { near: 30, enter: true }) === 'fail') this.walk(dt, 40, a);
       } else this.mv = 0;
       this.ang = turnTo(this.ang, a, dt * 4);
       return;

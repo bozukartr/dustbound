@@ -176,9 +176,13 @@ const NpcNav = {
       if (TownPath.busy() && (N.wait = (N.wait || 0) + 1) <= 8) return 'moving';
       N.wait = 0;
       const t = W.townAt(e.x, e.y, 10) || W.townAt(x, y, 10);
-      N.route = this.bendRoute(e, (t && TownPath.find(t, e.x, e.y, x, y)) || [[x, y]]); N.ri = 0;
+      // opt.enter (binaya kaçan oyuncuyu kovalayan): hedef başka bir binanın içindeyse rota önce kapının önüne gider,
+      // sonra kapıdan girer (yoksa dış rota duvarın dibinde biter)
+      const B = W.buildingAtPx(e.x, e.y), TB = opt && opt.enter ? W.buildingAtPx(x, y) : null, into = !!(TB && TB.door && TB !== B);
+      const gx = into ? TB.door.x : x, gy = into ? TB.door.y + 8 : y;
+      N.route = this.bendRoute(e, (t && TownPath.find(t, e.x, e.y, gx, gy)) || [[gx, gy]]); N.ri = 0;
+      if (into) N.route.push([TB.door.x, TB.door.y - 10], [x, y]);
       // bina içindeyse önce kapıdan çıkar (dış rota duvarın öbür yanından başlar)
-      const B = W.buildingAtPx(e.x, e.y);
       if (B && B.door && !W.buildingAtPx(x, y)) N.route.unshift([B.door.x, B.door.y - 10], [B.door.x, B.door.y + 8]);
     }
     const wp = N.route[N.ri], last = N.ri >= N.route.length - 1;

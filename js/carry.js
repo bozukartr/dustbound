@@ -342,7 +342,7 @@ const CarrySystems = {
     const P = this.player;
     const seer = (x, y, r) => {
       for (const n of this.ents) {
-        if (n.kind !== 'npc' || n.dead || n.remove || n.hostile || n.bound || n.role === 'bandit' || n.role === 'hunter' || n.role === 'spouse' || n.role === 'child' || n.state === 'report') continue;
+        if (n.kind !== 'npc' || n.dead || n.remove || n.hostile || n.bound || n.role === 'bandit' || n.role === 'hunter' || n.role === 'spouse' || n.role === 'child' || n.state === 'report' || this.floorHid(n)) continue;
         if (Math.abs(n.x - x) > r || Math.abs(n.y - y) > r) continue;
         if (dist2(n.x, n.y, x, y) < r * r && this.los(n.x, n.y, x, y)) return n;
       }
@@ -351,7 +351,7 @@ const CarrySystems = {
     const night = this.hour >= 21 || this.hour < 5;
     // yerdeki cesetler
     for (const b of this.ents) {
-      if (b.kind !== 'npc' || !b.dead || !b.evidence || b.remove) continue;
+      if (b.kind !== 'npc' || !b.dead || !b.evidence || b.remove || this.floorHid(b)) continue;   // oyuncu otelin üst katındayken alt kat beklemede: ceset bulunmaz
       if (dist2(b.x, b.y, P.x, P.y) > 900 * 900) continue;
       const n = seer(b.x, b.y, night ? 60 : 110);
       if (!n) continue;
