@@ -589,7 +589,7 @@ const G = {
       T_.amb = 0.25;
       const env = this.envTick(0.25);
       const b = this.world.biomeAt(P.x, P.y);
-      Audio_.ambientTick({ town: !!this.world.townAt(P.x, P.y, 2), indoor: !!this.insideB, storm: !!env.storm, rain: env.rain, wind: Math.max(env.dust, env.snow * 0.6, env.storm ? 0.6 : 0.12), fire: this.nearFire ? 1 : 0, water: this.world.nearWater(P.x, P.y, 40) ? 1 : 0, night: this.isNight, nature: b === 'FOREST' || b === 'GRASS' || b === 'SWAMP' ? 1 : 0.4, wolves: b === 'FOREST' || b === 'SNOW' });
+      Audio_.ambientTick({ town: !!this.world.townAt(P.x, P.y, 2), indoor: !!this.insideB, storm: !!env.storm, rain: env.rain, wind: Math.max(env.dust, env.snow * 0.6, env.storm ? 0.6 : 0.12, 0.12 + (this.alt || 0) * 0.5), fire: this.nearFire ? 1 : 0, water: this.world.nearWater(P.x, P.y, 40) ? 1 : 0, night: this.isNight, nature: b === 'FOREST' || b === 'GRASS' || b === 'SWAMP' ? 1 : 0.4, wolves: b === 'FOREST' || b === 'SNOW' });
       if (env.storm && Math.random() < 0.02) { this.fx.lightning = 1; Audio_.thunder(); }
       // piyano dosyası yüklenemezse eski prosedürel piyano
       if (Audio_.tr && Audio_.tr.piano && Audio_.tr.piano.failed && Audio_.pianoLevel > 0.02) {
@@ -839,8 +839,28 @@ const G = {
     const fill = 0.8, bw = b.w * TS, bh = (b.h + 1) * TS, os = this.os || 1;
     return clamp(Math.min(this.vw / os * fill / bw, this.vh / os * fill / bh), 1, 2.2);
   },
+  /* Yükseklik hissi: oyuncunun bulunduğu yerin yükseltisi 0-1 arası yumuşakça izlenir (yüksek tepelerden uçurum
+     seviyesine); kamera, rüzgâr, zerreler ve rüzgâr sesi buna bakar. İçeride sıfırdır. */
+  reliefTick(dt) {
+    const P = this.player;
+    if (!P || !this.world) return;
+    const R = this.world.reliefPt(P.x, P.y, this._rp || (this._rp = new Float32Array(3)));
+    const want = this.insideB ? 0 : clamp((R[0] - 168) / 50, 0, 1);
+    this.alt = (this.alt || 0) + (want - (this.alt || 0)) * Math.min(1, dt * 0.8);
+    if (Math.abs(this.alt - want) < 0.002) this.alt = want;
+  },
+  /* Yokuş: yürüme ya da sürme yönünde yokuş yukarı yavaşlatır (en çok %18), yokuş aşağı biraz hızlandırır (en çok %10);
+     hafif eğim düz sayılır. Bina içinde (yamaçtaki binanın döşemesi düzdür) ve suda etkisiz */
+  slopeMul(x, y, ang) {
+    const W = this.world;
+    if (W.indoorPx(x, y) || W.isWaterPx(x, y)) return 1;
+    const R = W.reliefPt(x, y, this._sp || (this._sp = new Float32Array(3)));
+    const up = R[1] * Math.cos(ang) + R[2] * Math.sin(ang), m = Math.min(1, Math.max(0, Math.abs(up) - SLOPE_FLAT) / (SLOPE_STEEP - SLOPE_FLAT));
+    return up > 0 ? 1 - m * 0.18 : 1 + m * 0.1;
+  },
   zoomUpdate(dt) {
     const Z = this.camZoom || (this.camZoom = { z: 1, from: 1, to: 1, k: 0, kFrom: 0, kTo: 0, t: 1, b: null, cx: 0, cy: 0 });
+    if (this.state === 'play') this.reliefTick(dt);
     const IB = this.state === 'play' && this.insideB && this.insideB.enter ? this.insideB : null;
     if (IB !== Z.b) {
       Z.b = IB; Z.t = 0; Z.from = Z.z; Z.kFrom = Z.k;
@@ -857,7 +877,11 @@ const G = {
     const sp = R ? R.spd : 0, sTo = 1 - (1 - 1 / (this.os || 1)) * clamp((sp - 100) / 60, 0, 1);
     Z.sz = (Z.sz || 1) + (sTo - (Z.sz || 1)) * Math.min(1, dt * 1.6);
     if (Math.abs(Z.sz - sTo) < 0.002) Z.sz = sTo;
-    Z.out = Z.z * Z.sz;
+    // yüksekteyken de kenar payı açılır: tepede kamera biraz uzaklaşır, daha geniş görürsün (dörtnalla birlikte payı aşmaz)
+    const aTo = IB ? 1 : 1 - (1 - 1 / (this.os || 1)) * 0.85 * (this.alt || 0);
+    Z.az = (Z.az || 1) + (aTo - (Z.az || 1)) * Math.min(1, dt * 1.2);
+    if (Math.abs(Z.az - aTo) < 0.002) Z.az = aTo;
+    Z.out = Z.z * Math.min(Z.sz, Z.az);
     if (FX.drunkCss) return Z;   // sarhoşken dönüşümü FX.post yazar (yakınlaşmayı da içerir)
     const tf = Math.abs(Z.out - 1) > 0.001 ? `scale(${Z.out.toFixed(4)})` : '';
     if (this.canvas.style.transform !== tf) this.canvas.style.transform = tf;
@@ -1177,6 +1201,20 @@ const G = {
       ctx.fillStyle = `rgba(180,140,90,${env.dust * 0.45})`; ctx.fillRect(0, 0, vw, vh);
       ctx.fillStyle = `rgba(200,160,110,${env.dust * 0.5})`;
       for (let i = 0; i < 120; i++) { const r = this.rain[i]; r.x += dt * 0.6 * r.s; if (r.x > 1) { r.x -= 1; r.y = Math.random(); } ctx.fillRect(r.x * vw, r.y * vh, 3, 1); }
+    }
+    // yüksekte rüzgârla savrulan ince zerreler (toz, kar kırıntısı): rüzgâr yönünde hızlı, kısa çizgiler
+    const al = this.alt || 0;
+    if (al > 0.08) {
+      const M = this.motes || (this.motes = Array.from({ length: 56 }, () => ({ x: Math.random(), y: Math.random(), s: 0.6 + Math.random() * 0.9 })));
+      const wx = FX.wind.x || 0.2, wy = FX.wind.y || 0, wl = Math.hypot(wx, wy) || 1, ux = wx / wl, uy = wy / wl, n = Math.floor(M.length * al);
+      ctx.fillStyle = `rgba(232,234,238,${0.12 + al * 0.2})`;
+      for (let i = 0; i < n; i++) {
+        const m = M[i], sp = (0.22 + wl * 0.5) * m.s;
+        m.x += ux * sp * dt; m.y += (uy * sp + Math.sin(this.t * 1.7 + i) * 0.02) * dt;
+        if (m.x > 1) { m.x -= 1; m.y = Math.random(); } else if (m.x < 0) { m.x += 1; m.y = Math.random(); }
+        if (m.y > 1) m.y -= 1; else if (m.y < 0) m.y += 1;
+        ctx.fillRect(m.x * vw, m.y * vh, m.s > 1.1 ? 3 : 2, 1);
+      }
     }
     if (env.fog > 0.05) {
       const g = ctx.createRadialGradient(vw / 2, vh / 2, 30, vw / 2, vh / 2, Math.max(vw, vh) * 0.6);
