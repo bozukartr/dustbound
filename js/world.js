@@ -54,6 +54,8 @@ const TINFO = [
 ];
 const TPAL = TINFO.map(t => hexToRgb(t.c));
 /* Mevsim paletleri */
+const SNOWFACE = hexToRgb('#8d949c');   // karlı uçurumun dikey yüzü: kaya
+const CLTOP = hexToRgb('#8e877c'), MESATOP = hexToRgb('#a2654a');   // yayla tepeleri (uçurum ve mesa): yüzden açık
 const SNOWC = hexToRgb('#e6ebf0'), SNOWM = hexToRgb('#d2dae0'), SNOWCL = hexToRgb('#b8c0c8'), ICE = hexToRgb('#b6ccd6'), LEAF2 = hexToRgb('#b8702c');
 const SNOWABLE = new Uint8Array(32), LEAFY = new Uint8Array(32);
 const AUT = [], SUM = [];
@@ -454,6 +456,40 @@ class World {
     let best = null, bd = 1e9;
     for (const r of REGIONS) { if (!inWorld(r)) continue; const d = dist2(nx, ny, r.x, r.y); if (d < bd) { bd = d; best = r; } }
     return best.n;
+  }
+  /* ---------------- kabartma: yumuşak yükselti ve eğim ----------------
+     Yükselti karo başına tutulur (0-255). Oyunda 3x3 yumuşatılır, karo merkezleri arasında çift doğrusal değişir;
+     eğim (birim/piksel) de karo merkezlerinde hesaplanıp aynı biçimde değişir: yamaç ışığında karo sınırı görünmez. */
+  elevS(tx, ty) {
+    const E = this.elev, mx = WW - 1, my = WH - 1;
+    let s = 0;
+    for (let j = -1; j <= 1; j++) {
+      const y = ty + j, row = (y < 0 ? 0 : y > my ? my : y) * WW;
+      for (let i = -1; i <= 1; i++) { const x = tx + i; s += E[row + (x < 0 ? 0 : x > mx ? mx : x)] * (i ? (j ? 1 : 2) : (j ? 2 : 4)); }
+    }
+    return s / 16;
+  }
+  /* Bir bölgenin karo ızgarası (tx0, ty0'dan tw x th karo): yumuşak yükselti E, eğim GX, GY */
+  reliefGrid(tx0, ty0, tw, th) {
+    const W2 = tw + 2, S = new Float32Array(W2 * (th + 2)), N = tw * th, E = new Float32Array(N), GX = new Float32Array(N), GY = new Float32Array(N);
+    for (let j = 0; j < th + 2; j++) for (let i = 0; i < W2; i++) S[j * W2 + i] = this.elevS(tx0 + i - 1, ty0 + j - 1);
+    for (let j = 0; j < th; j++) for (let i = 0; i < tw; i++) {
+      const c = (j + 1) * W2 + i + 1, k = j * tw + i;
+      E[k] = S[c]; GX[k] = (S[c + 1] - S[c - 1]) / (2 * TS); GY[k] = (S[c + W2] - S[c - W2]) / (2 * TS);
+    }
+    return { tx0, ty0, tw, th, E, GX, GY };
+  }
+  /* Tek bir noktanın yükseltisi ve eğimi (oynanış: yokuş, yükseklik); dizi açmaz, sonucu out'a yazar */
+  reliefPt(px, py, out) {
+    const fx = px / TS - 0.5, fy = py / TS - 0.5, tx = Math.floor(fx), ty = Math.floor(fy), u = fx - tx, v = fy - ty;
+    out[0] = out[1] = out[2] = 0;
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
+      const w = (i ? u : 1 - u) * (j ? v : 1 - v), x = tx + i, y = ty + j;
+      out[0] += this.elevS(x, y) * w;
+      out[1] += (this.elevS(x + 1, y) - this.elevS(x - 1, y)) / (2 * TS) * w;
+      out[2] += (this.elevS(x, y + 1) - this.elevS(x, y - 1)) / (2 * TS) * w;
+    }
+    return out;
   }
   townAt(px, py, margin = 0) {
     const tx = px / TS, ty = py / TS;
@@ -2124,9 +2160,14 @@ class World {
     if (pool.length < 3) pool.push(img);
     yield 0;
   }
-  /* Zemin pikselleri (karo rengi, gürültü, kenar titreşimi, mevsim) bir dikdörtgen için: 2D chunk'lar ve melez çizici
-     (js/hybrid.js) kullanır. ox, oy karo sınırında olmalı. cls verilirse her pikselin (titreşimli) karo türü yazılır. */
-  *groundPixels(ox, oy, PW, PH, d, cls) {
+  /* Zemin pikselleri (karo rengi, gürültü, kenar titreşimi, mevsim, kabartma) bir dikdörtgen için: 2D chunk'lar ve
+     melez çizici (js/hybrid.js) kullanır. ox, oy karo sınırında olmalı. cls verilirse her pikselin (titreşimli) karo
+     türü yazılır. rel verilirse (melez) her piksel için yüzey normali ve yüksekliği yazılır: [nx, ny, yükseklik];
+     ışık ve gölgeyi melez çizici güneşe göre hesaplar. Klasik çizimde ışık kuzeybatıdan sabit gelir ve renge pişer.
+     Kabartma: uçurumun güney kenarı CFACE piksel boyunda dikey kaya yüzüdür (katmanlar, çatlaklar, üst kenarda ışık,
+     dibinde gölge), yaylanın yan ve kuzey kenarları belirgindir; yamaçlar yükselti eğimine göre ışık alır (dağda daha
+     belirgin), kayalık yükseklerde kesik kesik teras çizgileri vardır; yükseldikçe renk hafifçe açılır ve soğur. */
+  *groundPixels(ox, oy, PW, PH, d, cls, rel) {
     const tx0 = ox >> 4, ty0 = oy >> 4;
     const tile = this.tile, JX = World.JX, JY = World.JY, DET = World.DET, heat = this.heat, season = this.season;
     const TV = World.TV || (World.TV = new Float32Array(TINFO.map(t => t.v)));
@@ -2147,12 +2188,84 @@ class World {
       if (sy < 0) sy = 0; else if (sy > MAXP) sy = MAXP;
       return tile[(sy >> 4) * WW + (sx >> 4)];
     };
+    // kabartma: bölgenin yükselti ızgarası; doğal zemin (yamaç ışığı alır) ve teras çizilebilen zemin
+    const HY = !!rel, RG = this.reliefGrid(tx0 - 2, ty0 - 2, (PW >> 4) + 5, (PH >> 4) + 5);
+    const NAT = World.NATF || (World.NATF = new Uint8Array(TINFO.map((t, i) => (i === T.WATER || i === T.DEEP || i === T.HOTWATER || i === T.BRIDGE || i === T.PLANK || i === T.TOWN || i === T.COBBLE || i === T.PAVE ? 0 : 1))));
+    const TER = World.TERF || (World.TERF = new Uint8Array(TINFO.map((t, i) => (i === T.ROCK || i === T.REDROCK || i === T.SNOW ? 1 : 0))));
+    const CFACE = World.CFACE, TSTEP = 5, LX = -0.5, LY = -0.58, LZ = 0.64;
+    // sinüs tablosu (1024 adım bir tur): katman ve teras dalgaları pikselde Math.sin çağırmaz
+    const SIN = World.SIN || (World.SIN = Float32Array.from({ length: 1024 }, (_, i) => Math.sin(i * Math.PI / 512)));
+    // karo merkezlerinde yüzey normali (yükseldikçe abartılı eğim) ve klasik çizimin kuzeybatı ışığı; pikselde ara değer
+    const RN = RG.E.length, GNX = new Float32Array(RN), GNY = new Float32Array(RN), GSH = new Float32Array(RN);
+    for (let i = 0; i < RN; i++) {
+      const el = RG.E[i], K = 4 + 7 * (el < 150 ? 0 : el > 205 ? 1 : (el - 150) / 55), gx = RG.GX[i] * K, gy = RG.GY[i] * K, l = 1 / Math.sqrt(gx * gx + gy * gy + 1);
+      const sh = 1 + (-gx * l * LX - gy * l * LY + l * LZ - LZ) * 1.5;
+      GNX[i] = -gx * l; GNY[i] = -gy * l; GSH[i] = sh < 0.74 ? 0.74 : sh > 1.22 ? 1.22 : sh;
+    }
     let tY = performance.now();
+    // uçurum maskesi parça başına bir kez (yüz, kenar ve gölge denetimleri için kenar payıyla); uçuruma uzak karolar 0.
+    // Karo merkezleri arasında çift doğrusal (titreşimli örnekle): köşeler yuvarlanır, karo karo basamaklı çapraz kenar
+    // tek parça eğimli bir duvar olur (çarpışma karoda kalır, görüntü en çok birkaç piksel sapar).
+    // MT: kenar karolarında maskenin istediği sınıftan en ağır köşenin karo türü (piksel o türün rengini alır), başka yerde 255.
+    // RUN: pikselden güneye kesintisiz uçurum boyu (kendisi dahil): dikey yüzün dibine uzaklık.
+    const MX = 8, MY = 16, MW = PW + 2 * MX, MH = PH + MY + CFACE + 4;
+    let anyNC = 0;
+    for (let i = 0; i < nearCliff.length; i++) if (nearCliff[i]) { anyNC = 1; break; }
+    const MK = anyNC ? new Uint8Array(MW * MH) : null, MT = anyNC ? new Uint8Array(MW * MH).fill(255) : null, RUN = anyNC ? new Uint8Array(MW * MH) : null;
+    if (MK) {
+      // maskenin karoları (bir karo kenar payıyla, dünya dışı derin su) yerel ızgarada
+      const mtx0 = (ox - MX) >> 4, mty0 = (oy - MY) >> 4, mtx1 = (ox - MX + MW - 1) >> 4, mty1 = (oy - MY + MH - 1) >> 4;
+      const lx0 = mtx0 - 1, ly0 = mty0 - 1, LW = mtx1 - mtx0 + 3, LT = new Uint8Array(LW * (mty1 - mty0 + 3));
+      for (let j = 0; j < mty1 - mty0 + 3; j++) for (let i = 0; i < LW; i++) { const x = lx0 + i, y = ly0 + j; LT[j * LW + i] = (x < 0 || y < 0 || x >= WW || y >= WH) ? T.DEEP : tile[y * WW + x]; }
+      // karo karo: çevresi (3x3) tek türse bütün karo o değeri alır, piksel piksel hesap yalnız kenar karolarında
+      for (let ty = mty0; ty <= mty1; ty++) {
+        for (let tx = mtx0; tx <= mtx1; tx++) {
+          const li = (ty - ly0) * LW + (tx - lx0), c0 = CL[LT[li]];
+          let uni = 1;
+          if (nearCliff[((ty - ty0) + 2) * TW + (tx - tx0) + 2]) for (let j = -1; j <= 1 && uni; j++) for (let i = -1; i <= 1; i++) if (CL[LT[li + j * LW + i]] !== c0) { uni = 0; break; }
+          const x0 = Math.max(0, tx * TS - ox + MX), x1 = Math.min(MW, tx * TS + TS - ox + MX), y0 = Math.max(0, ty * TS - oy + MY), y1 = Math.min(MH, ty * TS + TS - oy + MY);
+          if (uni) { if (c0) for (let y = y0; y < y1; y++) MK.fill(1, y * MW + x0, y * MW + x1); continue; }   // uçuruma uzak karo hep zemin
+          for (let y = y0; y < y1; y++) {
+            const sy = oy - MY + y, ky = (sy & 127) << 7;
+            for (let x = x0; x < x1; x++) {
+              const sx = ox - MX + x, kk = (sx & 127) + ky;
+              const fx = (sx + JX[kk] * 0.5) * 0.0625 - 0.5, fy = (sy + JY[kk] * 0.5) * 0.0625 - 0.5, ix = Math.floor(fx), iy = Math.floor(fy), u = fx - ix, w = fy - iy;
+              const la = (iy - ly0) * LW + (ix - lx0), ta = LT[la], tb = LT[la + 1], tc = LT[la + LW], td = LT[la + LW + 1];
+              const a = CL[ta], b = CL[tb], c = CL[tc], e = CL[td], mi = y * MW + x;
+              if (a === b && b === c && c === e) { MK[mi] = a; MT[mi] = ta; continue; }
+              const wa = (1 - u) * (1 - w), wb = u * (1 - w), wc = (1 - u) * w, wd = u * w;
+              const m = a * wa + b * wb + c * wc + e * wd > 0.5 ? 1 : 0;
+              let bw = -1, bt = ta;
+              if (a === m && wa > bw) { bw = wa; bt = ta; }
+              if (b === m && wb > bw) { bw = wb; bt = tb; }
+              if (c === m && wc > bw) { bw = wc; bt = tc; }
+              if (e === m && wd > bw) bt = td;
+              MK[mi] = m; MT[mi] = bt;
+            }
+          }
+        }
+        if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
+      }
+      for (let y = MH - 1, i = MH * MW - 1; y >= 0; y--) for (let x = MW - 1; x >= 0; x--, i--) RUN[i] = MK[i] ? (y === MH - 1 ? 1 : RUN[i + MW] < 255 ? RUN[i + MW] + 1 : 255) : 0;
+    }
+    // yükselti ızgarası satır satır: karo sütunları için düşey ara değer satırda bir kez, pikselde yalnız yatay.
+    // Izgara iki karo erken başlar: piksel (px, py) ızgarada (px + 24) / 16, (py + 24) / 16 noktasıdır (karo merkezi 0.5)
+    const RTW = RG.tw, rowE = new Float32Array(RTW), rowX = new Float32Array(RTW), rowY = new Float32Array(RTW);
+    const rowNX = new Float32Array(RTW), rowNY = new Float32Array(RTW), rowSH = new Float32Array(RTW);
+    let tSg = 1e9, tFl = 0, tOn = false;   // teras parçası önbelleği
     for (let py = 0; py < PH; py++) {
       const wy = oy + py;
       const ky = (wy & 127) << 7;
       const rowT = (wy >> 4) * WW;
       const ncRow = (((wy >> 4) - ty0) + 2) * TW;
+      const mrow = (py + MY) * MW + MX;
+      {
+        const v = ((py + 24) & 15) * 0.0625, a = ((py + 24) >> 4) * RTW, b = a + RTW;
+        for (let i = 0; i < RTW; i++) {
+          rowE[i] = RG.E[a + i] + (RG.E[b + i] - RG.E[a + i]) * v; rowX[i] = RG.GX[a + i] + (RG.GX[b + i] - RG.GX[a + i]) * v; rowY[i] = RG.GY[a + i] + (RG.GY[b + i] - RG.GY[a + i]) * v;
+          rowNX[i] = GNX[a + i] + (GNX[b + i] - GNX[a + i]) * v; rowNY[i] = GNY[a + i] + (GNY[b + i] - GNY[a + i]) * v; rowSH[i] = GSH[a + i] + (GSH[b + i] - GSH[a + i]) * v;
+        }
+      }
       for (let px = 0; px < PW; px++) {
         const wx = ox + px;
         const k = (wx & 127) + ky;
@@ -2166,6 +2279,9 @@ class World {
           if (t === T.BRIDGE || t === T.PLANK) t = base;
           else if (base === T.COBBLE || base === T.PAVE || t === T.COBBLE || t === T.PAVE) t = base;   // taş döşemenin kenarı düz (bordür, çimen sınırı)
         }
+        const nc = nearCliff[ncRow + ((wx >> 4) - tx0) + 2];
+        const mb = mrow + px;   // maskede bu piksel
+        if (nc && base !== T.BRIDGE && base !== T.PLANK && base !== T.COBBLE && base !== T.PAVE && MK[mb] !== CL[t] && MT[mb] !== 255) t = MT[mb];
         let col = TPAL[t];
         let v = DET[k] * TV[t];
         let mul = 1;
@@ -2183,11 +2299,59 @@ class World {
             if (t === T.FOREST && DET[k] > 0.72) col = LEAF2; else col = AUT[t];
           } else if (season === 1 && LEAFY[t]) col = SUM[t];
         }
-        if (nearCliff[ncRow + ((wx >> 4) - tx0) + 2]) {
+        // ---- kabartma: yükselti, eğimden yüzey normali (yükseldikçe abartılı) ----
+        const ri0 = (px + 24) >> 4, ru = ((px + 24) & 15) * 0.0625, nat = NAT[t];
+        const el = rowE[ri0] + (rowE[ri0 + 1] - rowE[ri0]) * ru;
+        let fnx = 0, fny = 0, fh = 0, kind = 0;   // kind: 0 yamaç, 1 uçurum yüzü, 2 yayla kenarı, 3 teras
+        if (HY && nat) { fnx = rowNX[ri0] + (rowNX[ri0 + 1] - rowNX[ri0]) * ru; fny = rowNY[ri0] + (rowNY[ri0 + 1] - rowNY[ri0]) * ru; }   // klasikte normal yerine hazır ışık (rowSH)
+        if (nc) {
           if (CL[t]) {
-            if (!CL[tAt(wx + (JX[k] >> 1), wy + 7)]) { mul = 0.72; if ((wx * 3 + (wy >> 1)) % 5 === 0) v -= 10; }
-            else if (!CL[tAt(wx, wy - 5)]) v += 16;
-          } else if (CL[tAt(wx - 3, wy - 9)]) mul = 0.7;
+            // güneyde uçuruma ait olmayan ilk piksel: dikey yüzün dibine uzaklık (yüzden uzunsa yaylanın üstü)
+            const dn = RUN[mb] <= CFACE ? RUN[mb] : 0;
+            if (dn) {
+              // dikey kaya yüzü (dipte 0, üst kenarda 1): dalgalı yatay katmanlar, dikey çatlaklar, üst kenarda ışık, dipte gölge
+              const fy = (dn - 1) / (CFACE - 1), band = Math.floor((wy + SIN[(wx * 34 + (wx >> 5) * 163) & 1023] * 1.6) / 3);
+              if (t === T.SNOWCLIFF || col === SNOWCL) { if (fy < 0.8 && hash2(wx, wy >> 2, 7) > 0.18) col = SNOWFACE; }   // karlı yüz: kaya, yer yer kar
+              mul = HY ? 0.8 + 0.14 * fy : 0.56 + 0.26 * fy;
+              v += (band & 1 ? -8 : 7) * (t === T.MESA ? 1.6 : 1) + (t === T.MESA && band % 3 === 0 ? 7 : 0);
+              const ck = hash2(wx, 917, 5);
+              fnx = 0;
+              if (ck > 0.85 && ((wy * 3 + wx * 7) % 13) < 9) { v -= 13; fnx = ck > 0.93 ? 0.22 : -0.22; }
+              if (dn >= CFACE - 1) v += HY ? 10 : 18;
+              if (dn <= 2) mul *= 0.88;
+              fny = 0.96; fh = CFACE * fy; kind = 1;
+            } else {
+              // yaylanın üstü: çevresindeki kayadan açık (koyu tepe çukur gibi görünürdü); batı kenarı ışık alır, doğu
+              // kenarı gölgede, kuzey kenarında ince ışık
+              if (col !== SNOWC && col !== SNOWM && col !== SNOWCL) col = t === T.MESA ? MESATOP : t === T.CLIFF ? CLTOP : col;
+              fh = CFACE;
+              if (!MK[mb - 2]) { v += HY ? 4 : 12; fnx = -0.7; fny = 0; kind = 2; }
+              else if (!MK[mb + 2]) { v -= HY ? 4 : 14; fnx = 0.7; fny = 0; kind = 2; }
+              else if (!MK[mb - 2 * MW]) { v += HY ? 4 : 10; fnx = 0; fny = -0.45; kind = 2; }
+            }
+          } else {
+            if (HY) { if (MK[mb - 3 * MW]) mul = 0.86; }   // uçurumun dibi: melezde güneş gölgesi canlı hesaplanır
+            else if (MK[mb - 6 * MW - 3]) mul = 0.72; else if (MK[mb - 12 * MW - 6]) mul = 0.85;   // klasik: güneş kuzeybatıdan
+            // yaylanın arka ve yan kenarının dibi: zemin tarafında ince koyu çizgi (yayla yükselir)
+            if (MK[mb + 2 * MW] || MK[mb - 2] || MK[mb + 2]) mul *= HY ? 0.9 : 0.8;
+          }
+        }
+        // teras çizgileri: kayalık yüksekte, belli yükselti aralıklarında kesik kesik basamak (yüzü yokuş aşağı bakar)
+        if (TER[t] && !CL[t] && el > 158) {
+          const gx = rowX[ri0] + (rowX[ri0 + 1] - rowX[ri0]) * ru, gy = rowY[ri0] + (rowY[ri0 + 1] - rowY[ri0]) * ru, g = Math.sqrt(gx * gx + gy * gy);
+          if (g > 0.045) {
+            const q = (el + SIN[(wx * 15 + wy * 8) & 1023] * 1.3 + DET[k] * 0.5) * (1 / TSTEP), fl = Math.floor(q), fr = q - fl, ig = TSTEP / g, dd = (1 - fr) * ig;
+            // yalnız basamağın yüzü ve üstündeki ince ışık şeridi (pikselin çoğu ikisinde de değil: hash'e hiç bakılmaz)
+            if (dd < 2.4 || fr * ig < 1) {
+              const sg = Math.floor((wx + wy * 0.6) / 9);
+              if (sg !== tSg || fl !== tFl) { tSg = sg; tFl = fl; tOn = hash2(sg, fl, 61) > 0.45; }   // kesik basamak: komşu pikseller aynı parçada
+              if (tOn) {
+                const w = (el > 183 ? 1 : (el - 158) / 25) * (g > 0.075 ? 1 : (g - 0.045) / 0.03);
+                if (dd < 2.4) { mul *= 1 - (HY ? 0.06 : 0.14) * w * (dd < 1.2 ? 1 : 0.6); fnx = -gx / g * 0.7; fny = -gy / g * 0.7; kind = 3; }   // basamağın yüzü
+                else v += (HY ? 2 : 3) * w;                                                                                                      // üstünde ince ışık
+              }
+            }
+          }
         }
         if (WA[t]) {
           if (t !== T.BRIDGE) {
@@ -2215,12 +2379,21 @@ class World {
           const lx = wx & 15, ly = wy & 15, ti = rowT + (wx >> 4);
           if ((ly >= 14 && tile[ti + WW] === T.COBBLE) || (ly <= 1 && tile[ti - WW] === T.COBBLE) || (lx >= 14 && tile[ti + 1] === T.COBBLE) || (lx <= 1 && tile[ti - 1] === T.COBBLE)) { mul = 1; v = 15 + DET[k] * 2; }
         }
+        // klasik: yamaçlar kuzeybatıdan gelen sabit ışıkla gölgelenir (melezde güneşe göre canlı). Teras basamağı ve yayla
+        // kenarı da bulunduğu yamacın ışığını alır (yoksa gölgeli yamaçta basamak çevresinden açık kalıp parlak çizgi olurdu);
+        // dikey uçurum yüzünün ışığı kendi hesabındadır
+        if (!HY && nat && kind !== 1) mul *= rowSH[ri0] + (rowSH[ri0 + 1] - rowSH[ri0]) * ru;
         if (cls) cls[py * PW + px] = t;
         const i = (py * PW + px) << 2;
-        d[i] = (col[0] + v) * mul;
-        d[i + 1] = (col[1] + v) * mul;
-        d[i + 2] = (col[2] + v * 0.8) * mul;
+        let cr = (col[0] + v) * mul, cg = (col[1] + v) * mul, cb = (col[2] + v * 0.8) * mul;
+        // yükseklik tonu: yükseldikçe hafifçe açılır ve soğur (hava perspektifi), alçak ovalar biraz koyu
+        if (nat) {
+          if (el > 160) { const a = (el > 220 ? 1 : (el - 160) / 60) * 0.1; cr += (196 - cr) * a; cg += (204 - cg) * a; cb += (216 - cb) * a; }
+          else if (el < 80) { const a = 1 - (80 - el) / 80 * 0.07; cr *= a; cg *= a; cb *= a; }
+        }
+        d[i] = cr; d[i + 1] = cg; d[i + 2] = cb;
         d[i + 3] = 255;
+        if (rel) { const ri = (py * PW + px) * 3; rel[ri] = fnx; rel[ri + 1] = fny; rel[ri + 2] = fh; }
       }
       // adım süresi dolunca (World.STEP) sıra kareye döner: yüksek tazelemede de kare bütçesini aşmaz
       if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
@@ -2283,6 +2456,10 @@ class World {
 /* Pişirme adımının uzunluğu (ms): parça pişirme bu süre dolunca sırayı kareye bırakır. Kare bütçesi en çok bu kadar aşılır;
    144 Hz'de bir kare ~7 ms. */
 World.STEP = 0.75;
+World.CFACE = 14;   // uçurumun dikey kaya yüzünün boyu (piksel); melezde yaylanın yüksekliği
+// yokuş (yükselti birimi/piksel, gidiş yönünde): bunun altı düz sayılır, SLOPE_STEEP dik yamaçtır (en çok etki)
+// ölçüm: kayalıkta eğimin ortancası ~0.065, %90'ı 0.13'ün altında; ovada ortanca ~0.045
+const SLOPE_FLAT = 0.03, SLOPE_STEEP = 0.15;
 
 /* ==========================================================
    Dünya önbelleği: kayıt yüklenince dünya sıfırdan üretilmez.

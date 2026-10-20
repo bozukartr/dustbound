@@ -617,6 +617,7 @@ class Player extends Ent {
     if (this.drunk > 20) { const w = Math.sin(G.t * 2.3) * this.drunk / 100; const c = Math.cos(w), s = Math.sin(w); const nx = dx * c - dy * s; dy = dx * s + dy * c; dx = nx; }
     // zehirliyken hafif sendeleme (sarhoşluktan yumuşak, en çok ~11°)
     if (this.poison > 0) { const w = (Math.sin(G.t * 1.9) + Math.sin(G.t * 0.73 + 1.3)) * 0.1; const c = Math.cos(w), s = Math.sin(w); const nx = dx * c - dy * s; dy = dx * s + dy * c; dx = nx; }
+    if (dx || dy) speed *= G.slopeMul(this.x, this.y, Math.atan2(dy, dx));   // yokuş yukarı yavaş, aşağı biraz hızlı
     // Hız bir anda değişmez: kalkışta yumuşak ivmelenme, koşuya geçerken daha ağır hızlanma,
     // bırakınca kısa bir yavaşlama; yön değişirken gövde biraz süzülür (ağırlık hissi)
     const tvx = dx * speed, tvy = dy * speed, cur = Math.hypot(this.vx, this.vy), tgt = Math.hypot(tvx, tvy);
@@ -690,7 +691,7 @@ class Player extends Ent {
     else if (mv.m > 0.1 && h.spd < 90) h.brk = false;
     if (h.brk && mv.m <= 0.1 && h.spd < 25) { h.brk = false; if (Math.random() < 0.6) Juice.rear(h); }
     const t = G.world.tileAtPx(h.x, h.y);
-    const sl = t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD || t === T.COBBLE || t === T.PAVE ? 1.05 : 1);
+    const sl = (t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD || t === T.COBBLE || t === T.PAVE ? 1.05 : 1)) * (h.spd > 1 ? G.slopeMul(h.x, h.y, h.ang) : 1);
     const vx = Math.cos(h.ang) * h.spd * sl * dt, vy = Math.sin(h.ang) * h.spd * sl * dt;
     const ox = h.x, oy = h.y;
     h.move(vx, vy);

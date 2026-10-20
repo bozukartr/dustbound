@@ -143,8 +143,9 @@ const HY = (() => {
   /* ---------------- zemin (parça) ---------------- */
   function* ground(W, ox, oy, base) {
     // groundPixels her pikseli yazar: havuzdan gelen tamponun sıfırlanması gerekmez
-    const M = 16, ww = HC + 2 * M, img = take(Uint8ClampedArray, ww * ww * 4), cls = take(Int16Array, ww * ww);
-    yield* W.groundPixels(ox - M, oy - M, ww, ww, img, cls);
+    const M = 16, ww = HC + 2 * M, img = take(Uint8ClampedArray, ww * ww * 4), cls = take(Int16Array, ww * ww), rel = take(Float32Array, ww * ww * 3);
+    // rel: kabartma (yüzey normali ve yükseklik; uçurum yüzü, yayla, yamaç, teras) ışık geçişine gider
+    yield* W.groundPixels(ox - M, oy - M, ww, ww, img, cls, rel);
     const at = (x, y) => (Math.max(0, Math.min(ww - 1, y)) * ww + Math.max(0, Math.min(ww - 1, x))), step = pacer(null);
     for (let y = 0; y < HB; y++) {
       for (let x = 0; x < HB; x++) {
@@ -181,11 +182,12 @@ const HY = (() => {
         if (k < 0) { r *= 1 + k; g *= 1 + k; b *= 1 + k; } else if (k > 0) { r += (255 - r) * k; g += (255 - g) * k; b += (255 - b) * k; }
         const i = (y * HB + x) * 4;
         base.c[i] = r; base.c[i + 1] = g; base.c[i + 2] = b; base.c[i + 3] = 255;
-        base.g[i] = 0; base.g[i + 1] = 124.5; base.g[i + 2] = 124.5; base.g[i + 3] = 255;
+        const ri = src * 3;
+        base.g[i] = rel[ri + 2] * 3; base.g[i + 1] = (rel[ri] * 0.5 + 0.5) * 249; base.g[i + 2] = (rel[ri + 1] * 0.5 + 0.5) * 249; base.g[i + 3] = 255;
       }
       yield* step();
     }
-    give(img); give(cls);
+    give(img); give(cls); give(rel);
   }
 
   /* ---------------- ağaçlar ve nesneler ---------------- */

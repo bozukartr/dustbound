@@ -15,8 +15,10 @@ const SWAY_O = { [O.TUFT]: [1, 2], [O.REED]: [1, 3], [O.FLOWERS]: [0.6, 1], [O.C
 const SNOW_TRACK = '84,104,136';
 const TRACK_C = { [T.SAND]: '96,70,40', [T.DESERT]: '110,66,34', [T.MUD]: '40,28,16', [T.SNOW]: SNOW_TRACK };
 /* Kardaki izler: yöne dönük küçük çukurlar (çizme, nal, pati). Silik mavi-gri; karda uzun kalır, kar yağarken dolar.
-   Şekil yerel eksende verilir: u yürüyüş yönü, v yan (dünya pikseli); 1 = tam derin, 0 = iz yok. */
-const SNOW_PRINT = [150, 168, 196], SNOW_LIFE = 80, SNOW_MAX = 240;
+   Şekil yerel eksende verilir: u yürüyüş yönü, v yan (dünya pikseli); 1 = tam derin, 0 = iz yok.
+   İz zemini çarparak koyulaştırır (SNOW_MUL): açık karda eski sabit iz rengiyle (150, 168, 196) aynı görünür, gölgeli
+   yamaçta da zeminden koyu kalır (sabit renk orada zeminden açık kalıp kayboluyordu). */
+const SNOW_MUL = [169, 185, 212], SNOW_LIFE = 80, SNOW_MAX = 240;
 const PRINT_A = { foot: 0.3, hoof: 0.3, paw: 0.26 };
 const PRINT_SHAPE = {
   // çizme: taban ve ayrı topuk
@@ -97,7 +99,7 @@ const FX = {
     w.gustTo = Math.max(0, w.gustTo - dt * 0.12);
     w.gust = lerp(w.gust, w.gustTo, Math.min(1, dt * 1.5));
     w.a = 0.25 + Math.sin(G.t * 0.011) * 0.9 + Math.sin(G.t * 0.043) * 0.2;
-    w.s = 0.18 + (Wt.i || 0) * 0.45 + (Wt.type === 'storm' ? 0.35 : 0) + w.gust;
+    w.s = 0.18 + (Wt.i || 0) * 0.45 + (Wt.type === 'storm' ? 0.35 : 0) + w.gust + (G.alt || 0) * 0.35;   // yüksekte rüzgâr sert
     w.x = Math.cos(w.a) * w.s; w.y = Math.sin(w.a) * w.s * 0.5;
     const cs = 9 + w.s * 16;
     this.cloudOff.x += Math.cos(w.a) * cs * dt; this.cloudOff.y += Math.sin(w.a) * cs * 0.5 * dt;
@@ -241,7 +243,7 @@ const FX = {
       const q = cov >= 0.55 ? 1 : cov >= 0.3 ? 0.5 : 0;
       if (!q) continue;
       const k = (j * n + i) * 4;
-      d[k] = SNOW_PRINT[0]; d[k + 1] = SNOW_PRINT[1]; d[k + 2] = SNOW_PRINT[2]; d[k + 3] = q * 255;
+      d[k] = SNOW_MUL[0]; d[k + 1] = SNOW_MUL[1]; d[k + 2] = SNOW_MUL[2]; d[k + 3] = q * 255;
     }
     g.putImageData(img, 0, 0);
     sp = { c, R };
@@ -370,7 +372,7 @@ const FX = {
     if (this.snowTracks.length) {
       // melezde ışık geçişi parlak karı sıkıştırır: aynı silikliğe biraz daha koyu iz gerekir
       const ds = G.ds || 1, sm = ctx.imageSmoothingEnabled, ak = ds === 2 ? 1.35 : 1;
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = false; ctx.globalCompositeOperation = 'multiply';
       for (const t of this.snowTracks) {
         if (t.x < x0 || t.x > x1 || t.y < y0 || t.y > y1) continue;
         const a = PRINT_A[t.kind] * ak * Math.min(1, t.life / 25, (SNOW_LIFE - t.life) * 4);
@@ -379,7 +381,7 @@ const FX = {
         ctx.globalAlpha = a;
         ctx.drawImage(sp.c, (snap(t.x * ds) - sp.R) / ds, (snap(t.y * ds) - sp.R) / ds, sp.c.width / ds, sp.c.height / ds);
       }
-      ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = sm;
+      ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = sm; ctx.globalCompositeOperation = 'source-over';
     }
     ctx.lineWidth = 0.8;
     for (const r of this.ripples) {
