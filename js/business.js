@@ -37,7 +37,7 @@ const BizSystems = {
     return hash2(b.id, 17, (this.seed % 9973) + 3) < 0.6;
   },
   bizPrice(b) { return Math.round(BIZ[b.type].p * this.bizTownMul(this.bizTown(b.town)) / 5) * 5; },
-  bizBuildPrice(type, town) { return Math.round(BIZ[type].p * 0.9 * this.bizTownMul(town) / 5) * 5; },
+  bizBuildPrice(type, town, tier = 'std') { return Math.round(BIZ[type].p * 0.9 * this.bizTownMul(town) * BUILD_TIERS[tier].k / 5) * 5; },
   /* Bir mal türünün asıl üreticisi oyuncuya ait mi (zincir) */
   bizChain(g) {
     const src = GOODS[g].src[0][0];
@@ -120,7 +120,7 @@ const BizSystems = {
       if (!z.site || this.day < z.ready) continue;
       const lot = this.world.lots.find(l => l.id === z.lot);
       if (!lot) continue;
-      const b = this.world.buildOnLot(lot, z.type);
+      const b = this.world.buildOnLot(lot, z.type, z.tier);
       z.site = false; z.bid = b.id; z.stock = 0;
       this.world.buildMapImage(true);
       UI.toast(Tr('İnşaat Bitti'), Tr`${b.name} kapılarını açtı. İşletmecin ${z.mgr.name} seni bekliyor.`, 'ok');
@@ -294,11 +294,12 @@ const BizSystems = {
   },
   /* Bu arsaya sığan işletme türleri */
   lotTypes(lot) { return Object.keys(BIZ).filter(k => BUILDINGS[k].w <= lot.w && BUILDINGS[k].h <= lot.h); },
-  startBuild(lot, type) {
-    const t = this.bizTown(lot.town), pr = this.bizBuildPrice(type, t);
+  startBuild(lot, type, tier = 'std') {
+    if (!BUILD_TIERS[tier]) return false;
+    const t = this.bizTown(lot.town), pr = this.bizBuildPrice(type, t, tier);
     if (!this.spend(pr)) return false;
     const mgr = this.newManager();
-    this.biz.push({ lot: lot.id, bid: -1, site: true, ready: this.day + BUILD_DAYS, type, town: lot.town, stock: 0, cash: 0, mgr, since: this.day, bank: false, total: 0, last: 0 });
+    this.biz.push({ lot: lot.id, bid: -1, site: true, ready: this.day + BUILD_DAYS, type, tier, town: lot.town, stock: 0, cash: 0, mgr, since: this.day, bank: false, total: 0, last: 0 });
     this.world.lotSite(lot);
     this.stat('businesses', 1);
     Audio_.ui('cash');
@@ -310,7 +311,7 @@ const BizSystems = {
     const W = this.world;
     // kayıt sırası korunur: binalar aynı kimliği alsın diye sırayla dikilir
     const built = this.biz.filter(z => z.lot && !z.site).sort((a, c) => a.bid - c.bid);
-    for (const z of built) { const lot = W.lots.find(l => l.id === z.lot); if (lot) z.bid = W.buildOnLot(lot, z.type).id; }
+    for (const z of built) { const lot = W.lots.find(l => l.id === z.lot); if (lot) z.bid = W.buildOnLot(lot, z.type, z.tier).id; }
     for (const z of this.biz) if (z.site) { const lot = W.lots.find(l => l.id === z.lot); if (lot) W.lotSite(lot); }
     if (built.length) W.buildMapImage(true);
   },

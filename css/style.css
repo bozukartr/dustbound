@@ -405,6 +405,18 @@ body.modal-open #modals { background: radial-gradient(ellipse at 50% 45%, rgba(1
 .ps-e { margin-top: 12px; font-family: var(--type); font-size: 14px; color: #bfe0a0; line-height: 1.5; }
 .ps-e .bad, .bad { color: #ff9a8a; }
 .ps-p { margin-top: 12px; font-family: var(--type); font-size: 14px; color: var(--dim); }
+/* inşa menüleri (yapı türü): fiyat aralığı tek satırda kalsın */
+.panel.buildpick { width: min(700px, 94vw); }
+.panel.buildpick .pi-r { white-space: nowrap; }
+/* inşa menüsünde tasarım (kademe) seçimi: dar liste, geniş yan panelde dış ve iç önizleme yan yana (aynı ölçekte) */
+.panel.tierpick { width: min(1000px, 96vw); }
+.panel.tierpick .p-body { min-height: min(500px, 66vh); }
+.panel.tierpick .p-list { flex: 0 0 34%; }
+.panel.tierpick .p-side { flex: 1; width: auto; }
+.tier-prev { display: flex; gap: 16px; align-items: flex-end; margin: 6px 0 14px; }
+.tier-prev figure { margin: 0; min-width: 0; }
+.tier-prev img { display: block; width: 100%; height: auto; image-rendering: pixelated; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55)); }
+.tier-prev figcaption { margin-top: 6px; text-align: center; font-family: var(--sc); font-size: 13px; letter-spacing: 2px; color: var(--dim); }
 .dim { color: var(--dim); }
 .closed { color: #ffb0a0; font-style: italic; }
 .quote { font-style: italic; color: #f0e4c8; border-left: 2px solid var(--gold); padding-left: 10px; }

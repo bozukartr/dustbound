@@ -7,7 +7,8 @@
    - Tapulu (tapu dairesi / ilçe binasından Arazi Tapusu) ya da kaçak.
      Kaçak yapı ihbar edilirse 3 gün içinde tapuya bağlanmazsa mühürlenir.
    - İnşaat günler sürer ve şantiye her gün ilerler; yanında çalışırsan
-     hızlanır. İç tasarım birkaç tasarımdan rastgele biridir.
+     hızlanır. Görünüm ve iç tasarım seçilen kademeden gelir (ekonomik,
+     normal, gelişmiş, lüks); kademe fiyatı değiştirir.
    - Ahır, kuyu ve bostan yalnızca biten bir yapının yanına eklenir.
    Arazi yerel karo düzeni (HOME_FW x HOME_FH): yapı üst ortada, ahır
    solda, kuyu sağ üstte, bostan sağ altta, kapıdan aşağı patika.
@@ -63,14 +64,16 @@ const HomeSystems = {
   },
 
   /* ---------------- inşaat ---------------- */
-  homeStart(tx, ty, type, legal) {
+  /* Kademeye göre yapı fiyatı (tam dolar) */
+  homePrice(type, tier = 'std') { return Math.round(HOME_TYPES[type].p * BUILD_TIERS[tier].k); },
+  homeStart(tx, ty, type, legal, tier = 'std') {
     const P = this.player, T_ = HOME_TYPES[type];
     if (this.homeCheck(tx, ty)) return false;
     if (legal && !P.has('land_deed')) { UI.feed(Tr('Arazi tapun yok.'), 'warn'); return false; }
-    if (!this.spend(T_.p)) return false;
+    if (!BUILD_TIERS[tier] || !this.spend(this.homePrice(type, tier))) return false;
     if (legal) P.removeItem('land_deed', 1);
     P.removeItem('stakes', 1);
-    const h = { id: (this.homeSeq = (this.homeSeq || 0) + 1), tx, ty, type, design: rndi(0, 2), legal, work: 0, need: T_.days, since: this.day, done: false, addons: [], notice: 0, sealed: false };
+    const h = { id: (this.homeSeq = (this.homeSeq || 0) + 1), tx, ty, type, tier, design: rndi(0, 2), legal, work: 0, need: T_.days, since: this.day, done: false, addons: [], notice: 0, sealed: false };
     this.homes.push(h);
     this.homeApply(h, true);
     this.homePoi(h);
@@ -195,7 +198,7 @@ const HomeSystems = {
         for (let y = r.y; y < r.y + r.h; y += 2) { put(r.x, y, O.RUINWALL); put(r.x + r.w - 1, y, O.RUINWALL); }
       }
     } else if (!b) {
-      b = W.addBuilding(h.type, r.x, r.y, null, this.homeName(h), { home: h.id, design: h.design });
+      b = W.addBuilding(h.type, r.x, r.y, null, this.homeName(h), h.tier ? { home: h.id, design: h.design, tier: h.tier } : { home: h.id, design: h.design });
       built = true;
     }
     // tabela: kapının solunda
@@ -268,14 +271,15 @@ Object.assign(UI, {
   homeSide(k, legal) {
     const T_ = HOME_TYPES[k];
     return `<div class="ps-big">${Icons.glyph(k === 'hs_house' ? 'house' : 'hut', '#efe6d2', 'ic big')}</div><div class="ps-t">${BUILDINGS[k].n}</div><div class="ps-d">${T_.d}</div>
-      <div class="ps-e">${Tr`İnşaat: ${T_.days} gün`}<br>${legal ? Tr('Tapulu: yapın yasal olarak senin.') : Tr('Kaçak: ihbar edilirse 3 gün içinde tapuya bağlamazsan mühürlenir.')}</div>`;
+      <div class="ps-e">${Tr`İnşaat: ${T_.days} gün`}<br>${legal ? Tr('Tapulu: yapın yasal olarak senin.') : Tr('Kaçak: ihbar edilirse 3 gün içinde tapuya bağlamazsan mühürlenir.')}</div>
+      <div class="ps-p">${Tr('Dört tasarım: Ekonomik, Normal, Gelişmiş, Lüks.')}</div>`;
   },
   /* Kazıklar çakıldı: ne kurulacak? */
   openHomePlan(tx, ty) {
     const P = G.player;
     G.homePreview = { tx, ty, bad: false };
     const m = this.menu({
-      title: Tr('Yapı Kur'), cls: 'small', side: (it) => it.side || '',
+      title: Tr('Yapı Kur'), cls: 'small buildpick', side: (it) => it.side || '',
       sub: () => Tr`Cüzdan: ${fmtMoney(P.money)} · Arazi tapusu: ${P.count('land_deed')}`,
       onClose: () => { G.homePreview = null; },
       build: () => {
@@ -283,10 +287,13 @@ Object.assign(UI, {
         for (const legal of [true, false]) {
           it.push({ header: legal ? Tr('Tapulu (yasal)') : Tr('Kaçak (tapusuz)') });
           for (const k of Object.keys(HOME_TYPES)) {
-            const pr = HOME_TYPES[k].p, poor = P.money < pr;
-            it.push({ icon: Icons.glyph(k === 'hs_house' ? 'house' : 'hut', '#efe6d2'), label: BUILDINGS[k].n + (legal ? '' : Tr(' (kaçak)')), right: fmtMoney(pr), side: this.homeSide(k, legal),
+            const lo = G.homePrice(k, 'eco'), hi = G.homePrice(k, 'lux'), poor = P.money < lo, glyph = k === 'hs_house' ? 'house' : 'hut';
+            it.push({ icon: Icons.glyph(glyph, '#efe6d2'), label: BUILDINGS[k].n + (legal ? '' : Tr(' (kaçak)')), right: fmtRange(lo, hi), side: this.homeSide(k, legal),
               disabled: poor || (legal && !deed), why: legal && !deed ? Tr('Önce tapu dairesinden ya da ilçe binasından arazi tapusu almalısın.') : Tr('Yeterli paran yok.'),
-              fn: () => { if (G.homeStart(tx, ty, k, legal)) this.closeAll(); } });
+              // ikinci adım: tasarım (kademe) seçimi
+              fn: () => this.openTierPick({ type: k, glyph, title: BUILDINGS[k].n + (legal ? '' : Tr(' (kaçak)')), sub: () => Tr`Arazi tapusu: ${P.count('land_deed')} · İnşaat: ${HOME_TYPES[k].days} gün`,
+                note: legal ? Tr('Tapulu: yapın yasal olarak senin.') : Tr('Kaçak: ihbar edilirse 3 gün içinde tapuya bağlamazsan mühürlenir.'),
+                price: (tr) => G.homePrice(k, tr), pick: (tr) => { if (G.homeStart(tx, ty, k, legal, tr)) this.closeAll(); } }) });
           }
         }
         return it;
@@ -304,7 +311,7 @@ Object.assign(UI, {
         const it = [], job = G.homeJob(h);
         const st = h.legal ? Tr('Tapulu') : h.sealed ? `<span class="bad">${Tr('Kaçak · mühürlü')}</span>` : h.notice ? `<span class="bad">${Tr`Kaçak · ihbar edildi, ${Math.max(0, h.notice - G.day)} gün içinde tapuya bağla`}</span>` : Tr('Kaçak (tapusuz)');
         const adds = h.addons.map(a => `${HOME_ADDONS[a.k].n}${a.done ? '' : ` (%${G.homePct(a)})`}`).join(', ') || Tr('yok');
-        it.push({ html: `<div class="biz-card"><div><b>${Tr`Durum:`}</b> ${st}</div><div><b>${Tr`İnşaat:`}</b> ${h.done ? Tr('tamamlandı') : `%${G.homePct(h)} · ${Tr`${Math.max(0, Math.ceil(h.need - h.work))} gün kaldı`}`}</div><div><b>${Tr`Ekler:`}</b> ${adds}</div></div>` });
+        it.push({ html: `<div class="biz-card"><div><b>${Tr`Durum:`}</b> ${st}</div><div><b>${Tr`İnşaat:`}</b> ${h.done ? Tr('tamamlandı') : `%${G.homePct(h)} · ${Tr`${Math.max(0, Math.ceil(h.need - h.work))} gün kaldı`}`}</div><div><b>${Tr`Ekler:`}</b> ${adds}</div>${h.tier ? `<div><b>${Tr`Tasarım:`}</b> ${BUILD_TIERS[h.tier].n}</div>` : ''}</div>` });
         if (job && !h.sealed) it.push({ icon: '🔨', label: Tr('Şantiyede Çalış (2 saat)'), right: `%${G.homePct(job)}`, fn: () => { G.homeWork(h); } });
         if (!h.legal) it.push({ icon: '📜', label: Tr('Tapuya bağlamak için tapu dairesine ya da ilçe binasına git'), right: fmtMoney(G.homeLegalPrice(h)), disabled: true, why: '' });
         if (h.done && !h.sealed) {

@@ -318,6 +318,135 @@ const INT_PLANS = {
   },
   cantina: { std: [{ m: ['b@...b.g', 'RRR.....', '1.1.....', '......T.', '.T......', 'g.....P.'], rug: [[1.2, 4.1, 3.6, 1.6, 'g', '#a04a2a'], [5.4, 3.2, 3.4, 1.4, 'g', '#2a6a6a']] }] },
 };
+/* ---- İnşa kademeleri: oyuncunun kendi kurduğu ev ve işletmelerin hazır tasarımları ----
+   Satın alınan hazır yapılarda kullanılmaz. Her yapı türü için Ekonomik (eco), Normal (std), Gelişmiş (adv) ve Lüks (lux)
+   planı vardır; plan biçimi INT_PLANS ile aynıdır. Kademe işlevi değiştirmez: türün işlevsel eşyaları (yatak, sandık,
+   ocak, küvet, tezgâh, bar, kart masası...) her kademede bulunur, kademe eşya çeşidini, süsü, halıları, döşeme ve duvar
+   kaplamasını (IntDeco) ve dış cepheyi belirler. Kurallar: kapı sütununun son iki sırası boş; tezgâhın arkasındaki kişiye
+   ('@') ve her işlevsel eşyaya kapıdan yürünerek ulaşılır; masa ve kart masasının iki yanı boş (sandalyeler), iki masanın
+   sandalyeleri aynı karoya düşmez ve kapı yoluna taşmaz; piyanonun önü (piyanist) boş. */
+const TIER_PLANS = {
+  hs_shack: {
+    eco: { m: ['B.xH', '|...', 'b..n'] },
+    std: { m: ['BH.j', '|...', 'c...'], rug: [[2.1, 2.1, 2.8, 1.6, 'g', '#6a3a2a']] },
+    adv: { m: ['B.Hk', '|...', 'a..g'], rug: [[2, 2, 3, 1.8, 'p', '#5a3a24']] },
+    lux: { m: ['BqHj', '|...', 'aQ.G'], rug: [[2, 2.05, 3, 1.8, 'o', '#5a1a24']] },
+  },
+  hs_cabin: {
+    eco: { m: ['B.HxS', '|....', 'b....', 'n...x'] },
+    std: { m: ['BH.cS', '|..T.', '.....', 'j...g'], rug: [[2.6, 1.6, 2.8, 1.6, 'g', '#6a3a2a']] },
+    adv: { m: ['BHkdS', '|..T.', '.....', 'a...j'], rug: [[2.4, 1.6, 3, 1.7, 'p', '#5a3a24']] },
+    lux: { m: ['BHFqS', '|..T.', 'a....', 'Go.aQ'], rug: [[1.6, 1.6, 3.8, 2.6, 'o', '#5a1a24']] },
+  },
+  hs_house: {
+    eco: { m: ['BB.H.xS', '||.....', '..x....', 'b.....U', 'n......'] },
+    std: { m: ['BdH..ES', '|......', 'B..T...', '|.....U', 'g.....j'], rug: [[2.6, 2.6, 3.8, 1.8, 'g', '#6a3a2a']] },
+    adv: { m: ['BkH.dES', '|......', 'B..T.a.', '|.....U', 'a....jg'], rug: [[2.4, 2.5, 4.2, 2, 'p', '#5a3a24'], [2.2, 4.6, 2.4, 1.2, 'r', '#3a4a5a']] },
+    lux: { m: ['BqHFdES', '|......', 'B..T...', '|a...aU', 'G.Q..jG'], rug: [[2.3, 2.3, 4.4, 2.4, 'o', '#5a1a24'], [2.6, 4.4, 3.8, 1.4, 'o', '#1e3a4a']] },
+  },
+  barber: {
+    eco: { m: ['j...x', 'Y@..Y', '.....', 'c...b'] },
+    std: { m: ['jE.sj', 'Y@..Y', '.....', 'cc.hc'], rug: [[1.6, 2.9, 3.8, 0.9, 'r', '#6a2a2a']] },
+    adv: { m: ['jEqsj', 'Y@..Y', '.....', 'aa.hg'], rug: [[1.4, 2.85, 4.2, 1.3, 'g', '#5a2a3a']] },
+    lux: { m: ['jEqij', 'Y@..Y', 'G...G', 'aa.Qa'], rug: [[1.4, 2.85, 4.2, 1.3, 'o', '#5a1a24']] },
+  },
+  laundry: {
+    eco: { m: ['U.S..@', '....CC', 'U.....', 'xb...n'] },
+    std: { m: ['UUS..@', '....CC', 'U.....', 'n.h..b'], rug: [[1.4, 3.1, 3.6, 0.9, 'r', '#3a5a6a']] },
+    adv: { m: ['UjS..@', '....CC', 'U....U', 'cc..jg'], rug: [[1.6, 3.05, 3.6, 1.3, 'g', '#3a5a6a']] },
+    lux: { m: ['UjU..@', '....CC', 'U...iG', 'aa..jG'], rug: [[1.6, 3.05, 3.4, 1.4, 'o', '#2a4a5a']] },
+  },
+  bakery: {
+    eco: { m: ['O..@..', '.CCCC.', 'n.....', 'b....x'] },
+    std: { m: ['OOs@..', '.CCCC.', '.T....', 's...nb'], rug: [[1.2, 3.1, 2.6, 1.6, 'g', '#7a4a2a']] },
+    adv: { m: ['OOW@..', '.CCCC.', '.T....', 'm...mg'], rug: [[1.2, 3.1, 2.6, 1.6, 'p', '#5a3a24'], [3.6, 3.05, 2.8, 0.9, 'r', '#6a3a2a']] },
+    lux: { m: ['OOW@..', '.CCCC.', '.T....', 'm.Q.mG'], rug: [[1.2, 3.05, 2.6, 1.7, 'o', '#5a1a24'], [3.6, 3.05, 2.8, 0.95, 'o', '#3a2a4a']] },
+  },
+  butcher: {
+    eco: { m: ['W.@...', '.CCCC.', 'b.....', 'x...xn'] },
+    std: { m: ['..@%Wr', '..CCCC', 'x.....', 'xb...n'], rug: [[1.2, 3.05, 4.6, 0.9, 'r', '#5a3a24']] },
+    adv: { m: ['r.@%Wi', '..CCCC', 'm.....', 'm....b'], rug: [[2.1, 3.05, 4.6, 1.3, 'g', '#5a2a2a']] },
+    lux: { m: ['i.@%Wi', '..CCCC', 'm....m', 'mQ...G'], rug: [[2.1, 3.05, 4.4, 1.6, 'o', '#5a1a24']] },
+  },
+  tailor: {
+    eco: { m: ['x@..Es', 'CCC...', '.....M', 'b....W'] },
+    std: { m: ['s@..ME', 'CCC...', 'M....M', 'h....W'], rug: [[1.2, 3.1, 4.4, 0.9, 'r', '#5a3a5a']] },
+    adv: { m: ['k@..ME', 'CCC...', 'M....M', 'a.a..W'], rug: [[2.1, 3.05, 4, 1.6, 'g', '#5a3a5a']] },
+    lux: { m: ['i@..Mi', 'CCC...', 'M...QM', 'oo..aG'], rug: [[1.1, 3.05, 4.8, 1.9, 'o', '#4a2440']] },
+  },
+  mill: {
+    eco: { m: ['n.@..n', '.CC..n', '......', 'nn...x', 'Zb...x'] },
+    std: { m: ['nn%.@.', 'n..CC.', '......', 'nnx..x', 'Zb...b'] },
+    adv: { m: ['nnW@.s', 'n.CC..', '......', 'nnx...', 'Zb...b'], rug: [[2.4, 3.05, 3.4, 0.9, 'r', '#5a4a2a']] },
+    lux: { m: ['nnW@.k', 'n.CC..', 'G....G', 'nnx..%', 'ZbQ..b'], rug: [[2.4, 3.05, 3.4, 1.4, 'o', '#3a2a24']] },
+  },
+  smith: {
+    eco: { m: ['f.vW..r', '.....@.', '....CC.', 'nx.....'] },
+    std: { m: ['fv.Wb.r', '.....@.', '....CC.', 'nxb...x'] },
+    adv: { m: ['fvbWrr.', '.....@.', 'x...CC.', 'nb....b'], rug: [[1.2, 4.05, 3.4, 0.9, 'r', '#4a3a2a']] },
+    lux: { m: ['fvbWrri', '.....@.', 'm...CC.', 'G....tQ'], rug: [[1.6, 3.05, 3.6, 1.6, 'o', '#3a2a24']] },
+  },
+  pharmacy: {
+    eco: { m: ['x@..i', 'CCC..', '....b', 'n...x'] },
+    std: { m: ['i@..s', 'CCC..', 's...s', 'c...m'], rug: [[1.1, 3.05, 3.4, 0.9, 'r', '#2a4a4a']] },
+    adv: { m: ['i@..k', 'CCC..', 'a...m', 'g...m'], rug: [[1.9, 3.05, 2.6, 1.6, 'g', '#2a4a4a']] },
+    lux: { m: ['i@..q', 'CCC..', 'i...m', 'aQ..G'], rug: [[1.9, 3, 2.6, 1.9, 'o', '#1e3a3a']] },
+  },
+  cantina: {
+    eco: { m: ['b@...b.n', 'RRR.....', '1.1.....', '.....T..', '.T......', '......P.'] },
+    std: { m: ['b@..p..g', 'RRR.....', '1.1.....', '.T....T.', '........', 'g.P....g'], rug: [[1.2, 3.6, 3.4, 1.8, 'g', '#a04a2a'], [5.6, 3.6, 3.2, 1.8, 'g', '#2a6a6a']] },
+    adv: { m: ['b@..Fpqg', 'RRR.....', '1.1.....', '.T...T..', '......P.', 'a.P....g'], rug: [[1.2, 3.6, 3.4, 1.8, 'g', '#a04a2a'], [5, 3.6, 3.4, 2.6, 'g', '#2a6a6a']] },
+    lux: { m: ['b@..Fp.G', 'RRR.....', '1.1.....', '.T..l=..', '......P.', 'G.P...QG'], rug: [[1.2, 3.6, 3.4, 1.8, 'o', '#a04a2a'], [4.6, 3.5, 3.8, 2.8, 'o', '#2a3a4a'], [2.2, 5.6, 2.6, 1.2, 'o', '#5a1a24']] },
+  },
+  stable: {
+    eco: { m: ['ZL~.L..L.', '.L..L..L.', '.......@.', 't.....CC.', 'b.n....xb'] },
+    std: { m: ['ZL~.L.ZL~', '.L..L..L.', '.......@.', 'tt....CC.', 'b.n....xb'] },
+    adv: { m: ['ZL~.L~ZL~', '.L..L..L.', 't......@.', 'tt....CC.', 'b.n...h.b'], rug: [[6.4, 4.05, 3.2, 0.9, 'r', '#6a4a2a']] },
+    lux: { m: ['ZL~.L~ZL~', '.L..L..L.', 'G......@.', 'tt.t..CC.', 'G.nQ..i.G'], rug: [[6.4, 4.05, 3.2, 1.3, 'o', '#5a2a24']] },
+  },
+  general: {
+    eco: { m: ['s..@...x', '.CCCCC..', '........', 'n......b', 'xn......'] },
+    std: { m: ['ss%@...s', '.CCCCC..', '........', 'n.m...ss', 'xb......'], rug: [[2, 3.05, 5, 0.9, 'r', '#6a3a2a']] },
+    adv: { m: ['ss.@..ks', '.CCCC.%.', '........', 'm.m...ss', 'g.....xb'], rug: [[2, 3.05, 5, 1.3, 'g', '#7a4a2a']] },
+    lux: { m: ['iq.@..ki', '.CCCC.%.', '........', 'm.m..m.G', 'G.Q...Qi'], rug: [[2, 3.05, 5.6, 1.9, 'o', '#6a2430']] },
+  },
+  saloon: {
+    eco: { m: ['b.@....b.p', 'RRRRR.....', '1.1.1.....', '........P.', '.T........', '.......T..', 'b........b'] },
+    std: { m: ['bb@...S..p', 'RRRRR.....', '1.1.1.....', '..T....P..', '..........', '.T.....T..', 'g........g'], rug: [[6.6, 3.4, 3.8, 1.6, 'o', '#4a2418']] },
+    adv: { m: ['bb@...qF.p', 'RRRRR.....', '1.1.1.....', '.T....l=..', '..........', '..P....T..', 'g.......ag'], rug: [[6.4, 3.3, 3.6, 1.6, 'o', '#4a2418'], [1.2, 5.4, 3.6, 1.6, 'g', '#2a3a4a']] },
+    lux: { m: ['bb@...GqFp', 'RRRRR.....', '1.1.1.....', '.P....l=..', '..........', '..P....T..', 'G.Q.....QG'], rug: [[6.3, 3.2, 3.8, 1.8, 'o', '#5a1a24'], [1.1, 3.2, 2.8, 1.6, 'o', '#2a3a4a'], [1.6, 5.4, 3.4, 1.8, 'o', '#5a1a24'], [6.6, 5.4, 3.4, 1.8, 'o', '#2a3a4a']] },
+  },
+  gambling: {
+    eco: { m: ['b@......p', 'RRR......', '1.1......', '.P...e=..', '.........', '.P.....P.'] },
+    std: { m: ['b@..qS.gp', 'RRR......', '1.1......', '.P..e=.P.', '.........', '.P.....P.'], rug: [[4.4, 3.3, 3.4, 1.6, 'o', '#3a1418']] },
+    adv: { m: ['b@..qF.Gp', 'RRR......', '1.1......', '.P..e=.P.', '.....l=..', '.P.....P.'], rug: [[4.4, 3.3, 3.4, 1.6, 'o', '#3a1418'], [5.4, 4.6, 3.4, 1.6, 'o', '#1e2a3a']] },
+    lux: { m: ['b@..qFGQp', 'RRR......', '1.1.....G', '.P..e=.P.', '.....l=..', '.P.....P.'], rug: [[4.3, 3.2, 3.6, 1.8, 'o', '#4a1420'], [5.3, 4.5, 3.6, 1.8, 'o', '#1e2a3a'], [1.1, 3.4, 2.8, 3.4, 'o', '#4a1420']] },
+  },
+  brewery: {
+    eco: { m: ['D=..V...V', '.........', '.....bbb.', 'nn.......', 'x.......b', 'xx.....W.'], at: [1.5, 2.2] },
+    std: { m: ['D=.V.V.V.', '.........', '.....bbbb', 'nn.......', 'xx.....bb', 'x.....W..'], at: [1.5, 2.2] },
+    adv: { m: ['D=.V.V.Vk', '.........', '.....bbbb', 'nn.....%.', 'xx.....bb', 'x..h..W..'], at: [1.5, 2.2], rug: [[1, 2.4, 2.6, 1.4, 'g', '#5a3a24']] },
+    lux: { m: ['D=qV.V.Vk', '.........', 'G....bbbb', 'nn.....%.', 'xx.Q...bb', 'x.....W.G'], at: [1.5, 2.2], rug: [[1, 2.4, 2.8, 1.5, 'o', '#3a2a24']] },
+  },
+};
+/* Otel (iki katlı): merdivenler, resepsiyon ve oda düzeni sabit; kademe lobinin eşyalarını [yerel x, y, INT_KEY] ve üst
+   kattaki kiralık odanın sandalye/raf yerindeki eşyayı belirler */
+const HOTEL_TIER = {
+  eco: { lobby: [[3, 1, 'x'], [6, 1, 'b'], [2, 5, 'T'], [7, 5, 'T'], [2, 6, 'c'], [7, 6, 'c'], [1, 6, 'b'], [8, 6, 'n']], room: { chair: 'c', shelf: 'x' } },
+  std: { lobby: [[3, 1, 's'], [6, 1, 's'], [2, 5, 'T'], [7, 5, 'T'], [2, 6, 'o'], [3, 6, 'o'], [6, 6, 'o'], [7, 6, 'o'], [1, 6, 'g'], [8, 6, 'g']], room: { chair: 'c', shelf: 's' } },
+  adv: { lobby: [[3, 1, 'k'], [6, 1, 'q'], [2, 5, 'T'], [7, 5, 'T'], [2, 6, 'o'], [3, 6, 'o'], [6, 6, 'o'], [7, 6, 'o'], [1, 6, 'G'], [8, 6, 'G']], room: { chair: 'c', shelf: 'E' } },
+  lux: { lobby: [[3, 1, 'q'], [6, 1, 'k'], [2, 5, 'T'], [7, 5, 'T'], [2, 6, 'o'], [3, 6, 'o'], [6, 6, 'o'], [7, 6, 'o'], [1, 6, 'G'], [8, 6, 'G'], [4, 6, 'Q']], room: { chair: 'a', shelf: 'j' } },
+};
+/* Binanın kullandığı iç plan (eşya düzeni ve halılar): oyuncunun kurduğu yapıda kademe planı, öbürlerinde b.lay */
+function planOfB(b) {
+  const tp = b.tier && TIER_PLANS[b.type];
+  if (tp) return tp[b.tier] || null;
+  const pl = INT_PLANS[b.type], lay = b.lay || 's0', tier = pl && (lay[0] === 'r' ? pl.rich : pl.std);
+  return tier ? tier[+lay.slice(1)] || null : null;
+}
+/* Zengin görünüm (yaldızlı süs, mermer tezgâh, aplikler): kademeli yapıda yalnızca Lüks, öbürlerinde zengin şehir */
+const richB = (b) => b.tier ? b.tier === 'lux' : !!b.modern;
+
 /* Ateşli eşyalar (şömine, ocak, fırın): içerideyken titreyen sıcak ışık verir */
 const HEARTH_O = { [O.FIREPLACE]: 62, [O.FORGE]: 70, [O.OVEN]: 56 };
 
@@ -694,6 +823,7 @@ class World {
     b.door = { x: (x + Math.floor(w / 2)) * TS + TS / 2, y: (y + h) * TS + 6 };
     if (town && town.modern) b.modern = 1;   // zengin şehrin tuğla ve taş cepheli binaları
     if (extra) Object.assign(b, extra);
+    if (b.tier) b.modern = 0;   // oyuncunun kurduğu yapının görünümünü şehir değil, seçtiği kademe belirler
     b.enter = !def.noInt && w >= 5 && h >= 5;
     b.doorI = (y + h - 1) * WW + x + Math.floor(w / 2);
     this.buildings.push(b);
@@ -705,7 +835,7 @@ class World {
       if (this.tile[i] === T.DEEP || this.tile[i] === T.WATER) this.tile[i] = T.TOWN;
     }
     // veranda
-    for (let xx = x; xx < x + w; xx++) if (this.inb(xx, y + h)) { const i = (y + h) * WW + xx; if (!(this.flags[i] & 8)) { this.tile[i] = b.modern ? T.PAVE : T.PLANK; this.flags[i] |= 1; this.obj[i] = 0; } }   // zengin şehirde taş kaldırım
+    for (let xx = x; xx < x + w; xx++) if (this.inb(xx, y + h)) { const i = (y + h) * WW + xx; if (!(this.flags[i] & 8)) { this.tile[i] = richB(b) ? T.PAVE : T.PLANK; this.flags[i] |= 1; this.obj[i] = 0; } }   // zengin şehirde (ve lüks yapının önünde) taş kaldırım
     // pencereler -> gece ışıkları
     if (!def.ruin && type !== 'mineentrance') {
       const n = Math.max(1, Math.floor(w / 3));
@@ -736,11 +866,11 @@ class World {
     this.lotRefresh(lot);
   }
   /* Arsaya bina kur: bina arsanın ön kenarına oturur, ortalanır */
-  buildOnLot(lot, type) {
+  buildOnLot(lot, type, tier) {
     const def = BUILDINGS[type], town = this.towns.find(t => t.id === lot.town);
     this.lotClear(lot);
     const bx = lot.x + ((lot.w - def.w) >> 1), by = lot.y + lot.h - def.h;
-    const b = this.addBuilding(type, bx, by, town, undefined, { lot: lot.id });
+    const b = this.addBuilding(type, bx, by, town, undefined, tier ? { lot: lot.id, tier } : { lot: lot.id });
     town.buildings.push(b);
     lot.built = b;
     this.lotRefresh(lot);
@@ -771,17 +901,29 @@ class World {
     if (b.type === 'hotel') {
       if (isHotel2(b)) {
         // lobi: resepsiyon girişin karşısında, binanın tam ortasında; iki arka köşede üst kata merdiven; önde iki oturma köşesi
+        // (oyuncunun kurduğu otelde lobinin eşyaları kademeye göre)
         for (let ly = 1; ly <= 3; ly++) { put(1, ly, O.STAIRS); put(W - 2, ly, O.STAIRS); }
-        row(2, 3, W - 4, O.COUNTER); b.staff = at(W / 2 - 0.5, 1); put(3, 1, O.SHELF); put(W - 4, 1, O.SHELF);
-        put(2, F - 1, O.TABLE); put(W - 3, F - 1, O.TABLE);
-        put(2, F, O.SOFA); put(3, F, O.SOFA); put(W - 4, F, O.SOFA); put(W - 3, F, O.SOFA);
-        put(1, F, O.PLANT); put(W - 2, F, O.PLANT);
+        row(2, 3, W - 4, O.COUNTER); b.staff = at(W / 2 - 0.5, 1);
+        const HT = b.tier && HOTEL_TIER[b.tier];
+        if (HT) for (const [lx, ly, ch] of HT.lobby) put(lx, ly, INT_KEY[ch]);
+        else {
+          put(3, 1, O.SHELF); put(W - 4, 1, O.SHELF);
+          put(2, F - 1, O.TABLE); put(W - 3, F - 1, O.TABLE);
+          put(2, F, O.SOFA); put(3, F, O.SOFA); put(W - 4, F, O.SOFA); put(W - 3, F, O.SOFA);
+          put(1, F, O.PLANT); put(W - 2, F, O.PLANT);
+        }
       } else { row(3, 1, 3, O.COUNTER); b.staff = at(2, 2); bed(W - 3, 1); bed(W - 2, 1); put(D - 1, 1, O.TUB); put(W - 2, F, O.PLANT); put(1, F, O.CHAIR); }
     } else {
-      const pl = INT_PLANS[b.type], tier = pl && (b.modern && pl.rich ? pl.rich : pl.std);
-      if (tier) {
-        const k = b.design !== undefined ? b.design % tier.length : Math.floor(hash2(b.x, b.y, 53) * tier.length), plan = tier[k];
-        b.lay = (tier === pl.std ? 's' : 'r') + k;
+      // oyuncunun kurduğu yapı: seçtiği kademenin planı; öbürleri: türün planlarından biri (zengin şehirde zengin plan)
+      let plan = b.tier && TIER_PLANS[b.type] ? TIER_PLANS[b.type][b.tier] : null;
+      if (!plan) {
+        const pl = INT_PLANS[b.type], tier = pl && (b.modern && pl.rich ? pl.rich : pl.std);
+        if (tier) {
+          const k = b.design !== undefined ? b.design % tier.length : Math.floor(hash2(b.x, b.y, 53) * tier.length);
+          plan = tier[k]; b.lay = (tier === pl.std ? 's' : 'r') + k;
+        }
+      }
+      if (plan) {
         plan.m.forEach((line, r) => {
           for (let c = 0; c < line.length; c++) {
             const ch = line[c], lx = c + 1, ly = r + 1;
@@ -1894,8 +2036,9 @@ class World {
         put(R.door[0], R.door[1], O.RDOOR);
         if (k !== open) return;
         put(R.bed[0], R.bed[1], O.BED); put(R.bed[0], R.bed[1] + 1, O.IBLOCK);
-        if (R.chair) put(R.chair[0], R.chair[1], O.CHAIR);
-        if (R.shelf) put(R.shelf[0], R.shelf[1], O.SHELF);
+        const RT = b.tier && HOTEL_TIER[b.tier] ? HOTEL_TIER[b.tier].room : null;   // oyuncunun otelinde oda eşyası kademeye göre
+        if (R.chair) put(R.chair[0], R.chair[1], RT ? INT_KEY[RT.chair] : O.CHAIR);
+        if (R.shelf) put(R.shelf[0], R.shelf[1], RT ? INT_KEY[RT.shelf] : O.SHELF);
       });
     }
     b.floor = lv ? 1 : 0; b.openRoom = lv ? open : -1;

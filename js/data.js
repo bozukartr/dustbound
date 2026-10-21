@@ -445,6 +445,15 @@ const PROPERTIES = [
   { id: 'estate', n: 'Clement Konağı', p: 1800, near: [0.82, 0.52], perks: 'Lüks konak. Günlük $4 kira geliri.', income: 4 },
 ];
 
+/* İnşa kademeleri: oyuncunun kendi kurduğu ev ve işletmenin tasarımı ve fiyatı (k: türün fiyatına çarpan). Kademe işlevi
+   değiştirmez; eşya çeşidi, süs, döşeme, duvar ve dış cephe değişir. Satın alınan hazır yapılarda yoktur. */
+const BUILD_TIERS = {
+  eco: { n: 'Ekonomik', k: 0.75, d: 'Sade ve ucuz: boyasız, yıpranmış tahta; yalnızca gerekli eşyalar, sandık ve fıçılarla idare.' },
+  std: { n: 'Normal', k: 1, d: 'Düzgün ve kullanışlı: işin gerektirdiği her şey yerli yerinde; olağan tahta cephe.' },
+  adv: { n: 'Gelişmiş', k: 1.4, d: 'Rahat ve bakımlı: daha iyi döşeme ve duvar, halılar, süslü eşyalar; boyalı, beyaz pervazlı cephe.' },
+  lux: { n: 'Lüks', k: 2, d: 'Gösterişli: en iyi döşeme ve duvar kaplaması, işlemeli halılar, palmiye ve lamba gibi süsler; çoğu yapıda tuğla ya da taş cephe.' },
+};
+const TIER_KEYS = ['eco', 'std', 'adv', 'lux'];
 /* ---- Kendi yapın (homestead.js) ----
    Kasabalardan uzakta, uygun boş araziye; tapulu ya da kaçak. Yalnızca konaklama yapıları.
    Ekler (ahır, kuyu, bostan) yalnızca biten bir yapının yanına kurulur. p fiyat ($), days inşaat günü. */

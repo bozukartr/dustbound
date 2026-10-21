@@ -436,7 +436,7 @@ const Cinema = (() => {
   }
   /* tek bina: yerel eksenlerde ön yüz +z (güney), taban 0 */
   function build3d(m, g, b, def, night, R) {
-    const w = b.w, d = b.h, brick = def.brick || b.modern, wall = brick ? (def.brick ? def.wall : '#8a5a48') : def.wall, roofC = def.roof;
+    const w = b.w, d = b.h, brick = def.brick || richB(b), wall = brick ? (def.brick ? def.wall : '#8a5a48') : def.wall, roofC = def.roof;
     const H = def.tall ? 6.4 : def.church ? 5 : 3.6 + (w >= 10 ? 0.5 : 0), win = night ? g : m, wc = (k) => night ? (k % 3 ? '#ffc870' : '#ffb060') : '#5a7a90';
     const fz = d / 2;
     if (def.ruin) { for (const [a, c2] of [[-w / 2, 0], [w / 2, 0]]) m.box(a + (a < 0 ? 0.2 : -0.2), 0, c2, 0.4, R.range(1, 2.4), d * 0.8, '#5a4a3a'); m.box(0, 0, -fz + 0.2, w * 0.7, 1.6, 0.4, '#5a4a3a'); return; }
