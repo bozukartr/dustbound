@@ -2425,13 +2425,39 @@ const UI = {
   openBuildMenu(lot) {
     const t = G.world.towns.find(tw => tw.id === lot.town);
     this.menu({
-      title: Tr('İnşaat'), wallet: true, sub: () => Tr`${t.n} • ${BUILD_DAYS} günde biter`, cls: 'small', side: (it) => it.side || '',
+      title: Tr('İnşaat'), wallet: true, sub: () => Tr`${t.n} • ${BUILD_DAYS} günde biter`, cls: 'small buildpick', side: (it) => it.side || '',
       build: () => G.lotTypes(lot).sort((a, c) => BIZ[a].p - BIZ[c].p).map(k => {
-        const pr = G.bizBuildPrice(k, t), B = BIZ[k];
-        return { icon: BICON[k] ? Icons.glyph(BICON[k], '#efe6d2') : '🏪', label: BUILDINGS[k].n, right: fmtMoney(pr), disabled: G.player.money < pr, why: Tr('Yeterli paran yok.'),
-          side: this.bizSide(k, t), fn: () => { if (G.startBuild(lot, k)) this.closeAll(); } };
+        const lo = G.bizBuildPrice(k, t, 'eco'), hi = G.bizBuildPrice(k, t, 'lux');
+        return { icon: BICON[k] ? Icons.glyph(BICON[k], '#efe6d2') : '🏪', label: BUILDINGS[k].n, right: fmtRange(lo, hi), disabled: G.player.money < lo, why: Tr('Yeterli paran yok.'),
+          side: this.bizSide(k, t) + `<div class="ps-p">${Tr('Dört tasarım: Ekonomik, Normal, Gelişmiş, Lüks.')}</div>`,
+          fn: () => this.openTierPick({ type: k, glyph: BICON[k] || 'store', sub: () => Tr`${t.n} • ${BUILD_DAYS} günde biter`,
+            note: Tr('Tasarım yalnızca görünümü ve fiyatı değiştirir; işletmenin geliri aynıdır.'),
+            price: (tr) => G.bizBuildPrice(k, t, tr), pick: (tr) => { if (G.startBuild(lot, k, tr)) this.closeAll(); } }) };
       }),
     });
+  },
+  /* Oyuncunun kurduğu yapının tasarımı (hazır alınan yapılarda yok): dört kademe, fiyatı ve önizlemesi (dışı ve içi).
+     Önizleme yalnızca seçili kademe için, ilk seçildiğinde çizilir. o: { type, glyph, title?, sub, note, price(k), pick(k) } */
+  openTierPick(o) {
+    const COL = { eco: '#a89a86', std: '#efe6d2', adv: '#a8d0e8', lux: '#f0cc60' };
+    const m = this.menu({
+      title: o.title || BUILDINGS[o.type].n, sub: o.sub, wallet: true, cls: 'tierpick',
+      side: (it) => it.tier ? this.tierSide(o.type, it.tier, o.note) : '',
+      build: () => TIER_KEYS.map(k => {
+        const pr = o.price(k);
+        return { tier: k, icon: Icons.glyph(o.glyph, COL[k]), label: BUILD_TIERS[k].n, right: fmtMoney(pr), disabled: G.player.money < pr, why: Tr('Yeterli paran yok.'), fn: () => o.pick(k) };
+      }),
+    });
+    // normal kademe seçili açılır
+    const n = m.el.querySelector('.p-item[data-i="1"]');
+    if (n) m.setFocus(n, true);
+    return m;
+  },
+  tierSide(type, k, note) {
+    const p = Spr.tierPreview(type, k), T_ = BUILD_TIERS[k];
+    const fig = (src, w, cap) => `<figure style="flex:${w} 1 0"><img src="${src}" alt=""><figcaption>${cap}</figcaption></figure>`;
+    return `<div class="ps-t">${T_.n}</div><div class="tier-prev" style="max-width:${Math.round((p.ew + p.iw) * 3 + 16)}px">${fig(p.ext, p.ew, Tr('Dışı'))}${fig(p.int, p.iw, Tr('İçi'))}</div>
+      <div class="ps-d">${T_.d}</div>${note ? `<div class="ps-e">${note}</div>` : ''}`;
   },
   /* İşletme türü açıklaması (yan panel) */
   bizSide(type, t) {
@@ -2446,7 +2472,7 @@ const UI = {
   bizItems(b, z) {
     const B = BIZ[z.type], T = MGR_TRAITS[z.mgr.trait], it = [];
     it.push({ header: Tr('İşletmen') });
-    it.push({ html: `<div class="biz-card"><div><b>${Tr`İşletmeci:`}</b> ${escapeHtml(z.mgr.name)} <span class="dim">(${T.n})</span></div><div><b>${Tr`Stok:`}</b> <span class="st-${G.bizStockCls(z)}">${G.bizStockWord(z)}</span>${B.goods ? ` <span class="dim">— ${GOODS[B.goods].n}</span>` : ''}</div><div><b>${Tr`Dünkü gelir:`}</b> ${fmtMoney(z.last)} &nbsp; <b>${Tr`Toplam:`}</b> ${fmtMoney(z.total)}</div></div>` });
+    it.push({ html: `<div class="biz-card"><div><b>${Tr`İşletmeci:`}</b> ${escapeHtml(z.mgr.name)} <span class="dim">(${T.n})</span></div><div><b>${Tr`Stok:`}</b> <span class="st-${G.bizStockCls(z)}">${G.bizStockWord(z)}</span>${B.goods ? ` <span class="dim">— ${GOODS[B.goods].n}</span>` : ''}</div><div><b>${Tr`Dünkü gelir:`}</b> ${fmtMoney(z.last)} &nbsp; <b>${Tr`Toplam:`}</b> ${fmtMoney(z.total)}</div>${z.tier ? `<div><b>${Tr`Tasarım:`}</b> ${BUILD_TIERS[z.tier].n}</div>` : ''}</div>` });
     it.push({ icon: '💵', label: Tr('Kasayı Al'), right: fmtMoney(z.cash), disabled: z.cash < 0.01, why: Tr('Kasa boş.'), fn: () => G.bizCollect(z) });
     const dl = G.deliverables(b);
     if (dl.length) it.push({ icon: '📦', label: Tr`Mal Teslim Et (${dl.length})`, fn: () => G.deliverGoods(b) });

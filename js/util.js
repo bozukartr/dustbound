@@ -104,6 +104,7 @@ class Heap {
 
 /* 1890 doları: bir doların altındaki tutarlar sent olarak (25¢), üstü $1.50 biçiminde */
 const fmtMoney = v => { const c = Math.round(v * 100); return Math.abs(c) < 100 && c !== 0 ? c + '¢' : '$' + (c / 100).toFixed(2); };
+const fmtRange = (a, b) => '$' + Math.round(a) + '–' + Math.round(b);   // fiyat aralığı, tam dolar ($23–60)
 /* Dünya uzaklığı (piksel; 1 piksel ≈ 3.2 m, haritadaki ölçekle aynı): kısa mesafe yarda, uzun mesafe mil */
 const fmtDist = px => {
   const mi = px / 502.8;

@@ -68,10 +68,13 @@ module.exports = {
         HS.stand(S1[0], S1[1]); G.consume('stakes');
         const m0 = P.money;
         UI.top().items.find(i => i.label === BUILDINGS.hs_cabin.n).fn();
+        const tiers = UI.top().items.map(i => i.tier);   // ikinci adım: tasarım (kademe)
+        UI.top().items.find(i => i.tier === 'std').fn();
         const h = G.homes[0]; window.H1 = h;
-        return { locked, deed, spent: m0 - P.money, deedLeft: P.count('land_deed'), stakes: P.count('stakes'), legal: h && h.legal, type: h && h.type, planks: (() => { let n = 0; const rr = G.homeRect(h); for (let y = rr.y; y < rr.y + rr.h; y++) for (let x = rr.x; x < rr.x + rr.w; x++) if (G.world.tile[y * WW + x] === T.PLANK) n++; return n; })(), crates: HS.objs(h, O.CRATE), modal: UI.isModal() };
+        return { locked, deed, tiers, tier: h && h.tier, spent: m0 - P.money, deedLeft: P.count('land_deed'), stakes: P.count('stakes'), legal: h && h.legal, type: h && h.type, planks: (() => { let n = 0; const rr = G.homeRect(h); for (let y = rr.y; y < rr.y + rr.h; y++) for (let x = rr.x; x < rr.x + rr.w; x++) if (G.world.tile[y * WW + x] === T.PLANK) n++; return n; })(), crates: HS.objs(h, O.CRATE), modal: UI.isModal() };
       });
       t.ok(r.locked, 'tapu yokken tapulu seçenek kapalı'); t.eq(r.deed, 1, 'tapu alındı');
+      t.eq(r.tiers, ['eco', 'std', 'adv', 'lux'], 'yapı seçilince dört tasarım sorulur'); t.eq(r.tier, 'std', 'seçilen tasarım');
       t.eq(r.spent, 80, 'kulübe $80'); t.eq(r.deedLeft, 0, 'tapu harcandı'); t.eq(r.stakes, 1, 'kazık harcandı');
       t.ok(r.legal, 'tapulu'); t.eq(r.type, 'hs_cabin', 'tür'); t.eq(r.planks, 42, 'döşeme'); t.ok(r.crates >= 2, 'malzeme sandıkları'); t.ok(!r.modal, 'menü kapandı');
     });

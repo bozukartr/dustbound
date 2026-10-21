@@ -19,6 +19,26 @@ const MODERN_TYPE_WALL = { bank: '#cfc6b4', county: '#c8c0ae', hotel: '#d4c8b0',
 const MODERN_AWN = ['#a83a2a', '#2e6a4a', '#2e4a7a', '#7a2a5a', '#a8782a'];
 const MODERN_SHOP = new Set(['general', 'tailor', 'bakery', 'pharmacy', 'barber', 'butcher', 'gunsmith', 'saloon', 'gambling', 'laundry', 'brewery', 'fence']);
 const MODERN_SKIP = new Set(['church', 'station', 'stable', 'barn', 'lighthouse', 'mineentrance', 'ruin', 'docks', 'warehouse', 'lot']);
+/* Oyuncunun kurduğu (kademeli) yapının görünüm ayrıntıları türüne ve kademesine bağlıdır: menüdeki önizleme dünyadaki
+   binayla aynı görünür; öbür yapılarda konuma göre seçilir. Lüks yapı tuğla ya da taş (modern) cepheli; modern cephesi
+   olmayan türlerde (ahır) gelişmiş gibi boyalı. Ekonomik: boyasız, yıpranmış tahta; gelişmiş: boyalı, beyaz pervazlı. */
+const typeSeed = (t) => { let n = 7; for (let i = 0; i < t.length; i++) n = (n * 31 + t.charCodeAt(i)) | 0; return n; };
+const bHash = (b, s) => b.tier ? hash2(typeSeed(b.type), TIER_KEYS.indexOf(b.tier) + 1, s) : hash2(b.x, b.y, s);
+const modernB = (b) => richB(b) && !MODERN_SKIP.has(b.type);
+const ADV_PAINT = ['#d8ccb0', '#a8b4a0', '#9aa8b8', '#c8b078', '#b8a0a0', '#e0d8c8'], ADV_ROOF = ['#6a2e24', '#3e4a52', '#4a5a3a', '#5a3a2a'];
+function bCol(b) {
+  const d = b.def;
+  if (b.tier === 'eco') return { wall: mixHex(d.wall, '#7c7064', 0.6), roof: mixHex(d.roof, '#4a4440', 0.55), trim: null, worn: true };
+  if (b.tier === 'adv' || b.tier === 'lux') return { wall: ADV_PAINT[Math.floor(bHash(b, 61) * ADV_PAINT.length)], roof: ADV_ROOF[Math.floor(bHash(b, 62) * ADV_ROOF.length)], trim: '#ece6d8', worn: false };
+  return { wall: d.wall, roof: d.roof, trim: null, worn: false };
+}
+/* Otelin döşeme, halı ve duvar kâğıdı renkleri (otel kendi çizimini korur); oyuncunun kurduğu otelde kademeye göre:
+   ekonomik halısız, soluk tahta ve kâğıt; gelişmiş bal rengi tahta, lacivert halı; lüks koyu cilalı tahta, bordo ipek */
+const HOTEL_LOOK = {
+  std: { fl: '#6e4a32', rug: '#7a2a2a', wp: '#4e5e40' }, eco: { fl: '#5e5446', rug: null, wp: '#6a604c' },
+  adv: { fl: '#7a5638', rug: '#2a4466', wp: '#3a5260' }, lux: { fl: '#4e2e1c', rug: '#6a1428', wp: '#5a1e2a' },
+};
+const hotelLook = (b) => HOTEL_LOOK[b.tier] || HOTEL_LOOK.std;
 const AUTUMN_PAL = [['#7a3416', '#a84e1c', '#d07a2a'], ['#8a5a14', '#b88024', '#e0aa3a'], ['#6a3a1a', '#94501e', '#c07030'], ['#8a6a1a', '#b89424', '#e8c040']];
 
 /* ---- İç mekân kaplamaları: iki çizicinin ortak deseni ----
@@ -58,6 +78,26 @@ const IntDeco = (() => {
     brewery: [['brick', '#7a4a30'], ['brick', '#7a4a30']], mill: [['plank', '#9a8060', 'saw'], ['plankv', '#8a7050']], county: [['plank', '#6e5232'], ['paper', '#8a8468']],
     post: [['plank', '#7a5a3a'], ['paper', '#5a6a70']], warehouse: [['wide', '#7a6a50'], ['plankv', '#6a5a48']], cantina: [['ttile', '#9e5a3c'], ['plaster', '#d8b888']],
   };
+  /* Kademe kaplamaları (oyuncunun kurduğu yapı): eco, adv, lux; Normal kademe türün standart kaplamasıdır */
+  const TIER = {
+    hs_shack: { eco: [['plank', '#5a4632'], ['plankv', '#5a4230']], adv: [['wide', '#7a5a3a'], ['paper', '#8a7a5a']], lux: [['parquet', '#7a5030'], ['panel', '#5a3a24']] },
+    hs_cabin: { eco: [['plank', '#5a4430'], ['log', '#5a3e24']], adv: [['wide', '#7a5a3a'], ['log', '#7a5434']], lux: [['parquet', '#7a5030'], ['panel', '#5a3a24']] },
+    hs_house: { eco: [['plank', '#6a5038'], ['plankv', '#6a4e36']], adv: [['wide', '#7a5a3a'], ['stripe', '#7a6a50']], lux: [['parquet', '#7a5030'], ['damask', '#3a4a5a']] },
+    barber: { eco: [['plank', '#6a5440'], ['plaster', '#b8a890']], adv: [['checker', '#33302c', '#d8d0c0'], ['stripe', '#c8b8a0']], lux: [['marble', '#e6e0d4', '#5a2a2a'], ['damask', '#5a1a24']] },
+    laundry: { eco: [['plank', '#6a5e50'], ['plaster', '#b8b8b0']], adv: [['hex', '#e4e2da', '#3a5a6a'], ['tile', '#d0d8d8']], lux: [['marble', '#e6e0d4', '#3a5a6a'], ['tile', '#dce4e4']] },
+    bakery: { eco: [['plank', '#7a5a3a'], ['plaster', '#c8b898']], adv: [['brick', '#9a5a3a'], ['tile', '#e8e0d0']], lux: [['checker', '#a85a3a', '#ece0c8'], ['stripe', '#c8a868']] },
+    butcher: { eco: [['plank', '#6a4e36', 'saw'], ['plankv', '#6a5040']], adv: [['hex', '#e4e2da', '#7a2a2a'], ['plaster', '#cfc0a8']], lux: [['hex', '#ecebe4', '#7a2a2a'], ['tile', '#dcdcd4']] },
+    tailor: { eco: [['plank', '#6a5038'], ['plankv', '#6a5444']], adv: [['wide', '#7a5a3a'], ['stripe', '#7a6078']], lux: [['parquet', '#8a5a32'], ['damask', '#6a3a5a']] },
+    mill: { eco: [['plank', '#8a7050', 'saw'], ['plankv', '#7a6448']], adv: [['wide', '#9a8060'], ['plankv', '#8a7050']], lux: [['wide', '#8a6a44'], ['panel', '#6a4a2e']] },
+    smith: { eco: [['stone', '#4e4a46'], ['plankv', '#4e4238']], adv: [['stone', '#5e5954'], ['brick', '#7a4030']], lux: [['stone', '#6a645c'], ['brick', '#8a4a34']] },
+    pharmacy: { eco: [['plank', '#7a6a54'], ['plaster', '#c8c4b4']], adv: [['hex', '#e8e4da', '#2a4a4a'], ['stripe', '#4a6a5a']], lux: [['marble', '#ecebe4', '#1e3a3a'], ['damask', '#2a4a3e']] },
+    cantina: { eco: [['plank', '#7a5a3a'], ['plaster', '#c8a878']], adv: [['ttile', '#a85e3e'], ['plaster', '#e0c090']], lux: [['ttile', '#b0603e'], ['tile', '#d8c8a8']] },
+    stable: { eco: [['straw', '#7a6448'], ['plankv', '#6a4a30']], adv: [['stone', '#7a7268', 'straw'], ['plankv', '#8a6a44']], lux: [['stone', '#8a8276', 'straw'], ['brick', '#7a4030']] },
+    general: { eco: [['plank', '#6a4e32'], ['plankv', '#6a5440']], adv: [['wide', '#7a5a3a'], ['paper', '#5a6a4a']], lux: [['parquet', '#8a5a32'], ['stripe', '#2e4a3e']] },
+    saloon: { eco: [['plank', '#4e3622'], ['plankv', '#5a4030']], adv: [['wide', '#5a3a22'], ['paper', '#5a2a24']], lux: [['wide', '#4a2a18'], ['damask', '#5a1420']] },
+    brewery: { eco: [['plank', '#6a4a30'], ['plankv', '#5e4430']], adv: [['brick', '#7a4a30'], ['brick', '#7a4a30']], lux: [['checker', '#5a3a24', '#c8b090'], ['panel', '#4a2e1c']] },
+    gambling: { eco: [['plank', '#4a3020'], ['plankv', '#4a3424']], adv: [['wide', '#3a2014'], ['paper', '#5a1a1a']], lux: [['wide', '#3a2014'], ['damask', '#4a1018']] },
+  };
   const RICH = {
     general: [['parquet', '#8a5a32'], ['stripe', '#2e4a3e']], saloon: [['wide', '#4a2a18'], ['damask', '#5a1420']], sheriff: [['parquet', '#7a5030'], ['panel', '#5a3a24']],
     doctor: [['hex', '#ecebe4', '#2a4a5a'], ['stripe', '#b8c8c0']], gunsmith: [['parquet', '#6a4228'], ['panel', '#4a2e1c']], butcher: [['hex', '#ecebe4', '#7a2a2a'], ['tile', '#dcdcd4']],
@@ -73,8 +113,9 @@ const IntDeco = (() => {
   function style(b) {
     let st = cache.get(b);
     if (st) return st;
-    const t = b.type, rich = !!b.modern && !!RICH[t], S = (rich ? RICH[t] : STD[t]) || [['plank', '#7a5a3a'], ['paper', shadeHex(b.def.wall, -0.05)]];
-    const pl = typeof INT_PLANS !== 'undefined' && INT_PLANS[t], lay = b.lay || 's0', tier = pl && (lay[0] === 'r' ? pl.rich : pl.std), plan = tier && tier[+lay.slice(1)];
+    const t = b.type, tk = b.tier && TIER[t] && TIER[t][b.tier], rich = b.tier ? b.tier === 'lux' : !!b.modern && !!RICH[t];
+    const S = tk || (rich && !b.tier ? RICH[t] : STD[t]) || [['plank', '#7a5a3a'], ['paper', shadeHex(b.def.wall, -0.05)]];
+    const plan = typeof planOfB !== 'undefined' ? planOfB(b) : null;
     let wc = S[1][1];
     if (rich && (t === 'house')) wc = HOUSE_RICH[Math.floor(hash2(b.x, b.y, 7) * 3)];
     st = {
@@ -289,7 +330,7 @@ const IntDeco = (() => {
   function sconces(b) {
     const t = b.type;
     if (t === 'hotel' || t === 'stable' || t === 'barn' || t === 'warehouse' || t === 'docks' || t === 'church') return 0;
-    if (!b.modern && t !== 'saloon' && t !== 'gambling' && t !== 'cantina') return 0;
+    if (!richB(b) && b.tier !== 'adv' && t !== 'saloon' && t !== 'gambling' && t !== 'cantina') return 0;   // gelişmiş kademede de aplik
     return b.w >= 10 ? 3 : 2;
   }
   return { style, floor, wall, rug, rugAt, canvas, sconces, rgb };
@@ -778,10 +819,53 @@ const Spr = {
     this.wallDecor(g, b, X, Y, W, world);
     this.interiorShell(g, b, X, Y, W, H, up, world);
   },
+  /* İnşa menüsündeki kademe önizlemesi: yapının dışı (cephe, çatı) ve içi (döşeme, duvar, eşyalar). Yapı, gerçek dünyaya
+     dokunmayan sahte bir dünyada (kendi eşya dizisi, karsız) döşenip çizilir; tür, kademe ve çizici başına bir kez. Melez
+     çizimde ikisi de melez çiziciden gelir (ışıksız renk katmanı, iki kat çözünürlük). ew/iw: dünya pikseli genişlikleri. */
+  tierPreview(type, tier) {
+    const hy = G.hybridOn(), key = type + '/' + tier + (hy ? '/h' : ''), P = this._tierPrev || (this._tierPrev = new Map());
+    let r = P.get(key);
+    if (r) return r;
+    const def = BUILDINGS[type], x = 4, y = 6, w = def.w, h = def.h, X = x * TS, Y = y * TS, Wd = w * TS, Hd = h * TS;
+    const fw = Object.create(G.world);
+    fw.obj = new Uint8Array((y + h + 2) * WW); fw.lights = []; fw.season = 0; fw.snowyTile = () => false;
+    const b = { id: -1, type, x, y, w, h, def, tier, town: null, name: def.n, modern: 0, enter: true, door: { x: (x + (w >> 1)) * TS + TS / 2, y: (y + h) * TS + 6 } };
+    fw.furnish(b);
+    // saydam kenarları kırp
+    const crop = (cv, s) => {
+      const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
+      for (let yy = 0; yy < cv.height; yy++) for (let xx = 0; xx < cv.width; xx++) if (d[(yy * cv.width + xx) * 4 + 3] > 8) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (yy < y0) y0 = yy; if (yy > y1) y1 = yy; }
+      if (x1 < 0) { x0 = y0 = 0; x1 = cv.width - 1; y1 = cv.height - 1; }
+      const c = makeCanvas(x1 - x0 + 1, y1 - y0 + 1);
+      c.getContext('2d').drawImage(cv, -x0, -y0);
+      return { url: c.toDataURL(), w: c.width / s };
+    };
+    let ext, int, s = 1;
+    if (hy) { const p = HY.preview(b, fw); ext = p.ext; int = p.int; s = 2; }
+    else {
+      // dış: zemin katmanı (gölge, veranda direkleri) altta, örtü (cephe, çatı, tabela) üstte
+      ext = makeCanvas(Wd + 24, Hd + 76);
+      const eo = makeCanvas(Wd + 24, Hd + 76), g = ext.getContext('2d'), o = eo.getContext('2d');
+      g.translate(12 - X, 56 - Y); o.translate(12 - X, 56 - Y);
+      this.building(g, o, b, fw);
+      g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(eo, 0, 0);
+      int = makeCanvas(Wd + 8, Hd + 24);
+      const gi = int.getContext('2d');
+      gi.translate(4 - X, 20 - Y);
+      this.interior(gi, b, fw);
+    }
+    const e = crop(ext, s), n = crop(int, s);
+    r = { ext: e.url, ew: e.w, int: n.url, iw: n.w };
+    P.set(key, r);
+    if (P.size > 16) P.delete(P.keys().next().value);
+    return r;
+  },
   /* Otelin zemini ve arka duvarı (otel kendi çizimini korur): tahta döşeme, ortada halı (üst katta koridor boyunca
      uzun yolluk), desenli duvar kâğıdı ve lambri */
   hotelBase(g, b, X, Y, W, H, up) {
-    g.fillStyle = '#6e4a32'; g.fillRect(X, Y, W, H);
+    const L = hotelLook(b);
+    g.fillStyle = L.fl; g.fillRect(X, Y, W, H);
     g.fillStyle = 'rgba(0,0,0,0.22)';
     for (let yy = Y + 4; yy < Y + H; yy += 5) {
       g.fillRect(X, yy, W, 1);
@@ -789,12 +873,14 @@ const Spr = {
       for (let xx = X + off; xx < X + W; xx += 23) g.fillRect(xx, yy - 4, 1, 4);
     }
     g.fillStyle = 'rgba(255,240,210,0.05)'; for (let yy = Y + 2; yy < Y + H; yy += 10) g.fillRect(X, yy, W, 2);
-    const rug = '#7a2a2a';
-    const rw = up ? W - 48 : Math.min(W - 40, 64), rh = up ? 20 : Math.min(H - 40, 34), rx = X + W / 2 - rw / 2, ry = up ? Y + 54 : Y + H / 2 - rh / 2 + 6;
-    g.fillStyle = rug; g.fillRect(rx, ry, rw, rh);
-    g.strokeStyle = shadeHex(rug, 0.35); g.lineWidth = 1; g.strokeRect(rx + 2.5, ry + 2.5, rw - 5, rh - 5);
-    g.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = 0; k < rw; k += 4) g.fillRect(rx + k, ry + rh, 2, 2);
-    const WP = '#4e5e40';
+    const rug = L.rug;
+    if (rug) {
+      const rw = up ? W - 48 : Math.min(W - 40, 64), rh = up ? 20 : Math.min(H - 40, 34), rx = X + W / 2 - rw / 2, ry = up ? Y + 54 : Y + H / 2 - rh / 2 + 6;
+      g.fillStyle = rug; g.fillRect(rx, ry, rw, rh);
+      g.strokeStyle = shadeHex(rug, 0.35); g.lineWidth = 1; g.strokeRect(rx + 2.5, ry + 2.5, rw - 5, rh - 5);
+      g.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = 0; k < rw; k += 4) g.fillRect(rx + k, ry + rh, 2, 2);
+    }
+    const WP = L.wp;
     g.fillStyle = WP; g.fillRect(X, Y, W, 16);
     g.fillStyle = 'rgba(255,230,180,0.08)'; for (let xx = X + 2; xx < X + W; xx += 5) g.fillRect(xx, Y, 2, 12);
     g.fillStyle = shadeHex(WP, -0.22); g.fillRect(X, Y + 11, W, 5);
@@ -844,7 +930,7 @@ const Spr = {
   /* Arka duvarın süsleri: bina türüne göre raflar, tablolar, aynalar, afişler, aletler; zengin şehirde yaldızlı
      çerçeveler ve aplikler. Önünde uzun eşya (dolap, saat, şömine...) duran yerlere süs konmaz. */
   wallDecor(g, b, X, Y, W, world) {
-    const t = b.type, h = (k) => hash2(b.x * 3 + k, b.y, 29), rich = !!b.modern;
+    const t = b.type, h = (k) => b.tier ? bHash(b, 29 + k) : hash2(b.x * 3 + k, b.y, 29), rich = richB(b);
     const TALL = new Set([O.BOOKCASE, O.GCLOCK, O.WARDROBE, O.CABINET, O.FIREPLACE, O.PALM, O.ORGAN, O.OVEN, O.FORGE, O.DRESSER, O.LAMPSTAND]);
     const objAt = (x) => world ? world.obj[(b.y + 1) * WW + Math.floor(x / TS)] : 0;
     const free = (x, r = 5) => !world || (!TALL.has(objAt(x - r)) && !TALL.has(objAt(x + r)) && x - r > X + 5 && x + r < X + W - 5);
@@ -997,7 +1083,7 @@ const Spr = {
   },
   furn(g, o, cx, cy, world, i, b, h) {
     const same = (d) => world.obj[i + d] === o;
-    const t = b.type, rich = !!b.modern && t !== 'hotel';   // zengin şehir (otel kendi eşyasını korur)
+    const t = b.type, rich = richB(b) && t !== 'hotel';   // zengin şehir ya da lüks kademe (otel kendi eşyasını korur)
     switch (o) {
       case O.COUNTER: case O.BAR: case O.TICKET: {
         // zengin şehirde: mermer tezgâh üstü ve maun ön yüz (bar koyu maun, pirinç ayaklık)
@@ -1597,8 +1683,8 @@ const Spr = {
     const tall = d.tall ? 30 : 22;
     const FW = b.type === 'mineentrance' ? 14 : tall;
     const wy = Y + H - FW;
-    const h = hash2(b.x, b.y, 5);
-    const wall = d.wall, roof = d.roof;
+    const h = bHash(b, 5), C = bCol(b);
+    const wall = C.wall, roof = C.roof;
     // gölge
     g.fillStyle = 'rgba(0,0,0,0.32)'; g.fillRect(X + 6, Y + 4, W, H);
     if (b.type === 'mineentrance') {
@@ -1620,7 +1706,7 @@ const Spr = {
       return;
     }
     if (b.type === 'market') { this.market(g, o, b, world); return; }
-    if (b.modern && !MODERN_SKIP.has(b.type)) { this.modernBuilding(g, o, b, world); return; }
+    if (modernB(b)) { this.modernBuilding(g, o, b, world); return; }
     const f = b.enter ? o : g;
     // Ön cephe
     const wallC = b.def.ruin ? '#5a4c3c' : wall;
@@ -1633,7 +1719,11 @@ const Spr = {
       f.fillStyle = 'rgba(0,0,0,0.16)';
       for (let xx = X + 2; xx < X + W; xx += 4) f.fillRect(xx, wy, 1, FW);
       f.fillStyle = 'rgba(255,255,255,0.08)'; f.fillRect(X, wy, W, 2);
+      // ekonomik: boyasız tahtanın kimi yeri koyu, kimi yeri yamalı
+      if (C.worn) for (let xx = X; xx < X + W; xx += 4) { const q = hash2(xx, b.y, 41); if (q > 0.72) { f.fillStyle = q > 0.9 ? 'rgba(255,240,210,0.08)' : 'rgba(0,0,0,0.16)'; f.fillRect(xx, wy + (q * 9 | 0), 4, FW - (q * 9 | 0)); } }
     }
+    // gelişmiş: köşe pervazları ve korniş beyaz
+    if (C.trim) { f.fillStyle = C.trim; f.fillRect(X, wy, 2, FW); f.fillRect(X + W - 2, wy, 2, FW); f.fillRect(X, wy, W, 1.5); }
     f.fillStyle = 'rgba(0,0,0,0.35)'; f.fillRect(X, Y + H - 2, W, 2);
     // kapı
     const dx = b.door.x;
@@ -1693,6 +1783,7 @@ const Spr = {
       o.beginPath(); o.moveTo(X, wy); o.lineTo(X, wy - fh + 4); o.lineTo(X + W * 0.2, wy - fh + 4); o.lineTo(X + W * 0.2, wy - fh); o.lineTo(X + W * 0.8, wy - fh); o.lineTo(X + W * 0.8, wy - fh + 4); o.lineTo(X + W, wy - fh + 4); o.lineTo(X + W, wy); o.fill();
       o.fillStyle = 'rgba(0,0,0,0.15)'; for (let xx = X + 2; xx < X + W; xx += 4) o.fillRect(xx, wy - fh, 1, fh);
       o.fillStyle = shadeHex(wallC, -0.35); o.fillRect(X, wy - fh + 3, W, 1);
+      if (C.trim) { o.fillStyle = C.trim; o.fillRect(X + W * 0.2, wy - fh, W * 0.6, 1.5); o.fillRect(X, wy - fh + 4, W * 0.2, 1.5); o.fillRect(X + W * 0.8, wy - fh + 4, W * 0.2, 1.5); }
       const txt = SIGN_TEXT[b.type];
       if (txt) {
         const sw = Math.min(W - 8, txt.length * 4.6 + 6);
@@ -1730,8 +1821,8 @@ const Spr = {
      düz çatı ve korkuluk; tabela kapının üstünde koyu levha. */
   modernBuilding(g, o, b, world) {
     const d = b.def, X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS;
-    const FW = d.tall ? 40 : 32, wy = Y + H - FW, h = hash2(b.x, b.y, 5);
-    const pal = MODERN_WALLS[Math.floor(hash2(b.x, b.y, 7) * MODERN_WALLS.length)];
+    const FW = d.tall ? 40 : 32, wy = Y + H - FW, h = bHash(b, 5);
+    const pal = MODERN_WALLS[Math.floor(bHash(b, 7) * MODERN_WALLS.length)];
     const wallC = MODERN_TYPE_WALL[b.type] || pal.c, brick = MODERN_TYPE_WALL[b.type] ? false : pal.brick;
     const f = b.enter ? o : g;
     g.fillStyle = 'rgba(0,0,0,0.32)'; g.fillRect(X + 6, Y + 4, W, H);

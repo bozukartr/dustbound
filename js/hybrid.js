@@ -393,18 +393,20 @@ const HY = (() => {
   }
   function* western(b, W, step) {
     const d = b.def, X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, base = Y + Hd, id = b.id;
-    const FW = d.tall ? 30 : 22, wy = base - FW, h = hash2(b.x, b.y, 5);
-    const wall = rgb(d.wall), roof = rgb(d.roof), snowy = W.season === 3 && W.snowyTile(b.x + (b.w >> 1), b.y + (b.h >> 1));
+    const FW = d.tall ? 30 : 22, wy = base - FW, h = bHash(b, 5), C = bCol(b);
+    const wall = rgb(C.wall), roof = rgb(C.roof), trim = C.trim && rgb(C.trim), snowy = W.season === 3 && W.snowyTile(b.x + (b.w >> 1), b.y + (b.h >> 1));
     const xL = bx(X), xR = bx(X + Wd), yTop = by(wy), yBase = by(base);
     TG.base = base;
     // ön cephe: dikey tahtalar, ton farkı, damar, süpürgelik, korniş
     yield* bands(xL, yTop, xR - xL, yBase - yTop, (x, y) => {
-      const pl = Math.floor((x - xL) / 7), u = (x - xL) % 7, k = (hs(pl, id, 1) - 0.5) * 0.14;
+      const pl = Math.floor((x - xL) / 7), u = (x - xL) % 7, k = (hs(pl, id, 1) - 0.5) * (C.worn ? 0.3 : 0.14);
       let c = shT(wall, k);
       if (u === 6) c = shT(wall, -0.38); else if (u === 0) c = shT(c, 0.08);
-      if (hs(x, Math.floor(y / 3), id) > 0.93) c = shT(c, -0.1);
+      if (hs(x, Math.floor(y / 3), id) > (C.worn ? 0.86 : 0.93)) c = shT(c, -0.1);
+      if (C.worn && hs(pl, Math.floor(y / 9), id + 7) > 0.88) c = shT(c, -0.2);   // ekonomik: boyasız, yer yer çürümüş tahta
       if (y >= yBase - 4) c = shT(wall, -0.32);
       if (y < yTop + 3) c = shT(wall, y === yTop ? 0.2 : -0.12);
+      if (trim && (x < xL + 4 || x >= xR - 4 || y < yTop + 3)) c = x < xL + 4 || x >= xR - 4 ? shT(trim, x === xL || x === xR - 1 ? -0.2 : 0) : shT(trim, y === yTop ? 0.1 : -0.06);   // gelişmiş: beyaz pervaz
       return c;
     }, facadeH(base), SOUTH, step);
     // kapı
@@ -455,7 +457,7 @@ const HY = (() => {
         const pl = Math.floor((x - xL) / 7), u = (x - xL) % 7; let c = shT(wall, (hs(pl, id, 1) - 0.5) * 0.14 + 0.03);
         if (u === 6) c = shT(wall, -0.38);
         const capY = side ? top + 4 : top;
-        if (wyy < capY + 1.5) c = shT(wall, 0.3); else if (wyy < capY + 3) c = shT(wall, -0.3);
+        if (wyy < capY + 1.5) c = trim ? trim : shT(wall, 0.3); else if (wyy < capY + 3) c = shT(wall, -0.3);
         return c;
       }, facadeH(base), SOUTH, step);
       if (txt) { const sw = Math.min(Wd - 8, txt.length * 4.6 + 6); signText(txt, bx(X + Wd / 2 - sw / 2), by(top + 1), Math.round(sw * S), 18, rgb(d.sign || '#c9a45c'), rgb('#1a120c'), base); }
@@ -501,9 +503,9 @@ const HY = (() => {
   }
   // zengin şehrin binaları: tuğla ya da kesme taş, iki kat, kornişler, beyaz çerçeveli pencereler, tente, düz çatı
   function* modern(b, W, step) {
-    const d = b.def, X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, base = Y + Hd, id = b.id, h = hash2(b.x, b.y, 5);
+    const d = b.def, X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, base = Y + Hd, id = b.id, h = bHash(b, 5);
     const FW = d.tall ? 40 : 32, wy = base - FW, mid = wy + FW - 19;
-    const pal = MODERN_WALLS[Math.floor(hash2(b.x, b.y, 7) * MODERN_WALLS.length)], wall = rgb(MODERN_TYPE_WALL[b.type] || pal.c), brick = MODERN_TYPE_WALL[b.type] ? false : pal.brick;
+    const pal = MODERN_WALLS[Math.floor(bHash(b, 7) * MODERN_WALLS.length)], wall = rgb(MODERN_TYPE_WALL[b.type] || pal.c), brick = MODERN_TYPE_WALL[b.type] ? false : pal.brick;
     const snowy = W.season === 3 && W.snowyTile(b.x + (b.w >> 1), b.y + (b.h >> 1)), xL = bx(X), xR = bx(X + Wd), yTop = by(wy), yBase = by(base), trim = rgb('#e4dccb');
     TG.base = base;
     yield* bands(xL, yTop, xR - xL, yBase - yTop, (x, y) => {
@@ -578,7 +580,7 @@ const HY = (() => {
       // seyrek yapılar: 2D çizimi keskinleştirilir (cephe dikey, üst kısım çatı)
       const base = Y + Hd, hF = (x, y) => Math.max(0, Math.min(40, base - wyOf(y)));
       yield* stampSteps((g) => Spr.building(g, g, b, W), ox, oy, w / S, h / S, hF, (x, y) => (wyOf(y) < base - (d.tall ? 30 : 22) ? ROOFN : SOUTH), null, step);
-    } else if (b.modern && !MODERN_SKIP.has(b.type)) yield* modern(b, W, step);
+    } else if (modernB(b)) yield* modern(b, W, step);
     else yield* western(b, W, step);
     yield* step(true);
     TG = null;
@@ -601,8 +603,8 @@ const HY = (() => {
      otel kendi döşemesini korur (tahta, ortada halı, üst katta koridor yolluğu, desenli kâğıt). */
   // otelin döşemesi: yatay tahtalar, kaydırmalı ekler, damar, çivi, kapı önünde aşınma
   function* hotelBase(b, tg, step, up) {
-    const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, id = b.id;
-    const fl = rgb('#6e4a32'), x0 = bx(X), y0 = by(Y), x1 = bx(X + Wd), y1 = by(Y + Hd);
+    const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, id = b.id, L = hotelLook(b);
+    const fl = rgb(L.fl), x0 = bx(X), y0 = by(Y), x1 = bx(X + Wd), y1 = by(Y + Hd);
     const floor = (x, y) => {
       const wx = wxOf(x), wy = wyOf(y), row = Math.floor((wy - Y) / 5), v = (wy - Y) - row * 5;
       const off = (row * 11) % 23, seg = Math.floor((wx - X + off) / 23), u = (wx - X + off) - seg * 23;
@@ -615,20 +617,22 @@ const HY = (() => {
     };
     // döşeme şerit şerit; hedefin dışındaki şeritler atlanır
     for (let y = Math.max(y0, 0); y < Math.min(y1, tg.h); y += 8) { rect(x0, y, x1 - x0, Math.min(8, y1 - y), floor, 0, UP); yield* step(); }
-    // halı (üst katta koridor boyunca uzun yolluk)
-    const rw = up ? Wd - 48 : Math.min(Wd - 40, 64), rh = up ? 20 : Math.min(Hd - 40, 34), rx = X + Wd / 2 - rw / 2, ry = up ? Y + 54 : Y + Hd / 2 - rh / 2 + 6, rc = rgb('#7a2a2a');
-    rect(bx(rx), by(ry), Math.round(rw * S), Math.round(rh * S), (x, y) => {
-      const u = (x - bx(rx)) / S, v = (y - by(ry)) / S, e = Math.min(u, v, rw - u, rh - v);
-      if (e < 1) return shT(rc, -0.25);
-      if (e < 3.2 && e > 2.2) return shT(rc, 0.45);
-      if (e < 5 && ((Math.floor(u) + Math.floor(v)) % 3 === 0)) return shT(rc, 0.25);
-      const dm = Math.abs(((u - rw / 2) % 8 + 8) % 8 - 4) + Math.abs(((v - rh / 2) % 8 + 8) % 8 - 4);
-      return dm < 1.2 ? shT(rc, 0.3) : dm < 2 ? shT(rc, -0.12) : rc;
-    }, 0.3, UP);
-    for (let x = bx(rx); x < bx(rx + rw); x += 2) { put(x, by(ry) - 1, shT(rc, 0.4), 0.2, UP, 0); put(x, by(ry + rh), shT(rc, 0.4), 0.2, UP, 0); }
-    yield* step();
+    // halı (üst katta koridor boyunca uzun yolluk; ekonomik otelde yok)
+    if (L.rug) {
+      const rw = up ? Wd - 48 : Math.min(Wd - 40, 64), rh = up ? 20 : Math.min(Hd - 40, 34), rx = X + Wd / 2 - rw / 2, ry = up ? Y + 54 : Y + Hd / 2 - rh / 2 + 6, rc = rgb(L.rug);
+      rect(bx(rx), by(ry), Math.round(rw * S), Math.round(rh * S), (x, y) => {
+        const u = (x - bx(rx)) / S, v = (y - by(ry)) / S, e = Math.min(u, v, rw - u, rh - v);
+        if (e < 1) return shT(rc, -0.25);
+        if (e < 3.2 && e > 2.2) return shT(rc, 0.45);
+        if (e < 5 && ((Math.floor(u) + Math.floor(v)) % 3 === 0)) return shT(rc, 0.25);
+        const dm = Math.abs(((u - rw / 2) % 8 + 8) % 8 - 4) + Math.abs(((v - rh / 2) % 8 + 8) % 8 - 4);
+        return dm < 1.2 ? shT(rc, 0.3) : dm < 2 ? shT(rc, -0.12) : rc;
+      }, 0.3, UP);
+      for (let x = bx(rx); x < bx(rx + rw); x += 2) { put(x, by(ry) - 1, shT(rc, 0.4), 0.2, UP, 0); put(x, by(ry + rh), shT(rc, 0.4), 0.2, UP, 0); }
+      yield* step();
+    }
     // arka duvar: desenli kâğıt, lambri, kiriş
-    const wp = rgb('#4e5e40');
+    const wp = rgb(L.wp);
     rect(x0, y0, x1 - x0, by(Y + 16) - y0, (x, y) => {
       const u = wxOf(x) - X, v = wyOf(y) - Y;
       if (v < 2) return rgb('#1e140c');
@@ -693,7 +697,7 @@ const HY = (() => {
     }
   }
   function furniture(o, cx, cy, i, b, W) {
-    const h = hash2(cx >> 4, cy >> 4, 17), same = (dd) => W.obj[i + dd] === o, lux = !!b.modern && b.type !== 'hotel';   // zengin şehir (otel kendi eşyasını korur)
+    const h = hash2(cx >> 4, cy >> 4, 17), same = (dd) => W.obj[i + dd] === o, lux = richB(b) && b.type !== 'hotel';   // zengin şehir ya da lüks kademe (otel kendi eşyasını korur)
     const top = (x0, y0, w, hh, c, ht, em) => rect(bx(x0), by(y0), Math.round(w * S), by(y0 + hh) - by(y0), c, ht, UP, em || 0);
     const front = (x0, y0, w, hh, c, base, em) => rect(bx(x0), by(y0), Math.round(w * S), by(y0 + hh) - by(y0), c, facadeH(base), SOUTH, em || 0);
     const wood = (base, x, y, k = 4) => shT(rgb(base), ((hs(Math.floor(x / k), Math.floor(y / 9), 5) - 0.5) * 0.16) + (Math.sin(x * 0.9 + y * 0.05) > 0.9 ? -0.08 : 0));
@@ -1564,6 +1568,16 @@ const HY = (() => {
     _bake(W, x, y) { return chunk(W, Math.floor(x / HC), Math.floor(y / HC), true); }, _cover(b, W) { return cover(b, W); },
     _jobs(ms) { runJobs(ms, queue(-1e9, -1e9, 1e9, 1e9)); return { chunks: jobs.size, covers: coverJobs.size }; }, _coverQueued(b) { return coverJobs.has(b); },
     _queued() { return { chunks: jobs.size, covers: coverJobs.size, cached: chunks.size, cap }; },
+    // inşa menüsündeki kademe önizlemesi: tek yapının örtüsü ve iç mekânı kendi tamponlarına (ışıksız renk katmanı)
+    preview(b, W) {
+      const w = (b.w * TS + 8) * S, h = (b.h * TS + 24) * S;
+      const tg = { c: new Uint8ClampedArray(w * h * 4), g: new Uint8ClampedArray(w * h * 4), w, h, ox: b.x * TS - 4, oy: b.y * TS - 20, o: null };
+      const gi = interior(b, W, tg); while (!gi.next().done);
+      const gc = coverGen(b, W); let r; do { r = gc.next(); } while (!r.done);
+      TG = null; LAYER = 0;
+      const int = makeCanvas(w, h); int.getContext('2d').putImageData(new ImageData(tg.c, w, h), 0, 0);
+      return { ext: r.value.c, int };
+    },
     get _cost() { return { ...cost, v: camV }; },
     available() { return init(); },
     get canvas() { return glc; },
