@@ -6,7 +6,6 @@
 
 const START_YEAR = 1890;
 const START_AGE = 18;
-const GOAL_AGE = 80;
 
 /* e: tüketim etkileri. raw: çiğse hastalık ihtimali. cook: pişince dönüşeceği eşya.
    gift: hediye değeri. max: yığın sınırı. */
@@ -381,7 +380,7 @@ const SHOPS = {
 const PURCHASABLE = new Set(Object.values(SHOPS).flatMap(S => S.sell || []));
 /* Hizmet ücretleri ($): ürün değildir ama genel fiyat düzeyini izler. Otel odası kasabanın fiyat çarpanıyla çarpılır;
    biletler uzaklığa göre (tren en az trainMin, posta arabası en az stageMin; her piksel için trainPx / stagePx). */
-const SVC = { room: 1, bath: 0.5, heal: 2, horsecare: 0.5, barber: 0.3, rumor: 0.1, fetchWagon: 1, trainMin: 0.5, trainPx: 1 / 2500, stageMin: 0.8, stagePx: 1 / 1800 };
+const SVC = { room: 1, bath: 0.5, heal: 2, horsecare: 0.5, barber: 0.3, rumor: 0.1, fetchWagon: 1, trainMin: 0.5, trainPx: 1 / 5000, stageMin: 0.8, stagePx: 1 / 3600 };
 
 /* ---- Önemli yerler ---- */
 const LANDMARKS = [
@@ -580,7 +579,7 @@ const ACHIEVEMENTS = [
   { id: 'age30',     n: 'Olgunluk',              d: '30 yaşına gir.', perk: 'Tüm yetenek deneyimleri +%10', s: 'age', v: 30 },
   { id: 'age50',     n: 'Yarım Asır',            d: '50 yaşına gir.', perk: 'Tecrübe: dükkanlarda ek %5 indirim', s: 'age', v: 50 },
   { id: 'age65',     n: 'Ak Sakallı',            d: '65 yaşına gir.', perk: 'Yaşlılığın getirdiği halsizlik yavaşlar', s: 'age', v: 65 },
-  { id: 'age80',     n: 'Ölümsüz Efsane',        d: '80 yaşına kadar hayatta kal.', perk: 'Hayat hedefine ulaştın!', s: 'age', v: 80 },
+  { id: 'age80',     n: 'Ölümsüz Efsane',        d: '80 yaşına kadar hayatta kal.', s: 'age', v: 80 },
 ];
 
 const SKILLS = {

@@ -1166,7 +1166,7 @@ const STORIES = {
       this.addHonor(5);
       this.sullyGo(S.ranch.x + 6, S.ranch.y - 4);
     },
-    epilogue: () => Tr`Hikâye bitti ama hayat sürüyor. Artık ne yapacağın sana kalmış: avlan, çalış, ev kur, âşık ol ya da kanunun öbür yanına geç. <b>Hedefin hâlâ 80 yaşına kadar yaşamak.</b> Sully'nin çiftliğinin kapısı sana hep açık.`,
+    epilogue: () => Tr`Hikâye bitti ama hayat sürüyor. Artık ne yapacağın sana kalmış: avlan, çalış, ev kur, âşık ol ya da kanunun öbür yanına geç. <b>Hedefin hâlâ itibar sahibi ve zengin biri olmak.</b> Sully'nin çiftliğinin kapısı sana hep açık.`,
     chapters: STORY_SULLY,
   },
 };

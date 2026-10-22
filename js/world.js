@@ -5,12 +5,14 @@
 
 const TS = 16;            // bir karonun piksel boyutu
 // dünya boyutu (karo): tek dünya; boyut sabit olduğundan sık döngülerdeki indeks hesabı sabitle yapılır
-const WW = 1536, WH = 1536;
+const WW = 3072, WH = 3072;
 const CHUNK = 32;         // chunk başına karo
 const CPX = CHUNK * TS;   // chunk piksel boyutu
+const CN = WW / CHUNK;    // bir kenardaki chunk sayısı (chunk anahtarı: cy * CN + cx)
 const CG = 4;             // kaba ızgara hücresi (karo)
 const CW = WW / CG, CHH = WH / CG;
 const FW = WW / 4;        // keşif (sis) ızgarası: 4x4 karo başına bir hücre
+const MAPT = 256;         // yakın harita parçasının kenarı (karo)
 
 const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20, COBBLE: 21, PAVE: 22 };
 const TNAME = Object.keys(T);
@@ -707,24 +709,31 @@ class World {
     // büyük coğrafya (kıyı, sıradağ, iklim) dünyaya oranlı; göl, tepe, orman gibi ayrıntılar karo ölçeğinde
     // (k: ayrıntı gürültülerinin 1024 karoluk taban ölçeğe göre sıklığı)
     const k = WW / 1024;
+    // gürültüler satır satır (Noise.row, fbm ile aynı değerler); x'e bağlı girdiler ve körfez kıyısı bir kez hesaplanır
+    const row = () => new Float64Array(WW);
+    const XE = row(), XM = row(), XT = row(), XH = row(), GULF = row(), E = row(), M = row(), TT = row(), HL = row();
+    for (let x = 0; x < WW; x++) {
+      const nx = x / WW;
+      XE[x] = nx * 7 * k; XM[x] = nx * 5 * k + 3; XT[x] = nx * 4 * k; XH[x] = nx * 3 * k + 11;
+      GULF[x] = 0.94 + (n4.v(nx * 7 * k, 3.3) - 0.5) * 0.06 / Math.sqrt(k);
+    }
     for (let y = 0; y < WH; y++) {
       const ny = y / WH;
       const coastX = 0.915 + (n4.fbm(ny * 5 * k, 0.5, 3) - 0.5) * 0.09 / Math.sqrt(k);
       const ridgeX = 0.15 + (n4.fbm(ny * 2.2, 7.7, 3) - 0.5) * 0.16;
+      n1.row(E, XE, ny * 7 * k, 5); n2.row(M, XM, ny * 5 * k, 4); n3.row(TT, XT, ny * 4 * k + 9, 3); n5.row(HL, XH, ny * 3 * k, 3);
       for (let x = 0; x < WW; x++) {
         const nx = x / WW;
         const i = y * WW + x;
-        const e = n1.fbm(nx * 7 * k, ny * 7 * k, 5);
-        const m = n2.fbm(nx * 5 * k + 3, ny * 5 * k, 4);
-        const tt = n3.fbm(nx * 4 * k, ny * 4 * k + 9, 3);
+        const e = E[x], m = M[x], tt = TT[x];
         // okyanus / körfez
-        const gulfY = 0.94 + (n4.v(nx * 7 * k, 3.3) - 0.5) * 0.06 / Math.sqrt(k);
+        const gulfY = GULF[x];
         const coastD = Math.max(nx - coastX, (nx > 0.58 ? ny - gulfY : -1) * 1.0);
         // dağlar
         let ridge = Math.max(0, 1 - Math.abs(nx - ridgeX) * 7.5) * clamp((0.92 - ny) * 4, 0, 1);
         ridge = ridge * ridge * (3 - 2 * ridge);
         const north = Math.max(0, 1 - ny * 7);
-        const hills = Math.max(0, n5.fbm(nx * 3 * k + 11, ny * 3 * k, 3) - 0.6) * 2.2;
+        const hills = Math.max(0, HL[x] - 0.6) * 2.2;
         const mount = ridge * (0.55 + 1.2 * (e - 0.5)) + north * (0.2 + 0.9 * (e - 0.3)) + hills * (e - 0.2);
         const h = e * 0.55 + mount * 0.85;
         let heat = ny * 1.05 + (tt - 0.5) * 0.35 - mount * 0.2 + 0.02;
@@ -795,7 +804,7 @@ class World {
       let total = 0; for (let k = 1; k < pts.length; k++) total += dist(pts[k - 1][0], pts[k - 1][1], pts[k][0], pts[k][1]);
       let travelled = 0, target = 1, steps = 0;
       const path = [];
-      while (target < pts.length && steps < 6000) {
+      while (target < pts.length && steps < 4 * WW) {
         steps++;
         const [tx, ty] = pts[target];
         if (dist(x, y, tx, ty) < 6) { target++; continue; }
@@ -1331,7 +1340,7 @@ class World {
     g[s] = 0; heap.push(s, 0);
     const DX = [1, -1, 0, 0, 1, 1, -1, -1], DY = [0, 0, 1, -1, 1, -1, 1, -1];
     let iter = 0;
-    while (heap.size && iter++ < 200000) {
+    while (heap.size && iter++ < N) {   // ulaşılamayan hedefte en çok ızgara kadar adım
       const cur = heap.pop();
       if (cur === goal) break;
       if (closed[cur]) continue;
@@ -1758,7 +1767,7 @@ class World {
       const d = dist2(r.pts[k][0] / TS, r.pts[k][1] / TS, x, y);
       if (d < bd) { bd = d; best = r.pts[k]; }
     }
-    if (!best || bd > 110 * 110) return;
+    if (!best || bd > 300 * 300) return;
     const C = this.cost;
     const B = this.bcell;
     const path = this.astar(clamp((x / CG) | 0, 0, CW - 1), clamp((y / CG) | 0, 0, CHH - 1), (best[0] / TS / CG) | 0, (best[1] / TS / CG) | 0,
@@ -2098,67 +2107,80 @@ class World {
   }
 
   /* ---- Parşömen harita görüntüsü ----
-     Karo başına 2x2 piksel. Eski bir arazi haritası gibi: kuzeybatıdan ışıkla tepe
-     gölgelendirmesi, eş yükselti çizgileri, kıyı boyunca taranmış su çizgileri, orman
-     noktalamaları, kum ve çöl beneklenmesi, kâğıt dokusu. Yollar, demiryolu ve yazılar
-     haritada vektörel olarak ayrıca çizilir. */
+     Eski bir arazi haritası gibi: kuzeybatıdan ışıkla tepe gölgelendirmesi, eş yükselti çizgileri, kıyı boyunca
+     taranmış su çizgileri, orman noktalamaları, kum ve çöl beneklenmesi, kâğıt dokusu. Yollar, demiryolu ve yazılar
+     haritada vektörel olarak ayrıca çizilir. Bütün dünya karo başına bir piksel (mapCanvas); yakından bakan harita
+     ekranı ve radar için MAPT karoluk parçalar karo başına 2x2 piksel ayrıca çizilir (mapTile). */
   buildMapImage(async) {
-    const S = 2, MW = WW * S, MH = WH * S, N = WW * WH;
-    const c = makeCanvas(MW, MH), ctx = c.getContext('2d');
-    const img = ctx.createImageData(MW, MH), d = img.data;
-    const MC = TINFO.map(t => hexToRgb(t.map));
+    const tok = this._mapTok = {}, job = this.mapRegion(0, 0, WW, WH, 1);
+    this._mapD = null;   // yakın parçalar yeni duruma (mevsim, yeni yapı) göre yeniden çizilir
+    const done = (img) => { const c = makeCanvas(WW, WH); c.getContext('2d').putImageData(img, 0, 0); this.mapCanvas = c; };
+    if (!async || !this.mapCanvas) { let r; do r = job.next(); while (!r.done); done(r.value); return; }
+    // oyun sırasında (mevsim değişimi, yeni yapı): parça parça çiz, bitene kadar eski harita görünür
+    const step = () => {
+      if (this._mapTok !== tok) return;
+      const t0 = performance.now();
+      let r;
+      do r = job.next(); while (!r.done && performance.now() - t0 < 6);
+      if (r.done) done(r.value); else setTimeout(step, 0);
+    };
+    setTimeout(step, 0);
+  }
+  /* Harita resminin bir bölgesi: karo dikdörtgeni [x0, x0 + w) × [y0, y0 + h), karo başına SxS piksel. Üreteç: ara
+     adımlarda durur (parça parça çizilebilsin), sonunda ImageData döner. Kıyıya uzaklık bölgenin 8 karoluk çevresiyle
+     birlikte hesaplanır; en çok 6 olduğundan bölgenin içinde bütün dünya üzerinden hesaplanmışıyla aynıdır. */
+  *mapRegion(x0, y0, w, h, S) {
+    const MW = w * S, img = new ImageData(MW, h * S), d = img.data;
+    const MC = World.MAPC || (World.MAPC = TINFO.map(t => hexToRgb(t.map)));
     const E = this.elev, tile = this.tile, flags = this.flags, obj = this.obj;
     // su karelerinin kıyıya uzaklığı (0: kıyı, en fazla 6) — iki geçişli yaklaşık mesafe
-    const sd = new Uint8Array(N);
-    for (let i = 0; i < N; i++) sd[i] = isWaterT(tile[i]) ? 6 : 0;
-    for (let y = 1; y < WH - 1; y++) for (let x = 1; x < WW - 1; x++) { const i = y * WW + x; if (sd[i]) sd[i] = Math.min(sd[i], sd[i - 1] + 1, sd[i - WW] + 1); }
-    for (let y = WH - 2; y > 0; y--) for (let x = WW - 2; x > 0; x--) { const i = y * WW + x; if (sd[i]) sd[i] = Math.min(sd[i], sd[i + 1] + 1, sd[i + WW] + 1); }
-    // kâğıt lekeleri (düşük frekanslı), bir kez hesaplanır
-    if (!this._paper) {
-      const nz = new Noise(this.seed + 901), P = this._paper = new Int8Array(N);
-      for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) P[y * WW + x] = ((nz.v(x / 46, y / 46) - 0.5) * 22 + (nz.v(x / 9 + 50, y / 9) - 0.5) * 6) | 0;
+    const X0 = Math.max(0, x0 - 8), Y0 = Math.max(0, y0 - 8), X1 = Math.min(WW, x0 + w + 8), Y1 = Math.min(WH, y0 + h + 8), RW = X1 - X0;
+    const sd = new Uint8Array(RW * (Y1 - Y0));
+    for (let y = Y0; y < Y1; y++) for (let x = X0; x < X1; x++) sd[(y - Y0) * RW + x - X0] = isWaterT(tile[y * WW + x]) ? 6 : 0;
+    for (let y = Math.max(1, Y0 + 1); y < Math.min(WH - 1, Y1); y++) {
+      for (let x = Math.max(1, X0 + 1); x < Math.min(WW - 1, X1); x++) { const l = (y - Y0) * RW + x - X0; if (sd[l]) sd[l] = Math.min(sd[l], sd[l - 1] + 1, sd[l - RW] + 1); }
+      if ((y & 255) === 0) yield;
     }
-    const PA = this._paper, CT = 9;   // eş yükselti aralığı
+    for (let y = Math.min(WH - 2, Y1 - 2); y >= Math.max(1, Y0); y--) {
+      for (let x = Math.min(WW - 2, X1 - 2); x >= Math.max(1, X0); x--) { const l = (y - Y0) * RW + x - X0; if (sd[l]) sd[l] = Math.min(sd[l], sd[l + 1] + 1, sd[l + RW] + 1); }
+      if ((y & 255) === 0) yield;
+    }
+    // kâğıt lekeleri (düşük frekanslı gürültü), satır satır
+    const nz = new Noise(this.seed + 901), XA = new Float64Array(w), XB = new Float64Array(w), PA = new Float64Array(w), PB = new Float64Array(w);
+    for (let x = 0; x < w; x++) { XA[x] = (x0 + x) / 46; XB[x] = (x0 + x) / 9 + 50; }
+    const CT = 9;   // eş yükselti aralığı
     const ev = (x, y) => E[(y < 0 ? 0 : y >= WH ? WH - 1 : y) * WW + (x < 0 ? 0 : x >= WW ? WW - 1 : x)];
-    // karo başına bir kez: gölge ve eş yükselti geçişleri (1: sağa, 2: aşağı); komşular yalnız kenarda sınırlanır
-    const SH = new Int8Array(N), CF = new Uint8Array(N);
-    for (let y = 0; y < WH; y++) {
-      const edge = y === 0 || y === WH - 1;
-      for (let x = 0; x < WW; x++) {
-        const i = y * WW + x;
-        let eR, eL, eD, eU;
-        if (edge || x === 0 || x === WW - 1) { eR = ev(x + 1, y); eL = ev(x - 1, y); eD = ev(x, y + 1); eU = ev(x, y - 1); }
-        else { eR = E[i + 1]; eL = E[i - 1]; eD = E[i + WW]; eU = E[i - WW]; }
-        SH[i] = clamp(-((eR - eL) + (eD - eU)) * 2.2, -46, 30);
-        const e0 = (E[i] / CT) | 0;
-        CF[i] = (e0 !== ((eR / CT) | 0) ? 1 : 0) | (e0 !== ((eD / CT) | 0) ? 2 : 0);
-      }
-    }
-    const winter = this.season === 3, autumn = this.season === 2, SN = winter ? new Uint8Array(N) : null;
+    const winter = this.season === 3, autumn = this.season === 2;
     const hsh = (a, b, k) => { let h = (a * 374761393 + b * 668265263 + k * 1442695041) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-    // karo karo: 2x2 pikselin ortak değerleri bir kez hesaplanır, pikseller soldan sağa ve yukarıdan aşağı aynı sırayla işlenir
-    // (Y0 ve Y1 çift; d bir Uint8ClampedArray olduğundan değerler yazılırken 0..255 aralığına sınırlanıp yuvarlanır)
-    const rows = (Y0, Y1) => { for (let y = Y0 >> 1; y < Y1 >> 1; y++) {
-      for (let x = 0; x < WW; x++) {
-        const i = y * WW + x, t = tile[i], mc = MC[t];
+    // karo karo: karonun SxS pikselinin ortak değerleri bir kez hesaplanır, pikseller soldan sağa ve yukarıdan aşağı
+    // aynı sırayla işlenir (d bir Uint8ClampedArray olduğundan değerler yazılırken 0..255 aralığına sınırlanır)
+    for (let y = y0; y < y0 + h; y++) {
+      nz.row(PA, XA, y / 46, 1); nz.row(PB, XB, y / 9, 1);
+      const edgeY = y === 0 || y === WH - 1, ly = (y - Y0) * RW - X0;
+      for (let x = x0; x < x0 + w; x++) {
+        const i = y * WW + x, l = ly + x, t = tile[i], mc = MC[t];
         let r0 = mc[0], g0 = mc[1], b0 = mc[2];
         if (t === T.TOWN || t === T.ROAD || t === T.BRIDGE || t === T.PLANK || isStoneT(t)) { r0 = 196; g0 = 172; b0 = 132; }   // yollar vektörel çizilir
-        // kış: kar karonun sol üst pikselinde bir kez hesaplanır
-        if (winter && SNOWABLE[t]) SN[i] = this.snowAmt(i, (hash2(x, y, 71) - 0.5) * 0.8) > 0.25 ? 1 : 0;
-        if (winter && SN[i]) { r0 = 238; g0 = 236; b0 = 230; }
+        if (winter && SNOWABLE[t] && this.snowAmt(i, (hash2(x, y, 71) - 0.5) * 0.8) > 0.25) { r0 = 238; g0 = 236; b0 = 230; }
         else if (autumn && LEAFY[t]) { r0 += 14; g0 -= 4; b0 -= 16; }
-        const water = sd[i] > 0, k = sd[i], fl = flags[i], pa = PA[i], sh0 = SH[i], cf = CF[i];
+        // tepe gölgesi ve eş yükselti geçişleri (1: sağa, 2: aşağı); komşular yalnız dünyanın kenarında sınırlanır
+        let eR, eL, eD, eU;
+        if (edgeY || x === 0 || x === WW - 1) { eR = ev(x + 1, y); eL = ev(x - 1, y); eD = ev(x, y + 1); eU = ev(x, y - 1); }
+        else { eR = E[i + 1]; eL = E[i - 1]; eD = E[i + WW]; eU = E[i - WW]; }
+        const sh0 = clamp(-((eR - eL) + (eD - eU)) * 2.2, -46, 30) | 0, e0 = (E[i] / CT) | 0;
+        const cf = (e0 !== ((eR / CT) | 0) ? 1 : 0) | (e0 !== ((eD / CT) | 0) ? 2 : 0);
+        const water = sd[l] > 0, k = sd[l], fl = flags[i], pa = ((PA[x - x0] - 0.5) * 22 + (PB[x - x0] - 0.5) * 6) | 0;
         const cliff = isCliffT(t), rock = t === T.ROCK || t === T.REDROCK, sand = t === T.DESERT || t === T.SAND || t === T.DRY;
         const dot = (t === T.FOREST || t === T.SWAMP) && hsh(x, y, 5) < 0.34, o = obj[i], solidO = o && SOLID_O[o] && o < 20 && t !== T.FOREST;
-        const cL = sd[i - 1] === 1, cR = sd[i + 1] === 1, cU = sd[i - WW] === 1, cD = sd[i + WW] === 1;
-        for (let q = 0; q < 4; q++) {
-          const sx = q & 1, sy = q >> 1, X = 2 * x + sx, Y = 2 * y + sy;
+        const cL = x > 0 && sd[l - 1] === 1, cR = x < WW - 1 && sd[l + 1] === 1, cU = sd[l - RW] === 1, cD = sd[l + RW] === 1;
+        for (let q = 0; q < S * S; q++) {
+          const sx = q % S, sy = (q / S) | 0, X = S * x + sx, Y = S * y + sy;
           let r = r0, g = g0, b = b0, sh = 0;
           if (!water) {
             // tepe gölgelendirmesi: kuzeybatıdan ışık
             sh = sh0;
-            // eş yükselti çizgisi (1 piksel)
-            if ((sx && (cf & 1)) || (sy && (cf & 2))) { r = r * 0.8 + 16; g = g * 0.78 + 8; b = b * 0.76; sh -= 6; }
+            // eş yükselti çizgisi (karonun sağ ve alt pikseli)
+            if ((sx === S - 1 && (cf & 1)) || (sy === S - 1 && (cf & 2))) { r = r * 0.8 + 16; g = g * 0.78 + 8; b = b * 0.76; sh -= 6; }
             if (cliff && ((X + Y) % 3 === 0)) sh -= 34;                 // yamaç taraması
             if (rock && ((X - Y) % 5 === 0)) sh -= 14;
             if (sand && hsh(X, Y, 17) < 0.05) sh -= 26;   // kum beneği
@@ -2166,7 +2188,7 @@ class World {
             else if (dot && sx && sy) sh -= 18;                     // gölgesi
             if (solidO) sh -= 16;
             // kıyı çizgisi: suya bakan kara kenarı mürekkeple
-            if ((cL && !sx) || (cR && sx) || (cU && !sy) || (cD && sy)) { r = 70; g = 84; b = 88; sh = 0; }
+            if ((cL && !sx) || (cR && sx === S - 1) || (cU && !sy) || (cD && sy === S - 1)) { r = 70; g = 84; b = 88; sh = 0; }
           } else {
             // su: derine gittikçe koyulaşır, kıyıya paralel tarama çizgileri
             r -= k * 5; g -= k * 3; b -= k * 1;
@@ -2176,20 +2198,63 @@ class World {
           if (fl & 2) { r = 40; g = 30; b = 22; sh = ((x + y) & 1) ? 0 : 50; }
           if (fl & 8) { r = 82; g = 56; b = 36; sh = (sx || sy) ? 0 : 14; }   // binalar
           const n = pa + (hsh(X, Y, 3) - 0.5) * 7;
-          const k4 = (Y * MW + X) * 4;
+          const k4 = ((Y - y0 * S) * MW + X - x0 * S) * 4;
           // hafif sepya kâğıt tonu
           r = r + sh + n; g = g + sh + n; b = b + sh * 0.8 + n;
           d[k4] = r * 0.94 + 18; d[k4 + 1] = g * 0.92 + 12; d[k4 + 2] = b * 0.86 + 4; d[k4 + 3] = 255;
         }
       }
-    } };
-    const done = () => { ctx.putImageData(img, 0, 0); this.mapCanvas = c; this.mapScale = S; };
-    if (!async || !this.mapCanvas) { rows(0, MH); done(); return; }
-    // oyun sırasında (mevsim değişimi): parça parça çiz, bitene kadar eski harita görünür
-    const tok = this._mapTok = {};
-    let Y = 0;
-    const step = () => { if (this._mapTok !== tok) return; rows(Y, Math.min(MH, Y + 128)); Y += 128; if (Y < MH) setTimeout(step, 0); else done(); };
-    setTimeout(step, 0);
+      if (((y - y0) & 15) === 15) yield;
+    }
+    return img;
+  }
+  /* Yakın harita parçası (MAPT karoluk kare, karo başına 2x2 piksel): hazırsa kanvası döner; değilse çizimi sıraya
+     girer (mapWork çizer) ve null döner. Bir saniyedir istenmeyen sıradaki parça atılır (haritada hızla kaydırınca). */
+  mapTile(tx, ty) {
+    const D = this._mapD || (this._mapD = { tiles: new Map(), jobs: new Map() }), k = ty * 64 + tx, now = performance.now();
+    const c = D.tiles.get(k);
+    if (c) { c.used = now; return c; }
+    const j = D.jobs.get(k);
+    if (j) j.t = now; else D.jobs.set(k, { gen: this.mapRegion(tx * MAPT, ty * MAPT, MAPT, MAPT, 2), t: now });
+    return null;
+  }
+  /* Sıradaki yakın harita parçalarını süre bütçesi (ms) içinde çizer; en çok 40 parça tutulur (en uzun süre
+     kullanılmayan atılır). Bir parça bittiyse true döner. */
+  mapWork(budget) {
+    const D = this._mapD;
+    if (!D || !D.jobs.size) return false;
+    const t0 = performance.now();
+    let any = false;
+    for (const [k, j] of D.jobs) {
+      if (t0 - j.t > 1000) { D.jobs.delete(k); continue; }
+      let r;
+      do r = j.gen.next(); while (!r.done && performance.now() - t0 < budget);
+      if (!r.done) break;
+      D.jobs.delete(k);
+      const c = makeCanvas(MAPT * 2, MAPT * 2);
+      c.getContext('2d').putImageData(r.value, 0, 0);
+      c.used = performance.now();
+      D.tiles.set(k, c); any = true;
+      if (D.tiles.size > 40) { let old = -1, ot = Infinity; for (const [q, v] of D.tiles) if (v.used < ot) { ot = v.used; old = q; } D.tiles.delete(old); }
+      if (performance.now() - t0 >= budget) break;
+    }
+    return any;
+  }
+  /* Harita resmini çiz: dünyadaki karo dikdörtgeni [wx0, wx1) × [wy0, wy1), hedefte (dx, dy) köşesinden karo başına
+     sc pikselle; dünyanın dışında kalan kısım çizilmez. near: hazır yakın parçalar genel resmin üstüne çizilir
+     (hazır olmayanlar sıraya girer). */
+  drawMapRect(ctx, wx0, wy0, wx1, wy1, dx, dy, sc, near) {
+    const ax = Math.max(0, wx0), ay = Math.max(0, wy0), bx = Math.min(WW, wx1), by = Math.min(WH, wy1);
+    if (bx <= ax || by <= ay) return;
+    const X = (x) => dx + (x - wx0) * sc, Y = (y) => dy + (y - wy0) * sc;
+    ctx.drawImage(this.mapCanvas, ax, ay, bx - ax, by - ay, X(ax), Y(ay), (bx - ax) * sc, (by - ay) * sc);
+    if (!near) return;
+    for (let ty = Math.floor(ay / MAPT); ty * MAPT < by; ty++) for (let tx = Math.floor(ax / MAPT); tx * MAPT < bx; tx++) {
+      const c = this.mapTile(tx, ty);
+      if (!c) continue;
+      const qx = Math.max(ax, tx * MAPT), qy = Math.max(ay, ty * MAPT), rx = Math.min(bx, (tx + 1) * MAPT), ry = Math.min(by, (ty + 1) * MAPT);
+      ctx.drawImage(c, (qx - tx * MAPT) * 2, (qy - ty * MAPT) * 2, (rx - qx) * 2, (ry - qy) * 2, X(qx), Y(qy), (rx - qx) * sc, (ry - qy) * sc);
+    }
   }
 
   /* ======================================================
@@ -2207,7 +2272,7 @@ class World {
     }
   }
   getChunk(cx, cy, sync) {
-    const key = cy * 64 + cx;
+    const key = cy * CN + cx;
     let c = this.chunks.get(key);
     if (c) { c.used = performance.now(); return c; }
     if (!sync) { this.requestChunk(cx, cy); return null; }
@@ -2219,8 +2284,8 @@ class World {
     return this.storeChunk(key, r.value);
   }
   requestChunk(cx, cy) {
-    if (cx < 0 || cy < 0 || cx >= WW / CHUNK || cy >= WH / CHUNK) return;
-    const key = cy * 64 + cx;
+    if (cx < 0 || cy < 0 || cx >= CN || cy >= CN) return;
+    const key = cy * CN + cx;
     if (this.chunks.has(key) || this.jobs.has(key)) return;
     this.jobs.set(key, { gen: this.chunkJob(cx, cy) });
   }
@@ -2239,7 +2304,7 @@ class World {
       const N = this._need;
       let oldK = -1, oldD = -1, oldT = Infinity;
       for (const [k, v] of this.chunks) {
-        const kx = k % 64, ky = (k - kx) / 64, d = N ? Math.max(0, kx - N[2], N[0] - kx) + Math.max(0, ky - N[3], N[1] - ky) : 0;
+        const kx = k % CN, ky = (k - kx) / CN, d = N ? Math.max(0, kx - N[2], N[0] - kx) + Math.max(0, ky - N[3], N[1] - ky) : 0;
         if (d > oldD || (d === oldD && v.used < oldT)) { oldD = d; oldT = v.used; oldK = k; }
       }
       this.chunks.delete(oldK);
@@ -2259,8 +2324,8 @@ class World {
   }
   invalidateChunkAt(px, py, keepCover) {
     const cx = Math.floor(px / CPX), cy = Math.floor(py / CPX);
-    this.chunks.delete(cy * 64 + cx);
-    this.jobs.delete(cy * 64 + cx);
+    this.chunks.delete(cy * CN + cx);
+    this.jobs.delete(cy * CN + cx);
     if (typeof G !== 'undefined' && G.ds === 2) (this.hyDirty || (this.hyDirty = [])).push([px, py, keepCover ? 1 : 0]);   // melez çizimin parçası da yenilenir (keepCover: bina örtüsü değişmedi)
   }
   /* Dikdörtgene değen statik ışıklar: her ışık bir kez, etki alanının (yarıçapın 1,5 katı, en az 90, artı 30 px)
@@ -2706,7 +2771,7 @@ const WorldCache = {
     let bytes = 0;
     for (const k of order) {
       const v = w[k];
-      if (SKIP.has(k) || (k[0] === '_' && k !== '_paper')) continue;
+      if (SKIP.has(k) || k[0] === '_') continue;
       if (ArrayBuffer.isView(v)) { arrays.push([k, v]); bytes += Math.ceil(v.byteLength / 8) * 8; } else src[k] = v;
     }
     const defKey = new Map(Object.entries(BUILDINGS).map(([k, d]) => [d, k]));
