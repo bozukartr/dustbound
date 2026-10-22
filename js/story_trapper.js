@@ -159,7 +159,7 @@ STORIES.trapper = {
     this.sullyGo(S.ec.x - 24, S.ec.y + 8);
     setTimeout(() => UI.help(Tr('Postlar kasaba kasaplarında ve tuzakçılarda iyi para eder. <b>Kusursuz</b> postlar için hayvanı tek atışta, yayla ya da tüfekle başından vur; av becerin arttıkça daha çok post çıkarırsın.'), 12), 17000);
   },
-  epilogue: () => Tr`Hikâye bitti ama hayat sürüyor. Baban Elias'ın kampında iyileşiyor; tuzak hattı artık senin. Avlanmak, kürk ticareti yapmak, kasabaya yerleşmek ya da başka yollara düşmek senin elinde. <b>Hedefin hâlâ 80 yaşına kadar yaşamak.</b>`,
+  epilogue: () => Tr`Hikâye bitti ama hayat sürüyor. Baban Elias'ın kampında iyileşiyor; tuzak hattı artık senin. Avlanmak, kürk ticareti yapmak, kasabaya yerleşmek ya da başka yollara düşmek senin elinde. <b>Hedefin hâlâ itibar sahibi ve zengin biri olmak.</b>`,
   chapters: [
     /* 1 — İz: Elias ile tanış, kampına yürü, çömelip izleri oku */
     {

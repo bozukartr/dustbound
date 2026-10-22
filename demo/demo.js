@@ -56,7 +56,7 @@
       <div style="letter-spacing:0.3em;font-size:14px;color:#c9a45c">${T('DEMO SONU', 'END OF DEMO')}</div>
       <h1 style="font-size:44px;margin:14px 0 18px">Frontier's End</h1>
       <p style="font-size:18px;line-height:1.55;margin:0 0 10px">${T('Sully\'nin Senedi burada bitmiyor: tapuyu çalan çete hâlâ dışarıda.', 'Sully\'s Deed doesn\'t end here: the gang that stole the deed is still out there.')}</p>
-      <p style="font-size:16px;line-height:1.55;opacity:0.85;margin:0 0 26px">${T('Tam sürümde beş geçmiş, beş hikâye, on üç kasaba ve 80 yaşına kadar süren bir hayat seni bekliyor.', 'The full game has five backgrounds, five stories, thirteen towns and a whole life to live until 80.')}</p>
+      <p style="font-size:16px;line-height:1.55;opacity:0.85;margin:0 0 26px">${T('Tam sürümde beş geçmiş, beş hikâye, on üç kasaba ve koca bir hayat seni bekliyor.', 'The full game has five backgrounds, five stories, thirteen towns and a whole life to live.')}</p>
       <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
         ${DEMO.url ? `<a id="demo-follow" href="${DEMO.url}" target="_blank" rel="noopener" style="padding:12px 22px;border:1px solid #c9a45c;color:#f3e3bd;text-decoration:none">${T('Tam Sürümü Takip Et', 'Follow the Full Game')}</a>` : ''}
         <button id="demo-menu" style="padding:12px 22px;border:1px solid #8a6a48;background:#2a1c12;color:#f3e3bd;font:inherit;cursor:pointer">${Input.glyph('confirm')} ${T('Ana Menü', 'Main Menu')}</button>

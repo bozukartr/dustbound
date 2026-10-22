@@ -31,7 +31,7 @@ module.exports = {
         }
         return out;
       });
-      t.eq(r.ww, 1536, 'yeni oyun dünya boyutu');
+      t.eq(r.ww, 3072, 'yeni oyun dünya boyutu');
       t.eq(r.towns, 13, 'kasaba sayısı');
       t.eq(r.missing, [], 'eksik bina olmamalı');
       t.eq(r.noStation, [], 'raylı her kasabada istasyon olmalı');

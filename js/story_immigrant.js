@@ -72,7 +72,7 @@ STORIES.immigrant = {
     S.office = ob ? ob.id : -1;
     // terk edilmiş galeri: maden kasabasına en yakın eski maden ağzı
     let gb = null; bd = 1e12;
-    for (const b of W.buildings) if (b.type === 'mineentrance' && !b.cave) { const d = dist(b.door.x, b.door.y, mt.cx, mt.cy); if (d < bd && d < 9000) { bd = d; gb = b; } }
+    for (const b of W.buildings) if (b.type === 'mineentrance' && !b.cave) { const d = dist(b.door.x, b.door.y, mt.cx, mt.cy); if (d < bd && d < 18000) { bd = d; gb = b; } }
     S.gallery = gb ? gb.id : -1;
     // hak gaspçılarının kampı: maden kasabasına en yakın haydut kampı
     let cp = null; bd = 1e12;
@@ -104,7 +104,7 @@ STORIES.immigrant = {
     const hotel = this.world.buildings.find(b => b.town === S.port && b.type === 'hotel');
     if (hotel) { const p = this.sDoor(hotel, 18); this.sullyGo(p.x - 14, p.y); }
   },
-  epilogue: () => Tr`Hikâye bitti ama hayat sürüyor. Anton dükkânın tezgâhında, sen de kendi yolunda. Kasayı uğradıkça toplayabilir, stok getirebilir ya da başka işlere atılabilirsin. <b>Hedefin hâlâ 80 yaşına kadar yaşamak.</b>`,
+  epilogue: () => Tr`Hikâye bitti ama hayat sürüyor. Anton dükkânın tezgâhında, sen de kendi yolunda. Kasayı uğradıkça toplayabilir, stok getirebilir ya da başka işlere atılabilirsin. <b>Hedefin hâlâ itibar sahibi ve zengin biri olmak.</b>`,
   chapters: [
     /* 1 — Liman: Greta ile tanış, selamlaş, pansiyonda uyu */
     {

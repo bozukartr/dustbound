@@ -640,8 +640,10 @@ const UI = {
     c.beginPath(); c.arc(C, C, R, 0, TAU); c.clip();
     c.fillStyle = '#c9b48a'; c.fillRect(0, 0, L, L);
     c.imageSmoothingEnabled = z < 1.6;
-    const span = 2 * R / z, ms = W.mapScale || 1;
-    c.drawImage(W.mapCanvas, (tx - span / 2) * ms, (ty - span / 2) * ms, span * ms, span * ms, C - R, C - R, 2 * R, 2 * R);
+    const span = 2 * R / z;
+    // yürürken ve at sırtında yakın harita parçaları (karo başına 2x2 piksel), genişletilmiş radarda bütün dünyanın resmi
+    W.drawMapRect(c, tx - span / 2, ty - span / 2, tx + span / 2, ty + span / 2, C - R, C - R, z, z >= 1.2);
+    W.mapWork(3);
     c.imageSmoothingEnabled = true;
     // dünya → radar: sonuç her çağrıda aynı diziye yazılır, çağıran değerleri hemen okur
     const RP = [0, 0], toR = (wx, wy) => { RP[0] = C + (wx / TS - tx) * z; RP[1] = C + (wy / TS - ty) * z; return RP; };
@@ -880,7 +882,7 @@ const UI = {
       if (e.button === 2) G.setWaypoint(null); else this.mapSetWaypoint(wx, wy);
       this.mapDirty = true;
     });
-    c.addEventListener('wheel', e => { e.preventDefault(); this.map.zoom = clamp(this.map.zoom * (e.deltaY > 0 ? 0.85 : 1.18), 0.5, 8); this.mapDirty = true; }, { passive: false });
+    c.addEventListener('wheel', e => { e.preventDefault(); this.map.zoom = clamp(this.map.zoom * (e.deltaY > 0 ? 0.85 : 1.18), 0.25, 8); this.mapDirty = true; }, { passive: false });
   },
   mapToWorld(sx, sy) {
     const M = this.map;
@@ -903,9 +905,9 @@ const UI = {
     const dU = I.padTap(PS.UP), dD = I.padTap(PS.DOWN);
     if (dU || dD) { this.mapLegendFocus(M.lg < 0 ? (dU ? mapLegend().length - 1 : 0) : (M.lg + (dU ? -1 : 1) + mapLegend().length) % mapLegend().length); Audio_.ui('move'); }
     const a = I.aimVec();
-    if (Math.abs(a.y) > 0.2) { M.zoom = clamp(M.zoom * (1 - a.y * dt * 2), 0.5, 8); this.mapDirty = true; }
-    if (I.down('fire') && I.device === 'pad') { M.zoom = clamp(M.zoom * (1 + dt * 2), 0.5, 8); this.mapDirty = true; }
-    if (I.down('aim') && I.device === 'pad') { M.zoom = clamp(M.zoom * (1 - dt * 2), 0.5, 8); this.mapDirty = true; }
+    if (Math.abs(a.y) > 0.2) { M.zoom = clamp(M.zoom * (1 - a.y * dt * 2), 0.25, 8); this.mapDirty = true; }
+    if (I.down('fire') && I.device === 'pad') { M.zoom = clamp(M.zoom * (1 + dt * 2), 0.25, 8); this.mapDirty = true; }
+    if (I.down('aim') && I.device === 'pad') { M.zoom = clamp(M.zoom * (1 - dt * 2), 0.25, 8); this.mapDirty = true; }
     M.cx = clamp(M.cx, 0, WW); M.cy = clamp(M.cy, 0, WH);
     if (I.pressed('confirm') && I.device === 'pad' && M.lg >= 0) { this.mapLegendPick(M.lg); this.mapDirty = true; }
     else if (I.pressed('confirm') && I.device === 'pad') { const [wx, wy] = this.mapToWorld(innerWidth / 2, innerHeight / 2); this.mapSetWaypoint(wx, wy); this.mapDirty = true; }
@@ -940,7 +942,11 @@ const UI = {
     const ox = w / 2 - M.cx * M.zoom, oy = h / 2 - M.cy * M.zoom, mw = WW * M.zoom, mh = WH * M.zoom;
     c.save(); c.shadowColor = 'rgba(0,0,0,0.7)'; c.shadowBlur = 30; c.fillStyle = '#d8c49c'; c.fillRect(ox - 14, oy - 14, mw + 28, mh + 28); c.restore();
     c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
-    c.drawImage(W.mapCanvas, ox, oy, mw, mh);
+    // görünen kısım; yakından bakınca (ekranda karo başına 1,6 pikselden çok) yakın harita parçaları da çizilir
+    const vx0 = -ox / M.zoom, vy0 = -oy / M.zoom, vx1 = (w - ox) / M.zoom, vy1 = (h - oy) / M.zoom;
+    const nT = (Math.floor(Math.min(WW - 1, vx1) / MAPT) - Math.floor(Math.max(0, vx0) / MAPT) + 1) * (Math.floor(Math.min(WH - 1, vy1) / MAPT) - Math.floor(Math.max(0, vy0) / MAPT) + 1);
+    W.drawMapRect(c, vx0, vy0, vx1, vy1, 0, 0, M.zoom, M.zoom * d >= 1.6 && nT <= 30);
+    W.mapWork(8);
     const toS = (wx, wy) => [ox + wx / TS * M.zoom, oy + wy / TS * M.zoom];
     const revealed = (wx, wy) => G.reveal[((wy / TS / 4) | 0) * FW + ((wx / TS / 4) | 0)];
     // yollar: çift çizgi (mürekkep kenar, kâğıt içi); patikalar kesikli
@@ -1416,8 +1422,7 @@ const UI = {
         <div class="jr-row">${Tr`<b>At:</b> ${G.horse ? Tr`${G.horse.name} (${G.horse.def.n}) — Bağ ${G.horse.bondLv}/4` : Tr('Yok')}`}</div>
         <div class="jr-row">${Tr`<b>Mülkler:</b> ${G.props.length ? G.props.map(id => PROPERTIES.find(p => p.id === id).n).join(', ') : Tr('Yok')}`}</div>
         <div class="jr-row">${Tr`<b>Aile:</b> ${G.family.spouse ? Tr`Eşi: ${G.family.spouse.name}` : Tr('Bekar')}${G.family.children.length ? Tr(' • Çocuklar: ') + G.family.children.map(c => c.name).join(', ') : ''}`}</div>
-        <div class="jr-row">${Tr`<b>Hayat Hedefi:</b> 80 yaş — kalan ${Math.max(0, GOAL_AGE - G.age)} yıl`}</div>
-        <div class="lifebar"><i style="width:${clamp((G.age - START_AGE) / (GOAL_AGE - START_AGE), 0, 1) * 100}%"></i></div>
+        <div class="jr-row">${Tr('<b>Hayat Hedefi:</b> itibar sahibi ve zengin biri olmak')}</div>
         ${G.activeBounty ? `<div class="jr-row">${Tr`<b>Aktif Ödül Avı:</b> ${G.activeBounty.name} — ${fmtMoney(G.activeBounty.reward)} ${G.activeBounty.done ? Tr('(Tamamlandı, ödülü al)') : Tr('(Şerif ofisine canlı teslim: tam ödül, ceset: yarısı)')}`}</div>` : ''}
       </div></div>`;
     }
@@ -1502,7 +1507,7 @@ const UI = {
     const P = G.player, g = (a) => Input.glyph(a), name = P ? P.name.split(' ')[0] : '';
     const pages = [
       { ic: 'star', t: Tr('Batıya Hoş Geldin!'), portrait: true,
-        b: Tr`Merhaba <b>${name}</b>! Yıl ${START_YEAR}, daha 18 yaşındasın ve cebinde birkaç dolar var.<br>Hedefin basit ama kolay değil: <b>80 yaşına kadar hayatta kalmak</b>.<br><br>Bu kısa rehber ilk adımlarını gösterecek. Hazırsan başlayalım!` },
+        b: Tr`Merhaba <b>${name}</b>! Yıl ${START_YEAR}, daha 18 yaşındasın ve cebinde birkaç dolar var.<br>Hedefin basit ama kolay değil: <b>itibar sahibi ve zengin biri olmak</b>.<br><br>Bu kısa rehber ilk adımlarını gösterecek. Hazırsan başlayalım!` },
       { ic: 'heart', t: Tr('Hayatta Kal'), pre: true,
         b: Tr`Sol alttaki halkalar <b>sağlık</b>, <b>dayanıklılık</b> ve <b>odak</b>; yanındaki çubuklar <b>açlık</b>, <b>susuzluk</b>, <b>uyku</b> ve <b>temizlik</b>.`,
         tips: [['meat', Tr`Acıkınca ${g('satchel')} Çanta'dan ye, ${g('quick')} ile hızlıca atıştır.`], ['drop', Tr('Matarandan iç, nehirden ya da kuyudan doldur.')], ['bed', Tr('Otelde, evinde ya da kamp kurup uyu.')], ['sun', Tr('Çölde bol su iç, karda kalın giyin.')]] },
@@ -1615,8 +1620,8 @@ const UI = {
 
 
   /* ================= DURAKLAT ================= */
-  /* Duraklatma: tam ekran; solda menü, sağda karakterin kayıt defteri kartı (portre, onur, hayat hedefi,
-     konum, zaman, hava, para, at, oynama süresi ve süren hedef). Oyun arkada bulanıklaşır. */
+  /* Duraklatma: tam ekran; solda menü, sağda karakterin kayıt defteri kartı (portre, onur, konum, zaman, hava,
+     para, at, oynama süresi ve süren hedef). Oyun arkada bulanıklaşır. */
   openPause() {
     Audio_.ui('ok');
     document.body.classList.add('paused');
@@ -1653,7 +1658,6 @@ const UI = {
     const bg = BACKGROUNDS.find(b => b.id === G.background), df = DIFFICULTIES.find(d => d.id === G.difficulty);
     const h = G.horse && !G.horse.dead ? G.horse : null, hon = G.honor;
     const hn = hon > 50 ? Tr('Saygın') : hon > 15 ? Tr('İyi') : hon < -50 ? Tr('Kötü Şöhretli') : hon < -15 ? Tr('Şüpheli') : Tr('Nötr');
-    const life = clamp((G.age - START_AGE) / (80 - START_AGE), 0, 1);
     const sec = G.playtime || 0, ph = Math.floor(sec / 3600), pm = Math.floor(sec / 60) % 60;
     const row = (g, k, v) => `<div class="pz-row">${Icons.glyph(g, '#d9c8a4')}<div><span>${k}</span><b>${v}</b></div></div>`;
     // süren hedef: hikâye bölümü, ödül avı ya da haritadaki işaret
@@ -1667,8 +1671,7 @@ const UI = {
       <div class="pz-top"><div class="pz-frame">${this.portraitURL(P.look, G.age) ? `<img src="${this.portraitURL(P.look, G.age)}" alt="">` : ''}</div>
         <div class="pz-id"><div class="pz-k">${Tr('Kayıt Defteri')}</div><div class="pz-n">${escapeHtml(P.name)}</div>
           <div class="pz-s">${Tr`${G.age} yaşında`}${bg ? ' • ' + bg.n : ''}</div><div class="pz-s dim">${df ? df.n : ''}</div>
-          <div class="pz-bars"><div class="pz-bar"><span>${Tr('Onur')}</span><i class="hon"><b style="left:${(clamp((hon + 100) / 200, 0, 1) * 100).toFixed(1)}%"></b></i><em>${hn}</em></div>
-          <div class="pz-bar"><span>${Tr('Hayat')}</span><i class="life"><b style="width:${(life * 100).toFixed(1)}%"></b></i><em>${G.age} / 80</em></div></div>
+          <div class="pz-bars"><div class="pz-bar"><span>${Tr('Onur')}</span><i class="hon"><b style="left:${(clamp((hon + 100) / 200, 0, 1) * 100).toFixed(1)}%"></b></i><em>${hn}</em></div></div>
         </div></div>
       <div class="pz-rows">
         ${row('pin', Tr('Konum'), t ? `${t.n}, ${reg}` : reg)}
@@ -2307,7 +2310,7 @@ const UI = {
       build: () => stations.map(t => {
         const d = dist(here.cx, here.cy, t.cx, t.cy);
         const pr = G.trainPrice(here, t);
-        const hrs = Math.max(1, Math.round(d / 2200));
+        const hrs = Math.max(1, Math.round(d / 4400));
         return { icon: '🚂', label: t.n, right: Tr`${fmtMoney(pr)} • ${hrs} sa`, fn: () => {
           if (G.law.level > 0) { this.feed(Tr('Aranırken trene binemezsin!'), 'warn'); return; }
           if (!G.spend(pr)) return;
@@ -2333,14 +2336,14 @@ const UI = {
     const P = G.player, Wd = G.world;
     const here = Wd.towns.find(t => t.id === b.town);
     // gidilebilecek yerler: ziyaret edilmiş kasabalar ve buraya yakın (komşu) kasabalar
-    const dests = Wd.towns.filter(t => t !== here && (G.visited.has(t.id) || dist(here.cx, here.cy, t.cx, t.cy) < 7000 || G.storyStageDest(t)))
+    const dests = Wd.towns.filter(t => t !== here && (G.visited.has(t.id) || dist(here.cx, here.cy, t.cx, t.cy) < 14000 || G.storyStageDest(t)))
       .sort((a, c) => dist(here.cx, here.cy, a.cx, a.cy) - dist(here.cx, here.cy, c.cx, c.cy));
     this.menu({
       title: Tr('Posta Arabası'), sub: Tr`${here.n} Durağı`, cls: 'small', wallet: true,
       build: () => dests.map(t => {
         const d = dist(here.cx, here.cy, t.cx, t.cy);
         const pr = G.stagePrice(here, t);
-        const hrs = Math.max(2, Math.round(d / 1300));
+        const hrs = Math.max(2, Math.round(d / 2600));
         return { icon: '🐴', label: t.n + (G.visited.has(t.id) ? '' : Tr(' (yeni)')), right: Tr`${fmtMoney(pr)} • ${hrs} sa`, fn: () => {
           if (G.law.level > 0) { this.feed(Tr('Aranırken arabacı seni almaz!'), 'warn'); return; }
           if (!G.spend(pr)) return;
@@ -2810,30 +2813,28 @@ const UI = {
     document.body.classList.add('dying');
     const m = this.makeModal(el, { onBack: () => {}, onClose: () => document.body.classList.remove('dying') });
     this.push(m);
-    $('#ds-cont', el).onclick = () => { this.pop(m); if (hard) { G.deleteSave(); this.showLegacy(false); } else G.respawn(); };
+    $('#ds-cont', el).onclick = () => { this.pop(m); if (hard) { G.deleteSave(); this.showLegacy(); } else G.respawn(); };
     const lg = $('#ds-legacy', el);
-    if (lg) lg.onclick = () => { this.pop(m); G.deleteSave(); this.showLegacy(false); };
+    if (lg) lg.onclick = () => { this.pop(m); G.deleteSave(); this.showLegacy(); };
     $('#ds-menu', el).onclick = () => { this.closeAll(); if (hard) G.deleteSave(); this.showMainMenu(); };
   },
-  showLegacy(alive) {
+  showLegacy() {
     const P = G.player, S = G.stats;
     const born = START_YEAR - START_AGE;
     const ach = Object.keys(G.achieved).length;
-    const epit = alive ? Tr('Seksen yılı devirdi. Batı onu yıpratamadı.') : G.honor > 50 ? Tr('Dürüst bir adamdı; iyi yaşadı, iyi öldü.') : G.honor < -50 ? Tr('Kanunun kovaladığı, halkın korktuğu biriydi.') : Tr('Batının tozunda iz bırakan sıradan bir hayat.');
+    const epit = G.honor > 50 ? Tr('Dürüst biriydi; iyi yaşadı, iyi öldü.') : G.honor < -50 ? Tr('Kanunun kovaladığı, halkın korktuğu biriydi.') : Tr('Batının tozunda iz bırakan sıradan bir hayat.');
     const el = el_('div', 'modal legacy');
     el.innerHTML = `<div class="paper"><div class="np-h">${'THE FRONTIER GAZETTE'}</div><div class="np-d">${Tr`${G.dateStr()} • Fiyatı 5 sent`}</div>
-      <div class="np-t">${alive ? Tr('BİR EFSANE 80 YAŞINDA') : Tr('ACI KAYIP')}</div>
+      <div class="np-t">${Tr('ACI KAYIP')}</div>
       <div class="np-body"><canvas id="lg-portrait" width="160" height="192"></canvas>
-      <div><h2>${escapeHtml(P.name)}</h2><div class="np-y">${born} – ${alive ? '' : G.year}</div>
-      <p>${alive ? Tr`${escapeHtml(P.name)}, dün ${G.age}. yaşını kutladı.` : Tr`${escapeHtml(P.name)}, ${G.age} yaşında ${G.deathCause} sebebiyle hayatını kaybetti.`} ${G.family.spouse ? Tr`Geride eşi ${G.family.spouse.name}` + (G.family.children.length ? Tr` ve ${G.family.children.length} çocuğunu (${G.family.children.map(c => c.name).join(', ')})` : '') + Tr(' bıraktı.') : Tr('Arkasında bir aile bırakmadı.')}</p>
+      <div><h2>${escapeHtml(P.name)}</h2><div class="np-y">${born} – ${G.year}</div>
+      <p>${Tr`${escapeHtml(P.name)}, ${G.age} yaşında ${G.deathCause} sebebiyle hayatını kaybetti.`} ${G.family.spouse ? Tr`Geride eşi ${G.family.spouse.name}` + (G.family.children.length ? Tr` ve ${G.family.children.length} çocuğunu (${G.family.children.map(c => c.name).join(', ')})` : '') + Tr(' bıraktı.') : Tr('Arkasında bir aile bırakmadı.')}</p>
       <p><i>"${epit}"</i></p>
       <table class="stats"><tr><td>${Tr`Yaşanan gün`}</td><td>${G.day}</td></tr><tr><td>${Tr`Avlanan hayvan`}</td><td>${S.animals}</td></tr><tr><td>${Tr`Kazanılan para`}</td><td>${fmtMoney(S.earned)}</td></tr><tr><td>${Tr`Keşfedilen yer`}</td><td>${G.discovered.size}</td></tr><tr><td>${Tr`Başarımlar`}</td><td>${ach}/${ACHIEVEMENTS.length}</td></tr><tr><td>${Tr`Onur`}</td><td>${Math.round(G.honor)}</td></tr></table></div></div>
-      <div class="ds-items">${alive ? `<div class="p-item nav pref" id="lg-cont">${Tr`Yaşamaya Devam Et`}</div>` : ''}<div class="p-item nav ${alive ? '' : 'pref'}" id="lg-menu">${Tr('Ana Menü')}</div></div></div>`;
+      <div class="ds-items"><div class="p-item nav pref" id="lg-menu">${Tr('Ana Menü')}</div></div></div>`;
     const m = this.makeModal(el, { onBack: () => {} });
     this.push(m);
     Spr.portrait($('#lg-portrait', el).getContext('2d'), 160, 192, P.look, G.age);
-    const c = $('#lg-cont', el);
-    if (c) c.onclick = () => this.pop(m);
     $('#lg-menu', el).onclick = () => { this.closeAll(); this.showMainMenu(); };
   },
 
@@ -2887,7 +2888,7 @@ const UI = {
         else if (id === 'set') this.openSettings();
         else if (id === 'ctrl') this.openControls();
         else if (id === 'quit') Platform.quit();
-        else if (id === 'about') this.info("Frontier's End", `<p>${Tr`<b>Frontier's End</b>, 1890'lar Amerika'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunudur.`}</p><p>${Tr`İstersen kısa bir hikâyeyle başla, istersen doğrudan hayatın içine dal. 18 yaşında başla, avlan, çalış, sev, keşfet ve 80 yaşına kadar hayatta kalmaya çalış.`}</p><p class="dim">${Tr`HTML5 Canvas • Prosedürel dünya, grafik ve ses`}</p>`);
+        else if (id === 'about') this.info("Frontier's End", `<p>${Tr`<b>Frontier's End</b>, 1890'lar Amerika'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunudur.`}</p><p>${Tr`İstersen kısa bir hikâyeyle başla, istersen doğrudan hayatın içine dal. 18 yaşında başla; avlan, çalış, sev, keşfet; itibar sahibi ve zengin biri olmaya çalış.`}</p><p class="dim">${Tr`HTML5 Canvas • Prosedürel dünya, grafik ve ses`}</p>`);
       };
     });
     this.stack.push(m);

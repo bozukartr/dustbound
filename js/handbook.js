@@ -104,7 +104,7 @@ const Handbook = {
         Tr`Özel fayton ahırdan ${fmtMoney(CARRIAGE_PRICE)}, arabacının günlüğü ${fmtMoney(CARRIAGE_WAGE)}. Bin ve gideceğin yeri seç: yolu izle ya da ${g('confirm')} tuşunu basılı tutarak atla (zaman yine geçer). ${g('interact')} ile inersin. Biri saldırırsa ya da kanun görünürse arabacı durur.`,
       ]) },
       { id: 'aging', ic: 'hourglass', t: Tr('Yaşlanma'), b: () => li([
-        Tr('18 yaşında başlarsın; hedefin 80 yaşına kadar yaşamak.'),
+        Tr('Hayata 18 yaşında başlarsın; yaş sınırı yoktur, oyun ancak ölünce biter. Hedefin itibar sahibi ve zengin biri olmak.'),
         Tr('32 yaşından sonra en yüksek dayanıklılık her yıl %1,1 azalır (en çok %50); 50\'den sonra en yüksek can her yıl %1,2 azalır (en çok %35).'),
         Tr('42\'den sonra saçın ağarır, 60\'tan sonra yürüyüşün yılda %1,2 yavaşlar (en çok %25), 62\'den sonra her doğum gününde hastalanma ihtimali artar.'),
       ]) },

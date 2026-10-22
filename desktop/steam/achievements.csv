@@ -43,4 +43,4 @@ api_name,name_english,description_english,name_turkish,description_turkish
 "ACH_AGE30","Maturity","Turn 30. All skill experience +10%.","Olgunluk","30 yaşına gir. Tüm yetenek deneyimleri +%10."
 "ACH_AGE50","Half a Century","Turn 50. Experience: an extra 5% discount at shops.","Yarım Asır","50 yaşına gir. Tecrübe: dükkanlarda ek %5 indirim."
 "ACH_AGE65","Graybeard","Turn 65. The frailty of old age sets in more slowly.","Ak Sakallı","65 yaşına gir. Yaşlılığın getirdiği halsizlik yavaşlar."
-"ACH_AGE80","Immortal Legend","Survive to the age of 80. You reached your life goal!","Ölümsüz Efsane","80 yaşına kadar hayatta kal. Hayat hedefine ulaştın!"
+"ACH_AGE80","Immortal Legend","Survive to the age of 80.","Ölümsüz Efsane","80 yaşına kadar hayatta kal."

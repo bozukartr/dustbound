@@ -167,7 +167,7 @@ STORIES.rail = {
     this.sullyGo(S.rc.x - 24, S.rc.y + 6);
     setTimeout(() => UI.help(Tr('Kendi taşıma ekibini kurmak istersen: posta ofislerinde <b>Nakliyeci Tut</b>. Nakliyeciler işletmelerine yükü senin yerine taşır. Yük araban sandıkları, ahırlarda <b>Arabanı Buraya Getirt</b> ile istediğin kasabaya gelir.'), 12), 17000);
   },
-  epilogue: () => Tr`Hikâye bitti ama hayat sürüyor. Ray kampında her zaman iş var; Boone'un ekibi de sana artık "ustabaşı" diyor. Kendi işini kurmak, arabanla yük taşımak ya da başka yollara düşmek senin elinde. <b>Hedefin hâlâ 80 yaşına kadar yaşamak.</b>`,
+  epilogue: () => Tr`Hikâye bitti ama hayat sürüyor. Ray kampında her zaman iş var; Boone'un ekibi de sana artık "ustabaşı" diyor. Kendi işini kurmak, arabanla yük taşımak ya da başka yollara düşmek senin elinde. <b>Hedefin hâlâ itibar sahibi ve zengin biri olmak.</b>`,
   chapters: [
     /* 1 — Ray Kampı: Boone ile tanış, kampa yürü, ray döşe, ye */
     {

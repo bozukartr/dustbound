@@ -7,9 +7,9 @@ const SET_KEY = 'frontiersend_settings_v1';
 /* Kayıt yuvaları: her yuva ayrı bir hayat; içinde bir otomatik, bir manuel kayıt.
    Yuva bilgileri (ad, yaş, yer, küçük ekran görüntüsü) ayrı bir anahtarda tutulur ki menü büyük kayıtları okumadan listelesin. */
 const SLOTS = 3;
-/* Kayıt biçimi: 4, tek dünyalı (1536 karo) oyunun kaydıdır. Daha eski kayıtlar açılmaz; yuvaları boş sayılır ve yeni
-   bir hayat üstlerine yazılır. */
-const SAVE_V = 4;
+/* Kayıt biçimi: 5, 3072 karoluk dünyanın kaydıdır. Daha eski kayıtlar açılmaz; yuvaları boş sayılır ve yeni bir hayat
+   üstlerine yazılır. */
+const SAVE_V = 5;
 /* Arayüz (HUD) boyutu seçenekleri; ayarda dizin tutulur */
 const HUD_SCALES = [0.8, 0.9, 1, 1.1, 1.25, 1.4];
 const SLOT_META = 'frontiersend_slots_v1';
@@ -59,7 +59,7 @@ const G = {
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
     this.travelT = 10; this.eventT = 90;
     this.amb = { birds: [], tumbles: [], flies: [] };
-    this.curTown = null; this.curRegion = null; this.goalReached = false; this.hints = {};
+    this.curTown = null; this.curRegion = null; this.hints = {};
     this.story = null; this.cine = false;
     FX.reset();
   },
@@ -244,7 +244,7 @@ const G = {
     const story = this._storyNext = profile.story !== false && !window.__testNoStory;
     const hints = () => {
       if (story && this.storyStart()) return;
-      UI.help(Tr`<b>${P.name}</b>, 18 yaşındasın ve yıl ${START_YEAR}. Hedefin: <b>80 yaşına kadar hayatta kalmak.</b><br>Aç kalma, susuz kalma, uykusuz kalma. Avlan, çalış, keşfet.`, 12);
+      UI.help(Tr`<b>${P.name}</b>, 18 yaşındasın ve yıl ${START_YEAR}. Hedefin: <b>itibar sahibi ve zengin biri olmak.</b><br>Aç kalma, susuz kalma, uykusuz kalma. Avlan, çalış, keşfet.`, 12);
       if (this.hideout) setTimeout(() => UI.help(Tr`Başında <b>${fmtMoney(this.law.bounty)}</b> ödül var: kasabalarda kanun adamları yüzünü tanır. Kasabaya girmeden önce çantandan <b>Bandana</b>'yı tak ya da şerife teslim olup cezanı öde. Saklı kampın haritada işaretli.`, 12), 13000);
       setTimeout(() => UI.help(Tr`${Input.glyph('map')} Harita &nbsp; ${Input.glyph('satchel')} Çanta &nbsp; ${Input.glyph('journal')} Günlük &nbsp; ${Input.glyph('wheel')} Silah Çarkı &nbsp; ${Input.glyph('pause')} Duraklat`, 10), this.hideout ? 26000 : 13000);
     };
@@ -311,7 +311,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -386,7 +386,7 @@ const G = {
     this.seed = d.seed;
     Object.assign(this, { clock: d.clock, pace: d.pace });   // mevsim dünya kurulmadan bilinsin
     await this.buildWorld(d.seed, this.season);
-    Object.assign(this, { clock: d.clock, pace: d.pace, difficulty: d.difficulty, background: d.background, profile: d.profile, honor: d.honor, bank: d.bank, scars: d.scars || 0, goalReached: d.goalReached });
+    Object.assign(this, { clock: d.clock, pace: d.pace, difficulty: d.difficulty, background: d.background, profile: d.profile, honor: d.honor, bank: d.bank, scars: d.scars || 0 });
     Object.assign(this.weather, d.weather); Object.assign(this.law, d.law); this.law.level = 0; this.law.maskBounty = 0; this.law.masked = false; this.law.resist = false; this.law.arrestT = 0; this.law.warned = false;
     Object.assign(this.stats, d.stats); Object.assign(this.skills, d.skills); this.achieved = d.achieved || {};
     this.visited = new Set(d.visited); this.discovered = new Set(d.discovered); this.rumored = new Set(d.rumored || []);

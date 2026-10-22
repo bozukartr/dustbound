@@ -67,6 +67,33 @@ class Noise {
     for (let i = 0; i < oct; i++) { s += this.v(x * f, y * f) * amp; n += amp; amp *= 0.5; f *= 2.03; }
     return s / n;
   }
+  /* Bir satırın fbm'i: out[i] = fbm(xs[i], y, oct) ile birebir aynı değerler (aynı aritmetik, aynı toplama sırası).
+     y'ye bağlı kısım oktav başına bir kez hesaplanır; ardışık noktalar aynı kafes hücresinde kaldıkça köşe karmaları
+     yeniden hesaplanmaz, sağdaki komşu hücreye geçince sağ köşeler sola kayar. oct = 1 iken sonuç v ile aynıdır.
+     out ve xs Float64Array olmalı (Float32 toplamı yuvarlar). */
+  row(out, xs, y, oct = 4) {
+    const n = out.length, s = this.s, p = this.p, wrap = (a) => ((a % p) + p) % p;
+    out.fill(0);
+    let amp = 0.5, f = 1, nrm = 0;
+    for (let o = 0; o < oct; o++) {
+      const Y = y * f, yi = Math.floor(Y), yf = Y - yi, w = yf * yf * (3 - 2 * yf);
+      const y0 = p ? wrap(yi) : yi, y1 = p ? wrap(yi + 1) : yi + 1;
+      let cx = NaN, a = 0, b = 0, c = 0, d = 0;
+      for (let i = 0; i < n; i++) {
+        const X = xs[i] * f, xi = Math.floor(X);
+        if (xi !== cx) {
+          const x1 = p ? wrap(xi + 1) : xi + 1;
+          if (xi === cx + 1) { a = b; c = d; } else { const x0 = p ? wrap(xi) : xi; a = hash2(x0, y0, s); c = hash2(x0, y1, s); }
+          b = hash2(x1, y0, s); d = hash2(x1, y1, s); cx = xi;
+        }
+        const xf = X - xi, u = xf * xf * (3 - 2 * xf);
+        out[i] += (a + (b - a) * u + (c - a) * w + (a - b - c + d) * u * w) * amp;
+      }
+      nrm += amp; amp *= 0.5; f *= 2.03;
+    }
+    for (let i = 0; i < n; i++) out[i] /= nrm;
+    return out;
+  }
 }
 
 /* Minimum ikili yığın (A* için) */

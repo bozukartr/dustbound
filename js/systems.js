@@ -52,7 +52,7 @@ const GameSystems = {
   },
   onBirthday(age) {
     if (age >= 33) this.hintOnce('aging', Tr('Yaşın ilerliyor: en yüksek dayanıklılığın artık her yıl biraz azalacak.'), 8);
-    UI.toast(Tr`${age} Yaşındasın`, age >= GOAL_AGE ? Tr('Bir efsane oldun.') : pick([Tr('Doğum günün kutlu olsun.'), Tr('Bir yıl daha geride kaldı.'), Tr('Batı seni yaşlandırıyor ama yıkamıyor.'), Tr('Zaman akıp gidiyor.')]), 'year');
+    UI.toast(Tr`${age} Yaşındasın`, pick([Tr('Doğum günün kutlu olsun.'), Tr('Bir yıl daha geride kaldı.'), Tr('Batı seni yaşlandırıyor ama yıkamıyor.'), Tr('Zaman akıp gidiyor.')]), 'year');
     // yaşlılık hastalıkları
     if (age >= 62 && Math.random() < 0.15 + (age - 62) * 0.012) {
       this.sicken(30, Tr('Yaşın ilerledikçe bünyen zayıflıyor. <b>Hastalandın</b>. Bir doktora görün ya da tonik kullan.'), 8);
@@ -66,7 +66,6 @@ const GameSystems = {
       UI.toast(Tr('Bir Çocuğun Oldu!'), Tr`${name} dünyaya geldi.`, 'family');
     }
     if (this.bank > 0) this.bank *= 1.02;
-    if (age >= GOAL_AGE && !this.goalReached) { this.goalReached = true; setTimeout(() => UI.showLegacy(true), 2500); }
   },
 
   /* ================= HAVA ================= */

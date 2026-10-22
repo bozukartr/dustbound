@@ -103,8 +103,8 @@ STORIES.outlaw = {
     S.sully = null;
   },
   epilogue: (S) => S && S.choice === 'law'
-    ? Tr`Hikâye bitti ama hayat sürüyor. Vance parmaklıklar ardında, senin sicilin temiz. Ne yapacağın artık sana kalmış: çalış, avlan, ev kur ya da yeniden yola düş. <b>Hedefin hâlâ 80 yaşına kadar yaşamak.</b>`
-    : Tr`Hikâye bitti ama hayat sürüyor. Hesabını verdin, borcun kapandı. Vance hâlâ bir yerlerde; belki bir gün yolunuz yine kesişir. <b>Hedefin hâlâ 80 yaşına kadar yaşamak.</b>`,
+    ? Tr`Hikâye bitti ama hayat sürüyor. Vance parmaklıklar ardında, senin sicilin temiz. Ne yapacağın artık sana kalmış: çalış, avlan, ev kur ya da yeniden yola düş. <b>Hedefin hâlâ itibar sahibi ve zengin biri olmak.</b>`
+    : Tr`Hikâye bitti ama hayat sürüyor. Hesabını verdin, borcun kapandı. Vance hâlâ bir yerlerde; belki bir gün yolunuz yine kesişir. <b>Hedefin hâlâ itibar sahibi ve zengin biri olmak.</b>`,
   chapters: [
     /* 1 — Kampta Sabah: konuş, pişir, ye, silahını doldur */
     {

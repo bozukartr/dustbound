@@ -448,8 +448,6 @@ body.modal-open #modals { background: radial-gradient(ellipse at 50% 45%, rgba(1
 .jr-row { font-size: 17px; margin: 6px 0; }
 .honorbar { position: relative; height: 8px; margin: 6px 0; background: linear-gradient(90deg, #8a1a14, #555 50%, #e8dcc0); width: 260px; }
 .honorbar i { position: absolute; top: -4px; width: 4px; height: 16px; background: #fff; box-shadow: 0 0 4px #000; }
-.lifebar { height: 10px; background: rgba(255, 255, 255, 0.1); width: 100%; max-width: 400px; margin: 4px 0 10px; border: 1px solid rgba(201, 164, 92, 0.3); }
-.lifebar i { display: block; height: 100%; background: linear-gradient(90deg, #c9a45c, #e8dcc0); }
 .skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .skill { background: rgba(255, 255, 255, 0.04); padding: 12px 14px; border-left: 2px solid var(--gold); }
 .sk-n { font-family: var(--sc); font-size: 20px; display: flex; justify-content: space-between; }
@@ -753,7 +751,6 @@ body.paused #game { filter: var(--tone) blur(3px) sepia(0.35) brightness(0.6); }
 .pz-bar i { position: relative; flex: 1; height: 7px; background: rgba(0, 0, 0, 0.55); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.4); }
 .pz-bar i.hon { background: linear-gradient(90deg, #8a1a14, #4a4038 50%, #e0d4b8); }
 .pz-bar i.hon b { position: absolute; top: -4px; width: 4px; height: 15px; margin-left: -2px; background: #fff; box-shadow: 0 0 5px #000; }
-.pz-bar i.life b { display: block; height: 100%; background: linear-gradient(90deg, var(--brass-lo), var(--brass-hi)); }
 .pz-bar em { font-style: normal; font-family: var(--type); font-size: 12px; color: #d8ccb4; min-width: 60px; text-align: right; }
 .pz-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(201, 164, 92, 0.22); }
 .pz-row { display: flex; gap: 9px; align-items: flex-start; min-width: 0; }

@@ -17,7 +17,12 @@ module.exports = {
         if (owner && owner.kind === 'npc') {
           SHOTS.set(owner, (SHOTS.get(owner) || 0) + 1);
           if (owner.reloadT > 0) RELOAD_SHOTS++;
-          if (!G.los(owner.x, owner.y, G.player.x, G.player.y)) BLIND_SHOTS++;   // görmeden atış
+          // görmeden atış: duvarın ya da kapalı kapının ardındaki oyuncuya. Ağaç ve çalı görüşü rastgele keser (NPC'nin
+          // kendi bakışı o an delip geçmiş olabilir); bu yüzden burada yalnız kalıcı engeller sayılır.
+          const rnd = Math.random; Math.random = () => 0.99;
+          const sees = G.los(owner.x, owner.y, G.player.x, G.player.y);
+          Math.random = rnd;
+          if (!sees) BLIND_SHOTS++;
         }
         return fr(ox, oy, ang, range, dmg, owner, opts);
       };
