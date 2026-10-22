@@ -362,12 +362,12 @@ const INT_PLANS = {
   },
   cantina: { std: [{ m: ['b@...b.g', 'RRR.....', '1.1.....', '......T.', '.T......', 'g.....P.'], rug: [[1.2, 4.1, 3.6, 1.6, 'g', '#a04a2a'], [5.4, 3.2, 3.4, 1.4, 'g', '#2a6a6a']] }] },
   /* Malikanenin zemin katı tek büyük salon: arkada şömine karşısında kanepe ve koltuklar, piyano, iki köşede merdiven;
-     önde iki yemek masası, solda mutfak köşesi (ocak, kiler). Üst kat MANSION_UP. */
-  mansion: { std: [{ m: ['..kq..F..p..', '............', '...a.ooo.a..', '............', '.Q........Q.', '..T......T..', 'Si...Q..Q..G', 'nb.......g.G'],
+     önde iki yemek masası, solda mutfak köşesi (ocak, kiler). Üst kat MANSION_UP. Yalnızca zengin şehirde: plan rich. */
+  mansion: { rich: [{ m: ['..kq..F..p..', '............', '...a.ooo.a..', '............', '.Q........Q.', '..T......T..', 'Si...Q..Q..G', 'nb.......g.G'],
     rug: [[4.1, 2.1, 5.8, 2.8, 'o', '#5a1a24'], [1.8, 5.5, 3.4, 1.6, 'g', '#2a3a4a'], [8.8, 5.5, 3.4, 1.6, 'g', '#2a3a4a'], [6.15, 6.4, 1.7, 2.5, 'r', '#4a2418']] }] },
   /* Kulübün zemin katı: solda okuma odası (kitaplıklar, okuma masası, gazete kürsüsü), sağda puro ve konyak salonu (bar,
-     şömine, koltuklar); aradaki duvarda geçit (FLOOR0_WALL). Merdiven sağ arka köşede; üst kat CLUB_UP. */
-  club: { std: [{ m: ['kk.kki@..F..', '.....RRR....', '.a.a.1.1....', '............', '.T......T...', '............', 'Q....a...a.G', 'y..g.....g.G'],
+     şömine, koltuklar); aradaki duvarda geçit (FLOOR0_WALL). Merdiven sağ arka köşede; üst kat CLUB_UP. Plan rich. */
+  club: { rich: [{ m: ['kk.kki@..F..', '.....RRR....', '.a.a.1.1....', '............', '.T......T...', '............', 'Q....a...a.G', 'y..g.....g.G'],
     rug: [[1.2, 2.4, 3.6, 3.2, 'g', '#2a3a2a'], [6.5, 4.4, 5, 2.2, 'o', '#3a1418']] }] },
 };
 /* ---- İnşa kademeleri: oyuncunun kendi kurduğu ev ve işletmelerin hazır tasarımları ----
