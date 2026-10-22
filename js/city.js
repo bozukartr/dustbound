@@ -108,13 +108,9 @@ World.prototype.genCity = function (td, big) {
   blk(3, 0).kind = 'park';    // güneybatıda büyük park
   // yerleşecekler: binalar, arsalar (büyük dünya), kuzeyde mahalle parkı
   const queue = [...(td.rb || []), ...td.b, ...(big && td.xb ? td.xb : [])];
-  // sürüm 5: kuzeyde malikane (yanında bahçesiyle) ve özel kulüp; yer açmak için üç ev eksilir. Kasabanın bina listesi de
-  // yerleşenlerle aynı olur (tanım tablosu değişmez).
-  if (WGEN >= 5 && td.id === 'stclement') {
-    town.b = [...td.b]; town.xb = [...(td.xb || []), 'club', 'mansion'];
-    for (const L of [queue, town.b]) for (let k = 0; k < 3; k++) L.splice(L.lastIndexOf('house'), 1);
-    queue.push('club', 'mansion');
-  }
+  // sürüm 5: kuzeyde malikane (yanında bahçesiyle) ve özel kulüp; yer açmak için üç ev eksilir (kasabanın listeleri tanım
+  // tablosunun kendisi kalır: dünya önbelleği onlara başvuruyla bağlanır)
+  if (WGEN >= 5 && td.id === 'stclement') { for (let k = 0; k < 3; k++) queue.splice(queue.lastIndexOf('house'), 1); queue.push('club', 'mansion'); }
   const items = queue.map(type => ({ type, w: BUILDINGS[type].w + (type === 'mansion' ? MANSION_GARDEN : 0), h: BUILDINGS[type].h }));
   if (big) for (let k = 0; k < { s: 1, m: 2, l: 3 }[td.sz]; k++) items.push(k === 0 && td.sz !== 's' ? { type: 'lot', w: 12, h: 9, k } : { type: 'lot', w: 10, h: 7, k });
   items.push({ type: 'park', w: 24, h: RD - 1, k: 1 });
