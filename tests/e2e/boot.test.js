@@ -23,7 +23,10 @@ module.exports = {
         const W = G.world, out = { ww: WW, towns: W.towns.length, missing: [], noStation: [], lots: W.lots.length };
         for (const tw of W.towns) {
           const have = tw.buildings.map(b => b.type);
-          for (const x of [...tw.b, ...(tw.xb || [])]) { const i = have.indexOf(x); if (i >= 0) have.splice(i, 1); else out.missing.push(tw.id + ':' + x); }
+          const want = [...tw.b, ...(tw.xb || [])];
+          // dünya sürümü 5: Saint Clement'te üç evin yerine özel kulüp ve malikane
+          if (WGEN >= 5 && tw.id === 'stclement') { for (let k = 0; k < 3; k++) want.splice(want.lastIndexOf('house'), 1); want.push('club', 'mansion'); }
+          for (const x of want) { const i = have.indexOf(x); if (i >= 0) have.splice(i, 1); else out.missing.push(tw.id + ':' + x); }
           if (RAIL_LINES.filter(inWorld).some(l => l.includes(tw.id)) && !tw.station) out.noStation.push(tw.id);
         }
         return out;
