@@ -975,7 +975,6 @@ const UI = {
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.font = `italic ${Math.round(16 + M.zoom * 4)}px "IM Fell English", serif`;
     for (const r of REGIONS) {
-      if (!inWorld(r)) continue;
       const [x, y] = toS(r.x * WW * TS, r.y * WH * TS);
       const txt = r.n.toUpperCase().split('').join(' ');
       c.lineWidth = 3; c.strokeStyle = 'rgba(232,218,184,0.45)'; c.strokeText(txt, x, y);

@@ -455,9 +455,6 @@ const EstateSystems = {
   saveEstate() { return { estate: this.estate, club: this.club, carriage: this.carriage }; },
   loadEstate(d) {
     this.estate = (d && d.estate) || null; this.club = (d && d.club) || null; this.carriage = (d && d.carriage) || null;
-    if (this.estate && !this.mansionB()) this.estate = null;   // malikanesi olmayan (eski) dünya
-    if (this.estate) { this.estate.staff = this.estate.staff || {}; if (this.estate.meal === undefined) this.estate.meal = -1; }
-    if (this.club && !this.world.buildings.some(b => b.type === 'club')) this.club = null;
     this._serv = null; this._manB = null; this.coach = null; this.ride = null;
   },
 };

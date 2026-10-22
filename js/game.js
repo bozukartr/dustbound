@@ -3,21 +3,21 @@
    FRONTIER'S END — oyun çekirdeği: durum, döngü, render, kayıt
    ========================================================== */
 
-const SAVE_KEY = 'frontiersend_save_v1';   // eski tek kayıt: açılışta 1. yuvaya taşınır
 const SET_KEY = 'frontiersend_settings_v1';
 /* Kayıt yuvaları: her yuva ayrı bir hayat; içinde bir otomatik, bir manuel kayıt.
    Yuva bilgileri (ad, yaş, yer, küçük ekran görüntüsü) ayrı bir anahtarda tutulur ki menü büyük kayıtları okumadan listelesin. */
 const SLOTS = 3;
+/* Kayıt biçimi: 4, tek dünyalı (1536 karo) oyunun kaydıdır. Daha eski kayıtlar açılmaz; yuvaları boş sayılır ve yeni
+   bir hayat üstlerine yazılır. */
+const SAVE_V = 4;
 /* Arayüz (HUD) boyutu seçenekleri; ayarda dizin tutulur */
 const HUD_SCALES = [0.8, 0.9, 1, 1.1, 1.25, 1.4];
 const SLOT_META = 'frontiersend_slots_v1';
 const slotKey = (n, kind) => `frontiersend_slot${n}_${kind}`;
-/* Eski adla (Dustbound) tarayıcıda yapılmış kayıt ve ayarları yeni anahtarlara taşı */
+/* Eski adla (Dustbound) tarayıcıda yapılmış ayarları yeni anahtara taşı */
 if (!Platform.desktop) try {
-  for (const [o, n] of [['dustbound_save_v1', SAVE_KEY], ['dustbound_settings_v1', SET_KEY]]) {
-    const v = localStorage.getItem(o);
-    if (v !== null && localStorage.getItem(n) === null) localStorage.setItem(n, v);
-  }
+  const v = localStorage.getItem('dustbound_settings_v1');
+  if (v !== null && localStorage.getItem(SET_KEY) === null) localStorage.setItem(SET_KEY, v);
 } catch (e) {}
 
 const G = {
@@ -195,7 +195,6 @@ const G = {
 
   /* ---------------- Yeni oyun ---------------- */
   async newGame(profile) {
-    setWorldSize(WORLD_NEW); WGEN = WGEN_NEW;
     this.resetState();
     const seed = (Math.random() * 1e9) | 0;
     this.seed = seed;
@@ -305,7 +304,7 @@ const G = {
     const h = this.horse;
     this.noteBountyState();
     const data = {
-      v: 3, ww: WW, wgen: WGEN, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
+      v: SAVE_V, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
       profile: this.profile,
       player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, immuneT: P.immuneT, painT: P.painT, limberT: P.limberT, coolT: P.coolT, canteen: P.canteen, coat: P.coat, mask: P.masked ? P.mask : null, lastMask: P.lastMask || null, lantern: P.lantern, riding: !!P.riding },
       horse: h ? { breed: h.breed, name: h.name, look: h.look, hp: h.hp, bond: h.bond, x: h.x, y: h.y, dead: h.dead } : null,
@@ -320,34 +319,11 @@ const G = {
       if (!silent) UI.feed(Tr`💾 ${this.slot}. yuvaya kaydedildi.`);
     } catch (e) { UI.feed(Tr('Kayıt başarısız: ') + e.message, 'warn'); }
   },
-  /* 1890 fiyat reformundan önceki kayıtlar: paralar yeni ölçeğe çekilir (alım gücü korunur) */
-  migrateEconomy() {
-    const P = this.player, S = this.stats, L = this.law;
-    P.money *= 0.3; this.bank *= 0.3;
-    L.bounty = Math.round(L.bounty * 0.5 * 100) / 100;
-    S.earned = (S.earned || 0) * 0.3; S.maxCash = (S.maxCash || 0) * 0.3; S.maxBounty = (S.maxBounty || 0) * 0.5;
-    if (this.activeBounty) this.activeBounty.reward = Math.round(this.activeBounty.reward * 0.5);
-    this.bounties = null;
-  },
   /* ---------------- Kayıt yuvaları ---------------- */
   slotMetaAll() {
     let M = null;
     try { M = JSON.parse(Platform.get(SLOT_META) || 'null'); } catch (e) { M = null; }
     if (!M || typeof M !== 'object') M = {};
-    // eski tek kayıt: 1. yuvanın otomatik kaydı olur
-    if (!M.migrated) {
-      M.migrated = 1;
-      try {
-        const old = Platform.get(SAVE_KEY);
-        if (old && !M[1]) {
-          const d = JSON.parse(old);
-          Platform.set(slotKey(1, 'auto'), old);
-          M[1] = { auto: this.metaFromData(d) };
-          Platform.remove(SAVE_KEY);
-        }
-      } catch (e) {}
-      try { Platform.set(SLOT_META, JSON.stringify(M)); } catch (e) {}
-    }
     return M;
   },
   writeSlotMeta(n, kind, meta) {
@@ -356,11 +332,6 @@ const G = {
     if (meta) M[n][kind] = meta; else delete M[n][kind];
     if (!M[n].auto && !M[n].manual) delete M[n];
     Platform.set(SLOT_META, JSON.stringify(M));
-  },
-  metaFromData(d) {
-    const dpy = (LIFE_PACES.find(p => p.id === d.pace) || LIFE_PACES[1]).dpy;
-    const day = Math.floor(d.clock / 1440);
-    return { name: d.player.name, age: START_AGE + Math.floor(day / dpy), money: d.player.money, bg: d.background, diff: d.difficulty, day, year: START_YEAR + Math.floor(day / dpy), place: '', savedAt: d.savedAt || Date.now(), playtime: d.playtime || 0, thumb: null };
   },
   /* Şu anki oyunun yuva özeti: yer adı ve küçük bir ekran görüntüsü */
   slotMetaNow() {
@@ -374,11 +345,12 @@ const G = {
         thumb = c.toDataURL('image/jpeg', 0.72);
       }
     } catch (e) { thumb = null; }
-    return { name: P.name, age: this.age, money: P.money, bg: this.background, diff: this.difficulty, day: this.day, year: this.year, place: t ? t.n : (reg ? (reg.n || reg) : ''), savedAt: Date.now(), playtime: Math.round(this.playtime), thumb };
+    return { name: P.name, age: this.age, money: P.money, bg: this.background, diff: this.difficulty, day: this.day, year: this.year, place: t ? t.n : (reg ? (reg.n || reg) : ''), savedAt: Date.now(), playtime: Math.round(this.playtime), thumb, v: SAVE_V };
   },
+  /* Yuvalar: eski biçimdeki (SAVE_V öncesi) kayıtlar yok sayılır, yuva boş görünür */
   slotList() {
-    const M = this.slotMetaAll(), out = [];
-    for (let n = 1; n <= SLOTS; n++) out.push({ n, auto: (M[n] && M[n].auto) || null, manual: (M[n] && M[n].manual) || null });
+    const M = this.slotMetaAll(), out = [], cur = (m) => (m && m.v >= SAVE_V ? m : null);
+    for (let n = 1; n <= SLOTS; n++) out.push({ n, auto: cur(M[n] && M[n].auto), manual: cur(M[n] && M[n].manual) });
     return out;
   },
   freeSlot() { const L = this.slotList().find(s => !s.auto && !s.manual); return L ? L.n : null; },
@@ -408,8 +380,7 @@ const G = {
     let d;
     try { d = JSON.parse(Platform.get(slotKey(L.n, L.kind))); } catch (e) { d = null; }
     if (!d) return false;
-    setWorldSize(d.ww || WORLD_OLD);   // v3 öncesi kayıtlar küçük dünyada kalır
-    WGEN = d.wgen || 1;   // eski kayıtların dünyası eski kurallarla üretilir (bina numaraları korunur)
+    if (!(d.v >= SAVE_V)) { UI.feed(Tr('Bu kayıt oyunun eski bir sürümüne ait ve açılamıyor. Yeni bir hayata başla.'), 'warn'); return false; }
     this.resetState();
     this.slot = L.n;
     this.seed = d.seed;
@@ -435,7 +406,7 @@ const G = {
     // otelin üst katında kaydedildiyse o kat geri kurulur (oyuncunun yeri zemin katta bir eşyanın içine düşebilir)
     this.hotelRent = d.hotelRent || null;
     if (d.upB != null && upPlan(this.world.buildings[d.upB]) && this.world.buildingAtPx(P.x, P.y) === this.world.buildings[d.upB]) this.setFloor(this.world.buildings[d.upB], 1);
-    // eski kayıtlar: kasaba düzeni değiştiyse duvarın içinde başlama
+    // kayıttaki yer bir duvarın içine düştüyse (dünya üretimi değiştiyse) kasabada başla
     if (this.world.blocked(P.x, P.y, 4)) { const t = this.nearestTown(P.x, P.y); P.x = t.spawn.x; P.y = t.spawn.y; }
     if (!this.romances || !Object.keys(this.romances).length) this.initRomances();
     if (d.horse) {
@@ -454,7 +425,6 @@ const G = {
     try { this.loadEnts(d.world); } catch (e) { console.warn('dünya anlık görüntüsü yüklenemedi', e); }
     this.hideout = d.hideout || null; this.placeHideout();
     try { this.loadStory(d.story); } catch (e) { console.warn('hikâye yüklenemedi', e); this.story = null; }
-    if ((d.v || 1) < 2) this.migrateEconomy();
     Platform.syncAchievements(this.achieved);
     this.startPlay();
     UI.feed(Tr('Kayıt yüklendi. Hoş geldin, ') + P.name + '.');

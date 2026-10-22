@@ -248,15 +248,15 @@ const TOWNS = [
   { id: 'coyote',     n: 'Coyote Springs', px: 0.53, py: 0.71, sz: 's', xb: ['bakery', 'laundry'], desc: 'Kaynak suyunun etrafında kurulmuş bir mola yeri.',
     b: ['general', 'saloon', 'stable', 'butcher', 'sheriff', 'hotel', 'land', 'house'] },
   // yalnızca büyük dünyada (1536 karo) kurulan kasabalar
-  { id: 'carverjct',  n: 'Carver Junction', px: 0.70, py: 0.30, sz: 'm', big: 1, desc: 'Demiryollarının kesiştiği kalabalık bir kavşak. Toptancılar ve yolcular burada buluşur.',
+  { id: 'carverjct',  n: 'Carver Junction', px: 0.70, py: 0.30, sz: 'm', desc: 'Demiryollarının kesiştiği kalabalık bir kavşak. Toptancılar ve yolcular burada buluşur.',
     b: ['warehouse', 'general', 'saloon', 'hotel', 'sheriff', 'post', 'county', 'bank', 'smith', 'bakery', 'stable', 'doctor', 'barber', 'house', 'house', 'house', 'house'] },
-  { id: 'brinecove',  n: 'Brine Cove',     px: 0.885, py: 0.21, sz: 's', big: 1, desc: 'Kayalık kıyıda bir balıkçı limanı. Tuz, katran ve martılar.',
+  { id: 'brinecove',  n: 'Brine Cove',     px: 0.885, py: 0.21, sz: 's', desc: 'Kayalık kıyıda bir balıkçı limanı. Tuz, katran ve martılar.',
     b: ['docks', 'general', 'saloon', 'butcher', 'post', 'warehouse', 'doctor', 'stable', 'house', 'house', 'house'] },
-  { id: 'longhorn',   n: 'Longhorn',       px: 0.62, py: 0.585, sz: 'm', big: 1, desc: 'Sığır sürülerinin toplandığı tozlu bir kasaba. Ağıllar, kasaplar ve bol para.',
+  { id: 'longhorn',   n: 'Longhorn',       px: 0.62, py: 0.585, sz: 'm', desc: 'Sığır sürülerinin toplandığı tozlu bir kasaba. Ağıllar, kasaplar ve bol para.',
     b: ['stable', 'butcher', 'saloon', 'general', 'sheriff', 'smith', 'hotel', 'bank', 'bakery', 'doctor', 'ranch', 'barber', 'gambling', 'house', 'house', 'house', 'house'] },
-  { id: 'sanrafael',  n: 'San Rafael',     px: 0.10, py: 0.84, sz: 's', big: 1, desc: 'Sınırın dibinde kerpiç evlerden bir kasaba. Kanun uzakta, kaçakçılar yakın.',
+  { id: 'sanrafael',  n: 'San Rafael',     px: 0.10, py: 0.84, sz: 's', desc: 'Sınırın dibinde kerpiç evlerden bir kasaba. Kanun uzakta, kaçakçılar yakın.',
     b: ['cantina', 'general', 'fence', 'stable', 'church', 'doctor', 'smith', 'house', 'house', 'house'] },
-  { id: 'millbrook',  n: 'Millbrook',      px: 0.40, py: 0.20, sz: 's', big: 1, desc: 'Buğday tarlaları arasında sakin bir çiftçi köyü. Değirmeni uzaktan görünür.',
+  { id: 'millbrook',  n: 'Millbrook',      px: 0.40, py: 0.20, sz: 's', desc: 'Buğday tarlaları arasında sakin bir çiftçi köyü. Değirmeni uzaktan görünür.',
     b: ['mill', 'general', 'bakery', 'church', 'saloon', 'stable', 'smith', 'ranch', 'house', 'house', 'house'] },
 ];
 /* Demiryolu hatları (istasyon sırası) */
@@ -264,8 +264,8 @@ const RAIL_LINES = [
   ['stclement', 'harlow', 'fortmercy', 'silverridge'],
   ['harlow', 'coyote', 'dustcreek'],
   // büyük dünya hatları
-  Object.assign(['brinecove', 'carverjct', 'cedarfalls'], { big: 1 }),
-  Object.assign(['stclement', 'longhorn', 'coyote'], { big: 1 }),
+  ['brinecove', 'carverjct', 'cedarfalls'],
+  ['stclement', 'longhorn', 'coyote'],
 ];
 
 const REGIONS = [
@@ -278,11 +278,11 @@ const REGIONS = [
   { n: 'Lowland Bayou', x: 0.74, y: 0.84 },
   { n: 'Eastmoor Coast', x: 0.86, y: 0.45 },
   { n: 'Dry Mesa', x: 0.3, y: 0.58 },
-  { n: 'Gull Coast', x: 0.88, y: 0.2, big: 1 },
-  { n: 'Longhorn Range', x: 0.62, y: 0.62, big: 1 },
-  { n: 'Border Country', x: 0.1, y: 0.73, big: 1 },
-  { n: 'Millbrook Fields', x: 0.42, y: 0.22, big: 1 },
-  { n: 'Junction Valley', x: 0.72, y: 0.34, big: 1 },
+  { n: 'Gull Coast', x: 0.88, y: 0.2 },
+  { n: 'Longhorn Range', x: 0.62, y: 0.62 },
+  { n: 'Border Country', x: 0.1, y: 0.73 },
+  { n: 'Millbrook Fields', x: 0.42, y: 0.22 },
+  { n: 'Junction Valley', x: 0.72, y: 0.34 },
 ];
 
 /* ---- Binalar ---- */
@@ -426,9 +426,9 @@ const CAMPS = [
   { n: 'Kanyon Haydutları', near: [0.18, 0.86] },
   { n: 'Dağ Adamları', near: [0.16, 0.36] },
   { n: 'Lemon Çetesi', near: [0.46, 0.5] },
-  { n: 'Sınır Kurtları', near: [0.14, 0.76], big: 1 },
-  { n: 'Demiryolu Soyguncuları', near: [0.78, 0.36], big: 1 },
-  { n: 'Tuz Kaçakçıları', near: [0.84, 0.12], big: 1 },
+  { n: 'Sınır Kurtları', near: [0.14, 0.76] },
+  { n: 'Demiryolu Soyguncuları', near: [0.78, 0.36] },
+  { n: 'Tuz Kaçakçıları', near: [0.84, 0.12] },
 ];
 const FARMS = [
   { n: 'Miller Çiftliği', near: [0.47, 0.44] },
@@ -438,10 +438,10 @@ const FARMS = [
   { n: 'Dawson Çiftliği', near: [0.62, 0.62] },
   { n: 'Ölü Adam Çiftliği', near: [0.33, 0.48] },
   { n: 'Whitaker Ranch', near: [0.7, 0.3] },
-  { n: 'Longhorn Otlakları', near: [0.66, 0.54], big: 1 },
-  { n: 'Buğday Çiftliği', near: [0.36, 0.24], big: 1 },
-  { n: 'Sınır Ranch\'ı', near: [0.16, 0.8], big: 1 },
-  { n: 'Kıyı Çiftliği', near: [0.8, 0.26], big: 1 },
+  { n: 'Longhorn Otlakları', near: [0.66, 0.54] },
+  { n: 'Buğday Çiftliği', near: [0.36, 0.24] },
+  { n: 'Sınır Ranch\'ı', near: [0.16, 0.8] },
+  { n: 'Kıyı Çiftliği', near: [0.8, 0.26] },
 ];
 const PROPERTIES = [
   { id: 'shack',  n: 'Bataklık Barakası', p: 45, near: [0.68, 0.78], perks: 'Ucuz bir sığınak. Uyku ve kayıt.', income: 0 },

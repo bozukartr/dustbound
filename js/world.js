@@ -4,23 +4,13 @@
    ========================================================== */
 
 const TS = 16;            // bir karonun piksel boyutu
-// dünya boyutu (karo): yeni hayatlar büyük dünyada, eski kayıtlar kendi boyutlarında açılır
-const WORLD_NEW = 1536, WORLD_OLD = 1024;
-let WW = WORLD_OLD, WH = WORLD_OLD;
+// dünya boyutu (karo): tek dünya; boyut sabit olduğundan sık döngülerdeki indeks hesabı sabitle yapılır
+const WW = 1536, WH = 1536;
 const CHUNK = 32;         // chunk başına karo
 const CPX = CHUNK * TS;   // chunk piksel boyutu
 const CG = 4;             // kaba ızgara hücresi (karo)
-let CW = WW / CG, CHH = WH / CG;
-let FW = WW / 4;          // keşif (sis) ızgarası: 4x4 karo başına bir hücre
-function setWorldSize(n) { WW = WH = n; CW = n / CG; CHH = n / CG; FW = n / 4; }
-/* big: 1 işaretli veriler (yeni kasabalar, hatlar, kamplar...) yalnızca büyük dünyada; eski dünyalar birebir aynı kalır */
-const inWorld = d => !d.big || WW > WORLD_OLD;
-/* Dünya üretim sürümü: 2'den itibaren zengin şehir (Saint Clement) taş sokak, park, pazar ve modern binalarla kurulur;
-   3'ten itibaren çiftlik, mülk, kamp ve simgesel yerler yolun, rayın ve başka yapıların üstüne kurulmaz, patikalar binaların
-   etrafından dolanır; 4'ten itibaren Saint Clement ızgara planlı şehirdir; 5'ten itibaren şehrin kuzeyinde bahçeli malikane
-   ve özel kulüp vardır. Eski kayıtlar kendi sürümüyle yeniden üretilir; binaların sırası ve numaraları değişmez. */
-const WGEN_NEW = 5;
-let WGEN = WGEN_NEW;
+const CW = WW / CG, CHH = WH / CG;
+const FW = WW / 4;        // keşif (sis) ızgarası: 4x4 karo başına bir hücre
 
 const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20, COBBLE: 21, PAVE: 22 };
 const TNAME = Object.keys(T);
@@ -635,7 +625,7 @@ class World {
   regionAt(px, py) {
     const nx = px / (WW * TS), ny = py / (WH * TS);
     let best = null, bd = 1e9;
-    for (const r of REGIONS) { if (!inWorld(r)) continue; const d = dist2(nx, ny, r.x, r.y); if (d < bd) { bd = d; best = r; } }
+    for (const r of REGIONS) { const d = dist2(nx, ny, r.x, r.y); if (d < bd) { bd = d; best = r; } }
     return best.n;
   }
   /* ---------------- kabartma: yumuşak yükselti ve eğim ----------------
@@ -714,9 +704,9 @@ class World {
     const s = this.seed;
     const n1 = new Noise(s + 1), n2 = new Noise(s + 2), n3 = new Noise(s + 3), n4 = new Noise(s + 4), n5 = new Noise(s + 5);
     const tile = this.tile, heatA = this.heat, elevA = this.elev;
-    // büyük coğrafya (kıyı, sıradağ, iklim) dünyaya oranlı; göl, tepe, orman gibi ayrıntılar karo ölçeğinde:
-    // dünya büyüdükçe aynı boyda ama daha çok ayrıntı sığar
-    const k = WW / WORLD_OLD;
+    // büyük coğrafya (kıyı, sıradağ, iklim) dünyaya oranlı; göl, tepe, orman gibi ayrıntılar karo ölçeğinde
+    // (k: ayrıntı gürültülerinin 1024 karoluk taban ölçeğe göre sıklığı)
+    const k = WW / 1024;
     for (let y = 0; y < WH; y++) {
       const ny = y / WH;
       const coastX = 0.915 + (n4.fbm(ny * 5 * k, 0.5, 3) - 0.5) * 0.09 / Math.sqrt(k);
@@ -1002,8 +992,7 @@ class World {
   }
 
   genTowns() {
-    const big = WW > WORLD_OLD;
-    const RAD = big ? { s: 36, m: 48, l: 62 } : { s: 32, m: 42, l: 54 };   // büyük dünyada kasabalar daha çok bina taşır
+    const RAD = { s: 36, m: 48, l: 62 };   // kasabanın yarıçapı (karo)
     const nz = new Noise(this.seed + 911), nz2 = new Noise(this.seed + 912);
     const R = this.rng;
     // polyline üzerinde t (0..1) konumundaki nokta ve yön
@@ -1016,16 +1005,14 @@ class World {
       const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
       return { x: lerp(ax, bx, f), y: lerp(ay, by, f), ang: Math.atan2(by - ay, bx - ax) };
     };
-    for (const td of TOWNS.filter(inWorld)) {
-      // zengin şehir (dünya sürümü 2+): daha geniş, taş sokaklı, parklı ve pazarlı
-      const rich = !!td.rich && WGEN >= 2;
-      // dünya sürümü 4+: zengin şehir ızgara planlıdır (js/city.js)
-      if (rich && WGEN >= 4) { this.genCity(td, big); continue; }
-      const RT = rich ? T.COBBLE : T.ROAD, GT = rich ? T.PAVE : T.TOWN;
-      const rx = RAD[td.sz] + (rich ? (big ? 8 : 6) : 0), ry = Math.round(rx * 0.74);
+    for (const td of TOWNS) {
+      // zengin şehir (Saint Clement) ızgara planlıdır: js/city.js
+      if (td.rich) { this.genCity(td); continue; }
+      const RT = T.ROAD, GT = T.TOWN;
+      const rx = RAD[td.sz], ry = Math.round(rx * 0.74);
       const cx = Math.round(td.px * WW), cy = Math.round(td.py * WH);
       const x0 = cx - rx - 3, y0 = cy - ry - 3, w = (rx + 3) * 2, h = (ry + 3) * 2;
-      const town = { ...td, x: x0, y: y0, w, h, cx: cx * TS, cy: cy * TS, buildings: [], streetPts: [], hitch: [], gates: [], rx, ry, modern: rich, parks: [] };
+      const town = { ...td, x: x0, y: y0, w, h, cx: cx * TS, cy: cy * TS, buildings: [], streetPts: [], hitch: [], gates: [], rx, ry, modern: false, parks: [] };
       this.towns.push(town);
       const inside = (x, y, m = 0) => { const dx = (x - cx) / (rx + m), dy = (y - cy) / (ry + m); return dx * dx + dy * dy + (nz.v(x * 0.07, y * 0.07) - 0.5) * 0.4 < 1; };
       // zemin hazırlığı: yumuşat, kasaba içindeki su/kaya/orman temizlenir
@@ -1041,7 +1028,6 @@ class World {
           if (isWaterT(tt) || tt === T.ROCK || tt === T.SWAMP || tt === T.MUD || tt === T.BRIDGE) this.tile[i] = GT;
           else if (tt === T.FOREST) this.tile[i] = T.GRASS;
           if (inside(x, y, -4) && nz2.v(x * 0.11, y * 0.11) < 0.42) this.tile[i] = GT;
-          if (rich && inside(x, y, 0)) this.tile[i] = GT;   // zengin şehrin içi baştan sona taş döşeli
         }
       }
       // yerel doluluk ızgarası: 3 yol, 1 yol kenarı, 2 bina, 5 patika/ayrılmış
@@ -1179,10 +1165,10 @@ class World {
           if (occ[c] !== 3) { ground(x, y); if (occ[c] !== 2) occ[c] = 5; }
         }
       };
-      const queue = [...(rich && td.rb ? td.rb : []), ...td.b, ...(big && td.xb ? td.xb : [])];
+      const queue = [...td.b, ...(td.xb || [])];
       queue.sort((a, b) => (a === 'house') - (b === 'house'));
       queue.forEach((type, qi) => {
-        const pull = type === 'market' ? 2.4 : type === 'house' ? 0.25 : type === 'church' ? 0.5 : 1.6 - qi * 0.08;
+        const pull = type === 'house' ? 0.25 : type === 'church' ? 0.5 : 1.6 - qi * 0.08;
         const spot = place(type, Math.max(0.4, pull));
         if (!spot) return;
         const { bx, by } = spot, def = BUILDINGS[type];
@@ -1218,44 +1204,33 @@ class World {
           }
         }
       });
-      // ---- satılık arsalar (yalnız büyük dünya): ileride işletme kurulacak boş parseller ----
+      // ---- satılık arsalar: ileride işletme kurulacak boş parseller ----
       town.lots = [];
-      if (big) {
-        const nLots = { s: 1, m: 2, l: 3 }[td.sz];
-        for (let k = 0; k < nLots; k++) {
-          const def = k === 0 && td.sz !== 's' ? { w: 12, h: 9 } : { w: 10, h: 7 };
-          const spot = place('lot', 1.2, def);
-          if (!spot) continue;
-          const { bx, by } = spot;
-          for (let yy = by - 1; yy <= by + def.h + 1; yy++) for (let xx = bx - 1; xx <= bx + def.w; xx++) {
-            if (oget(xx, yy) === 3) continue;
-            if (yy <= by + def.h) { oset(xx, yy, 2); ground(xx, yy); } else if (oget(xx, yy) !== 5) oset(xx, yy, 5);
-          }
-          // arka ve yanlar çitli, ön (sokak) açık; içi kuru toprak ve ot
-          for (let yy = by; yy < by + def.h; yy++) for (let xx = bx; xx < bx + def.w; xx++) {
-            const i = yy * WW + xx;
-            this.flags[i] |= 1 | 4;
-            if (yy === by) { this.obj[i] = O.FENCEH; continue; }
-            if (xx === bx || xx === bx + def.w - 1) { this.obj[i] = yy < by + def.h - 1 ? O.FENCEV : 0; continue; }
-            this.tile[i] = R.chance(0.6) ? T.DRY : T.TOWN;
-            this.obj[i] = R.chance(0.1) ? (R.chance(0.5) ? O.TUFT : O.DRYBUSH) : 0;
-          }
-          const sx = bx + 2, sy = by + def.h - 1;
-          this.obj[sy * WW + sx] = O.LOTSIGN;
-          const price = Math.round({ s: 110, m: 190, l: 300 }[td.sz] * (def.w * def.h) / 70 / 5) * 5;
-          const lot = { id: town.id + ':' + k, town: town.id, x: bx, y: by, w: def.w, h: def.h, price, sign: sy * WW + sx };
-          town.lots.push(lot); this.lots.push(lot);
-          pathFrom(bx + (def.w >> 1), by + def.h + 1);
-        }
-      }
-      // ---- parklar (zengin şehir): çitle çevrili çimen, çiçek tarhları, çeşme, ağaçlar, banklar ----
-      if (rich) for (let k = 0; k < 2; k++) {
-        const def = k === 0 ? { w: 14, h: 9 } : { w: 12, h: 8 };
-        const spot = place('park', 0.9, def);
+      const nLots = { s: 1, m: 2, l: 3 }[td.sz];
+      for (let k = 0; k < nLots; k++) {
+        const def = k === 0 && td.sz !== 's' ? { w: 12, h: 9 } : { w: 10, h: 7 };
+        const spot = place('lot', 1.2, def);
         if (!spot) continue;
-        this.buildPark(spot.bx, spot.by, def.w, def.h, k, R, oget, oset, ground);
-        town.parks.push({ x: spot.bx, y: spot.by, w: def.w, h: def.h });
-        pathFrom(spot.bx + (def.w >> 1), spot.by + def.h + 1);
+        const { bx, by } = spot;
+        for (let yy = by - 1; yy <= by + def.h + 1; yy++) for (let xx = bx - 1; xx <= bx + def.w; xx++) {
+          if (oget(xx, yy) === 3) continue;
+          if (yy <= by + def.h) { oset(xx, yy, 2); ground(xx, yy); } else if (oget(xx, yy) !== 5) oset(xx, yy, 5);
+        }
+        // arka ve yanlar çitli, ön (sokak) açık; içi kuru toprak ve ot
+        for (let yy = by; yy < by + def.h; yy++) for (let xx = bx; xx < bx + def.w; xx++) {
+          const i = yy * WW + xx;
+          this.flags[i] |= 1 | 4;
+          if (yy === by) { this.obj[i] = O.FENCEH; continue; }
+          if (xx === bx || xx === bx + def.w - 1) { this.obj[i] = yy < by + def.h - 1 ? O.FENCEV : 0; continue; }
+          this.tile[i] = R.chance(0.6) ? T.DRY : T.TOWN;
+          this.obj[i] = R.chance(0.1) ? (R.chance(0.5) ? O.TUFT : O.DRYBUSH) : 0;
+        }
+        const sx = bx + 2, sy = by + def.h - 1;
+        this.obj[sy * WW + sx] = O.LOTSIGN;
+        const price = Math.round({ s: 110, m: 190, l: 300 }[td.sz] * (def.w * def.h) / 70 / 5) * 5;
+        const lot = { id: town.id + ':' + k, town: town.id, x: bx, y: by, w: def.w, h: def.h, price, sign: sy * WW + sx };
+        town.lots.push(lot); this.lots.push(lot);
+        pathFrom(bx + (def.w >> 1), by + def.h + 1);
       }
       // ---- meydan ve sokak lambaları ----
       const putFree = (x, y, o) => {
@@ -1268,13 +1243,13 @@ class World {
       let placed = 0;
       for (let k = 0; k < 24 && placed < 4; k++) {
         const [x, y] = around(4.8 + (k % 3) * 0.6, pa + Math.PI / 2 + k * 0.9);
-        const o = (town.modern ? [O.STATUE, O.BENCH, O.FLOWERBED, O.BENCH] : [O.PUMP, O.TROUGH, O.BENCH, O.WELL])[placed];
+        const o = [O.PUMP, O.TROUGH, O.BENCH, O.WELL][placed];
         if (putFree(x, y, o)) placed++;
       }
       for (const st of streets) {
         const P = st.pts;
         let side = 1;
-        for (let s = 0.05; s < 1; s += (rich ? 4.5 : 7) / Math.max(10, P.length * 0.8)) {
+        for (let s = 0.05; s < 1; s += 7 / Math.max(10, P.length * 0.8)) {
           const p = pointAt(P, s);
           const d = st.r + 1.4;
           const x = Math.round(p.x - Math.sin(p.ang) * d * side), y = Math.round(p.y + Math.cos(p.ang) * d * side);
@@ -1295,7 +1270,7 @@ class World {
         this.obj[i] = o; oset(x, y, 5); trees++;
       }
       // ---- istasyon ----
-      if (RAIL_LINES.filter(inWorld).some(l => l.includes(td.id))) {
+      if (RAIL_LINES.some(l => l.includes(td.id))) {
         const def = BUILDINGS.station;
         const sx = cx - (def.w >> 1) + R.int(-6, 6), sy = y0 + h + 2;
         this.flatten(sx - 4, sy - 2, def.w + 8, def.h + 6, T.TOWN, 4);
@@ -1459,7 +1434,7 @@ class World {
   }
   genRails() {
     const C = this.cost;
-    for (const line of RAIL_LINES.filter(inWorld)) {
+    for (const line of RAIL_LINES) {
       const all = [];
       const stops = [];
       for (let k = 0; k < line.length - 1; k++) {
@@ -1512,8 +1487,8 @@ class World {
       }
       return bad < 3 && (!foot || this.footClear(x, y, foot));
     };
-    // önce yapının bütün alanı boş olan bir yer aranır; bulunamazsa eski kural (yalnız merkez)
-    let foot = WGEN >= 3 ? opts.foot : null;
+    // önce yapının bütün alanı boş olan bir yer aranır; bulunamazsa yalnız merkezi boş bir yer
+    let foot = opts.foot;
     for (let pass = 0; pass < (foot ? 2 : 1); pass++) {
       for (let r = 0; r < 110; r += 2) {
         const n = Math.max(1, Math.round(r * 1.5));
@@ -1565,7 +1540,7 @@ class World {
       const p = this.addPOI({ id: L.id, n: L.n, type: L.type, desc: L.desc, tx: x, ty: y, kind: 'landmark' });
       this.stampLandmark(p, R);
     }
-    for (const C of CAMPS.filter(inWorld)) {
+    for (const C of CAMPS) {
       const [x, y] = this.findSpot(C.near, null, { minD: 25, foot: [-9, -9, 9, 9] });
       const p = this.addPOI({ id: 'camp_' + this.pois.length, n: C.n, type: 'camp', tx: x, ty: y, kind: 'camp', desc: Tr('Haydut kampı. Dikkatli ol.') });
       this.clearArea(x, y, 7, T.MUD);
@@ -1574,7 +1549,7 @@ class World {
       this.setObj(x + 2, y - 5, O.CRATE); this.setObj(x - 5, y + 2, O.BARREL);
       this.addChest(x + 1, y + 3, 'camp');
     }
-    for (const F of FARMS.filter(inWorld)) {
+    for (const F of FARMS) {
       const [x, y] = this.findSpot(F.near, ['GRASS', 'DRY', 'FOREST'], { minD: 22, foot: [-14, -10, 15, 12] });
       const p = this.addPOI({ id: 'farm_' + this.pois.length, n: F.n, type: 'farm', tx: x, ty: y, kind: 'farm', desc: Tr('Burada iş bulabilirsin.') });
       this.clearArea(x, y, 12, T.DRY);
@@ -1607,7 +1582,7 @@ class World {
   }
   /* Yolların ve rayların içinden geçtiği kasaba dışı yapılar (çiftlik, mülk, maden girişi...): hat yapının
      çevresinden yumuşak bir kavisle dolaştırılır. Noktaların sayısı değişmez (kayıtlardaki yol indeksleri korunur),
-     yalnızca yerleri kayar. Eski dünyalarda yapılar yolun üstüne kurulmuş olabilir; yeni dünyalarda yalnızca güvencedir. */
+     yalnızca yerleri kayar. Yapılar zaten yoldan ve raydan uzak kurulur; bu adım yalnızca güvencedir. */
   routeAroundBuildings() {
     const obs = [];
     const fp = (x0, y0, x1, y1) => obs.push([x0 * TS, y0 * TS, x1 * TS, y1 * TS]);
@@ -1785,7 +1760,7 @@ class World {
     }
     if (!best || bd > 110 * 110) return;
     const C = this.cost;
-    const B = WGEN >= 3 ? this.bcell : null;
+    const B = this.bcell;
     const path = this.astar(clamp((x / CG) | 0, 0, CW - 1), clamp((y / CG) | 0, 0, CHH - 1), (best[0] / TS / CG) | 0, (best[1] / TS / CG) | 0,
       ni => C[ni] >= 1e5 || (B && B[ni]) ? 1e6 : C[ni]);
     if (!path) return;
@@ -2672,27 +2647,27 @@ const SLOPE_FLAT = 0.03, SLOPE_STEEP = 0.15;
 /* ==========================================================
    Dünya önbelleği: kayıt yüklenince dünya sıfırdan üretilmez.
    Üretilen dünya (kayıt uygulanmadan önceki hâli) IndexedDB'ye sıkıştırılıp yazılır; masaüstünde
-   de tarayıcı deposunda durur, Steam bulutuna gitmez. Kayıt anahtarı tohum, dünya boyu, dünya
-   sürümü ve dildir (üretimde bazı adlar o anki dile çevrilir). Kayıtla birlikte üretim kodunun
+   de tarayıcı deposunda durur, Steam bulutuna gitmez. Kayıt anahtarı tohum ve dildir (üretimde
+   bazı adlar o anki dile çevrilir). Kayıtla birlikte üretim kodunun
    ve kullandığı tabloların özeti de saklanır: oyun güncellenince eski kayıt kullanılmaz, dünya
    yeniden üretilip yazılır. Harita resmi saklanmaz; yüklemede kaydın mevsimiyle çizilir.
    En son kullanılan birkaç dünya tutulur. window.__noWorldCache önbelleği kapatır.
    ========================================================== */
 const WorldCache = {
-  DB: 'frontiersend_worlds', V: 1, MAX: 4,
+  DB: 'frontiersend_worlds', V: 2, MAX: 4,
   last: null,   // son okuma/yazma özeti (testler ve hata ayıklama için)
   _db: null,
   ok() {
     try { return typeof indexedDB !== 'undefined' && typeof structuredClone === 'function' && !window.__noWorldCache; } catch (e) { return false; }
   },
-  key(seed) { return seed + '_' + WW + '_' + WGEN + '_' + (typeof I18N !== 'undefined' ? I18N.lang : 'tr'); },
+  key(seed) { return seed + '_' + (typeof I18N !== 'undefined' ? I18N.lang : 'tr'); },
   /* Üretim kodu ve tablolarının özeti: biri değişince önbellekteki dünya geçersiz olur */
   fp() {
-    const lang = typeof I18N !== 'undefined' ? I18N.lang : 'tr', id = lang + WW + '_' + WGEN;
+    const lang = typeof I18N !== 'undefined' ? I18N.lang : 'tr', id = lang;
     if (this._fp && this._fpId === id) return this._fp;
-    const parts = [this.V, WW, WH, WGEN, lang, String(World)];
+    const parts = [this.V, WW, WH, lang, String(World)];
     for (const k of Object.getOwnPropertyNames(World.prototype)) { const d = Object.getOwnPropertyDescriptor(World.prototype, k); parts.push(k, String(d.value || d.get || '')); }
-    for (const f of [Noise, RNG, mulberry32, hash2, clamp, lerp, dist, dist2, turnTo, angDiff, hexToRgb, shadeHex, mixHex, segDist2, isWaterT, isCliffT, isStoneT, inWorld, isHotel2, upPlan, roomOpen]) parts.push(String(f));
+    for (const f of [Noise, RNG, mulberry32, hash2, clamp, lerp, dist, dist2, turnTo, angDiff, hexToRgb, shadeHex, mixHex, segDist2, isWaterT, isCliffT, isStoneT, isHotel2, upPlan, roomOpen]) parts.push(String(f));
     parts.push(JSON.stringify([T, O, TINFO, SOLID_O, TRUNK_O, TRUNK_R, TRUNK_DY, SNOWABLE, LEAFY, [...AREA_NEUTRAL], HARVEST, SNOW_LINE, CHUNK, CG,
       BUILDINGS, TOWNS, RAIL_LINES, REGIONS, LANDMARKS, CAMPS, FARMS, PROPERTIES, UPPER, FLOOR0_WALL, INT_KEY, INT_PLANS, HEARTH_O, typeof CITY_ZONE !== 'undefined' ? [CITY_ZONE, CITY_PRIO, CITY_CARTS, CITY_RIDERS, MANSION_GARDEN] : null]));
     const s = parts.join('\u0001');

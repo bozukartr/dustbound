@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================
-   FRONTIER'S END — planlı şehir: Saint Clement (dünya sürümü 4+)
+   FRONTIER'S END — planlı şehir: Saint Clement
    Kasabalar dağınık ve organik büyür; şehir ızgara planlıdır:
    - Ortadan doğu-batı uzanan ana cadde ve onu kesen kuzey-güney
      caddesi (geniş taşıt yolu, üç karo kaldırım, sokak ağaçları);
@@ -14,9 +14,8 @@
    - Sokak ağı (kavşak düğümleri, şeritler) şehir trafiği için
      saklanır: faytonlar, yük arabaları ve atlı vatandaşlar sağ
      şeritten gider, kavşaklarda döner, kaldırım kenarında durur.
-   - Sürüm 5'ten itibaren kuzeydoğuda, mahalle parkının yanında
-     yan bahçeli malikane (satılık) ve özel kulüp; üç ev eksilir.
-   Eski kayıtların dünyası (sürüm 2-4) eski kurallarla üretilir.
+   - Kuzeydoğuda, mahalle parkının yanında yan bahçeli malikane
+     (satılık) ve özel kulüp; onlara yer açmak için üç ev eksilir.
    ========================================================== */
 
 /* Gündüz hedeflenen şehir trafiği (saat ve havayla azalır) */
@@ -34,7 +33,7 @@ const MANSION_GARDEN = 6;
 /* Yerleşim sırası: önce en iyi yerleri alacak binalar; arsalar, park ve evler en son */
 const CITY_PRIO = ['market', 'bank', 'hotel', 'county', 'saloon', 'general', 'gambling', 'post', 'sheriff', 'doctor', 'church', 'land', 'pharmacy', 'tailor', 'barber', 'docks', 'warehouse', 'brewery', 'stable'];
 
-World.prototype.genCity = function (td, big) {
+World.prototype.genCity = function (td) {
   const R = this.rng;
   const SW = 2, RW = 3, ASW = 3, ARW = 4, BW = 26, RD = 12, EXT = 8;
   // ---- plan (yerel karo): kuzey-güney sokaklar ve blok sütunları batıdan doğuya, sıralar ve doğu-batı sokaklar kuzeyden güneye
@@ -106,13 +105,13 @@ World.prototype.genCity = function (td, big) {
   const blk = (row, col) => blocks.find(B => B.row === row && B.col === col);
   blk(2, 1).kind = 'plaza';   // ana caddenin güneyinde, iki caddenin köşesinde meydan
   blk(3, 0).kind = 'park';    // güneybatıda büyük park
-  // yerleşecekler: binalar, arsalar (büyük dünya), kuzeyde mahalle parkı
-  const queue = [...(td.rb || []), ...td.b, ...(big && td.xb ? td.xb : [])];
-  // sürüm 5: kuzeyde malikane (yanında bahçesiyle) ve özel kulüp; yer açmak için üç ev eksilir (kasabanın listeleri tanım
-  // tablosunun kendisi kalır: dünya önbelleği onlara başvuruyla bağlanır)
-  if (WGEN >= 5 && td.id === 'stclement') { for (let k = 0; k < 3; k++) queue.splice(queue.lastIndexOf('house'), 1); queue.push('club', 'mansion'); }
+  // yerleşecekler: binalar, arsalar, kuzeyde mahalle parkı
+  const queue = [...(td.rb || []), ...td.b, ...(td.xb || [])];
+  // kuzeyde malikane (yanında bahçesiyle) ve özel kulüp; yer açmak için üç ev eksilir (kasabanın listeleri tanım tablosunun
+  // kendisi kalır: dünya önbelleği onlara başvuruyla bağlanır)
+  if (td.id === 'stclement') { for (let k = 0; k < 3; k++) queue.splice(queue.lastIndexOf('house'), 1); queue.push('club', 'mansion'); }
   const items = queue.map(type => ({ type, w: BUILDINGS[type].w + (type === 'mansion' ? MANSION_GARDEN : 0), h: BUILDINGS[type].h }));
-  if (big) for (let k = 0; k < { s: 1, m: 2, l: 3 }[td.sz]; k++) items.push(k === 0 && td.sz !== 's' ? { type: 'lot', w: 12, h: 9, k } : { type: 'lot', w: 10, h: 7, k });
+  for (let k = 0; k < { s: 1, m: 2, l: 3 }[td.sz]; k++) items.push(k === 0 && td.sz !== 's' ? { type: 'lot', w: 12, h: 9, k } : { type: 'lot', w: 10, h: 7, k });
   items.push({ type: 'park', w: 24, h: RD - 1, k: 1 });
   const rank = (it) => { const k = CITY_PRIO.indexOf(it.type); return it.type === 'house' ? 300 : it.type === 'park' ? 210 : it.type === 'lot' ? 200 : k < 0 ? 100 : k; };
   items.sort((a, b) => rank(a) - rank(b));
@@ -195,7 +194,7 @@ World.prototype.genCity = function (td, big) {
   for (const s of hst) for (let lx = 1; lx < W - 1; lx += 3) { spot(X0 + lx, Y0 + s.t + s.sw - 1); spot(X0 + lx + 1, Y0 + s.t + s.sw + s.rw); }
   for (const v of vst) for (let ly = v === XC ? 1 : hst[0].t + 1; ly < H - 1; ly += 3) { spot(X0 + v.l + v.sw - 1, Y0 + ly); spot(X0 + v.l + v.sw + v.rw, Y0 + ly + 1); }
   // ---- istasyon: güney kenarın altında, orta caddenin doğusunda; cadde geniş bir taş meydanla perona iner
-  if (RAIL_LINES.filter(inWorld).some(l => l.includes(td.id))) {
+  if (RAIL_LINES.some(l => l.includes(td.id))) {
     const def = BUILDINGS.station, sx = X0 + XC.l + XC.w + 2, sy = town.y + town.h + 2;
     this.flatten(sx - 4, sy - 2, def.w + 8, def.h + 6, T.TOWN, 4);
     for (let yy = sy - 2; yy < sy + def.h; yy++) for (let xx = sx - 4; xx < sx + def.w + 4; xx++) this.tile[yy * WW + xx] = T.PAVE;
