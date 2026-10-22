@@ -1,6 +1,7 @@
 'use strict';
 /* ==========================================================
    FRONTIER'S END — otel: iki kat ve oda kiralama (G nesnesine eklenir)
+   (iki kat altyapısı malikane ve kulüpte de kullanılır: merdiven, kat değişimi, üst kat odaları)
    - Zemin kat lobidir: girişin karşısında ortada resepsiyon, iki arka köşede üst kata
      merdiven, önde oturma köşeleri. Merdivenden yürüyerek çıkılır ve inilir.
    - Üst katta dört oda vardır. Bazıları o gece başka konuklarla doludur; boş odalar da
@@ -51,16 +52,18 @@ const HotelSystems = {
     return true;
   },
   /* Merdiven: merdivenin şeridinde kuzey ucuna kadar yürüyünce öbür kata geçilir (zemin katta merdiveni çıkarsın, üst
-     katta merdiven boşluğundan inersin). Aranırken ya da omzunda yükle yukarı çıkılmaz: bir adım geri itilirsin. */
+     katta merdiven boşluğundan inersin). İki katlı her yapıda (otel, malikane, kulüp) aynı; merdiven sütunları üst kat
+     planından gelir. Aranırken ya da omzunda yükle yukarı çıkılmaz: bir adım geri itilirsin. */
   hotelStairsTick() {
-    const P = this.player, b = this.insideB;
-    if (!isHotel2(b) || P.riding || UI.state === 'fade') return;
+    const P = this.player, b = this.insideB, UP = upPlan(b);
+    if (!UP || P.riding || UI.state === 'fade') return;
     const lx = (P.x - b.x * TS) / TS, ly = (P.y - b.y * TS) / TS;
-    if ((lx >= 2 && lx < b.w - 2) || ly < 1 || ly >= 1.65) return;   // merdiven şeridinin kuzey ucunda değil
+    const onL = lx < 2 && UP.stairs.includes(1), onR = lx >= b.w - 2 && UP.stairs.includes(b.w - 2);
+    if (!(onL || onR) || ly < 1 || ly >= 1.65) return;   // merdiven şeridinin kuzey ucunda değil
     const up = b.floor !== 1;
     if (up && (this.law.level > 0 || P.carry)) {
       P.y = (b.y + 2) * TS + 8; P.vx = P.vy = 0;
-      if (!(this.t < this._stairWarnT)) { UI.feed(this.law.level > 0 ? Tr('"Kanun peşindeyken yukarı çıkamazsın!" diye bağırıyor resepsiyondaki.') : Tr('Omzunda yükle merdiveni çıkamazsın.'), 'warn'); this._stairWarnT = this.t + 3; }
+      if (!(this.t < this._stairWarnT)) { UI.feed(this.law.level > 0 ? (b.type === 'hotel' ? Tr('"Kanun peşindeyken yukarı çıkamazsın!" diye bağırıyor resepsiyondaki.') : Tr('Kanun peşindeyken yukarı çıkıp saklanamazsın.')) : Tr('Omzunda yükle merdiveni çıkamazsın.'), 'warn'); this._stairWarnT = this.t + 3; }
       return;
     }
     this.hotelStairs(b, up ? 1 : 0);
@@ -79,11 +82,23 @@ const HotelSystems = {
   },
   /* Kat değiştir: binanın iç mekânı, çarpışması ve çizimi o katınki olur; üst kattayken alt kattakiler gizlenir */
   setFloor(b, lv) {
-    if (!this.world.setFloor(b, lv, this.hotelRoom(b))) return false;
+    if (!this.world.setFloor(b, lv, b.type === 'hotel' ? this.hotelRoom(b) : -1)) return false;
     this.upB = lv ? b : null;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
-    if (lv) this.hintOnce('hotelup', this.hotelRoom(b) >= 0 ? Tr`Kiraladığın odanın kapısı açık. Yatağa yaklaşıp ${Input.glyph('interact')} ile uyuyabilirsin.` : Tr('Odalar kilitli. Oda kiralamak için aşağıdaki resepsiyona git.'), 6);
+    if (lv && b.type === 'hotel') this.hintOnce('hotelup', this.hotelRoom(b) >= 0 ? Tr`Kiraladığın odanın kapısı açık. Yatağa yaklaşıp ${Input.glyph('interact')} ile uyuyabilirsin.` : Tr('Odalar kilitli. Oda kiralamak için aşağıdaki resepsiyona git.'), 6);
     return true;
+  },
+  /* İki katlı yapının üst katında bir yerel karonun bulunduğu oda (koridor ve merdivende -1) */
+  upRoomAt(b, lx, ly) {
+    const UP = upPlan(b);
+    if (!UP || b.floor !== 1) return -1;
+    return UP.rooms.findIndex(R => lx >= R.area[0] && lx <= R.area[2] && ly >= R.area[1] && ly <= R.area[3]);
+  },
+  /* Üst katta eşya (karo i) oyuncuyla aynı odada mı: duvarın öbür yanındaki eşya kullanılmaz (kapılar hariç) */
+  upSameRoom(b, i) {
+    if (!upPlan(b) || b.floor !== 1) return true;
+    const P = this.player;
+    return this.upRoomAt(b, (i % WW) - b.x, Math.floor(i / WW) - b.y) === this.upRoomAt(b, Math.floor(P.x / TS) - b.x, Math.floor(P.y / TS) - b.y);
   },
   /* Oyuncu otelin üst katındayken bu nokta o binanın içinde mi (oyuncunun yanında bu, üst kattaki bir nokta demektir) */
   upAt(x, y) {

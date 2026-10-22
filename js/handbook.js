@@ -9,7 +9,7 @@
 const Handbook = {
   /* ipucu anahtarı → el kitabı konusu (G.hintOnce ilk kez gösterince konuyu işaretler) */
   HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison',
-    deadeye: 'deadeye', ride: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs' },
+    deadeye: 'deadeye', ride: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate' },
 
   unread() { const H = G.hints || {}; return this.topics().some(T => H['new:' + T.id]); },
 
@@ -96,6 +96,13 @@ const Handbook = {
         Tr('Bankadaki para ölünce kaybolmaz ve her doğum gününde %2 faiz kazanır. Mülklerin günlük geliri bankaya yatar.'),
       ]) },
       { id: 'biz', ic: 'store', t: Tr('İşletmeler'), b: () => `<p>${Tr`Dükkân sahiplerinin bir kısmı dükkânını satar: tezgâhta ya da ilçe binasında satın al. İşletmeci işi yürütür, gelir kasada birikir. Çoğu işletme mal tüketir: toptancıdan, değirmenden ya da imalathaneden sandık alıp omzunda, atınla ya da ahırdan alacağın yük arabasıyla getir; ya da ahırdan bir nakliyeci tut, bu işi o yapsın. Boş arsalara yeni işletme kurabilirsin. Günlüğün İşlerim sekmesi hepsini gösterir.`}</p>` },
+      { id: 'estate', ic: 'house', t: Tr('Malikane, Kulüp ve Özel Fayton'), b: () => li([
+        Tr`Saint Clement Malikanesi ${fmtMoney(MANSION_PRICE)}: kapısından ya da tapu dairesinden satın alınır, ev gibi kullanılır (yatakta uyku ve kayıt, sandık, ocak, küvet). Yalnızca yeni dünyalarda vardır.`,
+        Tr`Hizmetçiler üst kattaki çalışma masasından tutulur; günlük ücret aşçı ${fmtMoney(SERVANTS.cook.wage)}, seyis ${fmtMoney(SERVANTS.groom.wage)}, uşak ${fmtMoney(SERVANTS.butler.wage)}. Ücretler önce bankadan ödenir; iki gün ücretini alamayan işi bırakır.`,
+        Tr('Aşçı sabah 5 ile 11 arası günde bir kahvaltı hazırlar. Seyis bahçe kapısına getirdiğin atı tımarlar, besler ve dinlendirir. Uşak post, değerli eşya ve koleksiyonu sandığa kaldırır, faytonu kapıya getirtir.'),
+        Tr`Kulüp üyeliği ${fmtMoney(CLUB_FEE)}; aranırken, maskeliyken ya da kirliyken içeri alınmazsın. Üst katta poker girişi ${fmtMoney(CLUB_ANTES[0] / 100)}-${fmtMoney(CLUB_ANTES[CLUB_ANTES.length - 1] / 100)}, bilardo bahsi ${fmtMoney(BILLIARD_BETS[0])}-${fmtMoney(BILLIARD_BETS[BILLIARD_BETS.length - 1])} (kazanan iki katını alır).`,
+        Tr`Özel fayton ahırdan ${fmtMoney(CARRIAGE_PRICE)}, arabacının günlüğü ${fmtMoney(CARRIAGE_WAGE)}. Bin ve gideceğin yeri seç: yolu izle ya da ${g('confirm')} tuşunu basılı tutarak atla (zaman yine geçer). ${g('interact')} ile inersin. Biri saldırırsa ya da kanun görünürse arabacı durur.`,
+      ]) },
       { id: 'aging', ic: 'hourglass', t: Tr('Yaşlanma'), b: () => li([
         Tr('18 yaşında başlarsın; hedefin 80 yaşına kadar yaşamak.'),
         Tr('32 yaşından sonra en yüksek dayanıklılık her yıl %1,1 azalır (en çok %50); 50\'den sonra en yüksek can her yıl %1,2 azalır (en çok %35).'),

@@ -14,6 +14,7 @@
    ========================================================== */
 
 const POKER_ANTES = [5, 10, 25];
+const CLUB_ANTES = [50, 100, 250];   // Saint Clement kulübünün kart odası: yüksek bahis, varlıklı rakipler
 const POKER_SEATS = 3;
 const POKER_CAP = 3;
 const POKER_MAXDRAW = 3;
@@ -108,9 +109,11 @@ const Poker = {
   },
   /* Bir eli bitirebilmek için gereken en az para (en kötü durum) */
   minStack: ante => ante + POKER_CAP * 2 * ante + POKER_CAP * 4 * ante,
-  newOpp() {
+  /* Masanın giriş paraları: kulüpte yüksek bahis */
+  antes: b => (b && b.type === 'club' ? CLUB_ANTES : POKER_ANTES),
+  newOpp(rich) {
     const sex = chance(0.8) ? 'm' : 'f';
-    return { name: randomName(sex), stack: rndi(50, 180) * 5, style: rndi(0, POKER_STYLES.length - 1) };
+    return { name: randomName(sex), stack: rich ? rndi(60, 240) * 50 : rndi(50, 180) * 5, style: rndi(0, POKER_STYLES.length - 1) };
   },
 
   /* ---------------- bir elin akışı ----------------
@@ -282,10 +285,10 @@ const Poker = {
 const PokerSystems = {
   pokerTable(b) {
     const T = this.pokerTables || (this.pokerTables = {});
-    const key = b.town + ':' + b.type, day = Math.floor(this.clock / 1440);
+    const key = b.town + ':' + b.type, day = Math.floor(this.clock / 1440), AN = Poker.antes(b);
     let t = T[key];
-    if (!t || t.day !== day) t = T[key] = { day, opps: Array.from({ length: POKER_SEATS }, () => Poker.newOpp()) };
-    t.opps = t.opps.filter(o => o.stack >= Poker.minStack(POKER_ANTES[0]));
+    if (!t || t.day !== day) t = T[key] = { day, opps: Array.from({ length: POKER_SEATS }, () => Poker.newOpp(b.type === 'club')) };
+    t.opps = t.opps.filter(o => o.stack >= Poker.minStack(AN[0]));
     return t;
   },
 };
@@ -319,10 +322,10 @@ Object.assign(UI, {
     }
   },
   openPoker(b) {
-    const P = G.player, table = G.pokerTable(b);
+    const P = G.player, table = G.pokerTable(b), AN = Poker.antes(b);
     if (!table.opps.length) { this.feed(Tr('Masada oynayacak kimse kalmadı. Yarın yine gel.'), 'warn'); return; }
     const el = el_('div', 'modal panel poker');
-    const st = { ante: POKER_ANTES[0], phase: 'idle', btn: rndi(0, table.opps.length), pot: 0, pending: [], sel: new Set(), cursor: 0, wait: 0, msg: '', table,
+    const st = { ante: AN[0], phase: 'idle', btn: rndi(0, table.opps.length), pot: 0, pending: [], sel: new Set(), cursor: 0, wait: 0, msg: '', table,
       seats: [{ me: true, name: Tr('Sen'), hand: [], folded: true }, ...table.opps.map(o => ({ o, name: o.name, hand: [], folded: true }))] };
     const card = (c, cls = '') => `<div class="card ${cls} ${c.s % 2 ? 'red' : ''}"><span>${['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'][c.r]}</span><span>${'♠♥♣♦'[c.s]}</span></div>`;
     const G_ = (a) => Input.glyph(a);
@@ -371,7 +374,7 @@ Object.assign(UI, {
     };
     const leave = () => {
       if (st.phase !== 'idle') { Poker.fold(st, 0); Poker.runOut(st); }
-      table.opps = table.opps.filter(o => o.stack >= Poker.minStack(POKER_ANTES[0]));
+      table.opps = table.opps.filter(o => o.stack >= Poker.minStack(AN[0]));
       this.pop(m);
     };
     const doAct = (a) => {
@@ -393,9 +396,9 @@ Object.assign(UI, {
       if (m.born >= this.frame - 1) { if (dirty) draw(); return; }
       if (I.pressed('back')) { leave(); return; }
       if (st.phase === 'idle') {
-        const k = POKER_ANTES.indexOf(st.ante);
-        if (I.nav('left', dt) && k > 0) { st.ante = POKER_ANTES[k - 1]; dirty = true; }
-        if (I.nav('right', dt) && k < POKER_ANTES.length - 1) { st.ante = POKER_ANTES[k + 1]; dirty = true; }
+        const k = AN.indexOf(st.ante);
+        if (I.nav('left', dt) && k > 0) { st.ante = AN[k - 1]; dirty = true; }
+        if (I.nav('right', dt) && k < AN.length - 1) { st.ante = AN[k + 1]; dirty = true; }
         if (I.pressed('confirm')) { deal(); return; }
       } else if (st.phase === 'draw' && !st.seats[0].folded) {
         if (I.nav('left', dt)) { st.cursor = (st.cursor + 4) % 5; dirty = true; }

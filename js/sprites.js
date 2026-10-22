@@ -11,11 +11,14 @@ const SIGN_TEXT = {
   lumber: 'LUMBER', docks: 'DOCKS', ranch: 'RANCH', property: 'FOR SALE', cabin: 'FURS', hermit: '', church: '',
   bakery: 'BAKERY', smith: 'BLACKSMITH', pharmacy: 'DRUGS', laundry: 'LAUNDRY', gambling: 'GAMBLING HALL', brewery: 'BREWERY',
   mill: 'MILL', county: 'COUNTY', post: 'POST & TELEGRAPH', warehouse: 'WHOLESALE', cantina: 'CANTINA', market: 'MARKET',
+  club: 'PRIVATE CLUB', mansion: '',
 };
 
 /* Zengin şehrin modern binaları: cephe taşları ve tente renkleri */
 const MODERN_WALLS = [{ c: '#8a3e2e', brick: true }, { c: '#7a4a34', brick: true }, { c: '#964a36', brick: true }, { c: '#b8a27e', brick: false }, { c: '#c8c0b0', brick: false }, { c: '#a89a86', brick: false }];
-const MODERN_TYPE_WALL = { bank: '#cfc6b4', county: '#c8c0ae', hotel: '#d4c8b0', sheriff: '#a8a090', doctor: '#d8d2c4', pharmacy: '#d8d2c4' };
+const MODERN_TYPE_WALL = { bank: '#cfc6b4', county: '#c8c0ae', hotel: '#d4c8b0', sheriff: '#a8a090', doctor: '#d8d2c4', pharmacy: '#d8d2c4', mansion: '#ddd5c4', club: { c: '#6e3a2c', brick: true } };
+/* Türün sabit cephesi (taş; kulüpte koyu tuğla), yoksa konuma göre seçilen palet */
+const modernWall = (b, pal) => { const tw = MODERN_TYPE_WALL[b.type]; return tw ? { c: tw.c || tw, brick: !!tw.brick } : pal; };
 const MODERN_AWN = ['#a83a2a', '#2e6a4a', '#2e4a7a', '#7a2a5a', '#a8782a'];
 const MODERN_SHOP = new Set(['general', 'tailor', 'bakery', 'pharmacy', 'barber', 'butcher', 'gunsmith', 'saloon', 'gambling', 'laundry', 'brewery', 'fence']);
 const MODERN_SKIP = new Set(['church', 'station', 'stable', 'barn', 'lighthouse', 'mineentrance', 'ruin', 'docks', 'warehouse', 'lot']);
@@ -77,6 +80,7 @@ const IntDeco = (() => {
     pharmacy: [['hex', '#e8e4da', '#2a3a3a'], ['paper', '#3a5a4a']], laundry: [['plank', '#7a6c5c'], ['plaster', '#c8c8c0']], gambling: [['plank', '#4a3020'], ['paper', '#5a1a1a']],
     brewery: [['brick', '#7a4a30'], ['brick', '#7a4a30']], mill: [['plank', '#9a8060', 'saw'], ['plankv', '#8a7050']], county: [['plank', '#6e5232'], ['paper', '#8a8468']],
     post: [['plank', '#7a5a3a'], ['paper', '#5a6a70']], warehouse: [['wide', '#7a6a50'], ['plankv', '#6a5a48']], cantina: [['ttile', '#9e5a3c'], ['plaster', '#d8b888']],
+    mansion: [['parquet', '#7a4a2a'], ['damask', '#2e3a4e']], club: [['parquet', '#5a3420'], ['panel', '#4a2e1c']],
   };
   /* Kademe kaplamaları (oyuncunun kurduğu yapı): eco, adv, lux; Normal kademe türün standart kaplamasıdır */
   const TIER = {
@@ -107,11 +111,14 @@ const IntDeco = (() => {
     bakery: [['checker', '#a85a3a', '#ece0c8'], ['tile', '#e8e0d0']], pharmacy: [['hex', '#ecebe4', '#1e3a3a'], ['stripe', '#3a5a4a']], gambling: [['wide', '#3a2014'], ['damask', '#4a1018']],
     post: [['parquet', '#7a5030'], ['stripe', '#4a5a6a']], county: [['marble', '#dcd4c4', '#5a5040'], ['panel', '#4a3420']], laundry: [['hex', '#ecebe4', '#3a5a6a'], ['tile', '#d8e0e0']],
     warehouse: [['wide', '#6e6048'], ['brick', '#6a3a2a']], brewery: [['brick', '#7a4a30'], ['brick', '#6a3424']],
+    mansion: [['parquet', '#7a4a2a'], ['damask', '#2e3a4e']], club: [['parquet', '#5a3420'], ['panel', '#4a2e1c']],
   };
   const HOUSE_RICH = ['#3a4a5a', '#5a2a3a', '#2e4a3e'];
-  const cache = new WeakMap();
+  const cache = new WeakMap(), cacheUp = new WeakMap();
+  /* İki katlı yapının (malikane, kulüp) üst katı kendi halılarıyla ayrı bir kaplamadır; döşeme ve duvar zemin katla aynı */
   function style(b) {
-    let st = cache.get(b);
+    const UPP = typeof upPlan !== 'undefined' ? upPlan(b) : null, up = !!UPP && b.floor === 1, C = up ? cacheUp : cache;
+    let st = C.get(b);
     if (st) return st;
     const t = b.type, tk = b.tier && TIER[t] && TIER[t][b.tier], rich = b.tier ? b.tier === 'lux' : !!b.modern && !!RICH[t];
     const S = tk || (rich && !b.tier ? RICH[t] : STD[t]) || [['plank', '#7a5a3a'], ['paper', shadeHex(b.def.wall, -0.05)]];
@@ -120,10 +127,10 @@ const IntDeco = (() => {
     if (rich && (t === 'house')) wc = HOUSE_RICH[Math.floor(hash2(b.x, b.y, 7) * 3)];
     st = {
       fl: S[0][0], c1: rgb(S[0][1]), c2: rgb(S[0][2] && S[0][2][0] === '#' ? S[0][2] : S[0][1]), dust: S[0][2] === 'saw', straw: S[0][2] === 'straw',
-      wl: S[1][0], wc: rgb(wc), rich, trim: rgb(rich ? '#c8a050' : '#3a2416'), id: b.id, w: b.w * TS, h: b.h * TS, dx: b.door.x - b.x * TS,
-      rugs: ((plan && plan.rug) || []).map(r => ({ x: r[0] * TS, y: r[1] * TS, w: r[2] * TS, h: r[3] * TS, k: r[4], c: rgb(r[5]), a: rgb(r[4] === 'c' ? '#c8a040' : rich ? '#c8a050' : '#d8c8a0') })),
+      wl: S[1][0], wc: rgb(wc), rich, trim: rgb(rich ? '#c8a050' : '#3a2416'), id: b.id, w: b.w * TS, h: b.h * TS, dx: up ? -999 : b.door.x - b.x * TS,
+      rugs: ((up ? UPP.rooms.filter(R => R.rug).map(R => R.rug) : plan && plan.rug) || []).map(r => ({ x: r[0] * TS, y: r[1] * TS, w: r[2] * TS, h: r[3] * TS, k: r[4], c: rgb(r[5]), a: rgb(r[4] === 'c' ? '#c8a040' : rich ? '#c8a050' : '#d8c8a0') })),
     };
-    cache.set(b, st);
+    C.set(b, st);
     return st;
   }
   /* ---- döşeme ---- */
@@ -310,7 +317,7 @@ const IntDeco = (() => {
   /* Klasik çizim: döşeme + halılar + arka duvar bandı 1x tuvale (son birkaç bina önbellekte) */
   const LRU = new Map();
   function canvas(b) {
-    const st = style(b), key = b;
+    const st = style(b), key = st;   // binanın her katının kaplaması ayrı
     let cv = LRU.get(key);
     if (cv) { LRU.delete(key); LRU.set(key, cv); return cv; }
     const w = st.w, h = st.h;
@@ -809,7 +816,7 @@ const Spr = {
   /* ---------- İç mekân ---------- */
   interior(g, b, world) {
     const X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS, t = b.type;
-    const up = isHotel2(b) && b.floor === 1;
+    const up = !!upPlan(b) && b.floor === 1;
     if (t === 'hotel') this.hotelBase(g, b, X, Y, W, H, up);
     else {
       // döşeme, halılar ve arka duvar ortak desenden (IntDeco); duvarın döşemeye düşen gölgesi
@@ -901,16 +908,16 @@ const Spr = {
       g.fillStyle = WD; g.fillRect(X, Y + H - 4, dx - 8 - X, 4); g.fillRect(dx + 8, Y + H - 4, X + W - dx - 8, 4);
       g.fillStyle = '#8a6a44'; g.fillRect(dx - 8, Y + H - 3, 16, 3);
     }
-    // üst katın oda duvarları (karo kenarındaki ince bantlar; kapılar ayrı çizilir)
-    if (up) for (const [lx, ly, v] of HOTEL_UP.wall) {
+    // iç duvarlar: üst katın oda duvarları ya da zemin kattaki ara duvar (karo kenarındaki ince bantlar; kapılar ayrı çizilir)
+    for (const [lx, ly, v] of floorWalls(b)) {
       const x = X + lx * TS, y = Y + ly * TS, r = v === 1 ? [x, y, 16, 6] : v === 2 ? [x, y + 12, 16, 4] : v === 4 ? [x, y, 5, 16] : [x + 11, y, 5, 16];
       g.fillStyle = WD; g.fillRect(r[0], r[1], r[2], r[3]);
       g.fillStyle = 'rgba(255,220,170,0.14)'; if (v <= 2) g.fillRect(r[0], r[1], r[2], 1); else g.fillRect(v === 4 ? r[0] + r[2] - 1 : r[0], r[1], 1, r[3]);
       g.fillStyle = 'rgba(0,0,0,0.16)'; if (v <= 2) g.fillRect(r[0], r[1] + r[3], r[2], 2);
     }
-    // ön duvar pencereleri (otelin üst katında öndeki iki odanın ortasında)
+    // ön duvar pencereleri (üst katta öndeki odaların ortasında)
     const nWin = Math.max(1, Math.floor(b.w / 3));
-    const wins = up ? [X + 40, X + W - 40] : Array.from({ length: nWin }, (_, k) => X + (k + 0.5) * W / nWin);
+    const wins = up ? upWins(b).map(x => X + x) : Array.from({ length: nWin }, (_, k) => X + (k + 0.5) * W / nWin);
     for (const cx of wins) { if (!up && Math.abs(cx - dx) < 14) continue; g.fillStyle = '#8ab0c8'; g.fillRect(cx - 4, Y + H - 4, 8, 3); g.fillStyle = 'rgba(200,230,255,0.12)'; g.fillRect(cx - 5, Y + H - 16, 10, 12); }
     // yan pencereler
     if (b.h >= 6) { g.fillStyle = '#8ab0c8'; g.fillRect(X + 1, Y + H / 2 - 4, 3, 8); g.fillRect(X + W - 4, Y + H / 2 - 4, 3, 8); }
@@ -1054,6 +1061,21 @@ const Spr = {
       case 'mill': at(win, X + W * 0.3); tools(X + W * 0.45, X + W * 0.62); at(win, X + W * 0.78); break;
       case 'post': pigeon(x0, X + W * 0.42); at(clock, X + W * 0.55, 4); at((x) => board(x, 12, '#4a3a2a'), X + W * 0.76, 8); break;
       case 'warehouse': at((x) => board(x, 16, '#3a2a1a'), X + W * 0.3, 9); at(win, X + W * 0.55); tools(X + W * 0.68, X + W * 0.86); break;
+      case 'mansion':
+        // zemin kat: merdivenlerin arasında portreler, manzara ve pencere (şömine, saat ve kitaplığın önü boş); üst kat:
+        // çalışma odasında pencere ve harita, banyoda ayna ve pencere
+        if (b.floor === 1) { at(win, X + 40); at((x) => map(x, 12), X + 80, 7); at((x) => mirror(x, 8), X + 120, 6); at(win, X + 168); }
+        else { at(portrait, X + 40); at((x) => frame(x, '#5a6a4a', 12), X + 96, 7); at(win, X + 144); at(portrait, X + 184); }
+        break;
+      case 'club': {
+        // zemin kat: okuma odasında portre, salonda barın arkasında şişeler, şöminenin yanında av tablosu; üst kat: kart odasında
+        // portre, tablo ve pencere
+        if (b.floor === 1) { at(portrait, X + 40); at((x) => frame(x, '#2a3a2a', 14), X + 96, 8); at(win, X + 136); break; }
+        const bs = barSpan();
+        if (bs) bottles(bs[0] + 12, bs[1]);
+        at(portrait, X + 56); at((x) => frame(x, '#3a4a3a', 12), X + 184, 7);
+        break;
+      }
       case 'hotel': {
         // otel eski pencere ve tablo çizimini korur
         const win0 = (x) => { g.fillStyle = '#3a2a1c'; g.fillRect(x - 5, Y + 2, 10, 9); g.fillStyle = '#8ab0c8'; g.fillRect(x - 4, Y + 3, 8, 7); g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x - 4, Y + 3, 3, 7); g.fillStyle = '#3a2a1c'; g.fillRect(x - 0.5, Y + 3, 1, 7); };
@@ -1653,12 +1675,12 @@ const Spr = {
         break;
       }
       case O.RDOOR: {
-        // otel odasının kapısı: duvar bandının yerinde; kapalıyken kanat, açıkken odaya doğru açılmış kanat. Koridor
-        // yanında pirinç levhada oda numarası
-        const lx = (i % WW) - b.x, ly = Math.floor(i / WW) - b.y;
-        const k = HOTEL_UP.rooms.findIndex(R => R.door[0] === lx && R.door[1] === ly);
+        // üst kattaki oda kapısı: duvar bandının yerinde; kapalıyken kanat, açıkken odaya doğru açılmış kanat. Otelde
+        // koridor yanında pirinç levhada oda numarası
+        const lx = (i % WW) - b.x, ly = Math.floor(i / WW) - b.y, UP = upPlan(b);
+        const k = UP ? UP.rooms.findIndex(R => R.door[0] === lx && R.door[1] === ly) : -1;
         if (k < 0) break;
-        const R = HOTEL_UP.rooms[k], open = b.openRoom === k, back = R.side === 2;
+        const R = UP.rooms[k], open = roomOpen(b, k), back = R.side === 2;
         const wy = back ? cy + 4 : cy - 8, wh = back ? 4 : 6;
         g.fillStyle = '#2a1a10'; g.fillRect(cx - 8, wy - 1, 2, wh + 2); g.fillRect(cx + 6, wy - 1, 2, wh + 2);
         if (open) {
@@ -1670,6 +1692,7 @@ const Spr = {
           g.fillStyle = '#5a3820'; g.fillRect(cx - 6, wy + wh - 1, 12, 1); g.fillRect(cx - 0.5, wy, 1, wh);
           g.fillStyle = '#c8a040'; g.fillRect(cx + 3, wy + (wh >> 1), 1, 1);
         }
+        if (b.type !== 'hotel') break;
         const DIG = ['010110010010111', '111001111100111', '111001111001111', '101101111001001'][k];
         const py = back ? wy + wh + 1 : wy - 8;
         g.fillStyle = '#2a1a10'; g.fillRect(cx - 4, py - 1, 7, 9); g.fillStyle = '#c8a040'; g.fillRect(cx - 3, py, 5, 7);
@@ -1823,7 +1846,7 @@ const Spr = {
     const d = b.def, X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS;
     const FW = d.tall ? 40 : 32, wy = Y + H - FW, h = bHash(b, 5);
     const pal = MODERN_WALLS[Math.floor(bHash(b, 7) * MODERN_WALLS.length)];
-    const wallC = MODERN_TYPE_WALL[b.type] || pal.c, brick = MODERN_TYPE_WALL[b.type] ? false : pal.brick;
+    const MW = modernWall(b, pal), wallC = MW.c, brick = MW.brick;
     const f = b.enter ? o : g;
     g.fillStyle = 'rgba(0,0,0,0.32)'; g.fillRect(X + 6, Y + 4, W, H);
     // cephe ve dokusu
@@ -1901,6 +1924,32 @@ const Spr = {
       o.fillText(txt, X + W / 2, mid - 4.8);
     }
     if (b.type === 'property' && !b.owned) { g.fillStyle = '#5a3e26'; g.fillRect(X + W + 4, Y + H - 2, 1.5, 10); g.fillStyle = '#e0d0a0'; g.fillRect(X + W, Y + H - 8, 10, 6); }
+    this.estateFront(o, b, wy);
+  },
+  /* Malikanenin iki kat yüksekliğindeki revaklı girişi (dört beyaz sütun, saçak, çatıya taşan üçgen alınlık, basamaklar) ve
+     kulübün kapı saçağı ile iki yanındaki pirinç fenerler. Melez çizici de bu 2D çizimi keskinleştirerek kullanır. */
+  estateFront(o, b, wy) {
+    const Y = b.y * TS, H = b.h * TS, dx = b.door.x, top = wy + 3;
+    if (b.type === 'mansion') {
+      o.fillStyle = '#cfc8b8'; o.fillRect(dx - 18, Y + H - 1, 36, 3); o.fillStyle = '#bab2a2'; o.fillRect(dx - 15, Y + H + 2, 30, 2.5);
+      o.fillStyle = 'rgba(0,0,0,0.18)'; o.fillRect(dx - 18, Y + H + 1.6, 36, 0.6);
+      for (const cx of [dx - 21, dx - 12, dx + 12, dx + 21]) {
+        o.fillStyle = 'rgba(0,0,0,0.2)'; o.fillRect(cx + 1.5, top + 5, 2.5, Y + H - top - 6);
+        o.fillStyle = '#efe9dc'; o.fillRect(cx - 1.5, top + 4, 3, Y + H - top - 5);
+        o.fillStyle = '#d4ccbc'; o.fillRect(cx + 0.6, top + 4, 0.9, Y + H - top - 5);
+        o.fillStyle = '#f6f2e8'; o.fillRect(cx - 2.5, top + 3, 5, 1.6); o.fillRect(cx - 2.5, Y + H - 2.5, 5, 1.6);
+      }
+      o.fillStyle = '#e8e2d4'; o.fillRect(dx - 25, top, 50, 3.5);
+      o.fillStyle = 'rgba(0,0,0,0.25)'; o.fillRect(dx - 25, top + 3.5, 50, 1);
+      o.fillStyle = '#ece6d8'; o.beginPath(); o.moveTo(dx - 27, top + 0.5); o.lineTo(dx, top - 11); o.lineTo(dx + 27, top + 0.5); o.fill();
+      o.fillStyle = '#d6cebe'; o.beginPath(); o.moveTo(dx - 21, top - 0.5); o.lineTo(dx, top - 8.5); o.lineTo(dx + 21, top - 0.5); o.fill();
+      o.fillStyle = '#c8a040'; this.circ(o, dx, top - 3.5, 1.6, '#c8a040'); o.fillRect(dx - 3.5, top - 3.8, 7, 0.6);
+    } else if (b.type === 'club') {
+      o.fillStyle = '#1e3a2a'; o.fillRect(dx - 11, Y + H - 20, 22, 3.5);
+      o.fillStyle = '#2e5a3e'; o.fillRect(dx - 11, Y + H - 20, 22, 1);
+      o.fillStyle = '#c8a040'; o.fillRect(dx - 11, Y + H - 17, 22, 0.8);
+      for (const lx of [dx - 10, dx + 10]) { o.fillStyle = '#2a2a2a'; o.fillRect(lx - 0.5, Y + H - 16, 1, 3); o.fillStyle = '#c8a040'; o.fillRect(lx - 1.5, Y + H - 13, 3, 4); o.fillStyle = '#ffe8a0'; o.fillRect(lx - 1, Y + H - 12.5, 2, 2.5); }
+    }
   },
   /* Açık hava pazarı: tenteli tezgâhlar, sandıklarda mallar, ortada kemerli tabela */
   market(g, o, b, world) {

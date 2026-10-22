@@ -602,6 +602,13 @@ const UI = {
     if (P.rope && !shown) lines.push(`<div class="prompt dim">${I.glyph('fire')}<span>${Tr('Kementi Bırak')}</span></div>`);
     if (P.aiming && P.isArmed && !P.deadeye && P.de > 12) lines.push(`<div class="prompt dim">${I.glyph('deadeye')}<span>${Tr('Odak')}</span></div>`);
     if (P.riding) lines.push(`<div class="prompt dim">${I.glyph('sprint')}<span>${Tr`Dörtnala`}</span></div>`);
+    // faytonda: onay tuşu basılı tutulunca yol atlanır (halka dolar)
+    const R = G.ride;
+    if (P.passenger && R) {
+      const left = Math.max(0, R.len - R.done) / CARRIAGE_SPD * MIN_PER_SEC, hp = Math.min(1, R.hold);
+      lines.push(`<div class="prompt ${hp > 0 ? 'holding' : ''}" style="--p:${hp.toFixed(2)}">${I.glyph('confirm')}<span>${Tr`Yolu Atla <em>(basılı tut)</em>`}</span></div>`);
+      lines.push(`<div class="prompt dim"><span>${left >= 60 ? Tr`Kalan yol: ~${Math.round(left / 6) / 10} sa` : Tr`Kalan yol: ~${Math.max(1, Math.round(left))} dk`}</span></div>`);
+    }
     const key = lines.join('');
     if (this._pk !== key) { this._pk = key; this.el.prompts.innerHTML = key; }
   },
@@ -1476,6 +1483,19 @@ const UI = {
     for (const R of G.raids) h += `<p class="jr-note st-low">${Tr`Baskın: ${G.nearestTown(R.x, R.y).n} yakınlarında, haritada kırmızı işaret.`}</p>`;
     const w = G.myWagon;
     h += `<p class="jr-note">${w ? Tr`Yük araban: ${w.crates.length}/${WAGON_CAP} sandık.` : Tr`Yük araban yok. Ahırdan ${fmtMoney(WAGON_PRICE)} karşılığında alabilirsin; ${WAGON_CAP} sandık taşır.`}</p>`;
+    // malikane, hizmetçiler, kulüp ve özel fayton
+    const E = G.estate, C = G.carriage;
+    if (E || G.club || C) {
+      h += `<h3 class="jr-h">${Tr`Malikane ve Hizmet`}</h3><table class="jr-biz">`;
+      if (E) {
+        const mb = G.mansionB();
+        h += `<tr><td>${mb ? mb.name : ''}</td><td colspan="2" class="dim">${Tr`${Math.max(0, G.day - E.since)} gündür senin`}</td></tr>`;
+        for (const k of Object.keys(SERVANTS)) { const s = E.staff[k]; if (s) h += `<tr><td>${SERVANTS[k].n}: ${escapeHtml(s.name)}</td><td class="${s.unpaid ? 'st-low' : ''}">${s.unpaid ? Tr('ücreti ödenmedi') : Tr('çalışıyor')}</td><td>${fmtMoney(SERVANTS[k].wage)}${Tr`/gün`}</td></tr>`; }
+      }
+      if (C) h += `<tr><td>${Tr('Özel Fayton')}</td><td class="${!C.driver || C.unpaid ? 'st-low' : ''}">${C.driver ? Tr`Arabacı: ${escapeHtml(C.driver.name)}` : Tr('arabacı yok')}</td><td>${C.driver ? fmtMoney(CARRIAGE_WAGE) + Tr`/gün` : ''}</td></tr>`;
+      if (G.club) h += `<tr><td>${Tr('Kulüp üyeliği')}</td><td colspan="2" class="dim">${Tr`${Math.max(0, G.day - G.club.since)} gündür üyesin`}</td></tr>`;
+      h += `</table>`;
+    }
     return h;
   },
   /* İlk oyunda sinematikten sonra açılan kısa, sayfalı rehber (Günlük → Rehber ve Duraklat menüsünden de açılır) */
@@ -1898,7 +1918,7 @@ const UI = {
       title: b.name, sub: () => Tr`${sub ? sub.n + ' • ' : ''}${G.timeStr()}`, wallet: true, cls: 'building',
       build: () => {
         const it = [];
-        const closed = (G.hour < 6 || G.hour > 22) && !['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'cantina', 'gambling', 'warehouse'].includes(b.type);
+        const closed = (G.hour < 6 || G.hour > 22) && !['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'cantina', 'gambling', 'warehouse', 'club'].includes(b.type);
         if (closed) { it.push({ html: `<p class="closed">${Tr`Dükkan kapalı. Açılış saati 06:00.`}</p>` }); if (svc.includes('rob')) it.push({ label: Tr('Kapıyı Kır ve Soy'), icon: '🔫', fn: () => this.robStore(b, true) }); return it; }
         if (P.masked && b.type !== 'fence') {
           it.push({ html: `<p class="closed">${b.type === 'sheriff' ? Tr('"Maskeyle şerif ofisine mi giriyorsun? Çıkar onu, hemen!"') : b.type === 'bank' ? Tr('"Maskeli müşteriye hizmet yok. Çıkar onu ya da defol."') : Tr('"Maskeni çıkar, yoksa sana hizmet etmem."')}</p>` });
@@ -1959,15 +1979,17 @@ const UI = {
       case 'horses': it.push({ icon: '🐴', qn: 'horse', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) });
         if (!G.myWagon) it.push({ icon: '📦', label: Tr('Yük Arabası Satın Al'), right: fmtMoney(WAGON_PRICE * G.priceMul(true)), fn: () => { G.buyWagon(b); this.pop(); } });
         else it.push({ icon: '📦', label: Tr('Arabanı Buraya Getirt'), right: fmtMoney(SVC.fetchWagon), fn: () => G.fetchWagon(b) });
+        it.push(...this.coachItems(b));
         break;
       case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: Tr`${G.horse.name}'i Tımar Ettir`, right: fmtMoney(SVC.horsecare), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed(Tr('Atın burada değil.'), 'warn'); return; } if (G.spend(SVC.horsecare)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(Tr`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
       case 'bank': it.push({ icon: '🏦', qn: 'deposit', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
       case 'robbank': it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
       case 'train': it.push({ icon: '🚂', label: Tr('Tren Bileti Al'), fn: () => this.openTrain(b) }); break;
-      case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); it.push({ icon: '📦', label: G.haulers.length ? Tr`Nakliyeciler (${G.haulers.length}/${HAUL_MAX})` : Tr('Nakliyeci Tut'), fn: () => this.openHaulers(b) }); break;
+      case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); it.push({ icon: '📦', label: G.haulers.length ? Tr`Nakliyeciler (${G.haulers.length}/${HAUL_MAX})` : Tr('Nakliyeci Tut'), fn: () => this.openHaulers(b) }); if (b.type === 'post') it.push(...this.coachItems(b)); break;
       case 'donate': it.push({ icon: '🙏', label: Tr('Kiliseye Bağış Yap'), right: fmtMoney(0.5), fn: () => { if (G.spend(0.5)) { G.addHonor(3); this.feed(Tr('Rahip sana teşekkür etti.')); } } }); break;
       case 'pray': it.push({ icon: '✝', label: Tr('Dua Et'), fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed(Tr('Bugün zaten dua ettin.')); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed(Tr('İçin huzurla doldu.')); G.advanceClock(20); } }); break;
       case 'property': it.push({ icon: '📜', label: Tr('Satılık Mülkler'), fn: () => this.openLand() }); it.push({ icon: '🏪', label: Tr('Satılık İşletmeler ve Arsalar'), fn: () => this.openBizMarket(b) });
+        { const mb = b.town === 'stclement' && G.mansionB(); if (mb) it.push({ icon: '🏛', label: G.estate ? Tr`${mb.name} (senin)` : Tr`Satılık: ${mb.name}`, right: G.estate ? '' : fmtMoney(G.mansionPrice()), fn: () => this.openMansion(mb) }); }
         it.push({ icon: '📜', label: Tr('Arazi Tapusu Al'), right: fmtMoney(DEED_PRICE), fn: () => G.buyDeed() });
         for (const h of G.homes.filter(x => !x.legal)) it.push({ icon: '⚖', label: Tr`Tapuya Bağla: ${G.homeName(h)}${h.sealed ? Tr(' (mühürlü)') : h.notice ? Tr(' (ihbarlı)') : ''}`, right: fmtMoney(G.homeLegalPrice(h)), fn: () => { if (G.homeLegalize(h)) this.pop(); } });
         break;
@@ -3302,11 +3324,11 @@ function radarSegs(pts) {
   }
   return S;
 }
-const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence', 'bakery', 'smith', 'pharmacy', 'gambling', 'brewery', 'mill', 'county', 'post', 'warehouse', 'cantina']);
+const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence', 'bakery', 'smith', 'pharmacy', 'gambling', 'brewery', 'mill', 'county', 'post', 'warehouse', 'cantina', 'mansion', 'club']);
 /* Harita açıklamaları: [simge, ad]; MAP_LEGEND_B: simgenin bina türleri */
 const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
 const MAP_LEGEND_B = { store: ['general'], glass: ['saloon', 'cantina', 'gambling'], star: ['sheriff'], cross: ['doctor', 'pharmacy'], gun: ['gunsmith'], horseshoe: ['stable'], bed: ['hotel'], train: ['station'], bank: ['bank'], pick: ['mine', 'smith', 'lumber'] };
-const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass' };
+const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass', mansion: 'house', club: 'cards' };
 const PICON = { hideout: 'tent', railcamp: 'train', trappercamp: 'fox', fathercabin: 'hut', camp: 'tent', farm: 'wheat', property: 'house', home: 'hut', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
 const TIPS = [
   'İpucu: Çömelerek hayvanlara daha kolay yaklaşabilirsin.',

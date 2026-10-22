@@ -17,8 +17,9 @@ function setWorldSize(n) { WW = WH = n; CW = n / CG; CHH = n / CG; FW = n / 4; }
 const inWorld = d => !d.big || WW > WORLD_OLD;
 /* Dünya üretim sürümü: 2'den itibaren zengin şehir (Saint Clement) taş sokak, park, pazar ve modern binalarla kurulur;
    3'ten itibaren çiftlik, mülk, kamp ve simgesel yerler yolun, rayın ve başka yapıların üstüne kurulmaz, patikalar binaların
-   etrafından dolanır. Eski kayıtlar kendi sürümüyle yeniden üretilir; binaların sırası ve numaraları değişmez. */
-const WGEN_NEW = 4;
+   etrafından dolanır; 4'ten itibaren Saint Clement ızgara planlı şehirdir; 5'ten itibaren şehrin kuzeyinde bahçeli malikane
+   ve özel kulüp vardır. Eski kayıtlar kendi sürümüyle yeniden üretilir; binaların sırası ve numaraları değişmez. */
+const WGEN_NEW = 5;
 let WGEN = WGEN_NEW;
 
 const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20, COBBLE: 21, PAVE: 22 };
@@ -134,7 +135,7 @@ const isHerbO = o => o >= 20 && o <= 28;
    Merdivenlerde yürünür: iki katta da merdivenin şeridi yan duvarla korkuluk arasıdır (sol merdivende karo 0'ın duvar
    dışı ve karo 1, sağda karo 8 ve karo 9'un duvar dışı) ve şeride yalnızca güney ucundan girilir (G.hotelStairsTick). */
 const HOTEL_UP = {
-  stairs: [1, 8],
+  w: 10, h: 8, stairs: [1, 8],
   rooms: [
     { door: [3, 2], side: 2, bed: [2, 1], chair: [4, 1], area: [2, 1, 4, 2] },
     { door: [6, 2], side: 2, bed: [7, 1], chair: [5, 1], area: [5, 1, 7, 2] },
@@ -146,14 +147,57 @@ const HOTEL_UP = {
     [0, 5, 1], [1, 5, 1], [3, 5, 1], [4, 5, 1], [5, 5, 1], [6, 5, 1], [8, 5, 1], [9, 5, 1],
     [4, 5, 8], [4, 6, 8], [4, 7, 8], [5, 5, 4], [5, 6, 4], [5, 7, 4]],
 };
+/* Saint Clement'teki malikanenin üst katı (14x10): iki arka köşede merdiven boşluğu; arkada çalışma odası ve banyo, ortada
+   iki sıra koridor, önde yatak odası ve misafir odası. Odaların eşyaları sabittir (items: [x, y, INT_KEY]); öndeki odalarda
+   eşyalar duvar bandının bir sıra altındadır (bandın üstüne taşıp koridorda duruyormuş gibi görünmesin). İçeri yalnızca
+   sahibi girdiği için bütün kapılar açıktır. */
+const MANSION_UP = {
+  w: 14, h: 10, stairs: [1, 12],
+  rooms: [
+    { n: 'Çalışma Odası', door: [4, 3], side: 2, area: [2, 1, 6, 3], items: [[2, 1, 'D'], [3, 1, '='], [5, 1, 'k'], [6, 1, 'k'], [6, 2, 'a'], [2, 3, 'Q']], rug: [2.4, 1.9, 3.4, 1.4, 'g', '#2a3a4a'] },
+    { n: 'Banyo', door: [9, 3], side: 2, area: [7, 1, 11, 3], items: [[7, 1, 'j'], [8, 1, 'E'], [10, 1, 'U'], [11, 3, 'g']], rug: [8.3, 2.1, 2.6, 1.1, 'r', '#3a5a6a'] },
+    { n: 'Yatak Odası', door: [3, 6], side: 1, area: [0, 6, 6, 9], items: [[1, 7, 'B'], [1, 8, '|'], [2, 8, 'H'], [5, 7, 'd'], [6, 7, 'E'], [5, 9, 'g'], [6, 9, 'a']], rug: [2.4, 7.2, 3.2, 1.7, 'o', '#5a1a24'] },
+    { n: 'Misafir Odası', door: [10, 6], side: 1, area: [7, 6, 13, 9], items: [[7, 7, 'j'], [8, 7, 'E'], [11, 7, 'Q'], [12, 7, 'B'], [12, 8, '|'], [7, 9, 'a'], [8, 9, 'g']], rug: [8.4, 7.2, 3.2, 1.6, 'o', '#1e3a4a'] },
+  ],
+  wall: [[2, 1, 4], [2, 2, 4], [2, 3, 4], [11, 1, 8], [11, 2, 8], [11, 3, 8], [6, 1, 8], [6, 2, 8], [6, 3, 8], [7, 1, 4], [7, 2, 4], [7, 3, 4],
+    [2, 3, 2], [3, 3, 2], [5, 3, 2], [6, 3, 2], [7, 3, 2], [8, 3, 2], [10, 3, 2], [11, 3, 2],
+    [0, 6, 1], [1, 6, 1], [2, 6, 1], [4, 6, 1], [5, 6, 1], [6, 6, 1], [7, 6, 1], [8, 6, 1], [9, 6, 1], [11, 6, 1], [12, 6, 1], [13, 6, 1],
+    [6, 6, 8], [6, 7, 8], [6, 8, 8], [6, 9, 8], [7, 6, 4], [7, 7, 4], [7, 8, 4], [7, 9, 4]],
+};
+/* Kulübün üst katı (14x10): merdiven yalnızca sağ arka köşede; arkada kart odası (yüksek bahisli poker), önde bilardo
+   odası. Kapılar üyelere açık. */
+const CLUB_UP = {
+  w: 14, h: 10, stairs: [12],
+  rooms: [
+    { n: 'Kart Odası', door: [5, 3], side: 2, area: [0, 1, 11, 3], items: [[1, 1, 'i'], [4, 1, 'q'], [7, 1, 'k'], [10, 1, 'G'], [3, 2, 'P'], [8, 2, 'P'], [1, 3, 'Q']], rug: [2.3, 1.7, 7.4, 1.6, 'o', '#2a3a2a'] },
+    { n: 'Bilardo Odası', door: [6, 5], side: 1, area: [0, 5, 13, 9], items: [[1, 6, 'r'], [12, 6, 'r'], [3, 7, 'l'], [4, 7, '='], [9, 7, 'l'], [10, 7, '='], [1, 8, 'a'], [12, 8, 'a'], [6, 9, 'Q'], [1, 9, 'G'], [12, 9, 'G']] },
+  ],
+  wall: [[0, 3, 2], [1, 3, 2], [2, 3, 2], [3, 3, 2], [4, 3, 2], [6, 3, 2], [7, 3, 2], [8, 3, 2], [9, 3, 2], [10, 3, 2], [11, 3, 2],
+    [0, 5, 1], [1, 5, 1], [2, 5, 1], [3, 5, 1], [4, 5, 1], [5, 5, 1], [7, 5, 1], [8, 5, 1], [9, 5, 1], [10, 5, 1], [11, 5, 1], [12, 5, 1], [13, 5, 1]],
+};
+/* Zemin kattaki ara duvarlar (yerel karo, maske üst katınkiyle aynı): kulüpte okuma odası salondan ayrılır, aradaki geçit açık */
+const FLOOR0_WALL = { club: [[5, 1, 8], [5, 2, 8], [5, 3, 8], [5, 4, 8], [5, 5, 8], [5, 7, 8], [5, 8, 8], [5, 9, 8]] };
+/* İki katlı yapılar: tür → üst kat planı (bina o boyda olmalı) */
+const UPPER = { hotel: HOTEL_UP, mansion: MANSION_UP, club: CLUB_UP };
+const upPlan = (b) => { const P = b && UPPER[b.type]; return P && b.w === P.w && b.h === P.h ? P : null; };
+/* Binanın o anki katındaki iç duvar bantları: üst katta odaların duvarları, zemin katta (varsa) ara duvar */
+const floorWalls = (b) => { const UP = upPlan(b); return !UP ? [] : b.floor === 1 ? UP.wall : FLOOR0_WALL[b.type] || []; };
+/* Üst katın ön duvar pencereleri (yerel piksel x): öndeki her odanın ortasında, geniş odada iki */
+const upWins = (b) => {
+  const out = [];
+  for (const R of upPlan(b).rooms) if (R.side === 1) { const a = R.area[0], z = R.area[2] + 1, n = Math.max(1, Math.floor((z - a) / 5)); for (let k = 0; k < n; k++) out.push((a + (k + 0.5) * (z - a) / n) * TS); }
+  return out;
+};
 const isHotel2 = b => !!b && b.type === 'hotel' && b.w === 10 && b.h === 8;   // iki katlı otel (bütün oteller 10x8; üst kat planı bu boya göre)
+/* Üst kattaki oda açık mı: otelde yalnızca kiralanan oda; malikanede ve kulüpte hepsi (içeri yalnızca sahibi ve üyeleri girer) */
+const roomOpen = (b, k) => b.type !== 'hotel' || b.openRoom === k;
 /* Üst katta kilitli odaların (dolu ya da kiralanmamış) içi görünmez: odanın döşemesi (duvar bantlarının arası) ve arka
    odalarda arka duvarın odaya bakan yüzü karanlık bir tavanla örtülür. Binaya göre yerel piksel dikdörtgenleri [x, y, w, h]. */
 const hotelShut = (b) => {
-  const out = [];
-  if (!isHotel2(b) || b.floor !== 1) return out;
-  HOTEL_UP.rooms.forEach((R, k) => {
-    if (k === b.openRoom) return;
+  const out = [], UP = upPlan(b);
+  if (!UP || b.floor !== 1) return out;
+  UP.rooms.forEach((R, k) => {
+    if (roomOpen(b, k)) return;
     const A = R.area, back = R.side === 2, x0 = A[0] * TS + 5, x1 = (A[2] + 1) * TS - 5, y0 = back ? TS : A[1] * TS + 6, y1 = (A[3] + 1) * TS - 4;
     out.push([x0, y0, x1 - x0, y1 - y0]);
     if (back) out.push([A[0] * TS, 2, (A[2] - A[0] + 1) * TS, TS - 2]);
@@ -317,6 +361,14 @@ const INT_PLANS = {
     rich: [{ m: ['xxx.nn.xxx', 'bbb.nn.bbb', '..........', 'xx......@.', 'xn..k..CC.', 'xx..%..q.b'] }],
   },
   cantina: { std: [{ m: ['b@...b.g', 'RRR.....', '1.1.....', '......T.', '.T......', 'g.....P.'], rug: [[1.2, 4.1, 3.6, 1.6, 'g', '#a04a2a'], [5.4, 3.2, 3.4, 1.4, 'g', '#2a6a6a']] }] },
+  /* Malikanenin zemin katı tek büyük salon: arkada şömine karşısında kanepe ve koltuklar, piyano, iki köşede merdiven;
+     önde iki yemek masası, solda mutfak köşesi (ocak, kiler). Üst kat MANSION_UP. */
+  mansion: { std: [{ m: ['..kq..F..p..', '............', '...a.ooo.a..', '............', '.Q........Q.', '..T......T..', 'Si...Q..Q..G', 'nb.......g.G'],
+    rug: [[4.1, 2.1, 5.8, 2.8, 'o', '#5a1a24'], [1.8, 5.5, 3.4, 1.6, 'g', '#2a3a4a'], [8.8, 5.5, 3.4, 1.6, 'g', '#2a3a4a'], [6.15, 6.4, 1.7, 2.5, 'r', '#4a2418']] }] },
+  /* Kulübün zemin katı: solda okuma odası (kitaplıklar, okuma masası, gazete kürsüsü), sağda puro ve konyak salonu (bar,
+     şömine, koltuklar); aradaki duvarda geçit (FLOOR0_WALL). Merdiven sağ arka köşede; üst kat CLUB_UP. */
+  club: { std: [{ m: ['kk.kki@..F..', '.....RRR....', '.a.a.1.1....', '............', '.T......T...', '............', 'Q....a...a.G', 'y..g.....g.G'],
+    rug: [[1.2, 2.4, 3.6, 3.2, 'g', '#2a3a2a'], [6.5, 4.4, 5, 2.2, 'o', '#3a1418']] }] },
 };
 /* ---- İnşa kademeleri: oyuncunun kendi kurduğu ev ve işletmelerin hazır tasarımları ----
    Satın alınan hazır yapılarda kullanılmaz. Her yapı türü için Ekonomik (eco), Normal (std), Gelişmiş (adv) ve Lüks (lux)
@@ -914,6 +966,9 @@ class World {
         }
       } else { row(3, 1, 3, O.COUNTER); b.staff = at(2, 2); bed(W - 3, 1); bed(W - 2, 1); put(D - 1, 1, O.TUB); put(W - 2, F, O.PLANT); put(1, F, O.CHAIR); }
     } else {
+      // iki katlı yapıların (malikane, kulüp) zemin katında arka köşelerde yukarı çıkan merdiven
+      const UP = upPlan(b);
+      if (UP) for (let ly = 1; ly <= 3; ly++) for (const lx of UP.stairs) put(lx, ly, O.STAIRS);
       // oyuncunun kurduğu yapı: seçtiği kademenin planı; öbürleri: türün planlarından biri (zengin şehirde zengin plan)
       let plan = b.tier && TIER_PLANS[b.type] ? TIER_PLANS[b.type][b.tier] : null;
       if (!plan) {
@@ -2006,34 +2061,44 @@ class World {
     for (const b of this.buildings) if (b.enter) this.buildingSolid(b);
   }
   buildingSolid(b) {
-    const h2 = isHotel2(b), up = h2 && b.floor === 1 ? b.upMask : null;
+    const UP = upPlan(b), upF = !!UP && b.floor === 1, mask = upF ? b.upMask : this.wallMask0(b);
+    const rL = UP && UP.stairs.includes(1), rR = UP && UP.stairs.includes(b.w - 2);
     for (let ly = 0; ly < b.h; ly++) for (let lx = 0; lx < b.w; lx++) {
       const i = (b.y + ly) * WW + b.x + lx;
       if (ly === 0 || SOLID_O[this.obj[i]]) { this.solid[i] = 1; continue; }
-      if (i === b.doorI && !up) { this.solid[i] = 3; continue; }   // üst katta kapının yeri duvardır
+      if (i === b.doorI && !upF) { this.solid[i] = 3; continue; }   // üst katta kapının yeri duvardır
       let m = 0;
       if (lx === 0) m |= 4;
       if (lx === b.w - 1) m |= 8;
       if (ly === b.h - 1) m |= 2;
-      if (h2 && ly >= 1 && ly <= 3) { if (lx === 2) m |= 4; if (lx === b.w - 3) m |= 8; }   // merdiven korkuluğu: merdivene yalnızca güney ucundan girilir (iki katta da)
-      if (up) m |= up[ly * b.w + lx];
+      if (UP && ly >= 1 && ly <= 3) { if (lx === 2 && rL) m |= 4; if (lx === b.w - 3 && rR) m |= 8; }   // merdiven korkuluğu: merdivene yalnızca güney ucundan girilir (iki katta da)
+      if (mask) m |= mask[ly * b.w + lx];
       this.solid[i] = m ? 16 | m : 0;
     }
   }
-  /* İki katlı otel: kat değişince binanın iç mekân nesneleri ve çarpışması o katınkiyle değişir; çizim önbellekleri
+  /* Zemin kattaki ara duvarların çarpışma maskesi (kulüp); yoksa null */
+  wallMask0(b) {
+    const L = FLOOR0_WALL[b.type];
+    if (!L || !upPlan(b)) return null;
+    if (!b.mask0) { const m = b.mask0 = new Uint8Array(b.w * b.h); for (const [lx, ly, v] of L) m[ly * b.w + lx] |= v; }
+    return b.mask0;
+  }
+  /* İki katlı yapı (otel, malikane, kulüp): kat değişince binanın iç mekân nesneleri ve çarpışması o katınkiyle değişir; çizim önbellekleri
      (2D ve melez) yalnızca binanın parçalarında yenilenir, bina örtüsü korunur. Zemin katın nesneleri ilk değişimde
      kopyalanır (dünya önbelleği üretimden hemen sonra alındığı için bu kopyalar ona girmez). open: kapısı açık oda
      (kiralanan), yoksa -1. Üst katta eşyalar yalnızca açık odadadır; kilitli odaların içi boştur ve örtülür (hotelShut). */
   setFloor(b, lv, open = -1) {
-    if (!isHotel2(b)) return false;
+    const UP = upPlan(b);
+    if (!UP) return false;
     const n = b.w * b.h, at = (k) => (b.y + Math.floor(k / b.w)) * WW + b.x + k % b.w;
     if (!b.fl0) { b.fl0 = new Uint8Array(n); for (let k = 0; k < n; k++) b.fl0[k] = this.obj[at(k)]; }
     if (lv) {
       const o = b.fl1 || (b.fl1 = new Uint8Array(n)), put = (lx, ly, v) => { o[ly * b.w + lx] = v; };
       o.fill(0);
-      for (let ly = 1; ly <= 3; ly++) for (const lx of HOTEL_UP.stairs) put(lx, ly, O.STAIRSD);
-      HOTEL_UP.rooms.forEach((R, k) => {
+      for (let ly = 1; ly <= 3; ly++) for (const lx of UP.stairs) put(lx, ly, O.STAIRSD);
+      UP.rooms.forEach((R, k) => {
         put(R.door[0], R.door[1], O.RDOOR);
+        if (R.items) { for (const [lx, ly, ch] of R.items) put(lx, ly, INT_KEY[ch]); return; }   // malikane ve kulüp: odalar hep döşeli
         if (k !== open) return;
         put(R.bed[0], R.bed[1], O.BED); put(R.bed[0], R.bed[1] + 1, O.IBLOCK);
         const RT = b.tier && HOTEL_TIER[b.tier] ? HOTEL_TIER[b.tier].room : null;   // oyuncunun otelinde oda eşyası kademeye göre
@@ -2044,8 +2109,8 @@ class World {
     b.floor = lv ? 1 : 0; b.openRoom = lv ? open : -1;
     if (lv) {
       const m = b.upMask = new Uint8Array(n);
-      for (const [lx, ly, v] of HOTEL_UP.wall) m[ly * b.w + lx] |= v;
-      HOTEL_UP.rooms.forEach((R, k) => { if (k !== open) m[R.door[1] * b.w + R.door[0]] |= R.side; });
+      for (const [lx, ly, v] of UP.wall) m[ly * b.w + lx] |= v;
+      UP.rooms.forEach((R, k) => { if (!roomOpen(b, k)) m[R.door[1] * b.w + R.door[0]] |= R.side; });
     } else b.upMask = null;
     const src = lv ? b.fl1 : b.fl0;
     for (let k = 0; k < n; k++) this.obj[at(k)] = src[k];
@@ -2627,9 +2692,9 @@ const WorldCache = {
     if (this._fp && this._fpId === id) return this._fp;
     const parts = [this.V, WW, WH, WGEN, lang, String(World)];
     for (const k of Object.getOwnPropertyNames(World.prototype)) { const d = Object.getOwnPropertyDescriptor(World.prototype, k); parts.push(k, String(d.value || d.get || '')); }
-    for (const f of [Noise, RNG, mulberry32, hash2, clamp, lerp, dist, dist2, turnTo, angDiff, hexToRgb, shadeHex, mixHex, segDist2, isWaterT, isCliffT, isStoneT, inWorld, isHotel2]) parts.push(String(f));
+    for (const f of [Noise, RNG, mulberry32, hash2, clamp, lerp, dist, dist2, turnTo, angDiff, hexToRgb, shadeHex, mixHex, segDist2, isWaterT, isCliffT, isStoneT, inWorld, isHotel2, upPlan, roomOpen]) parts.push(String(f));
     parts.push(JSON.stringify([T, O, TINFO, SOLID_O, TRUNK_O, TRUNK_R, TRUNK_DY, SNOWABLE, LEAFY, [...AREA_NEUTRAL], HARVEST, SNOW_LINE, CHUNK, CG,
-      BUILDINGS, TOWNS, RAIL_LINES, REGIONS, LANDMARKS, CAMPS, FARMS, PROPERTIES, HOTEL_UP, INT_KEY, INT_PLANS, HEARTH_O, typeof CITY_ZONE !== 'undefined' ? [CITY_ZONE, CITY_PRIO, CITY_CARTS, CITY_RIDERS] : null]));
+      BUILDINGS, TOWNS, RAIL_LINES, REGIONS, LANDMARKS, CAMPS, FARMS, PROPERTIES, UPPER, FLOOR0_WALL, INT_KEY, INT_PLANS, HEARTH_O, typeof CITY_ZONE !== 'undefined' ? [CITY_ZONE, CITY_PRIO, CITY_CARTS, CITY_RIDERS, MANSION_GARDEN] : null]));
     const s = parts.join('\u0001');
     let h1 = 0x811c9dc5, h2 = 0x9e3779b9;
     for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 ^ c, 0x5bd1e995); h2 ^= h2 >>> 15; }

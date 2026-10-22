@@ -38,6 +38,7 @@ const ITEMS = {
   fine_coffee:  { n: 'İthal Kahve', c: 'food', p: 0.9, i: '☕', e: { thirst: 12, energy: 28, deadeye: 60, warmth: 15 }, max: 10, d: 'Gemiyle gelen çekirdek kahve. Bir fincanı insanı uzun süre uyanık tutar.' },
   champagne:    { n: 'Şampanya', c: 'food', p: 3.25, i: '🍾', e: { thirst: 12, drunk: 16, deadeye: 30, energy: 8 }, max: 5, gift: 28, d: 'Kutlamaların içkisi. Sevdiğine ikram edersen unutmaz.' },
   cigar:        { n: 'Puro', c: 'med', p: 1.25, i: '🚬', e: { deadeye: 70, stamina: -3 }, max: 10, gift: 12, d: 'Elde sarılmış kalın bir puro. Odağı uzun süre keskin tutar.' },
+  cognac:       { n: 'Konyak', c: 'food', p: 2.5, i: '🥃', e: { thirst: 4, health: 14, drunk: 20, warmth: 26, deadeye: 25 }, max: 5, gift: 20, d: 'Kulübün mahzeninden yıllanmış konyak. İçini ısıtır, eli sabitler.' },
   perfume:      { n: 'Parfüm', c: 'valuable', p: 6.25, i: '🌸', max: 5, gift: 35, d: 'İnce kristal şişede çiçek kokusu. Kalpleri yumuşatır.' },
   whiskey:      { n: 'Viski', c: 'food', p: 0.5, i: '🥃', e: { thirst: 4, health: 10, drunk: 30, warmth: 20, deadeye: 10 }, d: 'Boğazı yakar, içini ısıtır.' },
   // ---- İlaç
@@ -330,6 +331,9 @@ const BUILDINGS = {
   // zengin şehrin açık hava pazarı: tenteli tezgâhlar, pahalı ama seçkin mallar
   market:   { n: 'Pazar Yeri', w: 12, h: 5, wall: '#8a6a48', roof: '#6a4a30', sign: '#e8d8a8', svc: ['shop'], shop: 'market', noInt: 1, market: 1 },
   cantina:  { n: 'Cantina', w: 10, h: 8, wall: '#c89a68', roof: '#8a5a38', sign: '#e06040', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon' },
+  // Saint Clement'in iki katlı seçkin yapıları (dünya sürümü 5): satılık malikane ve üyelere açık özel kulüp
+  mansion:  { n: 'Malikane', w: 14, h: 10, wall: '#d8d0c0', roof: '#3a3a44', svc: [], tall: 1 },
+  club:     { n: 'Kulüp', w: 14, h: 10, wall: '#4a2e26', roof: '#2a2a30', sign: '#c8a040', svc: ['shop', 'poker'], shop: 'club', tall: 1 },
 };
 
 /* İş türleri */
@@ -350,6 +354,7 @@ const SHOPS = {
   // zengin şehrin pazarı: seçkin mallar, fiyatlar %25 yüksek; yiyecek ve otu iyi fiyata alır
   market:  { n: 'Pazar', mul: 1.25, sell: ['oysters', 'cheese', 'pastry', 'fine_coffee', 'champagne', 'cigar', 'perfume', 'chocolate', 'apple'], buy: { food: 0.75, herb: 0.85, collect: 0.6 } },
   saloon:  { n: 'Bar', sell: ['beer', 'whiskey', 'stew', 'coffee', 'cigarette', 'bread', 'sarsaparilla'], buy: {} },
+  club:    { n: 'Kulüp Barı', mul: 1.3, sell: ['cognac', 'cigar', 'champagne', 'fine_coffee', 'oysters', 'cheese', 'pastry'], buy: {} },
   doctor:  { n: 'Doktor', sell: ['health_cure', 'bandage', 'antidote', 'snake_oil', 'stamina_tonic', 'herbal_tonic', 'quinine', 'laudanum', 'liniment', 'smelling_salts'], buy: { herb: 1.0, med: 0.5 } },
   gunsmith:{ n: 'Silahçı', weapons: ['knife', 'lasso', 'cattleman', 'schofield', 'repeater', 'winchester', 'rifle', 'shotgun', 'bow'], ammo: ['pistol', 'repeater', 'rifle', 'shotgun', 'arrow'], sell: ['dynamite', 'binoculars'], buy: {} },
   butcher: { n: 'Kasap', sell: ['cooked_game', 'cooked_big', 'jerky', 'raw_game', 'bait'], buy: { animal: 1.0, food: 0.7 } },
@@ -444,6 +449,17 @@ const PROPERTIES = [
   { id: 'ranch',  n: 'Harlow Çiftliği', p: 1000, near: [0.5, 0.47], perks: 'Günlük $2.50 gelir getiren küçük bir çiftlik.', income: 2.5 },
   { id: 'estate', n: 'Clement Konağı', p: 1800, near: [0.82, 0.52], perks: 'Lüks konak. Günlük $4 kira geliri.', income: 4 },
 ];
+
+/* ---- Saint Clement malikanesi, hizmetçiler, özel kulüp ve özel arabacı (estate.js) ----
+   Hizmetçilerin ve arabacının günlük ücreti önce bankadan, yetmezse cüzdandan ödenir; iki gün ödenmezse işi bırakırlar. */
+const MANSION_PRICE = 3500;
+const SERVANTS = {
+  cook:   { n: 'Aşçı', wage: 0.6, d: 'Her sabah sıcak bir kahvaltı hazırlar: karnın doyar, içini ısıtır, güne dinç başlarsın.' },
+  groom:  { n: 'Seyis', wage: 0.45, d: 'Atın malikanenin önündeyken tımarlanır, beslenir ve dinlenir; hep tımarlı ve dinç olur.' },
+  butler: { n: 'Uşak', wage: 0.75, d: 'Seni kapıda karşılar; postları, değerli eşyaları ve koleksiyonu sandığa kaldırıp düzenler, faytonunu kapıya getirtir.' },
+};
+const CLUB_FEE = 250;
+const CARRIAGE_PRICE = 400, CARRIAGE_WAGE = 0.75, CARRIAGE_SPD = 120;   // fayton: px/sn (gerçek zaman)
 
 /* İnşa kademeleri: oyuncunun kendi kurduğu ev ve işletmenin tasarımı ve fiyatı (k: türün fiyatına çarpan). Kademe işlevi
    değiştirmez; eşya çeşidi, süs, döşeme, duvar ve dış cephe değişir. Satın alınan hazır yapılarda yoktur. */

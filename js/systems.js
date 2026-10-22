@@ -43,7 +43,7 @@ const GameSystems = {
     let inc = 0;
     for (const id of this.props) { const P = PROPERTIES.find(p => p.id === id); if (P && P.income) inc += P.income; }
     if (inc > 0) { inc *= this.hasPerk('tycoon') ? 1.5 : 1; this.bank += inc; UI.feed(Tr`🏠 Mülk geliri bankaya yatırıldı: ${fmtMoney(inc)}`); this.stats.earned += inc; }
-    this.bizDaily(); this.bizBuildTick(); this.haulDaily(); this.homeDaily();
+    this.bizDaily(); this.bizBuildTick(); this.haulDaily(); this.homeDaily(); this.estateDaily();
     this.bounties = null; // ilanlar yenilenir
     const L = this.player.look;
     if (L.sex === 'm' && L.beard > 0) { L.beardLen = Math.min(1, (L.beardLen || 0.3) + 0.08); this.player._lk = null; }
@@ -899,6 +899,8 @@ const GameSystems = {
       return { label, acts };
     };
     if (b.home !== undefined) { const r = this.homeFurn(b, o); if (r !== undefined) return r; }
+    if (b.type === 'mansion') { const r = this.mansionFurn(b, o); if (r !== undefined) return r; }
+    if (b.type === 'club') { const r = this.clubFurn(b, o); if (r !== undefined) return r; }
     switch (o) {
       case O.COUNTER: return counter(b.type === 'bank' ? Tr('Veznedar') : b.type === 'hotel' ? Tr('Resepsiyon') : Tr('Tezgah'));
       case O.BAR: return counter(Tr('Bar'));
@@ -954,6 +956,7 @@ const GameSystems = {
       case O.LECTERN: return b.type === 'church' ? { label: Tr('Kürsü'), acts: svc('pray') } : null;
       case O.WARDROBE: case O.DRESSER: return b.type === 'house' ? { label: o === O.WARDROBE ? Tr('Gardırop') : Tr('Konsol'), acts: [{ n: Tr('Evi Ara'), hold: 1.2, fn: () => this.searchHouse(b) }] } : null;
       case O.RDOOR: {
+        if (b.type !== 'hotel') return null;   // malikane ve kulüpte oda kapıları hep açık
         const k = this.hotelRoomAt(b, i, 'door');
         if (k < 0 || b.openRoom === k) return null;   // açık kapıdan geçilir
         const occ = this.hotelOccupied(b, k);
@@ -975,7 +978,7 @@ const GameSystems = {
     if (!this.dailyTalk[k]) { this.dailyTalk[k] = 1; if (chance(0.5)) { const tip = rnd(0.05, 0.3); setTimeout(() => this.earn(tip, Tr('Bahşiş')), tune.length * 230); } this.skillXp('charisma', 1); }
   },
   isOpen(b) {
-    if (['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn', 'cantina', 'gambling', 'warehouse'].includes(b.type)) return true;
+    if (['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn', 'cantina', 'gambling', 'warehouse', 'club'].includes(b.type)) return true;
     return !(this.hour < 6 || this.hour > 22);
   },
   doorOpen(b) {
@@ -988,6 +991,8 @@ const GameSystems = {
     if (b.type === 'property') return this.props.includes(b.prop);
     if (b.forced === this.day || b.picked === this.day) return true;
     if (b.home !== undefined) { const h = this.homeOf(b); return !!h && !h.sealed; }   // kendi yapın: mühürlenmediyse hep açık   // kırılan ya da maymuncukla açılan kapı o gün açık kalır
+    if (b.type === 'mansion') return !!this.estate;   // malikane yalnızca sahibine
+    if (b.type === 'club') return !!this.club;        // kulüp yalnızca üyelere
     if (b.def.lock) return false;
     return this.isOpen(b);
   },
@@ -1794,6 +1799,8 @@ const GameSystems = {
   /* ================= ETKİLEŞİM ================= */
   findInteraction() {
     const P = this.player, W = this.world;
+    // faytonda yolcuyken: yalnızca inmek
+    if (P.passenger) return this.ride ? { x: P.x, y: P.y, riding: true, label: Tr`Özel Faytonun · ${this.ride.d.n}`, actions: [{ n: Tr('Faytondan İn'), fn: () => this.rideEnd(false) }] } : null;
     const cands = [];
     const add = (x, y, label, actions, pri = 0, alt = null) => { const d = dist(P.x, P.y, x, y) - pri; cands.push({ x, y, label, actions, d, alt }); };
     // kanun adamı tutuklamaya geliyorsa: teslim ol
@@ -1852,7 +1859,7 @@ const GameSystems = {
         if (e.dead) continue;
         if (e.hostile && e.aggro) continue;
         const acts = this.npcActions(e);
-        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)} <span class="dim">(${MOODS[this.moodOf(e.res)].n})</span>` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.name, acts, 3);
+        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)} <span class="dim">(${MOODS[this.moodOf(e.res)].n})</span>` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.servant ? `${e.name} · ${SERVANTS[e.servant].n}` : e.name, acts, 3);
       }
     }
     // kayıp eşyalar
@@ -1912,6 +1919,7 @@ const GameSystems = {
         default:
           if (isFurnO(o) && W.bid[i] >= 0) {
             const fi = o === O.IBLOCK ? (W.obj[i - WW] === O.BED ? i - WW : i - 1) : i, fo = W.obj[fi];
+            if (fo !== O.RDOOR && !this.upSameRoom(W.buildings[W.bid[i]], fi)) break;   // üst katta duvarın öbür yanındaki eşya
             const fa = this.furnActions(W.buildings[W.bid[i]], fo, fi);
             if (fa) add(ox, oy, fa.label, fa.acts, 2);
           }
@@ -1942,6 +1950,8 @@ const GameSystems = {
       }
       if (this.doorOpen(b)) continue;
       const pickA = P.has('lockpick') ? [{ n: Tr('Maymuncukla Aç'), fn: () => UI.openLockpick(b) }] : [];
+      if (b.type === 'mansion') { add(b.door.x, b.door.y, b.name, [{ n: Tr('Malikaneyi İncele'), fn: () => UI.openMansion(b) }, ...pickA], 5); continue; }
+      if (b.type === 'club') { add(b.door.x, b.door.y, b.name, [{ n: Tr('Kapı Görevlisiyle Konuş'), fn: () => UI.openClubJoin(b) }], 5); continue; }
       if (b.home !== undefined) { add(b.door.x, b.door.y, Tr('Mühürlü Kapı'), [{ n: Tr('Mührü Oku'), fn: () => UI.feed(Tr('İlçe mührü: tapusuz yapı. Tapuya bağlanana kadar girmek yasak.'), 'warn') }, ...pickA, { n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) }], 5); continue; }
       if (b.def.lock) { add(b.door.x, b.door.y, Tr('Kilitli Kapı'), [{ n: Tr('Kapıyı Çal'), fn: () => this.knock(b) }, ...pickA, { n: Tr('Kapıyı Kır'), hold: 1.6, fn: () => this.breakDoor(b) }], 5); continue; }
       const acts = [{ n: Tr('Kapalı (06:00\'da açılır)'), fn: () => UI.feed(Tr`${b.name} kapalı. Sabah 06:00'da açılır.`) }, ...pickA];
@@ -1961,6 +1971,7 @@ const GameSystems = {
     return cands[0];
   },
   npcActions(e) {
+    if (e.servant) return this.servantActions(e);
     if (e.role === 'hunter') return this.hunterActions(e);
     if (e.quest === 'mentor') return this.mentorActions(e);
     if (e.quest === 'kin') return this.kinActions(e);
@@ -2428,6 +2439,7 @@ const GameSystems = {
       if (where === 'home' && this.hasPerk('home')) { P.hp = P.maxHp; P.deCore = 100; }
       if (where === 'home' && this.family.spouse) { P.hp = P.maxHp; UI.feed(Tr`❤ ${this.family.spouse.name} ile huzurlu bir uyku.`); }
       if (where === 'hotel') P.clean = Math.max(P.clean, 60);
+      if (where === 'home' && this.insideB && this.insideB.type === 'mansion') this.estateWake();   // aşçının kahvaltısı
       this.saveGame(true);
       UI.feed(Tr('💾 Oyun kaydedildi'));
       // uyurken saldırı

@@ -53,6 +53,7 @@ const G = {
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
     this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
     this.upB = null; this.hotelRent = null; this.stairLatch = false;   // otelin üst katı (oyuncu oradaysa), kiralık oda, merdivenden geçince yön kilidi
+    this.estate = null; this.club = null; this.carriage = null; this.coach = null; this.ride = null; this._serv = null; this._manB = null; this._estIn = null;   // malikane, kulüp, özel fayton
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -311,7 +312,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), goalReached: this.goalReached, hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -433,7 +434,7 @@ const G = {
     P.weapons = new Set(p.weapons);
     // otelin üst katında kaydedildiyse o kat geri kurulur (oyuncunun yeri zemin katta bir eşyanın içine düşebilir)
     this.hotelRent = d.hotelRent || null;
-    if (d.upB != null && isHotel2(this.world.buildings[d.upB]) && this.world.buildingAtPx(P.x, P.y) === this.world.buildings[d.upB]) this.setFloor(this.world.buildings[d.upB], 1);
+    if (d.upB != null && upPlan(this.world.buildings[d.upB]) && this.world.buildingAtPx(P.x, P.y) === this.world.buildings[d.upB]) this.setFloor(this.world.buildings[d.upB], 1);
     // eski kayıtlar: kasaba düzeni değiştiyse duvarın içinde başlama
     if (this.world.blocked(P.x, P.y, 4)) { const t = this.nearestTown(P.x, P.y); P.x = t.spawn.x; P.y = t.spawn.y; }
     if (!this.romances || !Object.keys(this.romances).length) this.initRomances();
@@ -446,6 +447,7 @@ const G = {
     this.loadCarry(d.carry);
     this.loadBiz(d.biz);
     this.loadHomes(d.homes);
+    this.loadEstate(d.estate);
     this.pokerTables = d.poker || {};
     this.loadHaul(d.haul);
     // çevredeki dünya kaldığı gibi: NPC'ler, hayvanlar, arabalar, cesetler, yerdeki eşyalar
@@ -576,6 +578,7 @@ const G = {
     }
     this.floorTick();
     this.hotelStairsTick();
+    this.estateTick(dt);
     // çıkılan binanın kapısı, oyuncu kapıdan uzaklaşana kadar açık kalır
     if (this.exitB && (ib || dist2(P.x, P.y, this.exitB.door.x, this.exitB.door.y) > 30 * 30)) this.exitB = null;
     const T_ = this.timers;
@@ -811,7 +814,7 @@ const G = {
           let r;
           if (e.kind === 'npc') { if (e.role === 'spouse' || e.role === 'child') continue; r = e.r + (e.mounted ? 7 : 4); }
           else if (e.kind === 'animal') { if (e.def.shape === 'snake' || e.def.shape === 'gator') continue; r = e.r + 4; }
-          else if (e.kind === 'wagon') { if (!e.driver || e.hauler) continue; r = 12; }   // sürücüyü arabadan çeker
+          else if (e.kind === 'wagon') { if (!e.driver || e.hauler || e.coach) continue; r = 12; }   // sürücüyü arabadan çeker
           else continue;
           const hc = e.kind === 'wagon' ? e.seat : e;
           if (dist2(hc.x, hc.y, p.x, p.y) < r * r) { hit = e; break; }
@@ -1244,6 +1247,7 @@ const G = {
       if (L.type === 'window' && (!night || !Juice.windowLit(L))) continue;
       if (L.type === 'lamp' && !night) continue;
       if ((L.type === 'inner' || L.type === 'hearth') && !(this.insideB && this.insideB.id === L.b)) continue;
+      if (L.type === 'hearth' && this.upB && this.upB.id === L.b) continue;   // üst kattayken alt kattaki ocak ışımaz
       const fl = L.type === 'fire' || L.type === 'hearth' ? Juice.flicker(L.x, this.t, 0.08) : L.type === 'lamp' ? Juice.flicker(L.x + L.y, this.t * 0.6, 0.035) : 1;
       lights.push([L.x, L.y, L.r * fl, L.type === 'window' ? 0.75 : 1]);
     }
@@ -1311,4 +1315,5 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(PokerSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BinocSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HomeSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HotelSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(EstateSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(Story));

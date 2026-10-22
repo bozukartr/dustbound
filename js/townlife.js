@@ -36,7 +36,7 @@ const KEEPER_N = {
   general: 'Bakkal', saloon: 'Barmen', doctor: 'Doktor', gunsmith: 'Silahçı', butcher: 'Kasap', stable: 'Seyis', hotel: 'Otelci', bank: 'Bankacı',
   station: 'İstasyon Memuru', church: 'Peder', barber: 'Berber', tailor: 'Terzi', fence: 'Kaçakçı', mine: 'Maden Kâtibi', docks: 'Liman Kâtibi', lumber: 'Kereste Ustası',
   bakery: 'Fırıncı', smith: 'Demirci', pharmacy: 'Eczacı', laundry: 'Çamaşırcı', gambling: 'Krupiye', brewery: 'Bira Ustası', mill: 'Değirmenci',
-  county: 'İlçe Memuru', post: 'Telgrafçı', warehouse: 'Ambar Kâtibi', cantina: 'Cantinero',
+  county: 'İlçe Memuru', post: 'Telgrafçı', warehouse: 'Ambar Kâtibi', cantina: 'Cantinero', club: 'Kulüp Kâhyası',
 };
 const TOWN_POP = { l: 56, m: 38, s: 22 };
 const PUBLIC_B = ['saloon', 'hotel', 'general', 'station', 'church', 'barber', 'cantina', 'gambling', 'post'];
@@ -311,7 +311,7 @@ class Wagon extends Ent {
   get seat() { return { x: this.bx + Math.cos(this.bang) * 8, y: this.by + Math.sin(this.bang) * 8 }; }
   /* Oyuncunun ateşi: sürücü isabet alabilir, almazsa atları kamçılayıp kaçar */
   hurt(dmg, by) {
-    if (by !== 'player' || this.rider === G.player || !this.driver || this.hauler) return;
+    if (by !== 'player' || this.rider === G.player || !this.driver || this.hauler || this.coach) return;
     if (chance(0.45)) { const n = this.throwDriver(); n.hurt(dmg, 'player', 'gun'); return; }
     if (!(this.panicT > 0)) Bubbles.add(this, pick([Tr('Haydut var!'), Tr('Deh! Deh!'), Tr('Vurmayın!')]), 2);
     this.panicT = 14;
@@ -396,6 +396,7 @@ class Wagon extends Ent {
   }
   update(dt) {
     if (this.hauler) { G.haulSync(this, dt); return; }
+    if (this.coach) { if (!this.passenger) { this.spd = 0; this.mv = 0; this.trail(); } return; }   // özel fayton: yolculukta G.rideTick sürer
     if (this.rider) {
       // oyuncu sürüyor: hareketi binicilik sistemi yapar, gövde arkadan izler
       this.trail();
@@ -514,10 +515,11 @@ class Wagon extends Ent {
     ctx.fillStyle = '#1e140c';
     for (const wy of [-6, 6]) { ctx.fillRect(-7 - 2.5, wy - 1, 5, 2); ctx.save(); ctx.translate(6, wy); ctx.rotate(steer); ctx.fillRect(-2.5, -1, 5, 2); ctx.restore(); }
     if (this.cab) {
-      // fayton: koyu gövde, arkada katlanır körük, önde sürücü yeri ve fenerler
+      // fayton: koyu gövde, arkada katlanır körük, önde sürücü yeri ve fenerler; yolcu taşırken körük arkaya katlıdır
       ctx.fillStyle = this.body; ctx.fillRect(-9, -5, 16, 10);
       ctx.fillStyle = shadeHex(this.body, 0.25); ctx.fillRect(-9, -5, 16, 1.4);
-      ctx.fillStyle = '#16120e'; ctx.beginPath(); ctx.ellipse(-4.5, 0, 5, 5.2, 0, 0, TAU); ctx.fill();
+      if (this.passenger) { ctx.fillStyle = '#5a2a24'; ctx.fillRect(-6.5, -4, 5.5, 8); ctx.fillStyle = '#16120e'; ctx.fillRect(-10.5, -5, 3, 10); ctx.fillStyle = '#2c241e'; ctx.fillRect(-10.5, -5, 1, 10); }
+      else { ctx.fillStyle = '#16120e'; ctx.beginPath(); ctx.ellipse(-4.5, 0, 5, 5.2, 0, 0, TAU); ctx.fill(); }
       ctx.fillStyle = '#2c241e'; ctx.fillRect(-9, -4.2, 4.5, 8.4);
       ctx.fillStyle = shadeHex(this.body, -0.2); ctx.fillRect(1, -4, 5, 8);
       ctx.fillStyle = '#c8a040'; ctx.fillRect(6.2, -5.2, 1.2, 1.4); ctx.fillRect(6.2, 3.8, 1.2, 1.4);
@@ -542,6 +544,7 @@ class Wagon extends Ent {
     for (const k of [-1, 1]) Spr.horse(ctx, this.x - s * k * 4.2, this.y + c * k * 4.2, this.ang, { col: this.hc[k < 0 ? 0 : 1], mane: '#1a1410' }, { phase: this.phase + (k > 0 ? 1.5 : 0), mv: this.mv });
     // sürücü önde oturur (oyuncu sürüyorsa oyuncu)
     const st = this.seat, P = G.player;
+    if (this.passenger === P) Spr.human(ctx, this.bx - Math.cos(this.bang) * 3, this.by - Math.sin(this.bang) * 3, this.bang, P.lookNow(), { riding: true });   // yolcu arka koltukta
     if (this.rider === P && !P.mountAnim) Spr.human(ctx, st.x, st.y, P.aiming || P.rsAim ? P.ang : this.bang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ });
     else if (this.driver) Spr.human(ctx, st.x, st.y, this.bang, this.driver.look, { riding: true });
   }
@@ -907,6 +910,7 @@ const TownLifeSystems = {
   wagonActions(w, add) {
     const P = this.player, acts = [];
     if (w.rider) return;
+    if (w.coach) { if (!w.passenger) add(w.x, w.y, w.name, this.coachActions(w), 3); return; }
     if (w.mine) { add(w.x, w.y, w.name, this.myWagonActions(w), 3); return; }
     if (w.hauler) { this.haulerActions(w, add); return; }
     if (w.driver) {
@@ -955,7 +959,7 @@ const TownLifeSystems = {
   trafficTick() {
     const P = this.player, W = this.world;
     const wagons = this.ents.filter(e => e.kind === 'wagon' && e.owner !== 'player');
-    for (const w of this.ents) if (w.kind === 'wagon' && !w.mine && !w.storyWagon && w.rider !== P && dist2(w.x, w.y, P.x, P.y) > (w.owner === 'player' ? 3000 : 1500) ** 2) w.remove = true;
+    for (const w of this.ents) if (w.kind === 'wagon' && !w.mine && !w.storyWagon && !w.coach && w.rider !== P && dist2(w.x, w.y, P.x, P.y) > (w.owner === 'player' ? 3000 : 1500) ** 2) w.remove = true;
     if (wagons.length >= 3 || !chance(0.07)) return;
     // oyuncunun görüş alanının hemen dışındaki yol noktalarından biri
     const cands = [];

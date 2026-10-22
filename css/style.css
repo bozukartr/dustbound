@@ -843,6 +843,17 @@ body.dying #game { filter: var(--tone) grayscale(0.9) brightness(0.5) contrast(1
 @keyframes deal { from { transform: translateY(-20px); opacity: 0; } }
 .bj-msg { text-align: center; font-family: var(--sc); font-size: 26px; min-height: 34px; color: #ffe8a0; }
 .panel.poker { width: min(760px, 96vw); }
+/* bilardo (kulüp) */
+.panel.billiards { width: min(980px, 96vw); }
+.bl-score { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 8px; margin: 10px 14px 6px; }
+.bl-me, .bl-opp { padding: 4px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.25); border: 1px solid transparent; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bl-opp { text-align: right; }
+.bl-me b, .bl-opp b { font-size: 22px; color: #ffe8a0; font-variant-numeric: lining-nums tabular-nums; margin: 0 4px; }
+.bl-me.turn, .bl-opp.turn { border-color: #e0b040; box-shadow: 0 0 10px rgba(224, 176, 64, 0.35); }
+.bl-msg { text-align: center; font-size: 17px; color: #f0e2c0; min-height: 22px; }
+.bl-cv { display: block; width: calc(100% - 28px); margin: 0 14px; aspect-ratio: 16 / 9; image-rendering: pixelated; border-radius: 6px; cursor: crosshair; touch-action: none; }
+.bl-pow { height: 8px; margin: 8px 14px 2px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(200, 160, 64, 0.5); border-radius: 4px; overflow: hidden; }
+.bl-pow i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #7fd35f, #e0b040 60%, #d8502a); }
 .pk-table { background: radial-gradient(ellipse, #2e5a36, #173020); margin: 12px 14px 6px; padding: 12px 14px; border: 6px solid #4a2e1a; border-radius: 14px; }
 .pk-opps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .pk-seat { position: relative; padding: 6px 8px; border-radius: 8px; background: rgba(0, 0, 0, 0.22); border: 1px solid transparent; text-align: center; min-width: 0; }
