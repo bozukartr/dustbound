@@ -1,5 +1,5 @@
 'use strict';
-/* Kayıt yuvaları, otomatik/manuel kayıt, eski kayıt taşıma ve eski (1024) dünya */
+/* Kayıt yuvaları, otomatik/manuel kayıt; eski biçimli kayıtlar (tek dünyadan önce) görünmez ve açılmaz */
 module.exports = {
   name: 'Kayıt yuvaları ve eski kayıtlar',
   async run(t) {
@@ -47,32 +47,24 @@ module.exports = {
       const L = await p.evaluate(() => { G.difficulty = 'hard'; G.saveGame(true); G.playerDied('test'); return G.slotList().map(s => !!(s.auto || s.manual)); });
       t.eq(L, [true, false, false], 'yalnız 1. yuva kalmalı');
     });
-    await t.step('eski tek kayıt 1. yuvaya taşınır', async () => {
-      await p.evaluate(() => { const d = JSON.parse(Platform.get(slotKey(1, 'auto'))); localStorage.clear(); localStorage.setItem('frontiersend_save_v1', JSON.stringify(d)); });
-      await p.reload(); await p.waitForFunction(() => typeof G !== 'undefined' && G.state === 'menu');
-      const r = await p.evaluate(() => ({ list: G.slotList().map(s => !!s.auto), old: localStorage.getItem('frontiersend_save_v1') }));
-      t.eq(r.list, [true, false, false], 'taşınan kayıt 1. yuvada');
-      t.eq(r.old, null, 'eski anahtar silinmeli');
-    });
-    await t.step('eski (v2, 1024 karelik) kayıt eski dünyada açılır', async () => {
+    await t.step('eski biçimli (4 öncesi) kayıt görünmez ve açılmaz; yuvası yeni hayata açık', async () => {
       const r = await p.evaluate(async () => {
-        const d = JSON.parse(Platform.get(slotKey(1, 'auto')));
-        d.v = 2; delete d.ww; d.reveal = btoa(String.fromCharCode(...new Uint8Array(8192)));
-        d.player.x = 500 * 16; d.player.y = 480 * 16; delete d.biz; delete d.haul;
-        Platform.set(slotKey(1, 'auto'), JSON.stringify(d));
-        await G.loadGame(1, 'auto');
-        return { ww: WW, fw: FW, towns: G.world.towns.length, lots: G.world.lots.length, reveal: G.reveal.length, state: G.state };
+        // 1. yuvanın iki kaydı da eski biçime çevrilir (yuva bilgisinde biçim yok, kayıtta v: 3)
+        const M = G.slotMetaAll();
+        for (const kind of ['auto', 'manual']) {
+          const raw = Platform.get(slotKey(1, kind));
+          if (!raw) continue;
+          const d = JSON.parse(raw); d.v = 3; Platform.set(slotKey(1, kind), JSON.stringify(d));
+          delete M[1][kind].v;
+        }
+        Platform.set(SLOT_META, JSON.stringify(M));
+        TH.feeds.length = 0;
+        const loaded = await G.loadGame(1, 'auto');
+        return { list: G.slotList().map(s => !!(s.auto || s.manual)), has: G.hasSave(), free: G.freeSlot(), loaded, feed: TH.feeds.slice(-1)[0] || '' };
       });
-      t.eq(r.ww, 1024, 'eski dünya boyutu'); t.eq(r.towns, 8, 'eski dünyada 8 kasaba'); t.eq(r.lots, 0, 'eski dünyada arsa yok'); t.eq(r.reveal, 65536, 'keşif haritası boyutu');
-    });
-    await t.step('1890 fiyat reformu öncesi (v1) kayıtta paralar ölçeklenir', async () => {
-      const r = await p.evaluate(async () => {
-        G.player.money = 100; G.bank = 200; G.law.bounty = 40; G.saveGame(true);
-        const d = JSON.parse(Platform.get(slotKey(G.slot, 'auto'))); d.v = 1; Platform.set(slotKey(G.slot, 'auto'), JSON.stringify(d));
-        await G.loadGame(G.slot, 'auto');
-        return [G.player.money, G.bank, G.law.bounty];
-      });
-      t.eq(r.map(v => Math.round(v)), [30, 60, 20], 'para, banka ve ödül yeni ölçekte');
+      t.eq(r.list, [false, false, false], 'yuva boş görünür'); t.ok(!r.has, 'Devam Et yok');
+      t.eq(r.free, 1, 'yeni hayat 1. yuvaya yazılabilir');
+      t.ok(!r.loaded && /eski bir sürümüne ait/.test(r.feed), 'doğrudan yüklenmek istenince açılmaz, uyarı verir', r);
     });
   },
 };

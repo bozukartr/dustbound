@@ -1,6 +1,6 @@
 'use strict';
 /* Zengin şehir (Saint Clement): ızgara planlı şehir (cadde, sokak, bordürlü kaldırım, hizalı cepheler), parklar, pazar yeri,
-   modern binalar; fayton, yük arabası ve atlı vatandaş trafiği; eski kayıtların dünyası değişmez */
+   modern binalar; fayton, yük arabası ve atlı vatandaş trafiği; kayıttan yüklenince şehir aynı kurulur */
 module.exports = {
   name: 'Zengin şehir',
   timeout: 300000,
@@ -15,10 +15,9 @@ module.exports = {
         const B = T0.buildings, need = [...T0.b, ...(T0.xb || [])];
         const missing = need.filter(ty => !B.some(b => b.type === ty));
         const other = G.world.towns.find(x => x.id === 'harlow');
-        return { wgen: WGEN, cob, pave, road, parks: T0.parks.length, fountain: objs(O.FOUNTAIN), hedge: objs(O.HEDGE), flowers: objs(O.FLOWERBED), market: B.filter(b => b.type === 'market').length,
+        return { cob, pave, road, parks: T0.parks.length, fountain: objs(O.FOUNTAIN), hedge: objs(O.HEDGE), flowers: objs(O.FLOWERBED), market: B.filter(b => b.type === 'market').length,
           modern: B.filter(b => b.modern).length, total: B.length, missing, harlowModern: other.buildings.some(b => b.modern), harlowCob: (() => { let n = 0; for (let y = other.y; y < other.y + other.h; y++) for (let x = other.x; x < other.x + other.w; x++) if (W.tile[y * WW + x] === T.COBBLE) n++; return n; })() };
       });
-      t.ok(r.wgen >= 2, 'yeni dünya sürümü zengin şehri kurar', r.wgen);
       t.ok(r.cob > 300 && r.road === 0, 'sokaklar arnavut kaldırımı', r);
       t.ok(r.pave > 2000, 'kaldırımlar taş döşeli', r.pave);
       t.eq(r.parks, 2, 'iki park'); t.ok(r.fountain >= 1 && r.hedge > 20 && r.flowers > 2, 'parkta çeşme, çit ve çiçek', r);
@@ -149,28 +148,12 @@ module.exports = {
       t.ok(r.thirst > 20, 'susuzluk gider', r.thirst);
     });
 
-    await t.step('eski kayıtların dünyası (sürüm 1) değişmez; kayıt sürümü korur', async () => {
-      const r = await p.evaluate(async () => {
-        WGEN = 1;
-        const w = new World(G.seed); await w.generate(() => {});
-        WGEN = WGEN_NEW;
-        const T0 = w.towns.find(x => x.id === 'stclement');
-        let cob = 0; for (let i = 0; i < w.tile.length; i++) if (w.tile[i] === T.COBBLE || w.tile[i] === T.PAVE) cob++;
-        return { cob, market: T0.buildings.some(b => b.type === 'market'), modern: w.buildings.some(b => b.modern), parks: T0.parks.length };
-      });
-      t.eq(r, { cob: 0, market: false, modern: false, parks: 0 }, 'eski sürümde zengin şehir eklentileri yok');
-      const r3 = await p.evaluate(async () => {
-        WGEN = 3;
-        const w = new World(G.seed); await w.generate(() => {});
-        WGEN = WGEN_NEW;
-        const T0 = w.towns.find(x => x.id === 'stclement');
-        return { plan: T0.plan || null, net: !!T0.net, parks: T0.parks.length, market: T0.buildings.some(b => b.type === 'market') };
-      });
-      t.eq(r3, { plan: null, net: false, parks: 2, market: true }, 'sürüm 3 kayıtları eski (organik) zengin şehri korur');
+    await t.step('kayıttan yüklenince şehir aynı kurulur', async () => {
+      const before = await p.evaluate(() => { const T0 = TH.town('stclement'); return { plan: T0.plan, n: T0.buildings.length, market: T0.buildings.some(b => b.type === 'market') }; });
       await p.evaluate(async () => { G.saveGame(true); await G.loadGame(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 60000 });
-      t.eq(await p.evaluate(() => WGEN), await p.evaluate(() => WGEN_NEW), 'yüklemede dünya sürümü korunur');
-      t.ok(await p.evaluate(() => G.world.buildings.some(b => b.type === 'market')), 'yüklenen dünyada pazar var');
+      const after = await p.evaluate(() => { const T0 = TH.town('stclement'); return { plan: T0.plan, n: T0.buildings.length, market: T0.buildings.some(b => b.type === 'market') }; });
+      t.eq(after, before, 'ızgara plan, bina sayısı ve pazar aynı');
     });
   },
 };

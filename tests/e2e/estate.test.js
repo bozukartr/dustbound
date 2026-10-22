@@ -1,5 +1,5 @@
 'use strict';
-/* Saint Clement malikanesi, hizmetçiler, özel kulüp, bilardo ve özel fayton: dünya sürümü 5 yerleşimi (eski sürümde yok),
+/* Saint Clement malikanesi, hizmetçiler, özel kulüp, bilardo ve özel fayton: şehirdeki yerleşim (üç evin yerine),
    satın alma ve kapı, iki kat ve dört oda (duvarın ardındaki eşya çıkmaz), ev işlevleri, hizmetçiler (kahvaltı, ganimet,
    seyis, ücret), kulüp üyeliği ve üyelere açık eşyalar, yüksek bahisli poker, bilardo fiziği ve rakip, fayton yolculuğu
    (izleme, basılı tutarak atlama, saldırıda durma), kayıt; iki çizicide hatasız çizim */
@@ -18,29 +18,22 @@ module.exports = {
       window.AT = (b, lx, ly) => { TH.goto((b.x + lx) * TS + 8, (b.y + ly) * TS + 8); return TH.actions(); };
     });
 
-    await t.step('dünya sürümü 5: Saint Clement\'te yan bahçeli malikane ve kulüp; eski sürümde yoklar', async () => {
+    await t.step('Saint Clement\'te yan bahçeli malikane ve kulüp; yerlerine üç ev eksilir', async () => {
       const r = await p.evaluate(async () => {
         const W = G.world, g = MB && MB.garden;
         const objIn = (o) => { let n = 0; for (let y = g.y; y < g.y + g.h; y++) for (let x = g.x; x < g.x + g.w; x++) if (W.obj[y * WW + x] === o) n++; return n; };
-        const houses = (w) => w.towns.find(x => x.id === 'stclement').buildings.filter(b => b.type === 'house').length;
-        const keep = WGEN;
-        WGEN = 4;
-        const w4 = new World(G.seed); await w4.generate(() => {});
-        WGEN = keep;
-        const t4 = w4.towns.find(x => x.id === 'stclement');
+        const td = TOWNS.find(x => x.id === 'stclement'), planned = [...td.b, ...(td.xb || [])].filter(x => x === 'house').length;
         return {
-          wgen: WGEN, names: [MB && MB.name, CB && CB.name], mansions: W.buildings.filter(b => b.type === 'mansion').length, clubs: W.buildings.filter(b => b.type === 'club').length,
+          names: [MB && MB.name, CB && CB.name], mansions: W.buildings.filter(b => b.type === 'mansion').length, clubs: W.buildings.filter(b => b.type === 'club').length,
           garden: !!g && g.x === MB.x + MB.w && g.h === MB.h, fountain: g && objIn(O.FOUNTAIN), hedge: g && objIn(O.HEDGE), rooms: [upPlan(MB).rooms.length, upPlan(CB).rooms.length],
-          old: { mansion: t4.buildings.some(b => b.type === 'mansion'), club: t4.buildings.some(b => b.type === 'club') }, extraHouses: houses(w4) - houses(W),
+          lessHouses: planned - TH.town('stclement').buildings.filter(b => b.type === 'house').length,
         };
       });
-      t.ok(r.wgen >= 5, 'yeni oyun dünya sürümü 5', r.wgen);
       t.eq([r.mansions, r.clubs], [1, 1], 'tek malikane ve tek kulüp');
       t.eq(r.names, ['Saint Clement Malikanesi', 'Saint Clement Kulübü'], 'adları');
       t.ok(r.garden && r.fountain === 1 && r.hedge > 10, 'malikanenin yanında çitli, çeşmeli bahçe', r);
       t.eq(r.rooms, [4, 2], 'malikanenin üst katında dört oda, kulübün iki');
-      t.eq(r.old, { mansion: false, club: false }, 'eski kayıtların dünyasında (sürüm 4) yoklar');
-      t.eq(r.extraHouses, 3, 'yerlerine üç ev eksildi');
+      t.eq(r.lessHouses, 3, 'yerlerine üç ev eksildi');
     });
 
     await t.step('malikane: kapı kilitli, incelenip satın alınır; kapı sahibine açılır', async () => {

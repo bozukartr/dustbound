@@ -1,7 +1,6 @@
 'use strict';
-/* Yollar, raylar ve yapılar: çiftlik, mülk, kamp ve simgesel yerler yolun ve rayın üstüne kurulmaz;
-   eski dünyalarda içinden yol/ray geçen yapının çevresinden hat dolaştırılır (nokta sayıları, binalar ve yerler
-   değişmez, kayıtlar bozulmaz); dışarıdaki araba bina içindeki oyuncuyu engel saymaz. */
+/* Yollar, raylar ve yapılar: çiftlik, mülk, kamp ve simgesel yerler yolun ve rayın üstüne kurulmaz; dışarıdaki araba
+   bina içindeki oyuncuyu engel saymaz. */
 
 /* sayfa içinde: yapıların (kasaba dışı binalar ve çiftlik alanı) içinden geçen yol/ray parçaları */
 function crossings(w, withSpurs) {
@@ -30,19 +29,14 @@ module.exports = {
     await p.evaluate(crossings.toString().replace(/^function crossings/, 'window.__cross = function'));
     // dünyayı sayfada üret (oyun başlamadan, menüde)
     await p.evaluate(() => {
-      window.__gen = async (seed, wgen, size, pass = true) => {
-        setWorldSize(size); WGEN = wgen;
-        const keep = World.prototype.routeAroundBuildings;
-        if (!pass) World.prototype.routeAroundBuildings = function () {};
-        try { const w = new World(seed); await w.generate(null); return w; } finally { World.prototype.routeAroundBuildings = keep; }
-      };
+      window.__gen = async (seed) => { const w = new World(seed); await w.generate(null); return w; };
     });
 
-    await t.step('yeni dünyalarda çiftlik, mülk, kamp ve simgesel yerler yolun ve rayın üstüne kurulmaz', async () => {
+    await t.step('çiftlik, mülk, kamp ve simgesel yerler yolun ve rayın üstüne kurulmaz (üç tohum)', async () => {
       const r = await p.evaluate(async () => {
         const out = [];
         for (const seed of [11, 22, 33]) {
-          const w = await __gen(seed, WGEN_NEW, WORLD_NEW);
+          const w = await __gen(seed);
           out.push({ seed, x: __cross(w, true), farms: w.pois.filter(q => q.kind === 'farm').length });
         }
         return out;
@@ -51,36 +45,10 @@ module.exports = {
       t.ok(r.every(s => s.farms >= 10), 'bütün çiftlikler kuruldu', r.map(s => s.farms));
     });
 
-    await t.step('eski dünyalar: hat yapının çevresinden dolaşır; binalar, yerler ve nokta sayıları aynı kalır', async () => {
-      const r = await p.evaluate(async () => {
-        const out = [];
-        for (const seed of [1, 2]) {
-          const a = await __gen(seed, 2, WORLD_NEW, false), b = await __gen(seed, 2, WORLD_NEW, true);
-          const same = {
-            buildings: a.buildings.length === b.buildings.length && a.buildings.every((q, i) => { const o = b.buildings[i]; return o.id === q.id && o.type === q.type && o.x === q.x && o.y === q.y && o.w === q.w && o.h === q.h; }),
-            pois: a.pois.length === b.pois.length && a.pois.every((q, i) => b.pois[i].pid === q.pid && b.pois[i].tx === q.tx && b.pois[i].ty === q.ty),
-            roads: a.roads.length === b.roads.length && a.roads.every((q, i) => b.roads[i].pts.length === q.pts.length && !!b.roads[i].spur === !!q.spur),
-            lines: a.lines.length === b.lines.length && a.lines.every((q, i) => b.lines[i].pts.length === q.pts.length && b.lines[i].stops.every((s, k) => s.i === q.stops[k].i)),
-          };
-          // istasyon mesafeleri yeni hatta göre yeniden hesaplandı, sıralı
-          const mono = b.lines.every(l => l.stops.every((s, k) => k === 0 || s.d > l.stops[k - 1].d) && Math.abs(l.len - l.cum[l.cum.length - 1]) < 1e-6);
-          out.push({ seed, before: __cross(a, false), after: __cross(b, false), same, mono });
-        }
-        return out;
-      });
-      for (const s of r) {
-        t.ok(s.before.length > 0, `tohum ${s.seed}: düzeltmesiz dünyada yapının içinden geçen hat vardı`, s.before);
-        t.eq(s.after.length, 0, `tohum ${s.seed}: düzeltmeyle hiçbiri kalmadı`, s.after);
-        t.ok(s.same.buildings && s.same.pois && s.same.roads && s.same.lines, `tohum ${s.seed}: binalar, yerler, yol ve ray nokta sayıları aynı (kayıtlar bozulmaz)`, s.same);
-        t.ok(s.mono, `tohum ${s.seed}: istasyon mesafeleri tutarlı`);
-      }
-    });
-
     const g = await t.newGame();
     await t.step('yeni hayatta hiçbir çiftliğin ya da yapının içinden yol veya ray geçmez', async () => {
       await g.evaluate(crossings.toString().replace(/^function crossings/, 'window.__cross = function'));
-      const r = await g.evaluate(() => ({ wgen: WGEN, newGen: WGEN_NEW, all: __cross(G.world, true) }));
-      t.eq(r.wgen, r.newGen, 'yeni hayat yeni kurallarla');
+      const r = await g.evaluate(() => ({ all: __cross(G.world, true) }));
       t.eq(r.all.length, 0, 'hiçbir yapının içinden hat geçmiyor', r.all);
     });
 
