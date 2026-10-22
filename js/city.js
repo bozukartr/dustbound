@@ -14,7 +14,9 @@
    - Sokak ağı (kavşak düğümleri, şeritler) şehir trafiği için
      saklanır: faytonlar, yük arabaları ve atlı vatandaşlar sağ
      şeritten gider, kavşaklarda döner, kaldırım kenarında durur.
-   Eski kayıtların dünyası (sürüm 2-3) eski kurallarla üretilir.
+   - Sürüm 5'ten itibaren kuzeydoğuda, mahalle parkının yanında
+     yan bahçeli malikane (satılık) ve özel kulüp; üç ev eksilir.
+   Eski kayıtların dünyası (sürüm 2-4) eski kurallarla üretilir.
    ========================================================== */
 
 /* Gündüz hedeflenen şehir trafiği (saat ve havayla azalır) */
@@ -25,8 +27,10 @@ const CITY_ZONE = {
   market: [1, 1.6], bank: [1, 1.2], hotel: [1, 2], county: [1, 1.4], gambling: [1, 2.8], saloon: [1, 2.4], general: [1, 0.6],
   post: [2, 2], pharmacy: [2, 2.2], tailor: [2, 2.6], barber: [2, 2.4], cantina: [2, 2.8], sheriff: [2, 0.2], doctor: [2, 0.4], land: [2, 0.6],
   church: [0, 1.2], house: [0, 2], gunsmith: [3, 1], butcher: [3, 0.8], bakery: [3, 1.4], laundry: [3, 1.2], smith: [3, 0.4],
-  stable: [3, 0], warehouse: [3, 3], brewery: [3, 2.4], docks: [3, 3], lot: [0, 0.4], park: [0, 2.8],
+  stable: [3, 0], warehouse: [3, 3], brewery: [3, 2.4], docks: [3, 3], lot: [0, 0.4], park: [0, 2.8], club: [0, 2.2], mansion: [0, 2.6],
 };
+/* Malikanenin doğu yanındaki bahçenin genişliği (karo) */
+const MANSION_GARDEN = 6;
 /* Yerleşim sırası: önce en iyi yerleri alacak binalar; arsalar, park ve evler en son */
 const CITY_PRIO = ['market', 'bank', 'hotel', 'county', 'saloon', 'general', 'gambling', 'post', 'sheriff', 'doctor', 'church', 'land', 'pharmacy', 'tailor', 'barber', 'docks', 'warehouse', 'brewery', 'stable'];
 
@@ -104,7 +108,9 @@ World.prototype.genCity = function (td, big) {
   blk(3, 0).kind = 'park';    // güneybatıda büyük park
   // yerleşecekler: binalar, arsalar (büyük dünya), kuzeyde mahalle parkı
   const queue = [...(td.rb || []), ...td.b, ...(big && td.xb ? td.xb : [])];
-  const items = queue.map(type => ({ type, w: BUILDINGS[type].w, h: BUILDINGS[type].h }));
+  // sürüm 5: kuzeyde malikane (yanında bahçesiyle) ve özel kulüp; yer açmak için üç ev eksilir
+  if (WGEN >= 5 && td.id === 'stclement') { for (let k = 0; k < 3; k++) queue.splice(queue.lastIndexOf('house'), 1); queue.push('club', 'mansion'); }
+  const items = queue.map(type => ({ type, w: BUILDINGS[type].w + (type === 'mansion' ? MANSION_GARDEN : 0), h: BUILDINGS[type].h }));
   if (big) for (let k = 0; k < { s: 1, m: 2, l: 3 }[td.sz]; k++) items.push(k === 0 && td.sz !== 's' ? { type: 'lot', w: 12, h: 9, k } : { type: 'lot', w: 10, h: 7, k });
   items.push({ type: 'park', w: 24, h: RD - 1, k: 1 });
   const rank = (it) => { const k = CITY_PRIO.indexOf(it.type); return it.type === 'house' ? 300 : it.type === 'park' ? 210 : it.type === 'lot' ? 200 : k < 0 ? 100 : k; };
@@ -268,9 +274,10 @@ World.prototype.cityPut = function (town, it, bx, by, top, R, oget, oset, ground
     return;
   }
   const def = BUILDINGS[it.type];
-  reserve(def.w, def.h);
-  const b = this.addBuilding(it.type, bx, by, town);
+  reserve(it.w, def.h);
+  const b = this.addBuilding(it.type, bx, by, town, it.type === 'mansion' ? Tr`${town.n} Malikanesi` : it.type === 'club' ? Tr`${town.n} Kulübü` : undefined);
   town.buildings.push(b);
+  if (it.type === 'mansion') this.mansionGarden(b, bx + def.w, by, it.w - def.w, def.h, R, oset);
   const put = (x, y, o) => { const i = y * WW + x; if (this.inb(x, y) && !this.obj[i] && !(this.flags[i] & 8) && oget(x, y) !== 3) { this.obj[i] = o; oset(x, y, 5); return true; } return false; };
   // at bağlama direği kaldırımda, binanın yanında
   if (['saloon', 'general', 'sheriff', 'hotel', 'cantina', 'gambling', 'warehouse'].includes(it.type)) {
@@ -290,6 +297,31 @@ World.prototype.cityPut = function (town, it, bx, by, top, R, oget, oset, ground
       this.tile[i] = T.FARM; this.flags[i] |= 1; this.obj[i] = (xx % 2 === 0 && yy < gy1) ? O.CROP : 0;
     }
   } else if (yard >= 2 && R.chance(0.5)) put(bx + R.int(0, def.w - 1), by - 1, R.pick([O.BARREL, O.CRATE, O.BARREL]));
+};
+
+/* Malikanenin doğu yanındaki bahçe: çevresi çit (önde bahçe kapısı), kapıdan çeşmeye taş yol, tarhlar, ağaç, bank ve
+   fener; kaldırımda at bağlama direği. Seyis bahçe kapısının yanında durur (b.garden). */
+World.prototype.mansionGarden = function (b, gx, gy, gw, gh, R, oset) {
+  const at = (x, y) => (gy + y) * WW + gx + x;
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+    const i = at(x, y);
+    this.flags[i] |= 1 | 4; this.obj[i] = 0; this.tile[i] = T.GRASS; oset(gx + x, gy + y, 2);
+    const gate = y === gh - 1 && x >= 1 && x <= 3;
+    if ((y === 0 || x === gw - 1 || y === gh - 1) && !gate) this.obj[i] = O.HEDGE;
+  }
+  const mx = 2, my = 4;
+  for (let y = my + 1; y < gh; y++) this.tile[at(mx, y)] = T.PAVE;
+  for (let y = my - 1; y <= my + 1; y++) for (let x = mx - 1; x <= mx + 1; x++) this.tile[at(x, y)] = T.PAVE;
+  this.obj[at(mx, my)] = O.FOUNTAIN;
+  for (const [x, y] of [[1, 1], [3, 1], [0, my], [gw - 2, my], [0, 7], [gw - 2, 7]]) this.obj[at(x, y)] = O.FLOWERBED;
+  this.obj[at(gw - 2, 1)] = R.chance(0.5) ? O.OAK : O.BIRCH;
+  this.obj[at(0, 6)] = O.BENCH;
+  this.obj[at(gw - 2, 6)] = O.LAMP; this.lights.push({ x: (gx + gw - 2) * TS + 8, y: (gy + 6) * TS + 2, r: 55, type: 'lamp' });
+  b.garden = { x: gx, y: gy, w: gw, h: gh, gate: { x: (gx + mx) * TS + 8, y: (gy + gh - 2) * TS + 8 } };
+  // kaldırımda, bahçenin önünde at bağlama direği
+  const hx = gx + gw - 2, hy = gy + gh, i = hy * WW + hx;
+  const town = this.towns.find(t => t.id === b.town);
+  if (this.inb(hx, hy) && !this.obj[i] && this.tile[i] === T.PAVE && town) { this.obj[i] = O.HITCH; town.hitch.push({ x: hx * TS + 8, y: hy * TS + 14 }); }
 };
 
 /* Meydan: taş döşeli blok; ortada heykel ve çiçek tarhları, köşelerde ağaç, kenarda bank ve fener */

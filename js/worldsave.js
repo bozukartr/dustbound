@@ -28,7 +28,7 @@ const WorldSave = {
     if (e.kind === 'npc') return e.staffOf || e.work !== undefined || e.role === 'clerk' || e.role === 'nomad' || e.role === 'hunter' || e.role === 'target'
       || e.role === 'spouse' || e.role === 'child' || e.role === 'stranger' || e.keep || e.job || e.bountyId || e.nomad !== undefined;
     if (e.kind === 'horse') return e.owner === 'player' || e.rider || e.nomad !== undefined;
-    if (e.kind === 'wagon') return e.mine || e.hauler || e.rider;
+    if (e.kind === 'wagon') return e.mine || e.hauler || e.rider || e.coach;   // özel fayton malikane sisteminden yeniden çağrılır
     if (e.kind === 'animal') return e.nomad !== undefined;
     return e.kind === 'prop' || e.kind === 'camp' || e.kind === 'ent';
   },

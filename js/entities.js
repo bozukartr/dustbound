@@ -375,6 +375,7 @@ class Player extends Ent {
     if (G.godMode) return;
     if (this.painT > 0) dmg *= 0.6;   // laudanum: acıyı uyuşturur
     G.logHurt(src, Math.min(dmg, this.hp), by, weapon);
+    if (by) this.hitT = G.t;   // birinin saldırısı (faytondaki yolculuk durur)
     this.hp -= dmg;
     if (!inner) {
       this.hurtT = 0.4;
@@ -424,6 +425,7 @@ class Player extends Ent {
     const I = Input, W = G.world;
     const age = G.age;
     this.fireCd -= dt; this.meleeCd -= dt; this.hurtT -= dt;
+    if (this.passenger) { this.vx = this.vy = 0; this.mv = 0; this.aiming = false; return; }   // faytonda yolcu: konumu G.rideTick verir
     if (this.mountAnim) { if (this.mountAnim.on && (!this.riding || this.riding.dead)) this.mountAnim = null; else { this.mountAnimUpdate(dt); return; } }
     if (this.swing > 0) this.swing = Math.max(0, this.swing - dt * 4);
     // yeniden doldurma
@@ -896,6 +898,7 @@ class Player extends Ent {
     this.sta = Math.max(0, this.sta - 5);
   }
   draw(ctx) {
+    if (this.passenger) return;   // fayton yolcuyu kendisi çizer
     if (this.rec) { ctx.save(); ctx.translate(this.rec.x, this.rec.y); this.drawBody(ctx); ctx.restore(); return; }
     this.drawBody(ctx);
   }

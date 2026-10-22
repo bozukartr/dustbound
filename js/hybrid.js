@@ -505,7 +505,7 @@ const HY = (() => {
   function* modern(b, W, step) {
     const d = b.def, X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, base = Y + Hd, id = b.id, h = bHash(b, 5);
     const FW = d.tall ? 40 : 32, wy = base - FW, mid = wy + FW - 19;
-    const pal = MODERN_WALLS[Math.floor(bHash(b, 7) * MODERN_WALLS.length)], wall = rgb(MODERN_TYPE_WALL[b.type] || pal.c), brick = MODERN_TYPE_WALL[b.type] ? false : pal.brick;
+    const MW = modernWall(b, MODERN_WALLS[Math.floor(bHash(b, 7) * MODERN_WALLS.length)]), wall = rgb(MW.c), brick = MW.brick;
     const snowy = W.season === 3 && W.snowyTile(b.x + (b.w >> 1), b.y + (b.h >> 1)), xL = bx(X), xR = bx(X + Wd), yTop = by(wy), yBase = by(base), trim = rgb('#e4dccb');
     TG.base = base;
     yield* bands(xL, yTop, xR - xL, yBase - yTop, (x, y) => {
@@ -565,6 +565,11 @@ const HY = (() => {
     // tabela: kapının üstünde koyu levha
     const txt = b.type === 'property' ? (b.owned ? 'HOME' : 'FOR SALE') : SIGN_TEXT[b.type];
     if (txt) { const sw = Math.min(Wd - 6, txt.length * 4.6 + 8); signText(txt, bx(X + Wd / 2 - sw / 2), by(mid - 9), Math.round(sw * S), 16, rgb('#1e2a24'), rgb('#ead490'), base); }
+    // malikanenin revaklı girişi, kulübün kapı saçağı ve fenerleri (klasik çizimden keskinleştirilir; fener camları gece yanar)
+    if (b.type === 'mansion' || b.type === 'club') {
+      yield* step();
+      stamp((g) => Spr.estateFront(g, b, wy), b.door.x - 32, wy - 16, 64, FW + 24, facadeH(base), SOUTH, null, (c) => (c[0] > 0.95 && c[1] > 0.85 && c[2] < 0.7 ? E_WIN : 0));
+    }
   }
   /* Bina örtüsü (cephe, çatı, tabela): büyük bir bina 15-60 ms sürer. Görüş alanına yaklaşan binanınki kare bütçesinden
      adım adım önceden pişer (coverJobs); pişmemişken görünürse kalanı hemen bitirilir. */
@@ -651,7 +656,7 @@ const HY = (() => {
     const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, t = b.type;
     const x0 = bx(X), y0 = by(Y), x1 = bx(X + Wd), y1 = by(Y + Hd), dxs = bx(b.door.x);
     LAYER = 0;
-    const up = isHotel2(b) && b.floor === 1;
+    const up = !!upPlan(b) && b.floor === 1;
     if (t === 'hotel') yield* hotelBase(b, tg, step, up);
     else {
       const st = IntDeco.style(b);
@@ -676,17 +681,19 @@ const HY = (() => {
       rect(dxs + 16, by(Y + Hd - 4), x1 - dxs - 16, y1 - by(Y + Hd - 4), wallTop, 20, UP);
       rect(dxs - 16, by(Y + Hd - 3), 32, by(Y + Hd) - by(Y + Hd - 3), (x) => ((x >> 1) % 4 === 0 ? rgb('#6a4a2c') : rgb('#8a6a44')), 0.5, UP);
     }
-    // üst katın oda duvarları: karo kenarındaki ince bantlar (çarpışma maskesiyle aynı yer; kapılar ayrı çizilir)
-    if (up) {
+    // iç duvarlar (üst katın oda duvarları, zemin kattaki ara duvar): karo kenarındaki ince bantlar (çarpışma maskesiyle aynı
+    // yer; kapılar ayrı çizilir)
+    const IW = floorWalls(b);
+    if (IW.length) {
       const pw = (x, y) => { const wy = wyOf(y); return Math.floor(wy / 3) % 2 ? shT(wd, 0.06) : wd; };
-      for (const [lx, ly, v] of HOTEL_UP.wall) {
+      for (const [lx, ly, v] of IW) {
         const x = X + lx * TS, y = Y + ly * TS, r = v === 1 ? [x, y, 16, 6] : v === 2 ? [x, y + 12, 16, 4] : v === 4 ? [x, y, 5, 16] : [x + 11, y, 5, 16];
         rect(bx(r[0]), by(r[1]), r[2] * S, r[3] * S, pw, 20, UP);
       }
       yield* step();
     }
     const nWin = Math.max(1, Math.floor(b.w / 3));
-    const wins = up ? [X + 40, X + Wd - 40] : Array.from({ length: nWin }, (_, k) => X + (k + 0.5) * Wd / nWin);   // üst katta öndeki iki odanın ortasında
+    const wins = up ? upWins(b).map(x => X + x) : Array.from({ length: nWin }, (_, k) => X + (k + 0.5) * Wd / nWin);   // üst katta öndeki odaların ortasında
     for (const cx of wins) { if (!up && Math.abs(cx - b.door.x) < 14) continue; rect(bx(cx - 5), by(Y + Hd - 4), 20, by(Y + Hd - 1) - by(Y + Hd - 4), (x, y) => (y === by(Y + Hd - 4) ? rgb('#c8e0f0') : rgb('#7a9ab0')), 8, UP); }
     if (b.h >= 6) for (const sx of [X + 1, X + Wd - 4]) rect(bx(sx), by(Y + Hd / 2 - 4), 6, 16, rgb('#8ab0c8'), 8, UP);
     // otelin üst katı: kilitli odaların içi görünmez, üstleri duvar boyunda karanlık bir tavanla örtülü (kapılar üstüne basılır)
@@ -1284,7 +1291,7 @@ const HY = (() => {
       if (L.type === 'window') { if (night && Juice.windowLit(L) && !IB) add(L.x, L.y + 22, 6, L.r * 1.35, [1.0, 0.75, 0.42], 1.0 * nk); }
       else if (L.type === 'lamp') { if (night) add(L.x, L.y + 6, 14, 84 * Juice.flicker(L.x + L.y, G.t * 0.6, 0.035), [1.0, 0.72, 0.42], 1.7 * nk); }
       else if (L.type === 'inner') { if (IB && IB.id === L.b) add(L.x, L.y, 30, L.r * 1.5, [1.0, 0.8, 0.52], night ? 1.5 : 0.2, true); }
-      else if (L.type === 'hearth') { if (IB && IB.id === L.b) add(L.x, L.y, 10, L.r * 1.3 * Juice.flicker(L.x + L.y * 0.3, G.t, 0.07), [1.0, 0.6, 0.3], night ? 1.2 : 0.35, true); }
+      else if (L.type === 'hearth') { if (IB && IB.id === L.b && !(G.upB && G.upB.id === L.b)) add(L.x, L.y, 10, L.r * 1.3 * Juice.flicker(L.x + L.y * 0.3, G.t, 0.07), [1.0, 0.6, 0.3], night ? 1.2 : 0.35, true); }
       else if (L.type === 'fire') add(L.x, L.y, 8, L.r * 1.2 * Juice.flicker(L.x, G.t, 0.08), [1.0, 0.6, 0.28], 0.4 + nk);
       else if (L.type === 'beacon') { if (night) add(L.x, L.y, 76, L.r, [1.0, 0.92, 0.6], nk); }
     }
@@ -1402,6 +1409,7 @@ const HY = (() => {
       const nx = Math.round(e.x * S) / S - e.x, ny = Math.round(e.y * S) / S - e.y;
       fc.translate(nx - sdx, ny - sdy); sdx = nx; sdy = ny;
       if (e === P) {
+        if (P.passenger) continue;   // fayton yolcuyu kendisi çizer
         if (P.mountAnim) { const A = P.mountAnim, k = Math.min(1, A.t / A.dur), hop = Math.sin(k * Math.PI) * (A.on ? 6 : 5), seated = A.on ? k > 0.7 : k < 0.3; human(P.x, P.y, P.ang, P.lookNow(), seated ? { riding: true } : { walk: P.phase, mv: 0.5 }, P, hop); continue; }
         creatureShadow(fc, P.x, P.y, 2.8, 2.4, 22, sd, shk);
         const hv = P.heave;   // öğürürken gövde öne kasılır
