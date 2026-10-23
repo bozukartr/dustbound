@@ -1794,6 +1794,17 @@ const GameSystems = {
     this.gps = path ? path.map(p => [p[0] * TS + 8, p[1] * TS + 8]) : null;
     this.gpsT = 4;
   },
+  /* Oyuncu rotanın üstünde mi (en yakın rota noktasına 10 karodan yakın): öyleyse rota yeniden hesaplanmaz, geride
+     kalan kısmı kesilir. Rotadan sapınca (ya da rota bulunamamışsa) yeniden hesaplanır. */
+  onGps() {
+    const P = this.player, R = this.gps;
+    if (!R) return false;
+    let bi = -1, bd = 160 * 160;
+    for (let i = 0; i < R.length; i++) { const d = dist2(R[i][0], R[i][1], P.x, P.y); if (d < bd) { bd = d; bi = i; } }
+    if (bi < 0) return false;
+    if (bi > 0) this.gps = R.slice(bi);
+    return true;
+  },
 
   /* ================= ETKİLEŞİM ================= */
   findInteraction() {
