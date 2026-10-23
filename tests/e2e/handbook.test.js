@@ -129,14 +129,14 @@ module.exports = {
         // Günlük: Rehber sekmesinde rozet
         UI.closeAll(); UI.openJournal(0);
         out.dot = [...document.querySelectorAll('.journal .tab')].filter(n => n.querySelector('.tab-new')).map(n => n.dataset.tab);
-        document.querySelector('.journal .tab[data-tab="7"]').click();
+        document.querySelector('.journal .tab[data-tab="8"]').click();
         out.tocNew = [...document.querySelectorAll('.hb-toc-i.new')].map(a => a.dataset.hb);
         out.tocBadge = (document.querySelector('.hb-toc-i.new em') || {}).textContent;
         out.secBadge = [...document.querySelectorAll('.hb-sec .hb-new')].map(b => b.closest('.hb-sec').id);
         out.after = { flag: G.hints['new:temp'], unread: Handbook.unread(), seen: G.hints['g:temp'] };
         document.querySelector('.journal .tab[data-tab="0"]').click();
         out.dotAfter = !!document.querySelector('.journal .tab-new');
-        document.querySelector('.journal .tab[data-tab="7"]').click();
+        document.querySelector('.journal .tab[data-tab="8"]').click();
         out.tocNew2 = document.querySelectorAll('.hb-toc-i.new').length;
         // içindekilerden konuya kaydırır
         const sc = document.querySelector('.journal .scroll');
@@ -150,7 +150,7 @@ module.exports = {
       t.eq([r.flag, r.unread], [1, true], 'Sıcak ve Soğuk konusu yeni');
       t.ok(r.hotShown && /Sıcak çarpıyor!/.test(r.hot) && !/Ayrıntılar/.test(r.hot), 'aynı konunun ikinci ipucu yönlendirmez', r.hot);
       t.eq(r.again, false, 'ipucu bir kez');
-      t.eq(r.dot, ['7'], 'Günlük\'te Rehber sekmesinde rozet');
+      t.eq(r.dot, ['8'], 'Günlük\'te Rehber sekmesinde rozet');
       t.eq(r.tocNew, ['temp'], 'içindekilerde yeni konu'); t.eq(r.tocBadge, 'YENİ', 'YENİ yazısı'); t.eq(r.secBadge, ['hb-temp'], 'konu başlığında YENİ');
       t.eq(r.after, { unread: false, seen: 1 }, 'Rehber açılınca okunmuş sayılır, konu bir daha işaretlenmez');
       t.ok(!r.dotAfter, 'rozet kalkar'); t.eq(r.tocNew2, 0, 'ikinci açılışta yeni yok');
