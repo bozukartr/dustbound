@@ -54,6 +54,7 @@ const G = {
     this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
     this.upB = null; this.hotelRent = null; this.stairLatch = false;   // otelin üst katı (oyuncu oradaysa), kiralık oda, merdivenden geçince yön kilidi
     this.estate = null; this.club = null; this.carriage = null; this.coach = null; this.ride = null; this._serv = null; this._manB = null; this._estIn = null;   // malikane, kulüp, özel fayton
+    this.dev = null; this._devF = null; this._devCamps = null;   // kasabaların gelişimi (js/develop.js)
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -202,6 +203,7 @@ const G = {
     this.slot = profile.slot || this.freeSlot() || 1;
     this.profile = profile;
     await this.buildWorld(seed);
+    this.devInit();
     const BG = BACKGROUNDS.find(b => b.id === profile.bg);
     const town = this.world.towns.find(t => t.id === BG.town);
     // kanun kaçağı kasabada değil, çetenin saklı kampında başlar (kanun adamları tanımasın)
@@ -311,7 +313,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), dev: this.saveDev(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -419,6 +421,7 @@ const G = {
     this.loadBiz(d.biz);
     this.loadHomes(d.homes);
     this.loadEstate(d.estate);
+    this.loadDev(d.dev);
     this.pokerTables = d.poker || {};
     this.loadHaul(d.haul);
     // çevredeki dünya kaldığı gibi: NPC'ler, hayvanlar, arabalar, cesetler, yerdeki eşyalar
@@ -1286,4 +1289,5 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(BinocSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HomeSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HotelSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(EstateSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(DevSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(Story));

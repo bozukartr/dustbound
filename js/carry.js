@@ -203,6 +203,7 @@ const CarrySystems = {
     this.townNote(this.player.x, this.player.y, 'bounty');
     const e = it.e, v = this.wantedValue(e);
     if (!v) { UI.subtitle(Tr('Şerif'), Tr`${e.name} aranan biri değil. Onu buraya neden getirdin?`, 3); return; }
+    this.devNote(this.player.x, this.player.y, 'bounty');   // teslim edilen kaçak kasabayı güvenli kılar
     const alive = !e.dead, target = this.isBountyTarget(e);
     this.takeCarried(it);
     if (e.quest === 'rival') {

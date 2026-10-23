@@ -22,7 +22,7 @@ module.exports = {
       };
       // Günlük'ü Rehber sekmesinde aç, içeriği oku
       window.guide = () => {
-        UI.closeAll(); UI.openJournal(7);
+        UI.closeAll(); UI.openJournal(8);
         const el = document.querySelector('.journal'), sc = el.querySelector('.scroll');
         return {
           text: sc.innerText.replace(/\s+/g, ' '),
@@ -80,7 +80,7 @@ module.exports = {
       const r = await p.evaluate(() => {
         reset(); const g = guide(); UI.closeAll();
         const meds = Object.values(ITEMS).filter(it => it.c === 'med' && it.e), focus = Object.values(ITEMS).filter(it => it.e && it.e.deadeye > 0);
-        UI.openJournal(7);
+        UI.openJournal(8);
         const md = document.querySelector('#hb-meds').innerText.replace(/\s+/g, ' '), fd = document.querySelector('#hb-deadeye').innerText.replace(/\s+/g, ' ');
         const oil = [...document.querySelectorAll('#hb-meds tr')].find(tr => /Yılan Yağı/.test(tr.textContent));
         UI.closeAll();

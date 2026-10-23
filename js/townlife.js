@@ -881,7 +881,7 @@ const TownLifeSystems = {
     const d2 = dist2(e.x, e.y, P.x, P.y);
     if (d2 > 330 * 330) return;
     // gazeteci çocuk manşet bağırır
-    if (e.plan && e.plan.act === 'news' && chance(0.12)) Bubbles.add(e, pick(NEWS_SHOUT), 2.6);
+    if (e.plan && e.plan.act === 'news' && chance(0.12)) Bubbles.add(e, this.devShout() || pick(NEWS_SHOUT), 2.6);
     // oyuncudan nefret eden kaçınır
     const m = this.resMem && this.resMem[r.id];
     if (m && m.op <= -40 && d2 < 70 * 70 && !P.masked && this.los(e.x, e.y, P.x, P.y) && !(e.avoidT > this.clock)) {

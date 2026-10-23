@@ -31,10 +31,13 @@ const GameSystems = {
     const prevDay = this.day, prevAge = this.age;
     this.clock += mins;
     this.haulTick(mins);
-    if (this.day !== prevDay) for (let d = prevDay + 1; d <= this.day; d++) this.onNewDay(d);
+    if (this.day !== prevDay) for (let d = prevDay + 1; d <= this.day; d++) this.onNewDay(d, d === this.day);
     if (this.age !== prevAge) for (let a = prevAge + 1; a <= this.age; a++) this.onBirthday(a);
+    this.devAnnounce();
   },
-  onNewDay(d) {
+  /* last: birden çok gün birden geçerken (bekleme, yolculuk) kayıt yalnızca son günde alınır */
+  onNewDay(d, last = true) {
+    if (d % this.dpy === 0) this.devYear(START_YEAR + d / this.dpy);   // yıl dönümü: kasabaların gelişimi
     if (this.world && this.world.setSeason(this.season)) {
       const msg = [Tr('İlkbahar geldi. Karlar eriyor, ovalar yeşeriyor.'), Tr('Yaz geldi. Güneş yakıyor, suyunu eksik etme.'), Tr('Sonbahar geldi. Yapraklar sararıyor, geceler serinliyor.'), Tr('Kış geldi. Kuzey ve ovalar karla örtüldü; sıkı giyin, bitki bulmak zorlaşacak.')][this.season];
       UI.toast(SEASONS[this.season], msg, 'ok');
@@ -48,7 +51,7 @@ const GameSystems = {
     const L = this.player.look;
     if (L.sex === 'm' && L.beard > 0) { L.beardLen = Math.min(1, (L.beardLen || 0.3) + 0.08); this.player._lk = null; }
     this.dailyTalk = {};
-    this.saveGame(true);
+    if (last) this.saveGame(true);
   },
   onBirthday(age) {
     if (age >= 33) this.hintOnce('aging', Tr('Yaşın ilerliyor: en yüksek dayanıklılığın artık her yıl biraz azalacak.'), 8);
@@ -422,6 +425,7 @@ const GameSystems = {
     let [bounty, lvl, honor, name, minor] = C;
     if (type === 'livestock' && victim && victim.type === 'chicken') { bounty = 0.5; honor = -1; name = Tr('Tavuk öldürme'); }
     if (!opts.noHonor) this.addHonor(honor);
+    if (lvl > 0) this.devNote(x, y, 'crime');   // kasabada işlenen suç o yıl kasabanın gelişimini yavaşlatır
     if (lvl === 0 && !minor) return;
     if (this.truce && lvl > 0) this.lawResist(name);   // şerif ofisindeki ateşkes sırasında işlenen suç ateşkesi bozar
     const P = this.player;
@@ -1344,7 +1348,7 @@ const GameSystems = {
         } else if (p.spawned && d > 1100) { p.spawned = false; for (const e of ents) if (e.poi === p.pid && !e.dead) e.remove = true; }
         if (p.spawned && !cleared) {
           const alive = ents.some(e => e.camp === p.pid && !e.dead && !e.remove && !e.bound);
-          if (!alive && ents.some(e => e.camp === p.pid)) { this.campCleared[p.pid] = this.day; UI.toast(Tr('Kamp Temizlendi'), p.n, 'bounty'); this.addHonor(4); for (const e of ents) if (e.camp === p.pid) e.camp = -1; }
+          if (!alive && ents.some(e => e.camp === p.pid)) { this.campCleared[p.pid] = this.day; UI.toast(Tr('Kamp Temizlendi'), p.n, 'bounty'); this.addHonor(4); this.devNote(p.x, p.y, 'camp', DEV_CAMP_R); for (const e of ents) if (e.camp === p.pid) e.camp = -1; }
         } else if (p.spawned && cleared !== undefined && this.day - cleared >= 3) delete this.campCleared[p.pid];
       }
       if (p.kind === 'property' && this.props.includes(p.prop) && this.family.spouse) {

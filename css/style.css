@@ -371,6 +371,7 @@ body.modal-open #modals { background: radial-gradient(ellipse at 50% 45%, rgba(1
 .p-tabs { display: flex; align-items: center; gap: 2px; margin-top: 6px; padding: 8px 18px 0; border-bottom: 1px solid var(--brass-faint); flex-wrap: wrap; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.22)); }
 .tab { position: relative; font-family: var(--sc); font-size: 17px; letter-spacing: 1px; padding: 5px 13px 9px; color: #9a8e7a; cursor: pointer; transition: color 0.15s; }
 .tab:hover { color: #e6dac4; }
+.journal .p-tabs .tab { font-size: 16px; letter-spacing: 0.5px; padding: 5px 8px 9px; }   /* Günlük'ün dokuz sekmesi 1280 genişlikte tek satıra sığsın */
 .tab.on { color: #fff6e2; text-shadow: 0 0 12px rgba(240, 212, 135, 0.25); }
 .tab.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: linear-gradient(90deg, transparent, var(--brass) 18%, var(--brass-hi) 50%, var(--brass) 82%, transparent); }
 .tab.on::before { content: ''; position: absolute; left: 50%; bottom: -4px; width: 6px; height: 6px; margin-left: -3px; background: var(--brass-hi); transform: rotate(45deg); box-shadow: 0 0 6px rgba(240, 212, 135, 0.6); }
@@ -427,6 +428,11 @@ body.modal-open #modals { background: radial-gradient(ellipse at 50% 45%, rgba(1
 .biz-card .dim, .p-html .dim { opacity: 0.7; }
 .st-ok { color: #9fcf7a; } .st-mid { color: #e2b64a; } .st-low { color: #e0604a; }
 .jr-biz { width: 100%; border-collapse: collapse; } .jr-biz td, .jr-biz th { padding: 5px 8px; border-bottom: 1px solid rgba(239, 230, 210, 0.12); text-align: left; } .jr-biz th { opacity: 0.7; font-weight: normal; }
+.jr-dev-h { font-family: var(--sc); font-size: 18px; letter-spacing: 1px; color: var(--gold); margin: 2px 0 10px; }
+.jr-towns .dv-bar { height: 4px; width: 96px; margin-top: 4px; background: rgba(239, 230, 210, 0.12); } .jr-towns .dv-bar i { display: block; height: 100%; background: var(--gold); }
+.dv-up { color: #9fcf7a; } .dv-dn { color: #e0604a; } .dv-eq { color: var(--dim); } .dv-gh { color: var(--dim); font-style: italic; }
+.jr-sub { font-family: var(--sc); font-size: 16px; font-weight: normal; letter-spacing: 1px; color: var(--gold); margin: 18px 0 6px; }
+.jr-news { list-style: none; margin: 0; padding: 0; } .jr-news li { padding: 4px 0; border-bottom: 1px solid rgba(239, 230, 210, 0.08); } .jr-news b { display: inline-block; min-width: 52px; color: var(--gold); font-weight: normal; }
 .sign-row { display: flex; gap: 12px; align-items: center; background: #9a7650; color: #1a120c; margin: 5px 0; padding: 4px 10px; font-family: var(--sc); font-size: 19px; clip-path: polygon(0 0, 94% 0, 100% 50%, 94% 100%, 0 100%); }
 .sign-row .sa { font-size: 22px; width: 24px; }
 .sign-row .sn { flex: 1; }
@@ -993,6 +999,7 @@ body.dying #game { filter: var(--tone) grayscale(0.9) brightness(0.5) contrast(1
 .dbg-r span { color: var(--mut); white-space: nowrap; }
 .dbg-r b { font: 500 12px ui-monospace, 'SF Mono', Menlo, Consolas, monospace; text-align: right; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dbg-r b i { color: var(--mut); font-style: normal; }
+#dbg-v-dgrow, #dbg-v-dyr { white-space: normal; }   /* gelişimin nedenleri uzun: alt satıra geçer */
 .dbg .warn { color: var(--acc); } .dbg .bad { color: var(--bad); } .dbg .good { color: var(--ok); }
 .dbg-tog { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 2px 0; }
 .dbg-tog input { display: none; }
