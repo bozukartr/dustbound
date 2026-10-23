@@ -320,23 +320,23 @@ const DEV_FATES = {
   junction: [{ id: 'depot', p: 0.5, y: [1898, 1930], g: 0.04, d: 15, h: 'KAVŞAĞA YENİ AMBARLAR', t: '{k} kavşağına yeni ambarlar ve bir lokomotif onarım atölyesi kuruldu. İş arayanlar trenlerden iniyor.', s: '{k} kavşağına yeni ambarlar!' }],
   hub: [{ id: 'fair', p: 0.5, y: [1895, 1930], g: 0.03, d: 12, h: 'BÜYÜK PANAYIR KURULDU', t: '{k} artık her yaz büyük bir hayvan ve ürün panayırına ev sahipliği yapacak. Çevre çiftliklerden yüzlerce aile bekleniyor.', s: '{k} panayırı kuruluyor!' }],
   cattle: [
-    { id: 'cattle_boom', p: 0.6, y: [1892, 1912], g: 0.05, d: 12, h: 'SIĞIR FİYATLARI TAVAN YAPTI', t: 'Doğudaki pazarlarda sığır eti kapış kapış gidiyor. {k} ağılları hiç bu kadar dolu olmamıştı.', s: 'Sığır fiyatları tavan yaptı!' },
-    { id: 'cattle_bust', p: 0.45, y: [1910, 1940], g: -0.05, d: 15, h: 'SIĞIR FİYATLARI ÇAKILDI', t: 'Pazarlarda sığır fiyatları dibe vurdu. {k} çiftlikleri sürülerini zararına satıyor, kovboylar iş arıyor.', s: 'Sığır fiyatları çakıldı!' },
+    { id: 'cattle_boom', p: 0.6, y: [1892, 1912], g: 0.05, d: 12, h: 'SIĞIR FİYATLARI TAVAN YAPTI', t: 'Doğudaki pazarlarda sığır eti kapış kapış gidiyor. {k} ağılları hiç bu kadar dolu olmamıştı.', s: '{k}: sığır fiyatları tavan yaptı!' },
+    { id: 'cattle_bust', p: 0.45, y: [1910, 1940], g: -0.05, d: 15, h: 'SIĞIR FİYATLARI ÇAKILDI', t: 'Pazarlarda sığır fiyatları dibe vurdu. {k} çiftlikleri sürülerini zararına satıyor, kovboylar iş arıyor.', s: '{k}: sığır fiyatları çakıldı!' },
   ],
   mine: [
     { id: 'vein_out', p: 0.85, y: [1900, 1940], g: -0.11, d: 0, h: 'MADENDE DAMAR TÜKENDİ', t: '{k} madenindeki damar tükendi. Madenciler yeni iş aramaya başladı; kasabanın geleceği belirsiz.', s: '{k} madeninde damar tükendi!' },
     { id: 'vein_new', after: 'vein_out', p: 0.3, y: [6, 22], g: 0.13, d: 14, h: 'YENİ DAMAR BULUNDU', t: '{k} yakınlarında zengin bir damar bulundu. Kasabadan ayrılan madenciler kazmalarını kapıp geri dönüyor.', s: '{k} yakınlarında yeni damar!' },
   ],
   lumber: [
-    { id: 'mill_boom', p: 0.6, y: [1895, 1915], g: 0.04, d: 15, h: 'KERESTE TALEBİ PATLADI', t: 'Yeni evler, köprüler ve ray traversleri için kereste aranıyor. {k} hızarhaneleri gece gündüz çalışıyor.', s: 'Kereste talebi patladı!' },
+    { id: 'mill_boom', p: 0.6, y: [1895, 1915], g: 0.04, d: 15, h: 'KERESTE TALEBİ PATLADI', t: 'Yeni evler, köprüler ve ray traversleri için kereste aranıyor. {k} hızarhaneleri gece gündüz çalışıyor.', s: '{k}: kereste talebi patladı!' },
     { id: 'forest_thin', p: 0.5, y: [1925, 1955], g: -0.06, d: 0, h: 'ORMANLAR SEYRELDİ', t: '{k} çevresinde kesilecek iyi ağaç kalmadı. Keresteciler daha uzak ormanlara çekiliyor.', s: '{k} ormanları seyreldi!' },
   ],
   port: [{ id: 'harbor', p: 0.6, y: [1900, 1935], g: 0.05, d: 20, h: 'LİMAN GENİŞLETİLDİ', t: '{k} limanına yeni bir iskele ve ambarlar yapıldı. Daha büyük gemiler artık buraya yanaşabiliyor.', s: '{k} limanı genişletildi!' }],
   fort: [{ id: 'fort_closed', p: 0.5, y: [1905, 1935], g: -0.07, d: 0, h: 'KARAKOL KAPANIYOR', t: 'Ordu, {k} karakolundaki askerleri başka bir yere gönderiyor. Askerlere mal satan dükkânları zor günler bekliyor.', s: '{k} karakolu kapanıyor!',
     alt: { id: 'fort_grew', g: 0.03, d: 15, h: 'KARAKOL GENİŞLİYOR', t: '{k} karakoluna yeni bir bölük yerleşti. Kasabanın dükkânları ve saloonları sevinçli.', s: '{k} karakolu genişliyor!' } }],
   spring: [{ id: 'spring_dry', p: 0.3, y: [1910, 1950], g: -0.07, d: 0, h: 'KAYNAK SUYU AZALDI', t: '{k} kasabasına can veren kaynağın suyu azaldı. Yolcular artık burada daha az mola veriyor.', s: '{k} kaynağının suyu azaldı!' }],
-  desert: [{ id: 'borax', p: 0.35, y: [1900, 1940], g: 0.05, d: 15, h: 'ÇÖLDE BORAKS BULUNDU', t: '{k} yakınlarındaki kuru göl yatağında boraks bulundu. Kazmasını kapan çöle koşuyor.', s: 'Çölde boraks bulundu!' }],
-  border: [{ id: 'trade_road', p: 0.4, y: [1905, 1940], g: 0.04, d: 20, h: 'SINIR TİCARETİ CANLANDI', t: '{k} üzerinden geçen ticaret kervanları çoğaldı. Kasabanın hanları ve dükkânları dolup taşıyor.', s: 'Sınır ticareti canlandı!' }],
+  desert: [{ id: 'borax', p: 0.35, y: [1900, 1940], g: 0.05, d: 15, h: 'ÇÖLDE BORAKS BULUNDU', t: '{k} yakınlarındaki kuru göl yatağında boraks bulundu. Kazmasını kapan çöle koşuyor.', s: '{k} yakınlarında boraks bulundu!' }],
+  border: [{ id: 'trade_road', p: 0.4, y: [1905, 1940], g: 0.04, d: 20, h: 'SINIR TİCARETİ CANLANDI', t: '{k} üzerinden geçen ticaret kervanları çoğaldı. Kasabanın hanları ve dükkânları dolup taşıyor.', s: '{k}: sınır ticareti canlandı!' }],
   farm: [
     { id: 'grain_boom', p: 0.5, y: [1900, 1950], g: 0.04, d: 10, h: 'BEREKETLİ HASAT', t: '{k} tarlalarında yılların en bol hasadı kaldırıldı. Değirmen taşları durmadan dönüyor.', s: '{k} tarlalarında bereketli hasat!' },
     { id: 'drought', p: 0.5, y: [1895, 1960], g: -0.05, d: 4, h: 'KURAKLIK', t: '{k} tarlaları susuz kaldı. Çiftçiler gökyüzüne bakıp yağmur bekliyor.', s: '{k} tarlalarında kuraklık!' },
