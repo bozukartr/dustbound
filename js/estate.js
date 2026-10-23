@@ -514,7 +514,7 @@ Object.assign(UI, {
     if (G.dailyTalk.clubPaper) { this.feed(Tr('Bugünün gazetelerini zaten okudun.')); return; }
     G.dailyTalk.clubPaper = 1;
     G.advanceClock(30);
-    const [h, t] = pick(HEADLINES);
+    const [h, t] = G.devHeadline(G.world.towns.find(x => x.id === G.curTown)) || pick(HEADLINES);
     const unk = G.world.pois.filter(p => (p.kind === 'landmark' || p.kind === 'camp') && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     let extra = '';
     if (unk.length) { const p = pick(unk); G.rumored.add(p.id); extra = `<p class="dim">${Tr`Koltuklarda gazetelerini okuyan üyeler <b>${p.n}</b> hakkında konuşuyor. Haritanda işaretlendi.`}</p>`; }

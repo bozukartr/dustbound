@@ -284,6 +284,81 @@ const REGIONS = [
   { n: 'Junction Valley', x: 0.72, y: 0.34 },
 ];
 
+/* ---- Yaşayan dünya: kasabaların gelişimi (js/develop.js) ---- */
+const DEV_END_YEAR = 1963;   // teknoloji tavanı: kasabalar bu yıla kadar gelişir
+const DEV_TIERS = ['Köy', 'Kasaba', 'Gelişmiş Kasaba', 'Şehir', 'Büyük Şehir'];
+const DEV_COST = [1.0, 1.8, 2.8, 4.0];   // bir üst basamağa geçmek için gereken ilerleme (yıllık gelişim bu ölçekte)
+const ERAS = [
+  { n: 'Sınır', y: 1890 }, { n: 'Tel ve Ray', y: 1900 }, { n: 'Elektrik ve Motor', y: 1910 },
+  { n: 'Asfalt', y: 1920 }, { n: 'Modern Kasaba', y: 1935 }, { n: 'Yeni Çağ', y: 1950 },
+];
+/* Kasaba türleri: g yıllık temel gelişim; min/max basamak sınırları; ghost: terk edilip hayalet kasabaya dönebilir */
+const TOWN_KINDS = {
+  city:     { n: 'Kıyı şehri', g: 0.10, min: 3, max: 4 },
+  junction: { n: 'Demiryolu kavşağı', g: 0.045, min: 1, max: 4 },
+  hub:      { n: 'Ova kasabası', g: 0.035, min: 1, max: 4 },
+  cattle:   { n: 'Sığırcı kasabası', g: 0.03, min: 0, max: 4 },
+  mine:     { n: 'Maden kasabası', g: 0.05, min: 0, max: 3, ghost: 1 },
+  lumber:   { n: 'Keresteci kasabası', g: 0.025, min: 0, max: 3 },
+  port:     { n: 'Balıkçı limanı', g: 0.025, min: 0, max: 3 },
+  fort:     { n: 'Karakol kasabası', g: 0.015, min: 0, max: 3, ghost: 1 },
+  spring:   { n: 'Mola yeri', g: 0.012, min: 0, max: 3, ghost: 1 },
+  desert:   { n: 'Çöl kasabası', g: 0, min: 0, max: 3, ghost: 1 },
+  border:   { n: 'Sınır kasabası', g: 0.004, min: 0, max: 3, ghost: 1 },
+  farm:     { n: 'Çiftçi köyü', g: 0.012, min: 0, max: 3 },
+  swamp:    { n: 'Bataklık kasabası', g: 0.004, min: 0, max: 3 },
+};
+const TOWN_GROWTH = {
+  harlow: 'hub', stclement: 'city', dustcreek: 'desert', silverridge: 'mine', cedarfalls: 'lumber', bayounoir: 'swamp', fortmercy: 'fort',
+  coyote: 'spring', carverjct: 'junction', brinecove: 'port', longhorn: 'cattle', sanrafael: 'border', millbrook: 'farm',
+};
+/* Kader olayları: dünya tohumundan, her dünyada başka yılda olur ya da hiç olmaz. p ihtimal, y yıl aralığı
+   (after: o olaydan kaç yıl sonra), g yıllık gelişime eklenen, d kaç yıl sürdüğü (0: kalıcı), alt: olmazsa onun yerine
+   olan. Gazete: h manşet, t haber, s gazeteci çocuğun bağırdığı; {k} kasabanın adı. */
+const DEV_FATES = {
+  city: [{ id: 'factories', p: 0.6, y: [1895, 1915], g: 0.04, d: 15, h: 'FABRİKA BACALARI TÜTÜYOR', t: '{k} kıyısında yeni fabrikalar açıldı. Taşradan iş arayanlar şehre akın ediyor.', s: '{k} kıyısında yeni fabrikalar!' }],
+  junction: [{ id: 'depot', p: 0.5, y: [1898, 1930], g: 0.04, d: 15, h: 'KAVŞAĞA YENİ AMBARLAR', t: '{k} kavşağına yeni ambarlar ve bir lokomotif onarım atölyesi kuruldu. İş arayanlar trenlerden iniyor.', s: '{k} kavşağına yeni ambarlar!' }],
+  hub: [{ id: 'fair', p: 0.5, y: [1895, 1930], g: 0.03, d: 12, h: 'BÜYÜK PANAYIR KURULDU', t: '{k} artık her yaz büyük bir hayvan ve ürün panayırına ev sahipliği yapacak. Çevre çiftliklerden yüzlerce aile bekleniyor.', s: '{k} panayırı kuruluyor!' }],
+  cattle: [
+    { id: 'cattle_boom', p: 0.6, y: [1892, 1912], g: 0.05, d: 12, h: 'SIĞIR FİYATLARI TAVAN YAPTI', t: 'Doğudaki pazarlarda sığır eti kapış kapış gidiyor. {k} ağılları hiç bu kadar dolu olmamıştı.', s: '{k}: sığır fiyatları tavan yaptı!' },
+    { id: 'cattle_bust', p: 0.45, y: [1910, 1940], g: -0.05, d: 15, h: 'SIĞIR FİYATLARI ÇAKILDI', t: 'Pazarlarda sığır fiyatları dibe vurdu. {k} çiftlikleri sürülerini zararına satıyor, kovboylar iş arıyor.', s: '{k}: sığır fiyatları çakıldı!' },
+  ],
+  mine: [
+    { id: 'vein_out', p: 0.85, y: [1900, 1940], g: -0.11, d: 0, h: 'MADENDE DAMAR TÜKENDİ', t: '{k} madenindeki damar tükendi. Madenciler yeni iş aramaya başladı; kasabanın geleceği belirsiz.', s: '{k} madeninde damar tükendi!' },
+    { id: 'vein_new', after: 'vein_out', p: 0.3, y: [6, 22], g: 0.13, d: 14, h: 'YENİ DAMAR BULUNDU', t: '{k} yakınlarında zengin bir damar bulundu. Kasabadan ayrılan madenciler kazmalarını kapıp geri dönüyor.', s: '{k} yakınlarında yeni damar!' },
+  ],
+  lumber: [
+    { id: 'mill_boom', p: 0.6, y: [1895, 1915], g: 0.04, d: 15, h: 'KERESTE TALEBİ PATLADI', t: 'Yeni evler, köprüler ve ray traversleri için kereste aranıyor. {k} hızarhaneleri gece gündüz çalışıyor.', s: '{k}: kereste talebi patladı!' },
+    { id: 'forest_thin', p: 0.5, y: [1925, 1955], g: -0.06, d: 0, h: 'ORMANLAR SEYRELDİ', t: '{k} çevresinde kesilecek iyi ağaç kalmadı. Keresteciler daha uzak ormanlara çekiliyor.', s: '{k} ormanları seyreldi!' },
+  ],
+  port: [{ id: 'harbor', p: 0.6, y: [1900, 1935], g: 0.05, d: 20, h: 'LİMAN GENİŞLETİLDİ', t: '{k} limanına yeni bir iskele ve ambarlar yapıldı. Daha büyük gemiler artık buraya yanaşabiliyor.', s: '{k} limanı genişletildi!' }],
+  fort: [{ id: 'fort_closed', p: 0.5, y: [1905, 1935], g: -0.07, d: 0, h: 'KARAKOL KAPANIYOR', t: 'Ordu, {k} karakolundaki askerleri başka bir yere gönderiyor. Askerlere mal satan dükkânları zor günler bekliyor.', s: '{k} karakolu kapanıyor!',
+    alt: { id: 'fort_grew', g: 0.03, d: 15, h: 'KARAKOL GENİŞLİYOR', t: '{k} karakoluna yeni bir bölük yerleşti. Kasabanın dükkânları ve saloonları sevinçli.', s: '{k} karakolu genişliyor!' } }],
+  spring: [{ id: 'spring_dry', p: 0.3, y: [1910, 1950], g: -0.07, d: 0, h: 'KAYNAK SUYU AZALDI', t: '{k} kasabasına can veren kaynağın suyu azaldı. Yolcular artık burada daha az mola veriyor.', s: '{k} kaynağının suyu azaldı!' }],
+  desert: [{ id: 'borax', p: 0.35, y: [1900, 1940], g: 0.05, d: 15, h: 'ÇÖLDE BORAKS BULUNDU', t: '{k} yakınlarındaki kuru göl yatağında boraks bulundu. Kazmasını kapan çöle koşuyor.', s: '{k} yakınlarında boraks bulundu!' }],
+  border: [{ id: 'trade_road', p: 0.4, y: [1905, 1940], g: 0.04, d: 20, h: 'SINIR TİCARETİ CANLANDI', t: '{k} üzerinden geçen ticaret kervanları çoğaldı. Kasabanın hanları ve dükkânları dolup taşıyor.', s: '{k}: sınır ticareti canlandı!' }],
+  farm: [
+    { id: 'grain_boom', p: 0.5, y: [1900, 1950], g: 0.04, d: 10, h: 'BEREKETLİ HASAT', t: '{k} tarlalarında yılların en bol hasadı kaldırıldı. Değirmen taşları durmadan dönüyor.', s: '{k} tarlalarında bereketli hasat!' },
+    { id: 'drought', p: 0.5, y: [1895, 1960], g: -0.05, d: 4, h: 'KURAKLIK', t: '{k} tarlaları susuz kaldı. Çiftçiler gökyüzüne bakıp yağmur bekliyor.', s: '{k} tarlalarında kuraklık!' },
+  ],
+  swamp: [
+    { id: 'fever', p: 0.4, y: [1895, 1930], g: -0.05, d: 6, h: 'BATAKLIKTA HUMMA', t: '{k} kasabasında bataklık humması yayıldı. Doktorlar kaynatılmamış sudan uzak durulmasını öğütlüyor.', s: '{k} kasabasında humma!' },
+    { id: 'drain', p: 0.4, y: [1915, 1950], g: 0.04, d: 15, h: 'BATAKLIK KURUTULUYOR', t: '{k} çevresindeki bataklığın bir kısmı kanallarla kurutuldu; yeni tarlalar açılıyor.', s: '{k} bataklığı kurutuluyor!' },
+  ],
+};
+/* Basamak değişimi haberleri (up: ulaşılan basamağa göre) */
+const DEV_NEWS = {
+  up: [null,
+    { h: '{k} ARTIK BİR KASABA', t: 'Yeni gelen ailelerle {k} köy olmaktan çıktı. Kasabalılar bir belediye başkanı seçmeyi konuşuyor.', s: '{k} artık bir kasaba!' },
+    { h: '{k} BÜYÜYOR', t: 'Yeni dükkânlar açılıyor, boş arsalar hızla doluyor. {k} bölgenin sayılı kasabaları arasına girdi.', s: '{k} büyüyor!' },
+    { h: '{k} ŞEHİR OLDU', t: 'Nüfusu hızla artan {k} şehir meclisini kurdu. Sokaklarda her gün yeni yüzler var.', s: '{k} şehir oldu!' },
+    { h: '{k} BÜYÜK ŞEHİR OLDU', t: '{k} batının en kalabalık şehirlerinden biri oldu. Taşradan gelenler geniş caddelerde yollarını kaybediyor.', s: '{k} büyük şehir oldu!' },
+  ],
+  down: { h: '{k} İÇİN ZOR GÜNLER', t: 'Aileler birer birer göç ediyor, bazı dükkânlar kepenk indirdi. {k} eski canlılığını yitiriyor.', s: '{k} için zor günler!' },
+  ghost: { h: '{k} TERK EDİLDİ', t: 'Son aileler de eşyalarını arabalara yükleyip gitti. {k} artık rüzgârın estiği bir hayalet kasaba.', s: '{k} terk edildi!' },
+  revive: { h: '{k} YENİDEN CANLANIYOR', t: 'Terk edilmiş kasabaya yeniden yerleşenler var. {k} sokaklarında yeniden çekiç sesleri duyuluyor.', s: '{k} yeniden canlanıyor!' },
+};
+
 /* ---- Binalar ---- */
 const BUILDINGS = {
   general:  { n: 'Genel Mağaza', w: 10, h: 7, wall: '#8a6a48', roof: '#5b3a29', sign: '#c9a45c', svc: ['shop', 'news', 'rob'], shop: 'general' },
@@ -715,7 +790,6 @@ const HEADLINES = [
   ['ALTIN BULUNDU!', 'Dağ derelerinde altın eleyen bir göçmen, bir haftada bir yıllık kazancı kadar altın buldu. Nehirlere akın başladı.'],
   ['KURAKLIK SIĞIRCILARI VURDU', 'Big Sky ovalarında otlaklar kurudu. Sığır fiyatları düşerken kasaplar et fiyatlarını artırdı.'],
   ['GÖKTEN ATEŞ DÜŞTÜ', 'Sundown çölünde çobanlar gece yarısı gökyüzünü yaran bir ateş topu gördüklerini anlatıyor.'],
-  ['ELEKTRİK SAINT CLEMENT\'TE', 'Şehrin ana caddesi ilk kez elektrik lambalarıyla aydınlatıldı. Kasabalılar bu mucizeyi görmek için saatlerce yürüdü.'],
   ['BATAKLIKTA KAYIP AVCI', 'Cypress Bend yakınlarında kaybolan tuzakçıdan hâlâ haber yok. Yerliler timsahlardan şüpheleniyor.'],
   ['KURT SÜRÜLERİ ÇOĞALDI', 'Cedar Falls keresteciler birliği, gece ormana girilmemesi konusunda uyardı.'],
   ['SİRK KASABAYA GELİYOR', 'Profesör Harriet\'in gezici gösterisi bu yaz Harlow\'a uğrayacak. Fil ve ateş yutan adam bekleniyor!'],

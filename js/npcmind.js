@@ -39,10 +39,20 @@ const TALKS = {
     ['Posta arabası yine gecikti.', 'Yolda haydut var diyorlar.', 'Ya da sürücü yine saloonda uyuyakaldı.'],
     ['Madende yeni damar bulmuşlar.', 'Bize bir faydası dokunur mu?', 'Fiyatlar artar, o kadar.'],
     ['Karım yine turta yaptı.', 'Elmalı mı?', 'Tuzlu. Şekeri bitmiş, tuzla idare etmiş.', 'Allah sabır versin.'],
-    ['Şu {k} büyüyor, fark ettin mi?', 'Yeni yüzler geliyor her hafta.', 'Eskiden herkesi tanırdım. Şimdi selam vermeye korkuyorum.'],
     ['Berber dün kulağımı az kalsın kesiyordu.', 'Ona güvenme, gözü görmüyor.', 'Şimdi mi söylüyorsun?'],
     ['Dün gece bir yıldız kaydı.', 'Dilek tuttun mu?', 'Yağmur diledim.', 'Keşke biraz da para dileseydin.'],
     ['Tren düdüğünü duyunca hâlâ irkiliyorum.', 'Ben de. İnsan alışmıyor.', 'Çocuklar bayılıyor ama.'],
+  ],
+  // kasabanın gelişimi (js/develop.js): son bir yılda büyüdüyse ya da gerilediyse
+  grow: [
+    ['Şu {k} büyüyor, fark ettin mi?', 'Yeni yüzler geliyor her hafta.', 'Eskiden herkesi tanırdım. Şimdi selam vermeye korkuyorum.'],
+    ['Şu yeni dükkânı gördün mü?', 'Gördüm. {k} eskisi gibi değil artık.', 'Kiralar da artar şimdi, bak görürsün.'],
+    ['Gazete {k} için iyi şeyler yazıyor.', 'Okudum. Ben de dükkânı büyütmeyi düşünüyorum.', 'Acele etme, önce bir bakalım.'],
+  ],
+  decline: [
+    ['Komşular da toplanıp gitti.', 'Bizim sokakta üç ev boş kaldı.', 'Bu gidişle kasabada kimse kalmayacak.'],
+    ['Bir dükkân daha kepenk indirmiş.', 'İş yok ki, ne yapsınlar?', 'Ben de gitmeyi düşünüyorum.'],
+    ['{k} eskiden ne canlıydı...', 'Eskiden, eskiden. Şimdi rüzgârdan başka ses yok.', 'Gidecek bir yerim olsa ben de giderdim.'],
   ],
   morning: [
     ['Günaydın! Erkencisin.', 'Uyku tutmadı. Sen?', 'Karım horluyor, ben de kaçtım.'],
@@ -380,6 +390,8 @@ const NpcMind = {
     const h = this.hour, env = this.envCache || {}, pools = [TALKS.any, TALKS.any, CHAT.any];
     const news = this.recentNews(t);
     if (news && TALKS[news] && chance(0.7)) return TALKS[news];
+    const dev = this.devTalk(t);
+    if (dev && chance(0.3)) return dev;
     if ((env.rain || 0) > 0.2) pools.push(TALKS.rain, TALKS.rain);
     else if (this.hotness > 0.3) pools.push(TALKS.hot);
     else if (this.coldness > 0.3) pools.push(TALKS.cold);

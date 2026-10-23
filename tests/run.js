@@ -153,7 +153,9 @@ function report(r) {
   const { chromium } = loadPlaywright();
   const srv = await serve();
   const url = `http://127.0.0.1:${srv.address().port}/`;
-  const browser = await chromium.launch({ headless: !opt.headed });
+  // sesli videoyu kullanıcı etkileşimi olmadan oynatmaya izin ver: açılış videosu testleri tarayıcının otomatik oynatma
+  // kuralına (bazen engeller, bazen bırakır) takılmasın; engel yolu (bir tuşa bas ekranı) kendi adımında ayrıca sınanır
+  const browser = await chromium.launch({ headless: !opt.headed, args: ['--autoplay-policy=no-user-gesture-required'] });
   console.log(`\x1b[1mFrontier's End testleri\x1b[0m — ${files.length} dosya, aynı anda ${opt.jobs}\n`);
   const t0 = Date.now();
   const queue = files.map(f => path.join(__dirname, 'e2e', f));

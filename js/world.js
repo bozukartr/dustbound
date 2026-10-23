@@ -1329,39 +1329,40 @@ class World {
     }
     this.cost = C;
   }
+  /* A* kaba ızgarada (koordinatlar kaba hücre). Arama dizileri bir kez ayrılır (bütün dünyalar için ortak; arama
+     kesintisiz biter); her aramada sıfırdan açıp doldurmak yerine arama numarasıyla (seen: g ve came geçerli,
+     shut: kapalı) geçersiz sayılır. */
   astar(sx, sy, tx, ty, costFn) {
-    // koordinatlar kaba hücre
     const N = CW * CHH;
-    const g = new Float32Array(N).fill(Infinity);
-    const came = new Int32Array(N).fill(-1);
-    const closed = new Uint8Array(N);
+    const S = World.AS || (World.AS = { g: new Float32Array(N), came: new Int32Array(N), seen: new Uint32Array(N), shut: new Uint32Array(N), id: 0 });
+    const id = ++S.id, g = S.g, came = S.came, seen = S.seen, shut = S.shut;
     const heap = new Heap();
     const s = sy * CW + sx, goal = ty * CW + tx;
-    g[s] = 0; heap.push(s, 0);
+    g[s] = 0; came[s] = -1; seen[s] = id; heap.push(s, 0);
     const DX = [1, -1, 0, 0, 1, 1, -1, -1], DY = [0, 0, 1, -1, 1, -1, 1, -1];
     let iter = 0;
     while (heap.size && iter++ < N) {   // ulaşılamayan hedefte en çok ızgara kadar adım
       const cur = heap.pop();
       if (cur === goal) break;
-      if (closed[cur]) continue;
-      closed[cur] = 1;
+      if (shut[cur] === id) continue;
+      shut[cur] = id;
       const cx = cur % CW, cy = (cur / CW) | 0;
       for (let k = 0; k < 8; k++) {
         const nx = cx + DX[k], ny = cy + DY[k];
         if (nx < 0 || ny < 0 || nx >= CW || ny >= CHH) continue;
         const ni = ny * CW + nx;
-        if (closed[ni]) continue;
+        if (shut[ni] === id) continue;
         let c = costFn(ni, nx, ny);
         if (ni === goal) c = Math.min(c, 2);
         if (c >= 1e5) continue;
         const ng = g[cur] + c * (k > 3 ? 1.414 : 1);
-        if (ng < g[ni]) {
-          g[ni] = ng; came[ni] = cur;
+        if (ng < (seen[ni] === id ? g[ni] : Infinity)) {   // görülmemiş hücre sonsuz uzakta (maliyeti NaN olan hücreye girilmez)
+          seen[ni] = id; g[ni] = ng; came[ni] = cur;
           heap.push(ni, ng + Math.hypot(nx - tx, ny - ty) * 0.6);
         }
       }
     }
-    if (came[goal] < 0 && goal !== s) return null;
+    if (seen[goal] !== id) return null;
     const path = [];
     let c = goal;
     while (c >= 0) { path.push([(c % CW) * CG + CG / 2, ((c / CW) | 0) * CG + CG / 2]); if (c === s) break; c = came[c]; }
@@ -2215,7 +2216,7 @@ class World {
     const c = D.tiles.get(k);
     if (c) { c.used = now; return c; }
     const j = D.jobs.get(k);
-    if (j) j.t = now; else D.jobs.set(k, { gen: this.mapRegion(tx * MAPT, ty * MAPT, MAPT, MAPT, 2), t: now });
+    if (j) j.t = now; else D.jobs.set(k, { gen: this.mapRegion(tx * MAPT, ty * MAPT, Math.min(MAPT, WW - tx * MAPT), Math.min(MAPT, WH - ty * MAPT), 2), t: now });
     return null;
   }
   /* Sıradaki yakın harita parçalarını süre bütçesi (ms) içinde çizer; en çok 40 parça tutulur (en uzun süre
@@ -2231,7 +2232,7 @@ class World {
       do r = j.gen.next(); while (!r.done && performance.now() - t0 < budget);
       if (!r.done) break;
       D.jobs.delete(k);
-      const c = makeCanvas(MAPT * 2, MAPT * 2);
+      const c = makeCanvas(r.value.width, r.value.height);
       c.getContext('2d').putImageData(r.value, 0, 0);
       c.used = performance.now();
       D.tiles.set(k, c); any = true;

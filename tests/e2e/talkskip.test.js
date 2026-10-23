@@ -44,8 +44,10 @@ module.exports = {
 
     await t.step('önünde etkileşim yokken etkileşim tuşu (E) da satırı geçer', async () => {
       await p.evaluate(() => {
-        // oyuncuyu boş bir yere al ve Sully'ye kısa bir konuşma söylet
-        const s = TH.openSpot(); TH.goto(s[0], s[1]); TH.clearNpcs();
+        // oyuncuyu önünde etkileşim olmayan boş bir yere al (yerdeki parlayan eşya, bitki gibi nesneler de etkileşimdir)
+        // ve Sully'ye kısa bir konuşma söylet
+        const P = G.player, x0 = P.x, y0 = P.y;
+        for (let k = 0; k < 24; k++) { const s = TH.openSpot(x0 + (k % 6) * 400, y0 + ((k / 6) | 0) * 400); TH.goto(s[0], s[1]); TH.clearNpcs(); if (!G.findInteraction()) break; }
         G.qSay([['S', Tr('Bir.')], ['S', Tr('İki.')], ['S', Tr('Üç.')]]);
       });
       await t.sleep(400);

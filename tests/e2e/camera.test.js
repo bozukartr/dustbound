@@ -1,5 +1,6 @@
 'use strict';
-/* Kamera: binaya girince yumuşak yakınlaşma, çıkınca uzaklaşma; yakınken fareyle nişan; piksel kamerası oyuncuya kilitli */
+/* Kamera: binaya girince yumuşak yakınlaşma, çıkınca uzaklaşma; içeride kamera sabit (sahne titremez); yakınken fareyle
+   nişan; piksel kamerası oyuncuya kilitli, hızlanıp yavaşlarken sahne geri sekmez; sığmayan binada oyuncuyu bina içinde izler */
 module.exports = {
   name: 'Kamera yakınlaşması',
   async run(t) {
@@ -46,6 +47,27 @@ module.exports = {
       const a = await p.evaluate(() => G.player.aimAng);
       t.near(a, 0, 0.12, 'sağa nişan');
     });
+    await t.step('içeride kamera oyuncuyu izlemez: binanın ortasında durur, oyuncu yürürken sahne kıpırdamaz (60 ve 144 Hz)', async () => {
+      const r = await p.evaluate(() => {
+        const P = G.player, C = G.cam, b = GB, x0 = P.x, y0 = P.y;
+        const out = { dx: Math.abs(C.x - (b.x + b.w / 2) * TS), dy: Math.abs(C.y - (b.y + b.h / 2) * TS) };
+        for (const fps of [60, 144]) {
+          const ox0 = C.ox, oy0 = C.oy;
+          let moved = 0;
+          for (let i = 0; i < fps * 3; i++) {
+            const tt = i / fps;
+            P.x = x0 + Math.sin(tt * 2) * 40; P.y = y0 + Math.cos(tt * 1.3) * 12;   // mağazada gezinir (piksel altı adımlarla)
+            G.updateCamera(1 / fps);
+            if (C.ox !== ox0 || C.oy !== oy0) moved++;
+          }
+          out[fps] = moved;
+        }
+        P.x = x0; P.y = y0; G.updateCamera(1 / 60);
+        return out;
+      });
+      t.ok(r.dx < 0.01 && r.dy < 0.01, 'kamera binanın tam ortasında', r);
+      t.eq(r[60], 0, '60 Hz: sahne kıpırdamaz'); t.eq(r[144], 0, '144 Hz: sahne kıpırdamaz');
+    });
     await t.step('sarhoşken içeride hem sallantı hem yakınlaşma birlikte uygulanır', async () => {
       await p.evaluate(() => { G.player.drunk = 90; });
       await t.sleep(2500);
@@ -91,6 +113,59 @@ module.exports = {
         t.ok(r[fps].jumps <= 2, fps + ' Hz: oyuncu ekranda sıçramaz', r[fps]);
         t.eq(r[fps].back, 0, fps + ' Hz: zemin geri kaymaz');
       }
+    });
+    await t.step('durup kalkarken ve geri dönerken sahne yürüme yönünün tersine sekmez (klasik ve melez ızgara, 60 ve 144 Hz)', async () => {
+      const r = await p.evaluate(() => {
+        const P = G.player, C = G.cam, x0 = P.x, y0 = P.y, ds0 = G.ds, out = {};
+        for (const ds of [1, 2]) {
+          G.ds = ds;
+          for (const fps of [60, 144]) {
+            for (const [name, plan] of [['durkalk', (tt) => ((tt % 1.5) < 1 ? 58 : 0)], ['donus', (tt) => (Math.floor(tt / 1.5) % 2 ? -58 : 58)]]) {
+              C.x = P.x = x0; C.y = P.y = y0;
+              let last = null, lastD = 0, back = 0;
+              for (let i = 0; i < fps * 6; i++) {
+                const dt = (1 / fps) * (1 + Math.sin(i * 1.7) * 0.08), v = plan(i / fps);   // dalgalı kare süresi (±%8)
+                P.x += v * dt; G.updateCamera(dt);
+                if (i < fps) continue;
+                if (last !== null && C.ox !== last) { const d = Math.sign(C.ox - last); if (lastD && d !== lastD && Math.sign(v) === lastD) back++; lastD = d; }
+                last = C.ox;
+              }
+              out[`${name} ${ds === 2 ? 'melez' : 'klasik'} ${fps} Hz`] = back;
+            }
+          }
+        }
+        G.ds = ds0; C.x = P.x = x0; C.y = P.y = y0; G.updateCamera(1 / 60);
+        return out;
+      });
+      for (const k in r) t.eq(r[k], 0, k + ': sahne geri sekmez');
+    });
+    await t.step('bina görünen alana sığmıyorsa (büyük piksel ölçeği) kamera oyuncuyu bina içinde izler, oyuncu ekranda kalır', async () => {
+      await p.setViewportSize({ width: 1920, height: 600 });
+      await t.sleep(300);
+      const r = await p.evaluate(() => {
+        G.settings.zoom = 5; G.resize();
+        const b = GB, P = G.player; TH.clearNpcs();
+        P.x = b.door.x; P.y = b.door.y - 20;
+        for (let i = 0; i < 150; i++) G.update(1 / 60);
+        const Z = G.camZoom, visH = G.vh / G.os / Z.out, out = { inside: G.insideB === b, fits: (b.h + 1) * TS <= visH };
+        const top = (b.y + 1) * TS + 8, bot = (b.y + b.h - 1) * TS;
+        let minM = 1e9, outside = 0, follow = 0, last = null;
+        for (let i = 0; i < 240; i++) {
+          P.y = top + (bot - top) * (i < 120 ? i / 119 : (239 - i) / 119);
+          G.updateCamera(1 / 60);
+          minM = Math.min(minM, visH / 2 - Math.abs(P.y - G.cam.oy - G.vh / 2));   // oyuncunun görünen alanın kenarına uzaklığı
+          if (G.cam.y - visH / 2 < Z.cy - Z.bh / 2 - 0.5 || G.cam.y + visH / 2 > Z.cy + Z.bh / 2 + 0.5) outside++;
+          if (last !== null && G.cam.oy !== last) follow++;
+          last = G.cam.oy;
+        }
+        G.settings.zoom = 0;
+        return Object.assign(out, { minM: Math.round(minM), outside, follow });
+      });
+      await p.setViewportSize({ width: 1280, height: 720 });
+      t.ok(r.inside && !r.fits, 'mağaza bu ölçekte görünen alana sığmamalı', r);
+      t.ok(r.follow > 5, 'kamera oyuncuyu dikeyde izlemeli', r);
+      t.ok(r.minM > 8, 'oyuncu ekranda kalmalı', r);
+      t.eq(r.outside, 0, 'kamera binanın dışını göstermez');
     });
   },
 };

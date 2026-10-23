@@ -1388,7 +1388,7 @@ const UI = {
 
   /* ================= GÜNLÜK ================= */
   openJournal(tab = 0) {
-    const tabs = [Tr('Karakter'), Tr('Yetenekler'), Tr('Başarımlar'), Tr('İstatistikler'), Tr('İlişkiler'), Tr('İşlerim'), Tr('Görevler'), Tr('Rehber')];
+    const tabs = [Tr('Karakter'), Tr('Yetenekler'), Tr('Başarımlar'), Tr('İstatistikler'), Tr('İlişkiler'), Tr('İşlerim'), Tr('Görevler'), Tr('Kasabalar'), Tr('Rehber')];
     const RB = tabs.length - 1;   // Rehber sekmesi: okunmamış yeni konu varsa rozet
     const el = el_('div', 'modal panel journal');
     const m = this.makeModal(el, { scroll: true, noFocus: true, onTab: (d) => { m.tab = (m.tab + d + tabs.length) % tabs.length; render(); Audio_.ui('move'); } });
@@ -1457,7 +1457,26 @@ const UI = {
     }
     if (t === 5) return this.bizJournal();
     if (t === 6) return G.questJournal();
+    if (t === 7) return this.townsJournal();
     return this.guideHtml();
+  },
+  /* Kasabalar: her kasabanın gelişmişliği ve gidişatı, son gelişmeler (js/develop.js) */
+  townsJournal() {
+    const D = G.dev;
+    if (!D) return '';
+    const y = G.year, rank = (t) => (D.towns[t.id].ghost ? -1 : D.towns[t.id].tier);
+    let h = `<div class="jr-dev-h">${Tr`${y} • ${G.eraOf(y).n} dönemi`}</div>`;
+    h += `<table class="jr-biz jr-towns"><tr><th>${Tr`Kasaba`}</th><th>${Tr`Durum`}</th><th>${Tr`Gidişat`}</th><th>${Tr`Türü`}</th></tr>`;
+    for (const t of [...G.world.towns].sort((a, b) => rank(b) - rank(a) || a.n.localeCompare(b.n))) {
+      const S = D.towns[t.id];
+      const tr = S.ghost ? ['gh', Tr('terk edilmiş')] : D.y <= START_YEAR ? ['eq', '—'] : S.g > 0.01 ? ['up', Tr('▲ büyüyor')] : S.g < -0.01 ? ['dn', Tr('▼ geriliyor')] : ['eq', Tr('■ durgun')];
+      h += `<tr><td>${t.n}${t.station ? ' 🚂' : ''}</td><td>${G.devTierName(t)}<div class="dv-bar"><i style="width:${S.ghost ? 0 : Math.round(clamp(S.prog, 0, 1) * 100)}%"></i></div></td><td class="dv-${tr[0]}">${tr[1]}</td><td>${G.devKind(t).n}</td></tr>`;
+    }
+    h += `</table><h3 class="jr-sub">${Tr`Son gelişmeler`}</h3>`;
+    const L = D.log.slice(-12).reverse().map(e => G.devStory(e)).filter(Boolean);
+    h += L.length ? `<ul class="jr-news">${L.map(s => `<li><b>${s.y}</b>${s.s}</li>`).join('')}</ul>`
+      : `<p class="jr-note">${Tr`Henüz kayda değer bir gelişme yok. Kasabalar yıllar içinde büyür ya da geriler; gazeteler ve kasabalılar olan biteni anlatır.`}</p>`;
+    return h + `<p class="jr-note">${Tr`Demiryolu, güvenlik ve ticaret bir kasabayı büyütür; suç ve çevresindeki haydut kampları geriletir. Bir kasabadaki işletmelerin, evlerin ve mülklerin onun büyümesini hızlandırır, gerilemesini yavaşlatır. Kasabalar ${DEV_END_YEAR} yılına kadar gelişir.`}</p>`;
   },
   /* İşlerim: işletmeler, stok, kasa, yük arabası */
   bizJournal() {
@@ -2086,7 +2105,7 @@ const UI = {
   },
   readNews() {
     if (!G.spend(0.1)) return;
-    const [h, t] = pick(HEADLINES);
+    const [h, t] = G.devHeadline(G.world.towns.find(x => x.id === G.curTown)) || pick(HEADLINES);   // çoğunlukla kasabaların son gelişmeleri
     const unk = G.world.pois.filter(p => p.kind === 'landmark' && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     let extra = '';
     if (unk.length && chance(0.5)) { const p = pick(unk); G.rumored.add(p.id); extra = `<p class="dim">${Tr`Gazetenin arka sayfasında <b>${p.n}</b> hakkında bir okur mektubu var. Haritanda işaretlendi.`}</p>`; }

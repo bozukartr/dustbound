@@ -54,6 +54,7 @@ const G = {
     this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
     this.upB = null; this.hotelRent = null; this.stairLatch = false;   // otelin üst katı (oyuncu oradaysa), kiralık oda, merdivenden geçince yön kilidi
     this.estate = null; this.club = null; this.carriage = null; this.coach = null; this.ride = null; this._serv = null; this._manB = null; this._estIn = null;   // malikane, kulüp, özel fayton
+    this.dev = null; this._devF = null; this._devCamps = null;   // kasabaların gelişimi (js/develop.js)
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -202,6 +203,7 @@ const G = {
     this.slot = profile.slot || this.freeSlot() || 1;
     this.profile = profile;
     await this.buildWorld(seed);
+    this.devInit();
     const BG = BACKGROUNDS.find(b => b.id === profile.bg);
     const town = this.world.towns.find(t => t.id === BG.town);
     // kanun kaçağı kasabada değil, çetenin saklı kampında başlar (kanun adamları tanımasın)
@@ -311,7 +313,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), dev: this.saveDev(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -419,6 +421,7 @@ const G = {
     this.loadBiz(d.biz);
     this.loadHomes(d.homes);
     this.loadEstate(d.estate);
+    this.loadDev(d.dev);
     this.pokerTables = d.poker || {};
     this.loadHaul(d.haul);
     // çevredeki dünya kaldığı gibi: NPC'ler, hayvanlar, arabalar, cesetler, yerdeki eşyalar
@@ -556,7 +559,7 @@ const G = {
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
     T_.ach -= dt; if (T_.ach <= 0) { T_.ach = 1; this.checkAchievements(); }
     T_.fire -= dt; if (T_.fire <= 0) { T_.fire = 0.5; this.checkFire(); if (this.t > 30) this.hintTick(); }
-    T_.gps -= dt; if (T_.gps <= 0 && this.waypoint) { T_.gps = 5; if (dist(P.x, P.y, this.waypoint.x, this.waypoint.y) < 40) { this.setWaypoint(null); UI.feed(Tr('📍 Hedefe ulaştın')); } else this.computeGps(); }
+    T_.gps -= dt; if (T_.gps <= 0 && this.waypoint) { T_.gps = 5; if (dist(P.x, P.y, this.waypoint.x, this.waypoint.y) < 40) { this.setWaypoint(null); UI.feed(Tr('📍 Hedefe ulaştın')); } else if (!this.onGps()) this.computeGps(); }
     T_.amb -= dt;
     if (T_.amb <= 0) {
       T_.amb = 0.25;
@@ -838,7 +841,7 @@ const G = {
     if (IB !== Z.b) {
       Z.b = IB; Z.t = 0; Z.from = Z.z; Z.kFrom = Z.k;
       Z.to = IB ? this.zoomFor(IB) : 1; Z.kTo = IB ? 1 : 0;
-      if (IB) { Z.cx = (IB.x + IB.w / 2) * TS; Z.cy = (IB.y + IB.h / 2) * TS; }
+      if (IB) { Z.cx = (IB.x + IB.w / 2) * TS; Z.cy = (IB.y + IB.h / 2) * TS; Z.bw = IB.w * TS; Z.bh = (IB.h + 1) * TS; }
     }
     if (Z.t < 1) {
       Z.t = Math.min(1, Z.t + dt / 0.75);
@@ -866,22 +869,38 @@ const G = {
     if (P.riding) { tx += Math.cos(P.riding.ang) * P.riding.spd * 0.45; ty += Math.sin(P.riding.ang) * P.riding.spd * 0.45; }
     if (P.aiming || P.rsAim) { const d = Math.min(P.aimDist, 90) * 0.45; tx += Math.cos(P.aimAng) * d; ty += Math.sin(P.aimAng) * d; }
     if (this.binoc) { tx += this.binoc.x; ty += this.binoc.y; }
-    // içerideyken kamera binanın ortasına oturur
+    // içeride kamera oyuncuyu izlemez: binanın ortasına oturur ve orada durur. Bina görünen alana sığmıyorsa (büyük
+    // piksel ölçeği) yalnızca sığmayan yönde oyuncuyu bina sınırları içinde izler. lx/ly: o yönde kamera oyuncuyu izliyor mu
     const Z = this.zoomUpdate(dt);
-    if (Z.k > 0.001) { tx = lerp(tx, Z.cx, Z.k); ty = lerp(ty, Z.cy, Z.k); }
-    // yumuşak takip; üstel katsayı kare hızından bağımsız (60 Hz ile 144 Hz'de aynı)
-    const cf = this.binoc ? 7 : 4, k = 1 - Math.exp(-dt * cf);
+    let lx = true, ly = true;
+    if (Z.k > 0.001) {
+      const hw = this.vw / (this.os || 1) / Z.out / 2, hh = this.vh / (this.os || 1) / Z.out / 2;
+      const ix = Z.bw > hw * 2 ? clamp(P.x, Z.cx - Z.bw / 2 + hw, Z.cx + Z.bw / 2 - hw) : Z.cx;
+      const iy = Z.bh > hh * 2 ? clamp(P.y, Z.cy - Z.bh / 2 + hh, Z.cy + Z.bh / 2 - hh) : Z.cy;
+      tx = lerp(tx, ix, Z.k); ty = lerp(ty, iy, Z.k);
+      lx = Z.k >= 1 && ix === P.x; ly = Z.k >= 1 && iy === P.y;
+    }
+    // yumuşak takip; üstel katsayı kare hızından bağımsız (60 Hz ile 144 Hz'de aynı). Duran hedefe varınca tam oturur.
+    const cf = this.binoc ? 7 : 4, k = 1 - Math.exp(-dt * cf), pcx = C.x, pcy = C.y;
     C.x = lerp(C.x, tx, k);
     C.y = lerp(C.y, ty, k);
+    if (Z.k >= 1 && !lx && Math.abs(C.x - tx) < 0.5) C.x = tx;
+    if (Z.k >= 1 && !ly && Math.abs(C.y - ty) < 0.5) C.y = ty;
     let sx = 0, sy = 0;
     if (this.fx.shake > 0 && this.settings.shake) { sx = rnd(-1, 1) * this.fx.shake; sy = rnd(-1, 1) * this.fx.shake; }
     this.fx.shake = Math.max(0, this.fx.shake - dt * 18);
     if (this.settings.shake) { sx += this.fx.kx || 0; sy += this.fx.ky || 0; }   // yönlü tepme (atış, patlama)
-    // piksel kamerası oyuncuya kilitli: kamera, oyuncunun yuvarlanmış konumuyla birlikte yuvarlanır; böylece karakter
-    // ekranda titremez, zemin onunla aynı adımda kayar. Melez çizimde (iki kat yoğun tuval) ızgara yarım pikseldir.
+    // piksel kamerası oyuncuya kilitli: kamera oyuncuyu izlerken oyuncunun yuvarlanmış konumuyla birlikte yuvarlanır;
+    // böylece karakter ekranda titremez, zemin onunla aynı adımda kayar. Kamera durunca (içeride) kendi konumuyla
+    // yuvarlanır: oyuncuya kilitli yuvarlama, oyuncu yürüdükçe bütün sahneyi bir piksel ileri geri oynatırdı.
+    // Melez çizimde (iki kat yoğun tuval) ızgara yarım pikseldir.
     const q = this.ds === 2 ? 2 : 1, R = (v) => Math.round(v * q) / q;
-    C.ox = R(P.x) - R(P.x - (C.x - this.vw / 2 + sx));
-    C.oy = R(P.y) - R(P.y - (C.y - this.vh / 2 + sy));
+    const ex = C.x - this.vw / 2 + sx, ey = C.y - this.vh / 2 + sy;
+    // oyuncu hızlanıp yavaşlarken (kamera gecikmesi değişirken) kilitli yuvarlama sahneyi bir kare geri oynatabilir:
+    // sarsıntı yokken sahne, kameranın gittiği yönün tersine tek ızgara adımı kaymaz (kameradan sapma bir pikseli aşmaz)
+    const hold = (o, prev, move) => (move && prev !== undefined && (o - prev) * move < 0 && Math.abs(o - prev) <= 1 / q + 1e-6 ? prev : o);
+    C.ox = lx ? (sx ? R(P.x) - R(P.x - ex) : hold(R(P.x) - R(P.x - ex), C.ox, C.x - pcx)) : R(ex);
+    C.oy = ly ? (sy ? R(P.y) - R(P.y - ey) : hold(R(P.y) - R(P.y - ey), C.oy, C.y - pcy)) : R(ey);
   },
   /* Tuvalin ekrandaki dikdörtgeni (CSS pikseli). getBoundingClientRect, arayüz o karede değiştiyse bütün sayfa
      düzenini hesaplatır; bu yüzden yalnızca tuvalin boyu ve yeri (resize) ya da CSS dönüşümü (iç mekân yakınlaşması,
@@ -1286,4 +1305,5 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(BinocSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HomeSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HotelSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(EstateSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(DevSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(Story));

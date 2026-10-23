@@ -320,7 +320,7 @@ const Debug = {
         h += this.sec(Tr('Kanun'), this.btns([this.btn(Tr('Aranmayı temizle'), 'clearLaw'), this.btn(Tr('+$10 ödül'), 'addBounty', 'ghost')]));
         break;
       case 'world':
-        h += this.sec(Tr('Zaman'), this.slider('hour', Tr('Saat'), 0, 23.75, 0.25, +(G.hour).toFixed(2), '') + this.btns([this.btn('+1 ' + Tr('saat'), 'h1'), this.btn('+6 ' + Tr('saat'), 'h6'), this.btn('+1 ' + Tr('gün'), 'd1'), this.btn(Tr('Sonraki mevsim'), 'season')]) + this.slider('timeScale', Tr('Oyun hızı'), 0.25, 8, 0.25, o.timeScale, '×') + this.tog('freeze', Tr('Saati dondur')));
+        h += this.sec(Tr('Zaman'), this.slider('hour', Tr('Saat'), 0, 23.75, 0.25, +(G.hour).toFixed(2), '') + this.btns([this.btn('+1 ' + Tr('saat'), 'h1'), this.btn('+6 ' + Tr('saat'), 'h6'), this.btn('+1 ' + Tr('gün'), 'd1'), this.btn(Tr('Sonraki mevsim'), 'season'), this.btn(Tr('+1 yıl'), 'y1'), this.btn(Tr('+10 yıl'), 'y10')]) + this.slider('timeScale', Tr('Oyun hızı'), 0.25, 8, 0.25, o.timeScale, '×') + this.tog('freeze', Tr('Saati dondur')));
         h += this.sec(Tr('Hava'), `<div class="dbg-seg" id="dbg-wx">${[['clear', Tr('Açık hava')], ['cloudy', Tr('Bulutlu')], ['rain', Tr('Yağmurlu')], ['storm', Tr('Fırtınalı')], ['fog', Tr('Sisli')]].map(([k, n]) => `<button data-wx="${k}" class="${G.weather.type === k ? 'on' : ''}">${n}</button>`).join('')}</div>`);
         h += this.sec(Tr('Harita'), this.btns([this.btn(Tr('Haritayı aç'), 'reveal'), this.btn(Tr('Bütün yerleri keşfet'), 'discover'), this.btn(Tr('Kasabaları ziyaret et'), 'visit')]));
         h += this.sec(Tr('Işınlan'), `<div class="dbg-line">${this.sel('dbg-tp', [...W.towns.map(t => ['t:' + t.id, '🏠 ' + t.n]), ...W.pois.filter(p => p.n).map(p => ['p:' + p.id, '• ' + p.n])], '')}${this.btn(Tr('Git'), 'tp', 'pri')}</div>` + this.btns([this.btn(Tr('Hedef noktaya'), 'tpWaypoint'), this.btn(Tr('Atın yanına'), 'tpHorse', 'ghost')]) + this.tog('clickTp', Tr('Alt + tık ile ışınlan'), Tr('Ekranda tıkladığın yere')));
@@ -341,6 +341,7 @@ const Debug = {
         const sel = this.townSel || cur.id;
         h += `<div class="dbg-line">${this.sel('dbg-town', W.towns.map(t => [t.id, t.n + (t.spawned ? ' ●' : '')]), sel)}${this.btn(Tr('Yeniden yükle'), 'townReload', 'ghost')}</div>`;
         h += this.sec(Tr('Nüfus'), this.rows([[Tr('Sakin'), 'tpop'], [Tr('Dışarıda'), 'tout'], [Tr('İçeride'), 'tin'], [Tr('Kasaba dışında / ölü'), 'taway']]) + this.btns([this.btn(Tr('Herkes sevsin'), 'loveTown'), this.btn(Tr('Hafızayı sıfırla'), 'forget', 'ghost')]));
+        h += this.sec(Tr('Gelişim'), this.rows([[Tr('Basamak'), 'dtier'], [Tr('Türü'), 'dkind'], [Tr('Yıllık gelişim'), 'dgrow'], [Tr('Bu yıl'), 'dyr'], [Tr('Kader'), 'dfate']]));
         h += `<div class="dbg-table" id="dbg-res"></div>`;
         break;
       }
@@ -422,6 +423,16 @@ const Debug = {
     this.set('tpop', `${R.length} <i>${t.spawned ? Tr('yüklü') : Tr('yüklü değil')}</i>`);
     this.set('tout', out.length); this.set('tin', inside.length);
     this.set('taway', `${R.filter(r => r.inside === 'away').length} / ${R.filter(r => r.dead).length}`);
+    // gelişim: basamak, geçen yılki ve gelecek yılın tahmini gelişimi (nedenleriyle), bu yılın sayaçları, kader olayları
+    const S = G.devOf(t);
+    if (S) {
+      const w = {}, g = G.devGrowth(t, G.dev.y + 1, w), Y = G.dev.yr[t.id] || {}, f3 = v => (v >= 0 ? '+' : '') + v.toFixed(3);
+      this.set('dtier', `${G.devTierName(t)} <i>${Math.round(S.prog * 100)}%</i>`);
+      this.set('dkind', G.devKind(t).n);
+      this.set('dgrow', `${f3(S.g)} <i>${Tr('gelecek yıl')} ${f3(g)} = ${Tr('tür')} ${f3(w.base)} ${Tr('ray')} ${f3(w.rail)} ${Tr('şans')} ${f3(w.luck)} ${Tr('güvenlik')} ${f3(w.safety)} ${Tr('kader')} ${f3(w.fate)} ${Tr('oyuncu')} ${f3(w.player)}</i>`);
+      this.set('dyr', `${Tr('suç')} ${Y.crime || 0} • ${Tr('temizlenen kamp')} ${Y.camp || 0} • ${Tr('teslim')} ${Y.bounty || 0} <i>${Tr('çevredeki kamp')} ${G.devCamps(t)}</i>`);
+      this.set('dfate', G.devFates(t).map(f => `${f.id} ${f.y}`).join(', ') || '—');
+    }
     const tb = this.el.querySelector('#dbg-res');
     if (!tb) return;
     const rows = R.map((r, i) => {
@@ -536,6 +547,7 @@ const Debug = {
       case 'h1': G.advanceClock(60); this.mark(); break;
       case 'h6': G.advanceClock(360); this.mark(); break;
       case 'd1': G.advanceClock(1440); this.mark(); break;
+      case 'y1': case 'y10': G.advanceClock((a === 'y1' ? 1 : 10) * G.dpy * 1440); this.mark(); break;
       case 'season': { const per = G.dpy / 4, d = G.day % G.dpy, next = Math.floor(d / per + 1) * per; G.advanceClock(Math.max(1, Math.ceil((next - d) * 1440 - (G.clock % 1440)))); this.mark(); break; }
       case 'reveal': G.reveal.fill(1); G.rebuildFog(); this.mark(); break;
       case 'discover': for (const p of W.pois) G.discovered.add(p.id); this.mark(); break;
