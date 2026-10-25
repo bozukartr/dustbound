@@ -391,14 +391,21 @@ const HY = (() => {
       return sky;
     }, facadeH(TG.base), SOUTH, (x, y) => { const u = x - x0, v = y - y0; return lit && u > 1 && u < w - 2 && v > 1 && v < hh - 2 && !(u === (w >> 1) - 1 || u === (w >> 1) || v === (hh >> 1) - 1) ? E_WIN : 0; });
   }
-  // tahta perde (gerileyen kasabada kapanan bina): karanlık boşluğun üstünde çivili yatay tahtalar, aralarından içerisi
+  // tahta perde (gerileyen kasabada kapanan bina): karanlık boşluğa aralıklı yatay tahtalar, üstünde çapraz bir tahta
+  // (kapıda iki çapraz: X), uçlarında çivi
   const BOARD = [0.55, 0.42, 0.28], GAP = [0.08, 0.055, 0.04], NAIL = [0.2, 0.19, 0.18];
-  function planks(x0, y0, w, hh, id, k, base) {
-    const off = Math.floor(hs(id, k, 5) * 3);
+  function planks(x0, y0, w, hh, id, k, base, door) {
+    const off = Math.floor(hs(id, k, 5) * 4), L = Math.hypot(w, hh), dir = hs(id, k, 7) < 0.5 ? 1 : -1;
     rect(x0, y0, w, hh, (x, y) => {
-      const v = y - y0 + off, row = Math.floor(v / 6), r = v % 6, u = x - x0;
-      if (r === 5) return GAP;
-      const c = shT(BOARD, (hs(row, id * 31 + k, 6) - 0.5) * 0.32 + ((u + row * 5) % 11 === 0 ? -0.12 : 0));
+      const u = x - x0, v = y - y0;
+      // çapraz tahta(lar): köşeden köşeye 5 piksel kalınlık
+      for (const s of door ? [1, -1] : [dir]) {
+        const px = s > 0 ? u : w - 1 - u, d = Math.abs(px * hh - v * w) / L;
+        if (d < 2.6) return d > 1.9 ? shT(BOARD, -0.32) : (px < 3 || px > w - 4) && d < 1 ? NAIL : shT(BOARD, 0.06 + (hs(id, k, 8) - 0.5) * 0.2);
+      }
+      const vv = v + off, row = Math.floor(vv / 7), r = vv % 7;
+      if (r >= 5) return GAP;
+      const c = shT(BOARD, (hs(row, id * 31 + k, 6) - 0.5) * 0.32 + ((u + row * 5) % 11 === 0 ? -0.12 : 0) - 0.08);
       if (r === 0) return shT(c, 0.14);
       if (r === 4) return shT(c, -0.3);
       if ((u === 2 || u === w - 3) && r === 2) return NAIL;
@@ -442,7 +449,7 @@ const HY = (() => {
       }, facadeH(base), SOUTH);
       if (!swing) { put(x0 + 13, y0 + 15, rgb('#e0b040'), base - wyOf(y0 + 15), SOUTH, 0); put(x0 + 13, y0 + 16, rgb('#a07820'), base - wyOf(y0 + 16), SOUTH, 0); }
     }
-    if (b.shut) { if (barn) planks(dx - 20, yBase - 32, 40, 32, id, 99, base); else planks(dx - 9, yBase - 29, 18, 29, id, 99, base); }
+    if (b.shut) { if (barn) planks(dx - 20, yBase - 32, 40, 32, id, 99, base, true); else planks(dx - 9, yBase - 29, 18, 29, id, 99, base, true); }
     yield* step();
     // pencereler (gece içeriden yanar; bazı evlerin ışığı kapalıdır)
     const nWin = Math.max(1, Math.floor(b.w / 3)), lit = !b.shut && (b.type === 'saloon' || b.type === 'hotel' || b.type === 'sheriff' || hs(id, 7, 3) > 0.3);
@@ -543,7 +550,7 @@ const HY = (() => {
       if (Math.abs(u - 6) < 0.5) return rgb('#1a120c');
       return (u < 2 || u > 10 || (v > 6 && v < 7)) ? rgb('#3a2414') : (v > 9.5 && v < 10.5 && Math.abs(u - 6) < 1.4) ? rgb('#d8b850') : rgb('#4a2e1c');
     }, facadeH(base), SOUTH);
-    if (b.shut) planks(bx(dx - 5), by(base - 15), 20, by(base) - by(base - 15), id, 98, base);
+    if (b.shut) planks(bx(dx - 5), by(base - 15), 20, by(base) - by(base - 15), id, 98, base, true);
     yield* step();
     // pencereler: üstte kemerli dar, altta vitrin
     const shop = MODERN_SHOP.has(b.type), nWin = Math.max(2, Math.floor(b.w / 2.5)), lit = !b.shut && (hs(id, 7, 3) > 0.25 || b.type === 'hotel');

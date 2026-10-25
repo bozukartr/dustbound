@@ -1468,17 +1468,20 @@ const UI = {
     if (!D) return '';
     const y = G.year, rank = (t) => (D.towns[t.id].ghost ? -1 : D.towns[t.id].tier);
     let h = `<div class="jr-dev-h">${Tr`${y} • ${G.eraOf(y).n} dönemi`}</div>`;
-    h += `<table class="jr-biz jr-towns"><tr><th>${Tr`Kasaba`}</th><th>${Tr`Durum`}</th><th>${Tr`Gidişat`}</th><th>${Tr`Türü`}</th></tr>`;
+    h += `<table class="jr-biz jr-towns"><tr><th>${Tr`Kasaba`}</th><th>${Tr`Durum`}</th><th>${Tr`Nüfus`}</th><th>${Tr`Gidişat`}</th><th>${Tr`Türü`}</th></tr>`;
     for (const t of [...G.world.towns].sort((a, b) => rank(b) - rank(a) || a.n.localeCompare(b.n))) {
       const S = D.towns[t.id];
       const tr = S.ghost ? ['gh', Tr('terk edilmiş')] : D.y <= START_YEAR ? ['eq', '—'] : S.g > 0.01 ? ['up', Tr('▲ büyüyor')] : S.g < -0.01 ? ['dn', Tr('▼ geriliyor')] : ['eq', Tr('■ durgun')];
-      h += `<tr><td>${t.n}${t.station ? ' 🚂' : ''}</td><td>${G.devTierName(t)}<div class="dv-bar"><i style="width:${S.ghost ? 0 : Math.round(clamp(S.prog, 0, 1) * 100)}%"></i></div></td><td class="dv-${tr[0]}">${tr[1]}</td><td>${G.devKind(t).n}</td></tr>`;
+      // nüfus; altında kuruluştan beri gelen yeni binalar ve tahta perdeyle kapananlar
+      const nb = G.devBuilt(t), ns = G.devShutN(t), sub = [nb ? Tr`${nb} yeni bina` : '', ns ? Tr`${ns} kapalı` : ''].filter(Boolean).join(' · ');
+      h += `<tr><td>${t.n}${t.station ? ' 🚂' : ''}</td><td>${G.devTierName(t)}<div class="dv-bar"><i style="width:${S.ghost ? 0 : Math.round(clamp(S.prog, 0, 1) * 100)}%"></i></div></td><td>${G.devPop(t)}${sub ? `<div class="jr-sm">${sub}</div>` : ''}</td><td class="dv-${tr[0]}">${tr[1]}</td><td>${G.devKind(t).n}</td></tr>`;
     }
     h += `</table><h3 class="jr-sub">${Tr`Son gelişmeler`}</h3>`;
     const L = D.log.slice(-12).reverse().map(e => G.devStory(e)).filter(Boolean);
     h += L.length ? `<ul class="jr-news">${L.map(s => `<li><b>${s.y}</b>${s.s}</li>`).join('')}</ul>`
       : `<p class="jr-note">${Tr`Henüz kayda değer bir gelişme yok. Kasabalar yıllar içinde büyür ya da geriler; gazeteler ve kasabalılar olan biteni anlatır.`}</p>`;
-    return h + `<p class="jr-note">${Tr`Demiryolu, güvenlik ve ticaret bir kasabayı büyütür; suç ve çevresindeki haydut kampları geriletir. Bir kasabadaki işletmelerin, evlerin ve mülklerin onun büyümesini hızlandırır, gerilemesini yavaşlatır. Kasabalar ${DEV_END_YEAR} yılına kadar gelişir.`}</p>`;
+    return h + `<p class="jr-note">${Tr`Demiryolu, güvenlik ve ticaret bir kasabayı büyütür; suç ve çevresindeki haydut kampları geriletir. Bir kasabadaki işletmelerin, evlerin ve mülklerin onun büyümesini hızlandırır, gerilemesini yavaşlatır. Kasabalar ${DEV_END_YEAR} yılına kadar gelişir.`}</p>`
+      + `<p class="jr-note">${Tr`Büyüyen kasabaya yeni evler ve dükkânlar gelir, binalar boyanır, şehirde tuğla ve taşa döner; sokaklar çakıl, arnavut kaldırımı ve sonunda asfalt olur, yeni sokak lambaları dikilir. Gerileyen kasabada dükkânlar ve evler tahta perdeyle kapanır; hayalet kasabada lambalar söner. Değişiklikler sen oradayken değil, gözden uzakta olur.`}</p>`;
   },
   /* İşlerim: işletmeler, stok, kasa, yük arabası */
   bizJournal() {

@@ -44,7 +44,7 @@ const TINFO = [
   { c: '#5a9aa0', v: 5, slow: 0.6, map: '#b8ccc4', water: 1 },  // HOTWATER
   { c: '#8a847c', v: 9, map: '#8a7c6c' },                       // COBBLE (arnavut kaldırımı)
   { c: '#b8ac96', v: 5, map: '#a4967e' },                       // PAVE (kaldırım taşı)
-  { c: '#a09482', v: 9, map: '#8a7c68' },                       // GRAVEL (çakıl: gelişen kasabanın sokağı)
+  { c: '#a2937c', v: 9, map: '#8a7c68' },                       // GRAVEL (çakıl: gelişen kasabanın sokağı)
   { c: '#4e4c4a', v: 4, map: '#6a6660' },                       // ASPHALT (asfalt: Asfalt döneminde şehir sokakları)
 ];
 const TPAL = TINFO.map(t => hexToRgb(t.c));
@@ -62,7 +62,7 @@ const SEAS_VIVID = { aut: { GRASS: '#94883e', DRY: '#b89a52', FOREST: '#6e5a2c',
 const TONE_NAT = {
   DEEP: '#2e4a5a', WATER: '#436e78', SAND: '#d3c398', DESERT: '#d0a674', DRY: '#a99c62', GRASS: '#68874a', FOREST: '#45633a', SWAMP: '#4b5839', MUD: '#665138',
   ROCK: '#878075', CLIFF: '#5d554c', SNOW: '#d8dde2', ROAD: '#957c5a', TOWN: '#a28a66', FARM: '#6b6236', REDROCK: '#ac6b48', MESA: '#824d36', SNOWCLIFF: '#abb2ba', HOTWATER: '#589498',
-  GRAVEL: '#9a8f7e', ASPHALT: '#504e4b',
+  GRAVEL: '#9c8e78', ASPHALT: '#504e4b',
 };
 const SEAS_NAT = { aut: { GRASS: '#8e8446', DRY: '#b09856', FOREST: '#6a5934', FARM: '#826a38' }, sum: { GRASS: '#72894a', DRY: '#b2a05e', FOREST: '#4a6338', FARM: '#746834' } };
 /* Görüntü tonu: zemin paletini (mevsim renkleriyle birlikte) doğal ya da canlı seçer; çizilmiş chunk'lar yenilenmeli */
@@ -2649,11 +2649,11 @@ class World {
         else if (t === T.PLANK) { if (wx % 5 === 0) mul = 0.75; if ((wy & 15) === 15) mul = 0.6; }
         else if (t === T.ROAD) { if ((wx + wy * 3) % 9 === 0) v -= 8; }
         else if (t === T.GRAVEL) {
-          // çakıl: sıkıştırılmış ince taş, yer yer iri çakıl ve tekerlek izi
+          // çakıl: sıkıştırılmış ince taş (hafif benekli), yer yer iri çakıl taneleri
           const q = hash2(wx, wy, 47);
-          v = (q - 0.5) * 24 + DET[k] * 3;
-          if (q > 0.93) v += 14; else if (q < 0.06) mul = 0.82;
-          if (hash2(wx >> 1, wy >> 1, 48) > 0.9) v -= 9;
+          v = (q - 0.5) * 12 + DET[k] * 3;
+          if (q > 0.96) v += 12; else if (q < 0.04) mul = 0.86;
+          if (hash2(wx >> 1, wy >> 1, 48) > 0.93) v -= 6;
         } else if (t === T.ASPHALT) {
           // asfalt: koyu, düzgün; ince kum dokusu, yer yer yama; kaldırıma bakan kenarda bordür gölgesi
           v = DET[k] * 2 + (hash2(wx, wy, 49) - 0.5) * 6;

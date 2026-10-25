@@ -341,7 +341,7 @@ const Debug = {
         const sel = this.townSel || cur.id;
         h += `<div class="dbg-line">${this.sel('dbg-town', W.towns.map(t => [t.id, t.n + (t.spawned ? ' ●' : '')]), sel)}${this.btn(Tr('Yeniden yükle'), 'townReload', 'ghost')}</div>`;
         h += this.sec(Tr('Nüfus'), this.rows([[Tr('Sakin'), 'tpop'], [Tr('Dışarıda'), 'tout'], [Tr('İçeride'), 'tin'], [Tr('Kasaba dışında / ölü'), 'taway']]) + this.btns([this.btn(Tr('Herkes sevsin'), 'loveTown'), this.btn(Tr('Hafızayı sıfırla'), 'forget', 'ghost')]));
-        h += this.sec(Tr('Gelişim'), this.rows([[Tr('Basamak'), 'dtier'], [Tr('Türü'), 'dkind'], [Tr('Yıllık gelişim'), 'dgrow'], [Tr('Bu yıl'), 'dyr'], [Tr('Kader'), 'dfate']]));
+        h += this.sec(Tr('Gelişim'), this.rows([[Tr('Basamak'), 'dtier'], [Tr('Türü'), 'dkind'], [Tr('Yıllık gelişim'), 'dgrow'], [Tr('Bu yıl'), 'dyr'], [Tr('Kader'), 'dfate'], [Tr('Görünür'), 'dphys']]));
         h += `<div class="dbg-table" id="dbg-res"></div>`;
         break;
       }
@@ -432,6 +432,9 @@ const Debug = {
       this.set('dgrow', `${f3(S.g)} <i>${Tr('gelecek yıl')} ${f3(g)} = ${Tr('tür')} ${f3(w.base)} ${Tr('ray')} ${f3(w.rail)} ${Tr('şans')} ${f3(w.luck)} ${Tr('güvenlik')} ${f3(w.safety)} ${Tr('kader')} ${f3(w.fate)} ${Tr('oyuncu')} ${f3(w.player)}</i>`);
       this.set('dyr', `${Tr('suç')} ${Y.crime || 0} • ${Tr('temizlenen kamp')} ${Y.camp || 0} • ${Tr('teslim')} ${Y.bounty || 0} <i>${Tr('çevredeki kamp')} ${G.devCamps(t)}</i>`);
       this.set('dfate', G.devFates(t).map(f => `${f.id} ${f.y}`).join(', ') || '—');
+      // görünür gelişim: yeni ve kapalı binalar, sokak düzeyi, yeni lambalar, nüfus, uygulanmayı bekleyen yıllar
+      const fc = [0, 0, 0, 0]; for (const b of t.buildings) fc[b.face === undefined ? 1 : b.face]++;
+      this.set('dphys', `${Tr('yeni bina')} ${G.devBuilt(t)} • ${Tr('kapalı')} ${G.devShutN(t)} • ${Tr('sokak')} ${[Tr('toprak'), Tr('çakıl'), Tr('arnavut kaldırımı'), Tr('asfalt')][G.devStreetLv(t)]} • ${Tr('lamba')} +${G.dev.lamps[t.id] || 0} • ${Tr('nüfus')} ${G.devPop(t)} <i>${Tr('cephe')} ${fc.join('/')} • ${Tr('bekleyen')} ${G.dev.pend.filter(p => p[0] === t.id).length}</i>`);
     }
     const tb = this.el.querySelector('#dbg-res');
     if (!tb) return;
@@ -547,7 +550,8 @@ const Debug = {
       case 'h1': G.advanceClock(60); this.mark(); break;
       case 'h6': G.advanceClock(360); this.mark(); break;
       case 'd1': G.advanceClock(1440); this.mark(); break;
-      case 'y1': case 'y10': G.advanceClock((a === 'y1' ? 1 : 10) * G.dpy * 1440); this.mark(); break;
+      // yıl atlama: ekran kararırken (kasabaların değişimi de görünmeden uygulanır)
+      case 'y1': case 'y10': UI.fade(() => { G.advanceClock((a === 'y1' ? 1 : 10) * G.dpy * 1440); G.devFlush(true); }, a === 'y1' ? Tr('+1 yıl') : Tr('+10 yıl')); this.mark(); break;
       case 'season': { const per = G.dpy / 4, d = G.day % G.dpy, next = Math.floor(d / per + 1) * per; G.advanceClock(Math.max(1, Math.ceil((next - d) * 1440 - (G.clock % 1440)))); this.mark(); break; }
       case 'reveal': G.reveal.fill(1); G.rebuildFog(); this.mark(); break;
       case 'discover': for (const p of W.pois) G.discovered.add(p.id); this.mark(); break;
