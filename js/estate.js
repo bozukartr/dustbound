@@ -392,7 +392,7 @@ const EstateSystems = {
       h.x = w.bx - Math.cos(w.bang) * 21; h.y = w.by - Math.sin(w.bang) * 21; h.ang = w.bang; h.state = 'idle';
       h.mv = w.mv; h.phase = (h.phase || 0) + dt * sp * 0.15; h.spd = sp;
     }
-    if (sp > 40 && Math.random() < 0.12) { const t = this.world.tileAtPx(w.bx, w.by); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) this.parts.add('dust', w.bx - Math.cos(w.bang) * 10, w.by - Math.sin(w.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
+    if (sp > 40 && Math.random() < 0.12) { const t = this.world.tileAtPx(w.bx, w.by); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) this.parts.add('dust', w.bx - Math.cos(w.bang) * 10, w.by - Math.sin(w.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
     this.coachSeat();
     if (R.ri >= R.route.length) this.rideEnd(true);
   },

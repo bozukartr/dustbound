@@ -291,7 +291,7 @@ const Juice = {
     const W = G.world, BS = W.buildings;
     for (let bi = 0; bi < BS.length; bi++) {
       const b = BS[bi];
-      if (b.type !== 'saloon' && b.type !== 'cantina' && b.type !== 'gambling') continue;
+      if ((b.type !== 'saloon' && b.type !== 'cantina' && b.type !== 'gambling') || b.shut) continue;
       const dx = b.door.x, by = (b.y + b.h) * TS;
       if (dx < x0 - 20 || dx > x1 + 20 || by < y0 - 20 || by > y1 + 20) continue;
       const S = b.swing || (b.swing = { a: 0, v: 0 });
@@ -382,7 +382,7 @@ const Juice = {
       const W = G.world, vw = G.vw, vh = G.vh;
       ctx.globalCompositeOperation = 'lighter';
       for (const L of W.lightsIn(x0, y0, x0 + vw, y0 + vh)) {
-        if (L.type !== 'lamp' && L.type !== 'window') continue;
+        if ((L.type !== 'lamp' && L.type !== 'window') || L.off) continue;
         if (L.x < x0 - 60 || L.x > x0 + vw + 60 || L.y < y0 - 60 || L.y > y0 + vh + 60) continue;
         for (let ty = (L.y - 50) >> 4; ty <= (L.y + 50) >> 4; ty++) for (let tx = (L.x - 50) >> 4; tx <= (L.x + 50) >> 4; tx++) {
           if (!W.inb(tx, ty)) continue;
@@ -420,6 +420,7 @@ const Juice = {
   windowLit(L) {
     const h = G.hour, sleep = 21 + hash2(L.x | 0, L.y | 0, 7) * 4.5, wake = 5 + hash2(L.x | 0, L.y | 0, 8) * 2.5;
     const b = G.world.buildings[L.b];
+    if (b && b.shut) return false;   // tahta perdeli bina karanlık
     if (b && (b.type === 'saloon' || b.type === 'hotel' || b.type === 'cantina' || b.type === 'gambling' || b.type === 'sheriff' || b.type === 'station')) return true;
     const hh = h < 12 ? h + 24 : h;
     return hh < sleep || (h < 12 && h >= wake);

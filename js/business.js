@@ -33,7 +33,7 @@ const BizSystems = {
   bizTownMul(t) { return t ? { s: 0.85, m: 1, l: 1.2 }[t.sz] || 1 : 1; },
   /* Sahibi satmaya razı mı: dünya tohumuna bağlı, her oyunda aynı */
   bizForSale(b) {
-    if (!b || !BIZ[b.type] || !b.town || b.def.lock || this.bizOf(b)) return false;
+    if (!b || !BIZ[b.type] || !b.town || b.def.lock || b.shut || this.bizOf(b)) return false;
     return hash2(b.id, 17, (this.seed % 9973) + 3) < 0.6;
   },
   bizPrice(b) { return Math.round(BIZ[b.type].p * this.bizTownMul(this.bizTown(b.town)) / 5) * 5; },
@@ -77,7 +77,7 @@ const BizSystems = {
     const mgr = this.newManager(hash2(b.id, 29, this.seed % 7919));
     if (kr) { mgr.name = kr.name; mgr.res = true; }
     const B = BIZ[b.type];
-    this.biz.push({ bid: b.id, type: b.type, town: b.town, stock: B.goods ? B.cap * 0.5 : 0, cash: 0, mgr, since: this.day, bank: false, total: 0, last: 0 });
+    this.biz.push({ bid: b.id, dk: b.dkey, type: b.type, town: b.town, stock: B.goods ? B.cap * 0.5 : 0, cash: 0, mgr, since: this.day, bank: false, total: 0, last: 0 });
     this.stat('businesses', 1);
     this.addHonor(1);
     Audio_.ui('cash');
@@ -145,6 +145,7 @@ const BizSystems = {
   /* Bu binada satılan mallar: [{ g, p }] */
   goodsAt(b) {
     const out = [];
+    if (b.shut) return out;
     for (const g in GOODS) {
       const s = GOODS[g].src.find(x => x[0] === b.type);
       if (!s) continue;
@@ -309,11 +310,13 @@ const BizSystems = {
   /* Kayıttan yüklenince: arsa durumlarını dünyaya yeniden uygula */
   bizApplyWorld() {
     const W = this.world;
-    // kayıt sırası korunur: binalar aynı kimliği alsın diye sırayla dikilir
+    // kayıt sırası korunur: binalar aynı numarayı alsın diye kayıttaki numaralarıyla sırayla dikilir (kasabaların yeni
+    // binalarıyla birlikte; bkz. bqAdd)
     const built = this.biz.filter(z => z.lot && !z.site).sort((a, c) => a.bid - c.bid);
-    for (const z of built) { const lot = W.lots.find(l => l.id === z.lot); if (lot) z.bid = W.buildOnLot(lot, z.type, z.tier).id; }
+    for (const z of built) { const lot = W.lots.find(l => l.id === z.lot); if (lot) this.bqAdd(z.bid, () => { z.bid = W.buildOnLot(lot, z.type, z.tier).id; W.buildMapImage(true); }); }
     for (const z of this.biz) if (z.site) { const lot = W.lots.find(l => l.id === z.lot); if (lot) W.lotSite(lot); }
-    if (built.length) W.buildMapImage(true);
+    // satın alınmış, gelişimle gelen bina: numarası anahtarından (yeni binalar dikildikten sonra)
+    for (const z of this.biz) if (z.dk) this.bqAdd(Infinity, () => { const b = this.bByKey(z.dk); if (b) z.bid = b.id; });
   },
 
   /* ---------------- kayıt ---------------- */

@@ -199,6 +199,7 @@ const HomeSystems = {
       }
     } else if (!b) {
       b = W.addBuilding(h.type, r.x, r.y, null, this.homeName(h), h.tier ? { home: h.id, design: h.design, tier: h.tier } : { home: h.id, design: h.design });
+      h.bid = b.id;   // yüklemede aynı numarayla dikilsin
       built = true;
     }
     // tabela: kapının solunda
@@ -261,7 +262,8 @@ const HomeSystems = {
   saveHomes() { return { list: this.homes, seq: this.homeSeq || 0 }; },
   loadHomes(d) {
     this.homes = (d && d.list) || []; this.homeSeq = (d && d.seq) || this.homes.reduce((a, h) => Math.max(a, h.id), 0);
-    for (const h of this.homes) { this.homeApply(h); this.homePoi(h); }
+    // biten yapı kayıttaki numarasıyla sırasında dikilir (bkz. bqAdd); numarası kaydedilmemişse en sonda
+    for (const h of this.homes) { if (h.done) this.bqAdd(h.bid !== undefined ? h.bid : 1e9 + h.id, () => this.homeApply(h)); else this.homeApply(h); this.homePoi(h); }
     if (this.homes.some(h => h.done)) this.world.buildMapImage(true);
   },
 };

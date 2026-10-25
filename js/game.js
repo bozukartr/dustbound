@@ -29,7 +29,7 @@ const G = {
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
   settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, gfx: 0, gpu: 0 },
-  timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0 },
+  timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0, dev: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
   resetState() {
@@ -54,7 +54,7 @@ const G = {
     this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
     this.upB = null; this.hotelRent = null; this.stairLatch = false;   // otelin üst katı (oyuncu oradaysa), kiralık oda, merdivenden geçince yön kilidi
     this.estate = null; this.club = null; this.carriage = null; this.coach = null; this.ride = null; this._serv = null; this._manB = null; this._estIn = null;   // malikane, kulüp, özel fayton
-    this.dev = null; this._devF = null; this._devCamps = null;   // kasabaların gelişimi (js/develop.js)
+    this.dev = null; this._devF = null; this._devCamps = null; this._devB = null; this._bq = null;   // kasabaların gelişimi (js/develop.js, js/devworld.js)
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -203,6 +203,7 @@ const G = {
     this.slot = profile.slot || this.freeSlot() || 1;
     this.profile = profile;
     await this.buildWorld(seed);
+    this.devPrep();
     this.devInit();
     const BG = BACKGROUNDS.find(b => b.id === profile.bg);
     const town = this.world.towns.find(t => t.id === BG.town);
@@ -388,6 +389,7 @@ const G = {
     this.seed = d.seed;
     Object.assign(this, { clock: d.clock, pace: d.pace });   // mevsim dünya kurulmadan bilinsin
     await this.buildWorld(d.seed, this.season);
+    this.devPrep();   // kasabaların üretimdeki sokakları (oyuncunun ve gelişimin değişikliklerinden önce)
     Object.assign(this, { clock: d.clock, pace: d.pace, difficulty: d.difficulty, background: d.background, profile: d.profile, honor: d.honor, bank: d.bank, scars: d.scars || 0 });
     Object.assign(this.weather, d.weather); Object.assign(this.law, d.law); this.law.level = 0; this.law.maskBounty = 0; this.law.masked = false; this.law.resist = false; this.law.arrestT = 0; this.law.warned = false;
     Object.assign(this.stats, d.stats); Object.assign(this.skills, d.skills); this.achieved = d.achieved || {};
@@ -418,10 +420,14 @@ const G = {
       if (p.riding && !h.dead) { h.x = P.x; h.y = P.y; P.mount(h, true); }
     }
     this.loadCarry(d.carry);
+    // sonradan dikilen binalar (oyuncunun işletmeleri ve yapıları, kasabaların yeni binaları) kayıttaki numaralarıyla
+    // sırayla dikilir: bina numaraları kayıttan kayda aynı kalır (bkz. js/devworld.js bqAdd)
+    this._bq = [];
     this.loadBiz(d.biz);
     this.loadHomes(d.homes);
     this.loadEstate(d.estate);
     this.loadDev(d.dev);
+    this.bqFlush(); this._bq = null;
     this.pokerTables = d.poker || {};
     this.loadHaul(d.haul);
     // çevredeki dünya kaldığı gibi: NPC'ler, hayvanlar, arabalar, cesetler, yerdeki eşyalar
@@ -556,6 +562,7 @@ const G = {
     if (this.exitB && (ib || dist2(P.x, P.y, this.exitB.door.x, this.exitB.door.y) > 30 * 30)) this.exitB = null;
     const T_ = this.timers;
     T_.spawn -= dt; if (T_.spawn <= 0) { T_.spawn = 1; this.spawnTick(); }
+    T_.dev -= dt; if (T_.dev <= 0) { T_.dev = 0.5; this.devTick(); }   // görüş alanından çıkan kasabanın bekleyen gelişimi
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
     T_.ach -= dt; if (T_.ach <= 0) { T_.ach = 1; this.checkAchievements(); }
     T_.fire -= dt; if (T_.fire <= 0) { T_.fire = 0.5; this.checkFire(); if (this.t > 30) this.hintTick(); }
@@ -565,7 +572,8 @@ const G = {
       T_.amb = 0.25;
       const env = this.envTick(0.25);
       const b = this.world.biomeAt(P.x, P.y);
-      Audio_.ambientTick({ town: !!this.world.townAt(P.x, P.y, 2), indoor: !!this.insideB, storm: !!env.storm, rain: env.rain, wind: Math.max(env.dust, env.snow * 0.6, env.storm ? 0.6 : 0.12, 0.12 + (this.alt || 0) * 0.5), fire: this.nearFire ? 1 : 0, water: this.world.nearWater(P.x, P.y, 40) ? 1 : 0, night: this.isNight, nature: b === 'FOREST' || b === 'GRASS' || b === 'SWAMP' ? 1 : 0.4, wolves: b === 'FOREST' || b === 'SNOW' });
+      const tw = this.world.townAt(P.x, P.y, 2);
+      Audio_.ambientTick({ town: !!tw && !tw.ghost, indoor: !!this.insideB, storm: !!env.storm, rain: env.rain, wind: Math.max(env.dust, env.snow * 0.6, env.storm ? 0.6 : 0.12, 0.12 + (this.alt || 0) * 0.5), fire: this.nearFire ? 1 : 0, water: this.world.nearWater(P.x, P.y, 40) ? 1 : 0, night: this.isNight, nature: b === 'FOREST' || b === 'GRASS' || b === 'SWAMP' ? 1 : 0.4, wolves: b === 'FOREST' || b === 'SNOW' });
       if (env.storm && Math.random() < 0.02) { this.fx.lightning = 1; Audio_.thunder(); }
       // piyano dosyası yüklenemezse eski prosedürel piyano
       if (Audio_.tr && Audio_.tr.piano && Audio_.tr.piano.failed && Audio_.pianoLevel > 0.02) {
@@ -1234,7 +1242,7 @@ const G = {
     for (const L of this.world.lightsIn(x0, y0, x0 + vw, y0 + vh)) {
       if (!inView(L.x, L.y, L.r)) continue;
       if (L.type === 'window' && (!night || !Juice.windowLit(L))) continue;
-      if (L.type === 'lamp' && !night) continue;
+      if (L.type === 'lamp' && (!night || L.off)) continue;   // hayalet kasabada lambalar sönük
       if ((L.type === 'inner' || L.type === 'hearth') && !(this.insideB && this.insideB.id === L.b)) continue;
       if (L.type === 'hearth' && this.upB && this.upB.id === L.b) continue;   // üst kattayken alt kattaki ocak ışımaz
       const fl = L.type === 'fire' || L.type === 'hearth' ? Juice.flicker(L.x, this.t, 0.08) : L.type === 'lamp' ? Juice.flicker(L.x + L.y, this.t * 0.6, 0.035) : 1;
@@ -1306,4 +1314,5 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(HomeSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HotelSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(EstateSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(DevSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(DevWorldSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(Story));

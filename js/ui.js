@@ -330,6 +330,8 @@ const UI = {
     $('#fader-text').textContent = text || '';
     setTimeout(() => {
       try { fn(); } catch (e) { console.error(e); }
+      // ekran kararmışken kasabaların bekleyen gelişimi görünmeden uygulanır (js/devworld.js)
+      try { if (typeof G !== 'undefined' && G.dev && G.world) G.devFlush(true); } catch (e) { console.error(e); }
       setTimeout(() => { f.classList.remove('on'); this.state = null; }, quick ? 320 : 900);
     }, quick ? 280 : 600);
   },
@@ -705,7 +707,7 @@ const UI = {
       const b = W.buildings[bi];
       if (Math.abs(b.door.x - P.x) > 900 || Math.abs(b.door.y - P.y) > 900 || (xk > 0.5 && b.town)) continue;   // genişken kasaba adı yeterli
       const ic = BICON[b.type];
-      if (ic && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 15);
+      if (ic && !b.shut && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 15);
     }
     for (let pi = 0; pi < W.pois.length; pi++) {
       const p = W.pois[pi];
@@ -1006,7 +1008,7 @@ const UI = {
       c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, ly + 1);
       if (M.zoom > 1.8) {
         for (const l of t.lots || []) { const [lx, ly2] = toS((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS); c.fillStyle = 'rgba(40,90,40,0.85)'; c.beginPath(); c.arc(lx, ly2, 10, 0, TAU); c.fill(); c.fillStyle = '#efe6d2'; c.font = 'bold 13px serif'; c.fillText('$', lx, ly2 + 1); c.font = `${fs}px "IM Fell English SC", serif`; }
-        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 12, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (im.complete) c.drawImage(im, bx - 8.5, by - 8.5, 17, 17); }
+        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic || b.shut) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 12, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (im.complete) c.drawImage(im, bx - 8.5, by - 8.5, 17, 17); }
       }
     }
     // yerler
@@ -1466,17 +1468,20 @@ const UI = {
     if (!D) return '';
     const y = G.year, rank = (t) => (D.towns[t.id].ghost ? -1 : D.towns[t.id].tier);
     let h = `<div class="jr-dev-h">${Tr`${y} • ${G.eraOf(y).n} dönemi`}</div>`;
-    h += `<table class="jr-biz jr-towns"><tr><th>${Tr`Kasaba`}</th><th>${Tr`Durum`}</th><th>${Tr`Gidişat`}</th><th>${Tr`Türü`}</th></tr>`;
+    h += `<table class="jr-biz jr-towns"><tr><th>${Tr`Kasaba`}</th><th>${Tr`Durum`}</th><th>${Tr`Nüfus`}</th><th>${Tr`Gidişat`}</th><th>${Tr`Türü`}</th></tr>`;
     for (const t of [...G.world.towns].sort((a, b) => rank(b) - rank(a) || a.n.localeCompare(b.n))) {
       const S = D.towns[t.id];
       const tr = S.ghost ? ['gh', Tr('terk edilmiş')] : D.y <= START_YEAR ? ['eq', '—'] : S.g > 0.01 ? ['up', Tr('▲ büyüyor')] : S.g < -0.01 ? ['dn', Tr('▼ geriliyor')] : ['eq', Tr('■ durgun')];
-      h += `<tr><td>${t.n}${t.station ? ' 🚂' : ''}</td><td>${G.devTierName(t)}<div class="dv-bar"><i style="width:${S.ghost ? 0 : Math.round(clamp(S.prog, 0, 1) * 100)}%"></i></div></td><td class="dv-${tr[0]}">${tr[1]}</td><td>${G.devKind(t).n}</td></tr>`;
+      // nüfus; altında kuruluştan beri gelen yeni binalar ve tahta perdeyle kapananlar
+      const nb = G.devBuilt(t), ns = G.devShutN(t), sub = [nb ? Tr`${nb} yeni bina` : '', ns ? Tr`${ns} kapalı` : ''].filter(Boolean).join(' · ');
+      h += `<tr><td>${t.n}${t.station ? ' 🚂' : ''}</td><td>${G.devTierName(t)}<div class="dv-bar"><i style="width:${S.ghost ? 0 : Math.round(clamp(S.prog, 0, 1) * 100)}%"></i></div></td><td>${G.devPop(t)}${sub ? `<div class="jr-sm">${sub}</div>` : ''}</td><td class="dv-${tr[0]}">${tr[1]}</td><td>${G.devKind(t).n}</td></tr>`;
     }
     h += `</table><h3 class="jr-sub">${Tr`Son gelişmeler`}</h3>`;
     const L = D.log.slice(-12).reverse().map(e => G.devStory(e)).filter(Boolean);
     h += L.length ? `<ul class="jr-news">${L.map(s => `<li><b>${s.y}</b>${s.s}</li>`).join('')}</ul>`
       : `<p class="jr-note">${Tr`Henüz kayda değer bir gelişme yok. Kasabalar yıllar içinde büyür ya da geriler; gazeteler ve kasabalılar olan biteni anlatır.`}</p>`;
-    return h + `<p class="jr-note">${Tr`Demiryolu, güvenlik ve ticaret bir kasabayı büyütür; suç ve çevresindeki haydut kampları geriletir. Bir kasabadaki işletmelerin, evlerin ve mülklerin onun büyümesini hızlandırır, gerilemesini yavaşlatır. Kasabalar ${DEV_END_YEAR} yılına kadar gelişir.`}</p>`;
+    return h + `<p class="jr-note">${Tr`Demiryolu, güvenlik ve ticaret bir kasabayı büyütür; suç ve çevresindeki haydut kampları geriletir. Bir kasabadaki işletmelerin, evlerin ve mülklerin onun büyümesini hızlandırır, gerilemesini yavaşlatır. Kasabalar ${DEV_END_YEAR} yılına kadar gelişir.`}</p>`
+      + `<p class="jr-note">${Tr`Büyüyen kasabaya yeni evler ve dükkânlar gelir, binalar boyanır, şehirde tuğla ve taşa döner; sokaklar çakıl, arnavut kaldırımı ve sonunda asfalt olur, yeni sokak lambaları dikilir. Gerileyen kasabada dükkânlar ve evler tahta perdeyle kapanır; hayalet kasabada lambalar söner. Değişiklikler sen oradayken değil, gözden uzakta olur.`}</p>`;
   },
   /* İşlerim: işletmeler, stok, kasa, yük arabası */
   bizJournal() {

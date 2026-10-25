@@ -14,8 +14,8 @@
      gerileyeni yavaşlatır ya da kurtarır; durgun bir köyü tek başına şehre
      çeviremez.
    - Olan biten gelişim günlüğüne yazılır. Günlük kayda girer; yüklerken
-     baştan sırayla yeniden uygulanır (görünür değişiklikler sonraki fazlarda
-     bu uygulamaya bağlanacak).
+     baştan sırayla yeniden uygulanır. Görünür değişiklikler (yeni binalar,
+     cepheler, sokaklar, lambalar, tahta perdeler, nüfus) js/devworld.js'te.
    - Gazeteler, gazeteci çocuk ve kasabalıların sohbeti gelişmeleri anlatır;
      Günlük'ün Kasabalar sekmesi her kasabanın durumunu gösterir.
    ========================================================== */
@@ -84,8 +84,8 @@ const DevSystems = {
 
   /* ---------------- durum ---------------- */
   devInit() {
-    const D = this.dev = { y: START_YEAR, towns: {}, log: [], yr: {}, fresh: [] };
-    for (const t of this.world.towns) D.towns[t.id] = { tier: this.devStartTier(t), prog: 0.2 + hash2(this.seed, this.devIdx(t), 3) * 0.4, ghost: false, g: 0 };
+    const D = this.dev = { y: START_YEAR, towns: {}, log: [], yr: {}, fresh: [], ops: [], face: {}, shut: {}, st: {}, lamps: {}, pend: [], nk: 0 };
+    for (const t of this.world.towns) { const S = D.towns[t.id] = { tier: this.devStartTier(t), prog: 0.2 + hash2(this.seed, this.devIdx(t), 3) * 0.4, ghost: false, g: 0 }; S.pk = this.devVit(S); }
     this._devF = null; this._devCamps = null;
     this.devMirror();
   },
@@ -98,6 +98,8 @@ const DevSystems = {
     const D = this.dev;
     if (!D) return;
     while (D.y < y) this.devStep(++D.y, quiet);
+    // ekran kararmışken (uyku, bekleme, yolculuk) kasabalar hemen değişir; yoksa görüş alanından çıktıkça (devTick)
+    if (!quiet && typeof UI !== 'undefined' && UI.state === 'fade') this.devFlush(true);
   },
   devStep(y, quiet) {
     const D = this.dev;
@@ -111,17 +113,20 @@ const DevSystems = {
       if (S.ghost) {
         S.prog = Math.max(-1, S.prog + g / DEV_COST[0]);
         if (S.prog >= 0) { S.ghost = false; S.prog = 0.1; this.devLog(y, t, 'revive', 0, quiet); }
-        continue;
+      } else {
+        const top = S.tier >= K.max;
+        S.prog += g / DEV_COST[Math.min(S.tier, DEV_COST.length - 1)];
+        if (top) S.prog = Math.min(S.prog, 1);
+        if (S.prog >= 1 && !top) { S.tier++; S.prog = 0.15; this.devLog(y, t, 'up', S.tier, quiet); }
+        else if (S.prog < 0) {
+          if (S.tier > K.min) { S.tier--; S.prog = 0.8; this.devLog(y, t, 'down', S.tier, quiet); }
+          else if (K.ghost && S.tier === 0) { if (S.prog < -0.5) { S.ghost = true; S.prog = -0.5; this.devLog(y, t, 'ghost', 0, quiet); } }
+          else S.prog = 0;
+        }
       }
-      const top = S.tier >= K.max;
-      S.prog += g / DEV_COST[Math.min(S.tier, DEV_COST.length - 1)];
-      if (top) S.prog = Math.min(S.prog, 1);
-      if (S.prog >= 1 && !top) { S.tier++; S.prog = 0.15; this.devLog(y, t, 'up', S.tier, quiet); }
-      else if (S.prog < 0) {
-        if (S.tier > K.min) { S.tier--; S.prog = 0.8; this.devLog(y, t, 'down', S.tier, quiet); }
-        else if (K.ghost && S.tier === 0) { if (S.prog < -0.5) { S.ghost = true; S.prog = -0.5; this.devLog(y, t, 'ghost', 0, quiet); } }
-        else S.prog = 0;
-      }
+      // görünür gelişim (js/devworld.js): kasabanın ulaştığı en yüksek gelişmişlik ve bu yılın değişiklikleri sıraya
+      S.pk = Math.max(S.pk !== undefined ? S.pk : this.devV0(t), this.devVit(S));
+      if (!quiet) this.devPhysQueue(t, y, S);
     }
     D.yr = {};
     this.devMirror();
@@ -155,9 +160,11 @@ const DevSystems = {
     if (!t) return null;
     let N, good;
     if (e.k === 'fate') { const f = this.devFates(t).find(o => o.id === e.v); N = f && f.def; good = f && f.g > 0; }
-    else { N = e.k === 'up' ? DEV_NEWS.up[e.v] : DEV_NEWS[e.k]; good = e.k === 'up' || e.k === 'revive'; }
+    else { N = e.k === 'up' ? DEV_NEWS.up[e.v] : DEV_NEWS[e.k]; good = e.k === 'up' || e.k === 'revive' || e.k === 'open' || e.k === 'reopen'; }
     if (!N) return null;
-    const k = (s, up) => s.replace(/\{k\}/g, up ? t.n.toUpperCase() : t.n);
+    // dükkân haberlerinde {b}: binanın türü (gazete başlığında büyük, metinde küçük harfle)
+    const bn = BUILDINGS[e.v] ? BUILDINGS[e.v].n : '', lang = typeof I18N !== 'undefined' && I18N.lang === 'en' ? 'en' : 'tr';
+    const k = (s, up) => s.replace(/\{k\}/g, up ? t.n.toUpperCase() : t.n).replace(/\{b\}/g, up ? bn.toLocaleUpperCase(lang) : bn.toLocaleLowerCase(lang));
     return { h: k(N.h, true), t: k(N.t), s: k(N.s), good, y: e.y, town: t };
   },
   /* Son iki yılın gelişmeleri (yeniden eskiye) */
@@ -192,18 +199,24 @@ const DevSystems = {
   },
 
   /* ---------------- kayıt ---------------- */
-  saveDev() { const D = this.dev; return D ? { y: D.y, towns: D.towns, log: D.log, yr: D.yr } : null; },
+  saveDev() {
+    const D = this.dev;
+    return D ? { y: D.y, towns: D.towns, log: D.log, yr: D.yr, ops: D.ops, face: D.face, shut: Object.keys(D.shut), st: D.st, pend: D.pend, nk: D.nk } : null;
+  },
   loadDev(d) {
     this._devF = null; this._devCamps = null;
     if (!d || !d.towns) {
-      // gelişimden önceki bir kayıt: dünyanın geçmişi oyuncunun etkisi olmadan yeniden hesaplanır
+      // gelişimden önceki bir kayıt: dünyanın geçmişi oyuncunun etkisi olmadan yeniden hesaplanır, kasabalar bugünkü
+      // durumlarına bir kerede getirilir
       this.devInit();
       this.devYear(this.year, true);
+      this.devPhysLoad(null);
       return;
     }
     this.dev = { y: d.y, towns: d.towns, log: d.log || [], yr: d.yr || {}, fresh: [] };
     for (const t of this.world.towns) if (!this.dev.towns[t.id]) this.dev.towns[t.id] = { tier: this.devStartTier(t), prog: 0.3, ghost: false, g: 0 };
     this.devReplay();
+    this.devPhysLoad(d);
   },
   /* Günlüğü baştan sırayla uygula: kasabalar başlangıç basamağından kayıttaki duruma gelir */
   devReplay() {

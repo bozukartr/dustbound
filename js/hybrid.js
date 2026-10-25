@@ -165,7 +165,7 @@ const HY = (() => {
           const bl = hs(Math.floor(wx * 2), Math.floor(wy * 2 / 3), 11);
           if (bl > 0.82) k = 0.12; else if (bl < 0.16) k = -0.14;
           if (n > 0.985) k = 0.25;
-        } else if (t === T.TOWN || t === T.ROAD || t === T.DRY || t === T.DESERT || t === T.SAND) {
+        } else if (t === T.TOWN || t === T.ROAD || t === T.DRY || t === T.DESERT || t === T.SAND || t === T.GRAVEL) {
           if (n > 0.97) k = 0.16; else if (n < 0.03) k = -0.2;
           const pb = hs(Math.floor(wx / 1.5), Math.floor(wy / 1.5), 7);
           if (pb > 0.992) k = -0.25; else if (pb > 0.985) k = 0.22;
@@ -391,6 +391,27 @@ const HY = (() => {
       return sky;
     }, facadeH(TG.base), SOUTH, (x, y) => { const u = x - x0, v = y - y0; return lit && u > 1 && u < w - 2 && v > 1 && v < hh - 2 && !(u === (w >> 1) - 1 || u === (w >> 1) || v === (hh >> 1) - 1) ? E_WIN : 0; });
   }
+  // tahta perde (gerileyen kasabada kapanan bina): karanlık boşluğa aralıklı yatay tahtalar, üstünde çapraz bir tahta
+  // (kapıda iki çapraz: X), uçlarında çivi
+  const BOARD = [0.55, 0.42, 0.28], GAP = [0.08, 0.055, 0.04], NAIL = [0.2, 0.19, 0.18];
+  function planks(x0, y0, w, hh, id, k, base, door) {
+    const off = Math.floor(hs(id, k, 5) * 4), L = Math.hypot(w, hh), dir = hs(id, k, 7) < 0.5 ? 1 : -1;
+    rect(x0, y0, w, hh, (x, y) => {
+      const u = x - x0, v = y - y0;
+      // çapraz tahta(lar): köşeden köşeye 5 piksel kalınlık
+      for (const s of door ? [1, -1] : [dir]) {
+        const px = s > 0 ? u : w - 1 - u, d = Math.abs(px * hh - v * w) / L;
+        if (d < 2.6) return d > 1.9 ? shT(BOARD, -0.32) : (px < 3 || px > w - 4) && d < 1 ? NAIL : shT(BOARD, 0.06 + (hs(id, k, 8) - 0.5) * 0.2);
+      }
+      const vv = v + off, row = Math.floor(vv / 7), r = vv % 7;
+      if (r >= 5) return GAP;
+      const c = shT(BOARD, (hs(row, id * 31 + k, 6) - 0.5) * 0.32 + ((u + row * 5) % 11 === 0 ? -0.12 : 0) - 0.08);
+      if (r === 0) return shT(c, 0.14);
+      if (r === 4) return shT(c, -0.3);
+      if ((u === 2 || u === w - 3) && r === 2) return NAIL;
+      return c;
+    }, facadeH(base), SOUTH);
+  }
   function* western(b, W, step) {
     const d = b.def, X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Hd = b.h * TS, base = Y + Hd, id = b.id;
     const FW = d.tall ? 30 : 22, wy = base - FW, h = bHash(b, 5), C = bCol(b);
@@ -428,14 +449,15 @@ const HY = (() => {
       }, facadeH(base), SOUTH);
       if (!swing) { put(x0 + 13, y0 + 15, rgb('#e0b040'), base - wyOf(y0 + 15), SOUTH, 0); put(x0 + 13, y0 + 16, rgb('#a07820'), base - wyOf(y0 + 16), SOUTH, 0); }
     }
+    if (b.shut) { if (barn) planks(dx - 20, yBase - 32, 40, 32, id, 99, base, true); else planks(dx - 9, yBase - 29, 18, 29, id, 99, base, true); }
     yield* step();
     // pencereler (gece içeriden yanar; bazı evlerin ışığı kapalıdır)
-    const nWin = Math.max(1, Math.floor(b.w / 3)), lit = b.type === 'saloon' || b.type === 'hotel' || b.type === 'sheriff' || hs(id, 7, 3) > 0.3;
+    const nWin = Math.max(1, Math.floor(b.w / 3)), lit = !b.shut && (b.type === 'saloon' || b.type === 'hotel' || b.type === 'sheriff' || hs(id, 7, 3) > 0.3);
     const rows = d.tall ? [wy + FW - 16, wy + 3] : [wy + FW - 16];
     for (let k = 0; k < nWin; k++) {
       const cxw = X + (k + 0.5) * Wd / nWin;
       if (Math.abs(cxw - b.door.x) < 10) continue;
-      for (const ry of rows) { const x0 = bx(cxw - 4), y0 = by(ry); windowGlass(x0, y0, 16, 18, id, k, rgb('#e0d4b8'), lit); rect(x0 - 1, y0 + 18, 18, 2, rgb('#c8b898'), facadeH(base), SOUTH); }
+      for (const ry of rows) { const x0 = bx(cxw - 4), y0 = by(ry); windowGlass(x0, y0, 16, 18, id, k, rgb('#e0d4b8'), lit); rect(x0 - 1, y0 + 18, 18, 2, rgb('#c8b898'), facadeH(base), SOUTH); if (b.shut) planks(x0 - 1, y0, 18, 18, id, k, base); }
       yield* step();
     }
     // veranda: ince saçak ve direkler
@@ -528,9 +550,10 @@ const HY = (() => {
       if (Math.abs(u - 6) < 0.5) return rgb('#1a120c');
       return (u < 2 || u > 10 || (v > 6 && v < 7)) ? rgb('#3a2414') : (v > 9.5 && v < 10.5 && Math.abs(u - 6) < 1.4) ? rgb('#d8b850') : rgb('#4a2e1c');
     }, facadeH(base), SOUTH);
+    if (b.shut) planks(bx(dx - 5), by(base - 15), 20, by(base) - by(base - 15), id, 98, base, true);
     yield* step();
     // pencereler: üstte kemerli dar, altta vitrin
-    const shop = MODERN_SHOP.has(b.type), nWin = Math.max(2, Math.floor(b.w / 2.5)), lit = hs(id, 7, 3) > 0.25 || b.type === 'hotel';
+    const shop = MODERN_SHOP.has(b.type), nWin = Math.max(2, Math.floor(b.w / 2.5)), lit = !b.shut && (hs(id, 7, 3) > 0.25 || b.type === 'hotel');
     for (let k = 0; k < nWin; k++) {
       const cx = X + (k + 0.5) * Wd / nWin;
       const x0 = bx(cx - 3.5), y0 = by(wy + 5), w = 14, hh = 22;
@@ -540,6 +563,7 @@ const HY = (() => {
         const sx0 = bx(cx - 6), sy0 = by(base - 15), sw = 24, shh = 22;
         rect(sx0, sy0, sw, shh, (x, y) => { const u = x - sx0, v = y - sy0; if (u < 2 || u > 21 || v < 2 || v > 19) return trim; if (u === 11 || u === 12) return trim; if (v > 13 && v < 18 && (u % 6 === 3 || u % 6 === 4)) return rgb(['#c8a040', '#a0402a', '#d8d0c0'][(k + (u / 6 | 0)) % 3]); const sky = mixT(rgb('#a8c4d4'), rgb('#2a3e52'), Math.min(1, v / 14 + u * 0.02)); return (u - v) % 7 === 0 && v < 10 ? shT(sky, 0.3) : sky; }, facadeH(base), SOUTH, (x, y) => { const u = x - sx0, v = y - sy0; return lit && u >= 2 && u <= 21 && v >= 2 && v <= 13 && u !== 11 && u !== 12 ? E_WIN : 0; });
       } else windowGlass(bx(cx - 3.5), by(base - 15), 14, 20, id, k + 10, trim, lit);
+      if (b.shut) { if (shop) planks(bx(cx - 5), by(base - 14), 20, 18, id, k + 20, base); else planks(bx(cx - 2.5), by(base - 14), 10, 16, id, k + 20, base); }
       yield* step();
     }
     yield* step();
@@ -1289,7 +1313,7 @@ const HY = (() => {
     const IB = G.insideB;
     for (const L of W.lightsIn(x0, y0 - 40, x0 + vw, y0 + vh + 60)) {
       if (L.type === 'window') { if (night && Juice.windowLit(L) && !IB) add(L.x, L.y + 22, 6, L.r * 1.35, [1.0, 0.75, 0.42], 1.0 * nk); }
-      else if (L.type === 'lamp') { if (night) add(L.x, L.y + 6, 14, 84 * Juice.flicker(L.x + L.y, G.t * 0.6, 0.035), [1.0, 0.72, 0.42], 1.7 * nk); }
+      else if (L.type === 'lamp') { if (night && !L.off) add(L.x, L.y + 6, 14, 84 * Juice.flicker(L.x + L.y, G.t * 0.6, 0.035), [1.0, 0.72, 0.42], 1.7 * nk); }
       else if (L.type === 'inner') { if (IB && IB.id === L.b) add(L.x, L.y, 30, L.r * 1.5, [1.0, 0.8, 0.52], night ? 1.5 : 0.2, true); }
       else if (L.type === 'hearth') { if (IB && IB.id === L.b && !(G.upB && G.upB.id === L.b)) add(L.x, L.y, 10, L.r * 1.3 * Juice.flicker(L.x + L.y * 0.3, G.t, 0.07), [1.0, 0.6, 0.3], night ? 1.2 : 0.35, true); }
       else if (L.type === 'fire') add(L.x, L.y, 8, L.r * 1.2 * Juice.flicker(L.x, G.t, 0.08), [1.0, 0.6, 0.28], 0.4 + nk);

@@ -27,10 +27,16 @@ const MODERN_SKIP = new Set(['church', 'station', 'stable', 'barn', 'lighthouse'
    olmayan türlerde (ahır) gelişmiş gibi boyalı. Ekonomik: boyasız, yıpranmış tahta; gelişmiş: boyalı, beyaz pervazlı. */
 const typeSeed = (t) => { let n = 7; for (let i = 0; i < t.length; i++) n = (n * 31 + t.charCodeAt(i)) | 0; return n; };
 const bHash = (b, s) => b.tier ? hash2(typeSeed(b.type), TIER_KEYS.indexOf(b.tier) + 1, s) : hash2(b.x, b.y, s);
-const modernB = (b) => richB(b) && !MODERN_SKIP.has(b.type);
+const modernB = (b) => (richB(b) || (!b.tier && b.face === 3)) && !MODERN_SKIP.has(b.type);
 const ADV_PAINT = ['#d8ccb0', '#a8b4a0', '#9aa8b8', '#c8b078', '#b8a0a0', '#e0d8c8'], ADV_ROOF = ['#6a2e24', '#3e4a52', '#4a5a3a', '#5a3a2a'];
+/* Kasabaların gelişimiyle (js/devworld.js) değişen cephe, b.face: 0 yıpranmış tahta (ekonomik gibi), 2 boyalı ve pervazlı
+   (gelişmiş gibi), 3 tuğla ya da taş (modernB); yok ya da 1: türün kendi rengi. Oyuncunun kurduğu yapıda kademe belirler. */
 function bCol(b) {
   const d = b.def;
+  if (!b.tier && b.face !== undefined) {
+    if (b.face === 0) return { wall: mixHex(d.wall, '#7c7064', 0.6), roof: mixHex(d.roof, '#4a4440', 0.55), trim: null, worn: true };
+    if (b.face >= 2) return { wall: ADV_PAINT[Math.floor(bHash(b, 61) * ADV_PAINT.length)], roof: ADV_ROOF[Math.floor(bHash(b, 62) * ADV_ROOF.length)], trim: '#ece6d8', worn: false };
+  }
   if (b.tier === 'eco') return { wall: mixHex(d.wall, '#7c7064', 0.6), roof: mixHex(d.roof, '#4a4440', 0.55), trim: null, worn: true };
   if (b.tier === 'adv' || b.tier === 'lux') return { wall: ADV_PAINT[Math.floor(bHash(b, 61) * ADV_PAINT.length)], roof: ADV_ROOF[Math.floor(bHash(b, 62) * ADV_ROOF.length)], trim: '#ece6d8', worn: false };
   return { wall: d.wall, roof: d.roof, trim: null, worn: false };
@@ -1760,6 +1766,7 @@ const Spr = {
       if (b.type === 'saloon' || b.type === 'cantina' || b.type === 'gambling') { /* yarım kanatlı kapılar Juice.drawAfterCovers'ta, salınarak çizilir */ }
       else { f.fillStyle = '#5a3e26'; f.fillRect(dx - 3, Y + H - 13, 6, 12); f.fillStyle = '#c8a040'; f.fillRect(dx + 1.5, Y + H - 7, 1, 1); }
     }
+    if (b.shut) { if (b.type === 'stable' || b.type === 'barn') this.boards(f, dx - 10, Y + H - 16, 20, 16, true); else this.boards(f, dx - 4, Y + H - 14, 8, 14, true); }
     // pencereler
     const nWin = Math.max(1, Math.floor(b.w / 3));
     for (let k = 0; k < nWin; k++) {
@@ -1769,6 +1776,7 @@ const Spr = {
       f.fillStyle = b.def.ruin ? '#101010' : '#27394a'; f.fillRect(cx - 3, wy + FW - 15, 6, 7);
       f.fillStyle = 'rgba(200,220,240,0.25)'; f.fillRect(cx - 3, wy + FW - 15, 2, 7);
       if (d.tall) { f.fillStyle = '#3a2a1c'; f.fillRect(cx - 4, wy + 3, 8, 7); f.fillStyle = '#27394a'; f.fillRect(cx - 3, wy + 4, 6, 5); }
+      if (b.shut) { this.boards(f, cx - 4, wy + FW - 16, 8, 9); if (d.tall) this.boards(f, cx - 4, wy + 3, 8, 7); }
     }
     // veranda direkleri & tente
     if (!b.def.ruin && b.type !== 'station' && b.type !== 'barn' && b.type !== 'hermit') {
@@ -1839,6 +1847,22 @@ const Spr = {
     }
   },
 
+  /* Tahta perde (gerileyen kasabada kapanan bina): kapı ya da pencere boşluğu karanlık, aralıklı yatay tahtalar, üstünde
+     çapraz bir tahta (kapıda iki çapraz: X) */
+  boards(f, x, y, w, h, door) {
+    f.fillStyle = '#140e0a'; f.fillRect(x, y, w, h);
+    for (let yy = y + 0.6, k = 0; yy < y + h - 1.2; yy += 3.6, k++) {
+      f.fillStyle = k % 2 ? '#6e5034' : '#82623f'; f.fillRect(x - 1, yy, w + 2, 2.3);
+      f.fillStyle = 'rgba(0,0,0,0.35)'; f.fillRect(x - 1, yy + 1.9, w + 2, 0.5);
+    }
+    f.save(); f.lineWidth = 2.2; f.lineCap = 'butt';
+    for (const s of door ? [1, -1] : [(x * 7 + y) % 2 ? 1 : -1]) {
+      f.strokeStyle = '#3a2a1a'; f.beginPath(); f.moveTo(s > 0 ? x : x + w, y + 0.8); f.lineTo(s > 0 ? x + w : x, y + h - 0.2); f.stroke();
+      f.strokeStyle = '#94724c'; f.lineWidth = 1.5; f.beginPath(); f.moveTo(s > 0 ? x : x + w, y + 0.5); f.lineTo(s > 0 ? x + w : x, y + h - 0.5); f.stroke(); f.lineWidth = 2.2;
+    }
+    f.restore();
+  },
+
   /* ---------- Zengin şehrin binaları ----------
      Tuğla ya da kesme taş cephe, iki kat, kornişler, beyaz çerçeveli pencereler, çizgili tente,
      düz çatı ve korkuluk; tabela kapının üstünde koyu levha. */
@@ -1870,6 +1894,7 @@ const Spr = {
     f.fillStyle = '#4a2e1c'; f.fillRect(dx - 4.5, Y + H - 11, 4, 10); f.fillRect(dx + 0.5, Y + H - 11, 4, 10);
     f.fillStyle = '#7aa0b8'; f.fillRect(dx - 4.5, Y + H - 14.5, 9, 2.5);
     f.fillStyle = '#d8b850'; f.fillRect(dx - 1, Y + H - 6, 0.8, 1); f.fillRect(dx + 0.4, Y + H - 6, 0.8, 1);
+    if (b.shut) this.boards(f, dx - 5, Y + H - 15, 10, 15, true);
     // pencereler: altta geniş vitrinler, üstte kemerli dar pencereler
     const shop = MODERN_SHOP.has(b.type), nWin = Math.max(2, Math.floor(b.w / 2.5));
     for (let k = 0; k < nWin; k++) {
@@ -1889,10 +1914,12 @@ const Spr = {
         f.fillStyle = '#e4dccb'; f.fillRect(cx - 0.4, Y + H - 14, 0.8, 9);
         // vitrinde mallar
         for (let q = 0; q < 3; q++) this.circ(f, cx - 3 + q * 3, Y + H - 6.5, 1, ['#c8a040', '#a0402a', '#d8d0c0'][(q + k) % 3]);
+        if (b.shut) this.boards(f, cx - 5, Y + H - 14, 10, 9);
       } else {
         f.fillStyle = '#e4dccb'; f.fillRect(cx - 3.5, Y + H - 15, 7, 10);
         f.fillStyle = '#26384a'; f.fillRect(cx - 2.5, Y + H - 14, 5, 8);
         f.fillStyle = 'rgba(200,225,245,0.3)'; f.fillRect(cx - 2.5, Y + H - 14, 1.5, 8);
+        if (b.shut) this.boards(f, cx - 2.5, Y + H - 14, 5, 8);
       }
     }
     // çizgili tente (dükkânlar) ya da düz saçak

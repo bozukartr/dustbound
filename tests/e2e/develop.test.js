@@ -133,9 +133,11 @@ module.exports = {
       t.ok(r.news >= 1 && /Harlow şehir oldu!/.test(r.tx), 'son gelişmeler', r.news);
     });
 
-    await t.step('hata ayıklama: +1 yıl oyunu bir yıl ileri alır ve o yılın gelişimini işler', async () => {
-      const r = await p.evaluate(() => { const y0 = G.year; Debug.act('y1'); return { y0, y1: G.year, dy: G.dev.y }; });
-      t.eq(r.y1, r.y0 + 1, 'oyun yılı'); t.eq(r.dy, r.y1, 'gelişim yılı');
+    await t.step('hata ayıklama: +1 yıl ekran kararırken oyunu bir yıl ileri alır, o yılın gelişimini ve kasabaların görünür değişimini işler', async () => {
+      const y0 = await p.evaluate(() => { const y0 = G.year; Debug.act('y1'); return y0; });
+      await t.sleep(1100);
+      const r = await p.evaluate(() => ({ y1: G.year, dy: G.dev.y, pend: G.dev.pend.length }));
+      t.eq(r.y1, y0 + 1, 'oyun yılı'); t.eq(r.dy, r.y1, 'gelişim yılı'); t.eq(r.pend, 0, 'kasabaların bu yılki değişimi görünmeden uygulanmalı');
     });
   },
 };
