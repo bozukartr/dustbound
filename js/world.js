@@ -2490,6 +2490,78 @@ class World {
     const NAT = World.NATF || (World.NATF = new Uint8Array(TINFO.map((t, i) => (i === T.WATER || i === T.DEEP || i === T.HOTWATER || i === T.BRIDGE || i === T.PLANK || i === T.TOWN || isStoneT(i) ? 0 : 1))));
     const TER = World.TERF || (World.TERF = new Uint8Array(TINFO.map((t, i) => (i === T.ROCK || i === T.REDROCK || i === T.SNOW ? 1 : 0))));
     const CURB = World.CURBF || (World.CURBF = new Uint8Array(TINFO.map((t, i) => (i === T.COBBLE || i === T.ASPHALT || i === T.GRAVEL ? 1 : 0))));   // kaldırımın bordürü bu yollara bakar
+    // yol kenarı: yol türü karoların (toprak yol, çakıl, taş döşeme, asfalt) sınırında piksel en yakın dört karo merkezinden
+    // ağırlıklı seçimle boyanır (çift doğrusal ağırlık, en ağır tür): dış köşe yuvarlanır, iç köşe dolar, karo karo basamaklı
+    // çapraz sokak tek parça eğimli kenar olur. Taş döşeme ve asfalt yakınında seçim titreşimsiz (temiz kenar ve bordür),
+    // toprak yolda ve çakılda titreşimli örnekte (doğal kenar). Veranda ve köprü biçimini korur. Yalnız görüntü: çarpışma
+    // ve yüzey karoda kalır, kenar en çok yarım karo sapar.
+    const RDF = World.RDF || (World.RDF = new Uint8Array(TINFO.map((t, i) => (i === T.ROAD || isStoneT(i) ? 1 : 0))));
+    const HSF = World.HSF || (World.HSF = new Uint8Array(TINFO.map((t, i) => (i === T.COBBLE || i === T.PAVE || i === T.ASPHALT ? 1 : 0))));
+    const FXF = World.FXF || (World.FXF = new Uint8Array(TINFO.map((t, i) => (i === T.PLANK || i === T.BRIDGE ? 1 : 0))));
+    // karo başına (uçurum dizisiyle aynı yerleşim) 1: komşuluğunda (3x3) yol türü var ve hepsi aynı tür değil, 2: üstelik
+    // taş döşeme ya da asfalt var. Seçim yalnız bu karolarda: köşeler pikselin karosunun 3x3 komşuluğunda, titreşim en çok
+    // 8 piksel (iki karo ötedeki karonun ağırlığı en çok 0.03, hiç ağır basmaz); tek türlü komşulukta seçim karonun kendisi
+    const RS = new Uint8Array(TW * TH);
+    let anyRS = 0;
+    for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+      const wx = tx0 + tx - 2, wy = ty0 + ty - 2, c = this.t(wx, wy);
+      let rd = 0, hs = 0, mix = 0;
+      for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) { const q = this.t(wx + xx, wy + yy); rd |= RDF[q]; hs |= HSF[q]; if (q !== c) mix = 1; }
+      if (rd && mix) { RS[ty * TW + tx] = 1 | (hs << 1); anyRS = 1; }
+    }
+    // (x, y) pikselinde en ağır tür. Tahta ya da köprü köşesi pikselin kendi karosu (own) sayılır: veranda ve köprü yanında
+    // kenar eskisi gibi düz kalır (köprüye bağlanan yolda çentik olmaz). vHS: köşelerden biri taş döşeme ya da asfalt
+    // Piksel merkezi (x + 0.5) karo merkezleri arasında: sol üst karo (x - 8) >> 4, kesir ((x - 8) & 15) + 0.5) / 16; dört
+    // ağırlık 16x16 kesir çifti için hazır tabloda
+    const WL = World.WLUT || (World.WLUT = (() => {
+      const L = new Float32Array(1024);
+      for (let qx = 0; qx < 16; qx++) for (let qy = 0; qy < 16; qy++) {
+        const u = (qx + 0.5) / 16, w = (qy + 0.5) / 16, q = (qx << 4 | qy) << 2;
+        L[q] = (1 - u) * (1 - w); L[q + 1] = u * (1 - w); L[q + 2] = (1 - u) * w; L[q + 3] = u * w;
+      }
+      return L;
+    })());
+    let vHS = 0;
+    const vote = (x, y, own) => {
+      if (x < 0) x = 0; else if (x > MAXP) x = MAXP;
+      if (y < 0) y = 0; else if (y > MAXP) y = MAXP;
+      const xi = x - 8, yi = y - 8;
+      let ix = xi >> 4, iy = yi >> 4;
+      if (ix < 0) ix = 0; else if (ix > WW - 2) ix = WW - 2;
+      if (iy < 0) iy = 0; else if (iy > WH - 2) iy = WH - 2;
+      const i = iy * WW + ix;
+      let a = tile[i], b = tile[i + 1], c = tile[i + WW], e = tile[i + WW + 1];
+      if (FXF[a]) a = own; if (FXF[b]) b = own; if (FXF[c]) c = own; if (FXF[e]) e = own;
+      if (a === b && b === c && c === e) { vHS = HSF[a]; return a; }
+      vHS = HSF[a] | HSF[b] | HSF[c] | HSF[e];
+      const q = ((xi & 15) << 4 | (yi & 15)) << 2;
+      let wa = WL[q], wb = WL[q + 1], wc = WL[q + 2], we = WL[q + 3];
+      // aynı türün ağırlıkları toplanır
+      if (b === a) { wa += wb; wb = 0; }
+      if (c === a) { wa += wc; wc = 0; } else if (c === b) { wb += wc; wc = 0; }
+      if (e === a) { wa += we; we = 0; } else if (e === b) { wb += we; we = 0; } else if (e === c) { wc += we; we = 0; }
+      let bt = a, bw = wa;
+      if (wb > bw) { bw = wb; bt = b; }
+      if (wc > bw) { bw = wc; bt = c; }
+      if (we > bw) bt = e;
+      return bt;
+    };
+    // titreşimsiz seçim beş satırlık halkada, her piksel için bir kez (kenar payıyla): tür | (taş köşe << 8). Taş döşemeli
+    // ya da asfaltlı kenar karolarında seçimle (temiz kenar; bordür ve oluk komşu piksellerini buradan okur), öbür yerde
+    // karonun kendisi (toprak yolun ve çakılın kenarı titreşimli seçimle); tahta ve köprü kendisi. Yolu olmayan parçada hiç
+    // hesaplanmaz
+    const VW = PW + 4, VR = new Int16Array(anyRS ? VW * 5 : 0);
+    const vRow = (wy) => {
+      if (!anyRS) return;
+      const r = (((wy % 5) + 5) % 5) * VW, rr = (((wy >> 4) - ty0) + 2) * TW, rt = ((wy < 0 ? 0 : wy > MAXP ? MAXP : wy) >> 4) * WW;
+      // karo karo: kenar karosunda piksel piksel seçim, öbür karoda 16 piksel aynı değer
+      for (let x = 0; x < VW;) {
+        const wx = ox + x - 2, x1 = Math.min(VW, x + 16 - (wx & 15)), own = tile[rt + ((wx < 0 ? 0 : wx > MAXP ? MAXP : wx) >> 4)];
+        if ((RS[rr + (wx >> 4) - tx0 + 2] & 2) && !FXF[own]) for (; x < x1; x++) VR[r + x] = vote(ox + x - 2, wy, own) | (vHS << 8);
+        else { const vv = own | (HSF[own] << 8); for (; x < x1; x++) VR[r + x] = vv; }
+      }
+    };
+    for (let y = oy - 2; y < oy + 2; y++) vRow(y);
     const CFACE = World.CFACE, TSTEP = 5, LX = -0.5, LY = -0.58, LZ = 0.64;
     // sinüs tablosu (1024 adım bir tur): katman ve teras dalgaları pikselde Math.sin çağırmaz
     const SIN = World.SIN || (World.SIN = Float32Array.from({ length: 1024 }, (_, i) => Math.sin(i * Math.PI / 512)));
@@ -2557,6 +2629,10 @@ class World {
       const rowT = (wy >> 4) * WW;
       const ncRow = (((wy >> 4) - ty0) + 2) * TW;
       const mrow = (py + MY) * MW + MX;
+      // titreşimsiz seçim halkası: iki satır aşağısı eklenir; bu satır ve iki yanındaki satırların başı (kenar payı 2)
+      vRow(wy + 2);
+      const vm2 = (((wy - 2) % 5 + 5) % 5) * VW + 2, vm1 = (((wy - 1) % 5 + 5) % 5) * VW + 2, v0 = ((wy % 5 + 5) % 5) * VW + 2;
+      const vp1 = (((wy + 1) % 5 + 5) % 5) * VW + 2, vp2 = (((wy + 2) % 5 + 5) % 5) * VW + 2;
       {
         const v = ((py + 24) & 15) * 0.0625, a = ((py + 24) >> 4) * RTW, b = a + RTW;
         for (let i = 0; i < RTW; i++) {
@@ -2568,6 +2644,7 @@ class World {
         const wx = ox + px;
         const k = (wx & 127) + ky;
         const base = tile[rowT + (wx >> 4)];
+        const rs = RS[ncRow + ((wx >> 4) - tx0) + 2];
         let t = base;
         if (base !== T.BRIDGE && base !== T.PLANK) {
           let sx = wx + JX[k], sy = wy + JY[k];
@@ -2575,7 +2652,14 @@ class World {
           if (sy < 0) sy = 0; else if (sy > MAXP) sy = MAXP;
           t = tile[(sy >> 4) * WW + (sx >> 4)];
           if (t === T.BRIDGE || t === T.PLANK) t = base;
-          else if (base === T.COBBLE || base === T.PAVE || base === T.ASPHALT || t === T.COBBLE || t === T.PAVE || t === T.ASPHALT) t = base;   // taş döşemenin ve asfaltın kenarı düz (bordür, çimen sınırı)
+          if (rs) {
+            // yol kenarı: taş döşeme ya da asfalt köşedeyse titreşimsiz, değilse titreşimli örnekte seçim (taş türü titreşimle
+            // taşmaz). Yalnız bir yanı yol türü olan kenarda; doğal zeminlerin kendi arasındaki kenar eskisi gibi
+            const vv = VR[v0 + px];
+            let s = vv & 255;
+            if (!(vv >> 8)) { const sj = vote(sx, sy, base); if (!HSF[sj]) s = sj; }
+            if (RDF[s] || RDF[t] || RDF[base]) t = s;
+          }
         }
         const nc = nearCliff[ncRow + ((wx >> 4) - tx0) + 2];
         const mb = mrow + px;   // maskede bu piksel
@@ -2669,26 +2753,29 @@ class World {
           // asfalt: koyu, düzgün; ince kum dokusu, yer yer yama; kaldırıma bakan kenarda bordür gölgesi
           v = DET[k] * 2 + (hash2(wx, wy, 49) - 0.5) * 6;
           if (hash2(wx >> 3, wy >> 3, 50) > 0.88) v -= 4;
-          const lx = wx & 15, ly = wy & 15, ti = rowT + (wx >> 4);
-          if ((ly <= 1 && tile[ti - WW] === T.PAVE) || (lx <= 0 && tile[ti - 1] === T.PAVE) || (lx >= 15 && tile[ti + 1] === T.PAVE)) mul = 0.7;
-          else if (ly >= 15 && tile[ti + WW] === T.PAVE) mul = 0.76;
+          if (rs) {
+            if ((VR[vm2 + px] & 255) === T.PAVE || (VR[v0 + px - 1] & 255) === T.PAVE || (VR[v0 + px + 1] & 255) === T.PAVE) mul = 0.7;
+            else if ((VR[vp1 + px] & 255) === T.PAVE) mul = 0.76;
+          }
         } else if (t === T.COBBLE) {
           // arnavut kaldırımı: sıra sıra kaydırılmış küçük taşlar, aralarında koyu derz
           const row = (wy / 3) | 0, cxs = wx + (row & 1) * 2;
           if (wy % 3 === 0 || cxs % 4 === 0) mul = 0.74;
           else { v = (hash2(cxs >> 2, row, 23) - 0.5) * 22 + DET[k] * 3; if (wy % 3 === 1 && cxs % 4 === 1) v += 9; }
-          // bordür ve oluk: kaldırımın kenarına bakan taşlar koyu, kuzeydeki kaldırımın bordür yüzü gölgeli
-          const lx = wx & 15, ly = wy & 15, ti = rowT + (wx >> 4);
-          if ((ly <= 1 && tile[ti - WW] === T.PAVE) || (lx <= 0 && tile[ti - 1] === T.PAVE) || (lx >= 15 && tile[ti + 1] === T.PAVE)) mul = 0.66;
-          else if (ly >= 15 && tile[ti + WW] === T.PAVE) mul = 0.72;
+          // bordür ve oluk: kaldırımın kenarına bakan taşlar koyu, kuzeydeki kaldırımın bordür yüzü gölgeli (yumuşatılmış
+          // kenarı izler)
+          if (rs) {
+            if ((VR[vm2 + px] & 255) === T.PAVE || (VR[v0 + px - 1] & 255) === T.PAVE || (VR[v0 + px + 1] & 255) === T.PAVE) mul = 0.66;
+            else if ((VR[vp1 + px] & 255) === T.PAVE) mul = 0.72;
+          }
         } else if (t === T.PAVE) {
           // kaldırım taşı: büyük kare levhalar
           const sx = (wx + (((wy >> 3) & 1) << 2)) & 7;
           if ((wy & 7) === 0 || sx === 0) mul = 0.84;
           else v = (hash2((wx + (((wy >> 3) & 1) << 2)) >> 3, wy >> 3, 29) - 0.5) * 10 + DET[k] * 2;
-          // bordür: taşıt yoluna bakan kenarda iki piksellik açık renkli kesme taş
-          const lx = wx & 15, ly = wy & 15, ti = rowT + (wx >> 4);
-          if ((ly >= 14 && CURB[tile[ti + WW]]) || (ly <= 1 && CURB[tile[ti - WW]]) || (lx >= 14 && CURB[tile[ti + 1]]) || (lx <= 1 && CURB[tile[ti - 1]])) { mul = 1; v = 15 + DET[k] * 2; }
+          // bordür: taşıt yoluna bakan kenarda iki piksellik açık renkli kesme taş (yumuşatılmış kenarı izler)
+          if (rs && (CURB[VR[vp2 + px] & 255] || CURB[VR[vm2 + px] & 255] || CURB[VR[v0 + px + 2] & 255] || CURB[VR[v0 + px - 2] & 255] ||
+            CURB[VR[vp1 + px + 1] & 255] || CURB[VR[vp1 + px - 1] & 255] || CURB[VR[vm1 + px + 1] & 255] || CURB[VR[vm1 + px - 1] & 255])) { mul = 1; v = 15 + DET[k] * 2; }
         }
         // klasik: yamaçlar kuzeybatıdan gelen sabit ışıkla gölgelenir (melezde güneşe göre canlı). Teras basamağı ve yayla
         // kenarı da bulunduğu yamacın ışığını alır (yoksa gölgeli yamaçta basamak çevresinden açık kalıp parlak çizgi olurdu);
