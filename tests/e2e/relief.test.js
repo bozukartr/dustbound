@@ -187,6 +187,76 @@ module.exports = {
       t.eq(r.rdiff, 0, 'kabartma aynı');
     });
 
+    await t.step('yol kenarı yumuşak: çapraz sokakta dış köşe yuvarlanır, iç köşe dolar, bordür eğriyi izler; karo ortası ve veranda aynı, dikiş yok', async () => {
+      const r = await p.evaluate(() => {
+        const W = G.world, N = 14;
+        // uçurumdan ve sudan uzak düz bir çimenlik
+        let B = null;
+        for (let ty = 40; ty < WH - 60 && !B; ty += 9) for (let tx = 40; tx < WW - 60 && !B; tx += 9) {
+          let ok = true;
+          for (let j = -3; j < N + 3 && ok; j++) for (let i = -3; i < N + 3; i++) if (W.tile[(ty + j) * WW + tx + i] !== T.GRASS) { ok = false; break; }
+          if (ok) B = { tx, ty };
+        }
+        if (!B) return null;
+        // geçici çapraz sokak: üç karo arnavut kaldırımı, üst yanında taş kaldırım, alt yanında çimen ve bir veranda (tahta)
+        const P = { i: 4, j: 6 }, want = (i, j) => {
+          if (i === P.i && j === P.j) return T.PLANK;
+          if (i < 1 || j < 1 || i >= N - 1 || j >= N - 1) return T.GRASS;
+          const d = i - j;
+          return Math.abs(d) <= 1 ? T.COBBLE : d === 2 ? T.PAVE : T.GRASS;
+        };
+        const keep = [];
+        for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const k = (B.ty + j) * WW + B.tx + i; keep.push([k, W.tile[k]]); W.tile[k] = want(i, j); }
+        const s0 = W.season; W.season = 0;
+        const S = N * TS + 64, ox = B.tx * TS - 32, oy = B.ty * TS - 32, A = __bake(ox, oy, S, S), A2 = __bake(ox + 96, oy + 80, S, S);
+        W.season = s0;
+        for (const [k, q] of keep) W.tile[k] = q;
+        const at = (x, y) => (y + 32) * S + x + 32, cl = (i, j, lx, ly) => A.cls[at(i * TS + lx, j * TS + ly)];
+        const out = { bad: [] };
+        for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) if (cl(i, j, 8, 8) !== want(i, j)) out.bad.push([i, j, cl(i, j, 8, 8)]);
+        // (7, 8) sokağın alt kenarı: sol alt köşesi dışa bakar; (8, 10) çimen: sağ üst köşesi sokağın iç köşesi;
+        // (9, 7) taş kaldırım: sol alt köşesi sokağa, sağ üst köşesi çimene bakar
+        out.convex = cl(7, 8, 0, 15) === T.GRASS;
+        out.concave = cl(8, 10, 15, 0) === T.COBBLE;
+        out.pave = cl(9, 7, 0, 15) === T.COBBLE && cl(9, 7, 15, 0) === T.GRASS;
+        // veranda tam karo; yanındaki sokakta çentik yok
+        let plank = 0, notch = 0;
+        for (let k = 0; k < 16; k++) for (let m = 0; m < 16; m++) if (cl(P.i, P.j, k, m) === T.PLANK) plank++;
+        for (let k = 0; k < 16; k++) { if (cl(P.i, P.j - 1, k, 15) !== T.COBBLE) notch++; if (cl(P.i + 1, P.j, 0, k) !== T.COBBLE) notch++; }
+        out.plank = plank; out.notch = notch;
+        // bordür: arnavut kaldırımına iki piksel içindeki taş kaldırım pikselleri açık renkli, uzaktakiler değil
+        const c = (x, y) => (x < -32 || y < -32 || x >= S - 32 || y >= S - 32) ? -1 : A.cls[at(x, y)];
+        const near = (x, y, R) => { for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) if (c(x + dx, y + dy) === T.COBBLE) return true; return false; };
+        const far = [], nearL = [];
+        for (let y = 0; y < N * TS; y++) for (let x = 0; x < N * TS; x++) {
+          if (c(x, y) !== T.PAVE) continue;
+          const red = A.d[at(x, y) * 4];
+          if ([[0, 2], [0, -2], [2, 0], [-2, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]].some(([dx, dy]) => c(x + dx, y + dy) === T.COBBLE)) nearL.push(red);
+          else if (!near(x, y, 3)) far.push(red);
+        }
+        far.sort((a, b) => a - b);
+        const lim = far[Math.floor(far.length * 0.9)] + 4;
+        out.curbNear = nearL.filter(v => v > lim).length / Math.max(1, nearL.length);
+        out.curbFar = far.filter(v => v > lim).length / Math.max(1, far.length);
+        out.nNear = nearL.length; out.nFar = far.length;
+        // iki ayrı pişirmenin ortak alanı aynı
+        let diff = 0;
+        for (let y = 80; y < S; y++) for (let x = 96; x < S; x++) {
+          const i = y * S + x, j = (y - 80) * S + (x - 96);
+          if (A.cls[i] !== A2.cls[j]) diff++;
+          for (let q = 0; q < 3; q++) if (A.d[i * 4 + q] !== A2.d[j * 4 + q]) diff++;
+        }
+        out.diff = diff;
+        return out;
+      });
+      t.ok(r, 'düz bir çimenlik bulunur');
+      t.eq(r.bad, [], 'karo ortası kendi türünde');
+      t.ok(r.convex && r.concave && r.pave, 'dış köşe yuvarlanır, iç köşe dolar (sokak ve taş kaldırım)', r);
+      t.ok(r.plank === 256 && r.notch === 0, 'veranda tam karo, yanındaki sokakta çentik yok', r);
+      t.ok(r.nNear > 100 && r.curbNear > 0.95 && r.curbFar < 0.03, 'bordür sokağın eğrisini izler', r);
+      t.eq(r.diff, 0, 'parça sınırında dikiş yok');
+    });
+
     await t.step('kardaki ayak izi gölgeli yamaçta da zeminden koyu (zemini koyulaştırır)', async () => {
       const r = await p.evaluate(() => {
         const c = makeCanvas(64, 64), g = c.getContext('2d'), C = G.cam, keep = {}, out = [];
