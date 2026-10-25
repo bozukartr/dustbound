@@ -19,8 +19,8 @@
      kapanır, sokak lambaları söner, birkaç kişi kalır. Canlanınca açılır.
    - Görünmeden: kasaba oyuncunun görüş alanındaysa değişiklik bekler;
      uykuda, beklerken, yolculukta ya da oyuncu uzaklaşınca yapılır.
-   - Oyuncunun işletmelerine, kiraladığı odaya ve etkin hikâyenin
-     binalarına (hikâyenin kasabası dahil) dokunulmaz.
+   - Oyuncunun işletmelerine, kiraladığı odaya, içinde bulunduğu binaya
+     ve etkin hikâyenin binalarına (hikâyenin kasabası dahil) dokunulmaz.
    - Kayıt: yeni binalar ve lambalar sırasıyla, somut konumlarıyla
      yazılır (yüklemede aynen uygulanır: kod değişse de kasaba aynı);
      cepheler, tahta perdeler ve sokak düzeyi son hâlleriyle. Oyuncunun
@@ -69,6 +69,8 @@ const DevWorldSystems = {
   devProtected(b) {
     if (this.devMine(b) || this.bizOf(b)) return true;
     if (this.hotelRent && this.hotelRent.b === b.id && this.clock < this.hotelRent.until) return true;
+    const P = this.player;
+    if (P && this.world.buildingAtPx(P.x, P.y) === b) return true;   // oyuncu içerideyken (beklerken, uyurken) kapanmaz
     const S = this.story;
     if (S && S.on && !S.done) {
       if (b.town === S.town || b.town === S.dest) return true;

@@ -108,7 +108,7 @@ module.exports = {
       t.eq(r.H.h, before.h, 'karo, nesne, bayrak, çarpışma ve bina dizileri');
     });
 
-    await t.step('gerileme: hayalet kasabada her şey kapanır, lambalar söner; oyuncunun işletmesi ve hikâyenin kasabası kapanmaz', async () => {
+    await t.step('gerileme: hayalet kasabada her şey kapanır, lambalar söner; oyuncunun işletmesi, içinde durduğu bina ve hikâyenin kasabası kapanmaz', async () => {
       const r = await p.evaluate(() => {
         __far();
         const T = TH.town('longhorn'), T2 = TH.town('cedarfalls');
@@ -116,16 +116,24 @@ module.exports = {
         if (gs.shut) G.devSetShut(gs, false);
         G.biz.push({ bid: gs.id, type: 'general', town: T.id, stock: 0, cash: 0, mgr: G.newManager(), since: G.day, bank: false, total: 0, last: 0 });
         const S0 = G.story, shut2 = T2.buildings.filter(b => b.shut).length; G.story = { on: true, done: false, town: T2.id };
+        // oyuncunun içinde durduğu bina (beklerken, uyurken) kapanmaz; çıkınca sonraki yılda kapanır
+        const hb = G.devClosable(T, true)[0];
+        if (hb.shut) G.devSetShut(hb, false);
+        TH.inside(hb);
+        const inHb = G.world.buildingAtPx(G.player.x, G.player.y) === hb;
         // çekirdekte de hayalet kasaba (nüfus ondan okunur); görünür yılı hemen uygula
         for (const tw of [T, T2]) { Object.assign(G.dev.towns[tw.id], { tier: 0, prog: -0.5, ghost: true }); G.devTownYear(tw, G.dev.y, { tier: 0, prog: -0.5, ghost: true, pk: 3 }); }
+        const hbOpen = !hb.shut;
+        __far(); G.devTownYear(T, G.dev.y, { tier: 0, prog: -0.5, ghost: true, pk: 3 });
         G.story = S0;
         const cl = T.buildings.filter(b => b !== gs && DEV_SHUT[b.type] !== undefined && b.enter);
         const x0 = T.x * TS, y0 = T.y * TS, x1 = (T.x + T.w) * TS, y1 = (T.y + T.h) * TS;
         const lamps = G.world.lights.filter(L => L.type === 'lamp' && L.x >= x0 && L.x <= x1 && L.y >= y0 && L.y <= y1);
         window.__shutB = cl.find(b => b.type === 'saloon' || b.type === 'butcher' || b.type === 'smith') || cl[0];
-        return { own: !!gs.shut, all: cl.every(b => b.shut), n: cl.length, story: T2.buildings.filter(b => b.shut).length - shut2, lamps: lamps.length, off: lamps.every(L => L.off), pop: G.residents(T).length };
+        return { own: !!gs.shut, all: cl.every(b => b.shut), n: cl.length, story: T2.buildings.filter(b => b.shut).length - shut2, lamps: lamps.length, off: lamps.every(L => L.off), pop: G.residents(T).length, inHb, hbOpen, hbShut: !!hb.shut, hb: hb.type };
       });
       t.ok(!r.own, 'oyuncunun işletmesi açık kalmalı');
+      t.ok(r.inHb && r.hbOpen && r.hbShut, 'oyuncunun içinde durduğu bina o yıl kapanmaz, çıkınca kapanır', r);
       t.ok(r.all && r.n > 3, 'öbür dükkânlar ve evler tahta perdeyle kapanmalı', r);
       t.eq(r.story, 0, 'etkin hikâyenin kasabasında yeni bina kapanmamalı');
       t.ok(r.lamps > 0 && r.off, 'hayalet kasabada lambalar sönük', r);
