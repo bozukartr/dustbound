@@ -76,6 +76,8 @@ const DevWorldSystems = {
     }
     return false;
   },
+  /* Etkin hikâyenin kasabası (ya da gideceği kasaba): oraya yeni bina dikilmez (hikâye bitince açık kalan büyüme yetişir) */
+  devStoryTown(t) { const S = this.story; return !!(S && S.on && !S.done && (t.id === S.town || t.id === S.dest)); },
   /* Kasabanın sakin sayısı: basamağa göre; boşalan her ev iki kişi eksiltir, hayalet kasabada birkaç kişi */
   devPop(t) {
     const S = this.devOf(t);
@@ -160,7 +162,7 @@ const DevWorldSystems = {
     const changed = new Set(), quiet = !!catchup;
     let area = false;
     // ---- yeni binalar: kasabanın ulaştığı en yüksek gelişmişliğe göre (yıkılmaz; gerilerken boşalır)
-    const want = s.ghost ? 0 : Math.min(DEV_BMAX[t.sz] || 12, Math.floor(Math.max(0, s.pk - this.devV0(t)) * (DEV_BPT[t.sz] || 5)));
+    const want = s.ghost || this.devStoryTown(t) ? 0 : Math.min(DEV_BMAX[t.sz] || 12, Math.floor(Math.max(0, s.pk - this.devV0(t)) * (DEV_BPT[t.sz] || 5)));
     let have = this.devBuilt(t);
     for (let k = 0; have < want && k < (catchup ? 40 : 2); k++) {
       const b = this.devNewBuilding(t, y, have, s, quiet);

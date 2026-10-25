@@ -283,7 +283,7 @@ const FX = {
     for (let bi = 0; bi < BS.length; bi++) {
       const b = BS[bi], X = b.x * TS, Y = b.y * TS;
       if (X > x1 || X + b.w * TS < x0 || Y > y1 || Y < y0) continue;
-      if (b.def.ruin || b.type === 'station' || b === IB) continue;
+      if (b.def.ruin || b.type === 'station' || b === IB || b.shut) continue;   // tahta perdeli binanın bacası tütmez
       const hh = hash2(b.x, b.y, 5);
       if (hh <= 0.3) continue;
       const k = hash2(b.x, b.y, 11);

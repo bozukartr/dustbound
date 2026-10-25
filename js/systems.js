@@ -1443,7 +1443,7 @@ const GameSystems = {
       npc.town = t.id; npc.romId = R.id; this.addEnt(npc);
     }
     // bağlı atlar
-    if (t.hitch) for (const h of t.hitch) if (chance(0.6)) {
+    if (t.hitch && !t.ghost) for (const h of t.hitch) if (chance(0.6)) {   // hayalet kasabada bağlı at yok
       const horse = new Horse(h.x, h.y + 10, pick(['morgan', 'tennessee', 'mustang', 'nag']), { owner: 'npc' });
       horse.ang = Math.PI / 2; horse.hitch = true; horse.town = t.id; this.addEnt(horse);
     }

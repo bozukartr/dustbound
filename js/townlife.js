@@ -822,7 +822,7 @@ const TownLifeSystems = {
       case 'home': case 'in': case 'saloon': case 'shelter': case 'church': case 'school': case 'errand':
         e.goal = { x: p.b.door.x, y: p.b.door.y + 3, kind: 'door', b: p.b }; break;
       case 'away': { const gt = t.gates.reduce((a, g) => dist2(g.x * TS, g.y * TS, e.x, e.y) < dist2(a.x * TS, a.y * TS, e.x, e.y) ? g : a, t.gates[0]); e.goal = { x: gt.x * TS + 8, y: gt.y * TS + 8, kind: 'gate' }; break; }
-      case 'haul': { const bs = t.buildings.filter(b => b.enter && b.type !== 'house'); const b = pick(bs); e.goal = b ? { x: b.door.x + rnd(-8, 8), y: b.door.y + 8, kind: 'spot', pause: [3, 6], toggle: 'crate' } : street(); break; }
+      case 'haul': { const bs = t.buildings.filter(b => b.enter && b.type !== 'house' && !b.shut); const b = pick(bs); e.goal = b ? { x: b.door.x + rnd(-8, 8), y: b.door.y + 8, kind: 'spot', pause: [3, 6], toggle: 'crate' } : street(); break; }
       case 'sweep': e.goal = street(140); if (e.goal) e.goal.pause = [2, 5]; e.carry2 = 'broom'; break;
       case 'news': e.goal = street(200); if (e.goal) e.goal.pause = [1, 3]; e.carry2 = 'paper'; break;
       case 'stroll': e.goal = street(260); if (e.goal) e.goal.pause = [2, 7]; break;

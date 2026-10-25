@@ -1372,6 +1372,9 @@ class World {
         if (c >= 0 && c < C.length) C[c] = 1e6;
       }
     }
+    // tablosuz zeminin (şehrin taş karoları) hücresi NaN kalır; bit deseni JIT'e göre değişmesin diye tek NaN'a çevrilir
+    // (anlamı aynı: dünya önbellekten gelince taze üretilenle bayt bayt aynı)
+    for (let i = 0; i < C.length; i++) if (C[i] !== C[i]) C[i] = NaN;
     this.cost = C;
   }
   /* A* kaba ızgarada (koordinatlar kaba hücre). Arama dizileri bir kez ayrılır (bütün dünyalar için ortak; arama
