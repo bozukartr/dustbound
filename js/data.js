@@ -357,6 +357,10 @@ const DEV_NEWS = {
   down: { h: '{k} İÇİN ZOR GÜNLER', t: 'Aileler birer birer göç ediyor, bazı dükkânlar kepenk indirdi. {k} eski canlılığını yitiriyor.', s: '{k} için zor günler!' },
   ghost: { h: '{k} TERK EDİLDİ', t: 'Son aileler de eşyalarını arabalara yükleyip gitti. {k} artık rüzgârın estiği bir hayalet kasaba.', s: '{k} terk edildi!' },
   revive: { h: '{k} YENİDEN CANLANIYOR', t: 'Terk edilmiş kasabaya yeniden yerleşenler var. {k} sokaklarında yeniden çekiç sesleri duyuluyor.', s: '{k} yeniden canlanıyor!' },
+  // görünür gelişim (js/devworld.js): {b} binanın türü
+  open: { h: '{k}: YENİ {b}', t: '{k} kasabasında yeni bir {b} kapılarını açtı. Kasabalılar ilk gün kapıda kuyruk oldu.', s: '{k}: yeni {b} açıldı!' },
+  reopen: { h: '{k}: {b} YENİDEN AÇILDI', t: '{k} kasabasında yıllardır kapalı duran {b} yeniden açıldı. Tahta perdeler söküldü, vitrin yeniden pırıl pırıl.', s: '{k}: {b} yeniden açıldı!' },
+  shut: { h: '{k}: {b} KAPANDI', t: '{k} kasabasındaki {b} kepenk indirdi; sahibi eşyalarını arabasına yükleyip kasabadan ayrıldı.', s: '{k}: {b} kapandı!' },
 };
 
 /* ---- Binalar ---- */

@@ -83,8 +83,8 @@ const TownPath = {
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
         if (!W.inb(x0 + x, y0 + y)) continue;
         const tt = W.tile[(y0 + y) * WW + x0 + x], i = y * w + x;
-        cf[i] = tt === T.PAVE || tt === T.PLANK ? 0 : tt === T.COBBLE ? 4 : 2;
-        cc[i] = tt === T.COBBLE || tt === T.ROAD ? 0 : 8;
+        cf[i] = tt === T.PAVE || tt === T.PLANK ? 0 : tt === T.COBBLE || tt === T.ASPHALT ? 4 : 2;
+        cc[i] = tt === T.COBBLE || tt === T.ASPHALT || tt === T.ROAD || tt === T.GRAVEL ? 0 : 8;
       }
     }
     t._grid = { x0, y0, w, h, pass, cache: new Map(), cf, cc };
@@ -333,7 +333,7 @@ class Wagon extends Ent {
     if (!t || this.stopT) return false;
     // dükkân önlerindeki park yerlerinden boş olanı: iki araba aynı yere park etmez
     const W = G.world, slots = [];
-    for (const ty of ['general', 'hotel', 'saloon', 'station', 'post', 'butcher', 'bakery']) for (const b of t.buildings) if (b.type === ty) for (const k of [0, 1, -1]) slots.push([b.door.x + 34 + k * 30, b.curbY || b.door.y + 34, b]);
+    for (const ty of ['general', 'hotel', 'saloon', 'station', 'post', 'butcher', 'bakery']) for (const b of t.buildings) if (b.type === ty && !b.shut) for (const k of [0, 1, -1]) slots.push([b.door.x + 34 + k * 30, b.curbY || b.door.y + 34, b]);
     const taken = (x, y) => G.ents.some(o => o !== this && o.kind === 'wagon' && ((o.slot && dist2(o.slot[0], o.slot[1], x, y) < 32 * 32) || dist2(o.x, o.y, x, y) < 26 * 26));
     const slot = slots.find(([x, y]) => !taken(x, y) && !W.blocked(x, y, 9) && !W.blocked(x - 22, y, 7) && !W.indoorPx(x, y));
     if (!slot) return false;
@@ -400,7 +400,7 @@ class Wagon extends Ent {
     if (this.rider) {
       // oyuncu sürüyor: hareketi binicilik sistemi yapar, gövde arkadan izler
       this.trail();
-      if (this.spd > 40 && Math.random() < 0.15) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.x - Math.cos(this.ang) * 12, this.y - Math.sin(this.ang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
+      if (this.spd > 40 && Math.random() < 0.15) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) G.parts.add('dust', this.x - Math.cos(this.ang) * 12, this.y - Math.sin(this.ang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
       return;
     }
     if (this.driverEnt) { this.spd = 0; this.mv = 0; G.wagonPark(this, dt); return; }   // sürücü inmiş: yük taşıyor ya da bekliyor
@@ -501,7 +501,7 @@ class Wagon extends Ent {
       if (this.route) { if (this.city && pt[3] === 's') this.parkT = rnd(4, 9); this.ri++; }   // kaldırım kenarı durağı: yolcu iner, biner
       else this.pi += this.dir;
     }
-    if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND) G.parts.add('dust', this.bx - Math.cos(this.bang) * 10, this.by - Math.sin(this.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
+    if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) G.parts.add('dust', this.bx - Math.cos(this.bang) * 10, this.by - Math.sin(this.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
   }
   draw(ctx) {
     const c = Math.cos(this.ang), s = Math.sin(this.ang);
@@ -555,12 +555,16 @@ const TownLifeSystems = {
   residents(t) {
     if (t._res) return t._res;
     const W = this.world;
-    const R = new RNG((this.seed ^ (hash2(t.cx | 0, t.cy | 0, 77) * 1e9)) >>> 0);
-    const houses = t.buildings.filter(b => b.type === 'house');
+    const R0 = new RNG((this.seed ^ (hash2(t.cx | 0, t.cy | 0, 77) * 1e9)) >>> 0);
+    // kasabanın kurulduğu günkü sakinler hep aynı üretilir; gelişimle gelen binalar (b.dkey) ve ek nüfus ayrı tohumla
+    // sonradan eklenir (eski sakinlerin adı, yüzü ve evi değişmez)
+    const orig = t.buildings.filter(b => b.dkey === undefined);
+    const houses = orig.filter(b => b.type === 'house');
     const hotel = t.buildings.find(b => b.type === 'hotel');
     const has = (ty) => t.buildings.find(b => b.type === ty);
     const list = [];
-    const mk = (occ, extra = {}) => {
+    let R = R0;
+    const mk = (occ, extra = {}, id) => {
       const o = OCCS[occ];
       const sex = o.kid ? (R.chance(0.5) ? 'm' : 'f') : occ === 'homemaker' ? 'f' : ['miner', 'laborer', 'lumberman', 'dockhand'].includes(occ) ? 'm' : R.chance(0.6) ? 'm' : 'f';
       const look = randomLook(sex, R);
@@ -568,12 +572,12 @@ const TownLifeSystems = {
       if (o.kid) { look.hat = R.pick(['none', 'none', 'flat']); look.beard = 0; }
       if (occ === 'miner') { look.coat = '#4a4038'; look.hat = 'flat'; }
       const home = houses.length ? houses[list.length % houses.length] : hotel || t.buildings[0];
-      const r = { id: t.id + ':' + list.length, t, occ, sex, look, name: R.pick(NAMES[sex]) + ' ' + R.pick(NAMES.last), home, jit: R.range(-0.6, 0.6), soc: R.next(), ent: null, inside: null, until: 0, errands: null, ei: 0 };
+      const r = { id: id || t.id + ':' + list.length, t, occ, sex, look, name: R.pick(NAMES[sex]) + ' ' + R.pick(NAMES.last), home, jit: R.range(-0.6, 0.6), soc: R.next(), ent: null, inside: null, until: 0, errands: null, ei: 0 };
       Object.assign(r, extra);
       list.push(r);
       return r;
     };
-    for (const b of t.buildings) if (b.enter && b.staff && b.type !== 'sheriff') mk('keeper', { work: b });
+    for (const b of orig) if (b.enter && b.staff && b.type !== 'sheriff') mk('keeper', { work: b });
     const N = TOWN_POP[t.sz] || 30;
     const bag = ['laborer', 'laborer', 'homemaker', 'homemaker', 'homemaker', 'kid', 'kid', 'kid', 'drifter', 'elder', 'elder', 'farmhand', 'farmhand'];
     if (has('mine') || t.id === 'silverridge') bag.push('miner', 'miner', 'miner');
@@ -581,6 +585,8 @@ const TownLifeSystems = {
     if (has('lumber')) bag.push('lumberman', 'lumberman');
     mk('sweeper'); mk('newsboy');
     while (list.length < N) mk(R.pick(bag));
+    if (this.devResidents) this.devResidents(t, list, mk, bag, (s) => { R = s; });
+    R = R0;   // ölenlerin yerine gelenler eskisi gibi kasabanın tohumundan
     // ölenlerin yerine birkaç gün sonra yenileri gelir (aynı iş ve ev)
     const mem = this.resMem || {};
     for (let i = 0, n = list.length; i < n; i++) {
@@ -621,7 +627,7 @@ const TownLifeSystems = {
   /* ---------------- günlük program ---------------- */
   schedule(r) {
     const t = r.t, h = ((this.hour + r.jit) + 24) % 24, day = this.day;
-    const b = (ty) => t.buildings.find(x => x.type === ty);
+    const b = (ty) => t.buildings.find(x => x.type === ty && !x.shut);
     const home = { act: 'home', b: r.home };
     const env = this.envCache || {};
     const bad = (env.rain || 0) > 0.35 || env.storm || (env.dust || 0) > 0.5 || (env.snow || 0) > 0.6;
@@ -681,7 +687,7 @@ const TownLifeSystems = {
   },
   nearPublic(t, from) {
     let best = null, bd = 1e12;
-    for (const b of t.buildings) if (PUBLIC_B.includes(b.type) && (b.type === 'saloon' || b.type === 'cantina' || b.type === 'hotel' || b.type === 'station' || this.isOpen(b))) { const d = dist2(b.door.x, b.door.y, from.door.x, from.door.y); if (d < bd) { bd = d; best = b; } }
+    for (const b of t.buildings) if (PUBLIC_B.includes(b.type) && !b.shut && (b.type === 'saloon' || b.type === 'cantina' || b.type === 'hotel' || b.type === 'station' || this.isOpen(b))) { const d = dist2(b.door.x, b.door.y, from.door.x, from.door.y); if (d < bd) { bd = d; best = b; } }
     return best;
   },
   indoorAct(p) { return p.b && ['home', 'in', 'saloon', 'shelter', 'church', 'school'].includes(p.act); },

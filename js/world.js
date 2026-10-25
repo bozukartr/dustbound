@@ -14,12 +14,12 @@ const CW = WW / CG, CHH = WH / CG;
 const FW = WW / 4;        // keşif (sis) ızgarası: 4x4 karo başına bir hücre
 const MAPT = 256;         // yakın harita parçasının kenarı (karo)
 
-const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20, COBBLE: 21, PAVE: 22 };
+const T = { DEEP: 0, WATER: 1, SAND: 2, DESERT: 3, DRY: 4, GRASS: 5, FOREST: 6, SWAMP: 7, MUD: 8, ROCK: 9, CLIFF: 10, SNOW: 11, ROAD: 12, TOWN: 13, FARM: 14, BRIDGE: 15, REDROCK: 16, MESA: 17, SNOWCLIFF: 18, PLANK: 19, HOTWATER: 20, COBBLE: 21, PAVE: 22, GRAVEL: 23, ASPHALT: 24 };
 const TNAME = Object.keys(T);
 /* Biyom sayılmayan zeminler (yol, kasaba, köprü, tarla, su): baskın biyom hesabında atlanır */
-const AREA_NEUTRAL = new Set([T.DEEP, T.WATER, T.ROAD, T.TOWN, T.FARM, T.BRIDGE, T.PLANK, T.HOTWATER, T.COBBLE, T.PAVE]);
-/* Taş zemin (zengin şehrin arnavut kaldırımı ve kaldırım taşları) */
-const isStoneT = t => t === T.COBBLE || t === T.PAVE;
+const AREA_NEUTRAL = new Set([T.DEEP, T.WATER, T.ROAD, T.TOWN, T.FARM, T.BRIDGE, T.PLANK, T.HOTWATER, T.COBBLE, T.PAVE, T.GRAVEL, T.ASPHALT]);
+/* Döşenmiş zemin: arnavut kaldırımı, kaldırım taşı ve gelişen kasabaların çakıl ve asfalt sokakları */
+const isStoneT = t => t === T.COBBLE || t === T.PAVE || t === T.GRAVEL || t === T.ASPHALT;
 const TINFO = [
   { c: '#2c4b5e', v: 5, solid: 1, map: '#98aca8' },            // DEEP
   { c: '#41707c', v: 5, slow: 0.55, map: '#aebdb2', water: 1 }, // WATER
@@ -44,6 +44,8 @@ const TINFO = [
   { c: '#5a9aa0', v: 5, slow: 0.6, map: '#b8ccc4', water: 1 },  // HOTWATER
   { c: '#8a847c', v: 9, map: '#8a7c6c' },                       // COBBLE (arnavut kaldırımı)
   { c: '#b8ac96', v: 5, map: '#a4967e' },                       // PAVE (kaldırım taşı)
+  { c: '#a09482', v: 9, map: '#8a7c68' },                       // GRAVEL (çakıl: gelişen kasabanın sokağı)
+  { c: '#4e4c4a', v: 4, map: '#6a6660' },                       // ASPHALT (asfalt: Asfalt döneminde şehir sokakları)
 ];
 const TPAL = TINFO.map(t => hexToRgb(t.c));
 /* Mevsim paletleri */
@@ -53,13 +55,14 @@ const SNOWC = hexToRgb('#e6ebf0'), SNOWM = hexToRgb('#d2dae0'), SNOWCL = hexToRg
 const SNOWABLE = new Uint8Array(32), LEAFY = new Uint8Array(32);
 const AUT = [], SUM = [];
 const isCliffT = t => t === T.CLIFF || t === T.MESA || t === T.SNOWCLIFF;
-[T.GRASS, T.DRY, T.FOREST, T.ROCK, T.FARM, T.SAND, T.MUD, T.TOWN, T.ROAD, T.CLIFF, T.SWAMP, T.DESERT, T.REDROCK, T.COBBLE, T.PAVE].forEach(t => (SNOWABLE[t] = 1));
+[T.GRASS, T.DRY, T.FOREST, T.ROCK, T.FARM, T.SAND, T.MUD, T.TOWN, T.ROAD, T.CLIFF, T.SWAMP, T.DESERT, T.REDROCK, T.COBBLE, T.PAVE, T.GRAVEL, T.ASPHALT].forEach(t => (SNOWABLE[t] = 1));
 [T.GRASS, T.DRY, T.FOREST, T.FARM].forEach(t => (LEAFY[t] = 1));
 const SEAS_VIVID = { aut: { GRASS: '#94883e', DRY: '#b89a52', FOREST: '#6e5a2c', FARM: '#8a6c34' }, sum: { GRASS: '#7a9040', DRY: '#bca45a', FOREST: '#4a6630', FARM: '#7a6a30' } };
 /* Doğal ton: gerçeğe yakın, daha az doygun zemin renkleri (zeytin yeşili çimen, kum beji çöl, gözü almayan kar) */
 const TONE_NAT = {
   DEEP: '#2e4a5a', WATER: '#436e78', SAND: '#d3c398', DESERT: '#d0a674', DRY: '#a99c62', GRASS: '#68874a', FOREST: '#45633a', SWAMP: '#4b5839', MUD: '#665138',
   ROCK: '#878075', CLIFF: '#5d554c', SNOW: '#d8dde2', ROAD: '#957c5a', TOWN: '#a28a66', FARM: '#6b6236', REDROCK: '#ac6b48', MESA: '#824d36', SNOWCLIFF: '#abb2ba', HOTWATER: '#589498',
+  GRAVEL: '#9a8f7e', ASPHALT: '#504e4b',
 };
 const SEAS_NAT = { aut: { GRASS: '#8e8446', DRY: '#b09856', FOREST: '#6a5934', FARM: '#826a38' }, sum: { GRASS: '#72894a', DRY: '#b2a05e', FOREST: '#4a6338', FARM: '#746834' } };
 /* Görüntü tonu: zemin paletini (mevsim renkleriyle birlikte) doğal ya da canlı seçer; çizilmiş chunk'lar yenilenmeli */
@@ -939,6 +942,40 @@ class World {
     const t = this.towns.find(tw => tw.id === lot.town);
     if (t) t._grid = null;
     this.refreshChunks();
+  }
+  /* Oyun sırasında değişen bir bölgeyi (karo dikdörtgeni, sınırlar dahil) yenile: çarpışma, binaların iç çarpışması,
+     kasabaların yol ızgarası, iki çizicinin parçaları, harita resmi ve ışık kovaları. Bütün dünyayı yeniden çizmez:
+     kasabaların gelişimi (js/devworld.js) görünmeyen bir kasabayı değiştirirken oyuncunun bulunduğu yer takılmaz. */
+  refreshArea(tx0, ty0, tx1, ty1) {
+    tx0 = Math.max(0, tx0); ty0 = Math.max(0, ty0); tx1 = Math.min(WW - 1, tx1); ty1 = Math.min(WH - 1, ty1);
+    for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
+      const i = y * WW + x;
+      this.solid[i] = (TINFO[this.tile[i]].solid || SOLID_O[this.obj[i]] || (this.flags[i] & 8)) ? 1 : 0;
+      if (this.solid[i] && TRUNK_O[this.obj[i]] && !TINFO[this.tile[i]].solid && !(this.flags[i] & 8)) this.solid[i] = 5;
+    }
+    for (const b of this.buildings) if (b.enter && b.x + b.w >= tx0 && b.x <= tx1 && b.y + b.h >= ty0 && b.y <= ty1) this.buildingSolid(b);
+    for (const t of this.towns) if (t.x <= tx1 && t.x + t.w >= tx0 && t.y <= ty1 && t.y + t.h >= ty0) t._grid = null;
+    this.invalidateRect(tx0 * TS - 64, ty0 * TS - 96, (tx1 + 1) * TS + 64, (ty1 + 1) * TS + 64);
+    this.mapPatch(tx0, ty0, tx1 - tx0 + 1, ty1 - ty0 + 1);
+    this._lN = -1;   // ışık kovaları yeniden kurulur (ışık eklendi ya da söndü)
+  }
+  /* Piksel dikdörtgenine değen parçaları sil (klasik parça 512, melez 256 px; melezin bina örtülerine dokunulmaz) */
+  invalidateRect(x0, y0, x1, y1) {
+    for (let y = Math.floor(y0 / 128) * 128; y <= y1; y += 128) for (let x = Math.floor(x0 / 128) * 128; x <= x1; x += 128) this.invalidateChunkAt(x, y, true);
+  }
+  /* Bina görünümü değişti (cephe, tahta perde): iki çizicinin örtüsü yeniden pişer */
+  buildingDirty(b) {
+    b.cover = null; b._hy = null;
+    this.invalidateChunkAt((b.x + b.w / 2) * TS, (b.y + b.h / 2) * TS, false);
+    this.invalidateChunkAt(b.x * TS - 40, b.y * TS - 70, true); this.invalidateChunkAt((b.x + b.w) * TS + 40, (b.y + b.h) * TS + 26, true);
+  }
+  /* Harita resminin bir parçasını yeniden çiz (karo dikdörtgeni); yakın harita parçaları da yenilenir */
+  mapPatch(tx0, ty0, tw, th) {
+    if (this._mapD) for (let ty = Math.floor(ty0 / MAPT); ty * MAPT < ty0 + th; ty++) for (let tx = Math.floor(tx0 / MAPT); tx * MAPT < tx0 + tw; tx++) { this._mapD.tiles.delete(ty * 64 + tx); this._mapD.jobs.delete(ty * 64 + tx); }
+    if (!this.mapCanvas || tw <= 0 || th <= 0) return;
+    const job = this.mapRegion(tx0, ty0, tw, th, 1);
+    let r; do r = job.next(); while (!r.done);
+    this.mapCanvas.getContext('2d').putImageData(r.value, tx0, ty0);
   }
   /* İç mekân yerleşimi: yerel karo koordinatları (0,0 sol üst; üst sıra arka duvar). Otelin kendi iki katlı planı
      vardır; diğer binalar INT_PLANS haritasından döşenir (zengin şehirde rich planı) */
@@ -2439,8 +2476,9 @@ class World {
     };
     // kabartma: bölgenin yükselti ızgarası; doğal zemin (yamaç ışığı alır) ve teras çizilebilen zemin
     const HY = !!rel, RG = this.reliefGrid(tx0 - 2, ty0 - 2, (PW >> 4) + 5, (PH >> 4) + 5);
-    const NAT = World.NATF || (World.NATF = new Uint8Array(TINFO.map((t, i) => (i === T.WATER || i === T.DEEP || i === T.HOTWATER || i === T.BRIDGE || i === T.PLANK || i === T.TOWN || i === T.COBBLE || i === T.PAVE ? 0 : 1))));
+    const NAT = World.NATF || (World.NATF = new Uint8Array(TINFO.map((t, i) => (i === T.WATER || i === T.DEEP || i === T.HOTWATER || i === T.BRIDGE || i === T.PLANK || i === T.TOWN || isStoneT(i) ? 0 : 1))));
     const TER = World.TERF || (World.TERF = new Uint8Array(TINFO.map((t, i) => (i === T.ROCK || i === T.REDROCK || i === T.SNOW ? 1 : 0))));
+    const CURB = World.CURBF || (World.CURBF = new Uint8Array(TINFO.map((t, i) => (i === T.COBBLE || i === T.ASPHALT || i === T.GRAVEL ? 1 : 0))));   // kaldırımın bordürü bu yollara bakar
     const CFACE = World.CFACE, TSTEP = 5, LX = -0.5, LY = -0.58, LZ = 0.64;
     // sinüs tablosu (1024 adım bir tur): katman ve teras dalgaları pikselde Math.sin çağırmaz
     const SIN = World.SIN || (World.SIN = Float32Array.from({ length: 1024 }, (_, i) => Math.sin(i * Math.PI / 512)));
@@ -2526,11 +2564,11 @@ class World {
           if (sy < 0) sy = 0; else if (sy > MAXP) sy = MAXP;
           t = tile[(sy >> 4) * WW + (sx >> 4)];
           if (t === T.BRIDGE || t === T.PLANK) t = base;
-          else if (base === T.COBBLE || base === T.PAVE || t === T.COBBLE || t === T.PAVE) t = base;   // taş döşemenin kenarı düz (bordür, çimen sınırı)
+          else if (base === T.COBBLE || base === T.PAVE || base === T.ASPHALT || t === T.COBBLE || t === T.PAVE || t === T.ASPHALT) t = base;   // taş döşemenin ve asfaltın kenarı düz (bordür, çimen sınırı)
         }
         const nc = nearCliff[ncRow + ((wx >> 4) - tx0) + 2];
         const mb = mrow + px;   // maskede bu piksel
-        if (nc && base !== T.BRIDGE && base !== T.PLANK && base !== T.COBBLE && base !== T.PAVE && MK[mb] !== CL[t] && MT[mb] !== 255) t = MT[mb];
+        if (nc && base !== T.BRIDGE && base !== T.PLANK && base !== T.COBBLE && base !== T.PAVE && base !== T.ASPHALT && MK[mb] !== CL[t] && MT[mb] !== 255) t = MT[mb];
         let col = TPAL[t];
         let v = DET[k] * TV[t];
         let mul = 1;
@@ -2610,7 +2648,20 @@ class World {
         } else if (t === T.FARM) { if ((wy & 3) === 0) mul = 0.8; }
         else if (t === T.PLANK) { if (wx % 5 === 0) mul = 0.75; if ((wy & 15) === 15) mul = 0.6; }
         else if (t === T.ROAD) { if ((wx + wy * 3) % 9 === 0) v -= 8; }
-        else if (t === T.COBBLE) {
+        else if (t === T.GRAVEL) {
+          // çakıl: sıkıştırılmış ince taş, yer yer iri çakıl ve tekerlek izi
+          const q = hash2(wx, wy, 47);
+          v = (q - 0.5) * 24 + DET[k] * 3;
+          if (q > 0.93) v += 14; else if (q < 0.06) mul = 0.82;
+          if (hash2(wx >> 1, wy >> 1, 48) > 0.9) v -= 9;
+        } else if (t === T.ASPHALT) {
+          // asfalt: koyu, düzgün; ince kum dokusu, yer yer yama; kaldırıma bakan kenarda bordür gölgesi
+          v = DET[k] * 2 + (hash2(wx, wy, 49) - 0.5) * 6;
+          if (hash2(wx >> 3, wy >> 3, 50) > 0.88) v -= 4;
+          const lx = wx & 15, ly = wy & 15, ti = rowT + (wx >> 4);
+          if ((ly <= 1 && tile[ti - WW] === T.PAVE) || (lx <= 0 && tile[ti - 1] === T.PAVE) || (lx >= 15 && tile[ti + 1] === T.PAVE)) mul = 0.7;
+          else if (ly >= 15 && tile[ti + WW] === T.PAVE) mul = 0.76;
+        } else if (t === T.COBBLE) {
           // arnavut kaldırımı: sıra sıra kaydırılmış küçük taşlar, aralarında koyu derz
           const row = (wy / 3) | 0, cxs = wx + (row & 1) * 2;
           if (wy % 3 === 0 || cxs % 4 === 0) mul = 0.74;
@@ -2626,7 +2677,7 @@ class World {
           else v = (hash2((wx + (((wy >> 3) & 1) << 2)) >> 3, wy >> 3, 29) - 0.5) * 10 + DET[k] * 2;
           // bordür: taşıt yoluna bakan kenarda iki piksellik açık renkli kesme taş
           const lx = wx & 15, ly = wy & 15, ti = rowT + (wx >> 4);
-          if ((ly >= 14 && tile[ti + WW] === T.COBBLE) || (ly <= 1 && tile[ti - WW] === T.COBBLE) || (lx >= 14 && tile[ti + 1] === T.COBBLE) || (lx <= 1 && tile[ti - 1] === T.COBBLE)) { mul = 1; v = 15 + DET[k] * 2; }
+          if ((ly >= 14 && CURB[tile[ti + WW]]) || (ly <= 1 && CURB[tile[ti - WW]]) || (lx >= 14 && CURB[tile[ti + 1]]) || (lx <= 1 && CURB[tile[ti - 1]])) { mul = 1; v = 15 + DET[k] * 2; }
         }
         // klasik: yamaçlar kuzeybatıdan gelen sabit ışıkla gölgelenir (melezde güneşe göre canlı). Teras basamağı ve yayla
         // kenarı da bulunduğu yamacın ışığını alır (yoksa gölgeli yamaçta basamak çevresinden açık kalıp parlak çizgi olurdu);

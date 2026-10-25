@@ -790,8 +790,8 @@ Object.assign(Audio_, {
     const t = W.tileAtPx(x, y);
     switch (t) {
       case T.GRASS: case T.FOREST: case T.FARM: return 'grass';
-      case T.SAND: case T.DESERT: return 'sand';
-      case T.ROCK: case T.CLIFF: case T.REDROCK: case T.MESA: case T.SNOWCLIFF: case T.COBBLE: case T.PAVE: return 'stone';
+      case T.SAND: case T.DESERT: case T.GRAVEL: return 'sand';
+      case T.ROCK: case T.CLIFF: case T.REDROCK: case T.MESA: case T.SNOWCLIFF: case T.COBBLE: case T.PAVE: case T.ASPHALT: return 'stone';
       case T.PLANK: case T.BRIDGE: return 'wood';
       case T.MUD: case T.SWAMP: return 'mud';
       case T.SNOW: return 'snow';

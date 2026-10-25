@@ -505,7 +505,7 @@ const GameSystems = {
     for (const o of this.ents) if (o.kind === 'npc' && o.isLaw && !o.dead && !o.remove) { const d = dist2(o.x, o.y, e.x, e.y); if (d < bd) { bd = d; best = o; } }
     if (best) return best;
     bd = 1500 * 1500;
-    for (const b of this.world.buildings) if (b.type === 'sheriff') { const d = dist2(b.door.x, b.door.y, e.x, e.y); if (d < bd) { bd = d; best = { x: b.door.x, y: b.door.y + 4, door: true }; } }
+    for (const b of this.world.buildings) if (b.type === 'sheriff' && !b.shut) { const d = dist2(b.door.x, b.door.y, e.x, e.y); if (d < bd) { bd = d; best = { x: b.door.x, y: b.door.y + 4, door: true }; } }
     return best;
   },
   deliverReport(r, by, tg) {
@@ -981,6 +981,7 @@ const GameSystems = {
     if (!this.dailyTalk[k]) { this.dailyTalk[k] = 1; if (chance(0.5)) { const tip = rnd(0.05, 0.3); setTimeout(() => this.earn(tip, Tr('Bahşiş')), tune.length * 230); } this.skillXp('charisma', 1); }
   },
   isOpen(b) {
+    if (b.shut) return false;   // kasaba gerilerken tahta perdeyle kapanan bina (js/devworld.js)
     if (['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn', 'cantina', 'gambling', 'warehouse', 'club'].includes(b.type)) return true;
     return !(this.hour < 6 || this.hour > 22);
   },
@@ -991,6 +992,7 @@ const GameSystems = {
     if (this.exitB === b) return true;
     const P = this.player;
     if (P) { const W = this.world, i = (P.y >> 4) * WW + (P.x >> 4); if (W.solid[i] === 3 && W.buildings[W.bid[i]] === b) return true; }   // tam kapı eşiğindeyken kapanırsa
+    if (b.shut) return false;
     if (b.type === 'property') return this.props.includes(b.prop);
     if (b.forced === this.day || b.picked === this.day) return true;
     if (b.home !== undefined) { const h = this.homeOf(b); return !!h && !h.sealed; }   // kendi yapın: mühürlenmediyse hep açık   // kırılan ya da maymuncukla açılan kapı o gün açık kalır
@@ -1427,7 +1429,7 @@ const GameSystems = {
   spawnTown(t) {
     t.spawned = true;
     t._res = null;
-    const sheriff = t.buildings.find(b => b.type === 'sheriff');
+    const sheriff = t.buildings.find(b => b.type === 'sheriff' && !b.shut);
     if (sheriff) for (let i = 0; i < 2; i++) {
       const x = sheriff.door.x + rnd(-30, 30), y = sheriff.door.y + 20;
       const law = new NPC(x, y, 'law', { home: { x, y, r: 200 } });
@@ -1436,7 +1438,7 @@ const GameSystems = {
     // romantik NPC
     const R = this.romances[t.id];
     if (R && !(this.family.spouse && this.family.spouse.id === R.id)) {
-      const b = pick(t.buildings.filter(b => b.type !== 'station'));
+      const bs = t.buildings.filter(b => b.type !== 'station' && !b.shut), b = bs.length ? pick(bs) : t.buildings[0];
       const npc = new NPC(b.door.x + 6, b.door.y + 12, 'romance', { look: R.look, name: R.name, home: { x: b.door.x, y: b.door.y + 16, r: 70 } });
       npc.town = t.id; npc.romId = R.id; this.addEnt(npc);
     }
@@ -1622,7 +1624,7 @@ const GameSystems = {
         } else if (!open && alive(b.staffNpc) && this.insideB !== b) { b.staffNpc.remove = true; b.staffNpc = null; }
       }
       // saloon müşterileri ve piyanist
-      if (b.type === 'saloon' || b.type === 'gambling' || b.type === 'cantina') {
+      if ((b.type === 'saloon' || b.type === 'gambling' || b.type === 'cantina') && !b.shut) {
         b.patrons = (b.patrons || []).filter(alive);
         const night = h >= 19 || h < 1;
         if (night && !alive(b.pianist) && b.piano) { const n = new NPC(b.piano.x, b.piano.y + 2, 'clerk', { state: 'sit' }); n.ang = -Math.PI / 2; n.town = t.id; n.name = Tr('Piyanist ') + n.name.split(' ')[0]; this.addEnt(n); b.pianist = n; }
@@ -1828,7 +1830,7 @@ const GameSystems = {
       // at sırtında şerif ofisinin kapısına gelince eyerdeki suçluyu teslim et
       const h = P.riding;
       if (h === this.horse && h.load.length) {
-        const off = W.buildings.find(b => b.type === 'sheriff' && dist2(b.door.x, b.door.y, P.x, P.y) < 60 * 60);
+        const off = W.buildings.find(b => b.type === 'sheriff' && !b.shut && dist2(b.door.x, b.door.y, P.x, P.y) < 60 * 60);
         if (off) for (const e of h.load) if (e.kind === 'npc') acts.push({ n: Tr`Şerife Teslim Et: ${e.name}`, fn: () => this.deliverToSheriff({ e, h }) });
       }
       this.bizRidingActions(acts);
@@ -1963,6 +1965,7 @@ const GameSystems = {
         continue;
       }
       if (this.doorOpen(b)) continue;
+      if (b.shut) { add(b.door.x, b.door.y, b.name, [{ n: Tr('Tahta Perdeli'), fn: () => UI.feed(Tr`${b.name} kapanmış; kapısına ve pencerelerine tahta çakılmış.`) }], 5); continue; }
       const pickA = P.has('lockpick') ? [{ n: Tr('Maymuncukla Aç'), fn: () => UI.openLockpick(b) }] : [];
       if (b.type === 'mansion') { add(b.door.x, b.door.y, b.name, [{ n: Tr('Malikaneyi İncele'), fn: () => UI.openMansion(b) }, ...pickA], 5); continue; }
       if (b.type === 'club') { add(b.door.x, b.door.y, b.name, [{ n: Tr('Kapı Görevlisiyle Konuş'), fn: () => UI.openClubJoin(b) }], 5); continue; }

@@ -330,6 +330,8 @@ const UI = {
     $('#fader-text').textContent = text || '';
     setTimeout(() => {
       try { fn(); } catch (e) { console.error(e); }
+      // ekran kararmışken kasabaların bekleyen gelişimi görünmeden uygulanır (js/devworld.js)
+      try { if (typeof G !== 'undefined' && G.dev && G.world) G.devFlush(true); } catch (e) { console.error(e); }
       setTimeout(() => { f.classList.remove('on'); this.state = null; }, quick ? 320 : 900);
     }, quick ? 280 : 600);
   },
@@ -705,7 +707,7 @@ const UI = {
       const b = W.buildings[bi];
       if (Math.abs(b.door.x - P.x) > 900 || Math.abs(b.door.y - P.y) > 900 || (xk > 0.5 && b.town)) continue;   // genişken kasaba adı yeterli
       const ic = BICON[b.type];
-      if (ic && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 15);
+      if (ic && !b.shut && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 15);
     }
     for (let pi = 0; pi < W.pois.length; pi++) {
       const p = W.pois[pi];
@@ -1006,7 +1008,7 @@ const UI = {
       c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, ly + 1);
       if (M.zoom > 1.8) {
         for (const l of t.lots || []) { const [lx, ly2] = toS((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS); c.fillStyle = 'rgba(40,90,40,0.85)'; c.beginPath(); c.arc(lx, ly2, 10, 0, TAU); c.fill(); c.fillStyle = '#efe6d2'; c.font = 'bold 13px serif'; c.fillText('$', lx, ly2 + 1); c.font = `${fs}px "IM Fell English SC", serif`; }
-        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 12, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (im.complete) c.drawImage(im, bx - 8.5, by - 8.5, 17, 17); }
+        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic || b.shut) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 12, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (im.complete) c.drawImage(im, bx - 8.5, by - 8.5, 17, 17); }
       }
     }
     // yerler

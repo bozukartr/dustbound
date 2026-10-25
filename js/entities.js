@@ -642,7 +642,7 @@ class Player extends Ent {
         Audio_.step(this.crouch ? 0.03 : this.sprinting ? 0.09 : 0.05);
         const t = G.world.tileAtPx(this.x, this.y);
         if (t === T.WATER || t === T.HOTWATER) G.parts.add('splash', this.x, this.y + 2, 0, 0, 0.5, 4);
-        else if ((t === T.DESERT || t === T.SAND || t === T.ROAD || t === T.DRY) && this.sprinting) G.parts.add('dust', this.x, this.y + 3, rnd(-5, 5), rnd(-5, 5), 0.6, 2);
+        else if ((t === T.DESERT || t === T.SAND || t === T.ROAD || t === T.DRY || t === T.GRAVEL) && this.sprinting) G.parts.add('dust', this.x, this.y + 3, rnd(-5, 5), rnd(-5, 5), 0.6, 2);
         if (t === T.MUD || t === T.SWAMP) this.clean = Math.max(0, this.clean - 0.3);
       }
     }
@@ -693,7 +693,7 @@ class Player extends Ent {
     else if (mv.m > 0.1 && h.spd < 90) h.brk = false;
     if (h.brk && mv.m <= 0.1 && h.spd < 25) { h.brk = false; if (Math.random() < 0.6) Juice.rear(h); }
     const t = G.world.tileAtPx(h.x, h.y);
-    const sl = (t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD || t === T.COBBLE || t === T.PAVE ? 1.05 : 1)) * (h.spd > 1 ? G.slopeMul(h.x, h.y, h.ang) : 1);
+    const sl = (t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD || isStoneT(t) ? 1.05 : 1)) * (h.spd > 1 ? G.slopeMul(h.x, h.y, h.ang) : 1);
     const vx = Math.cos(h.ang) * h.spd * sl * dt, vy = Math.sin(h.ang) * h.spd * sl * dt;
     const ox = h.x, oy = h.y;
     h.move(vx, vy);
