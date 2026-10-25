@@ -953,6 +953,14 @@ class World {
       this.solid[i] = (TINFO[this.tile[i]].solid || SOLID_O[this.obj[i]] || (this.flags[i] & 8)) ? 1 : 0;
       if (this.solid[i] && TRUNK_O[this.obj[i]] && !TINFO[this.tile[i]].solid && !(this.flags[i] & 8)) this.solid[i] = 5;
     }
+    // büyük nesneler (computeSolid'deki gibi; çevredekiler de bölgeye taşabilir)
+    for (let y = Math.max(1, ty0 - 3); y <= Math.min(WH - 2, ty1 + 3); y++) for (let x = Math.max(4, tx0 - 3); x <= Math.min(WW - 5, tx1 + 3); x++) {
+      const i = y * WW + x, o = this.obj[i];
+      if (o === O.SEQUOIA || o === O.WINDMILL) { for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) this.solid[i + yy * WW + xx] = 1; }
+      else if (o === O.SHIP) { for (let xx = -3; xx <= 3; xx++) this.solid[i + xx] = 1; }
+      else if (o === O.ARCH) { this.solid[i - 3] = this.solid[i + 3] = this.solid[i - 2] = this.solid[i + 2] = 1; this.solid[i] = 0; }
+      else if (o === O.WAGON) this.solid[i + 1] = 1;
+    }
     for (const b of this.buildings) if (b.enter && b.x + b.w >= tx0 && b.x <= tx1 && b.y + b.h >= ty0 && b.y <= ty1) this.buildingSolid(b);
     for (const t of this.towns) if (t.x <= tx1 && t.x + t.w >= tx0 && t.y <= ty1 && t.y + t.h >= ty0) t._grid = null;
     this.invalidateRect(tx0 * TS - 64, ty0 * TS - 96, (tx1 + 1) * TS + 64, (ty1 + 1) * TS + 64);

@@ -515,6 +515,8 @@ const DevWorldSystems = {
       const S = D.towns[t.id];
       if (S && S.ghost) this.devLights(t, true);
       if (S && S.pk === undefined) S.pk = Math.max(this.devV0(t), this.devVit(S));
+      // çarpışma (yeni binalar ve lambalar), harita resmi; sakinler ve yol ızgarası yeniden kurulur
+      if (D.ops.some(op => op[1] === t.id) || lv !== undefined) W.refreshArea(t.x - 3, t.y - 3, t.x + t.w + 3, t.y + t.h + 4);
       t._res = null; t._grid = null;
     }
     // görünür gelişimden önceki kayıt: kasabalar bugünkü durumlarına bir kerede getirilir
