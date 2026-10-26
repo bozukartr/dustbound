@@ -139,7 +139,7 @@ STORIES.outlaw = {
       steps: [
         { t: () => Tr('Atını ıslıkla çağır'), ev: 'whistle', hint: () => Tr`${Input.glyph('whistle')} ile atını çağır.` },
         { t: () => Tr('Atını fırçala'), ev: 'brush', at() { return this.horse; },
-          hint: () => Tr`Atının yanında ${Input.glyph('interact')} ile <b>Fırçala</b> (seçenekler arasında ${Input.glyph('deadeye')} ile gezinirsin). Bağ kurdukça atın daha uysal ve dayanıklı olur.` },
+          hint: () => Tr`Atının yanında ${Input.glyph('interact')} basılı tut ve <b>Fırçala</b>'yı seç. Bağ kurdukça atın daha uysal ve dayanıklı olur.` },
         { t: () => Tr('Atına bin'), how: 'mount', chk() { return this.player.riding && this.player.riding === this.horse; }, at() { return this.horse; },
           hint: () => Tr`Atına yaklaş ve ${Input.glyph('interact')} ile bin.`,
           done() { const R = this.story.ridePt; this.sullyGo(R.x + 20, R.y, true); } },

@@ -122,7 +122,7 @@ STORIES.immigrant = {
           ],
           done() { const p = this.sDoor(this.sBld('hotel')); if (p) this.sullyGo(p.x, p.y); } },
         { t: () => Tr('Kasabalıları selamla'), ev: 'greet', n: 2, ok: (e, S) => { if (!e || e.quest) return false; const g = S.greeted || (S.greeted = []); if (g.includes(e.id)) return false; g.push(e.id); return true; },
-          hint: () => Tr`Birine yaklaş ve ${Input.glyph('interact')} ile <b>Selamla</b>. Dil farklı olabilir ama selam evrenseldir.` },
+          hint: () => Tr`Birine yaklaş, ${Input.glyph('interact')} basılı tut ve <b>Selamla</b>. Dil farklı olabilir ama selam evrenseldir.` },
         { t: () => Tr('Greta\'nın pansiyonuna gir'), ev: 'enter', ok: (b) => b && b.type === 'hotel', at() { return this.sDoor(this.sBld('hotel'), 4); },
           hint: () => Tr`Otelin kapısından içeri yürü. Greta seni orada bekliyor.`,
           done() { const b = this.sBld('hotel'); if (b) { let iy = b.door.y; for (let k = 0; k < 40 && !this.world.buildingAtPx(b.door.x, iy); k++) iy -= 2; this.sullyGo(b.door.x - 10, iy - 12); } },

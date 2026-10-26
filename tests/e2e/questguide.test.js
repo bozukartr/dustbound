@@ -140,7 +140,7 @@ module.exports = {
       t.ok(r.sleep.length === 1 && /Sabaha Kadar/.test(r.sleep[0]), 'Sabaha Kadar parlar', r.sleep);
     });
 
-    await t.step('istem: kuyuda görev seçeneği (Matarayı Doldur) seçili gelir ve parlar', async () => {
+    await t.step('istem: kuyuda görev seçeneği "Seçenekler → Matarayı Doldur" diye yazar', async () => {
       const s = await go(1, 2);
       t.eq(s.t, 'Mataranı bir kuyudan doldur', 'matara adımı');
       const r = await p.evaluate(async () => {
@@ -150,14 +150,13 @@ module.exports = {
         for (const [dx, dy] of [[0, 14], [14, 0], [-14, 0], [0, -14], [0, 20], [20, 0], [-20, 0]]) { TH.goto(w.x + dx, w.y + dy); it = G.findInteraction(); if (it && it.actions.some(a => a.n === 'Matarayı Doldur')) break; }
         UI.curInteract = it; UI._scanT = 9;
         G.t += 1; UI.interactUpdate(0.016);
-        const html = UI.el.prompts.innerHTML, sel = it.actions[UI.optSel(it)].n, a0 = it.actions[0].n;
+        const html = UI.el.prompts.innerHTML;
         // görev başka bir şey isterken aynı yerde vurgu yok
         const keep = G.story; G.story = null; UI._pk = null; it._qgT = undefined; UI.curInteract = it; UI.interactUpdate(0.016);
         const plain = UI.el.prompts.innerHTML; G.story = keep;
-        return { found: !!it, html, plain, sel, a0 };
+        return { found: !!it, html, plain };
       });
       t.ok(r.found, 'kuyunun etkileşimi bulundu');
-      t.ok(r.sel === 'Matarayı Doldur' && r.a0 !== r.sel, 'görev seçeneği ilk eylem olmasa da seçili gelir', r);
       t.ok(/q-goal/.test(r.html) && /Matarayı Doldur/.test(r.html), 'istemde görev seçeneği yazar ve parlar', r.html);
       t.ok(!/q-goal/.test(r.plain), 'görev yokken istem parlamaz');
     });

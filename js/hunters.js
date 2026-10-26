@@ -86,7 +86,7 @@ const HunterSystems = {
         S.phase = 'standoff'; S.warnT = 11;
         const line = this.hunterLine('demand');
         lead.say(line, 5); UI.subtitle(lead.name + ' · ' + Tr('Ödül Avcısı'), line, 5);
-        this.hintOnce('hunters', Tr`Ödül avcıları seni sıkıştırdı. Onlara seslenirsin (at üstünden de): ${Input.glyph('interact')} basılı tutarak <b>teslim olabilir</b> ya da ${Input.glyph('deadeye')} ile <b>Parayla Kurtul</b>'a geçip ${Input.glyph('interact')} ile kurtulabilirsin. Kaçarsan, onlara nişan alırsan ya da beklersen ateş açarlar.`, 10);
+        this.hintOnce('hunters', Tr`Ödül avcıları seni sıkıştırdı. Onlara seslenirsin (at üstünden de): ${Input.glyph('interact')} basılı tutarak <b>teslim olabilir</b>, kısa basıp <b>parayla kurtulabilirsin</b>. Kaçarsan, onlara nişan alırsan ya da beklersen ateş açarlar.`, 10);
       } else if (S.t > 70) this.hunterFight();
       return;
     }

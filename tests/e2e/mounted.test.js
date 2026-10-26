@@ -1,5 +1,5 @@
 'use strict';
-/* At ve araba üstünde selamlaşma: eyerden yakındakini selamlamak (E yine indirir, Q ile selama geçilir), atlı birini ve
+/* At ve araba üstünde selamlaşma: eyerden yakındakini selamlamak (E'ye dokunmak yine indirir), atlı birini ve
    araba sürücüsünü yayayken selamlamak, sataşana eyerden karşılık vermek; dörtnala geçene selam verilmez,
    atla geçip gidene küsülmez */
 module.exports = {
@@ -18,46 +18,32 @@ module.exports = {
           return s;
         },
         npc(dx, dy, role = 'traveler', opts = {}) { const P = G.player, n = new NPC(P.x + dx, P.y + dy, role, Object.assign({ sex: 'm' }, opts)); n.state = 'idle'; n.t = 99; G.addEnt(n); return n; },
-        // istemde seçili satır (E tuşlu) ve öbür seçenekler
-        sel() { const e = document.querySelector('#prompts .prompt:not(.opt):not(.dim)'); return e ? e.querySelector('span:last-child').textContent : ''; },
-        opts() { return [...document.querySelectorAll('#prompts .prompt.opt')].map(e => e.textContent); },
       };
     });
 
-    await t.step('at üstünde yakındakini selamlarsın: E yine iner, Q ile selama geçilir (gerçek tuşlarla)', async () => {
+    await t.step('at üstünde yakındakini selamlarsın: E\'ye dokunmak yine iner, selam seçeneklerde ve istemde görünür', async () => {
       const r = await p.evaluate(() => {
         MT.rider();
-        const P = G.player, n = MT.npc(34, 0); n.update = function () {};
-        window.N1 = n;
+        const P = G.player, n = MT.npc(34, 0);
         const it = G.findInteraction(), names = it.actions.map(a => a.n);
+        const g = it.actions.find(a => a.n === 'Selamla: ' + n.name);
+        const day = n.greetDay;
+        if (g) g.fn();
+        UI.curInteract = it; UI.interactUpdate(0.016);
+        const prompt = document.getElementById('prompts').textContent;
         // uzaktaki biri (48 pikselden öte) seçeneklere girmez
         n.x = P.x + 70;
         const far = G.findInteraction().actions.map(a => a.n);
-        n.x = P.x + 34;
-        // kolda △ basılı tutunca açılan menü selamın üstünde açılır
+        // basılı tutunca açılan menü selamın üstünde açılır (kısa basış zaten indirir)
         UI.contextMenu(it); const focus = UI.top() && UI.top().focusEl ? UI.top().focusEl.textContent : ''; UI.closeAll();
-        return { a0: names[0], names, far, focus, name: n.name };
+        return { a0: names[0], names, greeted: n.greetDay === G.day && day !== G.day, riding: !!P.riding, peek: it.peek, prompt, far, focus };
       });
-      t.eq(r.a0, 'İn', 'ilk eylem inmek');
-      t.ok(r.names.includes('Selamla: ' + r.name), 'seçeneklerde Selamla: ad', r.names);
+      t.eq(r.a0, 'İn', 'E\'ye dokunmak yine indirir');
+      t.ok(r.names.some(n => /^Selamla: /.test(n)), 'seçeneklerde Selamla: ad', r.names);
+      t.ok(r.greeted && r.riding, 'eyerden selam verildi, oyuncu atta kaldı', r);
+      t.ok(/Seçenekler.*→ Selamla: /.test(r.prompt), 'istem seçeneklerin yanında selamı gösterir', r.prompt);
       t.eq(r.far, ['İn'], 'uzaktaki kişi seçeneklere girmez');
-      t.ok(/^Selamla: /.test(r.focus), 'kolda menü selamın üstünde açılır', r.focus);
-      await t.sleep(250);
-      const p0 = await p.evaluate(() => ({ sel: MT.sel(), opts: MT.opts(), text: document.getElementById('prompts').textContent }));
-      t.eq(p0.sel, 'İn', 'istemde İn seçili', p0);
-      t.ok(p0.opts.includes('Selamla: ' + r.name) && /Sonraki seçenek/.test(p0.text), 'istemde selam ve Q satırı', p0);
-      await p.keyboard.press('KeyQ'); await t.sleep(150);
-      const p1 = await p.evaluate(() => ({ sel: MT.sel(), modal: UI.isModal() }));
-      t.ok(p1.sel === 'Selamla: ' + r.name && !p1.modal, 'Q ile selam seçilir, menü açılmaz', p1);
-      await p.keyboard.press('KeyE'); await t.sleep(150);
-      const g = await p.evaluate(() => ({ greeted: N1.greetDay === G.day, riding: !!G.player.riding, sel: MT.sel() }));
-      t.ok(g.greeted && g.riding, 'E ile selam verildi, oyuncu atta kaldı', g);
-      // Q başa döner: E yine iner
-      await p.keyboard.press('KeyQ'); await t.sleep(150);
-      t.eq(await p.evaluate(() => MT.sel()), 'İn', 'Q döngüsü başa döner');
-      await p.keyboard.press('KeyE'); await t.sleep(600);
-      t.ok(await p.evaluate(() => !G.player.riding), 'İn seçiliyken E attan indirir');
-      await p.evaluate(() => TH.clearNpcs());
+      t.ok(/^Selamla: /.test(r.focus), 'menü selamın üstünde açılır', r.focus);
     });
 
     await t.step('sakin ata binmiş oyuncuyu selamlar; eyerden karşılık verilince küsmez', async () => {
@@ -139,7 +125,7 @@ module.exports = {
       t.eq(r.bn[0], 'Attan İndir', 'aranan atlıda önce eyerden çekmek', r.bn);
     });
 
-    await t.step('ilk eylemi basılı tutmalı hedefte Q ile öbür seçeneğe geçilir (aranan atlıyı selamlamak)', async () => {
+    await t.step('ilk eylemi basılı tutmalı hedefte kısa basınca seçenekler açılır (aranan atlıyı selamlamak)', async () => {
       await p.evaluate(() => {
         MT.rider(); const P = G.player; P.dismount(); P.ang = 0;
         G.horse.x = P.x - 200; G.horse.y = P.y;
@@ -147,16 +133,14 @@ module.exports = {
         window.BT = b;
       });
       await t.sleep(250);
-      const p0 = await p.evaluate(() => ({ sel: MT.sel(), opts: MT.opts() }));
-      t.ok(p0.sel === 'Attan İndir (basılı tut)' && p0.opts.includes('Selamla'), 'istem: basılı tutulan eylem seçili, selam seçeneklerde', p0);
-      // kısa basış basılı tutulan eylemi yapmaz, menü de açmaz
-      await p.keyboard.press('KeyE'); await t.sleep(200);
-      t.ok(await p.evaluate(() => !UI.isModal() && !!BT.mounted), 'kısa basış bir şey yapmaz');
-      await p.keyboard.press('KeyQ'); await t.sleep(150);
-      t.eq(await p.evaluate(() => MT.sel()), 'Selamla', 'Q ile selama geçilir');
-      await p.keyboard.press('KeyE'); await t.sleep(150);
+      const prompt = await p.evaluate(() => document.getElementById('prompts').textContent);
+      t.ok(/Attan İndir \(basılı tut\)/.test(prompt) && /Seçenekler \(kısa bas\)/.test(prompt), 'istem: basılı tut ve kısa bas', prompt);
+      await p.keyboard.press('KeyE'); await t.sleep(300);
+      const labels = await p.evaluate(() => TH.menuLabels());
+      t.ok(labels.includes('Selamla') && labels.includes('Attan İndir'), 'kısa basınca seçenekler açılır', labels);
+      await p.evaluate(() => TH.clickItem(/Selamla/)); await t.sleep(100);
       const r = await p.evaluate(() => { const o = { greeted: BT.greetDay === G.day, mounted: !!BT.mounted, crime: !!BT.assaulted, modal: UI.isModal() }; TH.clearNpcs(); return o; });
-      t.ok(r.greeted && r.mounted && !r.crime && !r.modal, 'selam verildi, atlı atında, suç yok', r);
+      t.ok(r.greeted && r.mounted && !r.crime && !r.modal, 'seçenekten selam verildi, atlı atında', r);
     });
 
     await t.step('tutuklamaya gelen kanun adamına at üstünden, uzaktan teslim olunur', async () => {

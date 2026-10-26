@@ -624,7 +624,7 @@ const G = {
         P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60);
         this.hintOnce('deadeye', Tr`Odak zamanı yavaşlatır. Çubuk bitince ya da nişanı bırakınca kapanır; ${I.glyph('deadeye')} ile erken kapatabilirsin.`, 7);
       }
-      else if (!P.aiming && UI.nextOpt()) {}   // nişan almadan: önündeki etkileşimin sıradaki seçeneği
+      else if (!P.aiming && UI.qAction()) {}   // nişan almadan, önünde biri varsa: kışkırt
       else if (!P.aiming && I.device === 'pad' && !this.binds_zoom()) this.quickZoom(0);   // kolda nişan almadan R3: piksel ölçeğini değiştir
       else if (!P.aiming) UI.feed(Tr('Odak için önce nişan al.'), 'warn');
     }
@@ -677,7 +677,7 @@ const G = {
     else if (P.riding) this.hintOnce('ride', Tr`${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
     else if (this.law.level > 0) this.hintOnce('law', Tr('Aranıyorsun! Radardaki kırmızı arama alanının dışına çık ve görünmeden bekle.'));
     else if (!this.world.townAt(P.x, P.y, 60) && this.hour >= 17) this.hintOnce('camp', P.has('bedroll') ? Tr`Akşam oluyor. Kasabadan uzaktaysan ${g('camp')} tuşunu basılı tutarak kamp kurabilirsin.` : Tr`Vahşi doğada kamp kurmak için bir <b>Uyku Tulumu</b> gerekir (genel mağazada ${fmtMoney(ITEMS.bedroll.p)}). Sonra ${g('camp')} tuşunu basılı tut.`, 10);
-    else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', Tr`Su kenarındasın. ${g('interact')} ile su iç; ${g('deadeye')} ile matara doldurma, yıkanma ve balık tutma seçeneklerine geç.`);
+    else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', Tr`Su kenarındasın. ${g('interact')} ile su iç; basılı tutarak matara doldurma, yıkanma ve balık tutma seçeneklerine ulaş.`);
   },
   /* Hızlı kullanımda ne kullanılacağı (tehlike kartı da gösterir): zehirliyken önce panzehir, sonra can, su,
      yiyecek, dayanıklılık. 'canteen': matara */

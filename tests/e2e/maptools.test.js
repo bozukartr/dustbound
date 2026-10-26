@@ -1,5 +1,5 @@
 'use strict';
-/* Harita araçları: açıklamadaki türü gizleyip gösterme (ayarda saklanır), adlandırılmış işaretler (Shift+tık ve Q;
+/* Harita araçları: açıklamadaki türü gizleyip gösterme (ayarda saklanır), adlandırılmış işaretler (Shift+tık;
    listede ve haritada görünür, tıklayınca hedef olur, sağ tıkla silinir, kayıtta saklanır), konum kartında hedefe
    yol uzunluğu ve tahmini süre */
 module.exports = {
@@ -64,11 +64,13 @@ module.exports = {
       t.ok(d.wp, 'işaret silinirken hedef kalır');
     });
 
-    await t.step('Q ile işaret (önerilen adla); işaretler kayıtta saklanır, yükleyince geri gelir', async () => {
+    await t.step('Q harita işareti koymaz; önerilen adla işaret kayıtta saklanır, yükleyince geri gelir', async () => {
       await p.mouse.move(600, 420);
       await p.keyboard.press('KeyQ'); await t.sleep(250);
+      t.ok(await p.evaluate(() => !document.querySelector('.ask-in') && G.pins.length === 0), 'Q ile işaret sorulmaz');
+      await p.keyboard.down('Shift'); await p.mouse.click(600, 420); await p.keyboard.up('Shift'); await t.sleep(250);
       await p.keyboard.press('Enter'); await t.sleep(250);
-      t.eq(await p.evaluate(() => G.pins.map(x => x.n)), ['İşaret 1'], 'Q ile önerilen adla işaret');
+      t.eq(await p.evaluate(() => G.pins.map(x => x.n)), ['İşaret 1'], 'önerilen adla işaret');
       await p.evaluate(() => { UI.closeAll(); G.saveGame(true); });
       await p.evaluate(() => { G.state = 'menu'; G.ents = []; G.pins = []; return G.loadGame(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 120000 });

@@ -1822,7 +1822,7 @@ const GameSystems = {
     // kanun adamı tutuklamaya geliyorsa: teslim ol (uzaktan, at üstünden de; atlı kanun adamı geniş daireler çizer)
     const cop = this.arrestingCop(130);
     if (cop) return { x: cop.x, y: cop.y, far: true, label: cop.name + Tr(' (Kanun)'), actions: [{ n: Tr('Teslim Ol'), hold: 0.7, fn: () => this.surrender(cop) }] };
-    // ödül avcıları sıkıştırdıysa en yakınına seslenilir (at üstünden de): E basılı tutunca teslim ol, Odak tuşuyla Parayla Kurtul
+    // ödül avcıları sıkıştırdıysa en yakınına seslenilir (at üstünden de): basılı tutunca teslim ol, kısa basınca seçenekler
     const hn = this.posseNear(240);
     if (hn) return { x: hn.x, y: hn.y, far: true, label: `${hn.name} · ${Tr('Ödül Avcısı')}`, actions: this.hunterActions(hn) };
     // omuzda yük varken etkileşim yalnızca yükle ilgilidir
@@ -1838,7 +1838,7 @@ const GameSystems = {
       }
       this.bizRidingActions(acts);
       // yakındaki biriyle (yaya, atlı ya da araba sürücüsü) eyerden selamlaşılır: E'ye dokunmak yine indirir,
-      // selam ve benzerleri seçeneklerde (Odak tuşuyla seçilir); kolda seçenekler menüsü onun üstünde açılır (peek)
+      // selam ve benzerleri seçeneklerde; istem ilkini seçeneklerin yanında gösterir, menü onun üstünde açılır (peek)
       const so = this.mountedSocial(), k = acts.length;
       if (so) for (const a of so.acts) acts.push(Object.assign({}, a, { n: a.n + ': ' + so.name }));
       // at sırtından kapı/tren vb. yok
@@ -1882,7 +1882,7 @@ const GameSystems = {
         if (e.dead) continue;
         if (e.hostile && e.aggro) continue;
         const acts = this.npcActions(e);
-        // barışçıl atlıya E'ye dokununca selam verilir; eyerden çekmek seçeneklerde
+        // barışçıl atlıya E'ye dokununca selam verilir; eyerden çekmek basılı tutunca açılan seçeneklerde
         if (acts.length > 1 && acts[0].pull && !e.hostile && !e.bountyId && e.role !== 'bandit' && e.role !== 'target') acts.push(acts.shift());
         if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)} <span class="dim">(${MOODS[this.moodOf(e.res)].n})</span>` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.servant ? `${e.name} · ${SERVANTS[e.servant].n}` : e.name, acts, 3);
       }
@@ -2065,7 +2065,7 @@ const GameSystems = {
       acts.push({ n: Tr('Hediye Ver'), fn: () => UI.openGift(e, R) });
       if (R.rel >= 80) acts.push({ n: Tr('Evlenme Teklif Et'), fn: () => this.propose(e, R) });
     }
-    if (e.role !== 'law') acts.push({ n: Tr('Kışkırt'), fn: () => this.antagonize(e) });
+    if (e.role !== 'law') acts.push({ n: Tr('Kışkırt'), q: 1, fn: () => this.antagonize(e) });   // q: Odak tuşunda (Q)
     if (P.aiming && P.isArmed && e.state !== 'robbed' && !e.robbed) acts.push({ n: Tr('Soy'), fn: () => this.robNpc(e) });
     return acts;
   },
