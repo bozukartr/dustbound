@@ -34,13 +34,16 @@ module.exports = {
         // uzaktaki biri (48 pikselden öte) seçeneklere girmez
         n.x = P.x + 70;
         const far = G.findInteraction().actions.map(a => a.n);
-        return { a0: names[0], names, greeted: n.greetDay === G.day && day !== G.day, riding: !!P.riding, peek: it.peek, prompt, far };
+        // basılı tutunca açılan menü selamın üstünde açılır (kısa basış zaten indirir)
+        UI.contextMenu(it); const focus = UI.top() && UI.top().focusEl ? UI.top().focusEl.textContent : ''; UI.closeAll();
+        return { a0: names[0], names, greeted: n.greetDay === G.day && day !== G.day, riding: !!P.riding, peek: it.peek, prompt, far, focus };
       });
       t.eq(r.a0, 'İn', 'E\'ye dokunmak yine indirir');
       t.ok(r.names.some(n => /^Selamla: /.test(n)), 'seçeneklerde Selamla: ad', r.names);
       t.ok(r.greeted && r.riding, 'eyerden selam verildi, oyuncu atta kaldı', r);
       t.ok(/Seçenekler.*→ Selamla: /.test(r.prompt), 'istem seçeneklerin yanında selamı gösterir', r.prompt);
       t.eq(r.far, ['İn'], 'uzaktaki kişi seçeneklere girmez');
+      t.ok(/^Selamla: /.test(r.focus), 'menü selamın üstünde açılır', r.focus);
     });
 
     await t.step('sakin ata binmiş oyuncuyu selamlar; eyerden karşılık verilince küsmez', async () => {

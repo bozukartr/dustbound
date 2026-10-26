@@ -1838,11 +1838,11 @@ const GameSystems = {
       }
       this.bizRidingActions(acts);
       // yakındaki biriyle (yaya, atlı ya da araba sürücüsü) eyerden selamlaşılır: E'ye dokunmak yine indirir,
-      // selam ve benzerleri seçeneklerde; istem ilkini seçeneklerin yanında gösterir
+      // selam ve benzerleri seçeneklerde; istem ilkini seçeneklerin yanında gösterir, menü onun üstünde açılır (peek)
       const so = this.mountedSocial(), k = acts.length;
       if (so) for (const a of so.acts) acts.push(Object.assign({}, a, { n: a.n + ': ' + so.name }));
       // at sırtından kapı/tren vb. yok
-      return { x: P.x, y: P.y, label: P.riding.name || Tr('At'), actions: acts, riding: true, peek: so ? acts[k].n : null };
+      return { x: P.x, y: P.y, label: P.riding.name || Tr('At'), actions: acts, riding: true, peek: so ? k : 0 };
     }
     // varlıklar
     for (const e of this.ents) {

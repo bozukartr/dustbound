@@ -602,7 +602,7 @@ const UI = {
       lines.push(`<div class="prompt-title">${shown.label}</div>`);
       lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}${gi === 0 ? ' q-goal' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
       // at üstünde yakında biri varsa seçeneklerin yanında onunla ilk eylem (ör. Selamla: Ad) görünür
-      if (opt) lines.push(gi > 0 ? `<div class="prompt q-goal">${I.glyph('interact')}<span>${opt} → <b>${shown.actions[gi].n}</b></span></div>` : `<div class="prompt dim">${I.glyph('interact')}<span>${opt}${shown.peek ? ' → ' + shown.peek : ''}</span></div>`);
+      if (opt) lines.push(gi > 0 ? `<div class="prompt q-goal">${I.glyph('interact')}<span>${opt} → <b>${shown.actions[gi].n}</b></span></div>` : `<div class="prompt dim">${I.glyph('interact')}<span>${opt}${shown.peek ? ' → ' + shown.actions[shown.peek].n : ''}</span></div>`);
       if (shown.alt) lines.push(`<div class="prompt${shown._qa ? ' q-goal' : ''}">${I.glyph('reload')}<span>${shown.alt.n}</span></div>`);
     }
     // nişan almayı henüz öğrenmediyse, ateşli silah elindeyken istemlerde hatırlatılır
@@ -621,9 +621,11 @@ const UI = {
     if (this._pk !== key) { this._pk = key; this.el.prompts.innerHTML = key; }
   },
   contextMenu(it) {
+    // peek: menü bu seçenekte açılır (at üstünde yakındakiyle ilk eylem); görevi ilerleten seçenek varsa o
+    const pi = it.peek && !it.actions.some(a => G.qGoal(a)) ? it.peek : -1;
     this.menu({
-      title: it.label, cls: 'context', items: it.actions.map(a => ({
-        label: a.n, qe: a.qe, qn: a.qn, fn: () => {
+      title: it.label, cls: 'context', items: it.actions.map((a, i) => ({
+        label: a.n, qe: a.qe, qn: a.qn, cls: i === pi ? 'pref' : '', fn: () => {
           this.pop();
           if (a.hold) { this.fade(() => a.fn(), ''); } else a.fn();
         },
