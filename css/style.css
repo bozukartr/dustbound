@@ -217,6 +217,8 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .prompt { display: flex; align-items: center; gap: 7px; padding: 5px 13px 5px 6px; font-size: 17px; background: linear-gradient(270deg, rgba(14, 9, 6, 0.9), rgba(14, 9, 6, 0.55)); border-right: 2px solid var(--brass); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); text-shadow: 0 1px 2px #000; }
 .prompt em { font-size: 13px; color: var(--dim); font-style: normal; }
 .prompt.dim { opacity: 0.82; font-size: 15px; border-right-color: rgba(201, 164, 92, 0.4); }
+/* seçili olmayan seçenekler: tuşsuz, ince satır (Odak tuşuyla seçilir) */
+.prompt.opt { margin-top: -2px; padding: 2px 13px 2px 6px; font-size: 15px; opacity: 0.75; background: linear-gradient(270deg, rgba(14, 9, 6, 0.75), rgba(14, 9, 6, 0.3)); border-right-color: rgba(201, 164, 92, 0.35); box-shadow: none; }
 .prompt.holding .btn { background: conic-gradient(#fff calc(var(--p) * 360deg), #181818 0); color: #111; }
 
 /* Altyazı: parlak zeminde de okunsun diye yumuşak koyu bant */

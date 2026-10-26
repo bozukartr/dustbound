@@ -558,51 +558,71 @@ const UI = {
   },
 
   /* ================= ETKİLEŞİM İSTEMLERİ ================= */
+  /* Seçenekler istemde alt alta durur: E seçili olanı yapar (basılı tutulan eylemde basılı tutulur), Odak tuşu
+     (Q, kolda R3) nişan almadan sıradakine geçer; menü açılmaz, oyun durmaz. Kolda △ basılı tutmak seçenekler
+     menüsünü de açar. Seçim adıyla tutulur (liste değişse de aynı eylem seçili kalır); hedef değişince ilk
+     eyleme, görevi ilerleten bir eylem varsa ona döner. */
+  optSel(it) {
+    if (!it) return 0;
+    if (it.label !== this._optLabel) { this._optLabel = it.label; this._optName = null; }
+    if (this._optName) { const i = it.actions.findIndex(a => a.n === this._optName); if (i >= 0) return i; }
+    return it._qg > 0 ? it._qg : 0;
+  },
+  /* Odak tuşuyla sıradaki seçenek; seçenekli bir hedef yoksa false (tuş Odak uyarısına ya da yakınlaştırmaya kalır) */
+  nextOpt() {
+    const it = this.curInteract;
+    if (!it || it.actions.length < 2 || this.holdTarget) return false;
+    this._optName = it.actions[(this.optSel(it) + 1) % it.actions.length].n;
+    Audio_.ui('move');
+    return true;
+  },
   interactUpdate(dt) {
-    const P = G.player, I = Input;
+    const P = G.player, I = Input, pad = I.device === 'pad';
     if (!I.down('interact') && !I.released('interact')) {
       this._scanT = (this._scanT || 0) - dt;
       if (this._scanT <= 0) { this.curInteract = G.findInteraction(); this._scanT = 0.1; }
     }
     const it = this.curInteract;
-    if (I.pressed('interact') && it) { this.holdTarget = it; this.holdT = 0; this.menuOpened = false; }
+    // görev rehberi: görevi ilerleten eylem (ve ikincil eylem) işaretlenir; seçim önce ona gelir
+    if (it && (it._qgT === undefined || G.t - it._qgT > 0.25)) { it._qgT = G.t; it._qg = G.qPromptGoal(it); it._qa = !!it.alt && G.qPromptGoal({ x: it.x, y: it.y, actions: [it.alt] }) === 0; }
+    if (I.pressed('interact') && it) { this.holdTarget = it; this.holdI = this.optSel(it); this.holdT = 0; this.menuOpened = false; }
     // ikincil eylem (ör. Omzuna Al) şarjör tuşunda
     if (it && it.alt && !this.holdTarget && I.pressed('reload')) { it.alt.fn(); this.curInteract = null; this._scanT = 0.05; }
     const tgt = this.holdTarget;
     let holdPct = 0;
     if (tgt) {
-      const a0 = tgt.actions[0];
-      const hasMenu = tgt.actions.length > 1 && !a0.hold;
+      const a = tgt.actions[this.holdI] || tgt.actions[0], many = tgt.actions.length > 1;
       // far: uzaktan seslenilen hedef (ör. bekleyişteki ödül avcısı, tutuklamaya gelen kanun adamı)
       if (!tgt.riding && !tgt.far && dist(P.x, P.y, tgt.x, tgt.y) > 48) this.holdTarget = null;
       else if (I.down('interact')) {
         this.holdT += dt;
-        if (a0.hold) {
-          holdPct = Math.min(1, this.holdT / a0.hold);
-          if (this.holdT >= a0.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a0.check || a0.check()) a0.fn(); else this.feed(Tr`Önce çömelerek (${I.glyph('crouch')}) sakince yaklaş.`, 'warn'); }
-        } else if (hasMenu && this.holdT > 0.35 && !this.menuOpened) {
+        if (a.hold) {
+          holdPct = Math.min(1, this.holdT / a.hold);
+          if (this.holdT >= a.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a.check || a.check()) a.fn(); else this.feed(Tr`Önce çömelerek (${I.glyph('crouch')}) sakince yaklaş.`, 'warn'); }
+        } else if (pad && many && this.holdT > 0.35 && !this.menuOpened) {
           this.menuOpened = true; this.holdTarget = null;
           this.contextMenu(tgt);
         }
       } else if (I.released('interact')) {
         this.holdTarget = null;
-        if (!a0.hold && !this.menuOpened) { a0.fn(); this.curInteract = null; this._scanT = 0.05; }
-        // ilk eylem basılı tutmalıysa kısa basış seçenekleri açar (ör. Teslim Ol basılı tutulur, Parayla Kurtul seçeneklerde)
-        else if (a0.hold && tgt.actions.length > 1 && this.holdT < 0.25) this.contextMenu(tgt);
+        if (!a.hold && !this.menuOpened) { a.fn(); this.curInteract = null; this._scanT = 0.05; }
+        // kolda basılı tutulan eylemde kısa basış seçenekler menüsünü açar
+        else if (pad && a.hold && many && this.holdT < 0.25) this.contextMenu(tgt);
       }
     }
     const lines = [];
     const shown = this.holdTarget || it;
     if (shown) {
-      const a0 = shown.actions[0];
-      const opt = shown.actions.length < 2 ? null : a0.hold ? Tr`Seçenekler <em>(kısa bas)</em>` : Tr`Seçenekler <em>(basılı tut)</em>`;
-      // görev rehberi: görevi ilerleten eylem işaretlenir; seçeneklerin içindeyse adı istemde yazar
-      if (shown._qgT === undefined || G.t - shown._qgT > 0.25) { shown._qgT = G.t; shown._qg = G.qPromptGoal(shown); shown._qa = !!shown.alt && G.qPromptGoal({ x: shown.x, y: shown.y, actions: [shown.alt] }) === 0; }
-      const gi = shown._qg;
+      const acts = shown.actions, n = acts.length, si = shown === this.holdTarget ? this.holdI : this.optSel(shown), gi = shown._qg;
       lines.push(`<div class="prompt-title">${shown.label}</div>`);
-      lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}${gi === 0 ? ' q-goal' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
-      // at üstünde yakında biri varsa seçeneklerin yanında onunla ilk eylem (ör. Selamla: Ad) görünür
-      if (opt) lines.push(gi > 0 ? `<div class="prompt q-goal">${I.glyph('interact')}<span>${opt} → <b>${shown.actions[gi].n}</b></span></div>` : `<div class="prompt dim">${I.glyph('interact')}<span>${opt}${shown.peek ? ' → ' + shown.actions[shown.peek].n : ''}</span></div>`);
+      // en çok beş seçenek görünür; seçili olan hep içinde
+      const W = 5, s0 = n <= W ? 0 : clamp(si - 2, 0, n - W);
+      for (let i = s0; i < Math.min(n, s0 + W); i++) {
+        const a = acts[i];
+        if (i === si) lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}${gi === i ? ' q-goal' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a.n}${a.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
+        else lines.push(`<div class="prompt opt${gi === i ? ' q-goal' : ''}"><span>${a.n}</span></div>`);
+      }
+      if (n > 1) lines.push(`<div class="prompt dim">${I.glyph('deadeye')}<span>${Tr('Sonraki seçenek')}${n > W ? ` <em>(${si + 1}/${n})</em>` : ''}</span></div>`);
       if (shown.alt) lines.push(`<div class="prompt${shown._qa ? ' q-goal' : ''}">${I.glyph('reload')}<span>${shown.alt.n}</span></div>`);
     }
     // nişan almayı henüz öğrenmediyse, ateşli silah elindeyken istemlerde hatırlatılır
@@ -620,9 +640,10 @@ const UI = {
     const key = lines.join('');
     if (this._pk !== key) { this._pk = key; this.el.prompts.innerHTML = key; }
   },
+  /* Kolda △ basılı tutunca açılan seçenekler menüsü: seçili seçenekte açılır (at üstünde, seçim değişmediyse
+     yakındakiyle ilk eylemde: peek) */
   contextMenu(it) {
-    // peek: menü bu seçenekte açılır (at üstünde yakındakiyle ilk eylem); görevi ilerleten seçenek varsa o
-    const pi = it.peek && !it.actions.some(a => G.qGoal(a)) ? it.peek : -1;
+    const si = this.optSel(it), pi = si > 0 ? si : it.peek || -1;
     this.menu({
       title: it.label, cls: 'context', items: it.actions.map((a, i) => ({
         label: a.n, qe: a.qe, qn: a.qn, cls: i === pi ? 'pref' : '', fn: () => {
@@ -1562,7 +1583,7 @@ const UI = {
         b: Tr`Sol alttaki halkalar <b>sağlık</b>, <b>dayanıklılık</b> ve <b>odak</b>; yanındaki çubuklar <b>açlık</b>, <b>susuzluk</b>, <b>uyku</b> ve <b>temizlik</b>.`,
         tips: [['meat', Tr`Acıkınca ${g('satchel')} Çanta'dan ye, ${g('quick')} ile hızlıca atıştır.`], ['drop', Tr('Matarandan iç, nehirden ya da kuyudan doldur.')], ['bed', Tr('Otelde, evinde ya da kamp kurup uyu.')], ['sun', Tr('Çölde bol su iç, karda kalın giyin.')]] },
       { ic: 'feet', t: Tr('Dolaş ve Keşfet'),
-        tips: [['feet', Tr`${g('moveUp')}${g('moveLeft')}${g('moveDown')}${g('moveRight')} yürü, ${g('sprint')} koş.`], ['talk', Tr`İnsanlara, kapılara ve eşyalara yaklaş: ${g('interact')} ile etkileş. Basılı tutunca başka seçenekler çıkar.`], ['horse', Tr`${g('whistle')} ile atını çağır, ${g('interact')} ile bin; dörtnala için ${g('sprint')}.`], ['map', Tr`${g('map')} Harita: kasabalar, yollar ve işaretlediğin yerler.`]] },
+        tips: [['feet', Tr`${g('moveUp')}${g('moveLeft')}${g('moveDown')}${g('moveRight')} yürü, ${g('sprint')} koş.`], ['talk', Tr`İnsanlara, kapılara ve eşyalara yaklaş: ${g('interact')} ile etkileş, ${g('deadeye')} ile öbür seçeneklere geç.`], ['horse', Tr`${g('whistle')} ile atını çağır, ${g('interact')} ile bin; dörtnala için ${g('sprint')}.`], ['map', Tr`${g('map')} Harita: kasabalar, yollar ve işaretlediğin yerler.`]] },
       { ic: 'coin', t: Tr('Para Kazan'),
         tips: [['fox', Tr('Avlan; postları ve etleri kasaba sat.')], ['pick', Tr('Madende, kerestecide, limanda ya da çiftlikte çalış.')], ['scroll', Tr('Şerif ofisindeki ödül ilanlarını takip et.')], ['bank', Tr('Kazancını bankaya yatır: ölürsen bankadaki para kaybolmaz.')], ['cards', Tr('Şansını saloonda pokerde dene... ama dikkat!')]] },
       { ic: 'talk', t: Tr('Kasaba Seni Hatırlar'),

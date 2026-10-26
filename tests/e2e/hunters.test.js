@@ -65,7 +65,7 @@ module.exports = {
       await p.evaluate(() => { G.posse.warnT = 0.2; });
       await p.waitForFunction(() => G.posse && G.posse.phase === 'fight', null, { timeout: 5000 });
     });
-    await t.step('at üstündeyken avcılara uzaktan seslenilir: kısa basınca seçenekler açılır, parayla kurtulunur', async () => {
+    await t.step('at üstündeyken avcılara uzaktan seslenilir: Q ile Parayla Kurtul seçilir, E ile ödenir', async () => {
       t.ok(await setup(80), 'grup çıkmalı');
       await p.waitForFunction(() => G.posse && G.posse.phase === 'standoff', null, { timeout: 30000 });
       const s = await p.evaluate(() => {
@@ -76,12 +76,12 @@ module.exports = {
       t.ok(s.d > 48, 'avcılar uzakta durur', s.d);
       t.ok(s.far && /Ödül Avcısı/.test(s.label) && s.acts[0] === 'Teslim Ol' && s.acts.some(a => /Parayla Kurtul/.test(a)), 'at üstünden avcıya seslenilir', s);
       await t.sleep(250);
+      const sel = () => p.evaluate(() => { const e = document.querySelector('#prompts .prompt:not(.opt):not(.dim)'); return e ? e.querySelector('span:last-child').textContent : ''; });
       const prompt = await p.evaluate(() => document.getElementById('prompts').textContent);
-      t.ok(/Teslim Ol \(basılı tut\)/.test(prompt) && /Seçenekler \(kısa bas\)/.test(prompt), 'istem: basılı tut ve kısa bas', prompt);
+      t.ok(await sel() === 'Teslim Ol (basılı tut)' && /Parayla Kurtul/.test(prompt) && /Sonraki seçenek/.test(prompt), 'istem: teslim seçili, parayla kurtulma seçeneklerde', prompt);
+      await p.keyboard.press('KeyQ'); await t.sleep(150);
+      t.ok(/^Parayla Kurtul/.test(await sel()), 'Q ile parayla kurtulma seçilir');
       await p.keyboard.press('KeyE'); await t.sleep(300);
-      const labels = await p.evaluate(() => TH.menuLabels());
-      t.ok(labels.some(x => /Parayla Kurtul/.test(x)) && labels.includes('Teslim Ol'), 'kısa basınca seçenekler açılır', labels);
-      await p.evaluate(() => TH.clickItem(/Parayla Kurtul/)); await t.sleep(300);
       const r = await p.evaluate(() => ({ phase: G.posse && G.posse.phase, riding: !!G.player.riding, modal: UI.isModal(), bounty: G.law.bounty }));
       t.eq(r.phase, 'leave', 'grup ayrılmalı'); t.ok(r.riding && !r.modal, 'oyuncu atta kalır, menü kapanır', r); t.eq(r.bounty, 80, 'ödül başında kalmalı');
     });
