@@ -1335,6 +1335,11 @@ const HY = (() => {
 
   /* ---------------- kare ---------------- */
   let FC = null, FG = null, fc = null, fg = null, TO = null, TOG = null, to = null, tog = null;
+  // yükseklik tamponunun (FG) içeriğini belirleyenler (kamera, görünen parçalar, taç deliği, örtüler) ve gölge geçişinin
+  // girdileri geçen kareyle aynıysa FG yüklenmez, gölge geçişi yeniden çizilmez (canlılar FG'ye çizilmez: duran sahnede
+  // GPU işinin büyük kısmı kalkar)
+  let SID = 0, lastFgk = '', lastShk = '', lastSun = null;
+  const sidOf = (o) => o.sid || (o.sid = ++SID);
   const stat = { frames: 0, ms: 0, built: 0, seg: {}, sync: 0 };   // sync: görünür olunca tek seferde pişen parça sayısı
   const seg = (k, t) => { stat.seg[k] = (stat.seg[k] || 0) * 0.9 + t * 0.1; };
   function frameCanvas(w, h) {
@@ -1363,6 +1368,7 @@ const HY = (() => {
     fc.setTransform(1, 0, 0, 1, 0, 0); fg.setTransform(1, 0, 0, 1, 0, 0);
     fc.fillStyle = '#2c4b5e'; fc.fillRect(0, 0, w2, h2); fg.fillStyle = 'rgb(0,124,124)'; fg.fillRect(0, 0, w2, h2);
     const NC = Math.ceil(WW * TS / HC), vis = [];
+    let fgk = x0 + ',' + y0 + ',' + w2 + ',' + h2;
     const ccx0 = Math.floor(x0 / HC), ccy0 = Math.floor(y0 / HC), ccx1 = Math.floor(x1 / HC), ccy1 = Math.floor(y1 / HC);
     // gereken alan (görünen + halka) önbelleğe her zaman sığar; geçen karede atılan parçaların tuvalleri artık kullanılabilir
     NEED[0] = ccx0 - 1; NEED[1] = ccy0 - 1; NEED[2] = ccx1 + 1; NEED[3] = ccy1 + 1;
@@ -1373,6 +1379,7 @@ const HY = (() => {
       const c = chunk(W, cx, cy, true), dx = (cx * HC - x0) * S, dy = (cy * HC - y0) * S;
       vis.push([c, dx, dy]);
       fc.drawImage(c.bc, dx, dy); fg.drawImage(c.bg, dx, dy);
+      fgk += ',' + sidOf(c);
     }
     // ileride gerekecek parçalar (hareket yönünde bir halka)
     for (let cy = ccy0 - 1; cy <= ccy1 + 1; cy++) for (let cx = ccx0 - 1; cx <= ccx1 + 1; cx++) if (cx >= 0 && cy >= 0 && cx < NC && cy < NC) chunk(W, cx, cy, false);
@@ -1487,6 +1494,7 @@ const HY = (() => {
       to.clearRect(0, 0, w2, h2); tog.clearRect(0, 0, w2, h2);
       for (const [c, dx, dy] of vis) if (c.oc) { to.drawImage(c.oc, dx, dy); tog.drawImage(c.og, dx, dy); }
       const px = (P.x - x0) * S, py = (P.y - y0 - 4) * S;
+      fgk += 'u' + px + ',' + py;
       for (const c of [to, tog]) { c.globalCompositeOperation = 'destination-out'; c.drawImage(G.holeSpr, px - 68, py - 68, 136, 136); c.globalCompositeOperation = 'source-over'; }
       fc.drawImage(TO, 0, 0); fg.drawImage(TOG, 0, 0);
     } else for (const [c, dx, dy] of vis) if (c.oc) { fc.drawImage(c.oc, dx, dy); fg.drawImage(c.og, dx, dy); }
@@ -1505,7 +1513,7 @@ const HY = (() => {
       if (b.coverA < 0.02) continue;
       const cv = cover(b, W);
       fc.globalAlpha = b.coverA; fg.globalAlpha = b.coverA > 0.5 ? 1 : 0;
-      fc.drawImage(cv.c, (cv.x - x0) * S, (cv.y - y0) * S); if (fg.globalAlpha) fg.drawImage(cv.g, (cv.x - x0) * S, (cv.y - y0) * S);
+      fc.drawImage(cv.c, (cv.x - x0) * S, (cv.y - y0) * S); if (fg.globalAlpha) { fg.drawImage(cv.g, (cv.x - x0) * S, (cv.y - y0) * S); fgk += ';' + sidOf(cv); }
     }
     fc.globalAlpha = 1; fg.globalAlpha = 1;
     fc.setTransform(S, 0, 0, S, -x0 * S, -y0 * S);
@@ -1515,10 +1523,12 @@ const HY = (() => {
 
     /* 5) WebGL ışık */
     if (glc.width !== w2 || glc.height !== h2) { glc.width = w2; glc.height = h2; }
-    if (RW !== w2 || RH !== h2) { RW = w2; RH = h2; lastVr = ''; rtL = rt(w2, h2, true, rtL); rtS = rt(w2 >> 1, h2 >> 1, false, rtS); rtA = rt(w2 >> 2, h2 >> 2, true, rtA); rtB = rt(w2 >> 2, h2 >> 2, true, rtB); }
+    if (RW !== w2 || RH !== h2) { RW = w2; RH = h2; lastVr = ''; lastFgk = ''; rtL = rt(w2, h2, true, rtL); rtS = rt(w2 >> 1, h2 >> 1, false, rtS); rtA = rt(w2 >> 2, h2 >> 2, true, rtA); rtB = rt(w2 >> 2, h2 >> 2, true, rtB); }
+    const fgSame = fgk === lastFgk;
+    lastFgk = fgk;
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texC); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FC);
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texG); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FG);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texG); if (!fgSame) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FG);
     // görünür alan: tuvalin kenar payı yalnızca dörtnala uzaklaşınca görünür, iç mekânda yakınlaşınca daha da azı;
     // ışık ve gölge geçişleri yalnızca görünen kısma (parlama için birkaç piksel payla) çizilir
     const scis = (k) => { if (vr) { gl.enable(gl.SCISSOR_TEST); gl.scissor(Math.floor(vr[0] / k), Math.floor(vr[1] / k), Math.ceil(vr[2] / k), Math.ceil(vr[3] / k)); } else gl.disable(gl.SCISSOR_TEST); };
@@ -1533,11 +1543,16 @@ const HY = (() => {
     // görünür alan değişince ışık tamponunun dışı karartılır: parlama bulanıklığı kenarda eski görüntüden beslenmez
     const vk = vr ? vr.join(',') : 'hepsi';
     if (vk !== lastVr) { lastVr = vk; gl.bindFramebuffer(gl.FRAMEBUFFER, rtL.fb); gl.disable(gl.SCISSOR_TEST); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
-    // güneş/ay gölgesi: dünya çözünürlüğünde (iki kat yoğun tuvalin yarısı), ana geçiş yüksekliğe duyarlı büyütür
-    gl.bindFramebuffer(gl.FRAMEBUFFER, rtS.fb); gl.viewport(0, 0, rtS.w, rtS.h); scis(2);
-    gl.useProgram(PS.p);
-    gl.uniform1i(PS.u.uG, 1); gl.uniform2f(PS.u.uRes, w2, h2); gl.uniform3fv(PS.u.uSun, S0.dir); gl.uniform1f(PS.u.uShQ, G.settings.fxq ? 1.6 : 1);
-    draw(PS);
+    // güneş/ay gölgesi: dünya çözünürlüğünde (iki kat yoğun tuvalin yarısı), ana geçiş yüksekliğe duyarlı büyütür. FG,
+    // görünen alan ve gölge kalitesi aynı, güneş de belirgin dönmediyse (en çok yarım dünya pikseli) önceki sonuç kalır
+    const shQ = G.settings.fxq ? 1.6 : 1, shKey = vk + '|' + shQ, D = S0.dir;
+    if (!fgSame || shKey !== lastShk || !lastSun || Math.abs(D[0] - lastSun[0]) + Math.abs(D[1] - lastSun[1]) + Math.abs(D[2] - lastSun[2]) > 0.004) {
+      lastShk = shKey; lastSun = D.slice(); stat.shadow = (stat.shadow || 0) + 1;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, rtS.fb); gl.viewport(0, 0, rtS.w, rtS.h); scis(2);
+      gl.useProgram(PS.p);
+      gl.uniform1i(PS.u.uG, 1); gl.uniform2f(PS.u.uRes, w2, h2); gl.uniform3fv(PS.u.uSun, D); gl.uniform1f(PS.u.uShQ, shQ);
+      draw(PS);
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, rtL.fb); gl.viewport(0, 0, w2, h2); scis(1);
     const u = PL.u; gl.useProgram(PL.p);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, rtS.t);
