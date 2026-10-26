@@ -22,9 +22,8 @@
       <div id="feed"></div>
 
       <div id="hud-tr">
-        <div id="hud-money">$0.00</div>
-        <div id="hud-clock"><span id="hud-env"></span><span id="hud-time">08:00</span><span id="hud-date"></span></div>
-        <div id="hud-age"></div>
+        <div id="hud-top"><div id="hud-clock"><span id="hud-env"></span><span id="hud-time">08:00</span></div><div id="hud-money">$0.00</div></div>
+        <div id="hud-sub"><span id="hud-date"></span><span id="hud-age"></span></div>
         <div id="hud-wanted" class="hidden">
           <div class="wanted-title" data-i18n="ARANIYOR">ARANIYOR</div>
           <div class="wanted-stars"></div>
@@ -38,26 +37,26 @@
         <div id="hud-quest" class="hidden"></div>
       </div>
 
-      <!-- Sol alt: pirinç kadranlı radar, çevresinde yay boyunca çekirdekler (sağda oyuncu, solda at), sağ altta ihtiyaçlar -->
+      <!-- Sol alt: pirinç kadranlı radar; yayında madalyonlar (sağ üstte oyuncu, sağ altta ihtiyaçlar, solda at), altta durum rozetleri -->
       <div id="hud-bl">
         <div id="radar-wrap">
           <canvas id="radar" width="448" height="448"></canvas>
         </div>
         <div id="cores">
-          <div class="core" id="core-hp"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="heart"></span></div>
-          <div class="core" id="core-sta"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="bolt"></span></div>
-          <div class="core" id="core-de"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="deadeye"></span></div>
+          <div class="core arc" id="core-hp"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="heart"></span></div>
+          <div class="core arc" id="core-sta"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="bolt"></span></div>
+          <div class="core arc" id="core-de"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="deadeye"></span></div>
         </div>
         <div id="horse-cores" class="hidden">
-          <div class="core small" id="core-hhp"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="horse"></span></div>
-          <div class="core small" id="core-hsta"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="bolt"></span></div>
+          <div class="core small arc" id="core-hhp"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="horse"></span></div>
+          <div class="core small arc" id="core-hsta"><div class="ring"></div><div class="fill"></div><span class="cic" data-g="bolt"></span></div>
         </div>
         <div id="status-icons"></div>
         <div id="needs">
-          <div class="need" id="need-hunger" data-i18n-title="Açlık"><span data-g="meat"></span><i></i></div>
-          <div class="need" id="need-thirst" data-i18n-title="Susuzluk"><span data-g="drop"></span><i></i></div>
-          <div class="need" id="need-energy" data-i18n-title="Uyku"><span data-g="moon"></span><i></i></div>
-          <div class="need" id="need-clean" data-i18n-title="Temizlik"><span data-g="soap"></span><i></i></div>
+          <div class="need arc" id="need-hunger" data-i18n-title="Açlık"><span data-g="meat"></span></div>
+          <div class="need arc" id="need-thirst" data-i18n-title="Susuzluk"><span data-g="drop"></span></div>
+          <div class="need arc" id="need-energy" data-i18n-title="Uyku"><span data-g="moon"></span></div>
+          <div class="need arc" id="need-clean" data-i18n-title="Temizlik"><span data-g="soap"></span></div>
         </div>
         <div id="hud-xinfo"></div>
       </div>

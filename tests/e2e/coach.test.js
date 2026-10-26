@@ -1,6 +1,6 @@
 'use strict';
 /* İlk oyuncu geri bildirimi: Tab çarkı ve sağ tık nişan fark edilmiyordu, sesler sert ve yüksekti.
-   - silah kartında çark tuşu yazar, çark hiç açılmadıysa kart parlar; yeni silahta ortada çark ipucu
+   - silah kartında çark tuşu çark öğrenilene dek yazar, çark hiç açılmadıysa kart parlar; yeni silahta ortada çark ipucu
    - nişansız ateşte nişan ipucu, istemlerde "Nişan Al"; öğrenilince ikisi de kalıcı olarak susar
    - ses: yeni varsayılan seviyeler, eski varsayılanların bir kez taşınması, miks sırası (yağmur silahtan alçak) */
 module.exports = {
@@ -12,8 +12,8 @@ module.exports = {
 
     await t.step('silah kartında çark tuşu; çark hiç açılmadıysa kart parlar', async () => {
       await t.sleep(400);
-      const r = await p.evaluate(() => ({ key: document.getElementById('w-key').textContent, learn: document.getElementById('weapon-hud').classList.contains('learn'), n: G.player.weapons.size }));
-      t.ok(/Tab/.test(r.key) && /Çark/.test(r.key), 'çark tuşu yazıyor', r);
+      const r = await p.evaluate(() => ({ key: document.getElementById('w-key').textContent, shown: getComputedStyle(document.getElementById('w-key')).display !== 'none', learn: document.getElementById('weapon-hud').classList.contains('learn'), n: G.player.weapons.size }));
+      t.ok(/Tab/.test(r.key) && /Çark/.test(r.key) && r.shown, 'çark tuşu yazıyor', r);
       t.ok(r.n > 1 && r.learn, 'kart parlıyor', r);
     });
 
@@ -29,9 +29,10 @@ module.exports = {
         for (let k = 0; k < 2; k++) { UI.openWheel(); UI.closeWheel(); }
         await new Promise(r => setTimeout(r, 300));
         UI._coachT = {};
-        return { learned: UI.coachLearned('wheel'), again: UI.coachWheel(), show: document.getElementById('coach').classList.contains('show'), learn: document.getElementById('weapon-hud').classList.contains('learn'), saved: JSON.parse(Platform.get(SET_KEY) || '{}').coach };
+        return { learned: UI.coachLearned('wheel'), again: UI.coachWheel(), show: document.getElementById('coach').classList.contains('show'), learn: document.getElementById('weapon-hud').classList.contains('learn'), key: getComputedStyle(document.getElementById('w-key')).display, saved: JSON.parse(Platform.get(SET_KEY) || '{}').coach };
       });
       t.ok(r.learned && r.again === false && !r.show && !r.learn, 'çark öğrenildi', r);
+      t.eq(r.key, 'none', 'silah kartındaki çark tuşu artık yazmaz (kart küçülür)');
       t.ok(r.saved && r.saved.wheel >= 2, 'ayarlarla saklandı', r.saved);
     });
 

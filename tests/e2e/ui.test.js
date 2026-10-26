@@ -6,45 +6,62 @@ module.exports = {
   async run(t) {
     const p = await t.newGame();
 
-    await t.step('HUD gösterge kümesi: madalyonlar, at, durum ve ihtiyaçlar birbirine binmez', async () => {
+    await t.step('HUD gösterge kümesi: madalyonlar, at, durum ve ihtiyaç halkaları kadranın yayında, birbirine binmez, küme derli toplu', async () => {
       const r = await p.evaluate(() => {
         UI.closeAll();
-        const P = G.player, h = G.horse; h.x = P.x + 20; h.y = P.y; P.crouch = true; G.coldness = 0.3; UI.hudUpdate();
-        const ids = ['radar', 'core-hp', 'core-sta', 'core-de', 'core-hhp', 'core-hsta', 'status-icons', 'needs'];
+        const P = G.player, h = G.horse; h.x = P.x + 20; h.y = P.y; P.crouch = true; G.coldness = 0.3; G.settings.meters = 1; UI.hudUpdate();
+        const sats = ['core-hp', 'core-sta', 'core-de', 'core-hhp', 'core-hsta', 'need-hunger', 'need-thirst', 'need-energy', 'need-clean'];
+        const ids = ['radar', ...sats, 'status-icons'];
         const R = ids.map(id => { const b = document.getElementById(id).getBoundingClientRect(); return { id, l: b.left, t: b.top, r: b.right, b: b.bottom }; });
         const hit = [];
+        const ra = R[0], rx = (ra.l + ra.r) / 2, ry = (ra.t + ra.b) / 2, rr = (ra.r - ra.l) / 2;
         for (let i = 0; i < R.length; i++) for (let j = i + 1; j < R.length; j++) {
           const a = R[i], c = R[j];
           // madalyonlar daire: kutu kesişimini biraz pay bırakarak ölç
           if (a.l < c.r - 3 && c.l < a.r - 3 && a.t < c.b - 3 && c.t < a.b - 3) {
-            if (a.id === 'radar' && c.id.startsWith('core')) { const cx = (c.l + c.r) / 2, cy = (c.t + c.b) / 2, rx = (a.l + a.r) / 2, ry = (a.t + a.b) / 2; if (Math.hypot(cx - rx, cy - ry) > (a.r - a.l) / 2 + (c.r - c.l) / 2 - 3) continue; }
+            if (a.id === 'radar' && sats.includes(c.id)) { const cx = (c.l + c.r) / 2, cy = (c.t + c.b) / 2; if (Math.hypot(cx - rx, cy - ry) > rr + (c.r - c.l) / 2 - 3) continue; }
             hit.push(a.id + '×' + c.id);
           }
         }
-        P.crouch = false; G.coldness = 0;
-        return { hit, horse: !document.getElementById('horse-cores').classList.contains('hidden'), st: document.querySelectorAll('#status-icons span').length, radar: [document.getElementById('radar').width, document.getElementById('radar').getBoundingClientRect().width] };
+        // her madalyon kadranın kenarına yakın: merkeze uzaklığı, kadran ve kendi yarıçapının toplamını en çok 12 piksel aşar
+        const far = R.slice(1, 1 + sats.length).filter(c => Math.hypot((c.l + c.r) / 2 - rx, (c.t + c.b) / 2 - ry) - rr - (c.r - c.l) / 2 > 12).map(c => c.id);
+        // kümenin kapladığı alan
+        const all = R.filter(c => c.r > c.l), box = { w: Math.max(...all.map(c => c.r)) - Math.min(...all.map(c => c.l)), h: Math.max(...all.map(c => c.b)) - Math.min(...all.map(c => c.t)) };
+        P.crouch = false; G.coldness = 0; G.settings.meters = 0;
+        return { hit, far, box, hs: +getComputedStyle(document.documentElement).getPropertyValue('--hs'), horse: !document.getElementById('horse-cores').classList.contains('hidden'), st: document.querySelectorAll('#status-icons span').length, radar: [document.getElementById('radar').width, document.getElementById('radar').getBoundingClientRect().width] };
       });
       t.eq(r.hit, [], 'çakışma yok');
+      t.eq(r.far, [], 'madalyonlar kadranın yayında');
+      t.ok(r.box.w / r.hs < 340 && r.box.h / r.hs < 265, 'küme derli toplu', r.box);
       t.ok(r.horse && r.st >= 2, 'at madalyonları ve durum rozetleri görünür', r);
       t.ok(r.radar[0] >= r.radar[1] * 1.8, 'radar iki kat çözünürlükte çizilir', r.radar);
     });
 
-    await t.step('genişletilmiş HUD: madalyonlar yayı izler, bilgi paneli açılır', async () => {
-      const a = await p.evaluate(() => document.getElementById('core-hp').getBoundingClientRect().left);
+    await t.step('genişletilmiş HUD: madalyonlar ve ihtiyaç halkaları yayı izler, bilgi paneli (adla) açılır', async () => {
+      const pos = () => p.evaluate(() => ['core-hp', 'need-clean'].map(id => document.getElementById(id).getBoundingClientRect().left));
+      const a = await pos();
       await p.evaluate(() => UI.expandHud());
       await t.sleep(700);
-      const r = await p.evaluate(() => ({ x: document.getElementById('hud').classList.contains('hud-x'), l: document.getElementById('core-hp').getBoundingClientRect().left, info: document.getElementById('hud-xinfo').textContent.length }));
-      t.ok(r.x && r.l > a + 20 && r.info > 10, 'genişledi', { a, r });
+      const l = await pos();
+      const r = await p.evaluate(() => ({ x: document.getElementById('hud').classList.contains('hud-x'), info: document.getElementById('hud-xinfo').textContent, name: G.player.name }));
+      t.ok(r.x && l[0] > a[0] + 20 && l[1] > a[1] + 20 && r.info.length > 10, 'genişledi', { a, l, r });
+      t.ok(r.info.includes(r.name) && /yaşında/.test(r.info), 'bilgi panelinde ad ve yaş', r.info);
       await p.evaluate(() => UI.expandHud());
     });
 
-    await t.step('sağ üst: hava rozeti ve sıcaklık; soğukta mavi', async () => {
+    await t.step('sağ üst: saat ve para tek satırda, altında tarih ve yaş; hava rozeti ve sıcaklık, soğukta mavi', async () => {
       const r = await p.evaluate(() => {
+        UI.hudUpdate();
+        const b = id => document.getElementById(id).getBoundingClientRect(), mid = e => (e.top + e.bottom) / 2;
+        const row = Math.abs(mid(b('hud-time')) - mid(b('hud-money'))), order = b('hud-time').right < b('hud-money').left;
+        const sub = document.getElementById('hud-sub').textContent, below = b('hud-sub').top >= b('hud-money').bottom - 2;
         G.coldness = 0.4; UI.hudUpdate();
         const e = document.getElementById('hud-env'), cold = e.classList.contains('cold'), txt = e.textContent, svg = !!e.querySelector('svg');
         G.coldness = 0; UI.hudUpdate();
-        return { cold, txt, svg, after: e.classList.contains('cold') };
+        return { row, order, sub, below, date: G.dateStr(), name: G.player.name, cold, txt, svg, after: e.classList.contains('cold') };
       });
+      t.ok(r.row < 6 && r.order, 'saat ve para aynı satırda, para sağda', r);
+      t.ok(r.below && r.sub.includes(r.date) && /\d+ yaşında/.test(r.sub) && !r.sub.includes(r.name), 'alt satırda tarih ve yaş (ad yok)', r);
       t.ok(r.svg && /°/.test(r.txt), 'simge ve derece', r); t.ok(r.cold && !r.after, 'soğukta işaretlenir', r);
     });
 
@@ -57,6 +74,25 @@ module.exports = {
         return out;
       });
       t.eq([r.n, r.full], [6, 4], 'altı yuva, dördü dolu'); t.ok(/4/.test(r.ammo) && /12/.test(r.ammo), 'sayı', r.ammo); t.eq(r.fist, 0, 'yumrukta pip yok');
+    });
+
+    await t.step('istemler başlığıyla tek panelde: tuşlar bir sütunda, eylem adları aynı hizada başlar', async () => {
+      await p.evaluate(() => {
+        UI.closeAll(); G.eventT = 1e9; G.travelT = 1e9;
+        const s = TH.openSpot(); TH.goto(s[0], s[1]); TH.clearNpcs();
+        const P = G.player, n = new NPC(P.x + 16, P.y, 'town', { sex: 'f' });
+        n.state = 'idle'; n.update = function () {}; G.addEnt(n); P.ang = 0; P.aiming = false;
+        P.giveWeapon('cattleman', true); P.weapon = 'cattleman'; P.clip.cattleman = 6;
+      });
+      await t.sleep(400);
+      const r = await p.evaluate(() => {
+        const box = document.getElementById('prompts').getBoundingClientRect();
+        const rows = [...document.querySelectorAll('#prompts .prompt')].map(e => { const k = e.querySelector('.btn').getBoundingClientRect(), s = e.querySelector('span:last-child').getBoundingClientRect(); return { k: Math.round(k.right), s: Math.round(s.left), in: s.right <= box.right + 1 && k.left >= box.left - 1, txt: e.textContent }; });
+        const title = document.querySelector('#prompts .prompt-title').getBoundingClientRect();
+        return { rows, panel: getComputedStyle(document.getElementById('prompts')).backgroundImage !== 'none', titleTop: title.top <= Math.min(...[...document.querySelectorAll('#prompts .prompt')].map(e => e.getBoundingClientRect().top)) };
+      });
+      t.ok(r.rows.length >= 2 && r.panel && r.titleTop, 'başlık üstte, satırlar tek panelde', r);
+      t.ok(new Set(r.rows.map(x => x.s)).size === 1 && new Set(r.rows.map(x => x.k)).size === 1 && r.rows.every(x => x.in), 'tuşların sağ kenarı ve eylem adlarının sol kenarı hizalı', r.rows);
     });
 
     await t.step('duyurular sıraya girer: ekranda en fazla iki, aynısı tekrarlanmaz', async () => {
