@@ -28,7 +28,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, gfx: 0, gpu: 0 },
+  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, mapHide: [], gfx: 0, gpu: 0 },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0, dev: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
 
@@ -48,7 +48,7 @@ const G = {
     this.campCleared = {}; this.chestsOpened = {}; this.graves = {}; this.dailyTalk = {}; this.robbed = {}; this.lostItems = []; this.events = [];
     this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
-    this.waypoint = null; this.gps = null; this.camp = null; this.horse = null; this.hideout = null;
+    this.waypoint = null; this.gps = null; this.camp = null; this.horse = null; this.hideout = null; this.pins = [];
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
     this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
@@ -315,7 +315,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), dev: this.saveDev(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, pins: this.pins, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), dev: this.saveDev(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -398,7 +398,7 @@ const G = {
     this.props = d.props || []; this.family = d.family || { spouse: null, children: [] }; this.romances = d.romances || {}; this.stable = d.stable || [];
     this.campCleared = d.campCleared || {}; this.robbed = d.robbed || {}; this.chestsOpened = d.chestsOpened || {}; this.graves = d.graves || {}; this.treasure = d.treasure; this.activeBounty = d.activeBounty; this.stash = d.stash || {};
     if (this.activeBounty) this.activeBounty.spawned = false;
-    this.hints = d.hints || {}; this.resMem = d.resMem || {}; this.debugUsed = !!d.debugUsed; this.playtime = d.playtime || 0;
+    this.hints = d.hints || {}; this.pins = Array.isArray(d.pins) ? d.pins.filter(p => p && isFinite(p.x) && isFinite(p.y)).slice(0, MAP_PINS) : []; this.resMem = d.resMem || {}; this.debugUsed = !!d.debugUsed; this.playtime = d.playtime || 0;
     this.world.harvested = new Map(d.harvested || []);
     for (const b of this.world.buildings) if (b.prop && this.props.includes(b.prop)) b.owned = true;
     const bin = atob(d.reveal);
@@ -624,6 +624,7 @@ const G = {
         P.deadeye = true; this.stat('deadeyes', 1); Audio_.tone(120, 0.6, 'sine', 0.15, null, 0, 60);
         this.hintOnce('deadeye', Tr`Odak zamanı yavaşlatır. Çubuk bitince ya da nişanı bırakınca kapanır; ${I.glyph('deadeye')} ile erken kapatabilirsin.`, 7);
       }
+      else if (!P.aiming && UI.qAction()) {}   // nişan almadan, önünde biri varsa: kışkırt
       else if (!P.aiming && I.device === 'pad' && !this.binds_zoom()) this.quickZoom(0);   // kolda nişan almadan R3: piksel ölçeğini değiştir
       else if (!P.aiming) UI.feed(Tr('Odak için önce nişan al.'), 'warn');
     }

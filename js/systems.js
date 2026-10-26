@@ -1784,9 +1784,9 @@ const GameSystems = {
     if (e.bumps === 2) UI.feed(e.isLaw ? Tr('⚠ Kanun adamı uyardı: bir daha çarparsan saldırı sayılır.') : Tr('⚠ Uyarıldın: bir daha çarparsan saldırı sayılır.'), 'warn');
     return true;
   },
-  setWaypoint(x, y) {
+  setWaypoint(x, y, n) {
     if (x === null) { this.waypoint = null; this.gps = null; return; }
-    this.waypoint = { x, y };
+    this.waypoint = n ? { x, y, n } : { x, y };   // n: yerin adı (haritadaki kartta yazar)
     this.computeGps();
     Audio_.ui('ok');
   },
@@ -2065,7 +2065,7 @@ const GameSystems = {
       acts.push({ n: Tr('Hediye Ver'), fn: () => UI.openGift(e, R) });
       if (R.rel >= 80) acts.push({ n: Tr('Evlenme Teklif Et'), fn: () => this.propose(e, R) });
     }
-    if (e.role !== 'law') acts.push({ n: Tr('Kışkırt'), fn: () => this.antagonize(e) });
+    if (e.role !== 'law') acts.push({ n: Tr('Kışkırt'), q: 1, fn: () => this.antagonize(e) });   // q: Odak tuşunda (Q)
     if (P.aiming && P.isArmed && e.state !== 'robbed' && !e.robbed) acts.push({ n: Tr('Soy'), fn: () => this.robNpc(e) });
     return acts;
   },

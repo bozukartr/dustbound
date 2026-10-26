@@ -80,7 +80,7 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .core { position: absolute; width: 44px; height: 44px; border-radius: 50%; --v: 1; --c: 1;
   background: conic-gradient(#f4eedf calc(var(--v) * 360deg), rgba(22, 15, 10, 0.88) 0);
   box-shadow: 0 0 0 1.5px #160f09, 0 0 0 3px rgba(201, 164, 92, 0.9), 0 0 0 4px rgba(22, 15, 10, 0.7), 0 4px 10px rgba(0, 0, 0, 0.55);
-  transition: left 0.35s ease, top 0.35s ease; }
+  transition: left 0.35s ease, top 0.35s ease, opacity 0.45s ease; }
 .core .fill { position: absolute; inset: 4px; border-radius: 50%; background: linear-gradient(to top, #d8cbab calc(var(--c) * 100%), #1d150f calc(var(--c) * 100%)); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.65); }
 .core .cic { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; filter: drop-shadow(0 0 1px rgba(246, 240, 226, 0.95)) drop-shadow(0 0 0.5px rgba(246, 240, 226, 0.9)); }
 .core.low { animation: corelow 0.8s infinite; }
@@ -96,11 +96,13 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 #status-icons span { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 40% 35%, rgba(46, 33, 22, 0.95), rgba(16, 11, 7, 0.95)); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.6), 0 2px 5px rgba(0, 0, 0, 0.5); }
 #hud.hud-x #status-icons { transform: translateX(62px); }
 /* ihtiyaçlar: açlık, susuzluk, uyku, temizlik */
-#needs { position: absolute; left: 234px; top: 228px; display: grid; grid-template-columns: auto auto; gap: 10px 14px; transition: transform 0.35s ease; }
+#needs { position: absolute; left: 234px; top: 228px; display: grid; grid-template-columns: auto auto; gap: 10px 12px; transition: transform 0.35s ease; }
 #hud.hud-x #needs { transform: translateX(46px); }
-.need { display: flex; align-items: center; gap: 6px; --v: 1; }
-.need span { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
-.need i { display: block; width: 50px; height: 7px; border-radius: 4px; background: linear-gradient(90deg, #efe8d8 calc(var(--v) * 100%), rgba(16, 11, 8, 0.85) calc(var(--v) * 100%)); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.6), 0 0 0 2px rgba(16, 11, 8, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5); }
+/* gerektiğinde göster: dolu ve durgun gösterge söner (yer değiştirmez) */
+.core.off, .need.off { opacity: 0; }
+.need { display: flex; align-items: center; gap: 6px; --v: 1; transition: opacity 0.45s ease; }
+.need span { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 40% 35%, rgba(46, 33, 22, 0.95), rgba(16, 11, 7, 0.95)); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.6), 0 2px 5px rgba(0, 0, 0, 0.5); }
+.need i { display: block; width: 48px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #efe8d8 calc(var(--v) * 100%), rgba(16, 11, 8, 0.85) calc(var(--v) * 100%)); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.6), 0 0 0 2px rgba(16, 11, 8, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5); }
 .need.low i { background: linear-gradient(90deg, var(--red2) calc(var(--v) * 100%), rgba(16, 11, 8, 0.85) calc(var(--v) * 100%)); box-shadow: 0 0 0 1px #e0503a, 0 0 8px rgba(224, 80, 58, 0.6); animation: needlow 0.8s infinite; }
 @keyframes needlow { 50% { opacity: 0.55; } }
 .blink { animation: bl 0.8s infinite; }
@@ -326,7 +328,7 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .core .cic .ic { width: 22px; height: 22px; }
 #status-icons span .ic { width: 17px; height: 17px; }
 .core.small .cic .ic { width: 18px; height: 18px; }
-.need span .ic { width: 16px; height: 16px; filter: drop-shadow(0 0 2px #000); }
+.need span .ic { width: 15px; height: 15px; filter: drop-shadow(0 0 2px #000); }
 .btn.ps svg { width: 22px; height: 22px; }
 .btn.ps.tp svg { width: 26px; }
 .btn.ps.dp svg { width: 17px; height: 17px; }
@@ -527,6 +529,33 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 #map-legend .ml-i.on { background: linear-gradient(90deg, rgba(142, 27, 18, 0.85), rgba(142, 27, 18, 0.15)); border-left-color: var(--brass-hi); color: #fff; }
 #map-legend span { width: 22px; height: 22px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 40% 35%, #3a2a1c, #1a120b); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.45); }
 #map-legend span .ic { width: 14px; height: 14px; }
+/* açıklamadaki göz: türü haritada gizle / göster */
+#map-legend .ml-eye { margin-left: auto; position: relative; width: 20px; height: 20px; flex: none; display: flex; align-items: center; justify-content: center; opacity: 0.5; border-radius: 3px; }
+#map-legend .ml-eye .ic { width: 14px; height: 14px; }
+#map-legend .ml-eye:hover { opacity: 1; background: rgba(201, 164, 92, 0.18); }
+#map-legend .ml-i.off { color: rgba(239, 230, 210, 0.45); }
+#map-legend .ml-i.off span { opacity: 0.45; }
+#map-legend .ml-i.off .ml-eye { opacity: 0.95; }
+#map-legend .ml-i.off .ml-eye::after { content: ''; position: absolute; left: 2px; right: 2px; top: 50%; height: 2px; margin-top: -1px; background: #e0503a; transform: rotate(-35deg); }
+/* oyuncunun işaretleri: sağ üstte liste (tıkla: hedef, ×: sil) */
+#map-pins { position: absolute; right: 30px; top: 30px; padding: 11px 10px 9px; min-width: 186px; max-width: 260px; max-height: 46vh; overflow-y: auto; color: #efe6d2; font-size: 15px;
+  background: var(--grain), linear-gradient(180deg, rgba(30, 22, 15, 0.95), rgba(16, 11, 8, 0.95)); border: 1px solid var(--brass-line); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 236, 200, 0.06); }
+#map-pins .ml-t { display: flex; }
+#map-pins .mp-i { display: flex; gap: 9px; align-items: center; cursor: pointer; padding: 2px 8px; border-left: 2px solid transparent; transition: background 0.12s; }
+#map-pins .mp-i:hover { background: rgba(201, 164, 92, 0.12); }
+#map-pins .mp-i span { width: 22px; height: 22px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 40% 35%, #2a5a6a, #12303a); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.45); }
+#map-pins .mp-i span .ic { width: 14px; height: 14px; }
+#map-pins .mp-i em { font-style: normal; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#map-pins .mp-x { margin-left: auto; padding: 0 5px; color: var(--brass); font-weight: normal; opacity: 0.6; }
+#map-pins .mp-x:hover { opacity: 1; color: #f0806a; }
+#map-pins .mp-e { font-size: 13px; color: #b8ab92; font-style: italic; padding: 2px 8px; max-width: 220px; }
+/* konum kartında hedefe yol ve tahmini süre (yaya, at, fayton) */
+.mme-eta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 13px; color: #d8ccb4; }
+.mme-eta span { display: inline-flex; align-items: center; gap: 4px; }
+.mme-eta .ic { width: 14px; height: 14px; }
+/* kısa metin sorusu (işaret adı) */
+.ask-in { width: 100%; box-sizing: border-box; padding: 8px 10px; font: inherit; font-size: 18px; color: #f8f0dc; background: rgba(10, 7, 5, 0.6); border: 1px solid var(--brass-line); outline: none; }
+.ask-in:focus { border-color: var(--brass-hi); }
 .ml-t { font-family: var(--sc); font-size: 15px; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; justify-content: center; padding: 0 0 8px; margin-bottom: 5px !important; position: relative; }
 .ml-t::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: -2px; height: 12px; background: var(--rule) center / 64px 12px no-repeat, linear-gradient(90deg, transparent, rgba(201, 164, 92, 0.45) 15%, rgba(201, 164, 92, 0.45) calc(50% - 38px), transparent calc(50% - 38px), transparent calc(50% + 38px), rgba(201, 164, 92, 0.45) calc(50% + 38px), rgba(201, 164, 92, 0.45) 85%, transparent) center / 100% 1px no-repeat; }
 /* üstte, imlecin altındaki yer: kurdeleli kâğıt etiket */
@@ -549,7 +578,7 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 .mme-q { display: flex; align-items: center; gap: 7px; margin-top: 6px; font-size: 15px; color: #fff4dc; }
 .mme-q i { width: 8px; height: 8px; flex: none; transform: rotate(45deg); border: 2px solid var(--gold); background: rgba(201, 164, 92, 0.35); }
 .mme-q span { margin-left: auto; font-family: var(--type); font-size: 13px; color: var(--gold); white-space: nowrap; }
-@media (max-height: 680px) { #map-legend { font-size: 13px; padding: 8px 8px 6px; } #map-legend span { width: 18px; height: 18px; } #map-legend span .ic { width: 12px; height: 12px; } .mme-t { display: none; } }
+@media (max-height: 680px) { #map-legend, #map-pins { font-size: 13px; padding: 8px 8px 6px; } #map-legend span { width: 18px; height: 18px; } #map-legend span .ic { width: 12px; height: 12px; } .mme-t { display: none; } }
 #map-hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); padding: 7px 20px 8px; font-size: 15px; white-space: nowrap; display: flex; align-items: center; gap: 4px; color: #e6dac4;
   background: linear-gradient(180deg, rgba(26, 18, 12, 0.96), rgba(14, 10, 7, 0.96)); border: 1px solid var(--brass-line); border-bottom: none; box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35); }
 #map-cursor { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border: 2px solid rgba(40, 20, 10, 0.85); border-radius: 50%; pointer-events: none; display: none; box-shadow: 0 0 0 1px rgba(240, 220, 170, 0.7); }

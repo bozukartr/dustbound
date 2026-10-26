@@ -10,7 +10,7 @@ const PS = { X: 0, O: 1, SQ: 2, TRI: 3, L1: 4, R1: 5, L2: 6, R2: 7, SHARE: 8, OP
 const GAME_ACTIONS = [
   { id: 'moveUp', n: 'İleri', kbOnly: 1 }, { id: 'moveDown', n: 'Geri', kbOnly: 1 }, { id: 'moveLeft', n: 'Sol', kbOnly: 1 }, { id: 'moveRight', n: 'Sağ', kbOnly: 1 },
   { id: 'sprint', n: 'Koş / Dörtnala' }, { id: 'interact', n: 'Etkileşim / Ata Bin' }, { id: 'aim', n: 'Nişan Al' }, { id: 'fire', n: 'Ateş Et' },
-  { id: 'reload', n: 'Şarjör Değiştir' }, { id: 'melee', n: 'Yakın Dövüş' }, { id: 'crouch', n: 'Çömel / Gizlen' }, { id: 'deadeye', n: 'Odak' },
+  { id: 'reload', n: 'Şarjör Değiştir' }, { id: 'melee', n: 'Yakın Dövüş' }, { id: 'crouch', n: 'Çömel / Gizlen' }, { id: 'deadeye', n: 'Odak / Kışkırt' },
   { id: 'wheel', n: 'Silah Çarkı' }, { id: 'quick', n: 'Hızlı İyileş / Ye' }, { id: 'whistle', n: 'Atı Çağır' }, { id: 'lantern', n: 'Fener' },
   { id: 'mask', n: 'Maske Tak / Çıkar' }, { id: 'satchel', n: 'Çanta' }, { id: 'camp', n: 'Kamp Kur (basılı) / Geniş Radar' }, { id: 'map', n: 'Harita' },
   { id: 'journal', n: 'Günlük' }, { id: 'pause', n: 'Duraklat' }, { id: 'zoomIn', n: 'Yakınlaştır (Piksel Ölçeği +)' }, { id: 'zoomOut', n: 'Uzaklaştır (Piksel Ölçeği −)' },
