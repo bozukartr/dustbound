@@ -1784,9 +1784,9 @@ const GameSystems = {
     if (e.bumps === 2) UI.feed(e.isLaw ? Tr('⚠ Kanun adamı uyardı: bir daha çarparsan saldırı sayılır.') : Tr('⚠ Uyarıldın: bir daha çarparsan saldırı sayılır.'), 'warn');
     return true;
   },
-  setWaypoint(x, y) {
+  setWaypoint(x, y, n) {
     if (x === null) { this.waypoint = null; this.gps = null; return; }
-    this.waypoint = { x, y };
+    this.waypoint = n ? { x, y, n } : { x, y };   // n: yerin adı (haritadaki kartta yazar)
     this.computeGps();
     Audio_.ui('ok');
   },

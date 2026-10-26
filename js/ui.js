@@ -879,9 +879,89 @@ const UI = {
     this.map.lg = -1; this.map.lgPick = null;
     const lg = $('#map-legend');
     const lbg = { tent: 'radial-gradient(circle at 40% 35%, #a02418, #5a0e08)', waypoint: 'radial-gradient(circle at 40% 35%, #a03aa0, #5a145a)', question: 'radial-gradient(circle at 40% 35%, #6a5a3a, #2a2014)' };
-    lg.innerHTML = `<div class="ml-t">${Tr`Açıklamalar`}</div>` + mapLegend().map(([a, b], i) => `<div class="ml-i" data-i="${i}"><span${lbg[a] ? ` style="background:${lbg[a]}"` : ''}>${Icons.glyph(a, '#f0e4c8')}</span>${b}</div>`).join('');
+    // her türün yanında göz: haritada gizle / göster (hedef işareti hep görünür)
+    const hid = new Set(G.settings.mapHide || []);
+    lg.innerHTML = `<div class="ml-t">${Tr`Açıklamalar`}</div>` + mapLegend().map(([a, b], i) => `<div class="ml-i${hid.has(a) ? ' off' : ''}" data-i="${i}" data-k="${a}"><span${lbg[a] ? ` style="background:${lbg[a]}"` : ''}>${Icons.glyph(a, '#f0e4c8')}</span>${b}${a !== 'waypoint' ? `<b class="ml-eye" title="${Tr('Haritada göster / gizle')}">${Icons.glyph('eye', '#efe6d2')}</b>` : ''}</div>`).join('');
     this._mme = null; this.mapMeT = 0;
-    $$('.ml-i', lg).forEach(n => { n.onclick = (e) => { e.stopPropagation(); this.mapLegendPick(+n.dataset.i); }; });
+    $$('.ml-i', lg).forEach(n => { n.onclick = (e) => { e.stopPropagation(); if (e.target.closest('.ml-eye')) this.mapToggleCat(n.dataset.k); else this.mapLegendPick(+n.dataset.i); }; });
+    this.mapPinsRender();
+  },
+  /* Açıklamadaki bir türü haritada gizle ya da göster; tercih ayarlarda saklanır */
+  mapToggleCat(k) {
+    if (!k || k === 'waypoint') return;
+    const S = G.settings, hid = new Set(S.mapHide || []);
+    if (hid.has(k)) hid.delete(k); else hid.add(k);
+    S.mapHide = [...hid]; G.saveSettings();
+    $$('#map-legend .ml-i').forEach(n => n.classList.toggle('off', hid.has(n.dataset.k)));
+    this.mapDirty = true; Audio_.ui('move');
+  },
+  /* ---- oyuncunun adlandırdığı işaretler (kayıtta saklanır) ---- */
+  mapPinsRender() {
+    const el = $('#map-pins');
+    if (!el) return;
+    const pins = G.pins || [], add = Input.device === 'pad' ? Input.glyph('tabL') : Tr`${Input.glyph('tabL')} ya da Shift+Tık`;
+    el.innerHTML = `<div class="ml-t">${Tr`İşaretlerin`}</div>` + (pins.length ? pins.map((p, i) => `<div class="mp-i" data-i="${i}"><span>${Icons.glyph('pin', '#f0e4c8')}</span><em>${escapeHtml(p.n)}</em><b class="mp-x" title="${Tr('Sil')}">×</b></div>`).join('') : `<div class="mp-e">${Tr`${add}: imlecin olduğu yere işaret koy`}</div>`);
+    $$('.mp-i', el).forEach(n => { n.onclick = (e) => {
+      e.stopPropagation();
+      const p = pins[+n.dataset.i];
+      if (!p) return;
+      if (e.target.closest('.mp-x')) { this.mapDelPin(p); return; }
+      const M = this.map; M.cx = p.x / TS; M.cy = p.y / TS; M.zoom = Math.max(M.zoom, 2.2);
+      G.setWaypoint(p.x, p.y, p.n); this.mapDirty = true; this.feed(Tr`📍 Hedef: ${p.n}`);
+    }; });
+  },
+  /* imlecin yakınındaki işaret (ekranda ~16 piksel) */
+  mapPinAt(wx, wy) {
+    let best = null, bd = (16 / this.map.zoom * TS) ** 2;
+    for (const p of G.pins || []) { const d = dist2(p.x, p.y, wx, wy); if (d < bd) { bd = d; best = p; } }
+    return best;
+  },
+  mapAddPin(wx, wy) {
+    const pins = G.pins || (G.pins = []);
+    if (pins.length >= MAP_PINS) { Audio_.ui('error'); this.feed(Tr`En fazla ${MAP_PINS} işaret koyabilirsin.`, 'warn'); return; }
+    let k = pins.length + 1; while (pins.some(p => p.n === Tr`İşaret ${k}`)) k++;
+    this.askText(Tr('İşaretin Adı'), Tr`İşaret ${k}`, (n) => {
+      pins.push({ x: Math.round(wx), y: Math.round(wy), n });
+      this.mapPinsRender(); this.mapDirty = true; this.feed(Tr`📌 İşaret kondu: ${n}`);
+    });
+  },
+  mapDelPin(p) {
+    const pins = G.pins || [], i = pins.indexOf(p);
+    if (i < 0) return;
+    pins.splice(i, 1);
+    this.mapPinsRender(); this.mapDirty = true; Audio_.ui('back'); this.feed(Tr`İşaret silindi: ${p.n}`);
+  },
+  /* Kısa bir metin sor (işaret adı): Enter kaydeder, Esc vazgeçer; boş bırakılırsa önerilen ad kalır.
+     Yazarken oyun tuşları susar (Input.textFocus); kolda önerilen adla Kaydet seçilir. */
+  askText(title, value, done, max = 24) {
+    let inp = null;
+    const close = () => { Input.textFocus = false; this.pop(m); };
+    const save = () => { const v = (inp && inp.value.trim()) || value; close(); done(v); };
+    const m = this.menu({
+      title, cls: 'small ask', onBack: close,
+      items: [{ html: `<input class="ask-in" maxlength="${max}" value="${escapeHtml(value)}">` }, { label: Tr('Kaydet'), fn: save }, { label: Tr('Vazgeç'), fn: close }],
+    });
+    inp = m.el.querySelector('.ask-in');
+    inp.onfocus = () => (Input.textFocus = true);
+    inp.onblur = () => (Input.textFocus = false);
+    inp.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); if (e.code === 'Enter') save(); else close(); } };
+    if (Input.device !== 'pad') setTimeout(() => { if (m.alive) { inp.focus(); inp.select(); } }, 0);
+    return m;
+  },
+  /* Hedefe yol: hedef işaretinde rota boyunca uzunluk, yoksa kuş uçuşunun yol payıyla; yaya, atla ve (varsa)
+     faytonla tahmini oyun süresi */
+  mapEta(tx, ty) {
+    const P = G.player, R = G.gps, wp = G.waypoint;
+    let d = 0;
+    if (R && R.length && wp && wp.x === tx && wp.y === ty) { let x = P.x, y = P.y; for (const p of R) { d += dist(x, y, p[0], p[1]); x = p[0]; y = p[1]; } d += dist(x, y, tx, ty); }
+    else d = dist(P.x, P.y, tx, ty) * 1.3;
+    const f = (spd) => { const m = d / spd * MIN_PER_SEC; return m >= 60 ? Tr`~${Math.round(m / 6) / 10} sa` : Tr`~${Math.max(1, Math.round(m))} dk`; };
+    const g = (k) => Icons.glyph(k, '#d8ccb4');
+    const out = [`${g('feet')}${f(58)}`];
+    const h = G.horse;
+    if (h && !h.dead) out.push(`${g('horse')}${f(95 * h.def.spd)}`);
+    if (G.carriage && G.carriage.driver) out.push(`${g('wagon')}${f(CARRIAGE_SPD)}`);
+    return `<div class="mme-eta"><span>${Tr`Yol ${fmtDist(d)}`}</span>${out.map(o => `<span>${o}</span>`).join('')}</div>`;
   },
   /* Açıklamadaki bir türün haritada bilinen yerleri (oyuncuya yakından uzağa) */
   mapLegendTargets(key) {
@@ -907,7 +987,7 @@ const UI = {
     M.lgPick = { i, k };
     const t = ts[k];
     M.cx = t.x / TS; M.cy = t.y / TS; M.zoom = Math.max(M.zoom, 2.2); this.mapDirty = true;
-    if (!t.keep) { G.setWaypoint(t.x, t.y); this.feed(Tr`📍 Hedef: ${t.n}${ts.length > 1 ? ` (${k + 1}/${ts.length})` : ''}`); }
+    if (!t.keep) { G.setWaypoint(t.x, t.y, t.n); this.feed(Tr`📍 Hedef: ${t.n}${ts.length > 1 ? ` (${k + 1}/${ts.length})` : ''}`); }
     return t;
   },
   mapLegendFocus(i) {
@@ -935,8 +1015,12 @@ const UI = {
       const d = this.map.drag;
       this.map.drag = null;
       if (!d || d.moved || this.top() === undefined || $('#mapscreen').classList.contains('hidden')) return;
-      const [wx, wy] = this.mapToWorld(e.clientX, e.clientY);
-      if (e.button === 2) G.setWaypoint(null); else this.mapSetWaypoint(wx, wy);
+      const [wx, wy] = this.mapToWorld(e.clientX, e.clientY), pin = this.mapPinAt(wx, wy);
+      // sağ tık: işaretin üstündeyse işareti, değilse hedefi kaldırır; Shift+tık işaret koyar; işarete tık onu hedef yapar
+      if (e.button === 2) { if (pin) this.mapDelPin(pin); else G.setWaypoint(null); }
+      else if (e.shiftKey) this.mapAddPin(wx, wy);
+      else if (pin) { G.setWaypoint(pin.x, pin.y, pin.n); this.feed(Tr`📍 Hedef: ${pin.n}`); }
+      else this.mapSetWaypoint(wx, wy);
       this.mapDirty = true;
     });
     c.addEventListener('wheel', e => { e.preventDefault(); this.map.zoom = clamp(this.map.zoom * (e.deltaY > 0 ? 0.85 : 1.18), 0.25, 8); this.mapDirty = true; }, { passive: false });
@@ -950,7 +1034,7 @@ const UI = {
     let best = null, bd = (30 / this.map.zoom * TS) ** 2;
     for (const p of G.world.pois) if (G.discovered.has(p.id) || G.rumored.has(p.id)) { const d = dist2(p.x, p.y, wx, wy); if (d < bd) { bd = d; best = p; } }
     if (best) { wx = best.x; wy = best.y; }
-    G.setWaypoint(wx, wy);
+    G.setWaypoint(wx, wy, best && G.discovered.has(best.id) ? best.n : null);
     this.feed(Tr('📍 Hedef işaretlendi'));
   },
   mapUpdate(dt, m) {
@@ -968,7 +1052,11 @@ const UI = {
     M.cx = clamp(M.cx, 0, WW); M.cy = clamp(M.cy, 0, WH);
     if (I.pressed('confirm') && I.device === 'pad' && M.lg >= 0) { this.mapLegendPick(M.lg); this.mapDirty = true; }
     else if (I.pressed('confirm') && I.device === 'pad') { const [wx, wy] = this.mapToWorld(innerWidth / 2, innerHeight / 2); this.mapSetWaypoint(wx, wy); this.mapDirty = true; }
-    if (I.pressed('alt')) { G.setWaypoint(null); this.mapDirty = true; this.feed(Tr('Hedef kaldırıldı')); }
+    // işaret: kolda L1 ekranın ortasına, klavyede Q imlece; kolda R1 seçili açıklama türünü gizler / gösterir
+    const cur = () => this.mapToWorld(I.device === 'pad' ? innerWidth / 2 : I.mouse.x, I.device === 'pad' ? innerHeight / 2 : I.mouse.y);
+    if (I.pressed('tabL')) { const [wx, wy] = cur(); this.mapAddPin(wx, wy); return; }
+    if (I.pressed('tabR') && I.device === 'pad' && M.lg >= 0) this.mapToggleCat(mapLegend()[M.lg][0]);
+    if (I.pressed('alt')) { const pin = this.mapPinAt(...cur()); if (pin) this.mapDelPin(pin); else { G.setWaypoint(null); this.feed(Tr('Hedef kaldırıldı')); } this.mapDirty = true; }
     if (I.pressed('alt2') && I.device === 'pad') { M.cx = G.player.x / TS; M.cy = G.player.y / TS; this.mapDirty = true; }
     if (I.pressed('back') || I.pressed('map')) { this.pop(m); return; }
     $('#map-cursor').style.display = I.device === 'pad' ? 'block' : 'none';
@@ -981,13 +1069,15 @@ const UI = {
     const sx = I.device === 'pad' ? innerWidth / 2 : I.mouse.x, sy = I.device === 'pad' ? innerHeight / 2 : I.mouse.y;
     const [wx, wy] = this.mapToWorld(sx, sy);
     let best = null, bd = (26 / this.map.zoom * TS) ** 2;
+    const pin = this.mapPinAt(wx, wy);
+    if (pin) { best = { n: pin.n, desc: Input.device === 'pad' ? Tr`Senin işaretin · ${Input.glyph('alt')} sil` : Tr('Senin işaretin · tıkla: hedef, sağ tık: sil') }; bd = 0; }
     for (const p of G.world.pois) if (G.discovered.has(p.id) || G.rumored.has(p.id)) { const d = dist2(p.x, p.y, wx, wy); if (d < bd) { bd = d; best = p; } }
     for (const t of G.world.towns) if (G.visited.has(t.id) || G.reveal[((t.cy / TS / 4) | 0) * FW + ((t.cx / TS / 4) | 0)]) { const d = dist2(t.cx, t.cy, wx, wy); if (d < bd * 4) { bd = d / 4; best = { n: t.n, desc: t.desc + (G.visited.has(t.id) ? '' : Tr(' (Henüz ziyaret edilmedi)')) }; } }
     let html = '';
     if (best) html = `<div class="mi-n">${best.n}</div><div class="mi-d">${best.desc || ''}${G.rumored.has(best.id) && !G.discovered.has(best.id) ? Tr(' <i>(söylenti)</i>') : ''}</div>`;
     else html = `<div class="mi-n">${G.world.regionAt(wx, wy)}</div>`;
     if (this._mh !== html) { this._mh = html; $('#map-info').innerHTML = html; }
-    const hint = Tr`${Input.device === 'pad' ? Input.padGlyph(PS.UP) + Input.padGlyph(PS.DOWN) + Tr(' Açıklamalar &nbsp; ') + Input.glyph('confirm') + Tr(' Hedef Koy &nbsp; ') + Input.glyph('alt') + Tr(' Hedefi Kaldır &nbsp; ') + Input.padGlyph(PS.R2) + Input.padGlyph(PS.L2) + Tr(' Yakınlaştır &nbsp; ') + Input.glyph('alt2') + Tr(' Konumum') : Tr('Sol Tık: Hedef Koy &nbsp; Açıklamaya Tık: En Yakın Yer &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır')} &nbsp; ${Input.glyph('back')} Kapat`;
+    const hint = Tr`${Input.device === 'pad' ? Input.padGlyph(PS.UP) + Input.padGlyph(PS.DOWN) + Tr(' Açıklamalar &nbsp; ') + Input.glyph('confirm') + Tr(' Hedef Koy &nbsp; ') + Input.glyph('alt') + Tr(' Hedefi Kaldır &nbsp; ') + Input.glyph('tabL') + Tr(' İşaret &nbsp; ') + Input.glyph('tabR') + Tr(' Gizle/Göster &nbsp; ') + Input.padGlyph(PS.R2) + Input.padGlyph(PS.L2) + Tr(' Yakınlaştır &nbsp; ') + Input.glyph('alt2') + Tr(' Konumum') : Tr('Sol Tık: Hedef &nbsp; Q / Shift+Tık: İşaret &nbsp; Açıklamaya Tık: En Yakın Yer &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır')} &nbsp; ${Input.glyph('back')} Kapat`;
     if (this._mhint !== hint) { this._mhint = hint; $('#map-hint').innerHTML = hint; }
   },
   /* Harita: durağan katman (kâğıt, arazi, yollar, sis, etiketler, simgeler, işaretler) ayrı tuvalde tutulur. Harita açıkken
@@ -1069,6 +1159,8 @@ const UI = {
     }
     // aranma
     if (G.law.level > 0) { const [x, y] = toS(G.law.lastX, G.law.lastY); c.fillStyle = 'rgba(180,20,20,0.2)'; c.beginPath(); c.arc(x, y, G.law.radius / TS * M.zoom, 0, TAU); c.fill(); }
+    // açıklamada gizlenen türler (bina simgeleri, satılık arsalar, yerler)
+    const hid = new Set(G.settings.mapHide || []), LEG = this.mapLegOf || (this.mapLegOf = Object.fromEntries(Object.entries(MAP_LEGEND_B).flatMap(([k, ts]) => ts.map(ty => [ty, k]))));
     // kasabalar
     for (const t of W.towns) {
       if (!revealed(t.cx, t.cy) && !G.visited.has(t.id)) continue;
@@ -1081,8 +1173,8 @@ const UI = {
       c.strokeStyle = 'rgba(70,44,22,0.7)'; c.lineWidth = 1; c.strokeRect(x - tw / 2 + 2.5, ly - fs * 0.62 + 2.5, tw - 5, fs * 1.24 - 5);
       c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, ly + 1);
       if (M.zoom > 1.8) {
-        for (const l of t.lots || []) { const [lx, ly2] = toS((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS); c.fillStyle = 'rgba(40,90,40,0.85)'; c.beginPath(); c.arc(lx, ly2, 10, 0, TAU); c.fill(); c.fillStyle = '#efe6d2'; c.font = 'bold 13px serif'; c.fillText('$', lx, ly2 + 1); c.font = `${fs}px "IM Fell English SC", serif`; }
-        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic || b.shut) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 12, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (ok(im)) c.drawImage(im, bx - 8.5, by - 8.5, 17, 17); }
+        if (!hid.has('house')) for (const l of t.lots || []) { const [lx, ly2] = toS((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS); c.fillStyle = 'rgba(40,90,40,0.85)'; c.beginPath(); c.arc(lx, ly2, 10, 0, TAU); c.fill(); c.fillStyle = '#efe6d2'; c.font = 'bold 13px serif'; c.fillText('$', lx, ly2 + 1); c.font = `${fs}px "IM Fell English SC", serif`; }
+        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic || b.shut || hid.has(LEG[b.type])) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 12, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (ok(im)) c.drawImage(im, bx - 8.5, by - 8.5, 17, 17); }
       }
     }
     // yerler
@@ -1090,6 +1182,7 @@ const UI = {
     for (const p of W.pois) {
       const known = G.discovered.has(p.id), rum = G.rumored.has(p.id);
       let show = known || rum;
+      if (hid.has(!known ? 'question' : p.kind === 'camp' ? 'tent' : p.kind === 'property' || p.kind === 'home' ? 'house' : 'eye')) continue;
       if (!show && G.hasPerk('explore20') && dist(p.x, p.y, G.player.x, G.player.y) < 2500) { const [x, y] = toS(p.x, p.y); const im = Icons.img('question', 'rgba(40,20,10,0.55)', 32); if (ok(im)) c.drawImage(im, x - 7, y - 7, 14, 14); continue; }
       if (!show) continue;
       const [x, y] = toS(p.x, p.y);
@@ -1120,6 +1213,12 @@ const UI = {
     for (const h of G.haulers) badge(h.x, h.y, 'wagon', h.state === 'raid' ? 'rgba(160,20,14,0.95)' : 'rgba(40,70,90,0.9)', '#f0e4c8', 9);
     for (const R of G.raids) badge(R.x, R.y, 'skull', 'rgba(160,20,14,0.95)', '#fff', 11);
     if (G.horse && !G.horse.dead) badge(G.horse.x, G.horse.y, 'horse', 'rgba(60,36,20,0.9)', '#f0d8a8');
+    // oyuncunun işaretleri: iğne ve adı
+    for (const pn of G.pins || []) {
+      badge(pn.x, pn.y, 'pin', 'rgba(26,74,92,0.95)', '#f0e4c8', 10);
+      const [x, y] = toS(pn.x, pn.y);
+      c.font = 'italic 13px "IM Fell English", serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(236,224,196,0.85)'; c.strokeText(pn.n, x, y + 21); c.fillStyle = '#1a2a30'; c.fillText(pn.n, x, y + 21);
+    }
     if (G.waypoint) badge(G.waypoint.x, G.waypoint.y, 'waypoint', 'rgba(140,40,140,0.95)');
     const qm = G.questMark();
     if (qm) badge(qm.x, qm.y, 'star', 'rgba(190,140,20,0.95)', '#fff', 11);
@@ -1198,8 +1297,8 @@ const UI = {
     const P = G.player, W = G.world, t = W.townAt(P.x, P.y, 20), reg = W.regionAt(P.x, P.y);
     const qm = G.questMark(), st = G.storyOn && qm ? G.qStep() : null;
     let q = '';
-    if (st) q = `<div class="mme-q"><i></i>${st.t.call(G, G.story)}<span>${fmtDist(dist(P.x, P.y, qm.x, qm.y))}</span></div>`;
-    else if (G.waypoint) q = `<div class="mme-q"><i></i>${Tr('Hedef işareti')}<span>${fmtDist(dist(P.x, P.y, G.waypoint.x, G.waypoint.y))}</span></div>`;
+    if (st) q = `<div class="mme-q"><i></i>${st.t.call(G, G.story)}<span>${fmtDist(dist(P.x, P.y, qm.x, qm.y))}</span></div>` + this.mapEta(qm.x, qm.y);
+    else if (G.waypoint) q = `<div class="mme-q"><i></i>${G.waypoint.n ? Tr`Hedef: ${escapeHtml(G.waypoint.n)}` : Tr('Hedef işareti')}<span>${fmtDist(dist(P.x, P.y, G.waypoint.x, G.waypoint.y))}</span></div>` + this.mapEta(G.waypoint.x, G.waypoint.y);
     return `<div class="mme-k">${Tr('Konumun')}</div><div class="mme-p">${t ? t.n : reg}</div>${t ? `<div class="mme-r">${reg}</div>` : ''}<div class="mme-t">${Icons.glyph(this.weatherGlyph(), '#efe6d2')}${this.weatherName()} • ${Math.round(G.feltTemp)}° • ${G.timeStr()} • ${G.dateStr()}</div>${q}`;
   },
   /* Süslü pusula gülü (harita köşesi) */
@@ -3425,6 +3524,7 @@ function radarSegs(pts) {
 const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence', 'bakery', 'smith', 'pharmacy', 'gambling', 'brewery', 'mill', 'county', 'post', 'warehouse', 'cantina', 'mansion', 'club']);
 /* Harita açıklamaları: [simge, ad]; MAP_LEGEND_B: simgenin bina türleri */
 const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
+const MAP_PINS = 24;   // haritaya konabilecek en çok işaret
 const MAP_LEGEND_B = { store: ['general'], glass: ['saloon', 'cantina', 'gambling'], star: ['sheriff'], cross: ['doctor', 'pharmacy'], gun: ['gunsmith'], horseshoe: ['stable'], bed: ['hotel'], train: ['station'], bank: ['bank'], pick: ['mine', 'smith', 'lumber'] };
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass', mansion: 'house', club: 'cards' };
 const PICON = { hideout: 'tent', railcamp: 'train', trappercamp: 'fox', fathercabin: 'hut', camp: 'tent', farm: 'wheat', property: 'house', home: 'hut', crater: 'crater', sequoia: 'tree', ruins: 'ruins', ghost: 'ghost', mine: 'mine', hotspring: 'spring', dino: 'bones', hanging: 'gallows', wreck: 'wheel', lighthouse: 'lighthouse', hermit: 'hut', trapper: 'fox', battlefield: 'swords', fortruin: 'fort', windmill: 'windmill', oasis: 'palm', lookout: 'eye', cave: 'paw', graveyard: 'grave', shipwreck: 'anchor', arch: 'arch' };
