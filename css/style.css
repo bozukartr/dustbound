@@ -111,8 +111,6 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 @keyframes needlow { 50% { opacity: 0.55; } }
 .blink { animation: bl 0.8s infinite; }
 @keyframes bl { 50% { opacity: 0.3; } }
-@keyframes blinkb { 50% { box-shadow: 0 0 10px #6aa8ff, inset 0 0 0 1px #6aa8ff; } }
-@keyframes blinkr { 50% { box-shadow: 0 0 10px #ff7a3a, inset 0 0 0 1px #ff7a3a; } }
 /* genişletilmiş HUD (D-pad ↓): radar büyür, madalyonlar yayı izler, bilgi paneli açılır */
 #hud-xinfo { position: absolute; left: 318px; bottom: 32px; min-width: 200px; padding: 11px 15px 12px; background: var(--grain), linear-gradient(90deg, rgba(18, 13, 9, 0.9), rgba(18, 13, 9, 0.6)); border: 1px solid var(--brass-line); border-left: 2px solid var(--brass); color: #efe6d2; font-size: 14px; opacity: 0; transform: translateX(-12px); transition: opacity 0.3s, transform 0.3s; pointer-events: none; text-shadow: 0 0 3px #000; }
 #hud.hud-x #hud-xinfo { opacity: 1; transform: none; }
@@ -121,24 +119,39 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .xi-grid { display: grid; grid-template-columns: auto auto auto auto; gap: 1px 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(201, 164, 92, 0.3); font-size: 13px; }
 .xi-grid span { color: #b8ab92; } .xi-grid b { font-family: var(--type); color: #fff; text-align: right; }
 
-/* Sağ üst: hava rozeti, saat ve para tek satırda (aralarında pirinç çizgi); altında tarih ve yaş; altında aranma
-   afişi ve görev izleyici */
+/* Sağ üst: para ve saat, yanında gün kadranı; altında tarih ve yaş; altında aranma afişi ve görev izleyici.
+   Gün kadranı radarla aynı pirinç çerçevededir: halkası günün saatleridir (öğle üstte, gece yarısı altta; gece
+   mürekkep mavisi, şafak ve alacakaranlık kehribar, gündüz kâğıt rengi). Hava simgesi (güneş, ay, bulut, yağmur,
+   kar) saate göre halkada döner, ortada hissedilen sıcaklık yazar; üşürken mavi, sıcakta turuncu yanar. */
 #hud-tr { position: absolute; right: 26px; top: 18px; text-align: right; text-shadow: 0 0 4px #000, 0 2px 3px #000; }
-#hud-top { display: flex; align-items: center; justify-content: flex-end; gap: 12px; line-height: 1; }
-#hud-money { font-family: var(--type); font-size: 28px; color: #f8f2e4; letter-spacing: 1px; padding-left: 12px; border-left: 1px solid rgba(201, 164, 92, 0.75); transition: color 0.5s, text-shadow 0.5s; }
+#hud-top { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+#hud-txt { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; line-height: 1; }
+#hud-money { font-family: var(--type); font-size: 27px; color: #f3dfa2; letter-spacing: 1px; transition: color 0.5s, text-shadow 0.5s; }
 #hud-money.gain { color: #a8e890; text-shadow: 0 0 8px rgba(120, 220, 90, 0.5); transition: none; }
 #hud-money.loss { color: #f09080; text-shadow: 0 0 8px rgba(230, 90, 70, 0.5); transition: none; }
 .w-cyl { display: inline-block; width: 22px; height: 22px; margin-right: 6px; vertical-align: -3px; animation: wcyl 0.6s steps(6) infinite; filter: drop-shadow(0 1px 2px #000); }
 @keyframes wcyl { to { transform: rotate(360deg); } }
-#hud-clock { display: flex; align-items: center; gap: 8px; }
-#hud-clock #hud-time { font-family: var(--type); font-size: 22px; color: #fbf5e8; }
-#hud-sub { margin-top: 6px; font-family: var(--sc); font-size: 14px; color: #c2b69f; letter-spacing: 0.4px; }
+#hud-time { font-family: var(--type); font-size: 20px; color: #fbf5e8; }
+#hud-sub { margin-top: 7px; font-family: var(--sc); font-size: 13px; color: #c2b69f; letter-spacing: 0.4px; }
 #hud-sub span + span::before { content: '•'; margin: 0 0.3em; }
-#hud-env { display: inline-flex; align-items: center; gap: 5px; font-family: var(--type); font-size: 15px; color: #f2ead8; padding: 1px 9px 1px 6px; border-radius: 11px; background: rgba(12, 8, 5, 0.5); box-shadow: inset 0 0 0 1px rgba(201, 164, 92, 0.35); text-shadow: 0 1px 2px #000; }
-#hud-env:empty { display: none; }
-#hud-env .ic { width: 16px; height: 16px; filter: drop-shadow(0 1px 1px #000); }
-#hud-env.cold { color: #b8d6ff; animation: blinkb 1s infinite; }
-#hud-env.hot { color: #ffbe82; animation: blinkr 1s infinite; }
+#hud-env { position: relative; flex: none; width: 56px; height: 56px; border-radius: 50%; --ha: 0deg;
+  background: radial-gradient(circle, rgba(40, 24, 10, 0) 52%, rgba(40, 24, 10, 0.4) 100%),
+    conic-gradient(from 180deg, #2a3150 0deg 67.5deg, #c88a4a 86deg, #e2d2a4 105deg 285deg, #c88a4a 304deg, #2a3150 322.5deg 360deg);
+  box-shadow: 0 0 0 1.5px #160f09, 0 0 0 3px rgba(201, 164, 92, 0.9), 0 0 0 4px rgba(22, 15, 10, 0.7), 0 4px 10px rgba(0, 0, 0, 0.55); }
+#hud-env::before { content: ''; position: absolute; inset: 15px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #33251a, #100b07); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.6), inset 0 1px 3px rgba(0, 0, 0, 0.6); }
+/* saat çentikleri: gece yarısı, şafak, öğle ve akşam (her altı saatte bir), kenarda kısa pirinç çizgiler */
+#hud-env::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: repeating-conic-gradient(from -2deg, rgba(240, 212, 135, 0.95) 0deg 4deg, transparent 4deg 90deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 22.5px, #000 23px); mask: radial-gradient(circle, transparent 0 22.5px, #000 23px); }
+#hud-env .dl-t { position: absolute; inset: 15px; display: flex; align-items: center; justify-content: center; font-family: var(--type); font-size: 11px; font-weight: normal; color: #f2ead8; letter-spacing: -0.5px; text-shadow: 0 1px 1px #000; }
+#hud-env .dl-orb { position: absolute; z-index: 1; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 40% 35%, #3a2a1c, #120c08); box-shadow: 0 0 0 1px rgba(240, 212, 135, 0.9), 0 1px 3px rgba(0, 0, 0, 0.6);
+  transform: rotate(var(--ha)) translateY(-20.5px) rotate(calc(-1 * var(--ha))); }
+#hud-env .dl-orb .ic { width: 11px; height: 11px; }
+#hud-env.cold { animation: dialcold 1s infinite; } #hud-env.cold .dl-t { color: #b8d6ff; }
+#hud-env.hot { animation: dialhot 1s infinite; } #hud-env.hot .dl-t { color: #ffbe82; }
+@keyframes dialcold { 50% { box-shadow: 0 0 0 1.5px #160f09, 0 0 0 3px #6aa8ff, 0 0 0 4px rgba(22, 15, 10, 0.7), 0 0 14px rgba(106, 168, 255, 0.75); } }
+@keyframes dialhot { 50% { box-shadow: 0 0 0 1.5px #160f09, 0 0 0 3px #ff7a3a, 0 0 0 4px rgba(22, 15, 10, 0.7), 0 0 14px rgba(255, 122, 58, 0.75); } }
 /* aranma: duvara çivilenmiş küçük bir afiş */
 #hud-wanted { position: relative; margin: 14px 0 0 auto; width: max-content; min-width: 176px; max-width: 280px; padding: 9px 16px 9px; text-align: center; color: #2a160c; text-shadow: none;
   background: var(--grain), radial-gradient(ellipse at 40% 30%, #f5ead0, #dcc79c 75%, #c8ad7a); border: 1px solid #5a3a1a; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), inset 0 0 22px rgba(120, 80, 30, 0.35); transform: rotate(-1.4deg); animation: wantedIn 0.4s cubic-bezier(0.2, 1.4, 0.5, 1); }

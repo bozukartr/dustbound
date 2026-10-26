@@ -49,20 +49,28 @@ module.exports = {
       await p.evaluate(() => UI.expandHud());
     });
 
-    await t.step('sağ üst: saat ve para tek satırda, altında tarih ve yaş; hava rozeti ve sıcaklık, soğukta mavi', async () => {
+    await t.step('sağ üst: para ve saat gün kadranının solunda, altında tarih ve yaş; kadranda hava simgesi saate göre döner, ortada sıcaklık, soğukta mavi', async () => {
       const r = await p.evaluate(() => {
         UI.hudUpdate();
-        const b = id => document.getElementById(id).getBoundingClientRect(), mid = e => (e.top + e.bottom) / 2;
-        const row = Math.abs(mid(b('hud-time')) - mid(b('hud-money'))), order = b('hud-time').right < b('hud-money').left;
-        const sub = document.getElementById('hud-sub').textContent, below = b('hud-sub').top >= b('hud-money').bottom - 2;
+        const b = id => document.getElementById(id).getBoundingClientRect();
+        const money = b('hud-money'), time = b('hud-time'), dial = b('hud-env');
+        const stack = money.bottom <= time.top + 2 && Math.abs(money.right - time.right) < 2 && time.right < dial.left;
+        const sub = document.getElementById('hud-sub').textContent, below = b('hud-sub').top >= Math.max(dial.bottom, time.bottom) - 2;
+        // hava simgesi kadranın merkezine göre: öğlen üstte, akşam altıda sağda, gece yarısı altta, sabah altıda solda
+        const c0 = G.clock, day = Math.floor(c0 / 1440) * 1440, cx = (dial.left + dial.right) / 2, cy = (dial.top + dial.bottom) / 2;
+        const orb = {};
+        for (const h of [12, 18, 0, 6]) { G.clock = day + h * 60; UI.hudUpdate(); const o = document.querySelector('#hud-env .dl-orb').getBoundingClientRect(); orb[h] = [Math.round((o.left + o.right) / 2 - cx), Math.round((o.top + o.bottom) / 2 - cy)]; }
+        G.clock = c0;
         G.coldness = 0.4; UI.hudUpdate();
-        const e = document.getElementById('hud-env'), cold = e.classList.contains('cold'), txt = e.textContent, svg = !!e.querySelector('svg');
+        const e = document.getElementById('hud-env'), cold = e.classList.contains('cold'), txt = e.textContent, svg = !!e.querySelector('.dl-orb svg');
         G.coldness = 0; UI.hudUpdate();
-        return { row, order, sub, below, date: G.dateStr(), name: G.player.name, cold, txt, svg, after: e.classList.contains('cold') };
+        return { stack, sub, below, date: G.dateStr(), name: G.player.name, orb, cold, txt, svg, after: e.classList.contains('cold') };
       });
-      t.ok(r.row < 6 && r.order, 'saat ve para aynı satırda, para sağda', r);
+      t.ok(r.stack, 'para saatin üstünde, ikisi kadranın solunda', r);
       t.ok(r.below && r.sub.includes(r.date) && /\d+ yaşında/.test(r.sub) && !r.sub.includes(r.name), 'alt satırda tarih ve yaş (ad yok)', r);
-      t.ok(r.svg && /°/.test(r.txt), 'simge ve derece', r); t.ok(r.cold && !r.after, 'soğukta işaretlenir', r);
+      const o = r.orb;
+      t.ok(o[12][1] < -12 && Math.abs(o[12][0]) < 3 && o[18][0] > 12 && Math.abs(o[18][1]) < 3 && o[0][1] > 12 && o[6][0] < -12, 'hava simgesi saate göre halkada döner', o);
+      t.ok(r.svg && /\d+°/.test(r.txt), 'simge ve derece', r); t.ok(r.cold && !r.after, 'soğukta işaretlenir', r);
     });
 
     await t.step('silah kartı: şarjördeki fişekler pip olarak', async () => {

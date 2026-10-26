@@ -489,15 +489,19 @@ const UI = {
     this.setText('hud-time', G.timeStr());
     this.setText('hud-date', G.dateStr());
     this.setText('hud-age', Tr`${G.age} yaşında`);
-    // hava ve hissedilen sıcaklık: saatin yanında küçük rozet (gece ay, yağmurda bulut)
+    // gün kadranı: hava simgesi (gece ay, yağmurda bulut) saate göre halkada döner, öğle üstte; ortada hissedilen
+    // sıcaklık, üşürken mavi, sıcakta turuncu
     const ft = Math.round(G.feltTemp), cold = G.coldness > 0, hot = G.hotness > 0, wg = this.weatherGlyph();
     const ev = this.cache.env || (this.cache.env = $('#hud-env')), ek = wg + ft + cold + hot;
     if (ev._k !== ek) {
       ev._k = ek;
-      ev.innerHTML = Icons.glyph(wg, cold ? '#b8d6ff' : hot ? '#ffbe82' : '#f2ead8') + ft + '°';
+      $('.dl-orb', ev).innerHTML = Icons.glyph(wg, '#f2ead8');
+      $('.dl-t', ev).textContent = ft + '°';
       ev.classList.toggle('cold', cold); ev.classList.toggle('hot', hot);
       ev.title = cold ? Tr('Üşüyorsun') : hot ? Tr('Sıcak çarpıyor') : Tr('Hissedilen sıcaklık');
     }
+    const ha = Math.round((G.hour - 12) * 30) / 2;   // yarım derecelik adımla (iki oyun dakikası)
+    if (ev._ha !== ha) { ev._ha = ha; ev.style.setProperty('--ha', ha + 'deg'); }
     // görev izleyicide hedefe uzaklık
     const hq = this.cache.hq || (this.cache.hq = $('#hud-quest'));
     if (!hq.classList.contains('hidden')) {
