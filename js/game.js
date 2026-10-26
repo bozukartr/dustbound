@@ -443,6 +443,7 @@ const G = {
 
   /* ---------------- Döngü ---------------- */
   frame(ts) {
+    const tf0 = performance.now();
     this.fno = (this.fno || 0) + 1;   // kare sayacı (kare başına iş bütçeleri için)
     const dt = clamp((ts - this.last) / 1000, 0, 0.05);   // zaman geri gitmez, uzun duraksama tek kareye yayılmaz
     // ekranın kare aralığı (yumuşatılmış): arka plan işlerinin bütçesi buna göre; 144 Hz'de 60 Hz'in bütçesi kareyi taşırır
@@ -463,7 +464,8 @@ const G = {
     }
     Input.endFrame();
     this.presenceTick(dt);
-    if (this.settings.fps) { this._fc = (this._fc || 0) + 1; this._ft = (this._ft || 0) + dt; if (this._ft > 0.5) { $('#fps').textContent = Math.round(this._fc / this._ft) + ' FPS'; this._fc = 0; this._ft = 0; } }
+    // FPS ve kare başına işlemci süresi (oyunun kendi işi): FPS düşük ama süre kısaysa darboğaz ekran kartında
+    if (this.settings.fps) { this._fc = (this._fc || 0) + 1; this._ft = (this._ft || 0) + dt; this._fw = (this._fw || 0) + performance.now() - tf0; if (this._ft > 0.5) { $('#fps').textContent = Math.round(this._fc / this._ft) + ' FPS · ' + (this._fw / this._fc).toFixed(1) + ' ms'; this._fc = 0; this._ft = 0; this._fw = 0; } }
     requestAnimationFrame(t => this.frame(t));
   },
   /* Steam arkadaş listesinde görünen durum (rich presence) */

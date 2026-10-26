@@ -1187,8 +1187,9 @@ const HY = (() => {
         float nd = max(dot(n, d / dl), 0.0) * 0.75 + 0.25;
         vec2 ls = (vec2(L.x, L.y - L.z) - uOrg) * 2.0;
         float ok = 1.0;
-        // ışığa giden yolda engel: sekiz örnek (yolun 13/16'sına kadar)
-        for (int q = 1; q <= 8; q++) {
+        // ışığa giden yolda engel: sekiz örnek (yolun 13/16'sına kadar). Işığın en çok %6 vurduğu dış halkada aranmaz
+        // (oradaki sızıntı görünmez; denetimlerin dörtte biri kalkar)
+        if (a > 0.06) for (int q = 1; q <= 8; q++) {
           float t = float(q) * 0.1015625; vec2 s = mix(p, ls, t);
           float hq = hgt(s);
           if (hq > h + (L.z - h) * t + 4.0 && hq > (uLC[i].w > 0.5 ? 0.0 : 22.0)) { ok = uLC[i].w > 0.5 ? 0.35 : 0.0; break; }
