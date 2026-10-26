@@ -1143,16 +1143,15 @@ const HY = (() => {
     uniform vec4 uLP[${NL}]; uniform vec4 uLC[${NL}];
     uniform vec4 uIn; uniform vec4 uWin[${NW}]; uniform float uInAmb;
     uniform sampler2D uS; uniform vec2 uSRes;
-    vec4 geo(vec2 p){ return texture2D(uG, p / uRes); }
     float hgt(vec2 p){ return texture2D(uG, p / uRes).r * 85.0; }
-    float aoAt(vec2 p, vec2 o, float h){ float d1 = hgt(p + o * 6.0) - h, d2 = hgt(p + o * 12.0) - h; return clamp(d1 / 12.0, 0.0, 1.0) + clamp(d2 / 12.0, 0.0, 1.0) * 0.5; }
-    // yarım çözünürlüklü gölge: dört komşu, yüksekliği bu piksele yakın olanlar ağır basar (duvar dibi kenarı keskin kalır)
-    float shadowAt(vec2 st0, float hr){
+    // yarım çözünürlüklü gölge ve köşe gölgesi (SHFS): dört komşu, yüksekliği bu piksele yakın olanlar ağır basar
+    // (duvar dibi kenarı keskin kalır). x: güneş gölgesi, y: köşe gölgesi
+    vec2 shadeAt(vec2 st0, float hr){
       vec2 st = st0 * uSRes - 0.5, b = floor(st), f = st - b, i0 = (b + 0.5) / uSRes, d = 1.0 / uSRes;
       vec4 a = texture2D(uS, i0), c = texture2D(uS, i0 + vec2(d.x, 0.0)), e = texture2D(uS, i0 + vec2(0.0, d.y)), g = texture2D(uS, i0 + d);
       float wa = (1.0 - f.x) * (1.0 - f.y) / (0.004 + abs(a.g - hr)), wc = f.x * (1.0 - f.y) / (0.004 + abs(c.g - hr));
       float we = (1.0 - f.x) * f.y / (0.004 + abs(e.g - hr)), wg = f.x * f.y / (0.004 + abs(g.g - hr));
-      return (a.r * wa + c.r * wc + e.r * we + g.r * wg) / (wa + wc + we + wg);
+      return (a.rb * wa + c.rb * wc + e.rb * we + g.rb * wg) / (wa + wc + we + wg);
     }
     void main(){
       vec2 p = vec2(vU.x * uRes.x, (1.0 - vU.y) * uRes.y);
@@ -1164,14 +1163,9 @@ const HY = (() => {
       if (!emW && !emF) { n.x = G.g * 255.0 / 249.0 * 2.0 - 1.0; n.y = G.b * 255.0 / 249.0 * 2.0 - 1.0; n.z = sqrt(max(0.0, 1.0 - n.x * n.x - n.y * n.y)); }
       vec2 w = uOrg + p / 2.0;            // pikselin dünya (ekran) konumu
       float ndl = max(dot(n, uSun), 0.0);
-      // güneş/ay gölgesi: ayrı geçişte yarım çözünürlükte hesaplanır (SHFS)
-      float sh = ndl > 0.0 ? shadowAt(vU, G.r) : 1.0;
-      // köşelerde ortam gölgesi
-      // sekiz yön (45 derece aralıkla) sabit: her pikselde sin/cos hesaplanmaz
-      const float R2 = 0.70710678;
-      float occ = aoAt(p, vec2(1.0, 0.0), h) + aoAt(p, vec2(R2, R2), h) + aoAt(p, vec2(0.0, 1.0), h) + aoAt(p, vec2(-R2, R2), h)
-        + aoAt(p, vec2(-1.0, 0.0), h) + aoAt(p, vec2(-R2, -R2), h) + aoAt(p, vec2(0.0, -1.0), h) + aoAt(p, vec2(R2, -R2), h);
-      float ao = max(0.55, 1.0 - occ * 0.07);
+      // güneş/ay gölgesi ve köşelerdeki ortam gölgesi: ayrı geçişte yarım çözünürlükte hesaplanır (SHFS)
+      vec2 sa = shadeAt(vU, G.r);
+      float sh = ndl > 0.0 ? sa.x : 1.0, ao = sa.y;
       // iç mekân: çatı altı, güneş yalnızca pencere ve kapıdan
       float ak = 1.0, sk = sh;
       bool inB = uIn.z > 0.0 && w.x > uIn.x - 3.0 && w.x < uIn.x + uIn.z + 3.0 && w.y > uIn.y - 3.0 && w.y < uIn.y + uIn.w + 3.0;
@@ -1186,14 +1180,16 @@ const HY = (() => {
       // nokta ışıklar: duvarda durur (iç mekânda mobilya da keser)
       vec3 P3 = vec3(w.x, w.y + h, h);
       for (int i = 0; i < ${NL}; i++) {
-        vec4 L = uLP[i]; if (L.w <= 0.0 || (uLC[i].w > 0.5 && !inB)) continue;   // iç ışık binadan dışarı taşmaz
+        vec4 L = uLP[i]; if (L.w <= 0.0) break;              // ışıklar baştan dizilir: boş yuvadan sonrası boş
+        if (uLC[i].w > 0.5 && !inB) continue;                // iç ışık binadan dışarı taşmaz
         vec3 d = vec3(L.x, L.y, L.z) - P3; float dd = dot(d, d); if (dd > L.w * L.w) continue;
         float dl = sqrt(dd) + 0.001, a = 1.0 - dd / (L.w * L.w); a *= a;
         float nd = max(dot(n, d / dl), 0.0) * 0.75 + 0.25;
         vec2 ls = (vec2(L.x, L.y - L.z) - uOrg) * 2.0;
         float ok = 1.0;
-        for (int q = 1; q < 14; q++) {
-          float t = float(q) / 16.0; vec2 s = mix(p, ls, t);
+        // ışığa giden yolda engel: sekiz örnek (yolun 13/16'sına kadar)
+        for (int q = 1; q <= 8; q++) {
+          float t = float(q) * 0.1015625; vec2 s = mix(p, ls, t);
           float hq = hgt(s);
           if (hq > h + (L.z - h) * t + 4.0 && hq > (uLC[i].w > 0.5 ? 0.0 : 22.0)) { ok = uLC[i].w > 0.5 ? 0.35 : 0.0; break; }
         }
@@ -1207,6 +1203,7 @@ const HY = (() => {
   const SHFS = `${HP}
     varying vec2 vU; uniform sampler2D uG; uniform vec2 uRes; uniform vec3 uSun; uniform float uShQ;
     float hgt(vec2 p){ return texture2D(uG, p / uRes).r * 85.0; }
+    float aoAt(vec2 p, vec2 o, float h){ float d1 = hgt(p + o * 6.0) - h, d2 = hgt(p + o * 12.0) - h; return clamp(d1 / 12.0, 0.0, 1.0) + clamp(d2 / 12.0, 0.0, 1.0) * 0.5; }
     void main(){
       vec2 p = floor(vec2(vU.x * uRes.x, (1.0 - vU.y) * uRes.y)) + 0.5;   // iki kat yoğun tuvalde 2x2 bloğun bir pikseli
       vec4 G = texture2D(uG, p / uRes);
@@ -1214,36 +1211,40 @@ const HY = (() => {
       bool em = G.g > 0.992 && G.b > 0.998;
       vec3 n = vec3(0.0, 1.0, 0.0);
       if (!em) { n.x = G.g * 255.0 / 249.0 * 2.0 - 1.0; n.y = G.b * 255.0 / 249.0 * 2.0 - 1.0; n.z = sqrt(max(0.0, 1.0 - n.x * n.x - n.y * n.y)); }
+      // güneşe doğru tek ışın; hiçbir şeyin ulaşamayacağı yükseklikte biter (yumuşak kenarı ana geçişin dört komşulu
+      // seçimi verir)
       float sh = 1.0;
       if (dot(n, uSun) > 0.0) {
         vec2 u = vec2(-uSun.x / uSun.z, -uSun.y / uSun.z + 1.0) * 2.0;
-        vec2 side = normalize(vec2(-u.y, u.x));
-        float hit = 0.0;
-        for (int s = 0; s < 2; s++) {
-          vec2 q0 = p + side * (float(s) - 0.5);
-          for (int i = 1; i <= 48; i++) {
-            float d = float(i) * 1.4 * uShQ;
-            vec2 q = q0 - u * d;
-            if (q.x < 0.0 || q.y < 0.0 || q.x >= uRes.x || q.y >= uRes.y) break;
-            float hq = hgt(q);
-            if (hq >= h + d && hq < h + d + 7.0) { hit += 0.5; break; }
-          }
+        for (int i = 1; i <= 48; i++) {
+          float d = float(i) * 1.4 * uShQ;
+          if (h + d > 85.0) break;
+          vec2 q = p - u * d;
+          if (q.x < 0.0 || q.y < 0.0 || q.x >= uRes.x || q.y >= uRes.y) break;
+          float hq = hgt(q);
+          if (hq >= h + d && hq < h + d + 7.0) { sh = 0.0; break; }
         }
-        sh = 1.0 - hit;
       }
-      gl_FragColor = vec4(sh, G.r, 0.0, 1.0);   // gölge ve yükseklik (ana geçişte komşu seçimi için)
+      // köşelerde ortam gölgesi: sekiz yön (45 derece aralıkla) sabit, her pikselde sin/cos hesaplanmaz
+      const float R2 = 0.70710678;
+      float occ = aoAt(p, vec2(1.0, 0.0), h) + aoAt(p, vec2(R2, R2), h) + aoAt(p, vec2(0.0, 1.0), h) + aoAt(p, vec2(-R2, R2), h)
+        + aoAt(p, vec2(-1.0, 0.0), h) + aoAt(p, vec2(-R2, -R2), h) + aoAt(p, vec2(0.0, -1.0), h) + aoAt(p, vec2(R2, -R2), h);
+      gl_FragColor = vec4(sh, G.r, max(0.55, 1.0 - occ * 0.07), 1.0);   // gölge, yükseklik (ana geçişte komşu seçimi için), köşe gölgesi
     }`;
   const BFS = `${HP} varying vec2 vU; uniform sampler2D uT; uniform vec2 uDir; uniform float uThr;
     void main(){ vec3 s = vec3(0.0); float wsum = 0.0;
       for (int i = -4; i <= 4; i++) { float w = exp(-float(i * i) / 8.0); vec3 c = texture2D(uT, vU + uDir * float(i)).rgb; s += max(c - uThr, 0.0) * w; wsum += w; }
       gl_FragColor = vec4(s / wsum, 1.0); }`;
-  const FFS = `${HP} varying vec2 vU; uniform sampler2D uL; uniform sampler2D uB; uniform float uBloom;
+  const FFS = `${HP} varying vec2 vU; uniform sampler2D uL; uniform sampler2D uB; uniform float uBloom; uniform vec2 uTone;
     float b2(vec2 a){ a = floor(a); return fract(a.x * 0.5 + a.y * a.y * 0.75); }
     float bay(vec2 a){ return b2(0.5 * a) * 0.25 + b2(a); }
     void main(){ vec3 c = texture2D(uL, vU).rgb + texture2D(uB, vU).rgb * uBloom;
       // omuz: parlak yüzeyler (kar, kum) patlamasın, dokusu kalsın
       c *= 1.04; vec3 hi = max(c - 0.75, 0.0); c = min(c, 0.75) + 0.25 * (1.0 - exp(-hi / 0.25));
-      float dz = bay(gl_FragCoord.xy); gl_FragColor = vec4(floor(clamp(c, 0.0, 1.0) * 44.0 + dz) / 44.0, 1.0); }`;
+      float dz = bay(gl_FragCoord.xy); c = floor(clamp(c, 0.0, 1.0) * 44.0 + dz) / 44.0;
+      // renk tonu (klasikte CSS süzgeci: saturate, contrast): ekranın tam çözünürlüğünde ayrı bir geçiş olmasın diye burada
+      c = mix(vec3(dot(c, vec3(0.213, 0.715, 0.072))), c, uTone.x); c = (c - 0.5) * uTone.y + 0.5;
+      gl_FragColor = vec4(c, 1.0); }`;
   let gl = null, glc = null, failed = false, PL = null, PS = null, PB = null, PF = null, quad = null, texC = null, texG = null, rtL = null, rtS = null, rtA = null, rtB = null, RW = 0, RH = 0, lastVr = '';
   function compile(fs) {
     const mk = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
@@ -1564,7 +1565,8 @@ const HY = (() => {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w2, h2);
     gl.useProgram(PF.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, rtL.t); gl.uniform1i(PF.u.uL, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, rtB.t); gl.uniform1i(PF.u.uB, 1); gl.uniform1f(PF.u.uBloom, 0.9 + S0.dark * 0.8);
-    draw(PF);
+    gl.uniform2f(PF.u.uTone, G.settings.tone === 1 ? 1 : 0.93, G.settings.tone === 1 ? 1 : 0.96);   // css/style.css --tone ile aynı
+    scis(1); draw(PF); gl.disable(gl.SCISSOR_TEST);
     if (gl.isContextLost && gl.isContextLost()) return false;
     const t4 = performance.now(); seg('ışık (GPU komutları)', t4 - t3);
 

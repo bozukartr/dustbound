@@ -40,6 +40,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 :root { --tone: saturate(0.93) contrast(0.96); }
 body.vivid { --tone: saturate(1); }
 #game { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; transition: filter 0.4s; filter: var(--tone); }
+/* Melez çizimde ton son ışık geçişinde (js/hybrid.js): tuvalde süzgeç yok, ekranın tam çözünürlüğünde ayrı bir geçiş olmaz */
+body.hyb { --tone: saturate(1); }
+body.hyb #game { filter: none; }
 body.deadeye #game { filter: var(--tone) sepia(0.85) saturate(1.8) contrast(1.2) hue-rotate(-12deg) brightness(0.95); }
 body.drunk #game { filter: var(--tone) blur(0.5px); }
 #fx-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%); }

@@ -183,6 +183,7 @@ const G = {
     const ds = this.hybridOn() ? 2 : 1;
     if (ds === 2 && this.ds !== 2 && this.world) HY.flush(this.world);   // klasikteyken değişen yerler eskimiş kalmasın
     this.ds = ds;
+    document.body.classList.toggle('hyb', ds === 2);   // melezde renk tonu ışık geçişinde (tuvalde CSS süzgeci yok)
     c.width = this.vw * ds; c.height = this.vh * ds;
     c.style.width = this.vw * s + 'px'; c.style.height = this.vh * s + 'px';
     const L = Math.round((W - this.vw * s) / 2), Tp = Math.round((H - this.vh * s) / 2);
