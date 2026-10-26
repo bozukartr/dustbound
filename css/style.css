@@ -80,7 +80,7 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .core { position: absolute; width: 44px; height: 44px; border-radius: 50%; --v: 1; --c: 1;
   background: conic-gradient(#f4eedf calc(var(--v) * 360deg), rgba(22, 15, 10, 0.88) 0);
   box-shadow: 0 0 0 1.5px #160f09, 0 0 0 3px rgba(201, 164, 92, 0.9), 0 0 0 4px rgba(22, 15, 10, 0.7), 0 4px 10px rgba(0, 0, 0, 0.55);
-  transition: left 0.35s ease, top 0.35s ease; }
+  transition: left 0.35s ease, top 0.35s ease, opacity 0.45s ease; }
 .core .fill { position: absolute; inset: 4px; border-radius: 50%; background: linear-gradient(to top, #d8cbab calc(var(--c) * 100%), #1d150f calc(var(--c) * 100%)); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.65); }
 .core .cic { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; filter: drop-shadow(0 0 1px rgba(246, 240, 226, 0.95)) drop-shadow(0 0 0.5px rgba(246, 240, 226, 0.9)); }
 .core.low { animation: corelow 0.8s infinite; }
@@ -96,11 +96,13 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 #status-icons span { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 40% 35%, rgba(46, 33, 22, 0.95), rgba(16, 11, 7, 0.95)); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.6), 0 2px 5px rgba(0, 0, 0, 0.5); }
 #hud.hud-x #status-icons { transform: translateX(62px); }
 /* ihtiyaçlar: açlık, susuzluk, uyku, temizlik */
-#needs { position: absolute; left: 234px; top: 228px; display: grid; grid-template-columns: auto auto; gap: 10px 14px; transition: transform 0.35s ease; }
+#needs { position: absolute; left: 234px; top: 228px; display: grid; grid-template-columns: auto auto; gap: 10px 12px; transition: transform 0.35s ease; }
 #hud.hud-x #needs { transform: translateX(46px); }
-.need { display: flex; align-items: center; gap: 6px; --v: 1; }
-.need span { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
-.need i { display: block; width: 50px; height: 7px; border-radius: 4px; background: linear-gradient(90deg, #efe8d8 calc(var(--v) * 100%), rgba(16, 11, 8, 0.85) calc(var(--v) * 100%)); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.6), 0 0 0 2px rgba(16, 11, 8, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5); }
+/* gerektiğinde göster: dolu ve durgun gösterge söner (yer değiştirmez) */
+.core.off, .need.off { opacity: 0; }
+.need { display: flex; align-items: center; gap: 6px; --v: 1; transition: opacity 0.45s ease; }
+.need span { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 40% 35%, rgba(46, 33, 22, 0.95), rgba(16, 11, 7, 0.95)); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.6), 0 2px 5px rgba(0, 0, 0, 0.5); }
+.need i { display: block; width: 48px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #efe8d8 calc(var(--v) * 100%), rgba(16, 11, 8, 0.85) calc(var(--v) * 100%)); box-shadow: 0 0 0 1px rgba(201, 164, 92, 0.6), 0 0 0 2px rgba(16, 11, 8, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5); }
 .need.low i { background: linear-gradient(90deg, var(--red2) calc(var(--v) * 100%), rgba(16, 11, 8, 0.85) calc(var(--v) * 100%)); box-shadow: 0 0 0 1px #e0503a, 0 0 8px rgba(224, 80, 58, 0.6); animation: needlow 0.8s infinite; }
 @keyframes needlow { 50% { opacity: 0.55; } }
 .blink { animation: bl 0.8s infinite; }
@@ -328,7 +330,7 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 .core .cic .ic { width: 22px; height: 22px; }
 #status-icons span .ic { width: 17px; height: 17px; }
 .core.small .cic .ic { width: 18px; height: 18px; }
-.need span .ic { width: 16px; height: 16px; filter: drop-shadow(0 0 2px #000); }
+.need span .ic { width: 15px; height: 15px; filter: drop-shadow(0 0 2px #000); }
 .btn.ps svg { width: 22px; height: 22px; }
 .btn.ps.tp svg { width: 26px; }
 .btn.ps.dp svg { width: 17px; height: 17px; }

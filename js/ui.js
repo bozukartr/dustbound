@@ -339,15 +339,33 @@ const UI = {
   },
 
   /* ================= HUD ================= */
-  setCore(id, ring, core, col) {
+  setCore(id, ring, core, on = true) {
     const e = this.cache['core' + id] || (this.cache['core' + id] = $('#' + id));
     const r = Math.round(ring * 100), c = Math.round(core * 100);
-    const k = r + '|' + c;
+    const k = r + '|' + c + on;
     if (e._k === k) return;
     e._k = k;
     e.style.setProperty('--v', ring.toFixed(3));
     e.style.setProperty('--c', core.toFixed(3));
     e.classList.toggle('low', ring < 0.25 || core < 0.15);
+    e.classList.toggle('off', !on);
+  },
+  /* Gerektiğinde göster (Ayarlar > Görüntü > Göstergeler): dolu ve durgun gösterge söner. Belirgin bir değişimden
+     (yemek, içmek, yara) sonra birkaç saniye, show iken (dolu değil ya da azalmış) hep görünür. */
+  meterOn(id, v, show) {
+    const M = this.meters || (this.meters = {}), m = M[id] || (M[id] = { v, t: -99 });
+    if (Math.abs(v - m.v) >= 0.02) m.t = G.t;
+    m.v = v;
+    return show || G.t - m.t < 4;
+  },
+  /* Göstergelerin hepsi görünsün mü: ayar, genişletilmiş HUD, yeni hayatın ilk yarım dakikası, çatışma, nişan,
+     aranma ya da can götüren bir durum (tehlike kartı) */
+  metersAll() {
+    const P = G.player;
+    if (G.settings.meters === 1 || this.hudX > 0 || G.state !== 'play' || G.playtime < 30) return true;
+    if (P.aiming || P.deadeye || G.law.level > 0 || this.dangerList().length) return true;
+    for (const e of G.ents) if (e.hostile && !e.dead && (e.aggro || e.kind === 'animal') && Math.abs(e.x - P.x) + Math.abs(e.y - P.y) < 500) return true;
+    return false;
   },
   /* Para sayacı: gösterilen değer gerçeğe doğru yuvarlanır (tıkırtıyla), artışta yeşil, azalışta kırmızı parlar */
   moneyTick(dt) {
@@ -454,11 +472,19 @@ const UI = {
     const P = G.player;
     if (!P) return;
     if (this.hudX > 0) this.setText('hud-xinfo', this.hudXInfo());
-    this.setCore('core-hp', P.hp / P.maxHp, Math.min(P.hunger, P.thirst) / 100);
-    this.setCore('core-sta', P.sta / Math.max(1, P.maxSta), P.energy / 100);
-    this.setCore('core-de', P.de / 100, P.deCore / 100);
-    const setNeed = (id, v) => { const e = this.cache[id] || (this.cache[id] = $('#' + id)); const k = Math.round(v); if (e._k !== k) { e._k = k; e.style.setProperty('--v', v / 100); e.classList.toggle('low', v < 20); } };
+    // halka dolu değilken ya da iç dolgu (açlık-susuzluk, uyku, odak çekirdeği) yarının altındayken görünür
+    const all = this.metersAll(), cOn = (id, ring, core, cl = 0.5) => all || this.meterOn(id, ring + core, ring < 0.98 || core < cl);
+    const hr = P.hp / P.maxHp, hn = Math.min(P.hunger, P.thirst) / 100, sr = P.sta / Math.max(1, P.maxSta), dr = P.de / 100;
+    this.setCore('core-hp', hr, hn, cOn('hp', hr, hn));
+    this.setCore('core-sta', sr, P.energy / 100, cOn('sta', sr, P.energy / 100));
+    this.setCore('core-de', dr, P.deCore / 100, cOn('de', dr, P.deCore / 100));
+    // ihtiyaç çubukları yarının altında hep, yiyip içince birkaç saniye görünür
+    const setNeed = (id, v) => {
+      const e = this.cache[id] || (this.cache[id] = $('#' + id)), on = all || this.meterOn(id, v / 100, v < 50), k = Math.round(v) + '|' + on;
+      if (e._k !== k) { e._k = k; e.style.setProperty('--v', v / 100); e.classList.toggle('low', v < 20); e.classList.toggle('off', !on); }
+    };
     setNeed('need-hunger', P.hunger); setNeed('need-thirst', P.thirst); setNeed('need-energy', P.energy); setNeed('need-clean', P.clean);
+    if (!all && G.state === 'play' && !window.__testNoGuide) G.hintOnce('meters', Tr`Dolu göstergeler söner; azalınca, değişince ve çatışmada yeniden görünür. Hepsini sayılarıyla görmek için ${Input.glyph('camp')} tuşuna kısa bas. Her zaman görünmeleri için: Ayarlar > Görüntü > Göstergeler.`, 9);
     this.setText('hud-time', G.timeStr());
     this.setText('hud-date', G.dateStr());
     this.setText('hud-age', Tr`${P.name} • ${G.age} yaşında`);
@@ -511,7 +537,7 @@ const UI = {
     const hc = this.cache.hc || (this.cache.hc = $('#horse-cores'));
     const showH = h && !h.dead && (P.riding === h || dist(P.x, P.y, h.x, h.y) < 120);
     hc.classList.toggle('hidden', !showH);
-    if (showH) { this.setCore('core-hhp', h.hp / h.maxHp, h.bondLv / 4); this.setCore('core-hsta', h.sta / h.maxSta, 1); }
+    if (showH) { this.setCore('core-hhp', h.hp / h.maxHp, h.bondLv / 4, cOn('hhp', h.hp / h.maxHp, 1, 0)); this.setCore('core-hsta', h.sta / h.maxSta, 1, cOn('hsta', h.sta / h.maxSta, 1, 0)); }
     // durum simgeleri
     const st = [];
     const gi = (g, t, col, blink) => st.push(`<span title="${t}" class="${blink ? 'blink' : ''}">${Icons.glyph(g, col)}</span>`);
@@ -1761,12 +1787,12 @@ const UI = {
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, gfx: 0, gpu: 0 };
+    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0 };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
       padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')], gfx: [Tr('Melez'), Tr('Klasik')], tone: [Tr('Doğal'), Tr('Canlı')],
       zoom: [Tr('Otomatik'), '1x', '2x', '3x', '4x', '5x'],
-      hudScale: HUD_SCALES.map(v => Math.round(v * 100) + '%'),
+      hudScale: HUD_SCALES.map(v => Math.round(v * 100) + '%'), meters: [Tr('Gerektiğinde'), Tr('Her Zaman')],
       gpu: this.gpuOpts(),
     };
     const TABS = [
@@ -1788,6 +1814,7 @@ const UI = {
         ['gpu', Tr('Ekran Kartı'), 'opt', Tr('Oyunun çizileceği ekran kartı. Otomatik, varsa güçlü (harici) kartı kullanır. Dizüstünde tasarruflu (tümleşik) kart pili uzatır ama Melez çizimde kare sayısı düşer.')],
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
         ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
+        ['meters', Tr('Göstergeler'), 'opt', Tr('Gerektiğinde: radarın çevresindeki halkalar ve ihtiyaç çubukları doluyken söner; azalınca, değişince, çatışmada, nişan alırken ve genişletilmiş HUD\'da görünür. Her Zaman: hepsi hep ekranda.')],
         ['tone', Tr('Görüntü Tonu'), 'opt', Tr('Doğal: gerçeğe yakın, yumuşak renkler ve daha düşük kontrast; uzun oyunda gözü yormaz. Canlı: daha doygun, parlak renkler.')],
         ['fxq', Tr('Görsel Efektler'), 'opt', Tr('Tam: bulut gölgeleri, duman, izler, su halkaları ve renk tonlaması. Sade: zayıf bilgisayarlar için azaltılmış efektler.')],
       ] },
