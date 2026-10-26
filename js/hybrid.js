@@ -1142,7 +1142,7 @@ const HY = (() => {
     uniform vec3 uSun; uniform vec3 uSunC; uniform vec3 uAmb; uniform float uNight; uniform float uDay;
     uniform vec4 uLP[${NL}]; uniform vec4 uLC[${NL}];
     uniform vec4 uIn; uniform vec4 uWin[${NW}]; uniform float uInAmb;
-    uniform sampler2D uS; uniform vec2 uSRes;
+    uniform sampler2D uS; uniform vec2 uSRes; uniform vec2 uShOff;
     float hgt(vec2 p){ return texture2D(uG, p / uRes).r * 85.0; }
     // yarım çözünürlüklü gölge ve köşe gölgesi (SHFS): dört komşu, yüksekliği bu piksele yakın olanlar ağır basar
     // (duvar dibi kenarı keskin kalır). x: güneş gölgesi, y: köşe gölgesi
@@ -1164,7 +1164,7 @@ const HY = (() => {
       vec2 w = uOrg + p / 2.0;            // pikselin dünya (ekran) konumu
       float ndl = max(dot(n, uSun), 0.0);
       // güneş/ay gölgesi ve köşelerdeki ortam gölgesi: ayrı geçişte yarım çözünürlükte hesaplanır (SHFS)
-      vec2 sa = shadeAt(vU, G.r);
+      vec2 sa = shadeAt(vU + uShOff, G.r);   // gölge önceki bir karede hesaplandıysa kamera kayması telafi edilir
       float sh = ndl > 0.0 ? sa.x : 1.0, ao = sa.y;
       // iç mekân: çatı altı, güneş yalnızca pencere ve kapıdan
       float ak = 1.0, sk = sh;
@@ -1339,7 +1339,7 @@ const HY = (() => {
   // yükseklik tamponunun (FG) içeriğini belirleyenler (kamera, görünen parçalar, taç deliği, örtüler) ve gölge geçişinin
   // girdileri geçen kareyle aynıysa FG yüklenmez, gölge geçişi yeniden çizilmez (canlılar FG'ye çizilmez: duran sahnede
   // GPU işinin büyük kısmı kalkar)
-  let SID = 0, lastFgk = '', lastShk = '', lastSun = null;
+  let SID = 0, lastFgk = '', lastShk = '', lastSun = null, lastWk = '', shX = 0, shY = 0;
   const sidOf = (o) => o.sid || (o.sid = ++SID);
   const stat = { frames: 0, ms: 0, built: 0, seg: {}, sync: 0 };   // sync: görünür olunca tek seferde pişen parça sayısı
   const seg = (k, t) => { stat.seg[k] = (stat.seg[k] || 0) * 0.9 + t * 0.1; };
@@ -1369,7 +1369,7 @@ const HY = (() => {
     fc.setTransform(1, 0, 0, 1, 0, 0); fg.setTransform(1, 0, 0, 1, 0, 0);
     fc.fillStyle = '#2c4b5e'; fc.fillRect(0, 0, w2, h2); fg.fillStyle = 'rgb(0,124,124)'; fg.fillRect(0, 0, w2, h2);
     const NC = Math.ceil(WW * TS / HC), vis = [];
-    let fgk = x0 + ',' + y0 + ',' + w2 + ',' + h2;
+    let wk = w2 + ',' + h2;   // FG'nin dünyadaki içeriği (kamera kökeninden bağımsız): parçalar, taç deliği, örtüler
     const ccx0 = Math.floor(x0 / HC), ccy0 = Math.floor(y0 / HC), ccx1 = Math.floor(x1 / HC), ccy1 = Math.floor(y1 / HC);
     // gereken alan (görünen + halka) önbelleğe her zaman sığar; geçen karede atılan parçaların tuvalleri artık kullanılabilir
     NEED[0] = ccx0 - 1; NEED[1] = ccy0 - 1; NEED[2] = ccx1 + 1; NEED[3] = ccy1 + 1;
@@ -1380,7 +1380,7 @@ const HY = (() => {
       const c = chunk(W, cx, cy, true), dx = (cx * HC - x0) * S, dy = (cy * HC - y0) * S;
       vis.push([c, dx, dy]);
       fc.drawImage(c.bc, dx, dy); fg.drawImage(c.bg, dx, dy);
-      fgk += ',' + sidOf(c);
+      wk += ',' + sidOf(c);
     }
     // ileride gerekecek parçalar (hareket yönünde bir halka)
     for (let cy = ccy0 - 1; cy <= ccy1 + 1; cy++) for (let cx = ccx0 - 1; cx <= ccx1 + 1; cx++) if (cx >= 0 && cy >= 0 && cx < NC && cy < NC) chunk(W, cx, cy, false);
@@ -1495,7 +1495,7 @@ const HY = (() => {
       to.clearRect(0, 0, w2, h2); tog.clearRect(0, 0, w2, h2);
       for (const [c, dx, dy] of vis) if (c.oc) { to.drawImage(c.oc, dx, dy); tog.drawImage(c.og, dx, dy); }
       const px = (P.x - x0) * S, py = (P.y - y0 - 4) * S;
-      fgk += 'u' + px + ',' + py;
+      wk += 'u' + P.x + ',' + P.y;
       for (const c of [to, tog]) { c.globalCompositeOperation = 'destination-out'; c.drawImage(G.holeSpr, px - 68, py - 68, 136, 136); c.globalCompositeOperation = 'source-over'; }
       fc.drawImage(TO, 0, 0); fg.drawImage(TOG, 0, 0);
     } else for (const [c, dx, dy] of vis) if (c.oc) { fc.drawImage(c.oc, dx, dy); fg.drawImage(c.og, dx, dy); }
@@ -1514,7 +1514,7 @@ const HY = (() => {
       if (b.coverA < 0.02) continue;
       const cv = cover(b, W);
       fc.globalAlpha = b.coverA; fg.globalAlpha = b.coverA > 0.5 ? 1 : 0;
-      fc.drawImage(cv.c, (cv.x - x0) * S, (cv.y - y0) * S); if (fg.globalAlpha) { fg.drawImage(cv.g, (cv.x - x0) * S, (cv.y - y0) * S); fgk += ';' + sidOf(cv); }
+      fc.drawImage(cv.c, (cv.x - x0) * S, (cv.y - y0) * S); if (fg.globalAlpha) { fg.drawImage(cv.g, (cv.x - x0) * S, (cv.y - y0) * S); wk += ';' + sidOf(cv); }
     }
     fc.globalAlpha = 1; fg.globalAlpha = 1;
     fc.setTransform(S, 0, 0, S, -x0 * S, -y0 * S);
@@ -1524,8 +1524,8 @@ const HY = (() => {
 
     /* 5) WebGL ışık */
     if (glc.width !== w2 || glc.height !== h2) { glc.width = w2; glc.height = h2; }
-    if (RW !== w2 || RH !== h2) { RW = w2; RH = h2; lastVr = ''; lastFgk = ''; rtL = rt(w2, h2, true, rtL); rtS = rt(w2 >> 1, h2 >> 1, false, rtS); rtA = rt(w2 >> 2, h2 >> 2, true, rtA); rtB = rt(w2 >> 2, h2 >> 2, true, rtB); }
-    const fgSame = fgk === lastFgk;
+    if (RW !== w2 || RH !== h2) { RW = w2; RH = h2; lastVr = ''; lastFgk = ''; lastWk = ''; rtL = rt(w2, h2, true, rtL); rtS = rt(w2 >> 1, h2 >> 1, false, rtS); rtA = rt(w2 >> 2, h2 >> 2, true, rtA); rtB = rt(w2 >> 2, h2 >> 2, true, rtB); }
+    const fgk = x0 + ',' + y0 + '|' + wk, fgSame = fgk === lastFgk;
     lastFgk = fgk;
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texC); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FC);
@@ -1544,12 +1544,19 @@ const HY = (() => {
     // görünür alan değişince ışık tamponunun dışı karartılır: parlama bulanıklığı kenarda eski görüntüden beslenmez
     const vk = vr ? vr.join(',') : 'hepsi';
     if (vk !== lastVr) { lastVr = vk; gl.bindFramebuffer(gl.FRAMEBUFFER, rtL.fb); gl.disable(gl.SCISSOR_TEST); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
-    // güneş/ay gölgesi: dünya çözünürlüğünde (iki kat yoğun tuvalin yarısı), ana geçiş yüksekliğe duyarlı büyütür. FG,
-    // görünen alan ve gölge kalitesi aynı, güneş de belirgin dönmediyse (en çok yarım dünya pikseli) önceki sonuç kalır
-    const shQ = G.settings.fxq ? 1.6 : 1, shKey = vk + '|' + shQ, D = S0.dir;
-    if (!fgSame || shKey !== lastShk || !lastSun || Math.abs(D[0] - lastSun[0]) + Math.abs(D[1] - lastSun[1]) + Math.abs(D[2] - lastSun[2]) > 0.004) {
-      lastShk = shKey; lastSun = D.slice(); stat.shadow = (stat.shadow || 0) + 1;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, rtS.fb); gl.viewport(0, 0, rtS.w, rtS.h); scis(2);
+    // güneş/ay gölgesi ve köşe gölgesi: dünya çözünürlüğünde (iki kat yoğun tuvalin yarısı), görünen alanın SHM piksel
+    // dışına kadar; ana geçiş yüksekliğe duyarlı büyütür. FG'nin dünyadaki içeriği, görünen alan ve gölge kalitesi aynı,
+    // güneş belirgin dönmediyse (en çok yarım dünya pikseli) ve kamera bu payın içinde kaydıysa önceki sonuç kaymayı
+    // telafi ederek okunur: duran sahnede hiç, yürürken birkaç karede bir hesaplanır
+    const shQ = G.settings.fxq ? 1.6 : 1, shKey = vk + '|' + shQ, D = S0.dir, SHM = 32;
+    let shDx = (x0 - shX) * S, shDy = (y0 - shY) * S;
+    if (wk !== lastWk || shKey !== lastShk || !lastSun || Math.abs(D[0] - lastSun[0]) + Math.abs(D[1] - lastSun[1]) + Math.abs(D[2] - lastSun[2]) > 0.004 || Math.abs(shDx) > SHM - 4 || Math.abs(shDy) > SHM - 4) {
+      lastWk = wk; lastShk = shKey; lastSun = D.slice(); shX = x0; shY = y0; shDx = shDy = 0; stat.shadow = (stat.shadow || 0) + 1;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, rtS.fb); gl.viewport(0, 0, rtS.w, rtS.h);
+      if (vr) {
+        const X = Math.max(0, vr[0] - SHM), Y = Math.max(0, vr[1] - SHM), X1 = Math.min(w2, vr[0] + vr[2] + SHM), Y1 = Math.min(h2, vr[1] + vr[3] + SHM);
+        gl.enable(gl.SCISSOR_TEST); gl.scissor(Math.floor(X / 2), Math.floor(Y / 2), Math.ceil((X1 - X) / 2), Math.ceil((Y1 - Y) / 2));
+      } else gl.disable(gl.SCISSOR_TEST);
       gl.useProgram(PS.p);
       gl.uniform1i(PS.u.uG, 1); gl.uniform2f(PS.u.uRes, w2, h2); gl.uniform3fv(PS.u.uSun, D); gl.uniform1f(PS.u.uShQ, shQ);
       draw(PS);
@@ -1558,6 +1565,7 @@ const HY = (() => {
     const u = PL.u; gl.useProgram(PL.p);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, rtS.t);
     gl.uniform1i(u.uC, 0); gl.uniform1i(u.uG, 1); gl.uniform1i(u.uS, 2); gl.uniform2f(u.uSRes, rtS.w, rtS.h); gl.uniform2f(u.uRes, w2, h2); gl.uniform2f(u.uOrg, x0, y0);
+    gl.uniform2f(u.uShOff, shDx / w2, -shDy / h2);   // gölge hesaplandığından beri kamera kayması (GL'de y ters)
     gl.uniform3fv(u.uSun, S0.dir); gl.uniform3fv(u.uSunC, S0.sunC); gl.uniform3fv(u.uAmb, S0.amb);
     gl.uniform1f(u.uNight, clamp((S0.dark - 0.3) * 2.5, 0, 1)); gl.uniform1f(u.uDay, S0.day ? 1 : 0);
     const Ls = lights(G, x0, y0, vw, vh, fires, S0), LP = new Float32Array(NL * 4), LC = new Float32Array(NL * 4);
