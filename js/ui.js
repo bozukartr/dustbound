@@ -573,7 +573,8 @@ const UI = {
     if (tgt) {
       const a0 = tgt.actions[0];
       const hasMenu = tgt.actions.length > 1 && !a0.hold;
-      if (!tgt.riding && dist(P.x, P.y, tgt.x, tgt.y) > 48) this.holdTarget = null;
+      // far: uzaktan seslenilen hedef (ör. bekleyişteki ödül avcısı, tutuklamaya gelen kanun adamı)
+      if (!tgt.riding && !tgt.far && dist(P.x, P.y, tgt.x, tgt.y) > 48) this.holdTarget = null;
       else if (I.down('interact')) {
         this.holdT += dt;
         if (a0.hold) {
@@ -586,20 +587,22 @@ const UI = {
       } else if (I.released('interact')) {
         this.holdTarget = null;
         if (!a0.hold && !this.menuOpened) { a0.fn(); this.curInteract = null; this._scanT = 0.05; }
+        // ilk eylem basılı tutmalıysa kısa basış seçenekleri açar (ör. Teslim Ol basılı tutulur, Parayla Kurtul seçeneklerde)
+        else if (a0.hold && tgt.actions.length > 1 && this.holdT < 0.25) this.contextMenu(tgt);
       }
     }
     const lines = [];
     const shown = this.holdTarget || it;
     if (shown) {
       const a0 = shown.actions[0];
-      const hasMenu = shown.actions.length > 1 && !a0.hold;
+      const opt = shown.actions.length < 2 ? null : a0.hold ? Tr`Seçenekler <em>(kısa bas)</em>` : Tr`Seçenekler <em>(basılı tut)</em>`;
       // görev rehberi: görevi ilerleten eylem işaretlenir; seçeneklerin içindeyse adı istemde yazar
       if (shown._qgT === undefined || G.t - shown._qgT > 0.25) { shown._qgT = G.t; shown._qg = G.qPromptGoal(shown); shown._qa = !!shown.alt && G.qPromptGoal({ x: shown.x, y: shown.y, actions: [shown.alt] }) === 0; }
       const gi = shown._qg;
       lines.push(`<div class="prompt-title">${shown.label}</div>`);
       lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}${gi === 0 ? ' q-goal' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
       // at üstünde yakında biri varsa seçeneklerin yanında onunla ilk eylem (ör. Selamla: Ad) görünür
-      if (hasMenu) lines.push(gi > 0 ? `<div class="prompt q-goal">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`} → <b>${shown.actions[gi].n}</b></span></div>` : `<div class="prompt dim">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`}${shown.peek ? ' → ' + shown.peek : ''}</span></div>`);
+      if (opt) lines.push(gi > 0 ? `<div class="prompt q-goal">${I.glyph('interact')}<span>${opt} → <b>${shown.actions[gi].n}</b></span></div>` : `<div class="prompt dim">${I.glyph('interact')}<span>${opt}${shown.peek ? ' → ' + shown.peek : ''}</span></div>`);
       if (shown.alt) lines.push(`<div class="prompt${shown._qa ? ' q-goal' : ''}">${I.glyph('reload')}<span>${shown.alt.n}</span></div>`);
     }
     // nişan almayı henüz öğrenmediyse, ateşli silah elindeyken istemlerde hatırlatılır

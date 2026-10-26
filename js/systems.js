@@ -1819,9 +1819,12 @@ const GameSystems = {
     if (P.passenger) return this.ride ? { x: P.x, y: P.y, riding: true, label: Tr`Özel Faytonun · ${this.ride.d.n}`, actions: [{ n: Tr('Faytondan İn'), fn: () => this.rideEnd(false) }] } : null;
     const cands = [];
     const add = (x, y, label, actions, pri = 0, alt = null) => { const d = dist(P.x, P.y, x, y) - pri; cands.push({ x, y, label, actions, d, alt }); };
-    // kanun adamı tutuklamaya geliyorsa: teslim ol
+    // kanun adamı tutuklamaya geliyorsa: teslim ol (uzaktan, at üstünden de; atlı kanun adamı geniş daireler çizer)
     const cop = this.arrestingCop(130);
-    if (cop) return { x: cop.x, y: cop.y, label: cop.name + Tr(' (Kanun)'), actions: [{ n: Tr('Teslim Ol'), hold: 0.7, fn: () => this.surrender(cop) }] };
+    if (cop) return { x: cop.x, y: cop.y, far: true, label: cop.name + Tr(' (Kanun)'), actions: [{ n: Tr('Teslim Ol'), hold: 0.7, fn: () => this.surrender(cop) }] };
+    // ödül avcıları sıkıştırdıysa en yakınına seslenilir (at üstünden de): basılı tutunca teslim ol, kısa basınca seçenekler
+    const hn = this.posseNear(240);
+    if (hn) return { x: hn.x, y: hn.y, far: true, label: `${hn.name} · ${Tr('Ödül Avcısı')}`, actions: this.hunterActions(hn) };
     // omuzda yük varken etkileşim yalnızca yükle ilgilidir
     if (P.carry && !P.riding) return this.carryInteraction();
     if (P.riding) {

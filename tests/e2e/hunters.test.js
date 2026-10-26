@@ -65,5 +65,25 @@ module.exports = {
       await p.evaluate(() => { G.posse.warnT = 0.2; });
       await p.waitForFunction(() => G.posse && G.posse.phase === 'fight', null, { timeout: 5000 });
     });
+    await t.step('at üstündeyken avcılara uzaktan seslenilir: kısa basınca seçenekler açılır, parayla kurtulunur', async () => {
+      t.ok(await setup(80), 'grup çıkmalı');
+      await p.waitForFunction(() => G.posse && G.posse.phase === 'standoff', null, { timeout: 30000 });
+      const s = await p.evaluate(() => {
+        const P = G.player, h = G.horse; h.dead = false; h.x = P.x; h.y = P.y; h.spd = 0; P.mount(h, true);
+        const it = G.findInteraction();
+        return { d: Math.min(...G.posse.ents.map(e => dist(e.x, e.y, P.x, P.y))), label: it && it.label, acts: it ? it.actions.map(a => a.n) : [], far: !!(it && it.far) };
+      });
+      t.ok(s.d > 48, 'avcılar uzakta durur', s.d);
+      t.ok(s.far && /Ödül Avcısı/.test(s.label) && s.acts[0] === 'Teslim Ol' && s.acts.some(a => /Parayla Kurtul/.test(a)), 'at üstünden avcıya seslenilir', s);
+      await t.sleep(250);
+      const prompt = await p.evaluate(() => document.getElementById('prompts').textContent);
+      t.ok(/Teslim Ol \(basılı tut\)/.test(prompt) && /Seçenekler \(kısa bas\)/.test(prompt), 'istem: basılı tut ve kısa bas', prompt);
+      await p.keyboard.press('KeyE'); await t.sleep(300);
+      const labels = await p.evaluate(() => TH.menuLabels());
+      t.ok(labels.some(x => /Parayla Kurtul/.test(x)) && labels.includes('Teslim Ol'), 'kısa basınca seçenekler açılır', labels);
+      await p.evaluate(() => TH.clickItem(/Parayla Kurtul/)); await t.sleep(300);
+      const r = await p.evaluate(() => ({ phase: G.posse && G.posse.phase, riding: !!G.player.riding, modal: UI.isModal(), bounty: G.law.bounty }));
+      t.eq(r.phase, 'leave', 'grup ayrılmalı'); t.ok(r.riding && !r.modal, 'oyuncu atta kalır, menü kapanır', r); t.eq(r.bounty, 80, 'ödül başında kalmalı');
+    });
   },
 };

@@ -122,6 +122,42 @@ module.exports = {
       t.eq(r.bn[0], 'Attan İndir', 'aranan atlıda önce eyerden çekmek', r.bn);
     });
 
+    await t.step('ilk eylemi basılı tutmalı hedefte kısa basınca seçenekler açılır (aranan atlıyı selamlamak)', async () => {
+      await p.evaluate(() => {
+        MT.rider(); const P = G.player; P.dismount(); P.ang = 0;
+        G.horse.x = P.x - 200; G.horse.y = P.y;
+        const b = MT.npc(24, 0, 'traveler', { mounted: true }); b.bountyId = 'x'; b.update = function () {};
+        window.BT = b;
+      });
+      await t.sleep(250);
+      const prompt = await p.evaluate(() => document.getElementById('prompts').textContent);
+      t.ok(/Attan İndir \(basılı tut\)/.test(prompt) && /Seçenekler \(kısa bas\)/.test(prompt), 'istem: basılı tut ve kısa bas', prompt);
+      await p.keyboard.press('KeyE'); await t.sleep(300);
+      const labels = await p.evaluate(() => TH.menuLabels());
+      t.ok(labels.includes('Selamla') && labels.includes('Attan İndir'), 'kısa basınca seçenekler açılır', labels);
+      await p.evaluate(() => TH.clickItem(/Selamla/)); await t.sleep(100);
+      const r = await p.evaluate(() => { const o = { greeted: BT.greetDay === G.day, mounted: !!BT.mounted, crime: !!BT.assaulted, modal: UI.isModal() }; TH.clearNpcs(); return o; });
+      t.ok(r.greeted && r.mounted && !r.crime && !r.modal, 'seçenekten selam verildi, atlı atında', r);
+    });
+
+    await t.step('tutuklamaya gelen kanun adamına at üstünden, uzaktan teslim olunur', async () => {
+      await p.evaluate(() => {
+        MT.rider(); const P = G.player; P.money = 50;
+        Object.assign(G.law, { level: 1, bounty: 5, maskBounty: 0, masked: false, resist: false, lastX: P.x, lastY: P.y, spawnT: 99 });
+        const c = MT.npc(100, 0, 'law', { hostile: true }); c.update = function () {};   // yerinde dursun: uzaktan teslim olunabildiği görülsün
+        window.COP = c;
+      });
+      await t.sleep(250);
+      const r0 = await p.evaluate(() => { const it = G.findInteraction(); return { far: !!(it && it.far), a0: it && it.actions[0].n, d: dist(COP.x, COP.y, G.player.x, G.player.y) }; });
+      t.ok(r0.far && r0.a0 === 'Teslim Ol' && r0.d > 48, 'uzaktaki kanun adamına teslim seçeneği', r0);
+      await p.keyboard.down('KeyE'); await t.sleep(1000); await p.keyboard.up('KeyE'); await t.sleep(300);
+      const labels = await p.evaluate(() => TH.menuLabels());
+      t.ok(labels.some(x => /Cezayı Öde/.test(x)), 'basılı tutunca teslim olunur (tutuklama menüsü)', labels);
+      await p.evaluate(() => TH.clickItem(/Cezayı/)); await t.sleep(300);
+      const r = await p.evaluate(() => { const o = { lvl: G.law.level, bounty: G.law.bounty, riding: !!G.player.riding }; TH.clearNpcs(); return o; });
+      t.ok(r.lvl === 0 && r.bounty === 0 && !r.riding, 'ceza ödendi, attan inildi', r);
+    });
+
     await t.step('araba sürücüsü selamlanır: yayayken (araba giderken de) ve at üstünden', async () => {
       const r = await p.evaluate(() => {
         const W = G.world, road = W.roads.filter(rd => !rd.spur && rd.pts.length > 40)[0];

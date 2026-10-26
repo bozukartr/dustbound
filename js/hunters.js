@@ -86,7 +86,7 @@ const HunterSystems = {
         S.phase = 'standoff'; S.warnT = 11;
         const line = this.hunterLine('demand');
         lead.say(line, 5); UI.subtitle(lead.name + ' · ' + Tr('Ödül Avcısı'), line, 5);
-        this.hintOnce('hunters', Tr`Ödül avcıları seni sıkıştırdı. Yanlarına gidip ${Input.glyph('interact')} ile <b>teslim olabilir</b> ya da <b>parayla kurtulabilirsin</b>. Kaçarsan, onlara nişan alırsan ya da beklersen ateş açarlar.`, 10);
+        this.hintOnce('hunters', Tr`Ödül avcıları seni sıkıştırdı. Onlara seslenirsin (at üstünden de): ${Input.glyph('interact')} basılı tutarak <b>teslim olabilir</b>, kısa basıp <b>parayla kurtulabilirsin</b>. Kaçarsan, onlara nişan alırsan ya da beklersen ateş açarlar.`, 10);
       } else if (S.t > 70) this.hunterFight();
       return;
     }
@@ -143,6 +143,14 @@ const HunterSystems = {
     n.mv = 0; n.spd = 0;
     n.ang = turnTo(n.ang, a, dt * 6);
     if (pd < 60) n.walk(dt, 30, a + Math.PI);
+  },
+  /* Bekleyişte oyuncuya en yakın avcı (r içinde): uzaktan, at üstünden de seslenilir */
+  posseNear(r) {
+    const S = this.posse, P = this.player;
+    if (!S || S.phase !== 'standoff') return null;
+    let best = null, bd = r * r;
+    for (const e of S.ents) { if (e.dead || e.bound || e.remove) continue; const d = dist2(e.x, e.y, P.x, P.y); if (d < bd) { bd = d; best = e; } }
+    return best;
   },
   /* Bekleyiş sırasında avcıyla konuşma */
   hunterActions(e) {
