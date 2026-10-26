@@ -920,13 +920,27 @@ const TownLifeSystems = {
     if (w.mine) { add(w.x, w.y, w.name, this.myWagonActions(w), 3); return; }
     if (w.hauler) { this.haulerActions(w, add); return; }
     if (w.driver) {
-      if (w.spd > 30) return;
-      acts.push({ n: Tr('Sürücüyü İndir'), hold: 0.5, fn: () => this.hijackWagon(w) });
+      // sürücüyle araba giderken de selamlaşılır; durmuş arabanın sürücüsü zorla indirilebilir (seçeneklerde)
+      acts.push({ n: Tr('Selamla'), mt: 1, fn: () => this.greetDriver(w) });
+      if (w.spd <= 30) acts.push({ n: Tr('Sürücüyü İndir'), hold: 0.5, fn: () => this.hijackWagon(w) });
     } else {
       acts.push({ n: Tr('Arabayı Sür'), fn: () => this.driveWagon(w) });
       if (w.cargo) acts.push({ n: w.stage ? Tr('Posta Çantasını Ara') : Tr('Yükü Ara'), hold: 1.2, fn: () => this.lootWagon(w) });
     }
     add(w.x, w.y, w.name, acts, 3);
+  },
+  /* Sürücüyü selamla: araba durmaz, sürücü yerinden karşılık verir (posta arabacısının vakti dar) */
+  greetDriver(w) {
+    const P = this.player, d = w.driver, tod = this.timeOfDay();
+    if (!d) return;
+    UI.subtitle(P.name, pick(GREETS.reply[tod]), 1.3, true);
+    setTimeout(() => {
+      if (w.remove || w.driver !== d || dist2(w.x, w.y, P.x, P.y) > 180 * 180) return;
+      UI.subtitle(d.name, pick(chance(0.4) ? GREETS.reply[tod] : w.stage ? TEAMSTER.helloStage : TEAMSTER.hello), 3);
+      Bubbles.add(w, '', 3, true);
+    }, 900);
+    this.qEvent('greet', w);
+    if (!P.greeted.has(w.id)) { P.greeted.add(w.id); this.addHonor(0.3); this.skillXp('charisma', 1.5); }
   },
   hijackWagon(w) {
     const n = w.throwDriver();

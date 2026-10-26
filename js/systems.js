@@ -1570,7 +1570,7 @@ const GameSystems = {
     }
   },
   nomadActions(e) {
-    const acts = [{ n: Tr('Selamla'), fn: () => this.greet(e) }];
+    const acts = [{ n: Tr('Selamla'), mt: 1, fn: () => this.greet(e) }];
     if (e.leader && e.shop) acts.push({ n: Tr('Takas Et'), fn: () => UI.openShop(e.shop, NOMADS.find(n => n.shop === e.shop).n) });
     if (this.hour >= 17 || this.hour < 2) acts.push({ n: Tr('Ateş Başında Dinlen'), fn: () => this.nomadRest(e) });
     else acts.push({ n: Tr('Sohbet Et'), fn: () => this.nomadTalk(e) });
@@ -1819,9 +1819,12 @@ const GameSystems = {
     if (P.passenger) return this.ride ? { x: P.x, y: P.y, riding: true, label: Tr`Özel Faytonun · ${this.ride.d.n}`, actions: [{ n: Tr('Faytondan İn'), fn: () => this.rideEnd(false) }] } : null;
     const cands = [];
     const add = (x, y, label, actions, pri = 0, alt = null) => { const d = dist(P.x, P.y, x, y) - pri; cands.push({ x, y, label, actions, d, alt }); };
-    // kanun adamı tutuklamaya geliyorsa: teslim ol
+    // kanun adamı tutuklamaya geliyorsa: teslim ol (uzaktan, at üstünden de; atlı kanun adamı geniş daireler çizer)
     const cop = this.arrestingCop(130);
-    if (cop) return { x: cop.x, y: cop.y, label: cop.name + Tr(' (Kanun)'), actions: [{ n: Tr('Teslim Ol'), hold: 0.7, fn: () => this.surrender(cop) }] };
+    if (cop) return { x: cop.x, y: cop.y, far: true, label: cop.name + Tr(' (Kanun)'), actions: [{ n: Tr('Teslim Ol'), hold: 0.7, fn: () => this.surrender(cop) }] };
+    // ödül avcıları sıkıştırdıysa en yakınına seslenilir (at üstünden de): basılı tutunca teslim ol, kısa basınca seçenekler
+    const hn = this.posseNear(240);
+    if (hn) return { x: hn.x, y: hn.y, far: true, label: `${hn.name} · ${Tr('Ödül Avcısı')}`, actions: this.hunterActions(hn) };
     // omuzda yük varken etkileşim yalnızca yükle ilgilidir
     if (P.carry && !P.riding) return this.carryInteraction();
     if (P.riding) {
@@ -1834,15 +1837,19 @@ const GameSystems = {
         if (off) for (const e of h.load) if (e.kind === 'npc') acts.push({ n: Tr`Şerife Teslim Et: ${e.name}`, fn: () => this.deliverToSheriff({ e, h }) });
       }
       this.bizRidingActions(acts);
+      // yakındaki biriyle (yaya, atlı ya da araba sürücüsü) eyerden selamlaşılır: E'ye dokunmak yine indirir,
+      // selam ve benzerleri seçeneklerde; istem ilkini seçeneklerin yanında gösterir, menü onun üstünde açılır (peek)
+      const so = this.mountedSocial(), k = acts.length;
+      if (so) for (const a of so.acts) acts.push(Object.assign({}, a, { n: a.n + ': ' + so.name }));
       // at sırtından kapı/tren vb. yok
-      return { x: P.x, y: P.y, label: P.riding.name || Tr('At'), actions: acts, riding: true };
+      return { x: P.x, y: P.y, label: P.riding.name || Tr('At'), actions: acts, riding: true, peek: so ? k : 0 };
     }
     // varlıklar
     for (const e of this.ents) {
       if (e.hide || this.floorHid(e)) continue;
       if (e.remove) continue;
       const d = e.kind === 'wagon' ? Math.min(dist(P.x, P.y, e.x, e.y), dist(P.x, P.y, e.bx, e.by)) : dist(P.x, P.y, e.x, e.y);   // arabanın gövdesi atların arkasında
-      if (d > (e.held ? 50 : 30)) continue;
+      if (d > (e.held ? 50 : e.mounted ? 40 : 30)) continue;   // atlının atı uzun: yanındaki yayaya biraz daha uzaktan yetişir
       if (e.kind === 'horse') {
         if (e === this.horse) {
           if (e.dead) { add(e.x, e.y, e.name, [{ n: Tr('At Diriltici Kullan'), fn: () => this.consume('horse_reviver') }]); continue; }
@@ -1875,6 +1882,8 @@ const GameSystems = {
         if (e.dead) continue;
         if (e.hostile && e.aggro) continue;
         const acts = this.npcActions(e);
+        // barışçıl atlıya E'ye dokununca selam verilir; eyerden çekmek basılı tutunca açılan seçeneklerde
+        if (acts.length > 1 && acts[0].pull && !e.hostile && !e.bountyId && e.role !== 'bandit' && e.role !== 'target') acts.push(acts.shift());
         if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)} <span class="dim">(${MOODS[this.moodOf(e.res)].n})</span>` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.servant ? `${e.name} · ${SERVANTS[e.servant].n}` : e.name, acts, 3);
       }
     }
@@ -1987,6 +1996,26 @@ const GameSystems = {
     cands.sort((a, b) => a.d - b.d);
     return cands[0];
   },
+  /* At ya da araba üstündeyken konuşulacak kişi: baktığı yöne göre en yakın yaya, atlı ya da araba sürücüsü ve
+     onunla eyerden yapılabilen eylemler (mt: selam, karşılık, özür, sohbet). Bina içindekiler sayılmaz; yoksa null */
+  mountedSocial() {
+    const P = this.player, W = this.world;
+    let best = null;
+    for (const e of this.ents) {
+      if ((e.kind !== 'npc' && e.kind !== 'wagon') || e === P.riding || e.remove || e.hide || e.dead) continue;
+      if (Math.abs(e.x - P.x) > 80 || Math.abs(e.y - P.y) > 80) continue;
+      const d = e.kind === 'wagon' ? Math.min(dist(P.x, P.y, e.x, e.y), dist(P.x, P.y, e.bx, e.by)) : dist(P.x, P.y, e.x, e.y);
+      if (d > 48 || this.floorHid(e) || W.indoorPx(e.x, e.y)) continue;
+      let acts = [];
+      if (e.kind === 'wagon') this.wagonActions(e, (x, y, l, a) => { acts = a; });
+      else if (!(e.hostile && e.aggro) && !e.bound) acts = this.npcActions(e);
+      acts = acts.filter(a => a.mt);
+      if (!acts.length) continue;
+      const k = d + Math.abs(angDiff(P.ang, Math.atan2(e.y - P.y, e.x - P.x))) * 4;
+      if (!best || k < best.k) best = { k, e, acts, name: e.kind === 'wagon' && e.driver ? e.driver.name : e.name };
+    }
+    return best;
+  },
   npcActions(e) {
     if (e.servant) return this.servantActions(e);
     if (e.role === 'hunter') return this.hunterActions(e);
@@ -1995,10 +2024,11 @@ const GameSystems = {
     if (e.storyNpc) { const a = this.storyNpcActions(e); if (a) return a; }
     const P = this.player;
     const acts = [];
+    // mt: at ya da araba üstünden de yapılabilen (sözlü) eylem
     // yumruk kavgasından sonra özür dilenebilir
-    if (this.canApologize(e)) acts.push({ n: Tr('Özür Dile'), fn: () => this.apologize(e) });
+    if (this.canApologize(e)) acts.push({ n: Tr('Özür Dile'), mt: 1, fn: () => this.apologize(e) });
     // az önce sana laf attı: karşılık verebilirsin
-    if (e.teased && this.t - e.teased.rt < 8 && !e.hostile && !e.dead) acts.push({ n: Tr('Karşılık Ver'), fn: () => this.retort(e) });
+    if (e.teased && this.t - e.teased.rt < 8 && !e.hostile && !e.dead) acts.push({ n: Tr('Karşılık Ver'), mt: 1, fn: () => this.retort(e) });
     const ev = e.event;
     if (e.eventType === 'injured' || e.eventType === 'snakebite') {
       if (!ev.done) {
@@ -2013,13 +2043,13 @@ const GameSystems = {
       if (acts.length) return acts;
     }
     // atlı birini eyerden çekip atını çalabilirsin
-    if (e.mounted && !e.bound && !e.dead) acts.push({ n: Tr('Attan İndir'), hold: 0.4, fn: () => this.pullOffHorse(e) });
+    if (e.mounted && !e.bound && !e.dead) acts.push({ n: Tr('Attan İndir'), hold: 0.4, pull: 1, fn: () => this.pullOffHorse(e) });
     if (e.eventType === 'wagon' && !ev.done) { acts.push({ n: Tr('Konuş'), fn: () => e.say(Tr('Arabanın yanındaki tekerleğe bir bak, tamir edebilir misin?')) }); return acts; }
     if (e.eventType === 'peddler') { acts.push({ n: Tr('Alışveriş Yap'), fn: () => UI.openShop('peddler', Tr('Seyyar Satıcı')) }); }
     if (e.eventType === 'duel') { acts.push({ n: Tr('Düelloyu Kabul Et'), fn: () => UI.openDuel(e) }); acts.push({ n: Tr('Reddet'), fn: () => { e.say(pick([Tr('Korkak!'), Tr('Tahmin etmiştim, tavuk.'), Tr('Git anana ağla.')])); e.eventType = null; e.state = 'idle'; } }); return acts; }
     if (e.role === 'farmer') {
       acts.push({ n: Tr('İş İste'), fn: () => UI.openWork('ranch', Tr('Çiftlik')) });
-      acts.push({ n: Tr('Selamla'), fn: () => this.greet(e) });
+      acts.push({ n: Tr('Selamla'), mt: 1, fn: () => this.greet(e) });
       return acts;
     }
     if (e.role === 'spouse') {
@@ -2028,7 +2058,7 @@ const GameSystems = {
     }
     if (e.role === 'nomad') { const a = this.nomadActions(e); if (P.aiming && P.isArmed && !e.robbed) a.push({ n: Tr('Soy'), fn: () => this.robNpc(e) }); return a; }
     if (e.role === 'child') { acts.push({ n: Tr('Oyna'), fn: () => { e.say(pick([Tr('Baba/Anne bak ne buldum!'), Tr('Hikaye anlatır mısın?'), Tr('Ben de büyüyünce kovboy olacağım!')])); } }); return acts; }
-    acts.push({ n: Tr('Selamla'), fn: () => this.greet(e) });
+    acts.push({ n: Tr('Selamla'), mt: 1, fn: () => this.greet(e) });
     if (e.role === 'romance') {
       const R = this.romances[e.town];
       acts.push({ n: Tr`Sohbet Et (Yakınlık ${Math.round(R.rel)})`, fn: () => this.courtTalk(e, R) });
