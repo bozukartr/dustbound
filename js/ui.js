@@ -1726,7 +1726,7 @@ const UI = {
       { n: Tr('@ayar|Genel'), g: 'gear', rows: [
         ['lang', 'Dil / Language', 'lang', Tr('Oyunun dili. Menüler, diyaloglar ve bütün metinler hemen değişir.')],
         ['shake', Tr('Ekran Sarsıntısı'), 'bool', Tr('Silah sesi, patlama ve darbelerde kameranın sarsılması. Baş dönmesi yapıyorsa kapat.')],
-        ['fps', Tr('FPS Göster'), 'bool', Tr('Ekranın köşesinde saniyedeki kare sayısını gösterir.')],
+        ['fps', Tr('FPS Göster'), 'bool', Tr('Ekranın köşesinde saniyedeki kare sayısını ve oyunun kare başına işlemci süresini (ms) gösterir. FPS düşük ama süre kısaysa yük ekran kartındadır.')],
         ['guideNew', Tr('Yeni Hayatta Rehber'), 'bool', Tr('Her yeni hayatın başında, varış sinematiğinden sonra hoş geldin rehberi açılır. Duraklat menüsünden her zaman açabilirsin.')],
       ] },
       { n: Tr('Ses'), g: 'note', rows: [

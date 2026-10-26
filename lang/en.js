@@ -3507,7 +3507,7 @@ I18N.add('en', {
     "@ayar|Genel": "General",
     "Oyunun dili. Menüler, diyaloglar ve bütün metinler hemen değişir.": "The game's language. Menus, dialogue and all text switch immediately.",
     "Silah sesi, patlama ve darbelerde kameranın sarsılması. Baş dönmesi yapıyorsa kapat.": "Camera shake on gunshots, explosions and hits. Turn it off if it makes you dizzy.",
-    "Ekranın köşesinde saniyedeki kare sayısını gösterir.": "Shows frames per second in the corner of the screen.",
+    "Ekranın köşesinde saniyedeki kare sayısını ve oyunun kare başına işlemci süresini (ms) gösterir. FPS düşük ama süre kısaysa yük ekran kartındadır.": "Shows frames per second and the game's CPU time per frame (ms) in the corner of the screen. If FPS is low but the time is short, the load is on the graphics card.",
     "Ses": "Audio",
     "Bütün seslerin genel seviyesi.": "Overall level of all sound.",
     "Saloon piyanosu, menü ve sahne müzikleri.": "Saloon piano, menu and scene music.",
