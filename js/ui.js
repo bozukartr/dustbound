@@ -598,7 +598,8 @@ const UI = {
       const gi = shown._qg;
       lines.push(`<div class="prompt-title">${shown.label}</div>`);
       lines.push(`<div class="prompt ${holdPct > 0 ? 'holding' : ''}${gi === 0 ? ' q-goal' : ''}" style="--p:${holdPct.toFixed(2)}">${I.glyph('interact')}<span>${a0.n}${a0.hold ? Tr(' <em>(basılı tut)</em>') : ''}</span></div>`);
-      if (hasMenu) lines.push(gi > 0 ? `<div class="prompt q-goal">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`} → <b>${shown.actions[gi].n}</b></span></div>` : `<div class="prompt dim">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`}</span></div>`);
+      // at üstünde yakında biri varsa seçeneklerin yanında onunla ilk eylem (ör. Selamla: Ad) görünür
+      if (hasMenu) lines.push(gi > 0 ? `<div class="prompt q-goal">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`} → <b>${shown.actions[gi].n}</b></span></div>` : `<div class="prompt dim">${I.glyph('interact')}<span>${Tr`Seçenekler <em>(basılı tut)</em>`}${shown.peek ? ' → ' + shown.peek : ''}</span></div>`);
       if (shown.alt) lines.push(`<div class="prompt${shown._qa ? ' q-goal' : ''}">${I.glyph('reload')}<span>${shown.alt.n}</span></div>`);
     }
     // nişan almayı henüz öğrenmediyse, ateşli silah elindeyken istemlerde hatırlatılır

@@ -480,7 +480,7 @@ const Story = {
     const work = M.work && (() => UI.openWork(M.work, M.place()));
     if (S && S.on && !S.done && st && st.ev === 'talk' && st.who !== 'kin' && !S.wait) acts.push({ n: Tr('Konuş'), fn: () => this.qTalkSully(e) });
     else if (S && S.on && !S.done && st && st.ev === 'work' && work) acts.push({ n: JOBS[M.work].n, fn: work });
-    else acts.push({ n: Tr('Sohbet Et'), fn: () => this.sullyChat(e) });
+    else acts.push({ n: Tr('Sohbet Et'), mt: 1, fn: () => this.sullyChat(e) });
     if (S && S.done && work && M.home && dist(e.x, e.y, M.home.call(this, S).x, M.home.call(this, S).y) < 300) acts.push({ n: JOBS[M.work].n, fn: work });
     const D = this.storyDef();
     if (D.mentorActions && S && S.on && !S.done) return D.mentorActions.call(this, e, S, acts) || acts;
@@ -493,7 +493,7 @@ const Story = {
     if (S.kin && S.kin.tied) return [{ n: Tr('İplerini Kes'), hold: 0.8, fn: () => { S.kin = { x: e.x, y: e.y }; Audio_.play('rope'); this.qEvent('free', e); } }];
     if (this.storyTalking()) return [];   // konuşma sürerken etkileşim tuşu konuşmayı geçer
     if (S.on && !S.done && st && st.ev === 'talk' && st.who === 'kin' && !S.wait) return [{ n: Tr('Konuş'), fn: () => this.qTalkSully(e) }];
-    return [{ n: Tr('Sohbet Et'), fn: () => {
+    return [{ n: Tr('Sohbet Et'), mt: 1, fn: () => {
       const x = this.sFmt(pick(S.done ? K.chatDone() : K.chatBusy()));
       UI.subtitle(K.short.call(this), x, 3.5); Bubbles.add(e, '', 3.5, true);
       e.ang = Math.atan2(this.player.y - e.y, this.player.x - e.x);

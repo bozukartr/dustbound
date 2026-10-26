@@ -52,6 +52,8 @@ const TEAMSTER = {
   horse: ['Aferin kızım, aferin.', 'Az kaldı, dayan.', 'Susadın mı güzelim?'],
   leave: ['Deh! Hadi kızlar!', 'Yola devam!', 'Hoşça kalın!', 'Hadi bakalım, yol bizi bekler.'],
   stolen: ['Hey! O benim arabam!', 'Hırsız! Arabamı çalıyorlar!', 'Bırak o dizginleri!'],
+  hello: ['Selam yolcu!', 'Hey! Yolun açık olsun.', 'Selam! Atlarım ürkek, yavaş geç.', 'Merhaba! Kasabaya mal götürüyorum.', 'Selam dostum! Yollar bugün sakin.'],
+  helloStage: ['Selam! Posta yetişecek, duramam!', 'Merhaba yolcu! Saatimiz dar.', 'Selam! Bir dahaki durakta görüşürüz!'],
 };
 const TEAM_TALK = [
   ['Yollar nasıl?', 'Toz toprak. Bir de haydut korkusu.', 'Dikkatli ol o zaman.'],
@@ -144,10 +146,12 @@ const NpcActs = {
   helloTick(e, r, M, d2) {
     const P = this.player;
     if (e.hiWait) {
-      if (this.t - e.hiWait > 7) { e.hiWait = 0; this.snubbed(e, r, M); }
+      // atlı sürüp uzaklaştıysa selamı duymamıştır, küsülmez; at üstünde durup karşılık vermeyene küsülür
+      if (this.t - e.hiWait > 7) { e.hiWait = 0; if (!P.riding || d2 < 150 * 150) this.snubbed(e, r, M); }
       return true;
     }
-    if (d2 > 55 * 55 || d2 < 10 * 10 || e.talk || e.state === 'sit' || P.masked) return false;
+    // eşkin ya da dörtnala geçen atlıya, faytondaki yolcuya selam verilmez (karşılık veremez)
+    if (d2 > 55 * 55 || d2 < 10 * 10 || e.talk || e.state === 'sit' || P.masked || P.passenger || (P.riding && P.riding.spd > 80)) return false;
     const m = this.mem(r);
     if (m.hiDay === this.day || this.opOf(r) <= -30 || (this.hiT || 0) > this.t) return false;
     const k = { jolly: 0.55, grumpy: 0.12, shy: 0.18, gossip: 0.45, pious: 0.4, plain: 0.3 }[this.moodOf(r)] || 0.3;

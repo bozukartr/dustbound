@@ -249,7 +249,7 @@ const HaulSystems = {
   },
   haulerActions(w, add) {
     const h = w.hauler;
-    add(w.x, w.y, w.name, [{ n: Tr('Durumunu Sor'), fn: () => Bubbles.add(w, this.haulStatus(h), 3) }], 3);
+    add(w.x, w.y, w.name, [{ n: Tr('Durumunu Sor'), mt: 1, fn: () => Bubbles.add(w, this.haulStatus(h), 3) }], 3);
   },
   haulStatus(h) {
     const W = this.world;
