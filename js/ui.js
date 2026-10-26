@@ -94,6 +94,8 @@ const UI = {
     this.updatePauseState();
   },
   closeAll() { while (this.stack.length) this.pop(); },
+  /* Harita ekranı açık mı (üstünde başka bir pencere olsa da): bütün ekranı kapatır */
+  mapShown() { const e = this._mapEl || (this._mapEl = $('#mapscreen')); return !!e && !e.classList.contains('hidden'); },
   updatePauseState() {
     const t = this.top();
     document.body.classList.toggle('modal-open', !!t && !(t.opts && t.opts.transparent));
@@ -133,7 +135,7 @@ const UI = {
       this.timers.hud -= dt; this.timers.radar -= dt;
       if (this.timers.hud <= 0) { this.timers.hud = 0.1; this.hudUpdate(); }
       this.moneyTick(dt);
-      if (this.timers.radar <= 0) { this.timers.radar = 1 / 20; this.drawRadar(); }
+      if (this.timers.radar <= 0 && !this.mapShown()) { this.timers.radar = 1 / 20; this.drawRadar(); }   // harita açıkken radar görünmez
       this.feedUpdate(dt);
     }
   },
@@ -935,9 +937,29 @@ const UI = {
     const hint = Tr`${Input.device === 'pad' ? Input.padGlyph(PS.UP) + Input.padGlyph(PS.DOWN) + Tr(' Açıklamalar &nbsp; ') + Input.glyph('confirm') + Tr(' Hedef Koy &nbsp; ') + Input.glyph('alt') + Tr(' Hedefi Kaldır &nbsp; ') + Input.padGlyph(PS.R2) + Input.padGlyph(PS.L2) + Tr(' Yakınlaştır &nbsp; ') + Input.glyph('alt2') + Tr(' Konumum') : Tr('Sol Tık: Hedef Koy &nbsp; Açıklamaya Tık: En Yakın Yer &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır')} &nbsp; ${Input.glyph('back')} Kapat`;
     if (this._mhint !== hint) { this._mhint = hint; $('#map-hint').innerHTML = hint; }
   },
+  /* Harita: durağan katman (kâğıt, arazi, yollar, sis, etiketler, simgeler, işaretler) ayrı tuvalde tutulur. Harita açıkken
+     dünya durur: katman yalnız görünüm, hedef ya da yol tarifi değişince, yakın harita parçası pişince ve yüklenmeyi bekleyen
+     simge varken yeniden çizilir. Her karede katman kopyalanır, üstüne yalnız nabız gibi atan halkalar çizilir. */
   drawMap() {
-    const c = this.mctx, W = G.world, M = this.map, d = this.mapDPR;
-    const w = innerWidth, h = innerHeight;
+    const c = this.mctx, W = G.world, M = this.map, d = this.mapDPR, w = innerWidth, h = innerHeight, now = performance.now();
+    const wp = G.waypoint, key = [M.cx, M.cy, M.zoom, w, h, d, G.fogVer || 0, wp ? wp.x + ',' + wp.y : '-'].join('|');
+    const S = this.mapStatic || (this.mapStatic = document.createElement('canvas'));
+    if (W.mapWork(8)) this.mapDirty = true;   // yakın harita parçası hazır
+    if (this.mapDirty || S._k !== key || S._gps !== G.gps || (this._mapPend && now - (this._mapPendT || 0) > 200)) {
+      this.mapDirty = false; S._k = key; S._gps = G.gps; this._mapPend = false; this._mapPendT = now;
+      if (S.width !== c.canvas.width || S.height !== c.canvas.height) { S.width = c.canvas.width; S.height = c.canvas.height; }
+      this.drawMapStatic(S.getContext('2d'), w, h);
+    }
+    c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(S, 0, 0);
+    // görev işaretinin ve oyuncunun çevresinde nabız gibi atan halka
+    const R = this._mapRings, pulse = Math.sin(now / 260) * 0.5 + 0.5;
+    c.setTransform(d, 0, 0, d, 0, 0); c.lineWidth = 2;
+    if (R && R.q) { c.strokeStyle = `rgba(190,140,20,${0.8 - pulse * 0.5})`; c.beginPath(); c.arc(R.q[0], R.q[1], 14 + pulse * 7, 0, TAU); c.stroke(); }
+    if (R) { c.strokeStyle = `rgba(255,250,235,${0.85 - pulse * 0.6})`; c.beginPath(); c.arc(R.p[0], R.p[1], 15 + pulse * 9, 0, TAU); c.stroke(); }
+  },
+  drawMapStatic(c, w, h) {
+    const W = G.world, M = this.map, d = this.mapDPR;
+    const ok = (im) => im.complete || !(this._mapPend = true);   // simge yüklenmediyse katman kısa süre sonra yeniden çizilir
     c.setTransform(d, 0, 0, d, 0, 0);
     // masa: koyu deri, haritanın çevresinde yanık kenarlı kâğıt
     c.fillStyle = '#3a2a1c'; c.fillRect(0, 0, w, h);
@@ -948,7 +970,6 @@ const UI = {
     const vx0 = -ox / M.zoom, vy0 = -oy / M.zoom, vx1 = (w - ox) / M.zoom, vy1 = (h - oy) / M.zoom;
     const nT = (Math.floor(Math.min(WW - 1, vx1) / MAPT) - Math.floor(Math.max(0, vx0) / MAPT) + 1) * (Math.floor(Math.min(WH - 1, vy1) / MAPT) - Math.floor(Math.max(0, vy0) / MAPT) + 1);
     W.drawMapRect(c, vx0, vy0, vx1, vy1, 0, 0, M.zoom, M.zoom * d >= 1.6 && nT <= 30);
-    W.mapWork(8);
     const toS = (wx, wy) => [ox + wx / TS * M.zoom, oy + wy / TS * M.zoom];
     const revealed = (wx, wy) => G.reveal[((wy / TS / 4) | 0) * FW + ((wx / TS / 4) | 0)];
     // yollar: çift çizgi (mürekkep kenar, kâğıt içi); patikalar kesikli
@@ -1008,7 +1029,7 @@ const UI = {
       c.fillStyle = '#2a1a0e'; c.fillText(t.n, x, ly + 1);
       if (M.zoom > 1.8) {
         for (const l of t.lots || []) { const [lx, ly2] = toS((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS); c.fillStyle = 'rgba(40,90,40,0.85)'; c.beginPath(); c.arc(lx, ly2, 10, 0, TAU); c.fill(); c.fillStyle = '#efe6d2'; c.font = 'bold 13px serif'; c.fillText('$', lx, ly2 + 1); c.font = `${fs}px "IM Fell English SC", serif`; }
-        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic || b.shut) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 12, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (im.complete) c.drawImage(im, bx - 8.5, by - 8.5, 17, 17); }
+        for (const b of t.buildings) { const ic = BICON[b.type]; if (!ic || b.shut) continue; const [bx, by] = toS(b.door.x, b.door.y); c.fillStyle = 'rgba(30,20,12,0.85)'; c.beginPath(); c.arc(bx, by, 12, 0, TAU); c.fill(); const im = Icons.img(ic, '#efe6d2', 32); if (ok(im)) c.drawImage(im, bx - 8.5, by - 8.5, 17, 17); }
       }
     }
     // yerler
@@ -1016,13 +1037,13 @@ const UI = {
     for (const p of W.pois) {
       const known = G.discovered.has(p.id), rum = G.rumored.has(p.id);
       let show = known || rum;
-      if (!show && G.hasPerk('explore20') && dist(p.x, p.y, G.player.x, G.player.y) < 2500) { const [x, y] = toS(p.x, p.y); const im = Icons.img('question', 'rgba(40,20,10,0.55)', 32); if (im.complete) c.drawImage(im, x - 7, y - 7, 14, 14); continue; }
+      if (!show && G.hasPerk('explore20') && dist(p.x, p.y, G.player.x, G.player.y) < 2500) { const [x, y] = toS(p.x, p.y); const im = Icons.img('question', 'rgba(40,20,10,0.55)', 32); if (ok(im)) c.drawImage(im, x - 7, y - 7, 14, 14); continue; }
       if (!show) continue;
       const [x, y] = toS(p.x, p.y);
       c.fillStyle = p.kind === 'camp' ? 'rgba(150,20,20,0.85)' : 'rgba(40,24,12,0.85)';
       c.beginPath(); c.arc(x, y, 9, 0, TAU); c.fill();
       const im = Icons.img(rum && !known ? 'question' : (PICON[p.kind === 'landmark' ? p.type : p.kind] || 'eye'), '#f0e4c8', 32);
-      if (im.complete) c.drawImage(im, x - 6.5, y - 6.5, 13, 13);
+      if (ok(im)) c.drawImage(im, x - 6.5, y - 6.5, 13, 13);
       if (M.zoom > 2.2 && known) { c.font = 'italic 12px "IM Fell English", serif'; c.fillStyle = '#2a1a0e'; c.fillText(p.n, x, y + 17); c.font = '13px serif'; }
       if ((p.kind === 'property' && G.props.includes(p.prop)) || p.kind === 'home') { c.strokeStyle = '#e8c860'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 11, 0, TAU); c.stroke(); }
     }
@@ -1031,13 +1052,13 @@ const UI = {
       if (nc.era < 0 || !G.discovered.has(G.nomadId(nc))) continue;
       const [x, y] = toS(nc.x, nc.y);
       c.fillStyle = 'rgba(120,80,20,0.9)'; c.beginPath(); c.arc(x, y, 9, 0, TAU); c.fill();
-      const im = Icons.img('tent', '#f0e4c8', 32); if (im.complete) c.drawImage(im, x - 6.5, y - 6.5, 13, 13);
+      const im = Icons.img('tent', '#f0e4c8', 32); if (ok(im)) c.drawImage(im, x - 6.5, y - 6.5, 13, 13);
       if (M.zoom > 2.2) { c.font = 'italic 12px "IM Fell English", serif'; c.fillStyle = '#2a1a0e'; c.fillText(nc.n, x, y + 17); c.font = '13px serif'; }
     }
     // demiryolu istasyonları
     // hazine
     if (G.treasure && G.player.has('treasure_map')) { const [x, y] = toS(G.treasure.x + G.treasure.ox || G.treasure.x, G.treasure.y); c.strokeStyle = 'rgba(140,20,10,0.6)'; c.lineWidth = 2; c.setLineDash([4, 4]); c.beginPath(); c.arc(x, y, 180 / TS * M.zoom * 4, 0, TAU); c.stroke(); c.setLineDash([]); }
-        const badge = (wx, wy, g, bg, col = '#fff', r = 10) => { const [x, y] = toS(wx, wy); c.fillStyle = bg; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); const im = Icons.img(g, col, 32); if (im.complete) c.drawImage(im, x - r * 0.72, y - r * 0.72, r * 1.44, r * 1.44); };
+        const badge = (wx, wy, g, bg, col = '#fff', r = 10) => { const [x, y] = toS(wx, wy); c.fillStyle = bg; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); const im = Icons.img(g, col, 32); if (ok(im)) c.drawImage(im, x - r * 0.72, y - r * 0.72, r * 1.44, r * 1.44); };
     if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') badge(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', 'rgba(150,20,20,0.9)');
     if (G.camp) badge(G.camp.x, G.camp.y, 'tent', 'rgba(30,20,12,0.85)', '#efe6d2');
     // işletmelerin (altın) ve yük araban
@@ -1048,12 +1069,11 @@ const UI = {
     if (G.horse && !G.horse.dead) badge(G.horse.x, G.horse.y, 'horse', 'rgba(60,36,20,0.9)', '#f0d8a8');
     if (G.waypoint) badge(G.waypoint.x, G.waypoint.y, 'waypoint', 'rgba(140,40,140,0.95)');
     const qm = G.questMark();
-    const pulse = Math.sin(performance.now() / 260) * 0.5 + 0.5;
-    if (qm) { const [qx, qy] = toS(qm.x, qm.y); c.strokeStyle = `rgba(190,140,20,${0.8 - pulse * 0.5})`; c.lineWidth = 2; c.beginPath(); c.arc(qx, qy, 14 + pulse * 7, 0, TAU); c.stroke(); badge(qm.x, qm.y, 'star', 'rgba(190,140,20,0.95)', '#fff', 11); }
-    // oyuncu: koyu rozet, pirinç kenar, nabız gibi atan halka ve yön oku
+    if (qm) badge(qm.x, qm.y, 'star', 'rgba(190,140,20,0.95)', '#fff', 11);
+    // oyuncu: koyu rozet, pirinç kenar ve yön oku (nabız gibi atan halkalar her karede drawMap'te)
     const P = G.player;
     const [px, py] = toS(P.x, P.y);
-    c.strokeStyle = `rgba(255,250,235,${0.85 - pulse * 0.6})`; c.lineWidth = 2; c.beginPath(); c.arc(px, py, 15 + pulse * 9, 0, TAU); c.stroke();
+    this._mapRings = { q: qm ? toS(qm.x, qm.y) : null, p: [px, py] };
     c.fillStyle = 'rgba(20,13,8,0.92)'; c.beginPath(); c.arc(px, py, 12, 0, TAU); c.fill();
     c.strokeStyle = '#e6c47a'; c.lineWidth = 2; c.stroke();
     c.save(); c.translate(px, py); c.rotate(P.riding ? P.riding.ang : P.ang);

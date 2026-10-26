@@ -455,7 +455,8 @@ const G = {
     try {
       if (this.state === 'play' || this.state === 'dead') this.update(dt);
       UI.update(dt);
-      if (this.world && this.player && (this.state === 'play' || this.state === 'dead')) this.render(dt);
+      // harita ekranı bütün ekranı kapatır (opak): altındaki dünya çizilmez
+      if (this.world && this.player && (this.state === 'play' || this.state === 'dead') && !UI.mapShown()) this.render(dt);
       else if (this.state === 'menu') { if (FX.drunkCss) FX.clearCss(); UI.menuBg(dt); }
       UI.menuVid(this.state === 'menu' && !$('#mainmenu').classList.contains('hidden'));
     } catch (e) {
