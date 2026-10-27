@@ -2524,82 +2524,45 @@ const Spr = {
     ctx.restore();
   },
 
-  /* ---------- Motorlu taşıtlar (kuşbakışı; gövde çerçevesi: orta 0,0, x ileri, y sağ) ----------
-     w.motor: car | truck | bus; w.model: 0 açık gezinti otomobili ve sandık kamyon (1927'ye dek), 1 yuvarlak hatlı
-     kapalı (1928–1945), 2 uzun, iki renkli, kanatlı (1946'dan); w.body gövde, w.body2 tavan rengi; w.cab taksi;
-     w.steer ön tekerleklerin dönüşü; w.cargo kamyonun kasasındaki yük */
+  /* ---------- Otomobil (kuşbakışı; gövde çerçevesi: orta 0,0, x ileri, y sağ) ----------
+     Tek tip: siyah, tenteli gezinti otomobili. Tekerlekler köşelerde, ön dingilin hemen üstünde pirinç radyatör ve iki
+     yanında pirinç fenerler; iki yanı açıkta kalan uzun ince kaput, gövdeden taşan çamurluklar, aralarında basamaklar;
+     sürücü tentenin altındadır. w.steer ön tekerleklerin dönüşü */
   motor(ctx, w) {
-    const D = MOTOR_DIM[w.motor] || MOTOR_DIM.car, L = D.len / 2, H = D.w / 2, m = w.model | 0, c = w.body || '#1a1a1e';
-    const dk = shadeHex(c, -0.3), lt = shadeHex(c, 0.16), glass = '#9ab2be', chrome = '#dcdcd4', tire = '#121110';
+    const FA = 9.2, RA = -8.6;   // ön ve arka dingil
+    const blk = w.body || '#16161a', gloss = '#50505c', brass = '#c8a040', tire = '#0d0c0b';
     const R = (x, y, ww, hh, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, ww, hh); };
     const rr = (x, y, ww, hh, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x, y, ww, hh, r); ctx.fill(); };
-    const wheel = (x, y, front) => { ctx.save(); ctx.translate(x, y); if (front) ctx.rotate(w.steer || 0); R(-2.4, -1.2, 4.8, 2.4, tire); ctx.restore(); };
-    this.shadow(ctx, 1.2, 2, L + 1, H + 1.4, 0.3);
-    if (w.motor === 'car') {
-      const fx = L - 5, rx = -L + 5;
-      for (const sy of [-H - 0.3, H + 0.3]) { wheel(fx, sy, true); wheel(rx, sy, false); }
-      if (m === 0) {
-        // açık gezinti otomobili: uzun kaput, pirinç radyatör, iki sıra deri koltuk, arkada yedek lastik
-        R(-L + 4, -H + 0.4, L * 2 - 9, 1.2, '#2a2622'); R(-L + 4, H - 1.6, L * 2 - 9, 1.2, '#2a2622');   // basamaklar
-        rr(-L + 1, -H + 1.4, L + 3, D.w - 2.8, 1.2, c);                                                   // arka gövde
-        R(-L + 3, -H + 2.4, 4.6, D.w - 4.8, '#5a3420'); R(-L + 3.4, -H + 2.4, 4.2, 1, '#7a4a2c');          // arka koltuk
-        R(1, -H + 2.4, 3, D.w - 4.8, '#5a3420'); R(1.3, -H + 2.4, 2.6, 1, '#7a4a2c');                     // ön koltuk
-        R(4.4, -H + 1.6, 0.9, D.w - 3.2, glass);                                                           // ön cam
-        rr(5.4, -H + 2, L - 6.6, D.w - 4, 1, lt); R(5.4, -0.3, L - 6.6, 0.6, dk);                          // kaput
-        R(L - 1.3, -H + 1.8, 1.4, D.w - 3.6, '#c8a040');                                                    // radyatör
-        this.circ(ctx, L - 0.6, -H + 1.6, 1, '#e8e0c0'); this.circ(ctx, L - 0.6, H - 1.6, 1, '#e8e0c0');      // farlar
-        this.circ(ctx, -L + 0.4, 0, 2.3, tire); this.circ(ctx, -L + 0.4, 0, 1.1, '#3a3632');               // yedek lastik
-      } else if (m === 1) {
-        // yuvarlak hatlı kapalı otomobil: çamurluk tümsekleri, kabin, ön ve arka cam, krom tampon
-        rr(-L, -H, D.len, D.w, 3, c);
-        for (const sx of [fx, rx]) for (const sy of [-H + 0.6, H - 0.6]) this.ell(ctx, sx, sy, 3.4, 1.5, dk);
-        rr(-6.5, -H + 1.2, 10, D.w - 2.4, 2.4, lt);                                                       // kabin tavanı
-        R(3.2, -H + 1.6, 1.3, D.w - 3.2, glass); R(-7.6, -H + 2, 1.1, D.w - 4, shadeHex(glass, -0.15));      // ön ve arka cam
-        R(-5.6, -H + 0.9, 8, 0.6, glass); R(-5.6, H - 1.5, 8, 0.6, glass);                                // yan camlar
-        R(5, -0.3, L - 6, 0.6, dk);                                                                          // kaput çizgisi
-        R(L - 0.6, -H + 1, 1.2, D.w - 2, chrome); R(-L - 0.6, -H + 1.2, 1.2, D.w - 2.4, chrome);              // tamponlar
-        this.circ(ctx, L - 1.6, -H + 1.4, 1.1, '#f0e8c8'); this.circ(ctx, L - 1.6, H - 1.4, 1.1, '#f0e8c8');
-      } else {
-        // uzun, iki renkli otomobil: beyaz ya da açık tavan, sarmal ön cam, krom şerit, arkada kanatlar
-        rr(-L, -H, D.len, D.w, 2, c);
-        ctx.fillStyle = lt; ctx.beginPath(); ctx.moveTo(-L, -H); ctx.lineTo(-L + 4, -H); ctx.lineTo(-L, -H + 2.2); ctx.fill(); ctx.beginPath(); ctx.moveTo(-L, H); ctx.lineTo(-L + 4, H); ctx.lineTo(-L, H - 2.2); ctx.fill();   // kanatlar
-        R(-L + 2, -H + 0.3, D.len - 4, 0.5, chrome); R(-L + 2, H - 0.8, D.len - 4, 0.5, chrome);          // yan krom şerit
-        rr(-6, -H + 1.3, 10.4, D.w - 2.6, 2, w.body2 || '#e8e4dc');                                       // tavan
-        R(4.4, -H + 1.5, 1.7, D.w - 3, glass); R(-7.4, -H + 1.9, 1.4, D.w - 3.8, shadeHex(glass, -0.15));
-        R(6.6, -0.3, L - 7.6, 0.6, dk);
-        R(L - 0.7, -H + 0.8, 1.3, D.w - 1.6, chrome); R(-L - 0.6, -H + 0.8, 1.2, D.w - 1.6, chrome);
-        R(-L, -H + 1, 0.8, 1.6, '#c8302a'); R(-L, H - 2.6, 0.8, 1.6, '#c8302a');                          // stop lambaları
-        this.circ(ctx, L - 1.7, -H + 1.6, 1.2, '#fff4d0'); this.circ(ctx, L - 1.7, H - 1.6, 1.2, '#fff4d0');
+    this.shadow(ctx, 0.8, 1.6, CAR_DIM.len / 2 + 0.4, CAR_DIM.w / 2 + 0.6, 0.24);
+    for (const sy of [-1, 1]) {
+      const Y = (a, b) => Math.min(sy * a, sy * b);   // |y| a..b aralığının üst kenarı
+      // ince, yüksek tekerlekler (öndekiler direksiyonla döner); dış yarıları çamurluğun dışında kalır
+      for (const ax of [FA, RA]) {
+        ctx.save(); ctx.translate(ax, sy * 5.4); if (ax === FA) ctx.rotate(w.steer || 0);
+        R(-3, -0.6, 6, 1.2, tire); R(-0.5, -0.6, 1, 1.2, '#3a342c');
+        ctx.restore();
       }
-      // taksi: tavanda ışıklı tabela
-      if (w.cab) { R(-2.6, -1.6, 3.2, 3.2, '#1a1a1e'); R(-2.2, -1.2, 2.4, 2.4, '#f8eec0'); }
-      return;
+      // basamak (kaburgalı) ve çamurluklar
+      R(-5.4, Y(4, 5.3), 11.2, 1.3, '#4a443a'); R(-5.4, Y(4.95, 5.3), 11.2, 0.35, '#8c8678');
+      ctx.fillStyle = '#36312a'; for (let x = -4.8; x < 5.6; x += 1.6) ctx.fillRect(x, Y(4, 4.95), 0.6, 0.95);
+      rr(5.6, Y(3.9, 5.7), 7.2, 1.8, 0.9, blk); R(6.4, Y(4.6, 5), 5.6, 0.4, gloss);
+      rr(-12.2, Y(3.9, 5.7), 7.2, 1.8, 0.9, blk); R(-11.4, Y(4.6, 5), 5.6, 0.4, gloss);
     }
-    if (w.motor === 'truck') {
-      for (const sy of [-H - 0.3, H + 0.3]) { wheel(L - 5, sy, true); wheel(-L + 6, sy, false); wheel(-L + 2.6, sy, false); }
-      // önde kabin ve kaput, arkada kasa: eski kamyonda tahta kasa ve yük, yenisinde kapalı kutu
-      if (m === 2) { rr(-L, -H, L + 1, D.w, 1, w.body2 || '#d8d4c8'); R(-L + 1, -H + 1.4, L - 1, 0.5, shadeHex(w.body2 || '#d8d4c8', -0.12)); R(-L + 1, H - 1.9, L - 1, 0.5, shadeHex(w.body2 || '#d8d4c8', -0.12)); }
-      else {
-        rr(-L, -H, L + 1, D.w, 0.8, '#6a4a2c');
-        ctx.fillStyle = '#86603a'; for (let k = 0; k < 5; k++) ctx.fillRect(-L + 0.8, -H + 1 + k * (D.w - 2) / 5, L - 0.6, (D.w - 2) / 5 - 0.6);
-        if (w.cargo) { const C = ['#9a7446', '#7a5a34', '#a8844f', '#6a4a2a']; for (let k = 0; k < 4; k++) { const x = -L + 2 + (k >> 1) * 6, y = (k & 1) ? 0.6 : -H + 1.6; R(x, y, 5, 4, C[k]); R(x, y, 5, 1, shadeHex(C[k], 0.2)); } }
-      }
-      rr(1.6, -H + 0.6, 6.4, D.w - 1.2, m === 0 ? 0.6 : 2, dk);                                           // kabin
-      R(7.4, -H + 1.4, 1.2, D.w - 2.8, glass);
-      rr(8.6, -H + 1.4, L - 9.4, D.w - 2.8, m === 0 ? 0.6 : 2, c); R(9, -0.3, L - 10.2, 0.6, dk);           // kaput
-      R(L - 0.9, -H + 1.6, 1.3, D.w - 3.2, m === 0 ? '#c8a040' : chrome);
-      this.circ(ctx, L - 1.4, -H + 1.5, 1, '#f0e8c8'); this.circ(ctx, L - 1.4, H - 1.5, 1, '#f0e8c8');
-      return;
-    }
-    // otobüs: uzun gövde, yanlarda pencere sırası, tavanda havalandırma
-    for (const sy of [-H - 0.3, H + 0.3]) { wheel(L - 6, sy, true); wheel(-L + 6, sy, false); }
-    rr(-L, -H, D.len, D.w, m === 0 ? 1 : 3, c);
-    rr(-L + 1.4, -H + 1.6, D.len - 3.4, D.w - 3.2, m === 0 ? 0.6 : 2, w.body2 || lt);
-    ctx.fillStyle = glass; for (let x = -L + 3; x < L - 5; x += 4.2) { ctx.fillRect(x, -H + 0.4, 2.8, 0.9); ctx.fillRect(x, H - 1.3, 2.8, 0.9); }
-    R(L - 2.2, -H + 1.4, 1.3, D.w - 2.8, glass);
-    ctx.fillStyle = shadeHex(w.body2 || lt, -0.18); for (const x of [-L + 6, -2, 6]) ctx.fillRect(x, -1.2, 3, 2.4);
-    R(L - 0.6, -H + 1, 1.1, D.w - 2, chrome);
-    this.circ(ctx, L - 1.2, -H + 1.6, 1.1, '#f0e8c8'); this.circ(ctx, L - 1.2, H - 1.6, 1.1, '#f0e8c8');
+    // gövde ve kaputa daralan ön panel
+    rr(-13, -4, 15.8, 8, 1.3, blk);
+    ctx.fillStyle = blk; ctx.beginPath(); ctx.moveTo(2.6, -4); ctx.lineTo(4.6, -2); ctx.lineTo(4.6, 2); ctx.lineTo(2.6, 4); ctx.fill();
+    // uzun, ince kaput: ortada parlak menteşe sırtı
+    rr(4.4, -2, 6.2, 4, 0.4, '#202027'); R(4.6, -0.5, 5.8, 1, '#5c5c6a');
+    // pirinç radyatör (ortada kapak) ve iki yanında pirinç fenerler
+    rr(10.4, -2, 1.4, 4, 0.4, brass); R(10.5, -1.8, 1.1, 0.6, '#f2d878'); this.circ(ctx, 11.1, 0, 0.55, '#efe0a0');
+    for (const sy of [-1, 1]) { this.circ(ctx, 11.7, sy * 3.5, 0.95, '#b8892e'); this.circ(ctx, 12.1, sy * 3.5, 0.5, '#f6eed6'); }
+    // ön cam ve kumaş tente (dört kemerli)
+    R(2.2, -3.9, 0.9, 7.8, '#aabec6');
+    rr(-11.4, -4.2, 13.6, 8.4, 1.3, '#2b2825');
+    ctx.fillStyle = '#433e37'; for (const x of [-9.6, -6.4, -3.2, 0]) ctx.fillRect(x, -4.1, 0.9, 8.2);
+    R(-11.4, -3.7, 0.9, 7.4, '#1e1c19');
+    // arka lamba (solda)
+    this.circ(ctx, -13, -3, 0.6, '#b8402a');
   },
   /* Portre: js/portrait.js */
 };

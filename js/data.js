@@ -605,7 +605,6 @@ const MGR_TRAITS = {
 };
 const WAGON_PRICE = 130, WAGON_CAP = 8, BUILD_DAYS = 3;
 const CAR_PRICE = 520, CAR_YEAR = 1912;   // ahırda otomobil satılmaya başladığı yıl
-const BUS_YEAR = 1925;                    // posta arabası durağı otobüs durağına döner (yolculuk aynı)
 /* Nakliyeciler: işe alınır, kendi arabasıyla toptancıdan işletmelere mal taşır */
 const HAUL_TRAITS = {
   reliable: { n: 'Güvenilir', d: 'Fırtınada bile yola çıkar, oyalanmaz; haydutlara direnir.', spd: 1, wage: 0.9, risk: 0.7 },

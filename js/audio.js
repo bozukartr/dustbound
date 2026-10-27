@@ -421,24 +421,21 @@ const Audio_ = {
   },
   /* Her karede çağrılır: temayı ve saloon piyanosunu yumuşakça yönetir */
   /* Yakındaki NPC'lerin, atların ve arabaların adım/toynak sesleri: kat edilen yola göre */
-  /* Motor sesi: hıza göre sıklaşan alçak patpat; uzaklıkla kısılır (gain: oyuncunun sürdüğü taşıtta daha belirgin).
-     Eski motor (model 0) daha kaba ve seyrek, yenisi yumuşak */
+  /* Motor sesi: hıza göre sıklaşan alçak, kaba patpat; uzaklıkla kısılır (gain: oyuncunun sürdüğü otomobilde daha belirgin) */
   engineTick(e, dt, spd, x, y, gain = 1) {
     if (!this.ctx) return;
     const L = this.listener(), d = L ? Math.hypot(x - L.x, y - L.y) : 0;
     if (d > 320) return;
-    e._eng = (e._eng || 0) + dt * (6 + spd * 0.11) * (e.model === 0 ? 0.8 : 1.2);
+    e._eng = (e._eng || 0) + dt * (5 + spd * 0.09);
     if (e._eng < 1) return;
     e._eng = 0;
-    const v = 0.03 * gain * (1 - d / 320) * (e.model === 2 ? 0.7 : 1) * (e.motor === 'car' ? 1 : 1.25);
-    this.tone((e.model === 0 ? 44 : 56) + spd * 0.22 + Math.random() * 6, 0.07, 'sawtooth', v, this.sfx);
+    this.tone(44 + spd * 0.2 + Math.random() * 6, 0.07, 'sawtooth', 0.03 * gain * (1 - d / 320), this.sfx);
   },
-  /* Korna: eskisi tek, boğuk "ööt", yenisi iki sesli */
-  horn(x, y, model = 1) {
+  /* Korna: boğuk, aşağı kayan "ööt" */
+  horn(x, y) {
     if (!this.ctx) return;
-    const L = this.listener(), d = L ? Math.hypot(x - L.x, y - L.y) : 0, v = 0.05 * Math.max(0.15, 1 - d / 340);
-    if (model === 0) { this.tone(220, 0.32, 'square', v * 1.2, this.sfx, 0, 180); return; }
-    this.tone(392, 0.28, 'square', v, this.sfx); this.tone(494, 0.28, 'square', v * 0.8, this.sfx);
+    const L = this.listener(), d = L ? Math.hypot(x - L.x, y - L.y) : 0;
+    this.tone(220, 0.32, 'square', 0.06 * Math.max(0.15, 1 - d / 340), this.sfx, 0, 180);
   },
   footTick(e, dt) {
     // motorlu taşıt: sürücüsü varken motor çalışır (dururken rölantide)

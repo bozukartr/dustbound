@@ -4749,12 +4749,9 @@ I18N.add('en', {
     "{k} eskiden ne canlıydı...": "{k} used to be so lively...",
     "Eskiden, eskiden. Şimdi rüzgârdan başka ses yok.": "Used to be. Now there's no sound but the wind.",
     "Gidecek bir yerim olsa ben de giderdim.": "If I had somewhere to go, I'd go too.",
-    // motor çağı: otomobil, kamyon, otobüs, taksi
+    // motor çağı: otomobil
     "Otomobil": "Automobile",
     "Otomobilin": "Your Automobile",
-    "Kamyon": "Truck",
-    "Otobüs": "Bus",
-    "Taksi": "Taxi",
     "Dıt dıt!": "Beep beep!",
     "Dıt dıt! Çekil yoldan!": "Beep beep! Out of the way!",
     "Araç hırsızlığı": "Vehicle theft",
@@ -4768,7 +4765,5 @@ I18N.add('en', {
     "Ahırın önünde seni bekliyor.": "It's waiting for you in front of the stable.",
     "Zaten direksiyondasın.": "You're already at the wheel.",
     "Seyis otomobilini ahırın önüne getirdi.": "The stable hand brought your automobile out front.",
-    "Otobüs Bileti": "Bus Ticket",
-    "Aranırken şoför seni almaz!": "No driver will take you while you're wanted!",
   },
 });

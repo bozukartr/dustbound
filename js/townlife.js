@@ -276,20 +276,11 @@ const Bubbles = {
 /* ---------------- Yol trafiği: yük arabası ve posta arabası ----------------
    Sürücü vurulabilir, kementle ya da zorla indirilebilir; sürücüsüz araba
    oyuncu tarafından sürülür (binicilik kontrolleriyle) ve yükü aranabilir.
-   Motor çağında (1908'den sonra, yıllar geçtikçe artan payla) yük arabasının yerini kamyon ya da otomobil, posta
-   arabasının yerini otobüs, şehirde faytonun yerini taksi alır (motor: car, truck, bus). Motorlu taşıt atsızdır, gövdesi
-   katıdır (dorse gibi sürüklenmez); modeli yapıldığı döneme göredir. */
-/* Motorlu taşıt ölçüleri: l ön noktanın (x, y) gövde ortasına (bx, by) uzaklığı, len boy, w en (kuşbakışı) */
-const MOTOR_DIM = { car: { l: 10, len: 24, w: 10 }, truck: { l: 13, len: 30, w: 11 }, bus: { l: 15, len: 34, w: 12 } };
-/* Model dönemleri: 0 (1927'ye dek) açık gezinti otomobili ve sandık kamyon, 1 (1928–1945) yuvarlak hatlı kapalı otomobil,
-   2 (1946'dan) uzun, iki renkli, kanatlı otomobil. Renkler döneme göre */
-const MOTOR_COLS = [
-  ['#1a1a1e', '#1a1a1e', '#1a1a1e', '#2a3a2a', '#3a1e1e', '#1e2636'],
-  ['#1a1a1e', '#3a1e22', '#1e2a3e', '#2a3a2e', '#6a5a46', '#d8cba8'],
-  ['#7ab8c0', '#e8d0a8', '#c8463a', '#3a6a9a', '#e8e4dc', '#2a8a6a', '#e8a8b8', '#1a1a1e'],
-];
-const TRUCK_COLS = ['#2a4a2e', '#7a2a1e', '#1e2a46', '#5a4a36', '#3a3a3a', '#8a6a2a'];
-const motorModel = (y) => (y < 1928 ? 0 : y < 1946 ? 1 : 2);
+   Motor çağında (1908'den sonra, yıllar geçtikçe artan payla) arabaların yerini otomobil alır. Tek tip otomobil vardır:
+   siyah, tenteli, uzun ince kaputlu, pirinç radyatörlü bir gezinti otomobili (motor: 'car'). Atsızdır, gövdesi katıdır
+   (dorse gibi sürüklenmez); sürücü tentenin altındadır. */
+/* Otomobil ölçüleri: l ön noktanın (x, y) gövde ortasına (bx, by) uzaklığı, len boy, w en (kuşbakışı) */
+const CAR_DIM = { l: 10, len: 26, w: 12 };
 class Wagon extends Ent {
   constructor(road, i, dir, stage, at) {
     super(road ? road.pts[i][0] : at.x, road ? road.pts[i][1] : at.y);
@@ -314,11 +305,11 @@ class Wagon extends Ent {
     w.name = Tr('Yük Araban'); w.body = '#7a5436';
     return w;
   }
-  /* Oyuncunun kendi otomobili (ahırdan satın alınır): model ve renkler alındığı yıla göre */
+  /* Oyuncunun kendi otomobili (ahırdan satın alınır) */
   static ownedCar(x, y, ang) {
     const w = new Wagon(null, 0, 1, false, { x, y, ang });
     w.driver = null; w.owner = 'player'; w.mine = true; w.keep = true; w.cargo = false; w.crates = [];
-    G.motorize(w, 'car');
+    G.motorize(w);
     w.name = Tr('Otomobilin');
     return w;
   }
@@ -326,19 +317,17 @@ class Wagon extends Ent {
      arkasındaki çeki demirine bağlıdır ve tır dorsesi gibi arkadan sürüklenir: atlar döner, araba izler. */
   trail(init) {
     // motorlu taşıt: gövde katı, ön noktanın tam arkasında
-    if (this.motor) { const l = MOTOR_DIM[this.motor].l; this.bang = this.ang; this.bx = this.x - Math.cos(this.ang) * l; this.by = this.y - Math.sin(this.ang) * l; return; }
+    if (this.motor) { const l = CAR_DIM.l; this.bang = this.ang; this.bx = this.x - Math.cos(this.ang) * l; this.by = this.y - Math.sin(this.ang) * l; return; }
     const hx = this.x - Math.cos(this.ang) * 8, hy = this.y - Math.sin(this.ang) * 8;
     if (init || this.bx === undefined) this.bang = this.ang;
     else this.bang = Math.atan2(hy - this.by, hx - this.bx);
     this.bx = hx - Math.cos(this.bang) * 11; this.by = hy - Math.sin(this.bang) * 11;
   }
   get seat() {
-    // motorlu taşıtta sürücü solda: otomobilde ortanın biraz önünde, kamyon ve otobüste öndeki kabinde
-    if (this.motor) { const c = Math.cos(this.bang), s = Math.sin(this.bang), f = this.motor === 'car' ? 1 : MOTOR_DIM[this.motor].l - 4; return { x: this.bx + c * f + s * 2.4, y: this.by + s * f - c * 2.4 }; }
+    // otomobilde sürücü solda, ön koltukta
+    if (this.motor) { const c = Math.cos(this.bang), s = Math.sin(this.bang); return { x: this.bx + c * 0.5 + s * 2.2, y: this.by + s * 0.5 - c * 2.2 }; }
     return { x: this.bx + Math.cos(this.bang) * 8, y: this.by + Math.sin(this.bang) * 8 };
   }
-  /* Açık gezinti otomobilinde sürücü görünür; kapalı otomobil, kamyon ve otobüste camın ardındadır */
-  get openTop() { return this.motor === 'car' && this.model === 0; }
   /* Oyuncunun ateşi: sürücü isabet alabilir, almazsa atları kamçılayıp kaçar */
   hurt(dmg, by) {
     if (by !== 'player' || this.rider === G.player || !this.driver || this.hauler || this.coach) return;
@@ -425,14 +414,14 @@ class Wagon extends Ent {
     if (chance(0.35)) setTimeout(() => { if (!o.dead && !o.remove) Bubbles.add(o, pick([Tr('Tamam, tamam!'), Tr('Gözünü aç biraz!'), Tr('Ezecektin az kalsın!')]), 1.8); }, 500);
   }
   /* Korna (yakındaysa duyulur) */
-  honk() { const P = G.player; if (P && dist2(this.x, this.y, P.x, P.y) < 340 * 340) Audio_.horn(this.x, this.y, this.model); }
+  honk() { const P = G.player; if (P && dist2(this.x, this.y, P.x, P.y) < 340 * 340) Audio_.horn(this.x, this.y); }
   /* Motorlu taşıtın kare başına süsü: ön tekerleklerin dönüşü (yön değişiminden), egzoz dumanı */
   motorFx(dt) {
     const da = this._pa === undefined ? 0 : angDiff(this._pa, this.ang);
     this._pa = this.ang;
     this.steer = (this.steer || 0) + (clamp(da / Math.max(dt, 0.001) * 0.3, -0.5, 0.5) - (this.steer || 0)) * Math.min(1, dt * 8);
-    if (this.spd > 4 && this.model < 2 && Math.random() < dt * (2 + this.spd * 0.04) && G.onScreen(this.x, this.y, 40)) {
-      const c = Math.cos(this.bang), s = Math.sin(this.bang), r = MOTOR_DIM[this.motor].len / 2 + 1;
+    if (this.spd > 4 && Math.random() < dt * (2 + this.spd * 0.04) && G.onScreen(this.x, this.y, 40)) {
+      const c = Math.cos(this.bang), s = Math.sin(this.bang), r = CAR_DIM.len / 2 + 1;
       G.parts.add('smoke', this.bx - c * r + s * 3, this.by - s * r - c * 3, -c * 6 + rnd(-3, 3), -s * 6 + rnd(-3, 3), 1.1, 1.6, 'rgba(90,90,96,0.5)');
     }
   }
@@ -553,10 +542,9 @@ class Wagon extends Ent {
       ctx.save(); ctx.translate(this.bx, this.by); ctx.rotate(this.bang);
       Spr.motor(ctx, this);
       ctx.restore();
-      // sürücü yalnız açık otomobilde görünür (oyuncu nişan alırken camdan uzanır)
+      // sürücü tentenin altındadır; oyuncu nişan alırken yandan uzanır
       const st = this.seat, P = G.player;
-      if (this.rider === P && !P.mountAnim) { if (this.openTop || P.aiming || P.rsAim) Spr.human(ctx, st.x, st.y, P.aiming || P.rsAim ? P.ang : this.bang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ }); }
-      else if (this.driver && this.openTop) Spr.human(ctx, st.x, st.y, this.bang, this.driver.look, { riding: true });
+      if (this.rider === P && !P.mountAnim && (P.aiming || P.rsAim)) Spr.human(ctx, st.x, st.y, P.ang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ });
       return;
     }
     const c = Math.cos(this.ang), s = Math.sin(this.ang);
@@ -1039,20 +1027,13 @@ const TownLifeSystems = {
   /* ---------------- motor çağı ---------------- */
   /* Yıla göre yolda ve şehirde motorlu taşıt payı: 1908'de ilk otomobiller, 1946'dan sonra neredeyse hepsi */
   motorShare(y = this.year) { return clamp((y - 1908) / 38, 0, 0.94); },
-  /* Arabayı motorlu taşıta çevirir: car (otomobil; fayton ise taksi), truck (kamyon), bus (otobüs; posta taşır). Model
-     ve renkler yıla göre; hız modele göre artar */
-  motorize(w, kind, y = this.year) {
-    const m = motorModel(y);
-    w.motor = kind; w.model = m; w.hc = null; w.body2 = null;
-    if (kind === 'car') {
-      w.body = w.cab ? (m === 2 ? '#e8c030' : '#d8b030') : pick(MOTOR_COLS[m]);
-      if (m === 2 && !w.cab) w.body2 = pick(['#e8e4dc', '#e8e4dc', shadeHex(w.body, 0.35), '#1a1a1e']);
-      if (!w.cab) w.cargo = false;
-    } else if (kind === 'truck') { w.body = pick(TRUCK_COLS); if (m === 2) w.body2 = pick(['#d8d4c8', '#c8c0a8', '#e8e4dc']); }
-    else { w.body = m === 0 ? pick(['#2a4a2e', '#3a1e1e']) : m === 1 ? pick(['#c8a030', '#b8bcc0']) : pick(['#3a6a9a', '#b8bcc0', '#c84a3a']); if (m === 2) w.body2 = '#e8e4dc'; }
-    w.def = { spd: (kind === 'car' ? [1.05, 1.3, 1.5] : kind === 'truck' ? [0.85, 1, 1.15] : [0.8, 0.95, 1.05])[m] };
-    w.max = w.city ? w.max * 1.15 : (kind === 'car' ? rnd(64, 80) : kind === 'bus' ? rnd(58, 66) : rnd(48, 58)) * (0.85 + m * 0.1);
-    w.name = kind === 'car' ? (w.cab ? Tr('Taksi') : Tr('Otomobil')) : kind === 'truck' ? Tr('Kamyon') : Tr('Otobüs');
+  /* Arabayı otomobile çevirir (tek tip: siyah, tenteli gezinti otomobili). Yük ve posta arabasının yükü (aranabilir)
+     bagajda kalır; şehirde ağır gider */
+  motorize(w) {
+    w.motor = 'car'; w.hc = null; w.body = '#16161a';
+    w.def = { spd: 1.2 };
+    w.max = w.city ? w.max * 1.15 : rnd(62, 74);
+    w.name = Tr('Otomobil');
     w.bx = undefined; w.trail(true);
     return w;
   },
@@ -1079,8 +1060,8 @@ const TownLifeSystems = {
     }
     if (!cands.length) return;
     const [r, i] = pick(cands), stage = chance(0.35), w = new Wagon(r, i, chance(0.5) ? 1 : -1, stage);
-    // motor çağında posta arabası otobüse, yük arabası kamyona ya da otomobile döner
-    if (chance(ms)) this.motorize(w, stage ? 'bus' : chance(0.4) ? 'truck' : 'car');
+    // motor çağında arabanın yerini otomobil alır
+    if (chance(ms)) this.motorize(w);
     this.addEnt(w);
   },
 };

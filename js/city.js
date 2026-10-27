@@ -392,8 +392,8 @@ const CitySystems = {
         w.cab = true; w.cargo = false; w.max = rnd(32, 37); w.name = Tr('Fayton');
         w.body = pick(['#1e2a22', '#2a1e1e', '#1a1a22', '#3a2a1e']); w.hc = [pick(HORSE_BREEDS.standardbred.cols), pick(HORSE_BREEDS.standardbred.cols)];
       } else w.max = rnd(26, 30);
-      // motor çağında fayton taksiye, yük arabası kamyona ya da otomobile döner
-      if (chance(this.motorShare())) this.motorize(w, cab || chance(0.5) ? 'car' : 'truck');
+      // motor çağında faytonun ve yük arabasının yerini otomobil alır
+      if (chance(this.motorShare())) this.motorize(w);
       this.addEnt(w);
     } else {
       const pts = this.cityPts(t, seq, 3, false), a = Math.atan2(pts[1][1] - pts[0][1], pts[1][0] - pts[0][0]);
