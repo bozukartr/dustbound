@@ -580,9 +580,10 @@ const Cinema = (() => {
           m.cyl(0, 1.13, 0, wide, 0.035, 12, br);
           if (hat === 'cowboy') for (const s of [-1, 1]) m.box(s * (wide - 0.06), 1.15, 0, 0.1, 0.05, wide * 1.3, br);   // kenarları kalkık
           if (hat === 'bowler') m.cyl(0, 1.16, 0, 0.19, 0.2, 10, c);
+          else if (hat === 'cloche') m.cyl(0, 1.06, 0, 0.2, 0.26, 10, c);   // çan şapka: başa derin oturur
           else if (hat === 'top') m.cyl(0, 1.16, 0, 0.17, S.h3 + 0.04, 12, c);
           else if (hat === 'flat') m.box(0, 1.16, 0, 0.3, 0.12, 0.3, c);
-          else { m.box(0, 1.16, 0, 0.31, 0.12, 0.31, c); m.box(0, 1.28, 0, 0.27, S.h3 - 0.12, 0.28, c); if (hat === 'cowboy') m.box(0, 1.33, 0, 0.07, 0.04, 0.22, shadeHex(c, -0.25)); }
+          else { m.box(0, 1.16, 0, 0.31, 0.12, 0.31, c); m.box(0, 1.28, 0, 0.27, S.h3 - 0.12, 0.28, c); if (hat === 'cowboy' || hat === 'fedora') m.box(0, 1.33, 0, 0.07, 0.04, 0.22, shadeHex(c, -0.25)); }
           m.box(0, 1.165, 0, 0.31, 0.05, 0.31, hat === 'straw' ? shadeHex(hc, -0.1) : '#2a1a10');   // şerit
         }
       }

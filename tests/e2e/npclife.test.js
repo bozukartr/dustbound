@@ -170,7 +170,7 @@ module.exports = {
           if (!d && S.phases.size && w.driver) S.back = true;
           if (S.back && w.leg === 'out') S.left = true;
         }
-        return { ...S, phases: [...S.phases], slot: w.slot, leg: w.leg, route: w.route && w.route.length, ri: w.ri, pos: [Math.round(w.x), Math.round(w.y)], park: w.parkT, rm: w.remove, modal: UI.isModal(), st: G.state };
+        return { ...S, phases: [...S.phases], slot: w.slot && w.slot.slice(0, 2), leg: w.leg, route: w.route && w.route.length, ri: w.ri, pos: [Math.round(w.x), Math.round(w.y)], park: w.parkT, rm: w.remove, modal: UI.isModal(), st: G.state };
       });
       t.ok(r.seatEmpty, 'sürücü arabadan iner (koltuk boş)', r);
       t.ok(r.carried > 30 && r.hid > 10, 'sandık taşıyıp dükkâna girer', r);

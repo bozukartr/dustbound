@@ -101,7 +101,7 @@ const PortraitArt = {
       by: 106 - 39,                                   // şapka bandının alt kenarı
     };
     // şapkanın alnı kestiği çizgi (saç bunun üstünde gizlenir)
-    P.hatLine = hat === 'bonnet' ? P.by - 6 : P.by;
+    P.hatLine = hat === 'bonnet' ? P.by - 6 : hat === 'cloche' ? P.by + 5 : P.by;
     P.dark = this.lum(P.skin) < 0.42;
     this.backdrop(ctx, P);
     ctx.save();
@@ -221,7 +221,7 @@ const PortraitArt = {
           ctx.beginPath(); ctx.moveTo(100 - k, 176); ctx.quadraticCurveTo(100 + k * 6, 196, 100 + k * 12, 212); ctx.lineTo(100 + k * 5, 214); ctx.quadraticCurveTo(100 + k * 2, 196, 100 + k, 178); ctx.fill();
         }
         this.ell(ctx, 100, 174, 5.2, 4.4, this.sh(bc, -0.18)); this.soft(ctx, 98.5, 172.5, 2.6, 2, this.sh(bc, 0.35), 0.8);
-      } else if (P.hat === 'top' || P.hat === 'bowler') {
+      } else if (P.hat === 'top' || P.hat === 'bowler' || P.hat === 'fedora') {
         // kravat: geniş, düğümlü, iğneli
         const tc = '#2a1e28';
         this.fillClip(ctx, () => { ctx.beginPath(); ctx.moveTo(95, 166); ctx.lineTo(105, 166); ctx.lineTo(108, 196); ctx.lineTo(100, 202); ctx.lineTo(92, 196); ctx.closePath(); }, tc, () => {
@@ -1029,6 +1029,28 @@ const PortraitArt = {
           for (let a = 0; a < TAU; a += 0.09) { ctx.beginPath(); ctx.moveTo(100 + Math.cos(a) * 34, by + 1 + Math.sin(a) * 5); ctx.lineTo(100 + Math.cos(a) * 80, by + 1 + Math.sin(a) * 12); ctx.stroke(); }
         } : null,
       });
+    } else if (t === 'fedora') {
+      // fötr: ortası boyuna çukur, önden iki yanı tutamlı tepe; geniş kurdele; önü aşağı kıvrık orta boy kenar
+      this.hatShadow(ctx, P, 14);
+      const ch = 40, bw = 60;
+      this.ell(ctx, 100, by - 5, bw - 8, 11, this.sh(hc, -0.4));
+      const crownP = () => { ctx.beginPath(); ctx.moveTo(69, by); ctx.bezierCurveTo(66, by - ch * 0.6, 74, by - ch, 90, by - ch + 2); ctx.quadraticCurveTo(100, by - ch + 9, 110, by - ch + 2); ctx.bezierCurveTo(126, by - ch, 134, by - ch * 0.6, 131, by); ctx.closePath(); };
+      this.crown(ctx, P, crownP, hc, () => {
+        this.soft(ctx, 100, by - ch + 9, 9, 6, this.sh(hc, -0.5), 0.75);
+        this.soft(ctx, 84, by - ch * 0.55, 3.5, 9, this.sh(hc, -0.4), 0.6); this.soft(ctx, 116, by - ch * 0.55, 3.5, 9, this.sh(hc, -0.55), 0.6);
+        this.soft(ctx, 82, by - ch * 0.6, 10, 16, this.sh(hc, 0.25), 0.45);
+      });
+      this.clip(ctx, crownP, () => this.hatBand(ctx, 60, 140, by - 11, 7, this.sh(hc, -0.6), false));
+      this.brim(ctx, P, bw, by, 3, hc, { dip: 12 });
+    } else if (t === 'cloche') {
+      // çan şapka: kaşlara inen derin yuvarlak tepe, dar kenar, yanda kurdele fiyonku
+      this.hatShadow(ctx, P, 16);
+      const crownP = () => { ctx.beginPath(); ctx.moveTo(62, by + 6); ctx.bezierCurveTo(56, by - 48, 144, by - 48, 138, by + 6); ctx.quadraticCurveTo(100, by + 12, 62, by + 6); ctx.closePath(); };
+      this.crown(ctx, P, crownP, hc, () => { this.soft(ctx, 86, by - 22, 14, 12, this.sh(hc, 0.35), 0.6); this.soft(ctx, 122, by - 14, 8, 14, this.sh(hc, -0.5), 0.6); });
+      this.clip(ctx, crownP, () => this.hatBand(ctx, 56, 144, by - 4, 6, this.sh(hc, -0.5), false));
+      this.ell(ctx, 72, by - 1, 5, 3.4, this.sh(hc, -0.3)); this.ell(ctx, 66, by + 1, 4, 2.6, this.sh(hc, -0.15));
+      const bp = () => { ctx.beginPath(); ctx.moveTo(56, by + 4); ctx.quadraticCurveTo(100, by + 22, 144, by + 4); ctx.quadraticCurveTo(100, by + 12, 56, by + 4); ctx.closePath(); };
+      this.fillClip(ctx, bp, this.sh(hc, -0.2), () => this.soft(ctx, 92, by + 10, 18, 3, this.sh(hc, 0.2), 0.5));
     } else if (t === 'bowler') {
       this.hatShadow(ctx, P, 12);
       this.ell(ctx, 100, by - 3, 42, 7, this.sh(hc, -0.4));

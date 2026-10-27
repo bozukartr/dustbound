@@ -4765,5 +4765,8 @@ I18N.add('en', {
     "Ahırın önünde seni bekliyor.": "It's waiting for you in front of the stable.",
     "Zaten direksiyondasın.": "You're already at the wheel.",
     "Seyis otomobilini ahırın önüne getirdi.": "The stable hand brought your automobile out front.",
+    // dönem kıyafetleri: yeni şapkalar
+    "Fötr": "Fedora",
+    "Çan Şapka": "Cloche",
   },
 });

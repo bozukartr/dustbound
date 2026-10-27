@@ -705,16 +705,36 @@ const LOOKS = {
   beard: ['Yok', 'Bıyık', 'Keçi Sakalı', 'Kirli Sakal', 'Gür Sakal', 'Favori', 'Pala Bıyık', 'Çene Sakalı', 'Kısa Sakal'],
   hat: ['cowboy', 'boss', 'wide', 'straw', 'bowler', 'top', 'flat', 'fur', 'bonnet', 'none'],
   hatF: ['bonnet'],   // yalnızca kadınlar
-  hatN: { cowboy: 'Kovboy', boss: 'Ova Şapkası', wide: 'Geniş Kenar', straw: 'Hasır', bowler: 'Melon', top: 'Silindir', flat: 'Kasket', fur: 'Kürk Başlık', bonnet: 'Bone', none: 'Şapkasız' },
+  hatN: { cowboy: 'Kovboy', boss: 'Ova Şapkası', wide: 'Geniş Kenar', straw: 'Hasır', bowler: 'Melon', top: 'Silindir', flat: 'Kasket', fur: 'Kürk Başlık', bonnet: 'Bone', fedora: 'Fötr', cloche: 'Çan Şapka', none: 'Şapkasız' },
   // kuşbakışı ve 3D çizim için şapka biçimi: br = kenar yarıçapı (kuşbakışı), w3 = 3D kenar, h3 = 3D tepe yüksekliği
   hatShape: { cowboy: { br: 4.8, w3: 0.42, h3: 0.2 }, boss: { br: 4.9, w3: 0.44, h3: 0.24 }, wide: { br: 5.6, w3: 0.5, h3: 0.18 }, straw: { br: 5.4, w3: 0.48, h3: 0.16 },
-    bowler: { br: 3.8, w3: 0.3, h3: 0.2 }, top: { br: 3.6, w3: 0.28, h3: 0.36 }, flat: { br: 3.4, w3: 0.24, h3: 0.12 }, fur: { br: 3.5, w3: 0.22, h3: 0.16 }, bonnet: { br: 3.4, w3: 0.2, h3: 0.14 } },
+    bowler: { br: 3.8, w3: 0.3, h3: 0.2 }, top: { br: 3.6, w3: 0.28, h3: 0.36 }, flat: { br: 3.4, w3: 0.24, h3: 0.12 }, fur: { br: 3.5, w3: 0.22, h3: 0.16 }, bonnet: { br: 3.4, w3: 0.2, h3: 0.14 },
+    fedora: { br: 4.3, w3: 0.36, h3: 0.22 }, cloche: { br: 3.4, w3: 0.22, h3: 0.2 } },
   hatCol: ['#3a2a1e', '#6a5038', '#1a1614', '#8a7a64', '#c0a880', '#4a3a3a', '#4a4e56', '#2e3a2c', '#7a3a2a', '#d8c8a8'],
   coat: ['#5a4a3a', '#2e3a4a', '#6a3a2a', '#3a4a32', '#7a6a58', '#4a2a3a', '#2a2622'],
   shirt: ['#d8cdb4', '#8a9ab0', '#b04a3a', '#e8e4dc', '#6a7a5a'],
   pants: ['#3a3024', '#2a2a30', '#5a4a3a', '#4a3a2e'],
   eyes: ['#3a2a1a', '#4a6a8a', '#5a7a4a', '#6a5030'],
 };
+
+/* Döneme göre giyim (randomLook, o yılın modası): her dönem aynı sayıda seçim yapar, yalnızca listeler değişir (tohumla
+   üretilen kasaba sakinlerinin adı ve öbür özellikleri bozulmasın). 1910'dan sonra erkeklerde fötr ve kasket, kadınlarda
+   çan şapka; koyu takım renkleri, uzun palto azalır. 1935'ten sonra şapkasızlar çoğalır, gömlekler açık renklenir.
+   Oyuncunun kendi görünümü değişmez. */
+const LOOK_ERAS = [
+  { y: 1890, long: 0.3,
+    hatM: ['cowboy', 'cowboy', 'bowler', 'flat', 'wide', 'none', 'boss', 'straw', 'boss', 'fur', 'top'], hatF: ['none', 'none', 'wide', 'bowler', 'cowboy', 'bonnet', 'bonnet', 'straw'],
+    coat: LOOKS.coat, shirt: LOOKS.shirt, pants: LOOKS.pants },
+  { y: 1910, long: 0.12,
+    hatM: ['fedora', 'fedora', 'bowler', 'flat', 'flat', 'none', 'fedora', 'straw', 'cowboy', 'bowler', 'boss'], hatF: ['none', 'cloche', 'cloche', 'wide', 'none', 'cloche', 'straw', 'bonnet'],
+    coat: ['#3a3a40', '#2e3a4a', '#4a4036', '#5a5650', '#2a2622', '#4a3a3a', '#3e4a5a'], shirt: ['#e8e4dc', '#d8d4cc', '#c8d0d8', '#e8e4dc', '#b0a898'],
+    pants: ['#2a2a30', '#3a3a40', '#4a4036', '#2e3440'] },
+  { y: 1935, long: 0.05,
+    hatM: ['fedora', 'none', 'fedora', 'flat', 'none', 'none', 'fedora', 'cowboy', 'none', 'fedora', 'straw'], hatF: ['none', 'none', 'cloche', 'none', 'none', 'cloche', 'straw', 'none'],
+    coat: ['#4a4e56', '#2e3a4a', '#6a5e4e', '#5a5a5e', '#3a4a5a', '#7a6a5a', '#4a3e3a'], shirt: ['#e8e4dc', '#b8c8d8', '#d8e0d0', '#e0d0c0', '#c8b8d0'],
+    pants: ['#3a3a40', '#4a4a50', '#5a5048', '#2e3440'] },
+];
+const lookEra = (y) => { let e = LOOK_ERAS[0]; for (const E of LOOK_ERAS) if (y >= E.y) e = E; return e; };
 
 /* Görünüme göre saç stili adı (kadın ve erkek adları ayrı) */
 const hairStyleN = (look, i = look.hairStyle) => (look.sex === 'f' ? LOOKS.hairStyleF : LOOKS.hairStyle)[i] || LOOKS.hairStyle[0];

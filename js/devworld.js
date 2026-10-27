@@ -206,6 +206,8 @@ const DevWorldSystems = {
     // ---- elektrik: sokak boyunca direkler ve teller; gaz lambaları elektrikli lambaya döner
     const E = D.elec || (D.elec = {});
     if (!s.ghost && !E[t.id] && y >= DEV_ELEC[clamp(s.tier, 0, 4)]) { const op = ['e', t.id, this.devPoleSpots(t)]; D.ops.push(op); this.devElecApply(op); area = true; }
+    // ---- moda değişti (1910, 1935): sakinler dönemin kıyafetiyle yeniden kurulur (adları, yüzleri, evleri aynı)
+    if (lookEra(y).y === y) area = true;
     // ---- hayalet kasabada lambalar söner
     if (this.devLights(t, s.ghost)) area = true;
     if (area || changed.size) this.devRefresh(t, changed);

@@ -8,12 +8,13 @@ function randomLook(sex, R) {
   const r = R || { pick, chance, next: Math.random };
   const p = a => (R ? R.pick(a) : pick(a));
   sex = sex || (Math.random() < 0.55 ? 'm' : 'f');
+  const E = lookEra(typeof G !== 'undefined' && G.year > 0 ? G.year : START_YEAR);   // o yılın modası (data.js LOOK_ERAS)
   return {
     sex,
     skin: p(LOOKS.skin), hair: p(LOOKS.hair), hairStyle: sex === 'f' ? p([1, 2, 4, 0, 3, 5, 6, 7, 8, 9, 2, 1]) : p([0, 0, 3, 4, 1, 5, 6, 7, 2, 8, 9, 0]),
     beard: sex === 'm' ? p([0, 1, 2, 3, 4, 0, 5, 6, 7, 8, 0, 3]) : 0, beardLen: 0.6,
-    hat: p(sex === 'f' ? ['none', 'none', 'wide', 'bowler', 'cowboy', 'bonnet', 'bonnet', 'straw'] : ['cowboy', 'cowboy', 'bowler', 'flat', 'wide', 'none', 'boss', 'straw', 'boss', 'fur', 'top']),
-    hatCol: p(LOOKS.hatCol), coat: p(LOOKS.coat), shirt: p(LOOKS.shirt), pants: p(LOOKS.pants), eyes: p(LOOKS.eyes), coatLen: Math.random() < 0.3 ? 0.7 : 0,
+    hat: p(sex === 'f' ? E.hatF : E.hatM),
+    hatCol: p(LOOKS.hatCol), coat: p(E.coat), shirt: p(E.shirt), pants: p(E.pants), eyes: p(LOOKS.eyes), coatLen: Math.random() < E.long ? 0.7 : 0,
   };
 }
 function randomName(sex) { return pick(NAMES[sex]) + ' ' + pick(NAMES.last); }

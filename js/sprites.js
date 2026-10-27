@@ -2185,6 +2185,12 @@ const Spr = {
       this.ell(ctx, -0.8, 0, 3.6, 3.3, c); this.ell(ctx, 1.4, 0, 1.3, 2.9, shadeHex(c, 0.18)); this.ell(ctx, -1.4, 0, 2, 2.2, shadeHex(c, -0.2));
       return;
     }
+    if (hat === 'cloche') {
+      // çan şapka: dar kenar, başa oturan yuvarlak tepe, yanda kurdele fiyonku
+      this.ell(ctx, 0.3 + k * 0.8, 0, br, br * 0.95, shadeHex(c, -0.18)); this.ell(ctx, -0.2, 0, 3, 2.85, c); this.ell(ctx, -0.8, -0.7, 1.3, 1.1, shadeHex(c, 0.22));
+      ctx.fillStyle = shadeHex(c, -0.42); ctx.fillRect(-0.6, 2.1, 1.8, 1);
+      return;
+    }
     this.ell(ctx, k * 0.8, 0, br, br * 0.95, c);
     if (hat === 'flat') this.ell(ctx, 2.6, 0, 2, 2.6, shadeHex(c, -0.2));
     if (hat === 'fur') { this.ell(ctx, -0.2, 0, 3, 2.9, shadeHex(c, 0.12)); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; this.circ(ctx, Math.cos(a) * 2.9, Math.sin(a) * 2.8, 0.7, shadeHex(c, i % 2 ? -0.25 : 0.2)); } return; }
@@ -2192,6 +2198,7 @@ const Spr = {
     this.ell(ctx, -0.2, 0, 2.7, 2.5, shadeHex(c, -0.28));
     if (hat === 'cowboy' || hat === 'wide' || hat === 'straw') { ctx.fillStyle = shadeHex(c, 0.25); ctx.fillRect(-0.8, -2.4, 1, 4.8); }
     if (hat === 'straw') { ctx.strokeStyle = shadeHex(c, -0.25); ctx.lineWidth = 0.3; ctx.beginPath(); ctx.ellipse(0, 0, br * 0.75, br * 0.72, 0, 0, TAU); ctx.stroke(); }
+    if (hat === 'fedora') { ctx.fillStyle = shadeHex(c, -0.55); ctx.fillRect(-1.6, -0.35, 2.8, 0.7); }   // fötrün boyuna tepe çukuru
   },
   /* NPC jestleri, üstten görünüş (gövde çerçevesi: x ileri, y sağ).
      layer 0: kollar ve eldekiler (true dönerse varsayılan kollar çizilmez); layer 1: başın üstünde kalanlar */

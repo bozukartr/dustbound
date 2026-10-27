@@ -1087,7 +1087,7 @@ const HY = (() => {
       if (L.hat === 'bonnet') { P.push({ e: [-0.8, 0, 3.6, 3.3], col: hc, h: 27, dome: 2 }); P.push({ e: [1.4, 0, 1.3, 2.9], col: sh(hc, 0.18), h: 27.5 }); }
       else {
         P.push({ e: [0.2, 0, Sx.br, Sx.br * 0.95], col: (x, y) => Math.hypot(x - 0.2, y) > Sx.br - 0.6 ? shT(hc, -0.22) : hc, h: 26, dome: 0.6 });
-        P.push({ e: [-0.2, 0, 2.6, 2.4], col: (x, y) => Math.abs(Math.hypot(x + 0.2, y) - 2.2) < 0.35 ? rgb('#2a1a10') : (L.hat === 'cowboy' || L.hat === 'wide' || L.hat === 'straw') && Math.abs(y) < 0.45 ? shT(hc, 0.22) : shT(hc, -0.12), h: L.hat === 'top' ? 31 : 29, dome: 2.5 });
+        P.push({ e: [-0.2, 0, 2.6, 2.4], col: (x, y) => Math.abs(Math.hypot(x + 0.2, y) - 2.2) < 0.35 ? rgb('#2a1a10') : (L.hat === 'cowboy' || L.hat === 'wide' || L.hat === 'straw') && Math.abs(y) < 0.45 ? shT(hc, 0.22) : L.hat === 'fedora' && Math.abs(y) < 0.4 && x > -1.6 && x < 1.2 ? shT(hc, -0.42) : shT(hc, -0.12), h: L.hat === 'top' ? 31 : 29, dome: 2.5 });
       }
     } else {
       P.push({ e: [1.9, 0, 1.3, 1.9], col: L.mask === 'bandana' ? rgb('#a8281f') : skin, h: 25, dome: 1 });
