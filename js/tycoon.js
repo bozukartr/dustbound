@@ -235,13 +235,18 @@ const TycoonSystems = {
   },
   bankTrustWord(tr) { return tr > 0.8 ? Tr('çok yüksek') : tr > 0.6 ? Tr('yüksek') : tr > 0.4 ? Tr('orta') : tr > 0.25 ? Tr('düşük') : Tr('sarsıldı'); },
   bankDaily() {
-    for (const z of this.biz.slice()) if (z.fin && !z.site) this.bankDay(z);
+    const L = this.biz.filter(z => z.fin && !z.site);
+    let sum = 0;
+    for (const z of L) sum += this.bankDay(z) || 0;
+    // birden çok bankanın kârı tek satırda
+    if (L.length === 1) { const z = L[0]; if (this.biz.includes(z) && !z.fin.run) UI.feed(sum >= 0 ? Tr`🏦 ${this.bizName(z)} dün ${fmtMoney(sum)} kâr etti.` : Tr`🏦 ${this.bizName(z)} dün ${fmtMoney(-sum)} zarar etti.`, sum >= 0 ? '' : 'warn'); }
+    else if (L.length > 1) UI.feed(sum >= 0 ? Tr`🏦 Bankaların dün ${fmtMoney(sum)} kâr etti.` : Tr`🏦 Bankaların dün ${fmtMoney(-sum)} zarar etti.`, sum >= 0 ? '' : 'warn');
   },
   bankDay(z) {
     const F = z.fin, t = this.bizTown(z.town), S = this.devOf(t), dpy = this.dpy;
     const R = BANK.rates[F.rd], L = BANK.lends[F.rl];
     // panik sürüyor: süre dolduysa banka batar
-    if (F.run) { if (this.day >= F.run.until) this.bankFail(z); return; }
+    if (F.run) { if (this.day >= F.run.until) this.bankFail(z); return 0; }
     // mevduat hedefine doğru akar; çekilen para kasadan ödenir
     F.d = Math.max(0, F.d + (this.bankTarget(z) - F.d) * BANK.flow);
     // krediler: hedefe doğru verilir (kasada karşılık kalır); fazlası vadesi doldukça geri döner
@@ -262,7 +267,6 @@ const TycoonSystems = {
     // kâr sahibine (kasaya ya da kendi hesabına), zarar sermayeden
     if (p > 0) { if (z.bank) this.bank += p * 0.9; else z.cash += p; this.stats.earned += p; this.stat('bizEarned', p); }
     else F.e += p;
-    UI.feed(p >= 0 ? Tr`🏦 ${this.bizName(z)} dün ${fmtMoney(p)} kâr etti.` : Tr`🏦 ${this.bizName(z)} dün ${fmtMoney(-p)} zarar etti.`, p >= 0 ? '' : 'warn');
     if (spike) { F.tr = Math.max(0, F.tr - 0.04); UI.feed(Tr`🏦 ${this.bizName(z)}: büyük bir borçlu batınca kredisi geri dönmedi.`, 'warn'); }
     // soygun: kasadaki paranın bir kısmı gider (bekçi zorlaştırır)
     if (chance(BANK.rob * (F.g ? 0.3 : 1))) {
@@ -279,6 +283,7 @@ const TycoonSystems = {
     const v = this.bankVault(F);
     if (v < 0) { F.d -= v; this.bankRun(z, -v); }
     else if (F.d > 50 && chance(BANK.run + Math.max(0, 0.5 - F.tr) * 0.1)) this.bankRun(z, F.d * rnd(0.3, 0.6));
+    return p;
   },
   /* Panik: mevduat sahipleri W kadar parayı birden ister */
   bankRun(z, W) {

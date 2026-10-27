@@ -480,6 +480,13 @@ const TIER_PLANS = {
     adv: { m: ['D=.V.V.Vk', '.........', '.....bbbb', 'nn.....%.', 'xx.....bb', 'x..h..W..'], at: [1.5, 2.2], rug: [[1, 2.4, 2.6, 1.4, 'g', '#5a3a24']] },
     lux: { m: ['D=qV.V.Vk', '.........', 'G....bbbb', 'nn.....%.', 'xx.Q...bb', 'x.....W.G'], at: [1.5, 2.2], rug: [[1, 2.4, 2.8, 1.5, 'o', '#3a2a24']] },
   },
+  // oyuncunun kurduğu banka (js/tycoon.js): veznedarın tezgâhı, arkada masa ve kasa, önde bekleme sırası
+  bank: {
+    eco: { m: ['D=.....$', '...@....', '.CCCCC..', '........', 'x......b', 'w.......'] },
+    std: { m: ['D=.q...$', '...@....', '.CCCCCC.', '........', 'ww.....g', 'g......h'], rug: [[2.2, 4.1, 5.6, 1.6, 'p', '#2a4a3a']] },
+    adv: { m: ['D=kq.k.$', '...@....', '.CCCCCC.', '........', 'ww.....a', 'g......h'], rug: [[2.4, 4.1, 5.2, 2, 'p', '#2a3a4a']] },
+    lux: { m: ['D=.q.k.$', '...@....', '.CCCCCC.', '........', 'oo.....u', 'G..Q...G'], rug: [[2.4, 4.1, 5.2, 2.2, 'o', '#1e3a2e']] },
+  },
 };
 /* Otel (iki katlı): merdivenler, resepsiyon ve oda düzeni sabit; kademe lobinin eşyalarını [yerel x, y, INT_KEY] ve üst
    kattaki kiralık odanın sandalye/raf yerindeki eşyayı belirler */

@@ -935,7 +935,12 @@ const GameSystems = {
         if (b.type === 'church') return { label: Tr('Sıra'), acts: svc('pray') };
         return { label: 'Bank', acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
       case O.ALTAR: return { label: Tr('Sunak'), acts: [...svc('donate'), ...svc('pray')] };
-      case O.SAFE: return b.def.svc.includes('robbank') ? { label: Tr('Kasa'), acts: svc('robbank') } : null;
+      case O.SAFE: {
+        // kendi bankanın kasası: yönetim (js/tycoon.js)
+        const z = this.bizOf(b);
+        if (z && z.fin) return { label: Tr('Kasa'), acts: [{ n: Tr('Bankayı Yönet'), fn: () => U.openBankMgmt(z) }] };
+        return b.def.svc.includes('robbank') ? { label: Tr('Kasa'), acts: svc('robbank') } : null;
+      }
       case O.BCHAIR: return { label: Tr('Berber Koltuğu'), acts: svc('barber') };
       case O.STALL: return b.type === 'stable' ? counter(Tr('Ahır Bölmesi')) : null;
       case O.STOVE:

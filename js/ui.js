@@ -2225,7 +2225,7 @@ const UI = {
         break;
       case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: Tr`${G.horse.name}'i Tımar Ettir`, right: fmtMoney(SVC.horsecare), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed(Tr('Atın burada değil.'), 'warn'); return; } if (G.spend(SVC.horsecare)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(Tr`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
       case 'bank': it.push({ icon: '🏦', qn: 'deposit', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
-      case 'robbank': it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
+      case 'robbank': if (!G.bizOf(b)) it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
       case 'train': it.push({ icon: '🚂', label: Tr('Tren Bileti Al'), fn: () => this.openTrain(b) }); break;
       case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); it.push({ icon: '📦', label: G.haulers.length ? Tr`Nakliyeciler (${G.haulers.length}/${HAUL_MAX})` : Tr('Nakliyeci Tut'), fn: () => this.openHaulers(b) }); if (b.type === 'post') it.push(...this.coachItems(b)); break;
       case 'donate': it.push({ icon: '🙏', label: Tr('Kiliseye Bağış Yap'), right: fmtMoney(0.5), fn: () => { if (G.spend(0.5)) { G.addHonor(3); this.feed(Tr('Rahip sana teşekkür etti.')); } } }); break;

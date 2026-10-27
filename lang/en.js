@@ -4856,6 +4856,8 @@ I18N.add('en', {
     "sarsıldı": "shaken",
     "🏦 {0} dün {1} kâr etti.": "🏦 {0} made a {1} profit yesterday.",
     "🏦 {0} dün {1} zarar etti.": "🏦 {0} lost {1} yesterday.",
+    "🏦 Bankaların dün {0} kâr etti.": "🏦 Your banks made a {0} profit yesterday.",
+    "🏦 Bankaların dün {0} zarar etti.": "🏦 Your banks lost {0} yesterday.",
     "🏦 {0}: büyük bir borçlu batınca kredisi geri dönmedi.": "🏦 {0}: a big borrower went bust and the loan was lost.",
     "Bankan Soyuldu": "Your Bank Was Robbed",
     "Silahlı adamlar {0} kasasından {1} alıp kaçtı.": "Armed men took {1} from the {0} vault and got away.",
