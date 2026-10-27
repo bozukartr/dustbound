@@ -1066,6 +1066,7 @@ const G = {
     // dünya uzayı arayüz öğeleri
     ctx.save();
     ctx.translate(-x0, -y0);
+    this.drawWires(ctx, x0, y0, x1, y1);
     FX.drawHigh(ctx);
     this.drawBirds(ctx);
     Juice.drawHigh(ctx, x0, y0, x1, y1);
@@ -1086,6 +1087,22 @@ const G = {
     if (this.fx.boom > 0) { ctx.fillStyle = `rgba(255,220,160,${this.fx.boom})`; ctx.fillRect(0, 0, vw, vh); this.fx.boom = Math.max(0, this.fx.boom - dt * 2); }
     this.fx.flash = Math.max(0, this.fx.flash - dt * 1.5);
     this.fx.muzzle = Math.max(0, this.fx.muzzle - dt);
+  },
+  /* Elektrik telleri (js/devworld.js devWires): direklerin traversindeki iki izolatör arasında hafifçe sarkan iki tel */
+  drawWires(ctx, x0, y0, x1, y1) {
+    const WS = this.world.wires;
+    if (!WS) return;
+    ctx.strokeStyle = 'rgba(26,22,17,0.85)'; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    for (const id in WS) for (const [ax, ay, bx, by] of WS[id]) {
+      if (Math.max(ax, bx) + 8 < x0 || Math.min(ax, bx) - 8 > x1 || Math.max(ay, by) - 14 < y0 || Math.min(ay, by) - 28 > y1) continue;
+      const sag = clamp(Math.hypot(bx - ax, by - ay) * 0.05, 2, 7);
+      for (const [dx, k] of [[-4.5, 1], [4.5, 1.35]]) {
+        const sx = ax + dx, sy = ay - 28, ex = bx + dx, ey = by - 28;
+        ctx.moveTo(sx, sy); ctx.quadraticCurveTo((sx + ex) / 2, (sy + ey) / 2 + sag * 2 * k, ex, ey);
+      }
+    }
+    ctx.stroke();
   },
   /* Bina cepheleri ve çatıları: içerideyken ya da arkasındayken soluklaşır */
   drawCovers(ctx, x0, y0, x1, y1, dt) {
@@ -1252,7 +1269,7 @@ const G = {
       if (L.type === 'lamp' && (!night || L.off)) continue;   // hayalet kasabada lambalar sönük
       if ((L.type === 'inner' || L.type === 'hearth') && !(this.insideB && this.insideB.id === L.b)) continue;
       if (L.type === 'hearth' && this.upB && this.upB.id === L.b) continue;   // üst kattayken alt kattaki ocak ışımaz
-      const fl = L.type === 'fire' || L.type === 'hearth' ? Juice.flicker(L.x, this.t, 0.08) : L.type === 'lamp' ? Juice.flicker(L.x + L.y, this.t * 0.6, 0.035) : 1;
+      const fl = L.type === 'fire' || L.type === 'hearth' ? Juice.flicker(L.x, this.t, 0.08) : L.type === 'lamp' && !L.el ? Juice.flicker(L.x + L.y, this.t * 0.6, 0.035) : 1;   // elektrikli lamba titremez
       lights.push([L.x, L.y, L.r * fl, L.type === 'window' ? 0.75 : 1]);
     }
     for (const [x, y] of fires) lights.push([x, y, 80 * Juice.flicker(x * 0.37 + y, this.t, 0.07), 1]);

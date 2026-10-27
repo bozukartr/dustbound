@@ -19,8 +19,9 @@ module.exports = {
         for (const A of [W.tile, W.obj, W.flags, W.solid]) for (let i = 0; i < A.length; i++) h = Math.imul(h ^ A[i], 16777619);
         for (let i = 0; i < W.bid.length; i++) h = Math.imul(h ^ (W.bid[i] + 1), 16777619);
         const B = W.buildings.map(b => [b.id, b.type, b.x, b.y, b.dkey || '', b.face === undefined ? 1 : b.face, b.shut ? 1 : 0].join(',')).join(';');
-        const L = W.lights.map(l => [Math.round(l.x), Math.round(l.y), l.type, l.off ? 1 : 0, l.b === undefined ? '' : l.b].join(',')).sort().join(';');
-        return { h: h >>> 0, B, L, towns: W.towns.map(t => t.buildings.length + ':' + t.hitch.length) };
+        const L = W.lights.map(l => [Math.round(l.x), Math.round(l.y), l.type, l.off ? 1 : 0, l.b === undefined ? '' : l.b, l.el ? 1 : 0, l.r].join(',')).sort().join(';');
+        const Wr = Object.keys(W.wires || {}).sort().map(k => k + ':' + W.wires[k].map(s => s.join(',')).join('|')).join(';');
+        return { h: h >>> 0, B, L, Wr, towns: W.towns.map(t => t.buildings.length + ':' + t.hitch.length) };
       };
       window.__far = () => { const s = TH.openSpot(300 * TS, 300 * TS) || [300 * TS, 300 * TS]; TH.goto(s[0], s[1]); };
       window.__res0 = G.residents(TH.town('harlow')).map(r => [r.id, r.name]);
@@ -105,6 +106,7 @@ module.exports = {
       t.eq(r.H.B, before.B, 'binalar (numara, yer, anahtar, cephe, perde)');
       t.eq(r.H.towns, before.towns, 'kasabaların bina ve bağlama direği listeleri');
       t.eq(r.H.L, before.L, 'ışıklar');
+      t.eq(r.H.Wr, before.Wr, 'elektrik telleri');
       t.eq(r.H.h, before.h, 'karo, nesne, bayrak, çarpışma ve bina dizileri');
     });
 

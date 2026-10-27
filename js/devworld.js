@@ -33,6 +33,8 @@ const DEV_POP_GHOST = 3;
 const DEV_BPT = { s: 5, m: 6, l: 5 };     // basamak başına yeni bina
 const DEV_BMAX = { s: 16, m: 18, l: 12 }; // kasabaya en çok bu kadar yeni bina
 const DEV_LPT = { s: 3, m: 4, l: 5 };     // basamak başına yeni sokak lambası
+const DEV_ELEC = [1938, 1926, 1916, 1909, 1902];   // basamağa göre kasabaya elektriğin geldiği yıl (hayalet kasabaya gelmez)
+const DEV_POLE_GAP = 6;                             // elektrik direkleri arasında en az bu kadar karo
 const DEV_STREET = [T.ROAD, T.GRAVEL, T.COBBLE, T.ASPHALT];   // sokak düzeyine göre yüzey
 /* Basamağa göre gelebilecek dükkânlar (kasabaya göre karışık sırayla; kasabada olmayan önce) */
 const DEV_SHOPS = [
@@ -201,6 +203,9 @@ const DevWorldSystems = {
       const L = this.devLampSpots(t, Math.min(lw - nl, catchup ? 40 : 3));
       if (L.length) { const op = ['l', t.id, L]; D.ops.push(op); this.devLampsApply(op); D.lamps[t.id] = nl + L.length; area = true; }
     }
+    // ---- elektrik: sokak boyunca direkler ve teller; gaz lambaları elektrikli lambaya döner
+    const E = D.elec || (D.elec = {});
+    if (!s.ghost && !E[t.id] && y >= DEV_ELEC[clamp(s.tier, 0, 4)]) { const op = ['e', t.id, this.devPoleSpots(t)]; D.ops.push(op); this.devElecApply(op); area = true; }
     // ---- hayalet kasabada lambalar söner
     if (this.devLights(t, s.ghost)) area = true;
     if (area || changed.size) this.devRefresh(t, changed);
@@ -299,7 +304,7 @@ const DevWorldSystems = {
       if (!W.inb(wx, wy)) { occ[k] = 2; continue; }
       const i = wy * WW + wx, tt = W.tile[i], f = W.flags[i], o = W.obj[i];
       if (f & 8) occ[k] = 2;
-      else if (tt === T.PAVE) occ[k] = o && !devVeg(o) && o !== O.LAMP ? 2 : 5;
+      else if (tt === T.PAVE) occ[k] = o && !devVeg(o) && o !== O.LAMP && o !== O.ELAMP && o !== O.UPOLE ? 2 : 5;
       else if (tt === T.ROAD || isStoneT(tt) || tt === T.BRIDGE) occ[k] = 3;
       else if ((f & 2) || tt === T.PLANK || tt === T.FARM || isWaterT(tt) || isCliffT(tt) || tt === T.SWAMP || tt === T.MUD) occ[k] = 2;
       else if (o && !devVeg(o)) occ[k] = 2;
@@ -429,7 +434,7 @@ const DevWorldSystems = {
     const W = this.world, K = t._dv, out = [];
     if (!K) return out;
     const lamps = [];
-    for (let y = t.y - 2; y < t.y + t.h + 2; y++) for (let x = t.x - 2; x < t.x + t.w + 2; x++) if (W.inb(x, y) && W.obj[y * WW + x] === O.LAMP) lamps.push([x, y]);
+    for (let y = t.y - 2; y < t.y + t.h + 2; y++) for (let x = t.x - 2; x < t.x + t.w + 2; x++) if (W.inb(x, y) && (W.obj[y * WW + x] === O.LAMP || W.obj[y * WW + x] === O.ELAMP)) lamps.push([x, y]);
     const doors = t.buildings.map(b => [b.doorI % WW, b.y + b.h]);
     const order = [...K.sw].map(i => [hash2(i % WW, (i / WW) | 0, 61), i]).sort((a, b) => a[0] - b[0]);
     for (const [, i] of order) {
@@ -443,12 +448,73 @@ const DevWorldSystems = {
     return out;
   },
   devLampsApply(op) {
-    const W = this.world;
+    const W = this.world, el = !!(this.dev.elec && this.dev.elec[op[1]]);
     for (const i of op[2]) {
       if (W.obj[i] || (W.flags[i] & 8)) continue;
-      W.obj[i] = O.LAMP;
-      W.lights.push({ x: (i % WW) * TS + 8, y: ((i / WW) | 0) * TS + 2, r: 55, type: 'lamp' });
+      W.obj[i] = el ? O.ELAMP : O.LAMP;
+      W.lights.push(el ? { x: (i % WW) * TS + 8, y: ((i / WW) | 0) * TS + 2, r: 70, type: 'lamp', el: 1 } : { x: (i % WW) * TS + 8, y: ((i / WW) | 0) * TS + 2, r: 55, type: 'lamp' });
     }
+  },
+  /* Elektrik direklerinin yerleri: sokağın kuzey (dikey sokakta batı) kıyısındaki kaldırım karoları; kapı önleri ve
+     lamba dipleri hariç, aralarında en az DEV_POLE_GAP karo. Direkler binaların önünde durur, arkasında kalmaz. */
+  devPoleSpots(t) {
+    const W = this.world, K = t._dv, out = [];
+    if (!K) return out;
+    const st = new Set(K.st), doors = t.buildings.map(b => [b.doorI % WW, b.y + b.h]), lamp = (i) => W.obj[i] === O.LAMP || W.obj[i] === O.ELAMP;
+    for (const i of K.sw) {
+      if (!st.has(i + WW) && !st.has(i + 1)) continue;
+      const x = i % WW, y = (i / WW) | 0;
+      if (W.obj[i] || (W.flags[i] & 8) || W.tile[i] === T.PLANK) continue;
+      if (doors.some(([dx, dy]) => Math.abs(dx - x) <= 2 && y >= dy - 1 && y <= dy + 3)) continue;
+      if (lamp(i - 1) || lamp(i + 1) || lamp(i - WW) || lamp(i + WW)) continue;
+      if (out.some(j => Math.abs(j % WW - x) < DEV_POLE_GAP && Math.abs(((j / WW) | 0) - y) < DEV_POLE_GAP)) continue;
+      out.push(i);
+    }
+    return out;
+  },
+  /* Kasabaya elektrik gelir: direkler dikilir, gaz lambaları elektrikli lambaya döner (ışıkları beyazlaşır, büyür),
+     teller çekilir */
+  devElecApply(op) {
+    const W = this.world, D = this.dev, t = W.towns.find(q => q.id === op[1]);
+    (D.elec || (D.elec = {}))[op[1]] = 1;
+    if (!t) return;
+    for (const i of op[2]) if (!W.obj[i] && !(W.flags[i] & 8)) W.obj[i] = O.UPOLE;
+    for (let y = t.y - 2; y < t.y + t.h + 2; y++) for (let x = t.x - 2; x < t.x + t.w + 2; x++) {
+      const i = y * WW + x;
+      if (!W.inb(x, y) || W.obj[i] !== O.LAMP) continue;
+      W.obj[i] = O.ELAMP;
+      const L = W.lights.find(l => l.type === 'lamp' && l.x === x * TS + 8 && l.y === y * TS + 2);
+      if (L) { L.el = 1; L.r = 70; }
+    }
+    W._lN = -1;   // ışık ızgarası yeni yarıçaplarla yeniden kurulsun
+    t._lamps = null;
+    this.devWires(t);
+  },
+  /* Teller: kasabanın direkleri en kısa ağla birbirine bağlanır (en çok 11 karo arayla; sokak boyunca düz giden tel
+     çapraz gidene yeğlenir; tel binanın üstünden geçmez). W.wires[kasaba] = [[x1, y1, x2, y2], ...] direklerin dibi
+     (piksel); çizim G.drawWires */
+  devWires(t) {
+    const W = this.world, P = [];
+    for (let y = t.y - 3; y < t.y + t.h + 3; y++) for (let x = t.x - 3; x < t.x + t.w + 3; x++) if (W.inb(x, y) && W.obj[y * WW + x] === O.UPOLE) P.push([x, y]);
+    const n = P.length, segs = [], seen = new Uint8Array(n), best = new Float64Array(n), from = new Int32Array(n);
+    const d = (a, b) => { const dx = Math.abs(P[a][0] - P[b][0]), dy = Math.abs(P[a][1] - P[b][1]), l = Math.hypot(dx, dy); return l > 11 ? Infinity : l * (1 + 0.6 * Math.min(dx, dy) / Math.max(dx, dy, 1)); };
+    const clear = (a, b) => {
+      const [ax, ay] = P[a], [bx, by] = P[b], m = Math.ceil(Math.hypot(bx - ax, by - ay) * 2);
+      for (let k = 1; k < m; k++) if (W.flags[Math.round(ay + (by - ay) * k / m) * WW + Math.round(ax + (bx - ax) * k / m)] & 8) return false;
+      return true;
+    };
+    for (let s0 = 0; s0 < n; s0++) {
+      if (seen[s0]) continue;
+      best.fill(Infinity); from.fill(-1); seen[s0] = 1;
+      for (let c = s0; c >= 0;) {
+        for (let j = 0; j < n; j++) if (!seen[j]) { const dj = d(c, j); if (dj < best[j] && clear(c, j)) { best[j] = dj; from[j] = c; } }
+        let nx = -1;
+        for (let j = 0; j < n; j++) if (!seen[j] && from[j] >= 0 && (nx < 0 || best[j] < best[nx])) nx = j;
+        if (nx >= 0) { seen[nx] = 1; const a = P[from[nx]], b = P[nx]; segs.push([a[0] * TS + 8, a[1] * TS + 8, b[0] * TS + 8, b[1] * TS + 8]); }
+        c = nx;
+      }
+    }
+    (W.wires || (W.wires = {}))[t.id] = segs;
   },
   /* Hayalet kasabada sokak lambaları yanmaz; değişen olduysa true */
   devLights(t, off) {
@@ -488,6 +554,8 @@ const DevWorldSystems = {
     const W = this.world;
     W.refreshArea(t.x - 3, t.y - 3, t.x + t.w + 3, t.y + t.h + 4);
     for (const b of changed || []) W.buildingDirty(b);
+    t._lamps = null;
+    if (this.dev && this.dev.elec && this.dev.elec[t.id]) this.devWires(t);   // yeni bina bir telin altına düştüyse tel başka direğe geçer
     // sakinler basamağa ve binalara göre yeniden kurulur; kaydı kalmayan sakin (giden) dünyadan çıkar
     t._res = null; t._grid = null;
     if (!this.player) return;
@@ -500,7 +568,8 @@ const DevWorldSystems = {
      numarasına göre oyuncunun binaları girer; sonra cepheler, tahta perdeler, sokaklar ve ışıklar son hâlleriyle */
   devPhysLoad(d) {
     const D = this.dev, W = this.world;
-    D.ops = (d && d.ops) || []; D.face = (d && d.face) || {}; D.st = (d && d.st) || {}; D.lamps = {}; D.pend = (d && d.pend) || []; D.nk = (d && d.nk) || 0;
+    D.ops = (d && d.ops) || []; D.face = (d && d.face) || {}; D.st = (d && d.st) || {}; D.lamps = {}; D.elec = {}; D.pend = (d && d.pend) || []; D.nk = (d && d.nk) || 0;
+    W.wires = {};
     D.shut = {};
     for (const k of (d && d.shut) || []) D.shut[k] = 1;
     for (const op of D.ops) {
@@ -509,6 +578,7 @@ const DevWorldSystems = {
         const b = this.devBuild(op, true);
         if (b && b.id !== op[6]) console.warn('gelişim binasının numarası kaydınkinden farklı:', op[5], op[6], b.id);
       } else if (op[0] === 'l') { this.devLampsApply(op); D.lamps[op[1]] = (D.lamps[op[1]] || 0) + op[2].length; }
+      else if (op[0] === 'e') this.devElecApply(op);
     }
     this.bqFlush();
     for (const k in D.face) { const b = this.bByKey(k); if (b) { if (D.face[k] === 1) delete b.face; else b.face = D.face[k]; } }
@@ -521,7 +591,8 @@ const DevWorldSystems = {
       if (S && S.pk === undefined) S.pk = Math.max(this.devV0(t), this.devVit(S));
       // çarpışma (yeni binalar ve lambalar), harita resmi; sakinler ve yol ızgarası yeniden kurulur
       if (D.ops.some(op => op[1] === t.id) || lv !== undefined) W.refreshArea(t.x - 3, t.y - 3, t.x + t.w + 3, t.y + t.h + 4);
-      t._res = null; t._grid = null;
+      if (D.elec[t.id]) this.devWires(t);   // sonradan dikilen binalarla son hâli
+      t._res = null; t._grid = null; t._lamps = null;
     }
     // görünür gelişimden önceki kayıt: kasabalar bugünkü durumlarına bir kerede getirilir
     if (!d || !d.ops) for (const t of W.towns) { const S = D.towns[t.id]; if (S) this.devTownYear(t, this.dev.y, { tier: S.tier, prog: S.prog, ghost: S.ghost, pk: S.pk }, true); }

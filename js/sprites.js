@@ -560,6 +560,24 @@ const Spr = {
         o.fillStyle = '#f0d890'; o.fillRect(x - 1.5, y - 15, 3, 4);
         break;
       }
+      case O.ELAMP: {
+        // elektrikli sokak lambası: döküm ayak, ince yüksek direk, tepede süt camı küre
+        this.shadow(g, x + 3, y + 2, 3.4, 1.6, 0.25);
+        g.fillStyle = '#1c2420'; g.fillRect(x - 1.8, y - 2, 3.6, 4);
+        g.fillStyle = '#26302b'; g.fillRect(x - 0.8, y - 10, 1.6, 10);
+        o.fillStyle = '#26302b'; o.fillRect(x - 0.8, y - 19, 1.6, 9); o.fillRect(x - 1.7, y - 20, 3.4, 1.4);
+        this.circ(o, x, y - 22.4, 2.7, '#ece8da'); this.circ(o, x - 0.7, y - 23.2, 1.2, '#fffdf4');
+        break;
+      }
+      case O.UPOLE: {
+        // elektrik direği: katranlı ağaç direk, traversin uçlarında cam izolatörler (teller: G.drawWires)
+        this.shadow(g, x + 5, y + 2, 3, 1.4, 0.2);
+        g.fillStyle = '#4a3828'; g.fillRect(x - 1, y - 6, 2, 8);
+        o.fillStyle = '#4a3828'; o.fillRect(x - 1, y - 31, 2, 25); o.fillStyle = '#5c4632'; o.fillRect(x - 1, y - 31, 0.8, 25);
+        o.fillStyle = '#5a4430'; o.fillRect(x - 6, y - 27, 12, 1.6);
+        o.fillStyle = '#86a898'; o.fillRect(x - 5.2, y - 28.6, 1.4, 1.6); o.fillRect(x + 3.8, y - 28.6, 1.4, 1.6);
+        break;
+      }
       case O.WELL: {
         this.shadow(g, x + 3, y + 3, 8, 4, 0.3);
         this.circ(g, x, y, 6.5, '#7a746a'); this.circ(g, x, y, 4.5, '#1e2a30'); this.circ(g, x, y, 3.5, '#2e4450');
