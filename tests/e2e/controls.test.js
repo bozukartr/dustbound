@@ -60,6 +60,14 @@ module.exports = {
       await t.sleep(200); await tap(3); await t.sleep(700);
       t.ok(await p.evaluate(() => !!G.player.riding), 'üçgen ile ata binilmeli');
     });
+    await t.step('kolla at sürme: sol analog atı gösterdiği yöne çevirir (dizgin yalnızca klavyede)', async () => {
+      await p.waitForFunction(() => !G.player.mountAnim);
+      const a = await p.evaluate(() => { const h = G.player.riding; h.ang = 0; h.spd = 0; h.acc = 0; return [h.x, h.y]; });
+      await p.evaluate(() => { __pad.axes[1] = 1; }); await t.sleep(1500); await p.evaluate(() => { __pad.axes[1] = 0; });
+      const r = await p.evaluate(() => { const h = G.player.riding; return { ang: h.ang, x: h.x, y: h.y }; });
+      t.ok(Math.abs(angDiff(r.ang, Math.PI / 2)) < 0.15, 'analog aşağı: at güneye döner', r.ang);
+      t.ok(r.y - a[1] > 25, 'güneye gider', { a, r });
+    });
     await t.step('D-pad aşağı kısa basış radarı genişletir, tekrar basış kapatır', async () => {
       await p.waitForFunction(() => !G.player.mountAnim); await p.evaluate(() => { if (G.player.riding) G.player.dismount(); });
       await tap(13, 100); await t.sleep(400);

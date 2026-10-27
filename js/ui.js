@@ -1708,7 +1708,7 @@ const UI = {
         b: Tr`Sol altta radarın yayındaki büyük halkalar <b>sağlık</b>, <b>dayanıklılık</b> ve <b>odak</b>; altlarındaki küçük halkalar <b>açlık</b>, <b>susuzluk</b>, <b>uyku</b> ve <b>temizlik</b>.`,
         tips: [['meat', Tr`Acıkınca ${g('satchel')} Çanta'dan ye, ${g('quick')} ile hızlıca atıştır.`], ['drop', Tr('Matarandan iç, nehirden ya da kuyudan doldur.')], ['bed', Tr('Otelde, evinde ya da kamp kurup uyu.')], ['sun', Tr('Çölde bol su iç, karda kalın giyin.')]] },
       { ic: 'feet', t: Tr('Dolaş ve Keşfet'),
-        tips: [['feet', Tr`${g('moveUp')}${g('moveLeft')}${g('moveDown')}${g('moveRight')} yürü, ${g('sprint')} koş.`], ['talk', Tr`İnsanlara, kapılara ve eşyalara yaklaş: ${g('interact')} ile etkileş. Basılı tutunca başka seçenekler çıkar.`], ['horse', Tr`${g('whistle')} ile atını çağır, ${g('interact')} ile bin; dörtnala için ${g('sprint')}.`], ['map', Tr`${g('map')} Harita: kasabalar, yollar ve işaretlediğin yerler.`]] },
+        tips: [['feet', Tr`${g('moveUp')}${g('moveLeft')}${g('moveDown')}${g('moveRight')} yürü, ${g('sprint')} koş.`], ['talk', Tr`İnsanlara, kapılara ve eşyalara yaklaş: ${g('interact')} ile etkileş. Basılı tutunca başka seçenekler çıkar.`], ['horse', Input.device === 'kb' ? Tr`${g('whistle')} ile atını çağır, ${g('interact')} ile bin. Atı ${g('moveUp')} ile sür, ${g('moveLeft')}${g('moveRight')} ile döndür, ${g('moveDown')} ile durdur; dörtnala için ${g('sprint')}.` : Tr`${g('whistle')} ile atını çağır, ${g('interact')} ile bin; dörtnala için ${g('sprint')}.`], ['map', Tr`${g('map')} Harita: kasabalar, yollar ve işaretlediğin yerler.`]] },
       { ic: 'coin', t: Tr('Para Kazan'),
         tips: [['fox', Tr('Avlan; postları ve etleri kasaba sat.')], ['pick', Tr('Madende, kerestecide, limanda ya da çiftlikte çalış.')], ['scroll', Tr('Şerif ofisindeki ödül ilanlarını takip et.')], ['bank', Tr('Kazancını bankaya yatır: ölürsen bankadaki para kaybolmaz.')], ['cards', Tr('Şansını saloonda pokerde dene... ama dikkat!')]] },
       { ic: 'talk', t: Tr('Kasaba Seni Hatırlar'),
@@ -1767,7 +1767,8 @@ const UI = {
   controlsTable() {
     const B = Input.binds;
     const rows = GAME_ACTIONS.map(g => [g.n, g.kbOnly ? Tr('Sol Analog') : Input.padGlyph(B.pad[g.id]), (B.kb[g.id] || []).filter(Boolean).map(c => Input.kbGlyph(c)).join(' ') || '—']);
-    rows.unshift([Tr('Hareket'), Tr('Sol Analog'), `${Input.kbGlyph(B.kb.moveUp[0])}${Input.kbGlyph(B.kb.moveLeft[0])}${Input.kbGlyph(B.kb.moveDown[0])}${Input.kbGlyph(B.kb.moveRight[0])}`], [Tr('Nişan Yönü'), Tr('Sağ Analog'), Tr('Fare')]);
+    const k = id => Input.kbGlyph(B.kb[id][0]);
+    rows.unshift([Tr('Hareket'), Tr('Sol Analog'), `${k('moveUp')}${k('moveLeft')}${k('moveDown')}${k('moveRight')}`], [Tr('At / Araba Sür'), Tr('Sol Analog'), Tr`${k('moveUp')} ileri · ${k('moveLeft')}${k('moveRight')} dön · ${k('moveDown')} fren, geri`], [Tr('Nişan Yönü'), Tr('Sağ Analog'), Tr('Fare')]);
     return `<table class="ctrl"><tr><th>${Tr`Eylem`}</th><th>${Tr`Oyun Kolu`}</th><th>${Tr`Klavye / Fare`}</th></tr>${rows.filter(r => ![Tr('İleri'), Tr('Geri'), Tr('Sol'), Tr('Sağ')].includes(r[0])).map(r => `<tr><td>${r[0]}</td><td class="c-ps">${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</table><p class="dim">${Tr`Tuşları Ayarlar → Tuş Atamaları'ndan değiştirebilirsin.`}</p>`;
   },
   openControls(tab = Input.device === 'pad' ? 1 : 0) {
