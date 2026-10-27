@@ -64,8 +64,8 @@ module.exports = {
       await p.waitForFunction(() => !G.player.mountAnim);
       const a = await p.evaluate(() => { const h = G.player.riding; h.ang = 0; h.spd = 0; h.acc = 0; return [h.x, h.y]; });
       await p.evaluate(() => { __pad.axes[1] = 1; }); await t.sleep(1500); await p.evaluate(() => { __pad.axes[1] = 0; });
-      const r = await p.evaluate(() => { const h = G.player.riding; return { ang: h.ang, x: h.x, y: h.y }; });
-      t.ok(Math.abs(angDiff(r.ang, Math.PI / 2)) < 0.15, 'analog aşağı: at güneye döner', r.ang);
+      const r = await p.evaluate(() => { const h = G.player.riding; return { off: Math.abs(angDiff(h.ang, Math.PI / 2)), x: h.x, y: h.y }; });
+      t.ok(r.off < 0.15, 'analog aşağı: at güneye döner', r.off);
       t.ok(r.y - a[1] > 25, 'güneye gider', { a, r });
     });
     await t.step('D-pad aşağı kısa basış radarı genişletir, tekrar basış kapatır', async () => {
