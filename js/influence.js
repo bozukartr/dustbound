@@ -279,7 +279,10 @@ const InfluenceSystems = {
     }
     const lv = this.infLv(this.influence());
     if (lv === I.cur) return;
-    if (lv > I.cur) UI.toast(Tr`Nüfuz: ${INF_LV[lv].n}`, INF_LV[lv].d, 'ok');
+    if (lv > I.cur) {
+      UI.toast(Tr`Nüfuz: ${INF_LV[lv].n}`, INF_LV[lv].d, 'ok');
+      this.hintOnce('influence', Tr('Nüfuzun arttıkça kanun seninle pazarlığa yanaşır; nüfuzlu biri şerifi maaşa bağlayabilir ve koruma tutabilir. Ayrıntılar Günlük → Rehber\'de.'), 10);
+    }
     else UI.feed(Tr`Nüfuzun azaldı: ${INF_LV[lv].n}.`, 'warn');
     I.cur = lv; I.top = Math.max(I.top, lv);
   },

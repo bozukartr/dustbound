@@ -275,7 +275,7 @@ const EMOJI_GLYPH = {
   '🔥': 'fire', '🪰': 'flies', '👣': 'feet', '📍': 'pin', '🫗': 'drop', '💧': 'drop', '🧼': 'soap', '🃏': 'cards', '💪': 'fist', '👂': 'talk', '📰': 'newspaper', '⚖': 'scales', '🧽': 'brush',
   '💣': 'dynamite', '🙏': 'candle', '⏳': 'hourglass', '📦': 'chest', '💵': 'cash', '🏮': 'lamp', '🎮': 'pad', '🥩': 'cleaver', '👔': 'scissors', '🪓': 'axe', '🧙': 'hut', '🌾': 'wheat', '☄': 'crater',
   '🌲': 'tree', '🏛': 'ruins', '👻': 'ghost', '🦴': 'bones', '⚰': 'gallows', '🛞': 'wheel', '🗼': 'lighthouse', '🛖': 'hut', '⚔': 'swords', '🏰': 'fort', '🌀': 'windmill', '🌴': 'palm', '👁': 'eye',
-  '🐻': 'paw', '🌉': 'arch', '✊': 'fist', '🎲': 'dice', '♠': 'cards', '🎭': 'mask', '🛢': 'derrick',
+  '🐻': 'paw', '🌉': 'arch', '✊': 'fist', '🎲': 'dice', '♠': 'cards', '🎭': 'mask', '🛢': 'derrick', '🤝': 'cash', '🛡': 'swords',
 };
 
 const Icons = {
