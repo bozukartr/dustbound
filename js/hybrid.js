@@ -1329,6 +1329,8 @@ const HY = (() => {
     else if (night && !IB) add(P.x, P.y, 18, 40, [0.75, 0.78, 0.95], 0.5 * nk);
     if (G.fx.muzzle > 0) add(P.x + Math.cos(P.aimAng || P.ang) * 10, P.y + Math.sin(P.aimAng || P.ang) * 10, 14, 90, [1.0, 0.9, 0.6], Math.min(1.6, G.fx.muzzle * 14));
     for (const tr of G.trains) if (tr.pos[0] && night) { const [x, y, a] = tr.pos[0]; add(x + Math.cos(a) * 40, y + Math.sin(a) * 40, 10, 80, [1.0, 0.95, 0.8], 0.9); }
+    // motorlu taşıtların farları (motoru çalışırken)
+    if (night) for (const e of G.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt) add(e.x + Math.cos(e.ang) * 22, e.y + Math.sin(e.ang) * 22, 8, 62, [1.0, 0.95, 0.82], 0.95 * nk);
     const cx = x0 + vw / 2, cy = y0 + vh / 2;
     out.sort((a, b) => (b.inner - a.inner) || dist2(a.x, a.y, cx, cy) - dist2(b.x, b.y, cx, cy));
     return out.slice(0, NL);

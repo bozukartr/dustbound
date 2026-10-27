@@ -49,7 +49,7 @@ const G = {
     this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null; this.hideout = null; this.pins = [];
-    this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
+    this.biz = []; this.lotsOwned = []; this.myWagon = null; this.myCar = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
     this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
     this.upB = null; this.hotelRent = null; this.stairLatch = false;   // otelin üst katı (oyuncu oradaysa), kiralık oda, merdivenden geçince yön kilidi
@@ -675,8 +675,8 @@ const G = {
     else if (this.hotness > 0.05) this.hintOnce('hot', Tr('Sıcak çarpıyor! Daha sık su iç, geniş kenarlı şapka ya da keten gömlek giy.'));
     else if (this.isNight) this.hintOnce('night', Tr`Gece çöktü. ${g('lantern')} ile fenerini yak. Kurtlar gece daha tehlikelidir.`);
     // klavyede at ve araba dizginle sürülür (ipucu bu yüzden ayrı: eski kayıtta da bir kez çıkar)
-    else if (P.riding && Input.device === 'kb') this.hintOnce('rideKb', Tr`At sırtında ${g('moveUp')} ile sür, ${g('moveLeft')} ${g('moveRight')} ile dön, ${g('moveDown')} ile dur; durunca basılı tutarsan geri gidersin. ${g('sprint')} basılı tutarak dörtnala koş, atının dayanıklılığına dikkat et. ${g('interact')} ile in.`, 10);
-    else if (P.riding) this.hintOnce('ride', Tr`${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
+    else if (P.riding && !P.riding.motor && Input.device === 'kb') this.hintOnce('rideKb', Tr`At sırtında ${g('moveUp')} ile sür, ${g('moveLeft')} ${g('moveRight')} ile dön, ${g('moveDown')} ile dur; durunca basılı tutarsan geri gidersin. ${g('sprint')} basılı tutarak dörtnala koş, atının dayanıklılığına dikkat et. ${g('interact')} ile in.`, 10);
+    else if (P.riding && !P.riding.motor) this.hintOnce('ride', Tr`${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
     else if (this.law.level > 0) this.hintOnce('law', Tr('Aranıyorsun! Radardaki kırmızı arama alanının dışına çık ve görünmeden bekle.'));
     else if (!this.world.townAt(P.x, P.y, 60) && this.hour >= 17) this.hintOnce('camp', P.has('bedroll') ? Tr`Akşam oluyor. Kasabadan uzaktaysan ${g('camp')} tuşunu basılı tutarak kamp kurabilirsin.` : Tr`Vahşi doğada kamp kurmak için bir <b>Uyku Tulumu</b> gerekir (genel mağazada ${fmtMoney(ITEMS.bedroll.p)}). Sonra ${g('camp')} tuşunu basılı tut.`, 10);
     else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', Tr`Su kenarındasın. ${g('interact')} ile su iç; basılı tutarak matara doldurma, yıkanma ve balık tutma seçeneklerine ulaş.`);
@@ -1263,6 +1263,8 @@ const G = {
     else lights.push([P.x, P.y, 26, 0.35]);
     if (this.fx.muzzle > 0) lights.push([P.x, P.y, 90, this.fx.muzzle * 12]);
     for (const tr of this.trains) if (tr.pos[0]) { const [x, y, a] = tr.pos[0]; if (inView(x, y, 120)) lights.push([x + Math.cos(a) * 50, y + Math.sin(a) * 50, 70, 0.9]); }
+    // motorlu taşıtların farları (motoru çalışırken)
+    if (night) for (const e of this.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt && inView(e.x, e.y, 90)) lights.push([e.x + Math.cos(e.ang) * 24, e.y + Math.sin(e.ang) * 24, 48, 0.85]);
     for (const [x, y, r, a] of lights) {
       lc.globalAlpha = Math.min(1, a);
       lc.drawImage(this.lightSpr, x - x0 - r, y - y0 - r, r * 2, r * 2);

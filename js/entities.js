@@ -330,6 +330,7 @@ class Player extends Ent {
   /* Ata ya da arabaya bin: kısa bir sıçrama animasyonuyla eyere/koltuğa geçer (instant: yükleme vb.) */
   mount(h, instant) {
     if (h.dead || this.mountAnim) return;
+    if (this.carry && h.motor) { UI.feed(Tr('Omzundaki yükle direksiyona geçemezsin. Önce yükü bırak.'), 'warn'); return; }
     if (this.carry && !(h.mine ? G.stowOnWagon(h) : G.stowOnHorse(h))) return;
     this.riding = h; h.rider = this; h.state = 'idle';
     this.crouch = false; h.spd *= 0.3; h.back = false;
@@ -670,8 +671,9 @@ class Player extends Ent {
     const wantGal = I.down('sprint') && h.sta > 2;
     if (mv.kb && mv.m > 0.1) {
       const fwd = mv.y < -0.1 ? 1 : mv.y > 0.1 ? -1 : 0, turn = mv.x > 0.1 ? 1 : mv.x < -0.1 ? -1 : 0;
-      // dönüş hızı: dörtnalda geniş, adımda ve tırısta keskin, dururken yerinde; araba daha ağır döner
-      if (turn) h.ang += turn * (h.spd > 130 ? 1.35 : h.spd > 12 ? 1.9 : 1.6) * (h.kind === 'wagon' ? 0.75 : 1) * dt;
+      // dönüş hızı: dörtnalda geniş, adımda ve tırısta keskin, dururken yerinde; araba daha ağır döner. Motorlu taşıt
+      // yerinde dönmez (hızla açılır) ve geri viteste direksiyon gerçek arabadaki gibi burnu ters yöne çevirir
+      if (turn) h.ang += turn * (h.motor ? 1.9 * clamp(h.spd / 45, 0, 1) * (h.back ? -1 : 1) : (h.spd > 130 ? 1.35 : h.spd > 12 ? 1.9 : 1.6) * (h.kind === 'wagon' ? 0.75 : 1)) * dt;
       if (fwd > 0 && !(h.back && h.spd > 2)) {
         h.back = false; urge = true; gal = wantGal;
         target = (gal ? 165 * B.spd * sBonus : 95 * B.spd) * (turn ? 0.85 : 1);
@@ -682,13 +684,13 @@ class Player extends Ent {
       else {
         h.back = false; urge = true; gal = wantGal;
         const want = Math.atan2(mv.y, mv.x);
-        h.ang = turnTo(h.ang, want, (h.spd > 130 ? 2.4 : 3.6) * dt);
+        h.ang = turnTo(h.ang, want, (h.spd > 130 ? 2.4 : 3.6) * (h.motor ? clamp(h.spd / 45, 0.15, 1) : 1) * dt);
         const align = Math.max(0, Math.cos(angDiff(h.ang, want)));
         target = (gal ? 165 * B.spd * sBonus : mv.m > 0.6 ? 95 * B.spd : mv.m > 0.25 ? 60 : 36) * (0.4 + 0.6 * align);
       }
     }
     this.galloping = gal;
-    if (gal) { h.sta = Math.max(0, h.sta - dt * 9 * (G.hasPerk('rider') ? 0.75 : 1) * (1 - riding * 0.03)); }
+    if (gal && !h.motor) { h.sta = Math.max(0, h.sta - dt * 9 * (G.hasPerk('rider') ? 0.75 : 1) * (1 - riding * 0.03)); }   // motor yorulmaz
     else h.sta = Math.min(h.maxSta, h.sta + dt * (urge ? 4 : 7));
     if (this.aiming) target = Math.min(target, 70);
     if (h.load && h.load.length) target *= 1 - 0.035 * G.loadWeight(h.load);
@@ -701,18 +703,19 @@ class Player extends Ent {
     // dörtnaldan sert duruş: at bazen şahlanır
     if (h.spd > 120) h.brk = true;
     else if (urge && h.spd < 90) h.brk = false;
-    if (h.brk && !urge && h.spd < 25) { h.brk = false; if (Math.random() < 0.6) Juice.rear(h); }
+    if (h.brk && !urge && h.spd < 25) { h.brk = false; if (!h.motor && Math.random() < 0.6) Juice.rear(h); }
     const t = G.world.tileAtPx(h.x, h.y), dir = h.back ? -1 : 1;
     const sl = (t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD || isStoneT(t) ? 1.05 : 1)) * (h.spd > 1 ? G.slopeMul(h.x, h.y, h.back ? h.ang + Math.PI : h.ang) : 1);
     const vx = Math.cos(h.ang) * h.spd * sl * dt * dir, vy = Math.sin(h.ang) * h.spd * sl * dt * dir;
     const ox = h.x, oy = h.y;
     h.move(vx, vy);
     const actual = dist(ox, oy, h.x, h.y);
-    if (actual < Math.hypot(vx, vy) * 0.3 && h.spd > 100) { h.spd *= 0.3; G.fx.shake = 3; Audio_.thud(0.3); h.brk = false; Juice.rear(h, true); }
+    if (actual < Math.hypot(vx, vy) * 0.3 && h.spd > 100) { h.spd *= 0.3; G.fx.shake = 3; Audio_.thud(0.3); h.brk = false; if (!h.motor) Juice.rear(h, true); }
     h.mv = h.spd / 60;
     h.phase += dt * (3 + h.spd * 0.1);
-    // toynak sesi yürüyüş biçimine göre (adım, tırıs, eşkin, dörtnala); her vuruşta toz
-    if (Audio_.hoofTick(h, dt, h.spd)) Juice.hoof(h, t);
+    // toynak sesi yürüyüş biçimine göre (adım, tırıs, eşkin, dörtnala); her vuruşta toz. Motorlu taşıtta motor sesi
+    if (h.motor) Audio_.engineTick(h, dt, h.spd, h.x, h.y, 1.6);
+    else if (Audio_.hoofTick(h, dt, h.spd)) Juice.hoof(h, t);
     // atla çarpma (NPC ve hayvanlara)
     if (h.spd > 110) {
       for (const e of G.ents) {

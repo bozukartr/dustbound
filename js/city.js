@@ -350,7 +350,9 @@ const CitySystems = {
     const h = this.hour, env = this.envCache || {};
     const k = h >= 7 && h < 20 ? 1 : h >= 20 && h < 23 ? 0.55 : h >= 5 && h < 7 ? 0.45 : 0.15;
     const wet = clamp((env.rain || 0) + (env.snow || 0), 0, 1);
-    return { carts: Math.round(CITY_CARTS * k * (1 - wet * 0.3)), riders: Math.round(CITY_RIDERS * k * (1 - wet * 0.5)) };
+    // motor çağında atlılar azalır, taşıtlar çoğalır
+    const ms = this.motorShare();
+    return { carts: Math.round(CITY_CARTS * k * (1 - wet * 0.3) * (1 + ms * 0.8)), riders: Math.round(CITY_RIDERS * k * (1 - wet * 0.5) * (1 - ms * 0.85)) };
   },
   cityTick(t) {
     if (!t.net) return;
@@ -390,6 +392,8 @@ const CitySystems = {
         w.cab = true; w.cargo = false; w.max = rnd(32, 37); w.name = Tr('Fayton');
         w.body = pick(['#1e2a22', '#2a1e1e', '#1a1a22', '#3a2a1e']); w.hc = [pick(HORSE_BREEDS.standardbred.cols), pick(HORSE_BREEDS.standardbred.cols)];
       } else w.max = rnd(26, 30);
+      // motor çağında fayton taksiye, yük arabası kamyona ya da otomobile döner
+      if (chance(this.motorShare())) this.motorize(w, cab || chance(0.5) ? 'car' : 'truck');
       this.addEnt(w);
     } else {
       const pts = this.cityPts(t, seq, 3, false), a = Math.atan2(pts[1][1] - pts[0][1], pts[1][0] - pts[0][0]);

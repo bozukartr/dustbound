@@ -656,7 +656,7 @@ const UI = {
     if (P.W.clip && !P.aiming && !P.deadeye && !P.carry && !this.coachLearned('aim')) lines.push(`<div class="prompt dim">${I.glyph('aim')}<span>${Tr`Nişan Al <em>(basılı tut)</em>`}</span></div>`);
     if (P.rope && !shown) lines.push(`<div class="prompt dim">${I.glyph('fire')}<span>${Tr('Kementi Bırak')}</span></div>`);
     if (P.aiming && P.isArmed && !P.deadeye && P.de > 12) lines.push(`<div class="prompt dim">${I.glyph('deadeye')}<span>${Tr('Odak')}</span></div>`);
-    if (P.riding) lines.push(`<div class="prompt dim">${I.glyph('sprint')}<span>${Tr`Dörtnala`}</span></div>`);
+    if (P.riding) lines.push(`<div class="prompt dim">${I.glyph('sprint')}<span>${P.riding.motor ? Tr('Hızlan') : Tr`Dörtnala`}</span></div>`);
     // faytonda: onay tuşu basılı tutulunca yol atlanır (halka dolar)
     const R = G.ride;
     if (P.passenger && R) {
@@ -771,6 +771,7 @@ const UI = {
     }
     if (G.camp) icon(G.camp.x, G.camp.y, 'tent', '#efe6d2');
     if (G.myWagon && P.riding !== G.myWagon) icon(G.myWagon.x, G.myWagon.y, 'bag', '#f0d8a8', 'rgba(60,36,20,0.95)', 13, true);
+    if (G.myCar && P.riding !== G.myCar) icon(G.myCar.x, G.myCar.y, 'car', '#f0d8a8', 'rgba(60,36,20,0.95)', 13, true);
     if (G.nomads) for (const nc of G.nomads) if (nc.era >= 0 && G.discovered.has(G.nomadId(nc))) icon(nc.x, nc.y, 'tent', '#f0e4c8', 'rgba(120,80,20,0.9)', 13);
     if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') icon(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', '#fff', 'rgba(150,20,20,0.95)', 15, true);
     if (G.waypoint) icon(G.waypoint.x, G.waypoint.y, 'waypoint', '#fff', 'rgba(140,40,140,0.95)', 15, true);
@@ -1210,6 +1211,7 @@ const UI = {
     // işletmelerin (altın) ve yük araban
     for (const z of G.biz) { if (z.site) { const l = W.lots.find(x => x.id === z.lot); if (l) badge((l.x + l.w / 2) * TS, (l.y + l.h / 2) * TS, 'pick', 'rgba(170,130,30,0.95)', '#fff', 9); continue; } const b = G.bizBuilding(z); if (b) badge(b.door.x, b.door.y, BICON[b.type] || 'store', 'rgba(170,130,30,0.95)', '#fff', 9); }
     if (G.myWagon && G.player.riding !== G.myWagon) badge(G.myWagon.x, G.myWagon.y, 'bag', 'rgba(60,36,20,0.9)', '#f0d8a8', 9);
+    if (G.myCar && G.player.riding !== G.myCar) badge(G.myCar.x, G.myCar.y, 'car', 'rgba(60,36,20,0.9)', '#f0d8a8', 9);
     for (const h of G.haulers) badge(h.x, h.y, 'wagon', h.state === 'raid' ? 'rgba(160,20,14,0.95)' : 'rgba(40,70,90,0.9)', '#f0e4c8', 9);
     for (const R of G.raids) badge(R.x, R.y, 'skull', 'rgba(160,20,14,0.95)', '#fff', 11);
     if (G.horse && !G.horse.dead) badge(G.horse.x, G.horse.y, 'horse', 'rgba(60,36,20,0.9)', '#f0d8a8');
@@ -2179,13 +2181,18 @@ const UI = {
       case 'horses': it.push({ icon: '🐴', qn: 'horse', label: Tr('At Satın Al'), fn: () => this.openHorseShop(b) }); if (G.stable.length) it.push({ icon: '🏇', label: Tr('Ahırdaki Atların'), fn: () => this.openStable(b) });
         if (!G.myWagon) it.push({ icon: '📦', label: Tr('Yük Arabası Satın Al'), right: fmtMoney(WAGON_PRICE * G.priceMul(true)), fn: () => { G.buyWagon(b); this.pop(); } });
         else it.push({ icon: '📦', label: Tr('Arabanı Buraya Getirt'), right: fmtMoney(SVC.fetchWagon), fn: () => G.fetchWagon(b) });
+        // motor çağında ahır otomobil de satar
+        if (G.year >= CAR_YEAR) {
+          if (!G.myCar) it.push({ icon: '🚗', label: Tr('Otomobil Satın Al'), right: fmtMoney(CAR_PRICE * G.priceMul(true)), fn: () => { G.buyCar(b); this.pop(); } });
+          else it.push({ icon: '🚗', label: Tr('Otomobilini Buraya Getirt'), right: fmtMoney(SVC.fetchWagon), fn: () => G.fetchCar(b) });
+        }
         it.push(...this.coachItems(b));
         break;
       case 'horsecare': if (G.horse && !G.horse.dead) it.push({ icon: '🧽', label: Tr`${G.horse.name}'i Tımar Ettir`, right: fmtMoney(SVC.horsecare), fn: () => { if (dist(G.horse.x, G.horse.y, P.x, P.y) > 200) { this.feed(Tr('Atın burada değil.'), 'warn'); return; } if (G.spend(SVC.horsecare)) { G.horse.hp = G.horse.maxHp; G.horse.sta = G.horse.maxSta; G.horse.addBond(5); this.feed(Tr`🐴 ${G.horse.name} tımar edildi.`); } } }); break;
       case 'bank': it.push({ icon: '🏦', qn: 'deposit', label: Tr('Banka İşlemleri'), right: fmtMoney(G.bank), fn: () => this.openBank() }); break;
       case 'robbank': it.push({ icon: '💣', label: Tr('Bankayı Soy'), cls: 'danger', fn: () => this.robBank(b) }); break;
       case 'train': it.push({ icon: '🚂', label: Tr('Tren Bileti Al'), fn: () => this.openTrain(b) }); break;
-      case 'stage': it.push({ icon: '🐴', label: Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); it.push({ icon: '📦', label: G.haulers.length ? Tr`Nakliyeciler (${G.haulers.length}/${HAUL_MAX})` : Tr('Nakliyeci Tut'), fn: () => this.openHaulers(b) }); if (b.type === 'post') it.push(...this.coachItems(b)); break;
+      case 'stage': it.push({ icon: G.year >= BUS_YEAR ? '🚌' : '🐴', label: G.year >= BUS_YEAR ? Tr('Otobüs Bileti') : Tr('Posta Arabası Bileti'), fn: () => this.openStage(b) }); it.push({ icon: '📦', label: G.haulers.length ? Tr`Nakliyeciler (${G.haulers.length}/${HAUL_MAX})` : Tr('Nakliyeci Tut'), fn: () => this.openHaulers(b) }); if (b.type === 'post') it.push(...this.coachItems(b)); break;
       case 'donate': it.push({ icon: '🙏', label: Tr('Kiliseye Bağış Yap'), right: fmtMoney(0.5), fn: () => { if (G.spend(0.5)) { G.addHonor(3); this.feed(Tr('Rahip sana teşekkür etti.')); } } }); break;
       case 'pray': it.push({ icon: '✝', label: Tr('Dua Et'), fn: () => { const k = 'pray'; if (G.dailyTalk[k]) { this.feed(Tr('Bugün zaten dua ettin.')); return; } G.dailyTalk[k] = 1; P.energy = Math.min(100, P.energy + 8); P.deCore = Math.min(100, P.deCore + 20); G.addHonor(0.5); this.feed(Tr('İçin huzurla doldu.')); G.advanceClock(20); } }); break;
       case 'property': it.push({ icon: '📜', label: Tr('Satılık Mülkler'), fn: () => this.openLand() }); it.push({ icon: '🏪', label: Tr('Satılık İşletmeler ve Arsalar'), fn: () => this.openBizMarket(b) });
@@ -2537,13 +2544,13 @@ const UI = {
     const dests = Wd.towns.filter(t => t !== here && (G.visited.has(t.id) || dist(here.cx, here.cy, t.cx, t.cy) < 14000 || G.storyStageDest(t)))
       .sort((a, c) => dist(here.cx, here.cy, a.cx, a.cy) - dist(here.cx, here.cy, c.cx, c.cy));
     this.menu({
-      title: Tr('Posta Arabası'), sub: Tr`${here.n} Durağı`, cls: 'small', wallet: true,
+      title: G.year >= BUS_YEAR ? Tr('Otobüs') : Tr('Posta Arabası'), sub: Tr`${here.n} Durağı`, cls: 'small', wallet: true,
       build: () => dests.map(t => {
         const d = dist(here.cx, here.cy, t.cx, t.cy);
         const pr = G.stagePrice(here, t);
         const hrs = Math.max(2, Math.round(d / 2600));
-        return { icon: '🐴', label: t.n + (G.visited.has(t.id) ? '' : Tr(' (yeni)')), right: Tr`${fmtMoney(pr)} • ${hrs} sa`, fn: () => {
-          if (G.law.level > 0) { this.feed(Tr('Aranırken arabacı seni almaz!'), 'warn'); return; }
+        return { icon: G.year >= BUS_YEAR ? '🚌' : '🐴', label: t.n + (G.visited.has(t.id) ? '' : Tr(' (yeni)')), right: Tr`${fmtMoney(pr)} • ${hrs} sa`, fn: () => {
+          if (G.law.level > 0) { this.feed(G.year >= BUS_YEAR ? Tr('Aranırken şoför seni almaz!') : Tr('Aranırken arabacı seni almaz!'), 'warn'); return; }
           if (!G.spend(pr)) return;
           this.closeAll();
           const late = chance(0.15) ? rndi(1, 3) : 0;

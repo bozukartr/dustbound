@@ -272,6 +272,30 @@ const BizSystems = {
     this.addEnt(w);
     return w;
   },
+  /* Otomobil (CAR_YEAR'dan sonra ahırda): alındığı yılın modeli */
+  buyCar(b) {
+    if (this.myCar) { UI.feed(Tr('Zaten bir otomobilin var.')); return; }
+    if (!this.spend(CAR_PRICE * this.priceMul(true))) return;
+    this.spawnMyCar(b.door.x - 30, b.door.y + 26, 0);
+    UI.toast(Tr('Otomobil'), Tr('Ahırın önünde seni bekliyor.'), 'horse');
+    this.driveHint(this.myCar);
+  },
+  spawnMyCar(x, y, ang, d) {
+    const w = Wagon.ownedCar(x, y, ang);
+    if (d) { if (d.model !== undefined) w.model = d.model; if (d.body) w.body = d.body; w.body2 = d.body2 || null; if (d.spd) w.def.spd = d.spd; }
+    this.myCar = w;
+    this.addEnt(w);
+    return w;
+  },
+  fetchCar(b) {
+    const w = this.myCar;
+    if (!w) return;
+    if (this.player.riding === w) { UI.feed(Tr('Zaten direksiyondasın.')); return; }
+    if (!this.spend(SVC.fetchWagon)) return;
+    w.x = b.door.x - 30; w.y = b.door.y + 26; w.ang = 0; w.spd = 0; w.trail(true);
+    if (!this.ents.includes(w)) { w.remove = false; this.addEnt(w); }
+    UI.feed(Tr('Seyis otomobilini ahırın önüne getirdi.'));
+  },
   fetchWagon(b) {
     const w = this.myWagon;
     if (!w) return;
@@ -323,7 +347,9 @@ const BizSystems = {
   saveBiz() {
     const w = this.myWagon;
     const ground = this.ents.filter(e => e.kind === 'crate' && !e.remove).map(e => ({ x: Math.round(e.x), y: Math.round(e.y), g: e.g }));
-    return { list: this.biz, lots: this.lotsOwned, wagon: w ? { x: Math.round(w.x), y: Math.round(w.y), ang: w.ang, crates: w.crates, riding: this.player.riding === w } : null, ground };
+    const c = this.myCar;
+    return { list: this.biz, lots: this.lotsOwned, wagon: w ? { x: Math.round(w.x), y: Math.round(w.y), ang: w.ang, crates: w.crates, riding: this.player.riding === w } : null, ground,
+      car: c ? { x: Math.round(c.x), y: Math.round(c.y), ang: c.ang, model: c.model, body: c.body, body2: c.body2, spd: c.def.spd, riding: this.player.riding === c } : null };
   },
   loadBiz(d) {
     if (!d) return;
@@ -332,6 +358,10 @@ const BizSystems = {
     if (d.wagon) {
       const w = this.spawnMyWagon(d.wagon.x, d.wagon.y, d.wagon.ang || 0, d.wagon.crates || []);
       if (d.wagon.riding && !this.player.riding) { w.x = this.player.x; w.y = this.player.y; w.trail(true); this.player.mount(w, true); }
+    }
+    if (d.car) {
+      const w = this.spawnMyCar(d.car.x, d.car.y, d.car.ang || 0, d.car);
+      if (d.car.riding && !this.player.riding) { w.x = this.player.x; w.y = this.player.y; w.trail(true); this.player.mount(w, true); }
     }
     for (const c of d.ground || []) this.addEnt(new Crate(c.x, c.y, c.g));
   },
