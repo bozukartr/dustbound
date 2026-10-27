@@ -770,6 +770,7 @@ const UI = {
       icon(p.x, p.y, G.rumored.has(p.id) && !G.discovered.has(p.id) ? 'question' : (PICON[p.kind === 'landmark' ? p.type : p.kind] || 'eye'), '#efe6d2', p.kind === 'camp' ? 'rgba(130,20,14,0.9)' : null);
     }
     if (G.camp) icon(G.camp.x, G.camp.y, 'tent', '#efe6d2');
+    if (G.tycoon && G.year >= OIL.year) G.tycoon.oil.f.forEach((f, i) => { if (!f.known) return; const p = G.oilPos(i); if (Math.abs(p.x - P.x) < 1400 && Math.abs(p.y - P.y) < 1400) icon(p.x, p.y, 'derrick', '#efe6d2', f.own === 'p' ? 'rgba(150,110,20,0.95)' : null, 14); });
     if (G.myWagon && P.riding !== G.myWagon) icon(G.myWagon.x, G.myWagon.y, 'bag', '#f0d8a8', 'rgba(60,36,20,0.95)', 13, true);
     if (G.myCar && P.riding !== G.myCar) icon(G.myCar.x, G.myCar.y, 'car', '#f0d8a8', 'rgba(60,36,20,0.95)', 13, true);
     if (G.nomads) for (const nc of G.nomads) if (nc.era >= 0 && G.discovered.has(G.nomadId(nc))) icon(nc.x, nc.y, 'tent', '#f0e4c8', 'rgba(120,80,20,0.9)', 13);
@@ -975,6 +976,10 @@ const UI = {
     else if (key === 'tent') poi((p, k) => k && p.kind === 'camp');
     else if (key === 'eye') poi((p, k) => k && !['camp', 'property', 'home'].includes(p.kind));
     else if (key === 'question') poi((p, k, r) => r && !k);
+    else if (key === 'derrick' && G.tycoon && G.year >= OIL.year) {
+      G.tycoon.oil.f.forEach((f, i) => { if (f.known) { const p = G.oilPos(i); out.push({ x: p.x, y: p.y, n: Tr`Petrol sahası: ${G.oilName(i)}` }); } });
+      const R = G.tycoon.oil.ref; if (R) out.push({ x: R.x * TS + 8, y: R.y * TS + 8, n: Tr('Rafinerin') });
+    }
     else if (key === 'waypoint' && G.waypoint) out.push({ x: G.waypoint.x, y: G.waypoint.y, n: Tr('Hedef'), keep: true });
     return out.sort((a, b) => dist2(a.x, a.y, P.x, P.y) - dist2(b.x, b.y, P.x, P.y));
   },
@@ -1213,6 +1218,12 @@ const UI = {
     if (G.myWagon && G.player.riding !== G.myWagon) badge(G.myWagon.x, G.myWagon.y, 'bag', 'rgba(60,36,20,0.9)', '#f0d8a8', 9);
     if (G.myCar && G.player.riding !== G.myCar) badge(G.myCar.x, G.myCar.y, 'car', 'rgba(60,36,20,0.9)', '#f0d8a8', 9);
     for (const h of G.haulers) badge(h.x, h.y, 'wagon', h.state === 'raid' ? 'rgba(160,20,14,0.95)' : 'rgba(40,70,90,0.9)', '#f0e4c8', 9);
+    // bilinen petrol sahaları (senin: altın, rakibin: koyu kırmızı) ve rafinerin
+    const OL = G.tycoon && G.year >= OIL.year && !hid.has('derrick') ? G.tycoon.oil : null;
+    if (OL) {
+      OL.f.forEach((f, i) => { if (!f.known) return; const p = G.oilPos(i); badge(p.x, p.y, 'derrick', f.own === 'p' ? 'rgba(170,130,30,0.95)' : f.own !== null ? 'rgba(110,40,28,0.92)' : 'rgba(30,20,12,0.85)', '#fff', 10); });
+      if (OL.ref) badge(OL.ref.x * TS + 8, OL.ref.y * TS + 8, 'refinery', 'rgba(170,130,30,0.95)', '#fff', 10);
+    }
     for (const R of G.raids) badge(R.x, R.y, 'skull', 'rgba(160,20,14,0.95)', '#fff', 11);
     if (G.horse && !G.horse.dead) badge(G.horse.x, G.horse.y, 'horse', 'rgba(60,36,20,0.9)', '#f0d8a8');
     // oyuncunun işaretleri: iğne ve adı
@@ -1676,8 +1687,10 @@ const UI = {
       if (free.length) h += `<p class="jr-note">${Tr`Boş arsaların: ${free.length}. Tabelasından ya da ilçe binasından inşaata başlayabilirsin.`}</p>`;
       const need = G.goodsNeeded(), nk = Object.keys(need).filter(g => need[g] > 0);
       if (nk.length) h += `<p class="jr-note">${Tr`Getirilmesi gereken mallar:`} ${nk.map(g => `${GOODS[g].n} ×${need[g]}`).join(', ')}</p>`;
-      h += this.secJournal();
     }
+    const oilMine = G.tycoon && G.tycoon.oil.f.some(f => f.own === 'p');
+    if (G.biz.some(z => !z.site) || oilMine) h += this.secJournal();
+    h += this.oilJournal();
     if (G.haulers.length) {
       h += `<h3 class="jr-h">${Tr`Nakliyeciler`}</h3><table class="jr-biz">`;
       for (const x of G.haulers) h += `<tr><td>${escapeHtml(x.name)} <span class="dim">(${HAUL_TRAITS[x.trait].n})</span></td><td class="${x.state === 'raid' ? 'st-low' : ''}">${escapeHtml(G.haulStatus(x))}</td><td>${fmtMoney(HAUL_TRAITS[x.trait].wage)}${Tr`/gün`}</td></tr>`;
@@ -1711,6 +1724,7 @@ const UI = {
       h += `<tr><td>${SECTORS[k].n}</td><td>${G.pct(s.share)}<div class="sc-bar"><i style="width:${Math.round(s.share * 100)}%"></i>${ticks}</div></td><td>${s.own}/${s.n}</td><td class="sc-l${s.lv}">${s.own ? SECTOR_LV[s.lv].n : '—'}</td></tr>`;
     }
     h += `</table><p class="jr-note">${Tr`Bir sektördeki payın, bütün kasabalardaki o türden işletmelerin değerinden seninkilerin oranıdır. Payın %25'i geçince güçlü, %50'yi geçince hakim, %75'i geçince tekel olursun: o sektördeki işletmelerin daha çok kazanır, toptan mal ucuzlar, satmak istemeyen rakipler teklifine daha kolay razı olur. Hakim olduğun pazarda zorlanan rakipler ucuza satılığa çıkar. Tekelciler sevilmez; ${TEKEL_YEAR} yılından sonra ticaret odası tekellere ceza keser.`}</p>`;
+    if (S.petrol.n) h += `<p class="jr-note">${Tr`Petrolde payın, bütün kuyuların günlük üretiminden seninkilerin oranıdır; pazar en az ${SECTORS.petrol.minN} kuyuya ulaşmadan hakimiyet sayılmaz.`}</p>`;
     if (G.tycoon && G.tycoon.fines) h += `<p class="jr-note st-low">${Tr`Ödenen tekel cezaları: ${fmtMoney(G.tycoon.fines)}`}</p>`;
     const banks = G.biz.filter(z => z.fin && !z.site);
     if (banks.length) {
@@ -2782,6 +2796,78 @@ const UI = {
       },
     });
   },
+  /* ---- Petrol (js/tycoon.js) ---- */
+  oilWellWord(w) { return !w ? '' : w.s === 'dig' ? Tr`sondaj (${Math.max(0, w.t - G.day)} gün)` : w.s === 'dry' ? Tr('kuru') : w.s === 'gush' ? Tr('fışkıran') : Tr('üretimde'); },
+  oilCard(i) {
+    const O_ = G.tycoon.oil, f = O_.f[i], F = G.oilFields()[i], cap = G.oilCap(i);
+    const wl = f.w.map(w => this.oilWellWord(w)).filter(Boolean);
+    return `<div><b>${Tr`Sahibi:`}</b> ${G.oilOwnerName(f)}</div>`
+      + `<div><b>${Tr`Kuleler:`}</b> ${wl.length ? wl.join(', ') : Tr('henüz yok')} <span class="dim">(${wl.length}/${OIL_WELLS.length})</span></div>`
+      + `<div><b>${Tr`Rezerv:`}</b> <span class="${f.rem < F.res * 0.2 ? 'st-low' : ''}">${G.pct(f.rem / F.res)}</span> &nbsp; <b>${Tr`Günlük üretim:`}</b> ${Tr`${Math.round(cap)} varil`}</div>`
+      + `<div><b>${Tr`Varil fiyatı:`}</b> ${fmtMoney(G.oilPrice() * O_.mk)}${O_.ref && O_.ref.done ? ` <span class="dim">(${Tr`rafineriyle ${fmtMoney(G.oilSell())}`})</span>` : ''}</div>`;
+  },
+  openOilField(i) {
+    const t = G.oilTown(i), f = G.tycoon.oil.f[i], pos = G.oilPos(i);
+    this.menu({
+      title: Tr('Petrol Sahası'), wallet: true, cls: 'small', sub: () => G.oilName(i),
+      build: () => {
+        const it = [{ html: `<div class="biz-card">${this.oilCard(i)}</div>` }], why = G.oilWhy(i);
+        if (f.own === null) { const pr = G.oilLandPrice(); it.push({ icon: '📜', label: Tr('Araziyi Satın Al'), right: fmtMoney(pr), disabled: !!why || G.player.money < pr, why: why || Tr('Yeterli paran yok.'), fn: () => this.confirmOilLand(i) }); }
+        else if (f.own !== 'p') { const pr = G.oilOfferPrice(i); it.push({ icon: '💰', label: G.tycoon.dist['o' + i] ? Tr('Sahayı Ucuza Satın Al') : Tr('Satın Alma Teklifi Yap'), right: fmtMoney(pr), disabled: !!why || G.player.money < pr, why: why || Tr('Yeterli paran yok.'), fn: () => this.confirmOilLand(i) }); }
+        else {
+          const k = G.oilFreeSpot(i), no = k < 0 ? Tr('Sahada kule kuracak yer kalmadı.') : f.rem <= 0 ? Tr('Bu sahanın petrolü tükendi.') : '';
+          it.push({ icon: '🛢', label: Tr('Sondaj Kulesi Kur'), right: fmtMoney(OIL.well), disabled: !!no || G.player.money < OIL.well, why: no || Tr('Yeterli paran yok.'), fn: () => G.oilDrill(i) });
+        }
+        it.push({ icon: '📍', label: Tr('Haritada İşaretle'), fn: () => { G.setWaypoint(pos.x, pos.y); this.feed(Tr('Petrol sahası haritada işaretlendi.')); } });
+        it.push({ html: `<p class="dim">${Tr`Kuru kuyu olasılığı %${Math.round(OIL.dry * 100)}; kuyuların üretimi rezerv azaldıkça düşer. Petrol her gün satılır, para hesabına yatar.`}</p>` });
+        return it;
+      },
+    });
+  },
+  confirmOilLand(i) {
+    const f = G.tycoon.oil.f[i], t = G.oilTown(i), rival = f.own !== null && f.own !== 'p';
+    const pr = rival ? G.oilOfferPrice(i) : G.oilLandPrice();
+    this.confirm(rival ? Tr('Satın Alma Teklifi') : Tr('Petrol Arazisi'), rival ? Tr`${OIL_COS[f.own]}, ${t.n} yakınlarındaki sahasını kuyularıyla birlikte ${fmtMoney(pr)} karşılığında devretmeye razı.` : Tr`${t.n} yakınlarındaki sızıntılı arazi — ${fmtMoney(pr)}.`,
+      () => { if (G.oilBuyLand(i)) this.closeAll(); }, Tr('Vazgeç'), rival ? Tr`Teklif Et (${fmtMoney(pr)})` : Tr`Satın Al (${fmtMoney(pr)})`);
+  },
+  /* İlçe binası → Petrol: bilinen sahalar, rafineri */
+  oilMarketItems(here) {
+    const O_ = G.tycoon.oil, it = [];
+    if (G.year < OIL.year) return [{ html: `<p class="dim">${Tr`Henüz kimse petrolle ilgilenmiyor. ${OIL.year} yılından sonra kara sızıntılı araziler değerlenecek.`}</p>` }];
+    it.push({ header: Tr('Rafineri') });
+    const R = O_.ref;
+    const refSide = `<div class="ps-t">${Tr('Rafineri')}</div><div class="ps-e">${Tr`Ham petrolü gazyağına ve benzine çevirir: bütün petrolün ${OIL.refMul} katı fiyata satılır. Demiryolu istasyonu olan bir kasabaya kurulur; ${OIL.refDays} günde biter.`}</div>`;
+    if (R) it.push({ icon: Icons.glyph('refinery', '#efe6d2'), label: R.done ? Tr`Rafinerin: ${G.bizTown(R.town).n}` : Tr`Rafineri inşaatı: ${G.bizTown(R.town).n}`, right: R.done ? '' : Tr`${Math.max(0, R.ready - G.day)} gün`, side: refSide, fn: () => this.openOilOverview() });
+    else { const why = G.refWhy(here); it.push({ icon: Icons.glyph('refinery', '#efe6d2'), label: Tr`Rafineri Kur: ${here.n}`, right: fmtMoney(OIL.ref), disabled: !!why || G.player.money < OIL.ref, why: why || Tr('Yeterli paran yok.'), side: refSide, fn: () => { if (G.refBuild(here)) this.closeAll(); } }); }
+    const L = O_.f.map((f, i) => i).filter(i => O_.f[i].known).sort((a, c) => { const A = G.oilPos(a), C = G.oilPos(c); return dist(here.cx, here.cy, A.x, A.y) - dist(here.cx, here.cy, C.x, C.y); });
+    it.push({ header: Tr('Petrol Sahaları') });
+    if (!L.length) it.push({ html: `<p class="dim">${Tr('Bilinen bir petrol sahası yok. Kırlarda kara, yağlı sızıntılar ara; gazeteler de yeni bulunan sahaları yazar.')}</p>` });
+    for (const i of L) {
+      const f = O_.f[i], pr = f.own === null ? G.oilLandPrice() : f.own === 'p' ? 0 : G.oilOfferPrice(i);
+      it.push({ icon: Icons.glyph('derrick', f.own === 'p' ? '#f0cc60' : '#efe6d2'), label: `${G.oilName(i)} <span class="dim">— ${G.oilOwnerName(f)}</span>`, right: pr ? fmtMoney(pr) : '', side: `<div class="ps-t">${Tr('Petrol Sahası')}</div><div class="ps-e">${this.oilCard(i)}</div>`, fn: () => this.openOilField(i) });
+    }
+    return it;
+  },
+  /* Petrol işlerinin özeti: fiyat, rafineri, sahalar */
+  openOilOverview() {
+    this.menu({ title: Tr('Petrol İşlerin'), cls: 'small', wallet: true, build: () => [{ html: this.oilJournal(true) }, ...G.tycoon.oil.f.map((f, i) => i).filter(i => G.tycoon.oil.f[i].own === 'p').map(i => ({ icon: Icons.glyph('derrick', '#f0cc60'), label: G.oilName(i), right: Tr`${Math.round(G.oilCap(i))} varil/gün`, fn: () => this.openOilField(i) }))] });
+  },
+  oilJournal(full) {
+    const O_ = G.tycoon && G.tycoon.oil;
+    if (!O_ || G.year < OIL.year) return '';
+    const mine = O_.f.map((f, i) => i).filter(i => O_.f[i].own === 'p');
+    if (!mine.length && !O_.ref && !full) return O_.f.some(f => f.known) ? `<h3 class="jr-h">${Tr`Petrol`}</h3><p class="jr-note">${Tr`Bilinen petrol sahaları var. İlçe binasından ya da sızıntıların başından araziyi satın alıp sondaj kulesi kurabilirsin. Varilin fiyatı bugün ${fmtMoney(G.oilPrice() * O_.mk)}.`}</p>` : '';
+    let h = `<h3 class="jr-h">${Tr`Petrol`}</h3>`;
+    if (mine.length) {
+      h += `<table class="jr-biz"><tr><th>${Tr`Saha`}</th><th>${Tr`Kuleler`}</th><th>${Tr`Rezerv`}</th><th>${Tr`Günlük üretim`}</th></tr>`;
+      for (const i of mine) { const f = O_.f[i], F = G.oilFields()[i]; h += `<tr><td>${G.oilName(i)}</td><td>${f.w.filter(OIL_OK).length}/${f.w.filter(Boolean).length}</td><td class="${f.rem < F.res * 0.2 ? 'st-low' : ''}">${G.pct(f.rem / F.res)}</td><td>${Tr`${Math.round(G.oilCap(i))} varil`}</td></tr>`; }
+      h += `</table>`;
+    }
+    const R = O_.ref;
+    h += `<p class="jr-note">${Tr`Varilin fiyatı bugün ${fmtMoney(G.oilPrice() * O_.mk)}; senin petrolün ${fmtMoney(G.oilSell())}. Dün ${Math.round(O_.prod)} varil satıldı (${fmtMoney(O_.rev)}); bugüne dek toplam ${fmtMoney(O_.total)}.`}</p>`;
+    h += `<p class="jr-note">${R ? (R.done ? Tr`Rafinerin ${G.bizTown(R.town).n} istasyonunun yanında çalışıyor.` : Tr`Rafinerin ${G.bizTown(R.town).n} istasyonunun yanında yapılıyor: ${Math.max(0, R.ready - G.day)} gün kaldı.`) : Tr`Rafinerin yok: istasyonu olan bir kasabanın ilçe binasından kurabilirsin; petrolün ${OIL.refMul} katı fiyata satılır.`}</p>`;
+    return h + `<p class="jr-note">${Tr`Elektrik yaygınlaştıkça gazyağına talep düşer; otomobiller yaygınlaştıkça benzine talep artar.`}</p>`;
+  },
   /* İşletmenin sektörü ve oradaki hakimiyetin (js/tycoon.js) */
   bizSecLine(z) {
     const k = G.secOf(z.type);
@@ -2829,11 +2915,12 @@ const UI = {
   openBizMarket(b) {
     const here = G.world.towns.find(t => t.id === b.town) || G.nearestTown(G.player.x, G.player.y);
     this.menu({
-      title: Tr('Satılık İşletmeler'), wallet: true, cls: 'small', side: (it) => it.side || '',
-      tabs: [Tr('İşletmeler'), Tr('Arsalar'), Tr('Rakipler')],
+      title: Tr('Satılık İşletmeler'), wallet: true, cls: 'small bizmarket', side: (it) => it.side || '',
+      tabs: [Tr('İşletmeler'), Tr('Arsalar'), Tr('Rakipler'), Tr('Petrol')],
       build: (m) => {
         const towns = G.world.towns.filter(t => t === here || G.visited.has(t.id)).sort((a, c) => dist(here.cx, here.cy, a.cx, a.cy) - dist(here.cx, here.cy, c.cx, c.cy));
         const it = [];
+        if (m.tab === 3) return this.oilMarketItems(here);
         for (const t of towns) {
           if (m.tab === 0) {
             const list = t.buildings.filter(x => G.bizForSale(x));
@@ -3616,7 +3703,7 @@ function radarSegs(pts) {
 }
 const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence', 'bakery', 'smith', 'pharmacy', 'gambling', 'brewery', 'mill', 'county', 'post', 'warehouse', 'cantina', 'mansion', 'club']);
 /* Harita açıklamaları: [simge, ad]; MAP_LEGEND_B: simgenin bina türleri */
-const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
+const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['derrick', Tr('Petrol')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
 const MAP_PINS = 24;   // haritaya konabilecek en çok işaret
 const MAP_LEGEND_B = { store: ['general'], glass: ['saloon', 'cantina', 'gambling'], star: ['sheriff'], cross: ['doctor', 'pharmacy'], gun: ['gunsmith'], horseshoe: ['stable'], bed: ['hotel'], train: ['station'], bank: ['bank'], pick: ['mine', 'smith', 'lumber'] };
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass', mansion: 'house', club: 'cards' };

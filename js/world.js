@@ -82,6 +82,8 @@ const O = {
   BERRY: 20, GINSENG: 21, YARROW: 22, SAGE: 23, MINT: 24, OREGANO: 25, MILKWEED: 26, MUSHROOM: 27, WFLOWER: 28, ORE: 29, CROP: 30, ARTIFACT: 31,
   // elektrik gelen kasabada: elektrikli sokak lambası ve elektrik direği (js/devworld.js)
   ELAMP: 32, UPOLE: 33,
+  // petrol (js/tycoon.js): yüzeydeki kara sızıntı, sondaj kulesi, depolama tankı, rafineri (3×3)
+  SEEP: 34, DERRICK: 35, OILTANK: 36, REFINERY: 37,
   FENCEH: 40, FENCEV: 41, CRATE: 42, BARREL: 43, LAMP: 44, WELL: 45, TROUGH: 46, GRAVE: 47, CAMPFIRE: 48, TENT: 49, HAY: 50, SIGN: 51, WINDMILL: 52, CHEST: 53, POLE: 54,
   RUINWALL: 55, BONES: 56, WAGON: 57, HITCH: 58, BENCH: 59, BIGBONES: 60, SEQUOIA: 61, ARCH: 62, STEAM: 63, GALLOWS: 64, CROSS: 65, BOARD: 66, PUMP: 67, SHIP: 68,
   // iç mekân eşyaları
@@ -101,6 +103,7 @@ const isFurnO = o => (o >= 70 && o <= 93) || (o >= 98 && o <= 127);
 const SOLID_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.SAGUARO, O.BOULDER, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.FENCEH, O.FENCEV, O.CRATE, O.BARREL, O.LAMP, O.WELL, O.TROUGH, O.TENT, O.HAY,
   O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP, O.LOTSIGN, O.ELAMP, O.UPOLE,
+  O.DERRICK, O.OILTANK, O.REFINERY,
   O.COUNTER, O.BAR, O.TABLE, O.PIANO, O.CARDTABLE, O.BED, O.STOVE, O.DESK, O.CELL, O.PEW, O.ALTAR, O.SAFE, O.TUB, O.BCHAIR, O.RACK, O.WORKBENCH, O.STALL, O.TICKET,
   O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN, O.FOUNTAIN, O.HEDGE, O.STATUE, O.SOFA].forEach(o => (SOLID_O[o] = 1));   // otel merdiveninde yürünür; oda kapısı kapalıyken duvar bandı olur (buildingSolid)
 for (let o = O.ARMCHAIR; o <= O.SCALE; o++) if (o !== O.STOOL) SOLID_O[o] = 1;   // bar taburesinin üstünden geçilir (sandalye gibi)
@@ -958,7 +961,7 @@ class World {
     // büyük nesneler (computeSolid'deki gibi; çevredekiler de bölgeye taşabilir)
     for (let y = Math.max(1, ty0 - 3); y <= Math.min(WH - 2, ty1 + 3); y++) for (let x = Math.max(4, tx0 - 3); x <= Math.min(WW - 5, tx1 + 3); x++) {
       const i = y * WW + x, o = this.obj[i];
-      if (o === O.SEQUOIA || o === O.WINDMILL) { for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) this.solid[i + yy * WW + xx] = 1; }
+      if (o === O.SEQUOIA || o === O.WINDMILL || o === O.REFINERY) { for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) this.solid[i + yy * WW + xx] = 1; }
       else if (o === O.SHIP) { for (let xx = -3; xx <= 3; xx++) this.solid[i + xx] = 1; }
       else if (o === O.ARCH) { this.solid[i - 3] = this.solid[i + 3] = this.solid[i - 2] = this.solid[i + 2] = 1; this.solid[i] = 0; }
       else if (o === O.WAGON) this.solid[i + 1] = 1;
@@ -2088,7 +2091,7 @@ class World {
     // sekoya ve kemer daha büyük
     for (let i = 0; i < N; i++) {
       const o = this.obj[i];
-      if (o === O.SEQUOIA || o === O.WINDMILL) { for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) this.solid[i + y * WW + x] = 1; }
+      if (o === O.SEQUOIA || o === O.WINDMILL || o === O.REFINERY) { for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) this.solid[i + y * WW + x] = 1; }
       if (o === O.SHIP) { for (let x = -3; x <= 3; x++) this.solid[i + x] = 1; }
       if (o === O.ARCH) { this.solid[i - 3] = this.solid[i + 3] = this.solid[i - 2] = this.solid[i + 2] = 1; this.solid[i] = 0; }
       if (o === O.WAGON) { this.solid[i + 1] = 1; }

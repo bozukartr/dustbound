@@ -9,7 +9,7 @@
 const Handbook = {
   /* ipucu anahtarı → el kitabı konusu (G.hintOnce ilk kez gösterince konuyu işaretler) */
   HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison',
-    deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate' },
+    deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate', bank: 'tycoon', oil: 'tycoon' },
 
   unread() { const H = G.hints || {}; return this.topics().some(T => H['new:' + T.id]); },
 
@@ -97,6 +97,13 @@ const Handbook = {
         Tr('Bankadaki para ölünce kaybolmaz ve her doğum gününde %2 faiz kazanır. Mülklerin günlük geliri bankaya yatar.'),
       ]) },
       { id: 'biz', ic: 'store', t: Tr('İşletmeler'), b: () => `<p>${Tr`Dükkân sahiplerinin bir kısmı dükkânını satar: tezgâhta ya da ilçe binasında satın al. İşletmeci işi yürütür, gelir kasada birikir. Çoğu işletme mal tüketir: toptancıdan, değirmenden ya da imalathaneden sandık alıp omzunda, atınla ya da ahırdan alacağın yük arabasıyla getir; ya da ahırdan bir nakliyeci tut, bu işi o yapsın. Boş arsalara yeni işletme kurabilirsin. Günlüğün İşlerim sekmesi hepsini gösterir.`}</p>` },
+      { id: 'tycoon', ic: 'derrick', t: Tr('Tekel, Banka ve Petrol'), b: () => li([
+        Tr`Her sektörde payın, bütün kasabalardaki o türden işletmelerin değerinden seninkilerin oranıdır. Payın %25'i geçince <b>güçlü</b>, %50'yi geçince <b>hakim</b>, %75'i geçince <b>tekel</b> olursun: o sektördeki işletmelerin %${Math.round((SECTOR_LV[1].inc - 1) * 100)} / %${Math.round((SECTOR_LV[2].inc - 1) * 100)} / %${Math.round((SECTOR_LV[3].inc - 1) * 100)} daha çok kazanır, toptan mal ucuzlar.`,
+        Tr`Satmak istemeyen bir işletmeye teklif yapabilirsin: bedeli piyasa fiyatının ${dec(SECTOR_LV[0].offer)} katından başlar, hakimiyetin arttıkça ${dec(SECTOR_LV[3].offer)} katına iner. Hakim olduğun pazarda zorlanan rakipler ucuza satılığa çıkar.`,
+        Tr`Tekelciler sevilmez: ilk tekelde itibarın düşer; ${TEKEL_YEAR} yılından sonra ticaret odası zaman zaman ceza keser.`,
+        Tr`<b>Banka</b>: gelişmiş bir kasabanın büyük arsasına kurulur ya da kasabanın bankası teklifle alınır (itibar ${BANK.honor} ve üstü). Mevduat faizini, kredi politikasını ve bekçiyi sen seçersin. Kasada yeterli para yokken bir panik çıkarsa ${BANK.runDays} gün içinde sermaye eklemezsen banka batar.`,
+        Tr`<b>Petrol</b>: ${OIL.year} yılından sonra kara sızıntılı arazileri satın alıp sondaj kulesi kur (${fmtMoney(OIL.well)}, ${OIL.wellDays} gün; kuyu kuru çıkabilir ya da fışkırabilir). Petrol her gün satılır; fiyatı otomobiller yaygınlaştıkça artar. İstasyonlu bir kasabaya kuracağın rafineri petrolünü ${dec(OIL.refMul)} katı fiyata sattırır.`,
+      ]) },
       { id: 'estate', ic: 'house', t: Tr('Malikane, Kulüp ve Özel Fayton'), b: () => li([
         Tr`Saint Clement Malikanesi ${fmtMoney(MANSION_PRICE)}: kapısından ya da tapu dairesinden satın alınır, ev gibi kullanılır (yatakta uyku ve kayıt, sandık, ocak, küvet).`,
         Tr`Hizmetçiler üst kattaki çalışma masasından tutulur; günlük ücret aşçı ${fmtMoney(SERVANTS.cook.wage)}, seyis ${fmtMoney(SERVANTS.groom.wage)}, uşak ${fmtMoney(SERVANTS.butler.wage)}. Ücretler önce bankadan ödenir; iki gün ücretini alamayan işi bırakır.`,

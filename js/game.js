@@ -548,6 +548,7 @@ const G = {
     this.lawUpdate(dt);
     this.storyTick(dt);
     this.hunterTick(dt);
+    this.oilTick(dt);
     this.witnessUpdate(dt);
     const ib = this.world.buildingAtPx(P.x, P.y);
     if (ib !== this.insideB) {
@@ -1131,9 +1132,9 @@ const G = {
     for (let y = ty; y <= ty + 2; y++) for (let x = tx - 1; x <= tx + 1; x++) {
       if (!W.inb(x, y)) continue;
       const o = W.obj[y * WW + x];
-      if (o === O.PINE || o === O.OAK || o === O.BIRCH || o === O.CYPRESS || o === O.SNOWPINE || o === O.APPLE || o === O.SEQUOIA || o === O.SAGUARO || o === O.WELL || o === O.SIGN || o === O.LAMP) return true;
+      if (o === O.PINE || o === O.OAK || o === O.BIRCH || o === O.CYPRESS || o === O.SNOWPINE || o === O.APPLE || o === O.SEQUOIA || o === O.SAGUARO || o === O.WELL || o === O.SIGN || o === O.LAMP || o === O.DERRICK) return true;
     }
-    for (let y = ty - 4; y <= ty + 4; y++) for (let x = tx - 4; x <= tx + 4; x++) { if (W.inb(x, y) && W.obj[y * WW + x] === O.SEQUOIA) return true; }
+    for (let y = ty - 4; y <= ty + 4; y++) for (let x = tx - 4; x <= tx + 4; x++) { if (W.inb(x, y) && (W.obj[y * WW + x] === O.SEQUOIA || W.obj[y * WW + x] === O.REFINERY)) return true; }
     return false;
   },
   drawWorldUI(ctx, dt = 1 / 60) {

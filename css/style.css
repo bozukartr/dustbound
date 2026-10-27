@@ -373,6 +373,7 @@ body.modal-open #modals { background: radial-gradient(ellipse at 50% 45%, rgba(1
 .panel::after { content: ''; position: absolute; inset: -1px; background: var(--corners); pointer-events: none; opacity: 0.9; }
 @keyframes panelIn { from { opacity: 0; } }   /* yalnız opaklık: açılır açılmaz yerleşim sabit (fareyle hemen tıklanabilir) */
 .panel.small { width: min(460px, 94vw); }
+.panel.small.bizmarket { width: min(660px, 96vw); }   /* dört sekme ve yan panel: satılık işletmeler, arsalar, rakipler, petrol */
 .panel.shop, .panel.satchel { width: min(900px, 96vw); height: min(640px, 90vh); }
 .panel.journal { width: min(980px, 96vw); height: min(700px, 92vh); }
 .panel.building { width: min(520px, 94vw); }

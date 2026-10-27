@@ -628,6 +628,8 @@ const SECTORS = {
   demir:  { n: 'Demir ve Ahır', types: ['smith', 'stable'], ic: 'horseshoe' },
   konak:  { n: 'Konaklama', types: ['hotel'], ic: 'bed' },
   banka:  { n: 'Bankacılık', types: ['bank'], ic: 'bank' },
+  // payın, bütün kuyuların günlük üretiminden seninkiler; minN: pazar en az bu kadar kuyuya ulaşmadan hakimiyet sayılmaz
+  petrol: { n: 'Petrol', types: [], ic: 'derrick', minN: 6 },
 };
 const SECTOR_LV = [
   { n: 'Küçük', min: 0, inc: 1, goods: 1, offer: 2 },
@@ -651,7 +653,23 @@ const ECO_NEWS = {
   atlatti: { h: '{k} BANKASI PANİĞİ ATLATTI', t: '{k} bankası kapısına dayanan herkese parasını kuruşu kuruşuna ödedi. Kuyruk dağılınca çoğu parasını geri yatırdı.', s: '{k} bankası paniği atlattı!', good: 1 },
   iflas: { h: '{k} BANKASI BATTI', t: '{k} bankası ödemelerini durdurdu. Birikimini kaybeden aileler kapının önünde öfkeyle bekliyor; bankanın sahibi {p} ortalıkta görünmüyor.', s: '{k} bankası battı!' },
   soygun: { h: '{k}: BANKA SOYULDU', t: 'Silahlı adamlar güpegündüz {k} bankasına girip kasayı boşalttı. Şerif ve adamları peşlerinde.', s: '{k} bankası soyuldu!' },
+  petrol: { h: 'KARA ALTIN', t: 'Şehirlerde gazyağına talep artıyor. {k} yakınlarındaki kara sızıntılar artık lanetli su değil, servet sayılıyor; spekülatörler araziyi kapmak için yollarda.', s: '{k} yakınlarındaki sızıntılarda petrol aranıyor!', good: 1 },
+  rakip: { h: '{c} SONDAJA BAŞLADI', t: '{c}, {k} yakınlarındaki petrol sahasının haklarını aldı ve ilk sondaj kulesini dikiyor.', s: '{c} {k} yakınlarında sondaja başladı!' },
+  fiskirdi: { h: '{k}: PETROL FIŞKIRDI', t: '{k} yakınlarında açılan kuyudan kara altın göğe fışkırdı. Sahibi {p} sondajcılarla birlikte petrol yağmurunun altında dans etti.', s: '{k} yakınlarında petrol fışkırdı!', good: 1 },
+  sahaal: { h: '{c} SAHASINI SATTI', t: '{c}, {k} yakınlarındaki petrol sahasını kuyularıyla birlikte devretti. Yeni sahibi {p}.', s: '{k} yakınlarındaki petrol sahasının yeni sahibi: {p}' },
+  zorp: { h: '{c} ZOR DURUMDA', t: 'Büyük rakibinin ucuz petrolüyle başa çıkamayan {c}, {k} yakınlarındaki sahasını ucuza elden çıkarmak istiyor.', s: '{c} sahasını ucuza satıyor!' },
+  tukendi: { h: '{k} SAHASI TÜKENDİ', t: '{k} yakınlarındaki petrol sahasında kuyular bir bir kurudu. Sondajcılar yeni sızıntılar aramaya çıktı.', s: '{k} yakınlarındaki petrol tükendi!' },
+  rafineri: { h: '{k}: RAFİNERİ AÇILDI', t: '{p}, {k} istasyonunun yanında bir rafineri kurdu. Baca gece gündüz tütüyor; ham petrol vagon vagon geliyor.', s: '{p} {k} istasyonunun yanında rafineri açtı!', good: 1 },
 };
+/* ---- Petrol (js/tycoon.js) ----
+   Sahalar dünya tohumundan gelir; yüzeyde kara sızıntılar görünür. year: sızıntılara ilgi başlar, arazi satılır. fields saha
+   sayısı; land arazinin fiyatı; well sondaj kulesinin fiyatı, wellDays sondaj süresi (gün); dry kuru kuyu, gush fışkırma
+   olasılığı; out bir kuyunun günlük üretimi (varil; rezerv azaldıkça düşer); res sahanın rezervi (varil, en az–en çok);
+   ref rafinerinin fiyatı, refDays inşaat süresi, refYear en erken yılı, refMul rafine petrolün fiyat çarpanı; claim rakip
+   şirketlerin sahipsiz sahaları aldığı yıllar (en erken–en geç), rivalGap rakibin yeni kule diktiği yıl aralığı */
+const OIL = { year: 1900, fields: 6, land: 600, well: 450, wellDays: 3, dry: 0.2, gush: 0.12, out: 40, res: [24000, 52000], ref: 3000, refDays: 5, refYear: 1902, refMul: 1.8, claim: [1903, 1926], rivalGap: 2 };
+/* Rakip petrol şirketleri (kurgusal) */
+const OIL_COS = ['Kızılkaya Petrol', 'Batı Ovası Petrol Şirketi', 'Üç Kule Petrol', 'Kara Altın Ortaklığı', 'Kartaltepe Petrol', 'Demirtepe Yağcılık'];
 /* ---- Kendi bankan (js/tycoon.js) ----
    pool: kasabanın basamağına göre bankalardaki toplam mevduat ($). Bankalar onu çekiciliklerine göre paylaşır: senin bankan
    güvene ve mevduat faizine göre, ötekiler 1; mattress parasını yastık altında tutanlar. flow: mevduatın günlük olarak

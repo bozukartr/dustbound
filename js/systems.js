@@ -1940,6 +1940,7 @@ const GameSystems = {
         case O.CAMPFIRE: add(ox, oy, Tr('Kamp Ateşi'), [{ n: Tr('Isın ve Pişir'), fn: () => UI.openCook() }]); break;
         case O.HAY: add(ox, oy, Tr('Saman'), [{ n: Tr('Saman Al'), fn: () => { const k = 'hay' + i; if (this.dailyTalk[k]) { UI.feed(Tr('Bugün zaten aldın.')); return; } this.dailyTalk[k] = 1; P.addItem('hay', 2); } }]); break;
         case O.STEAM: add(ox, oy, Tr('Sıcak Kaynak'), [{ n: Tr('Kaplıcada Dinlen'), fn: () => this.hotSpring() }]); break;
+        case O.SEEP: case O.DERRICK: case O.OILTANK: { const r = this.oilActs(tx, ty, o); if (r) add(ox, oy, r.label, r.acts); break; }
         case O.BIGBONES: case O.BONES: break;
         default:
           if (isFurnO(o) && W.bid[i] >= 0) {
@@ -1950,6 +1951,8 @@ const GameSystems = {
           }
       }
     }
+    // rafineri (3×3: merkezine yaklaşılamaz)
+    { const r = this.refActs(P.x, P.y); if (r) add(r.x, r.y, r.label, r.acts, 4); }
     // su
     const onT = W.tileAtPx(P.x, P.y);
     let wx = null, wy = null;
