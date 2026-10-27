@@ -332,7 +332,7 @@ class Player extends Ent {
     if (h.dead || this.mountAnim) return;
     if (this.carry && !(h.mine ? G.stowOnWagon(h) : G.stowOnHorse(h))) return;
     this.riding = h; h.rider = this; h.state = 'idle';
-    this.crouch = false; h.spd *= 0.3;
+    this.crouch = false; h.spd *= 0.3; h.back = false;
     const d = dist(this.x, this.y, h.x, h.y);
     if (instant || d < 2) { this.x = h.x; this.y = h.y; this.ang = h.ang; }
     else this.mountAnim = { on: true, h, t: 0, dur: 0.34 + Math.min(0.3, d / 140), fx: this.x, fy: this.y, fa: this.ang };
@@ -351,7 +351,7 @@ class Player extends Ent {
     else if (!G.world.blocked(cx - ox, cy - oy, this.r)) { this.x = cx - ox; this.y = cy - oy; }
     if (fall) { this.hurt(12, 'fall', true, h); UI.feed(Tr('Attan düştün!')); }
     else if (anim) { this.mountAnim = { on: false, h, t: 0, dur: 0.36, fx, fy, tx: this.x, ty: this.y, fa: this.ang }; this.x = fx; this.y = fy; Audio_.step(0.2, true); }
-    h.spd *= 0.3;
+    h.spd *= h.back ? 0 : 0.3; h.back = false;
   }
   /* Binme/inme animasyonu: yay çizen kısa sıçrama; bu sırada kontrol yok */
   mountAnimUpdate(dt) {
@@ -663,38 +663,48 @@ class Player extends Ent {
       return;
     }
     const sBonus = 1 + riding * 0.02;
-    if (mv.m > 0.1) {
-      const want = Math.atan2(mv.y, mv.x);
-      const tr = (h.spd > 130 ? 2.4 : 3.6) * dt;
-      h.ang = turnTo(h.ang, want, tr);
-      const align = Math.max(0, Math.cos(angDiff(h.ang, want)));
-      if (I.down('sprint') && h.sta > 2) {
-        target = 165 * B.spd * sBonus;
-        h.sta -= dt * 9 * (G.hasPerk('rider') ? 0.75 : 1) * (1 - riding * 0.03);
-        if (h.sta < 0) h.sta = 0;
-        this.galloping = true;
-      } else {
-        this.galloping = false;
-        target = (mv.m > 0.6 || mv.kb) ? 95 * B.spd : mv.m > 0.25 ? 60 : 36;
-        h.sta = Math.min(h.maxSta, h.sta + dt * 4);
+    // Klavyede dizginle sürülür: W (ileri) gaz verir, A/D atın başını sola/sağa çevirir (dururken yerinde döner), S
+    // frendir; durunca basılı tutulursa at (araba) geri geri gider (h.back). Kol analoğu mutlak yöndür: at analoğun
+    // gösterdiği yöne döner, eğim hızı belirler. urge: binici atı sürüyor (dörtnaldan sert duruşta şahlanma için)
+    let urge = false, brake = false, gal = false;
+    const wantGal = I.down('sprint') && h.sta > 2;
+    if (mv.kb && mv.m > 0.1) {
+      const fwd = mv.y < -0.1 ? 1 : mv.y > 0.1 ? -1 : 0, turn = mv.x > 0.1 ? 1 : mv.x < -0.1 ? -1 : 0;
+      // dönüş hızı: dörtnalda geniş, adımda ve tırısta keskin, dururken yerinde; araba daha ağır döner
+      if (turn) h.ang += turn * (h.spd > 130 ? 1.35 : h.spd > 12 ? 1.9 : 1.6) * (h.kind === 'wagon' ? 0.75 : 1) * dt;
+      if (fwd > 0 && !(h.back && h.spd > 2)) {
+        h.back = false; urge = true; gal = wantGal;
+        target = (gal ? 165 * B.spd * sBonus : 95 * B.spd) * (turn ? 0.85 : 1);
+      } else if (fwd < 0 && (h.back || h.spd <= 2)) { h.back = true; target = 24 * B.spd; }
+      else if (fwd) brake = true;                       // ileri giderken S, geri giderken W: önce durur
+    } else if (mv.m > 0.1) {
+      if (h.back && h.spd > 2) brake = true;
+      else {
+        h.back = false; urge = true; gal = wantGal;
+        const want = Math.atan2(mv.y, mv.x);
+        h.ang = turnTo(h.ang, want, (h.spd > 130 ? 2.4 : 3.6) * dt);
+        const align = Math.max(0, Math.cos(angDiff(h.ang, want)));
+        target = (gal ? 165 * B.spd * sBonus : mv.m > 0.6 ? 95 * B.spd : mv.m > 0.25 ? 60 : 36) * (0.4 + 0.6 * align);
       }
-      target *= 0.4 + 0.6 * align;
-    } else { this.galloping = false; h.sta = Math.min(h.maxSta, h.sta + dt * 7); }
+    }
+    this.galloping = gal;
+    if (gal) { h.sta = Math.max(0, h.sta - dt * 9 * (G.hasPerk('rider') ? 0.75 : 1) * (1 - riding * 0.03)); }
+    else h.sta = Math.min(h.maxSta, h.sta + dt * (urge ? 4 : 7));
     if (this.aiming) target = Math.min(target, 70);
     if (h.load && h.load.length) target *= 1 - 0.035 * G.loadWeight(h.load);
     if (h.sta < 5) target = Math.min(target, 60);
-    // ivme de bir anda değişmez: kalkışta yavaş başlar, hız oturdukça açılır, hedefe yaklaşırken söner
-    const want = clamp((target - h.spd) * 2, -160, target > h.spd ? (h.spd < 40 ? 80 : 100) : 0);
+    // ivme de bir anda değişmez: kalkışta yavaş başlar, hız oturdukça açılır, hedefe yaklaşırken söner; frende daha sert
+    const want = clamp((target - h.spd) * 2, brake ? -260 : -160, target > h.spd ? (h.spd < 40 ? 80 : 100) : 0);
     h.acc = (h.acc || 0) + (want - (h.acc || 0)) * (1 - Math.exp(-dt * (want < (h.acc || 0) ? 6 : 4.5)));
     h.spd = Math.max(0, h.spd + h.acc * dt);
-    if (target === 0 && h.spd < 2) { h.spd = 0; h.acc = 0; }
+    if (target === 0 && h.spd < 2) { h.spd = 0; h.acc = 0; h.back = false; }
     // dörtnaldan sert duruş: at bazen şahlanır
     if (h.spd > 120) h.brk = true;
-    else if (mv.m > 0.1 && h.spd < 90) h.brk = false;
-    if (h.brk && mv.m <= 0.1 && h.spd < 25) { h.brk = false; if (Math.random() < 0.6) Juice.rear(h); }
-    const t = G.world.tileAtPx(h.x, h.y);
-    const sl = (t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD || isStoneT(t) ? 1.05 : 1)) * (h.spd > 1 ? G.slopeMul(h.x, h.y, h.ang) : 1);
-    const vx = Math.cos(h.ang) * h.spd * sl * dt, vy = Math.sin(h.ang) * h.spd * sl * dt;
+    else if (urge && h.spd < 90) h.brk = false;
+    if (h.brk && !urge && h.spd < 25) { h.brk = false; if (Math.random() < 0.6) Juice.rear(h); }
+    const t = G.world.tileAtPx(h.x, h.y), dir = h.back ? -1 : 1;
+    const sl = (t === T.WATER ? 0.6 : t === T.SWAMP || t === T.MUD ? 0.8 : t === T.SNOW ? 0.85 : (t === T.ROAD || isStoneT(t) ? 1.05 : 1)) * (h.spd > 1 ? G.slopeMul(h.x, h.y, h.back ? h.ang + Math.PI : h.ang) : 1);
+    const vx = Math.cos(h.ang) * h.spd * sl * dt * dir, vy = Math.sin(h.ang) * h.spd * sl * dt * dir;
     const ox = h.x, oy = h.y;
     h.move(vx, vy);
     const actual = dist(ox, oy, h.x, h.y);

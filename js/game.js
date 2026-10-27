@@ -674,6 +674,8 @@ const G = {
     else if (this.coldness > 0.05) this.hintOnce('cold', Tr('Üşüyorsun! Kalın bir palto giy, ateş yak ya da sıcak bir şeyler iç. Terzilerden kürk alabilirsin.'));
     else if (this.hotness > 0.05) this.hintOnce('hot', Tr('Sıcak çarpıyor! Daha sık su iç, geniş kenarlı şapka ya da keten gömlek giy.'));
     else if (this.isNight) this.hintOnce('night', Tr`Gece çöktü. ${g('lantern')} ile fenerini yak. Kurtlar gece daha tehlikelidir.`);
+    // klavyede at ve araba dizginle sürülür (ipucu bu yüzden ayrı: eski kayıtta da bir kez çıkar)
+    else if (P.riding && Input.device === 'kb') this.hintOnce('rideKb', Tr`At sırtında ${g('moveUp')} ile sür, ${g('moveLeft')} ${g('moveRight')} ile dön, ${g('moveDown')} ile dur; durunca basılı tutarsan geri gidersin. ${g('sprint')} basılı tutarak dörtnala koş, atının dayanıklılığına dikkat et. ${g('interact')} ile in.`, 10);
     else if (P.riding) this.hintOnce('ride', Tr`${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
     else if (this.law.level > 0) this.hintOnce('law', Tr('Aranıyorsun! Radardaki kırmızı arama alanının dışına çık ve görünmeden bekle.'));
     else if (!this.world.townAt(P.x, P.y, 60) && this.hour >= 17) this.hintOnce('camp', P.has('bedroll') ? Tr`Akşam oluyor. Kasabadan uzaktaysan ${g('camp')} tuşunu basılı tutarak kamp kurabilirsin.` : Tr`Vahşi doğada kamp kurmak için bir <b>Uyku Tulumu</b> gerekir (genel mağazada ${fmtMoney(ITEMS.bedroll.p)}). Sonra ${g('camp')} tuşunu basılı tut.`, 10);
@@ -879,7 +881,7 @@ const G = {
   updateCamera(dt) {
     const P = this.player, C = this.cam;
     let tx = P.x, ty = P.y;
-    if (P.riding) { tx += Math.cos(P.riding.ang) * P.riding.spd * 0.45; ty += Math.sin(P.riding.ang) * P.riding.spd * 0.45; }
+    if (P.riding) { const v = P.riding.spd * (P.riding.back ? -0.45 : 0.45); tx += Math.cos(P.riding.ang) * v; ty += Math.sin(P.riding.ang) * v; }
     if (P.aiming || P.rsAim) { const d = Math.min(P.aimDist, 90) * 0.45; tx += Math.cos(P.aimAng) * d; ty += Math.sin(P.aimAng) * d; }
     if (this.binoc) { tx += this.binoc.x; ty += this.binoc.y; }
     // içeride kamera oyuncuyu izlemez: binanın ortasına oturur ve orada durur. Bina görünen alana sığmıyorsa (büyük

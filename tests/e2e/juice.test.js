@@ -40,10 +40,10 @@ module.exports = {
     await t.step('dörtnala giderken kamera uzaklaşır, durunca geri gelir', async () => {
       await setup();
       await p.evaluate(() => { const P = G.player, h = G.horse; h.x = P.x; h.y = P.y; h.ang = 0; h.state = 'idle'; h.dead = false; h.sta = h.maxSta; P.mount(h, true); P.ang = 0; });
-      await p.keyboard.down('ShiftLeft'); await p.keyboard.down('KeyD');
+      await p.keyboard.down('ShiftLeft'); await p.keyboard.down('KeyW');   // at doğuya bakıyor: W ileri (dizgin)
       await t.sleep(2600);
       const g = await p.evaluate(() => ({ sz: G.camZoom.sz, spd: G.player.riding.spd, tf: G.canvas.style.transform }));
-      await p.keyboard.up('KeyD'); await p.keyboard.up('ShiftLeft');
+      await p.keyboard.up('KeyW'); await p.keyboard.up('ShiftLeft');
       t.ok(g.spd > 130, 'dörtnal', g.spd); t.ok(g.sz < 0.96, 'kamera uzaklaşmalı', g); t.ok(/scale\(0\.9/.test(g.tf), 'tuval küçülmeli', g.tf);
       await t.sleep(2500);
       const s = await p.evaluate(() => ({ sz: G.camZoom.sz, tf: G.canvas.style.transform }));
@@ -52,12 +52,12 @@ module.exports = {
     await t.step('şahlanan at bir süre dinlemez, sonra toparlanır', async () => {
       const r = await p.evaluate(() => { const h = G.player.riding; h.rearT = 0; Juice.rear(h); return { t: h.rearT }; });
       t.ok(r.t > 0.5, 'şahlanma başlar');
-      await p.keyboard.down('KeyD'); await t.sleep(350);
+      await p.keyboard.down('KeyW'); await t.sleep(350);
       const m = await p.evaluate(() => { const h = G.player.riding; return { spd: h.spd, k: Juice.rearK(h) }; });
       t.eq(m.spd, 0, 'şahlanırken ilerlemez'); t.ok(m.k > 0.3, 'ön taraf havada', m.k);
       await t.sleep(1200);
       const e = await p.evaluate(() => ({ rt: G.player.riding.rearT, spd: G.player.riding.spd }));
-      await p.keyboard.up('KeyD');
+      await p.keyboard.up('KeyW');
       t.eq(e.rt, 0, 'şahlanma biter'); t.ok(e.spd > 10, 'yeniden yürür', e.spd);
       await p.evaluate(() => { G.player.dismount(); G.player.mountAnim = null; });
     });

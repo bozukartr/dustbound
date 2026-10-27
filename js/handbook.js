@@ -9,7 +9,7 @@
 const Handbook = {
   /* ipucu anahtarı → el kitabı konusu (G.hintOnce ilk kez gösterince konuyu işaretler) */
   HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison',
-    deadeye: 'deadeye', ride: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate' },
+    deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate' },
 
   unread() { const H = G.hints || {}; return this.topics().some(T => H['new:' + T.id]); },
 
@@ -77,6 +77,7 @@ const Handbook = {
         Tr('Saman +40 can ve tam dayanıklılık, At Toniği tam dayanıklılık ve +15 can verir; At Diriltici yere yığılan atını %50 canla kaldırır.'),
         Tr('Atının canı biterse yere yığılır; üstündeysen düşer ve 12 can kaybedersin.'),
         Tr`Islıkla (${g('whistle')}) çağırırsın; at çok uzaktaysa yakınına gelir. Islık 3 saniyede bir çalınır.`,
+        Tr`Klavyede at ve araba dizginle sürülür: ${g('moveUp')} ileri (gaz), ${g('moveLeft')} ${g('moveRight')} sola ve sağa döner (dururken yerinde, dörtnalda daha geniş), ${g('moveDown')} frendir; durunca basılı tutarsan geri gidersin. Kolda sol analog atı gösterdiği yöne çevirir.`,
       ]) },
       { id: 'law', ic: 'star', t: Tr('Kanun ve Ödül Avcıları'), b: () => li([
         Tr`Suçunu gören tanık, ${mi(800)} içindeki en yakın kanun adamına ya da şerif ofisine koşar. Ulaşırsa ya da süre dolarsa (kanun yakınsa 40, değilse 70 saniye) aranmaya başlarsın.`,
