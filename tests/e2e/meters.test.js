@@ -1,5 +1,5 @@
 'use strict';
-/* Göstergeler gerektiğinde: radarın çevresindeki halkalar ve ihtiyaç çubukları dolu ve durgunken söner; yara,
+/* Göstergeler gerektiğinde: radarın yayındaki çekirdek ve ihtiyaç halkaları dolu ve durgunken söner; yara,
    yemek, azalma, çatışma, nişan, aranma, genişletilmiş HUD ve "Her Zaman" ayarıyla görünür; ipucu bir kez çıkar */
 module.exports = {
   name: 'Göstergeler gerektiğinde',
@@ -18,11 +18,11 @@ module.exports = {
 
     await t.step('dolu ve durgun göstergeler söner', async () => {
       const r = await p.evaluate(() => { MS.full(); MS.tick(); MS.tick(); return { on: MS.on(), n: document.querySelectorAll('#cores .core, #needs .need').length }; });
-      t.eq(r.n, 7, 'üç halka ve dört çubuk');
+      t.eq(r.n, 7, 'üç çekirdek ve dört ihtiyaç halkası');
       t.eq(r.on, [], 'hepsi sönük');
     });
 
-    await t.step('yara alınca can halkası, yiyince açlık çubuğu birkaç saniye, azalınca hep görünür', async () => {
+    await t.step('yara alınca can halkası, yiyince açlık halkası birkaç saniye, azalınca hep görünür', async () => {
       const r = await p.evaluate(() => {
         const P = G.player; MS.full(); MS.tick(); MS.tick();
         P.hp = P.maxHp * 0.8; MS.tick(0.1); const hurt = MS.on();
@@ -37,9 +37,9 @@ module.exports = {
       t.eq(r.hurt, ['core-hp'], 'yara: can halkası görünür');
       t.eq(r.healed, [], 'iyileşince söner');
       t.eq(r.quiet, [], 'yarının üstünde açlık sessiz');
-      t.eq(r.ate, ['core-hp', 'need-hunger'], 'yiyince açlık çubuğu ve can halkasının iç dolgusu görünür');
+      t.eq(r.ate, ['core-hp', 'need-hunger'], 'yiyince açlık halkası ve can halkasının iç dolgusu görünür');
       t.eq(r.later, [], 'birkaç saniye sonra söner');
-      t.ok(r.low.includes('need-thirst') && r.low.includes('core-hp'), 'susuzluk yarının altında: çubuk ve can halkasının iç dolgusu görünür', r.low);
+      t.ok(r.low.includes('need-thirst') && r.low.includes('core-hp'), 'susuzluk yarının altında: susuzluk halkası ve can halkasının iç dolgusu görünür', r.low);
       t.ok(r.tired.includes('core-sta'), 'dayanıklılık dolu değilken görünür', r.tired);
     });
 

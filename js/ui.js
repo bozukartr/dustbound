@@ -398,6 +398,7 @@ const UI = {
     const h = G.honor, hn = h > 50 ? Tr('Saygın') : h > 15 ? Tr('İyi') : h < -50 ? Tr('Kötü Şöhretli') : h < -15 ? Tr('Şüpheli') : Tr('Nötr');
     const pct = v => Math.round(clamp(v, 0, 100));
     return `<div class="xi-place">${place}</div>
+      <div class="xi-row">${Icons.glyph('hourglass', '#efe6d2')}${Tr`${P.name} • ${G.age} yaşında`}</div>
       <div class="xi-row">${Icons.glyph(this.weatherGlyph(), '#efe6d2')}${wn} • ${Math.round(G.feltTemp)}°</div>
       <div class="xi-row">${Icons.glyph('star', '#efe6d2')}${Tr`Onur: ${hn}`}</div>
       <div class="xi-grid"><span>${Tr`Sağlık`}</span><b>${pct(P.hp / P.maxHp * 100)}</b><span>${Tr`Dayanıklılık`}</span><b>${pct(P.sta / Math.max(1, P.maxSta) * 100)}</b><span>${Tr`Odak`}</span><b>${pct(P.de)}</b>
@@ -478,7 +479,7 @@ const UI = {
     this.setCore('core-hp', hr, hn, cOn('hp', hr, hn));
     this.setCore('core-sta', sr, P.energy / 100, cOn('sta', sr, P.energy / 100));
     this.setCore('core-de', dr, P.deCore / 100, cOn('de', dr, P.deCore / 100));
-    // ihtiyaç çubukları yarının altında hep, yiyip içince birkaç saniye görünür
+    // ihtiyaç halkaları yarının altında hep, yiyip içince birkaç saniye görünür
     const setNeed = (id, v) => {
       const e = this.cache[id] || (this.cache[id] = $('#' + id)), on = all || this.meterOn(id, v / 100, v < 50), k = Math.round(v) + '|' + on;
       if (e._k !== k) { e._k = k; e.style.setProperty('--v', v / 100); e.classList.toggle('low', v < 20); e.classList.toggle('off', !on); }
@@ -487,16 +488,20 @@ const UI = {
     if (!all && G.state === 'play' && !window.__testNoGuide) G.hintOnce('meters', Tr`Dolu göstergeler söner; azalınca, değişince ve çatışmada yeniden görünür. Hepsini sayılarıyla görmek için ${Input.glyph('camp')} tuşuna kısa bas. Her zaman görünmeleri için: Ayarlar > Görüntü > Göstergeler.`, 9);
     this.setText('hud-time', G.timeStr());
     this.setText('hud-date', G.dateStr());
-    this.setText('hud-age', Tr`${P.name} • ${G.age} yaşında`);
-    // hava ve hissedilen sıcaklık: saatin yanında küçük rozet (gece ay, yağmurda bulut)
+    this.setText('hud-age', Tr`${G.age} yaşında`);
+    // gün kadranı: hava simgesi (gece ay, yağmurda bulut) saate göre halkada döner, öğle üstte; ortada hissedilen
+    // sıcaklık, üşürken mavi, sıcakta turuncu
     const ft = Math.round(G.feltTemp), cold = G.coldness > 0, hot = G.hotness > 0, wg = this.weatherGlyph();
     const ev = this.cache.env || (this.cache.env = $('#hud-env')), ek = wg + ft + cold + hot;
     if (ev._k !== ek) {
       ev._k = ek;
-      ev.innerHTML = Icons.glyph(wg, cold ? '#b8d6ff' : hot ? '#ffbe82' : '#f2ead8') + ft + '°';
+      $('.dl-orb', ev).innerHTML = Icons.glyph(wg, '#f2ead8');
+      $('.dl-t', ev).textContent = ft + '°';
       ev.classList.toggle('cold', cold); ev.classList.toggle('hot', hot);
       ev.title = cold ? Tr('Üşüyorsun') : hot ? Tr('Sıcak çarpıyor') : Tr('Hissedilen sıcaklık');
     }
+    const ha = Math.round((G.hour - 12) * 30) / 2;   // yarım derecelik adımla (iki oyun dakikası)
+    if (ev._ha !== ha) { ev._ha = ha; ev.style.setProperty('--ha', ha + 'deg'); }
     // görev izleyicide hedefe uzaklık
     const hq = this.cache.hq || (this.cache.hq = $('#hud-quest'));
     if (!hq.classList.contains('hidden')) {
@@ -567,10 +572,10 @@ const UI = {
     } else if (W.throw) ammo = `${P.count('dynamite')}`;
     else if (P.weapon === 'bow') ammo = `${P.ammo.arrow}`;
     this.setText('w-icon', Icons.weapon(P.weapon)); this.setText('w-name', W.n + (P.reloadT > 0 ? Tr(' <em>dolduruluyor…</em>') : '')); this.setText('w-ammo', (P.reloadT > 0 ? CYL_SVG : '') + ammo); this.setText('w-pips', pips);
-    // çark tuşu silah kartında hep yazar; çark hiç açılmadıysa kart nazikçe parlar
+    // çark tuşu silah kartında çark öğrenilene dek yazar (kw); çark hiç açılmadıysa kart nazikçe parlar
     this.setText('w-key', `${Input.glyph('wheel')} ${Tr('Çark')}`);
-    const wl = !this.coachLearned('wheel') && P.weapons.size > 1;
-    if (this._wl !== wl) { this._wl = wl; $('#weapon-hud').classList.toggle('learn', wl); }
+    const kw = !this.coachLearned('wheel'), wl = kw && P.weapons.size > 1;
+    if (this._wl !== wl + '|' + kw) { this._wl = wl + '|' + kw; const wc = $('#weapon-hud'); wc.classList.toggle('learn', wl); wc.classList.toggle('kw', kw); }
     this.coachStep();
     // ilk oyunda: bir süre sonra çark bir kez hatırlatılır
     if (wl && !this._coachW0 && G.state === 'play' && (this._coachPlay = (this._coachPlay || 0) + 0.1) > 45) { this._coachW0 = true; this.coachWheel(); }
@@ -676,7 +681,7 @@ const UI = {
   },
 
   /* ================= RADAR ================= */
-  /* Pirinç kadranlı minimap: 224 px (iki kat çözünürlükte çizilir), harita dairesi r=100,
+  /* Pirinç kadranlı minimap: 224 birimlik tuval (iki kat çözünürlükte çizilir, ekranda 208 px), harita dairesi r=100,
      dışında deri bant: yön harfleri, derece çentikleri ve dairenin dışında kalan önemli hedefler
      (görev, hedef işareti, ödül, atın, yük araban) bandın üzerinde, doğru yönde gösterilir. */
   drawRadar() {
@@ -1700,7 +1705,7 @@ const UI = {
       { ic: 'star', t: Tr('Batıya Hoş Geldin!'), portrait: true,
         b: Tr`Merhaba <b>${name}</b>! Yıl ${START_YEAR}, daha 18 yaşındasın ve cebinde birkaç dolar var.<br>Hedefin basit ama kolay değil: <b>itibar sahibi ve zengin biri olmak</b>.<br><br>Bu kısa rehber ilk adımlarını gösterecek. Hazırsan başlayalım!` },
       { ic: 'heart', t: Tr('Hayatta Kal'), pre: true,
-        b: Tr`Sol alttaki halkalar <b>sağlık</b>, <b>dayanıklılık</b> ve <b>odak</b>; yanındaki çubuklar <b>açlık</b>, <b>susuzluk</b>, <b>uyku</b> ve <b>temizlik</b>.`,
+        b: Tr`Sol altta radarın yayındaki büyük halkalar <b>sağlık</b>, <b>dayanıklılık</b> ve <b>odak</b>; altlarındaki küçük halkalar <b>açlık</b>, <b>susuzluk</b>, <b>uyku</b> ve <b>temizlik</b>.`,
         tips: [['meat', Tr`Acıkınca ${g('satchel')} Çanta'dan ye, ${g('quick')} ile hızlıca atıştır.`], ['drop', Tr('Matarandan iç, nehirden ya da kuyudan doldur.')], ['bed', Tr('Otelde, evinde ya da kamp kurup uyu.')], ['sun', Tr('Çölde bol su iç, karda kalın giyin.')]] },
       { ic: 'feet', t: Tr('Dolaş ve Keşfet'),
         tips: [['feet', Tr`${g('moveUp')}${g('moveLeft')}${g('moveDown')}${g('moveRight')} yürü, ${g('sprint')} koş.`], ['talk', Tr`İnsanlara, kapılara ve eşyalara yaklaş: ${g('interact')} ile etkileş. Basılı tutunca başka seçenekler çıkar.`], ['horse', Tr`${g('whistle')} ile atını çağır, ${g('interact')} ile bin; dörtnala için ${g('sprint')}.`], ['map', Tr`${g('map')} Harita: kasabalar, yollar ve işaretlediğin yerler.`]] },
@@ -1908,7 +1913,7 @@ const UI = {
         ['gpu', Tr('Ekran Kartı'), 'opt', Tr('Oyunun çizileceği ekran kartı. Otomatik, varsa güçlü (harici) kartı kullanır. Dizüstünde tasarruflu (tümleşik) kart pili uzatır ama Melez çizimde kare sayısı düşer.')],
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
         ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
-        ['meters', Tr('Göstergeler'), 'opt', Tr('Gerektiğinde: radarın çevresindeki halkalar ve ihtiyaç çubukları doluyken söner; azalınca, değişince, çatışmada, nişan alırken ve genişletilmiş HUD\'da görünür. Her Zaman: hepsi hep ekranda.')],
+        ['meters', Tr('Göstergeler'), 'opt', Tr('Gerektiğinde: radarın yayındaki halkalar (sağlık, dayanıklılık, odak ve ihtiyaçlar) doluyken söner; azalınca, değişince, çatışmada, nişan alırken ve genişletilmiş HUD\'da görünür. Her Zaman: hepsi hep ekranda.')],
         ['tone', Tr('Görüntü Tonu'), 'opt', Tr('Doğal: gerçeğe yakın, yumuşak renkler ve daha düşük kontrast; uzun oyunda gözü yormaz. Canlı: daha doygun, parlak renkler.')],
         ['fxq', Tr('Görsel Efektler'), 'opt', Tr('Tam: bulut gölgeleri, duman, izler, su halkaları ve renk tonlaması. Sade: zayıf bilgisayarlar için azaltılmış efektler.')],
       ] },
