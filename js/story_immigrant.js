@@ -414,6 +414,7 @@ Object.assign(Story, {
       const mgr = { name: K.name.call(this), look: Object.assign({}, K.look, S.kinLook || {}), trait: 'hard' };
       this.biz.push({ bid: b.id, type: b.type, town: b.town, stock: B.goods ? B.cap * 0.5 : 0, cash: 0, mgr, since: this.day, bank: false, total: 0, last: 0 });
       this.stat('businesses', 1);
+      this.tyBought(this.biz[this.biz.length - 1]);
       Audio_.ui('cash');
       UI.toast(Tr('Dükkân Sizin'), Tr`${b.name} artık senin. Anton işletmeci olarak tezgâhta.`, 'ok');
       this.hintOnce('biz', Tr`İşletmen kendi kendine çalışır; kasada durman gerekmez. Gelir kasada birikir: tezgâha uğrayıp <b>kasayı al</b>. ${B.goods ? Tr`Bu işletme <b>${GOODS[B.goods].n}</b> tüketir: toptancıdan ya da üreticiden alıp getir, stok boşalırsa gelir düşer.` : ''}`, 12);

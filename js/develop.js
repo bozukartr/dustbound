@@ -158,6 +158,7 @@ const DevSystems = {
   devStory(e) {
     const t = this.world.towns.find(x => x.id === e.t);
     if (!t) return null;
+    if (e.k === 'eco') return this.ecoStory(e, t);   // ekonomi haberleri (js/tycoon.js)
     let N, good;
     if (e.k === 'fate') { const f = this.devFates(t).find(o => o.id === e.v); N = f && f.def; good = f && f.g > 0; }
     else { N = e.k === 'up' ? DEV_NEWS.up[e.v] : DEV_NEWS[e.k]; good = e.k === 'up' || e.k === 'revive' || e.k === 'open' || e.k === 'reopen'; }
@@ -192,7 +193,7 @@ const DevSystems = {
   /* Kasabalıların sohbeti: kasabada son bir yılda iyi ya da kötü bir gelişme olduysa onu konuşurlar */
   devTalk(t) {
     if (!t) return null;
-    const e = this.devRecent(1).find(x => x.t === t.id);
+    const e = this.devRecent(1).find(x => x.t === t.id && x.k !== 'eco');
     if (!e) return null;
     const s = this.devStory(e);
     return s ? (s.good ? TALKS.grow : TALKS.decline) : null;

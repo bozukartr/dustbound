@@ -34,9 +34,11 @@ const BizSystems = {
   /* Sahibi satmaya razı mı: dünya tohumuna bağlı, her oyunda aynı */
   bizForSale(b) {
     if (!b || !BIZ[b.type] || !b.town || b.def.lock || b.shut || this.bizOf(b)) return false;
-    return hash2(b.id, 17, (this.seed % 9973) + 3) < 0.6;
+    // banka satılık çıkmaz (zor durumda değilse): teklifle alınır (js/tycoon.js)
+    return this.bizDistress(b) || (b.type !== 'bank' && hash2(b.id, 17, (this.seed % 9973) + 3) < 0.6);
   },
-  bizPrice(b) { return Math.round(BIZ[b.type].p * this.bizTownMul(this.bizTown(b.town)) / 5) * 5; },
+  /* zor durumdaki rakip ucuza satar (js/tycoon.js) */
+  bizPrice(b) { return Math.round(BIZ[b.type].p * this.bizTownMul(this.bizTown(b.town)) * (this.bizDistress(b) ? DISTRESS_MUL : 1) / 5) * 5; },
   bizBuildPrice(type, town, tier = 'std') { return Math.round(BIZ[type].p * 0.9 * this.bizTownMul(town) * BUILD_TIERS[tier].k / 5) * 5; },
   /* Bir mal türünün asıl üreticisi oyuncuya ait mi (zincir) */
   bizChain(g) {
@@ -57,8 +59,9 @@ const BizSystems = {
   },
   /* Beklenen günlük brüt gelir (stok dolu varsayımıyla) */
   bizDailyEst(z) {
+    if (z.fin) return z.fin.avg || 0;   // banka: son günlerin ortalama kârı (js/tycoon.js)
     const B = BIZ[z.type], t = this.bizTown(z.town);
-    return B.inc * this.bizTownMul(t) * MGR_TRAITS[z.mgr.trait].inc * (B.goods && this.bizChain(B.goods) ? 1.2 : 1);
+    return B.inc * this.bizTownMul(t) * MGR_TRAITS[z.mgr.trait].inc * (B.goods && this.bizChain(B.goods) ? 1.2 : 1) * this.secIncMul(z.type);
   },
   bizName(z) { const b = this.bizBuilding(z); return b ? b.name : BUILDINGS[z.type].n; },
 
@@ -68,10 +71,11 @@ const BizSystems = {
     const traits = Object.keys(MGR_TRAITS);
     return { name: randomName(sex), look: randomLook(sex), trait: R !== undefined ? traits[Math.floor(R * traits.length) % traits.length] : pick(traits) };
   },
-  buyBiz(b) {
+  /* pr: satmak istemeyen işletmeye yapılan teklifin bedeli (js/tycoon.js) */
+  buyBiz(b, pr = this.bizPrice(b)) {
     if (this.law.level > 0) { UI.feed(Tr('Aranırken kimse sana tapu vermez.'), 'warn'); return false; }
-    const pr = this.bizPrice(b);
     if (!this.spend(pr)) return false;
+    if (this.tycoon) delete this.tycoon.dist[this.bKey(b)];
     this.townNote(b.door.x, b.door.y, 'rich');
     const kr = this.keeperOf(b);
     const mgr = this.newManager(hash2(b.id, 29, this.seed % 7919));
@@ -80,6 +84,7 @@ const BizSystems = {
     this.biz.push({ bid: b.id, dk: b.dkey, type: b.type, town: b.town, stock: B.goods ? B.cap * 0.5 : 0, cash: 0, mgr, since: this.day, bank: false, total: 0, last: 0 });
     this.stat('businesses', 1);
     this.addHonor(1);
+    this.tyBought(this.biz[this.biz.length - 1]);
     Audio_.ui('cash');
     UI.toast(Tr('İşletme Satın Alındı'), kr ? Tr`${b.name} artık senin. ${kr.name} işletmeci olarak kalıyor.` : Tr`${b.name} artık senin.`, 'ok');
     this.hintOnce('biz', Tr`İşletmen kendi kendine çalışır; kasada durman gerekmez. Gelir kasada birikir: tezgâha uğrayıp <b>kasayı al</b>. ${B.goods ? Tr`Bu işletme <b>${GOODS[B.goods].n}</b> tüketir: toptancıdan ya da üreticiden alıp getir, stok boşalırsa gelir düşer.` : ''}`, 12);
@@ -90,7 +95,7 @@ const BizSystems = {
   bizDaily() {
     let sum = 0, bank = 0, empty = 0, skim = false;
     for (const z of this.biz) {
-      if (z.site) continue;
+      if (z.site || z.fin) continue;   // bankanın hesabı js/tycoon.js'te
       const B = BIZ[z.type];
       let inc = this.bizDailyEst(z);
       if (B.goods) {
@@ -123,6 +128,7 @@ const BizSystems = {
       const b = this.world.buildOnLot(lot, z.type, z.tier);
       z.site = false; z.bid = b.id; z.stock = 0;
       this.world.buildMapImage(true);
+      this.tyBought(z);
       UI.toast(Tr('İnşaat Bitti'), Tr`${b.name} kapılarını açtı. İşletmecin ${z.mgr.name} seni bekliyor.`, 'ok');
     }
   },
@@ -152,6 +158,7 @@ const BizSystems = {
       let p = GOODS[g].p * s[1];
       const z = this.bizOf(b);
       if (z && GOODS[g].src[0][0] === b.type) p *= 0.3;   // kendi üretimin: yalnızca maliyet
+      p *= this.secGoodsMul(g);   // hakim olduğun pazarda tedarikçi indirim yapar (js/tycoon.js)
       out.push({ g, p: Math.round(p * 100) / 100 });
     }
     return out;
@@ -320,6 +327,8 @@ const BizSystems = {
   lotTypes(lot) { return Object.keys(BIZ).filter(k => BUILDINGS[k].w <= lot.w && BUILDINGS[k].h <= lot.h); },
   startBuild(lot, type, tier = 'std') {
     if (!BUILD_TIERS[tier]) return false;
+    const why = this.bizBuildWhy(type, lot);
+    if (why) { UI.feed(why, 'warn'); return false; }
     const t = this.bizTown(lot.town), pr = this.bizBuildPrice(type, t, tier);
     if (!this.spend(pr)) return false;
     const mgr = this.newManager();

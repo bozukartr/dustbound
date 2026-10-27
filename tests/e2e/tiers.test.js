@@ -47,7 +47,7 @@ module.exports = {
         const bad = [], WALK = new Set(['.', '@', 'c', '1']), FUNC = new Set('TPpBSDUYHVeM'), GROUP = 'CRL';
         const REQ = {
           hs_shack: 'BH', hs_cabin: 'BHS', hs_house: 'BBHSU', barber: 'YY@', laundry: 'CU@', bakery: 'C@', butcher: 'C@', tailor: 'CM@', mill: 'C@', smith: 'Cfv@',
-          pharmacy: 'C@', cantina: 'R1TP@', stable: 'LCZ~@', general: 'C@', saloon: 'R1TPp@', brewery: 'DV', gambling: 'RPe@',
+          pharmacy: 'C@', cantina: 'R1TP@', stable: 'LCZ~@', general: 'C@', saloon: 'R1TPp@', brewery: 'DV', gambling: 'RPe@', bank: 'C@$D',
         };
         const types = [...Object.keys(HOME_TYPES), ...Object.keys(BIZ).filter(k => k !== 'hotel')];
         for (const type of types) for (const k of TIER_KEYS) {
@@ -79,7 +79,7 @@ module.exports = {
       });
       t.eq(r.bad, [], 'plan sorunları');
       t.eq(r.same, [], 'her türde dört farklı tasarım');
-      t.eq(r.n, 17, '3 ev + 14 işletme (otelin kendi lobi ve oda kademesi var)'); t.ok(r.hotel, 'otel kademeleri');
+      t.eq(r.n, 18, '3 ev + 15 işletme (otelin kendi lobi ve oda kademesi var)'); t.ok(r.hotel, 'otel kademeleri');
     });
 
     await t.step('işletme: arsada tür, sonra tasarım seçilir; lüks salon kurulur, plan ve görünüm uygulanır', async () => {
@@ -177,7 +177,7 @@ module.exports = {
         return { errs, out, cached: a === b, differ: a.ext !== c.ext && a.int !== c.int, world: G.world.lights.length > 0 };
       });
       t.eq(r.errs, [], 'önizleme hataları');
-      t.eq(r.out[1].n, 72, 'klasik: 18 tür × 4 kademe'); t.ok(r.out[0].hy, 'melez çizici açık'); t.eq(r.out[0].n, 72, 'melez: 18 tür × 4 kademe');
+      t.eq(r.out[1].n, 76, 'klasik: 19 tür × 4 kademe'); t.ok(r.out[0].hy, 'melez çizici açık'); t.eq(r.out[0].n, 76, 'melez: 19 tür × 4 kademe');
       t.ok(r.cached && r.differ, 'önbellek ve farklı tasarımlar');
     });
   },

@@ -5,6 +5,8 @@
 
 const NOPF = () => {};
 const NOPCTX = new Proxy({}, { get: (t, k) => (k in t ? t[k] : NOPF), set: (t, k, v) => { t[k] = v; return true; } });
+/* Rafinerinin parçaları (kuzeyden güneye çizilir) ve her birinin taban çizgisi (merkezden piksel; melez çizicinin yüksekliği) */
+const REF_PARTS = [['stack', -8], ['still', -7], ['column', -6], ['pipes', -1], ['tank1', 12], ['tank2', 13]];
 const SIGN_TEXT = {
   general: 'GENERAL', saloon: 'SALOON', sheriff: 'SHERIFF', doctor: 'DOCTOR', gunsmith: 'GUNS', butcher: 'BUTCHER', stable: 'STABLE',
   hotel: 'HOTEL', bank: 'BANK', station: 'STATION', land: 'LAND', barber: 'BARBER', tailor: 'TAILOR', fence: 'TRADER', mine: 'MINING CO',
@@ -402,6 +404,109 @@ const Spr = {
     }
     o.lineCap = 'butt';
   },
+  /* Uzun nesneyi iki katmana böl: cutY'nin altı zemin katmanına (g), üstü üst katmana (o); tek tuvale çizilirken bir kez */
+  split(g, o, cutY, fn) {
+    if (g === o) { fn(g); return; }
+    if (g !== NOPCTX) { g.save(); g.beginPath(); g.rect(-1e6, cutY, 2e6, 1e6); g.clip(); fn(g); g.restore(); }
+    if (o !== NOPCTX) { o.save(); o.beginPath(); o.rect(-1e6, cutY - 1e6, 2e6, 1e6); o.clip(); fn(o); o.restore(); }
+  },
+  /* ---------- Petrol (js/tycoon.js) ---------- */
+  /* Kara sızıntı: ölü otla çevrili, yanardöner yağ lekeli gölcük */
+  oilSeep(c, x, y, h) {
+    const dx = (h - 0.5) * 3;
+    this.ell(c, x + dx * 0.3, y + 0.6, 7.6, 4.6, 'rgba(84,66,36,0.38)');
+    this.ell(c, x, y, 5.8, 3.4, '#15110d');
+    this.ell(c, x + 3.6 + dx, y + 2.2, 2.6, 1.5, '#1a1511');
+    this.ell(c, x - 4 - dx * 0.5, y + 1.4, 1.6, 1, '#1a1511');
+    this.ell(c, x - 1.4, y - 0.7, 2.6, 1.1, 'rgba(126,92,168,0.4)');
+    this.ell(c, x + 1.4, y - 0.2, 1.9, 0.8, 'rgba(88,168,150,0.35)');
+    this.ell(c, x - 0.4, y - 1.3, 1.2, 0.45, 'rgba(255,248,230,0.22)');
+  },
+  /* Sondaj kulesi (kablolu sondaj, 1900'ler): ahşap kafes kule, tepede makara, solda buhar kazanı, sağda sallanan kiriş */
+  derrick(c, x, y, h) {
+    const top = y - 46, bot = y + 1, wb = 7.6, wt = 2.2;
+    const lx = (yy) => x - (wt + (wb - wt) * (yy - top) / (bot - top)), rx = (yy) => 2 * x - lx(yy);
+    c.fillStyle = '#2e2a26'; c.fillRect(x - 15.5, y - 4, 6.5, 6.5); c.fillStyle = '#4c4642'; c.fillRect(x - 15.5, y - 4, 6.5, 1.6);
+    c.fillStyle = '#1e1a18'; c.fillRect(x - 14, y - 12, 1.8, 8);
+    c.fillStyle = '#6a4a2e'; c.fillRect(x - 9.5, y - 2, 19, 5); c.fillStyle = '#7e5a38'; c.fillRect(x - 9.5, y - 2, 19, 1.4);
+    c.fillStyle = '#4e3622'; for (let k = 1; k < 4; k++) c.fillRect(x - 9.5 + k * 4.75, y - 0.6, 0.8, 3.6);
+    c.lineCap = 'butt';
+    let prev = bot;
+    for (const gy of [bot - 8, bot - 16, bot - 24, bot - 32, bot - 40, top]) {
+      c.strokeStyle = 'rgba(86,62,38,0.9)'; c.lineWidth = 0.7;
+      c.beginPath(); c.moveTo(lx(prev), prev); c.lineTo(rx(gy), gy); c.moveTo(rx(prev), prev); c.lineTo(lx(gy), gy); c.stroke();
+      c.strokeStyle = '#6e5032'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(lx(gy), gy); c.lineTo(rx(gy), gy); c.stroke();
+      prev = gy;
+    }
+    c.lineWidth = 1.6;
+    c.strokeStyle = '#866440'; c.beginPath(); c.moveTo(lx(bot), bot); c.lineTo(lx(top), top); c.stroke();
+    c.strokeStyle = '#5a4028'; c.beginPath(); c.moveTo(rx(bot), bot); c.lineTo(rx(top), top); c.stroke();
+    c.strokeStyle = 'rgba(38,32,26,0.85)'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(x + 0.3, top - 1); c.lineTo(x + 0.3, bot - 3); c.stroke();
+    c.fillStyle = '#4a3424'; c.fillRect(x - 3.6, top - 3.2, 7.2, 3.2); this.circ(c, x, top - 3.4, 1.7, '#2a2420');
+    c.fillStyle = '#5a4028'; c.fillRect(x + 10, y - 10, 2.2, 11);
+    const a = (h - 0.5) * 0.5;
+    this.line(c, x + 3, y - 10 - a * 6, x + 17.5, y - 10 + a * 6, '#7a5a3a', 1.9);
+  },
+  /* Silindir depo: r yarıçap, H gövde yüksekliği, by taban; perçin kuşaklı pas kırmızısı sac, konik çatı, yan merdiven */
+  oilTank(c, x, by, r, H, h, col = '#7a3a2a') {
+    const top = by - H;
+    c.fillStyle = col; c.fillRect(x - r, top, r * 2, H);
+    c.fillStyle = 'rgba(255,214,190,0.22)'; c.fillRect(x - r, top, r * 0.55, H);
+    c.fillStyle = 'rgba(20,8,4,0.3)'; c.fillRect(x + r * 0.3, top, r * 0.7, H);
+    c.fillStyle = 'rgba(20,8,4,0.3)'; c.fillRect(x + r * 0.7, top, r * 0.3, H);
+    this.ell(c, x, by, r, r * 0.34, '#3e1e16');
+    c.fillStyle = 'rgba(30,14,10,0.45)'; for (let k = 1; k < 3; k++) c.fillRect(x - r, top + H * k / 3, r * 2, 0.8);
+    this.ell(c, x, top, r, r * 0.34, '#8a5040');
+    c.fillStyle = '#6a3424'; c.beginPath(); c.moveTo(x - r, top); c.lineTo(x, top - r * 0.42); c.lineTo(x + r, top); c.closePath(); c.fill();
+    c.fillStyle = '#a06450'; c.beginPath(); c.moveTo(x - r, top); c.lineTo(x, top - r * 0.42); c.lineTo(x - r * 0.2, top); c.closePath(); c.fill();
+    c.strokeStyle = '#2a2a2a'; c.lineWidth = 0.6;
+    c.beginPath(); c.moveTo(x + r * 0.62, by); c.lineTo(x + r * 0.62, top); c.moveTo(x + r * 0.86, by); c.lineTo(x + r * 0.86, top); c.stroke();
+    for (let yy = by - 2; yy > top; yy -= 2.4) { c.beginPath(); c.moveTo(x + r * 0.62, yy); c.lineTo(x + r * 0.86, yy); c.stroke(); }
+  },
+  /* Rafineri (3×3): bir parçası (kuzeyden güneye): baca, imbik, ayrıştırma kulesi, borular, iki depo */
+  refinery(c, x, y, part, h) {
+    switch (part) {
+      case 'stack': {
+        c.fillStyle = '#7a3e30'; c.beginPath(); c.moveTo(x - 21, y - 8); c.lineTo(x - 19.6, y - 58); c.lineTo(x - 15.4, y - 58); c.lineTo(x - 14, y - 8); c.closePath(); c.fill();
+        c.fillStyle = '#9a5444'; c.fillRect(x - 19.6, y - 58, 1.4, 50);
+        c.fillStyle = 'rgba(40,20,14,0.5)'; for (let yy = y - 52; yy < y - 9; yy += 6) c.fillRect(x - 21, yy, 7, 0.8);
+        c.fillStyle = '#1a1614'; c.fillRect(x - 20.4, y - 61, 5.8, 3);
+        break;
+      }
+      case 'still': {
+        c.fillStyle = '#6e3a2c'; c.fillRect(x - 22, y - 12, 25, 5);
+        c.fillStyle = '#2a1410'; for (const fx of [x - 18, x - 10, x - 2]) c.fillRect(fx, y - 11, 3, 3);
+        c.fillStyle = 'rgba(240,140,60,0.7)'; for (const fx of [x - 18, x - 10, x - 2]) c.fillRect(fx + 0.6, y - 9.4, 1.8, 1.2);
+        c.fillStyle = '#4a4846'; c.fillRect(x - 21, y - 21, 23, 9);
+        c.fillStyle = '#6c6a66'; c.fillRect(x - 21, y - 21, 23, 2.2);
+        c.fillStyle = '#323030'; c.fillRect(x - 21, y - 13.6, 23, 1.6);
+        this.ell(c, x + 2, y - 16.5, 2.2, 4.5, '#3a3836'); this.ell(c, x - 21, y - 16.5, 2.2, 4.5, '#5a5856');
+        c.fillStyle = 'rgba(20,20,20,0.5)'; for (let k = 0; k < 5; k++) c.fillRect(x - 18 + k * 4.4, y - 21, 0.6, 9);
+        break;
+      }
+      case 'column': {
+        c.fillStyle = '#5a5a58'; c.fillRect(x + 5, y - 52, 8, 46);
+        c.fillStyle = '#7a7a76'; c.fillRect(x + 5, y - 52, 2.2, 46);
+        c.fillStyle = '#3a3a38'; c.fillRect(x + 11.4, y - 52, 1.6, 46);
+        this.ell(c, x + 9, y - 52, 4, 2, '#7a7a76');
+        c.fillStyle = '#3a3a38'; c.fillRect(x + 8.4, y - 57, 1.2, 4);
+        for (const py of [y - 20, y - 34, y - 46]) { c.fillStyle = '#2e2e2c'; c.fillRect(x + 3, py, 12, 1.4); c.fillStyle = '#4a4a48'; c.fillRect(x + 3, py - 2.4, 0.6, 2.4); c.fillRect(x + 14.4, py - 2.4, 0.6, 2.4); }
+        c.strokeStyle = '#2a2a2a'; c.lineWidth = 0.5;
+        c.beginPath(); c.moveTo(x + 13.6, y - 6); c.lineTo(x + 13.6, y - 50); c.moveTo(x + 15.2, y - 6); c.lineTo(x + 15.2, y - 50); c.stroke();
+        for (let yy = y - 8; yy > y - 50; yy -= 2.4) { c.beginPath(); c.moveTo(x + 13.6, yy); c.lineTo(x + 15.2, yy); c.stroke(); }
+        break;
+      }
+      case 'pipes': {
+        this.line(c, x + 2, y - 18, x + 5, y - 18, '#3a3836', 1.6);
+        this.line(c, x + 9, y - 6, x + 9, y + 0, '#3a3836', 1.4);
+        this.line(c, x - 12, y - 5, x - 12, y - 1, '#3a3836', 1.4);
+        this.line(c, x - 12, y - 5, x + 9, y - 5, '#3a3836', 1.4);
+        break;
+      }
+      case 'tank1': this.oilTank(c, x - 12, y + 12, 8, 13, h, '#6e3626'); break;
+      case 'tank2': this.oilTank(c, x + 12, y + 13, 9, 15, h, '#7a3a2a'); break;
+    }
+  },
   object(g, o, type, x, y, h, world) {
     const tx = x >> 4, ty = y >> 4;
     const season = world ? world.season : 0;
@@ -578,6 +683,13 @@ const Spr = {
         o.fillStyle = '#86a898'; o.fillRect(x - 5.2, y - 28.6, 1.4, 1.6); o.fillRect(x + 3.8, y - 28.6, 1.4, 1.6);
         break;
       }
+      case O.SEEP: this.oilSeep(g, x, y, h); break;
+      case O.DERRICK: this.shadow(g, x + 9, y + 3, 15, 4, 0.28); this.split(g, o, y - 8, (c) => this.derrick(c, x, y, h)); break;
+      case O.OILTANK: this.shadow(g, x + 6, y + 4, 12, 4.5, 0.3); this.split(g, o, y - 6, (c) => this.oilTank(c, x, y + 4, 8.5, 15, h)); break;
+      case O.REFINERY:
+        this.shadow(g, x + 8, y + 12, 30, 8, 0.28);
+        this.split(g, o, y - 8, (c) => { for (const [part] of REF_PARTS) this.refinery(c, x, y, part, h); });
+        break;
       case O.WELL: {
         this.shadow(g, x + 3, y + 3, 8, 4, 0.3);
         this.circ(g, x, y, 6.5, '#7a746a'); this.circ(g, x, y, 4.5, '#1e2a30'); this.circ(g, x, y, 3.5, '#2e4450');

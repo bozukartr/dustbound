@@ -300,6 +300,15 @@ const HY = (() => {
         for (const dx of [-5.2, 3.8]) rect(P(x + dx), Q(y - 28.6), 3, 3, rgb('#86a898'), hc, SOUTH);
         return true;
       }
+      case O.REFINERY: {
+        // rafineri: her parça kendi taban çizgisinden yükselir (2D çizimin aynısı, parça parça keskinleştirilir)
+        for (const [part, b] of REF_PARTS) {
+          const hF = (xx, yy) => Math.max(0, Math.min(60, y + b - wyOf(yy)));
+          LAYER = 2; stamp((g) => Spr.refinery(g, x, y, part, hh), x - 30, y - 64, 60, 80, hF, (xx, yy) => (hF(xx, yy) > 2 ? SOUTH : UP));
+        }
+        LAYER = 0;
+        return true;
+      }
       case O.HITCH: {
         LAYER = 0;
         for (const px of [x - 8, x + 6.5]) rect(P(px), Q(y - 6), 3, Q(y + 2) - Q(y - 6), (xx) => xx === P(px) ? rgb('#7a5838') : rgb('#4a3220'), facadeH(y + 2), SOUTH);
@@ -899,7 +908,7 @@ const HY = (() => {
         if (!W.inb(tx, ty)) continue;
         const i = ty * WW + tx, o = W.obj[i];
         if (!o || isHerbO(o) || o === O.ARTIFACT || (W.flags[i] & 16)) continue;
-        if (o === O.TUFT || o === O.FLOWERS || o === O.REED || o === O.CROP || o === O.DRYBUSH || o === O.BONES || o === O.CAMPFIRE || o === O.FLOWERBED || o === O.BIGBONES) { if (o !== O.TUFT) { Spr.object(gc, gc, o, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), W); drawn = true; } else tall.push([ty, tx, o]); }
+        if (o === O.TUFT || o === O.FLOWERS || o === O.REED || o === O.CROP || o === O.DRYBUSH || o === O.BONES || o === O.CAMPFIRE || o === O.FLOWERBED || o === O.BIGBONES || o === O.SEEP) { if (o !== O.TUFT) { Spr.object(gc, gc, o, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77), W); drawn = true; } else tall.push([ty, tx, o]); }
         else tall.push([ty, tx, o]);
       }
       if (drawn) flushDraw();

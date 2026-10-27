@@ -46,7 +46,7 @@ const GameSystems = {
     let inc = 0;
     for (const id of this.props) { const P = PROPERTIES.find(p => p.id === id); if (P && P.income) inc += P.income; }
     if (inc > 0) { inc *= this.hasPerk('tycoon') ? 1.5 : 1; this.bank += inc; UI.feed(Tr`🏠 Mülk geliri bankaya yatırıldı: ${fmtMoney(inc)}`); this.stats.earned += inc; }
-    this.bizDaily(); this.bizBuildTick(); this.haulDaily(); this.homeDaily(); this.estateDaily();
+    this.bizDaily(); this.bizBuildTick(); this.tycoonDaily(d); this.haulDaily(); this.homeDaily(); this.estateDaily();
     this.bounties = null; // ilanlar yenilenir
     const L = this.player.look;
     if (L.sex === 'm' && L.beard > 0) { L.beardLen = Math.min(1, (L.beardLen || 0.3) + 0.08); this.player._lk = null; }
@@ -935,7 +935,12 @@ const GameSystems = {
         if (b.type === 'church') return { label: Tr('Sıra'), acts: svc('pray') };
         return { label: 'Bank', acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
       case O.ALTAR: return { label: Tr('Sunak'), acts: [...svc('donate'), ...svc('pray')] };
-      case O.SAFE: return b.def.svc.includes('robbank') ? { label: Tr('Kasa'), acts: svc('robbank') } : null;
+      case O.SAFE: {
+        // kendi bankanın kasası: yönetim (js/tycoon.js)
+        const z = this.bizOf(b);
+        if (z && z.fin) return { label: Tr('Kasa'), acts: [{ n: Tr('Bankayı Yönet'), fn: () => U.openBankMgmt(z) }] };
+        return b.def.svc.includes('robbank') ? { label: Tr('Kasa'), acts: svc('robbank') } : null;
+      }
       case O.BCHAIR: return { label: Tr('Berber Koltuğu'), acts: svc('barber') };
       case O.STALL: return b.type === 'stable' ? counter(Tr('Ahır Bölmesi')) : null;
       case O.STOVE:
@@ -1940,6 +1945,7 @@ const GameSystems = {
         case O.CAMPFIRE: add(ox, oy, Tr('Kamp Ateşi'), [{ n: Tr('Isın ve Pişir'), fn: () => UI.openCook() }]); break;
         case O.HAY: add(ox, oy, Tr('Saman'), [{ n: Tr('Saman Al'), fn: () => { const k = 'hay' + i; if (this.dailyTalk[k]) { UI.feed(Tr('Bugün zaten aldın.')); return; } this.dailyTalk[k] = 1; P.addItem('hay', 2); } }]); break;
         case O.STEAM: add(ox, oy, Tr('Sıcak Kaynak'), [{ n: Tr('Kaplıcada Dinlen'), fn: () => this.hotSpring() }]); break;
+        case O.SEEP: case O.DERRICK: case O.OILTANK: { const r = this.oilActs(tx, ty, o); if (r) add(ox, oy, r.label, r.acts); break; }
         case O.BIGBONES: case O.BONES: break;
         default:
           if (isFurnO(o) && W.bid[i] >= 0) {
@@ -1950,6 +1956,8 @@ const GameSystems = {
           }
       }
     }
+    // rafineri (3×3: merkezine yaklaşılamaz)
+    { const r = this.refActs(P.x, P.y); if (r) add(r.x, r.y, r.label, r.acts, 4); }
     // su
     const onT = W.tileAtPx(P.x, P.y);
     let wx = null, wy = null;

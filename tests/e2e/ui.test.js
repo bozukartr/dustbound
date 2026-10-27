@@ -139,7 +139,7 @@ module.exports = {
         const out = { me: me.textContent, legend: document.querySelectorAll('#map-legend .ml-i').length, layer: !!(L && L.width > 0), frame: !!document.getElementById('map-frame') };
         UI.closeAll(); return out;
       });
-      t.ok(/Konumun/.test(r.me) && r.me.length > 20, 'konum kartı', r.me); t.eq(r.legend, 15, 'açıklamalar'); t.ok(r.layer && r.frame, 'sis katmanı ve çerçeve', r);
+      t.ok(/Konumun/.test(r.me) && r.me.length > 20, 'konum kartı', r.me); t.eq(r.legend, 16, 'açıklamalar'); t.ok(r.layer && r.frame, 'sis katmanı ve çerçeve', r);
     });
 
     await t.step('yükleme ekranı: atlı ilerlemeyle birlikte gider', async () => {
