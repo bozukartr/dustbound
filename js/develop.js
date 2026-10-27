@@ -84,7 +84,7 @@ const DevSystems = {
 
   /* ---------------- durum ---------------- */
   devInit() {
-    const D = this.dev = { y: START_YEAR, towns: {}, log: [], yr: {}, fresh: [], ops: [], face: {}, shut: {}, st: {}, lamps: {}, pend: [], nk: 0 };
+    const D = this.dev = { y: START_YEAR, towns: {}, log: [], yr: {}, fresh: [], ops: [], face: {}, shut: {}, st: {}, lamps: {}, elec: {}, pend: [], nk: 0 };
     for (const t of this.world.towns) { const S = D.towns[t.id] = { tier: this.devStartTier(t), prog: 0.2 + hash2(this.seed, this.devIdx(t), 3) * 0.4, ghost: false, g: 0 }; S.pk = this.devVit(S); }
     this._devF = null; this._devCamps = null;
     this.devMirror();

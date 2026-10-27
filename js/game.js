@@ -49,7 +49,7 @@ const G = {
     this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null; this.hideout = null; this.pins = [];
-    this.biz = []; this.lotsOwned = []; this.myWagon = null; this.haulers = []; this.raids = [];
+    this.biz = []; this.lotsOwned = []; this.myWagon = null; this.myCar = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();
     this.dmgLog = []; this.deathInfo = null;   // ölüm ekranının son anlar dökümü
     this.upB = null; this.hotelRent = null; this.stairLatch = false;   // otelin üst katı (oyuncu oradaysa), kiralık oda, merdivenden geçince yön kilidi
@@ -675,8 +675,8 @@ const G = {
     else if (this.hotness > 0.05) this.hintOnce('hot', Tr('Sıcak çarpıyor! Daha sık su iç, geniş kenarlı şapka ya da keten gömlek giy.'));
     else if (this.isNight) this.hintOnce('night', Tr`Gece çöktü. ${g('lantern')} ile fenerini yak. Kurtlar gece daha tehlikelidir.`);
     // klavyede at ve araba dizginle sürülür (ipucu bu yüzden ayrı: eski kayıtta da bir kez çıkar)
-    else if (P.riding && Input.device === 'kb') this.hintOnce('rideKb', Tr`At sırtında ${g('moveUp')} ile sür, ${g('moveLeft')} ${g('moveRight')} ile dön, ${g('moveDown')} ile dur; durunca basılı tutarsan geri gidersin. ${g('sprint')} basılı tutarak dörtnala koş, atının dayanıklılığına dikkat et. ${g('interact')} ile in.`, 10);
-    else if (P.riding) this.hintOnce('ride', Tr`${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
+    else if (P.riding && !P.riding.motor && Input.device === 'kb') this.hintOnce('rideKb', Tr`At sırtında ${g('moveUp')} ile sür, ${g('moveLeft')} ${g('moveRight')} ile dön, ${g('moveDown')} ile dur; durunca basılı tutarsan geri gidersin. ${g('sprint')} basılı tutarak dörtnala koş, atının dayanıklılığına dikkat et. ${g('interact')} ile in.`, 10);
+    else if (P.riding && !P.riding.motor) this.hintOnce('ride', Tr`${g('sprint')} basılı tutarak dörtnala koş. Atının dayanıklılığına dikkat et. ${g('interact')} ile in.`);
     else if (this.law.level > 0) this.hintOnce('law', Tr('Aranıyorsun! Radardaki kırmızı arama alanının dışına çık ve görünmeden bekle.'));
     else if (!this.world.townAt(P.x, P.y, 60) && this.hour >= 17) this.hintOnce('camp', P.has('bedroll') ? Tr`Akşam oluyor. Kasabadan uzaktaysan ${g('camp')} tuşunu basılı tutarak kamp kurabilirsin.` : Tr`Vahşi doğada kamp kurmak için bir <b>Uyku Tulumu</b> gerekir (genel mağazada ${fmtMoney(ITEMS.bedroll.p)}). Sonra ${g('camp')} tuşunu basılı tut.`, 10);
     else if (this.world.nearWater(P.x, P.y, 20)) this.hintOnce('water', Tr`Su kenarındasın. ${g('interact')} ile su iç; basılı tutarak matara doldurma, yıkanma ve balık tutma seçeneklerine ulaş.`);
@@ -1066,6 +1066,7 @@ const G = {
     // dünya uzayı arayüz öğeleri
     ctx.save();
     ctx.translate(-x0, -y0);
+    this.drawWires(ctx, x0, y0, x1, y1);
     FX.drawHigh(ctx);
     this.drawBirds(ctx);
     Juice.drawHigh(ctx, x0, y0, x1, y1);
@@ -1086,6 +1087,22 @@ const G = {
     if (this.fx.boom > 0) { ctx.fillStyle = `rgba(255,220,160,${this.fx.boom})`; ctx.fillRect(0, 0, vw, vh); this.fx.boom = Math.max(0, this.fx.boom - dt * 2); }
     this.fx.flash = Math.max(0, this.fx.flash - dt * 1.5);
     this.fx.muzzle = Math.max(0, this.fx.muzzle - dt);
+  },
+  /* Elektrik telleri (js/devworld.js devWires): direklerin traversindeki iki izolatör arasında hafifçe sarkan iki tel */
+  drawWires(ctx, x0, y0, x1, y1) {
+    const WS = this.world.wires;
+    if (!WS) return;
+    ctx.strokeStyle = 'rgba(26,22,17,0.85)'; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    for (const id in WS) for (const [ax, ay, bx, by] of WS[id]) {
+      if (Math.max(ax, bx) + 8 < x0 || Math.min(ax, bx) - 8 > x1 || Math.max(ay, by) - 14 < y0 || Math.min(ay, by) - 28 > y1) continue;
+      const sag = clamp(Math.hypot(bx - ax, by - ay) * 0.05, 2, 7);
+      for (const [dx, k] of [[-4.5, 1], [4.5, 1.35]]) {
+        const sx = ax + dx, sy = ay - 28, ex = bx + dx, ey = by - 28;
+        ctx.moveTo(sx, sy); ctx.quadraticCurveTo((sx + ex) / 2, (sy + ey) / 2 + sag * 2 * k, ex, ey);
+      }
+    }
+    ctx.stroke();
   },
   /* Bina cepheleri ve çatıları: içerideyken ya da arkasındayken soluklaşır */
   drawCovers(ctx, x0, y0, x1, y1, dt) {
@@ -1252,7 +1269,7 @@ const G = {
       if (L.type === 'lamp' && (!night || L.off)) continue;   // hayalet kasabada lambalar sönük
       if ((L.type === 'inner' || L.type === 'hearth') && !(this.insideB && this.insideB.id === L.b)) continue;
       if (L.type === 'hearth' && this.upB && this.upB.id === L.b) continue;   // üst kattayken alt kattaki ocak ışımaz
-      const fl = L.type === 'fire' || L.type === 'hearth' ? Juice.flicker(L.x, this.t, 0.08) : L.type === 'lamp' ? Juice.flicker(L.x + L.y, this.t * 0.6, 0.035) : 1;
+      const fl = L.type === 'fire' || L.type === 'hearth' ? Juice.flicker(L.x, this.t, 0.08) : L.type === 'lamp' && !L.el ? Juice.flicker(L.x + L.y, this.t * 0.6, 0.035) : 1;   // elektrikli lamba titremez
       lights.push([L.x, L.y, L.r * fl, L.type === 'window' ? 0.75 : 1]);
     }
     for (const [x, y] of fires) lights.push([x, y, 80 * Juice.flicker(x * 0.37 + y, this.t, 0.07), 1]);
@@ -1263,6 +1280,8 @@ const G = {
     else lights.push([P.x, P.y, 26, 0.35]);
     if (this.fx.muzzle > 0) lights.push([P.x, P.y, 90, this.fx.muzzle * 12]);
     for (const tr of this.trains) if (tr.pos[0]) { const [x, y, a] = tr.pos[0]; if (inView(x, y, 120)) lights.push([x + Math.cos(a) * 50, y + Math.sin(a) * 50, 70, 0.9]); }
+    // motorlu taşıtların farları (motoru çalışırken)
+    if (night) for (const e of this.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt && inView(e.x, e.y, 90)) lights.push([e.x + Math.cos(e.ang) * 24, e.y + Math.sin(e.ang) * 24, 48, 0.85]);
     for (const [x, y, r, a] of lights) {
       lc.globalAlpha = Math.min(1, a);
       lc.drawImage(this.lightSpr, x - x0 - r, y - y0 - r, r * 2, r * 2);

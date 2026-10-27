@@ -560,6 +560,24 @@ const Spr = {
         o.fillStyle = '#f0d890'; o.fillRect(x - 1.5, y - 15, 3, 4);
         break;
       }
+      case O.ELAMP: {
+        // elektrikli sokak lambası: döküm ayak, ince yüksek direk, tepede süt camı küre
+        this.shadow(g, x + 3, y + 2, 3.4, 1.6, 0.25);
+        g.fillStyle = '#1c2420'; g.fillRect(x - 1.8, y - 2, 3.6, 4);
+        g.fillStyle = '#26302b'; g.fillRect(x - 0.8, y - 10, 1.6, 10);
+        o.fillStyle = '#26302b'; o.fillRect(x - 0.8, y - 19, 1.6, 9); o.fillRect(x - 1.7, y - 20, 3.4, 1.4);
+        this.circ(o, x, y - 22.4, 2.7, '#ece8da'); this.circ(o, x - 0.7, y - 23.2, 1.2, '#fffdf4');
+        break;
+      }
+      case O.UPOLE: {
+        // elektrik direği: katranlı ağaç direk, traversin uçlarında cam izolatörler (teller: G.drawWires)
+        this.shadow(g, x + 5, y + 2, 3, 1.4, 0.2);
+        g.fillStyle = '#4a3828'; g.fillRect(x - 1, y - 6, 2, 8);
+        o.fillStyle = '#4a3828'; o.fillRect(x - 1, y - 31, 2, 25); o.fillStyle = '#5c4632'; o.fillRect(x - 1, y - 31, 0.8, 25);
+        o.fillStyle = '#5a4430'; o.fillRect(x - 6, y - 27, 12, 1.6);
+        o.fillStyle = '#86a898'; o.fillRect(x - 5.2, y - 28.6, 1.4, 1.6); o.fillRect(x + 3.8, y - 28.6, 1.4, 1.6);
+        break;
+      }
       case O.WELL: {
         this.shadow(g, x + 3, y + 3, 8, 4, 0.3);
         this.circ(g, x, y, 6.5, '#7a746a'); this.circ(g, x, y, 4.5, '#1e2a30'); this.circ(g, x, y, 3.5, '#2e4450');
@@ -2167,6 +2185,12 @@ const Spr = {
       this.ell(ctx, -0.8, 0, 3.6, 3.3, c); this.ell(ctx, 1.4, 0, 1.3, 2.9, shadeHex(c, 0.18)); this.ell(ctx, -1.4, 0, 2, 2.2, shadeHex(c, -0.2));
       return;
     }
+    if (hat === 'cloche') {
+      // çan şapka: dar kenar, başa oturan yuvarlak tepe, yanda kurdele fiyonku
+      this.ell(ctx, 0.3 + k * 0.8, 0, br, br * 0.95, shadeHex(c, -0.18)); this.ell(ctx, -0.2, 0, 3, 2.85, c); this.ell(ctx, -0.8, -0.7, 1.3, 1.1, shadeHex(c, 0.22));
+      ctx.fillStyle = shadeHex(c, -0.42); ctx.fillRect(-0.6, 2.1, 1.8, 1);
+      return;
+    }
     this.ell(ctx, k * 0.8, 0, br, br * 0.95, c);
     if (hat === 'flat') this.ell(ctx, 2.6, 0, 2, 2.6, shadeHex(c, -0.2));
     if (hat === 'fur') { this.ell(ctx, -0.2, 0, 3, 2.9, shadeHex(c, 0.12)); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; this.circ(ctx, Math.cos(a) * 2.9, Math.sin(a) * 2.8, 0.7, shadeHex(c, i % 2 ? -0.25 : 0.2)); } return; }
@@ -2174,6 +2198,7 @@ const Spr = {
     this.ell(ctx, -0.2, 0, 2.7, 2.5, shadeHex(c, -0.28));
     if (hat === 'cowboy' || hat === 'wide' || hat === 'straw') { ctx.fillStyle = shadeHex(c, 0.25); ctx.fillRect(-0.8, -2.4, 1, 4.8); }
     if (hat === 'straw') { ctx.strokeStyle = shadeHex(c, -0.25); ctx.lineWidth = 0.3; ctx.beginPath(); ctx.ellipse(0, 0, br * 0.75, br * 0.72, 0, 0, TAU); ctx.stroke(); }
+    if (hat === 'fedora') { ctx.fillStyle = shadeHex(c, -0.55); ctx.fillRect(-1.6, -0.35, 2.8, 0.7); }   // fötrün boyuna tepe çukuru
   },
   /* NPC jestleri, üstten görünüş (gövde çerçevesi: x ileri, y sağ).
      layer 0: kollar ve eldekiler (true dönerse varsayılan kollar çizilmez); layer 1: başın üstünde kalanlar */
@@ -2522,6 +2547,49 @@ const Spr = {
       if (kind !== 'freight') { ctx.fillStyle = '#e8d890'; for (let k = 0; k < 4; k++) { ctx.fillRect(-10 + k * 6, -6.8, 3, 1); ctx.fillRect(-10 + k * 6, 5.8, 3, 1); } }
     }
     ctx.restore();
+  },
+
+  /* ---------- Otomobil (kuşbakışı; gövde çerçevesi: orta 0,0, x ileri, y sağ) ----------
+     Tek tip: siyah, tenteli gezinti otomobili. Tekerlekler köşelerde, ön dingilin hemen üstünde pirinç radyatör ve iki
+     yanında pirinç fenerler; iki yanı açıkta kalan uzun ince kaput, gövdeden taşan çamurluklar, aralarında basamaklar;
+     sürücü tentenin altındadır. w.steer ön tekerleklerin dönüşü */
+  motor(ctx, w) {
+    const FA = 9.2, RA = -8.6;   // ön ve arka dingil
+    const blk = w.body || '#16161a', gloss = '#50505c', brass = '#c8a040', tire = '#0d0c0b';
+    const R = (x, y, ww, hh, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, ww, hh); };
+    const rr = (x, y, ww, hh, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x, y, ww, hh, r); ctx.fill(); };
+    this.shadow(ctx, 0.8, 1.6, CAR_DIM.len / 2 + 0.4, CAR_DIM.w / 2 + 0.6, 0.24);
+    for (const sy of [-1, 1]) {
+      const Y = (a, b) => Math.min(sy * a, sy * b);   // |y| a..b aralığının üst kenarı
+      // ince, yüksek tekerlekler; dış yarıları çamurluğun dışında kalır. Ön tekerlekler direksiyonla döner (w.steer):
+      // dönük ön lastik çamurluğun yanından eğik taşar
+      for (const ax of [FA, RA]) {
+        const front = ax === FA;
+        ctx.save(); ctx.translate(ax, sy * (front ? 5.75 : 5.5)); if (front) ctx.rotate(w.steer || 0);
+        R(-3, -0.65, 6, 1.3, tire); R(-0.5, -0.65, 1, 1.3, '#3a342c');
+        ctx.restore();
+      }
+      // basamak (kaburgalı) ve çamurluklar
+      R(-5.4, Y(4, 5.3), 11.2, 1.3, '#4a443a'); R(-5.4, Y(4.95, 5.3), 11.2, 0.35, '#8c8678');
+      ctx.fillStyle = '#36312a'; for (let x = -4.8; x < 5.6; x += 1.6) ctx.fillRect(x, Y(4, 4.95), 0.6, 0.95);
+      rr(5.6, Y(3.9, 5.3), 7.2, 1.4, 0.7, blk); R(6.4, Y(4.4, 4.8), 5.6, 0.4, gloss);
+      rr(-12.2, Y(3.9, 5.5), 7.2, 1.6, 0.8, blk); R(-11.4, Y(4.5, 4.9), 5.6, 0.4, gloss);
+    }
+    // gövde ve kaputa daralan ön panel
+    rr(-13, -4, 15.8, 8, 1.3, blk);
+    ctx.fillStyle = blk; ctx.beginPath(); ctx.moveTo(2.6, -4); ctx.lineTo(4.6, -2); ctx.lineTo(4.6, 2); ctx.lineTo(2.6, 4); ctx.fill();
+    // uzun, ince kaput: ortada parlak menteşe sırtı
+    rr(4.4, -2, 6.2, 4, 0.4, '#202027'); R(4.6, -0.5, 5.8, 1, '#5c5c6a');
+    // pirinç radyatör (ortada kapak) ve iki yanında pirinç fenerler
+    rr(10.4, -2, 1.4, 4, 0.4, brass); R(10.5, -1.8, 1.1, 0.6, '#f2d878'); this.circ(ctx, 11.1, 0, 0.55, '#efe0a0');
+    for (const sy of [-1, 1]) { this.circ(ctx, 11.7, sy * 3.5, 0.95, '#b8892e'); this.circ(ctx, 12.1, sy * 3.5, 0.5, '#f6eed6'); }
+    // ön cam ve kumaş tente (dört kemerli)
+    R(2.2, -3.9, 0.9, 7.8, '#aabec6');
+    rr(-11.4, -4.2, 13.6, 8.4, 1.3, '#2b2825');
+    ctx.fillStyle = '#433e37'; for (const x of [-9.6, -6.4, -3.2, 0]) ctx.fillRect(x, -4.1, 0.9, 8.2);
+    R(-11.4, -3.7, 0.9, 7.4, '#1e1c19');
+    // arka lamba (solda)
+    this.circ(ctx, -13, -3, 0.6, '#b8402a');
   },
   /* Portre: js/portrait.js */
 };

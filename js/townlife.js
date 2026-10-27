@@ -275,7 +275,12 @@ const Bubbles = {
 
 /* ---------------- Yol trafiği: yük arabası ve posta arabası ----------------
    Sürücü vurulabilir, kementle ya da zorla indirilebilir; sürücüsüz araba
-   oyuncu tarafından sürülür (binicilik kontrolleriyle) ve yükü aranabilir. */
+   oyuncu tarafından sürülür (binicilik kontrolleriyle) ve yükü aranabilir.
+   Motor çağında (1908'den sonra, yıllar geçtikçe artan payla) arabaların yerini otomobil alır. Tek tip otomobil vardır:
+   siyah, tenteli, uzun ince kaputlu, pirinç radyatörlü bir gezinti otomobili (motor: 'car'). Atsızdır, gövdesi katıdır
+   (dorse gibi sürüklenmez); sürücü tentenin altındadır. */
+/* Otomobil ölçüleri: l ön noktanın (x, y) gövde ortasına (bx, by) uzaklığı, len boy, w en (kuşbakışı) */
+const CAR_DIM = { l: 10, len: 26, w: 12 };
 class Wagon extends Ent {
   constructor(road, i, dir, stage, at) {
     super(road ? road.pts[i][0] : at.x, road ? road.pts[i][1] : at.y);
@@ -300,15 +305,29 @@ class Wagon extends Ent {
     w.name = Tr('Yük Araban'); w.body = '#7a5436';
     return w;
   }
+  /* Oyuncunun kendi otomobili (ahırdan satın alınır) */
+  static ownedCar(x, y, ang) {
+    const w = new Wagon(null, 0, 1, false, { x, y, ang });
+    w.driver = null; w.owner = 'player'; w.mine = true; w.keep = true; w.cargo = false; w.crates = [];
+    G.motorize(w);
+    w.name = Tr('Otomobilin');
+    return w;
+  }
   /* x, y ve ang atların (çekici) konumu ve yönüdür. Araba gövdesi (bx, by, bang) atların
      arkasındaki çeki demirine bağlıdır ve tır dorsesi gibi arkadan sürüklenir: atlar döner, araba izler. */
   trail(init) {
+    // motorlu taşıt: gövde katı, ön noktanın tam arkasında
+    if (this.motor) { const l = CAR_DIM.l; this.bang = this.ang; this.bx = this.x - Math.cos(this.ang) * l; this.by = this.y - Math.sin(this.ang) * l; return; }
     const hx = this.x - Math.cos(this.ang) * 8, hy = this.y - Math.sin(this.ang) * 8;
     if (init || this.bx === undefined) this.bang = this.ang;
     else this.bang = Math.atan2(hy - this.by, hx - this.bx);
     this.bx = hx - Math.cos(this.bang) * 11; this.by = hy - Math.sin(this.bang) * 11;
   }
-  get seat() { return { x: this.bx + Math.cos(this.bang) * 8, y: this.by + Math.sin(this.bang) * 8 }; }
+  get seat() {
+    // otomobilde sürücü solda, ön koltukta
+    if (this.motor) { const c = Math.cos(this.bang), s = Math.sin(this.bang); return { x: this.bx + c * 0.5 + s * 2.2, y: this.by + s * 0.5 - c * 2.2 }; }
+    return { x: this.bx + Math.cos(this.bang) * 8, y: this.by + Math.sin(this.bang) * 8 };
+  }
   /* Oyuncunun ateşi: sürücü isabet alabilir, almazsa atları kamçılayıp kaçar */
   hurt(dmg, by) {
     if (by !== 'player' || this.rider === G.player || !this.driver || this.hauler || this.coach) return;
@@ -391,16 +410,31 @@ class Wagon extends Ent {
     if (!o || o.kind !== 'npc' || o.dead || o.bound || o.hostile || o.isLaw || o.state === 'sit' || o.dodgeT > 0) return;
     const side = Math.sign(-Math.sin(this.ang) * (o.x - this.x) + Math.cos(this.ang) * (o.y - this.y)) || 1;
     o.talk = null; o.pauseT = 0; o.dodgeT = 0.7; o.dodgeA = this.ang + side * Math.PI / 2;
-    if (this.honkT <= 0) { this.honkT = 4; Bubbles.add(this, pick([Tr('Yol verin!'), Tr('Çekilin, araba geliyor!'), Tr('Hooop!')]), 1.8); }
+    if (this.honkT <= 0) { this.honkT = 4; if (this.motor) this.honk(); Bubbles.add(this, pick(this.motor ? [Tr('Dıt dıt!'), Tr('Yol verin!'), Tr('Çekilin, araba geliyor!')] : [Tr('Yol verin!'), Tr('Çekilin, araba geliyor!'), Tr('Hooop!')]), 1.8); }
     if (chance(0.35)) setTimeout(() => { if (!o.dead && !o.remove) Bubbles.add(o, pick([Tr('Tamam, tamam!'), Tr('Gözünü aç biraz!'), Tr('Ezecektin az kalsın!')]), 1.8); }, 500);
+  }
+  /* Korna (yakındaysa duyulur) */
+  honk() { const P = G.player; if (P && dist2(this.x, this.y, P.x, P.y) < 340 * 340) Audio_.horn(this.x, this.y); }
+  /* Motorlu taşıtın kare başına süsü: ön tekerleklerin dönüşü, egzoz dumanı. Oyuncu sürerken tekerlek açısını
+     direksiyon verir (updateRiding); NPC'nin otomobilinde yön değişiminden tahmin edilir; park etmiş, sürücüsüz
+     otomobil tekerleğini bırakıldığı açıda tutar */
+  motorFx(dt) {
+    const da = this._pa === undefined ? 0 : angDiff(this._pa, this.ang);
+    this._pa = this.ang;
+    if (this.driver && !this.rider) this.steer = (this.steer || 0) + (clamp(da / Math.max(dt, 0.001) * 0.3, -0.5, 0.5) - (this.steer || 0)) * Math.min(1, dt * 8);
+    if (this.spd > 4 && Math.random() < dt * (2 + this.spd * 0.04) && G.onScreen(this.x, this.y, 40)) {
+      const c = Math.cos(this.bang), s = Math.sin(this.bang), r = CAR_DIM.len / 2 + 1;
+      G.parts.add('smoke', this.bx - c * r + s * 3, this.by - s * r - c * 3, -c * 6 + rnd(-3, 3), -s * 6 + rnd(-3, 3), 1.1, 1.6, 'rgba(90,90,96,0.5)');
+    }
   }
   update(dt) {
     if (this.hauler) { G.haulSync(this, dt); return; }
     if (this.coach) { if (!this.passenger) { this.spd = 0; this.mv = 0; this.trail(); } return; }   // özel fayton: yolculukta G.rideTick sürer
+    if (this.motor) this.motorFx(dt);
     if (this.rider) {
       // oyuncu sürüyor: hareketi binicilik sistemi yapar, gövde arkadan izler
       this.trail();
-      if (this.spd > 40 && Math.random() < 0.15) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) G.parts.add('dust', this.x - Math.cos(this.ang) * 12, this.y - Math.sin(this.ang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
+      if (this.spd > 40 && Math.random() < 0.15) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) G.parts.add('dust', this.bx - Math.cos(this.bang) * 12, this.by - Math.sin(this.bang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
       return;
     }
     if (this.driverEnt) { this.spd = 0; this.mv = 0; G.wagonPark(this, dt); return; }   // sürücü inmiş: yük taşıyor ya da bekliyor
@@ -441,7 +475,9 @@ class Wagon extends Ent {
     // önünde kim var: araba ise hızına uy ya da yol ver, insan ise dur ve seslen
     const A = this.scanAhead(), ob = A.o;
     const turnK = da > 1.2 ? 0.15 : da > 0.5 ? 0.5 : 1;
-    let target = this.max * (this.panicT > 0 ? 1.7 : 1) * turnK, block = false;
+    // motorlu taşıt kasabada ve şehirde ağır gider
+    const vmax = this.motor && (this.route || this.city) ? Math.min(this.max, 46) : this.max;
+    let target = vmax * (this.panicT > 0 ? 1.7 : 1) * turnK, block = false;
     if (ob) {
       if (ob.kind === 'wagon') {
         const same = Math.cos(angDiff(this.ang, ob.ang)) > 0.2;
@@ -473,7 +509,7 @@ class Wagon extends Ent {
     } else if (rail === 'cross' && !(ob && A.d < 10)) { target = Math.max(target, this.max * 1.2); this.railWaitT = 0; }
     else this.railWaitT = 0;
     this.ang = turnTo(this.ang, a, dt * 2.6);
-    this.spd += clamp(target - this.spd, -90 * dt, 30 * dt);
+    this.spd += clamp(target - this.spd, -90 * dt, (this.motor ? 48 : 30) * dt);
     // son güvence: bu adım başka bir arabayla üst üste binmeyi artırıyorsa atma
     const ox = this.x, oy = this.y, obx = this.bx, oby = this.by, obang = this.bang, ov0 = this.maxOverlap();
     this.x += Math.cos(this.ang) * this.spd * dt; this.y += Math.sin(this.ang) * this.spd * dt;
@@ -488,7 +524,7 @@ class Wagon extends Ent {
       else if (this.jamT > 14) { this.ghostT = 2; this.jamT = 0; }
     } else this.jamT = Math.max(0, (this.jamT || 0) - dt);
     this.ghostT = (this.ghostT || 0) - dt;
-    if (block && P === ob && this.honkT <= 0) { this.honkT = 5; Bubbles.add(this, pick([Tr('Yoldan çekil!'), Tr('Hey! Çekil önümden!'), Tr('Açılın!')]), 2); }
+    if (block && P === ob && this.honkT <= 0) { this.honkT = 5; if (this.motor) this.honk(); Bubbles.add(this, pick(this.motor ? [Tr('Dıt dıt! Çekil yoldan!'), Tr('Hey! Çekil önümden!'), Tr('Açılın!')] : [Tr('Yoldan çekil!'), Tr('Hey! Çekil önümden!'), Tr('Açılın!')]), 2); }
     this.phase += dt * this.spd * 0.15; this.mv = this.spd / 60;
     // hedef noktaya varınca ya da onu geçince (arkada kalınca) bir sonrakine geç
     const d2 = dist2(this.x, this.y, pt[0], pt[1]);
@@ -504,6 +540,15 @@ class Wagon extends Ent {
     if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) G.parts.add('dust', this.bx - Math.cos(this.bang) * 10, this.by - Math.sin(this.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
   }
   draw(ctx) {
+    if (this.motor) {
+      ctx.save(); ctx.translate(this.bx, this.by); ctx.rotate(this.bang);
+      Spr.motor(ctx, this);
+      ctx.restore();
+      // sürücü tentenin altındadır; oyuncu nişan alırken yandan uzanır
+      const st = this.seat, P = G.player;
+      if (this.rider === P && !P.mountAnim && (P.aiming || P.rsAim)) Spr.human(ctx, st.x, st.y, P.ang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ });
+      return;
+    }
     const c = Math.cos(this.ang), s = Math.sin(this.ang);
     // çeki oku: gövdenin önünden atların arasına
     const fx = this.bx + Math.cos(this.bang) * 9, fy = this.by + Math.sin(this.bang) * 9;
@@ -946,14 +991,20 @@ const TownLifeSystems = {
     const n = w.throwDriver();
     n.assaulted = true; n.state = 'flee'; n.t = 10;
     n.say(pick([Tr('Al arabayı, yeter ki vurma!'), Tr('Haydut! Yardım edin!'), Tr('Bunu yanına bırakmam!')]), 2.5);
-    this.crime('horsetheft', w.x, w.y, n);
+    this.crime(w.motor ? 'cartheft' : 'horsetheft', w.x, w.y, n);
     w.owner = 'player';
     this.player.mount(w);
+    this.driveHint(w);
   },
   driveWagon(w) {
-    if (w.owner !== 'player') { this.crime('horsetheft', w.x, w.y); w.owner = 'player'; }
+    if (w.owner !== 'player') { this.crime(w.motor ? 'cartheft' : 'horsetheft', w.x, w.y); w.owner = 'player'; }
     this.player.mount(w);
-    this.hintOnce('wagon', Tr`At arabasını at gibi sürersin: ${Input.glyph('sprint')} ile hızlan, ${Input.glyph('interact')} ile in. Çalıntı arabayı uzakta bırakırsan kaybolur.`, 8);
+    this.driveHint(w);
+  },
+  driveHint(w) {
+    const g = k => Input.glyph(k);
+    if (w.motor) this.hintOnce('motor', Input.device === 'kb' ? Tr`${g('moveUp')} gaz, ${g('moveLeft')} ${g('moveRight')} direksiyon, ${g('moveDown')} fren; durunca basılı tutarsan geri vites. ${g('sprint')} ile hızlan, ${g('interact')} ile in. Çalıntı taşıtı uzakta bırakırsan kaybolur.` : Tr`Sol analogla sür, ${g('sprint')} ile hızlan, ${g('interact')} ile in. Çalıntı taşıtı uzakta bırakırsan kaybolur.`, 9);
+    else this.hintOnce('wagon', Tr`At arabasını at gibi sürersin: ${g('sprint')} ile hızlan, ${g('interact')} ile in. Çalıntı arabayı uzakta bırakırsan kaybolur.`, 8);
   },
   lootWagon(w) {
     const P = this.player;
@@ -975,12 +1026,28 @@ const TownLifeSystems = {
     this.qEvent('loot', w);
   },
 
+  /* ---------------- motor çağı ---------------- */
+  /* Yıla göre yolda ve şehirde motorlu taşıt payı: 1908'de ilk otomobiller, 1946'dan sonra neredeyse hepsi */
+  motorShare(y = this.year) { return clamp((y - 1908) / 38, 0, 0.94); },
+  /* Arabayı otomobile çevirir (tek tip: siyah, tenteli gezinti otomobili). Yük ve posta arabasının yükü (aranabilir)
+     bagajda kalır; şehirde ağır gider */
+  motorize(w) {
+    w.motor = 'car'; w.hc = null; w.body = '#16161a';
+    w.def = { spd: 1.2 };
+    w.max = w.city ? w.max * 1.15 : rnd(62, 74);
+    w.name = Tr('Otomobil');
+    w.bx = undefined; w.trail(true);
+    return w;
+  },
+
   /* ---------------- yol trafiği ---------------- */
   trafficTick() {
     const P = this.player, W = this.world;
     const wagons = this.ents.filter(e => e.kind === 'wagon' && e.owner !== 'player');
     for (const w of this.ents) if (w.kind === 'wagon' && !w.mine && !w.storyWagon && !w.coach && w.rider !== P && dist2(w.x, w.y, P.x, P.y) > (w.owner === 'player' ? 3000 : 1500) ** 2) w.remove = true;
-    if (wagons.length >= 3 || !chance(0.07)) return;
+    // motor çağında yollar daha kalabalık
+    const ms = this.motorShare();
+    if (wagons.length >= 3 + Math.round(ms * 2) || !chance(0.07 * (1 + ms))) return;
     // oyuncunun görüş alanının hemen dışındaki yol noktalarından biri
     const cands = [];
     for (const r of W.roads) {
@@ -994,7 +1061,9 @@ const TownLifeSystems = {
       }
     }
     if (!cands.length) return;
-    const [r, i] = pick(cands);
-    this.addEnt(new Wagon(r, i, chance(0.5) ? 1 : -1, chance(0.35)));
+    const [r, i] = pick(cands), stage = chance(0.35), w = new Wagon(r, i, chance(0.5) ? 1 : -1, stage);
+    // motor çağında arabanın yerini otomobil alır
+    if (chance(ms)) this.motorize(w);
+    this.addEnt(w);
   },
 };

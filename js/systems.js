@@ -418,7 +418,7 @@ const GameSystems = {
     if (type === 'robbery' || type === 'storerob' || type === 'storeNight' || type === 'bankrob') this.townNote(x, y, 'robbery');
     const C = {
       murder: [50, 2, -12, Tr('Cinayet')], murderLaw: [100, 3, -15, Tr('Kanun adamı öldürme')], assault: [5, 1, -3, Tr('Saldırı')], assaultLaw: [10, 2, -4, Tr('Kanun adamına saldırı')],
-      livestock: [3, 0, -3, Tr('Hayvan öldürme'), 1], livestockHurt: [0, 0, -1, ''], horsetheft: [25, 1, -4, Tr('At hırsızlığı')], robbery: [8, 1, -6, Tr('Soygun')],
+      livestock: [3, 0, -3, Tr('Hayvan öldürme'), 1], livestockHurt: [0, 0, -1, ''], horsetheft: [25, 1, -4, Tr('At hırsızlığı')], cartheft: [25, 1, -4, Tr('Araç hırsızlığı')], robbery: [8, 1, -6, Tr('Soygun')],
       storerob: [30, 2, -8, Tr('Dükkan soygunu')], storeNight: [15, 2, -6, Tr('Gece dükkan soygunu')], trespass: [1, 0, -2, Tr('Haneye tecavüz'), 1], bankrob: [200, 4, -15, Tr('Banka soygunu')], looting: [2, 1, -2, Tr('Ceset soyma')], trample: [5, 1, -3, Tr('Ezme')],
     }[type];
     if (!C) return;

@@ -393,6 +393,8 @@ const Cinema = (() => {
       else if (ob === O.PINE || ob === O.SNOWPINE || ob === O.CYPRESS) tree(m, x, z, Y, R.range(0.55, 0.75), 'pine', R);
       else if (ob === O.SAGUARO || ob === O.CACTUS) tree(m, x, z, Y, 0.6, 'saguaro', R);
       else if (ob === O.LAMP) { m.box(x, Y, z, 0.12, 2.4, 0.12, '#2a2a2a'); m.box(x, Y + 2.4, z, 0.36, 0.08, 0.36, '#2a2a2a'); (o.night ? g : m).box(x, Y + 2.1, z, 0.26, 0.3, 0.26, o.night ? '#ffd080' : '#d8d0a0'); }
+      else if (ob === O.ELAMP) { m.box(x, Y, z, 0.14, 3.0, 0.14, '#1e2622'); (o.night ? g : m).box(x, Y + 3.0, z, 0.34, 0.34, 0.34, o.night ? '#fff6e4' : '#e8e6dc'); }
+      else if (ob === O.UPOLE) { m.box(x, Y, z, 0.18, 4.4, 0.18, '#4a3828'); m.box(x, Y + 3.9, z, 1.3, 0.1, 0.12, '#5a4430'); }
       else if (ob === O.WELL) { m.cyl(x, Y, z, 0.6, 0.8, 8, '#8a8070', 'y', '#2a3a4a'); m.box(x, Y + 0.8, z, 0.1, 1.3, 0.1, '#5a3a22'); m.box(x, Y + 2.0, z, 1.2, 0.12, 0.12, '#5a3a22'); }
       else if (ob === O.TROUGH) m.box(x, Y, z, 1.4, 0.55, 0.6, '#6a5040');
       else if (ob === O.FENCEH || ob === O.FENCEV) { const v = ob === O.FENCEV; m.box(x, Y, z, 0.12, 1.0, 0.12, '#6a5038'); m.at(x, Y, z, rot + (v ? Math.PI / 2 : 0), () => { m.box(0, 0.7, 0, 1, 0.08, 0.06, '#7a5a3a'); m.box(0, 0.35, 0, 1, 0.08, 0.06, '#7a5a3a'); }); }
@@ -578,9 +580,10 @@ const Cinema = (() => {
           m.cyl(0, 1.13, 0, wide, 0.035, 12, br);
           if (hat === 'cowboy') for (const s of [-1, 1]) m.box(s * (wide - 0.06), 1.15, 0, 0.1, 0.05, wide * 1.3, br);   // kenarları kalkık
           if (hat === 'bowler') m.cyl(0, 1.16, 0, 0.19, 0.2, 10, c);
+          else if (hat === 'cloche') m.cyl(0, 1.06, 0, 0.2, 0.26, 10, c);   // çan şapka: başa derin oturur
           else if (hat === 'top') m.cyl(0, 1.16, 0, 0.17, S.h3 + 0.04, 12, c);
           else if (hat === 'flat') m.box(0, 1.16, 0, 0.3, 0.12, 0.3, c);
-          else { m.box(0, 1.16, 0, 0.31, 0.12, 0.31, c); m.box(0, 1.28, 0, 0.27, S.h3 - 0.12, 0.28, c); if (hat === 'cowboy') m.box(0, 1.33, 0, 0.07, 0.04, 0.22, shadeHex(c, -0.25)); }
+          else { m.box(0, 1.16, 0, 0.31, 0.12, 0.31, c); m.box(0, 1.28, 0, 0.27, S.h3 - 0.12, 0.28, c); if (hat === 'cowboy' || hat === 'fedora') m.box(0, 1.33, 0, 0.07, 0.04, 0.22, shadeHex(c, -0.25)); }
           m.box(0, 1.165, 0, 0.31, 0.05, 0.31, hat === 'straw' ? shadeHex(hc, -0.1) : '#2a1a10');   // şerit
         }
       }

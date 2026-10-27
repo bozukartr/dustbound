@@ -80,6 +80,8 @@ const SNOW_LINE = 0.6; // kışın bu sıcaklığın altı karla kaplanır
 const O = {
   NONE: 0, PINE: 1, OAK: 2, DEAD: 3, CACTUS: 4, SAGUARO: 5, BUSH: 6, ROCK: 7, BOULDER: 8, CYPRESS: 9, BIRCH: 10, SNOWPINE: 11, DRYBUSH: 12, REED: 13, FLOWERS: 14, TUFT: 15, APPLE: 16,
   BERRY: 20, GINSENG: 21, YARROW: 22, SAGE: 23, MINT: 24, OREGANO: 25, MILKWEED: 26, MUSHROOM: 27, WFLOWER: 28, ORE: 29, CROP: 30, ARTIFACT: 31,
+  // elektrik gelen kasabada: elektrikli sokak lambası ve elektrik direği (js/devworld.js)
+  ELAMP: 32, UPOLE: 33,
   FENCEH: 40, FENCEV: 41, CRATE: 42, BARREL: 43, LAMP: 44, WELL: 45, TROUGH: 46, GRAVE: 47, CAMPFIRE: 48, TENT: 49, HAY: 50, SIGN: 51, WINDMILL: 52, CHEST: 53, POLE: 54,
   RUINWALL: 55, BONES: 56, WAGON: 57, HITCH: 58, BENCH: 59, BIGBONES: 60, SEQUOIA: 61, ARCH: 62, STEAM: 63, GALLOWS: 64, CROSS: 65, BOARD: 66, PUMP: 67, SHIP: 68,
   // iç mekân eşyaları
@@ -98,13 +100,13 @@ const O = {
 const isFurnO = o => (o >= 70 && o <= 93) || (o >= 98 && o <= 127);
 const SOLID_O = new Uint8Array(128);
 [O.PINE, O.OAK, O.DEAD, O.CACTUS, O.SAGUARO, O.BOULDER, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.FENCEH, O.FENCEV, O.CRATE, O.BARREL, O.LAMP, O.WELL, O.TROUGH, O.TENT, O.HAY,
-  O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP, O.LOTSIGN,
+  O.SIGN, O.WINDMILL, O.POLE, O.RUINWALL, O.WAGON, O.HITCH, O.BIGBONES, O.SEQUOIA, O.GALLOWS, O.BOARD, O.PUMP, O.SHIP, O.LOTSIGN, O.ELAMP, O.UPOLE,
   O.COUNTER, O.BAR, O.TABLE, O.PIANO, O.CARDTABLE, O.BED, O.STOVE, O.DESK, O.CELL, O.PEW, O.ALTAR, O.SAFE, O.TUB, O.BCHAIR, O.RACK, O.WORKBENCH, O.STALL, O.TICKET,
   O.SHELF, O.PLANT, O.HOMECHEST, O.IBLOCK, O.MANNEQUIN, O.FOUNTAIN, O.HEDGE, O.STATUE, O.SOFA].forEach(o => (SOLID_O[o] = 1));   // otel merdiveninde yürünür; oda kapısı kapalıyken duvar bandı olur (buildingSolid)
 for (let o = O.ARMCHAIR; o <= O.SCALE; o++) if (o !== O.STOOL) SOLID_O[o] = 1;   // bar taburesinin üstünden geçilir (sandalye gibi)
 /* Gövdesi ince olan nesneler: tam kare yerine gövde boyutunda yuvarlak çarpışır (solid = 5) */
 const TRUNK_O = new Uint8Array(128);
-[O.PINE, O.OAK, O.DEAD, O.CACTUS, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.LAMP, O.POLE, O.SIGN, O.SAGUARO].forEach(o => (TRUNK_O[o] = 1));
+[O.PINE, O.OAK, O.DEAD, O.CACTUS, O.CYPRESS, O.BIRCH, O.SNOWPINE, O.APPLE, O.LAMP, O.POLE, O.SIGN, O.SAGUARO, O.ELAMP, O.UPOLE].forEach(o => (TRUNK_O[o] = 1));
 const TRUNK_R = 3.6, TRUNK_DY = 9;   // gövde yarıçapı ve karo içindeki dikey konumu
 /* Toplanabilirler: eşya, adet aralığı, yenilenme (gün), alet */
 const HARVEST = {

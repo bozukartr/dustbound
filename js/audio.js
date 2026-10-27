@@ -421,7 +421,25 @@ const Audio_ = {
   },
   /* Her karede çağrılır: temayı ve saloon piyanosunu yumuşakça yönetir */
   /* Yakındaki NPC'lerin, atların ve arabaların adım/toynak sesleri: kat edilen yola göre */
+  /* Motor sesi: hıza göre sıklaşan alçak, kaba patpat; uzaklıkla kısılır (gain: oyuncunun sürdüğü otomobilde daha belirgin) */
+  engineTick(e, dt, spd, x, y, gain = 1) {
+    if (!this.ctx) return;
+    const L = this.listener(), d = L ? Math.hypot(x - L.x, y - L.y) : 0;
+    if (d > 320) return;
+    e._eng = (e._eng || 0) + dt * (5 + spd * 0.09);
+    if (e._eng < 1) return;
+    e._eng = 0;
+    this.tone(44 + spd * 0.2 + Math.random() * 6, 0.07, 'sawtooth', 0.03 * gain * (1 - d / 320), this.sfx);
+  },
+  /* Korna: boğuk, aşağı kayan "ööt" */
+  horn(x, y) {
+    if (!this.ctx) return;
+    const L = this.listener(), d = L ? Math.hypot(x - L.x, y - L.y) : 0;
+    this.tone(220, 0.32, 'square', 0.06 * Math.max(0.15, 1 - d / 340), this.sfx, 0, 180);
+  },
   footTick(e, dt) {
+    // motorlu taşıt: sürücüsü varken motor çalışır (dururken rölantide)
+    if (e.motor) { if (e._sx !== undefined && e.driver && !e.driverEnt) { const sp = Math.hypot(e.x - e._sx, e.y - e._sy) / Math.max(dt, 0.001); if (sp < 400) this.engineTick(e, dt, sp, e.x, e.y); } e._sx = e.x; e._sy = e.y; return; }
     if (!this.ctx || !(this.bank.step_dirt || this.bank.hoof_dirt)) return;
     if (e._sx === undefined) { e._sx = e.x; e._sy = e.y; e._fa = 0; return; }
     const d = Math.hypot(e.x - e._sx, e.y - e._sy); e._sx = e.x; e._sy = e.y;

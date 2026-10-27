@@ -280,6 +280,26 @@ const HY = (() => {
         rect(P(x - 3.5), Q(y - 18), 14, 2, rgb('#2a2622'), 21, UP);
         return true;
       }
+      case O.ELAMP: {
+        // elektrikli sokak lambası: döküm ayak, ince direk, tepede gece ışıyan süt camı küre. Yüksekliği 21'de kalır:
+        // ışığın gölge denetimi 22'den alçak engeli saymaz, küre kendi ışığını kesmesin
+        const post = (xx) => xx === P(x - 1) ? rgb('#46524a') : rgb('#1c241f'), fh = facadeH(y + 2), hc = (xx, yy) => Math.min(21, fh(xx, yy));
+        LAYER = 0; rect(P(x - 1), Q(y - 10), 4, Q(y + 2) - Q(y - 10), post, fh, SOUTH);
+        rect(P(x - 2), Q(y - 1), 8, Q(y + 2) - Q(y - 1), rgb('#1c241f'), fh, SOUTH);
+        LAYER = 1; rect(P(x - 1), Q(y - 20), 4, Q(y - 10) - Q(y - 20), post, hc, SOUTH);
+        const gx = P(x), gy = Q(y - 22.4), R = 5.6, inG = (xx, yy) => Math.hypot(xx + 0.5 - gx, yy + 0.5 - gy) <= R;
+        rect(gx - 6, gy - 6, 12, 12, (xx, yy) => inG(xx, yy) ? mixT(rgb('#fffcf2'), rgb('#c4c8c8'), (yy - gy + R) / (R * 2)) : null, hc, SOUTH, (xx, yy) => inG(xx, yy) ? E_WIN : 0);
+        return true;
+      }
+      case O.UPOLE: {
+        // elektrik direği (2D çizimin aynısı); yüksekliği 21'de kalır: lambaların ışığını kesip merdiven gölge düşürmesin
+        const fh = facadeH(y + 2), hc = (xx, yy) => Math.min(21, fh(xx, yy)), wood = (xx) => xx === P(x - 1) ? rgb('#6a5038') : rgb('#4a3828');
+        LAYER = 0; rect(P(x - 1), Q(y - 6), 4, Q(y + 2) - Q(y - 6), wood, fh, SOUTH);
+        LAYER = 1; rect(P(x - 1), Q(y - 31), 4, Q(y - 6) - Q(y - 31), wood, hc, SOUTH);
+        rect(P(x - 6), Q(y - 27), 24, 3, (xx, yy) => yy === Q(y - 27) ? rgb('#6e5440') : rgb('#4e3a2a'), hc, SOUTH);
+        for (const dx of [-5.2, 3.8]) rect(P(x + dx), Q(y - 28.6), 3, 3, rgb('#86a898'), hc, SOUTH);
+        return true;
+      }
       case O.HITCH: {
         LAYER = 0;
         for (const px of [x - 8, x + 6.5]) rect(P(px), Q(y - 6), 3, Q(y + 2) - Q(y - 6), (xx) => xx === P(px) ? rgb('#7a5838') : rgb('#4a3220'), facadeH(y + 2), SOUTH);
@@ -1067,7 +1087,7 @@ const HY = (() => {
       if (L.hat === 'bonnet') { P.push({ e: [-0.8, 0, 3.6, 3.3], col: hc, h: 27, dome: 2 }); P.push({ e: [1.4, 0, 1.3, 2.9], col: sh(hc, 0.18), h: 27.5 }); }
       else {
         P.push({ e: [0.2, 0, Sx.br, Sx.br * 0.95], col: (x, y) => Math.hypot(x - 0.2, y) > Sx.br - 0.6 ? shT(hc, -0.22) : hc, h: 26, dome: 0.6 });
-        P.push({ e: [-0.2, 0, 2.6, 2.4], col: (x, y) => Math.abs(Math.hypot(x + 0.2, y) - 2.2) < 0.35 ? rgb('#2a1a10') : (L.hat === 'cowboy' || L.hat === 'wide' || L.hat === 'straw') && Math.abs(y) < 0.45 ? shT(hc, 0.22) : shT(hc, -0.12), h: L.hat === 'top' ? 31 : 29, dome: 2.5 });
+        P.push({ e: [-0.2, 0, 2.6, 2.4], col: (x, y) => Math.abs(Math.hypot(x + 0.2, y) - 2.2) < 0.35 ? rgb('#2a1a10') : (L.hat === 'cowboy' || L.hat === 'wide' || L.hat === 'straw') && Math.abs(y) < 0.45 ? shT(hc, 0.22) : L.hat === 'fedora' && Math.abs(y) < 0.4 && x > -1.6 && x < 1.2 ? shT(hc, -0.42) : shT(hc, -0.12), h: L.hat === 'top' ? 31 : 29, dome: 2.5 });
       }
     } else {
       P.push({ e: [1.9, 0, 1.3, 1.9], col: L.mask === 'bandana' ? rgb('#a8281f') : skin, h: 25, dome: 1 });
@@ -1315,7 +1335,7 @@ const HY = (() => {
     const IB = G.insideB;
     for (const L of W.lightsIn(x0, y0 - 40, x0 + vw, y0 + vh + 60)) {
       if (L.type === 'window') { if (night && Juice.windowLit(L) && !IB) add(L.x, L.y + 22, 6, L.r * 1.35, [1.0, 0.75, 0.42], 1.0 * nk); }
-      else if (L.type === 'lamp') { if (night && !L.off) add(L.x, L.y + 6, 14, 84 * Juice.flicker(L.x + L.y, G.t * 0.6, 0.035), [1.0, 0.72, 0.42], 1.7 * nk); }
+      else if (L.type === 'lamp') { if (night && !L.off) { if (L.el) add(L.x, L.y + 6, 22, 104, [0.94, 0.95, 1.0], 1.8 * nk); else add(L.x, L.y + 6, 14, 84 * Juice.flicker(L.x + L.y, G.t * 0.6, 0.035), [1.0, 0.72, 0.42], 1.7 * nk); } }   // elektrikli lamba beyaz ve titremez
       else if (L.type === 'inner') { if (IB && IB.id === L.b) add(L.x, L.y, 30, L.r * 1.5, [1.0, 0.8, 0.52], night ? 1.5 : 0.2, true); }
       else if (L.type === 'hearth') { if (IB && IB.id === L.b && !(G.upB && G.upB.id === L.b)) add(L.x, L.y, 10, L.r * 1.3 * Juice.flicker(L.x + L.y * 0.3, G.t, 0.07), [1.0, 0.6, 0.3], night ? 1.2 : 0.35, true); }
       else if (L.type === 'fire') add(L.x, L.y, 8, L.r * 1.2 * Juice.flicker(L.x, G.t, 0.08), [1.0, 0.6, 0.28], 0.4 + nk);
@@ -1329,6 +1349,8 @@ const HY = (() => {
     else if (night && !IB) add(P.x, P.y, 18, 40, [0.75, 0.78, 0.95], 0.5 * nk);
     if (G.fx.muzzle > 0) add(P.x + Math.cos(P.aimAng || P.ang) * 10, P.y + Math.sin(P.aimAng || P.ang) * 10, 14, 90, [1.0, 0.9, 0.6], Math.min(1.6, G.fx.muzzle * 14));
     for (const tr of G.trains) if (tr.pos[0] && night) { const [x, y, a] = tr.pos[0]; add(x + Math.cos(a) * 40, y + Math.sin(a) * 40, 10, 80, [1.0, 0.95, 0.8], 0.9); }
+    // motorlu taşıtların farları (motoru çalışırken)
+    if (night) for (const e of G.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt) add(e.x + Math.cos(e.ang) * 22, e.y + Math.sin(e.ang) * 22, 8, 62, [1.0, 0.95, 0.82], 0.95 * nk);
     const cx = x0 + vw / 2, cy = y0 + vh / 2;
     out.sort((a, b) => (b.inner - a.inner) || dist2(a.x, a.y, cx, cy) - dist2(b.x, b.y, cx, cy));
     return out.slice(0, NL);
