@@ -668,13 +668,14 @@ class Player extends Ent {
     // Klavyede dizginle sürülür: W (ileri) gaz verir, A/D atın başını sola/sağa çevirir (dururken yerinde döner), S
     // frendir; durunca basılı tutulursa at (araba) geri geri gider (h.back). Kol analoğu mutlak yöndür: at analoğun
     // gösterdiği yöne döner, eğim hızı belirler. urge: binici atı sürüyor (dörtnaldan sert duruşta şahlanma için)
-    let urge = false, brake = false, gal = false;
+    let urge = false, brake = false, gal = false, steer = 0;   // steer: otomobilin ön tekerlek açısı (direksiyon girdisi)
     const wantGal = I.down('sprint') && h.sta > 2;
     if (mv.kb && mv.m > 0.1) {
       const fwd = mv.y < -0.1 ? 1 : mv.y > 0.1 ? -1 : 0, turn = mv.x > 0.1 ? 1 : mv.x < -0.1 ? -1 : 0;
       // dönüş hızı: dörtnalda geniş, adımda ve tırısta keskin, dururken yerinde; araba daha ağır döner. Motorlu taşıt
       // yerinde dönmez (hızla açılır) ve geri viteste direksiyon gerçek arabadaki gibi burnu ters yöne çevirir
       if (turn) h.ang += turn * (h.motor ? 1.9 * clamp(h.spd / 45, 0, 1) * (h.back ? -1 : 1) : (h.spd > 130 ? 1.35 : h.spd > 12 ? 1.9 : 1.6) * (h.kind === 'wagon' ? 0.75 : 1)) * dt;
+      steer = turn * 0.5;   // tekerlekler dururken de kırılır; geri viteste de tuşun yönüne bakar
       if (fwd > 0 && !(h.back && h.spd > 2)) {
         h.back = false; urge = true; gal = wantGal;
         target = (gal ? 165 * B.spd * sBonus : 95 * B.spd) * (turn ? 0.85 : 1);
@@ -686,11 +687,14 @@ class Player extends Ent {
         h.back = false; urge = true; gal = wantGal;
         const want = Math.atan2(mv.y, mv.x);
         h.ang = turnTo(h.ang, want, (h.spd > 130 ? 2.4 : 3.6) * (h.motor ? clamp(h.spd / 45, 0.15, 1) : 1) * dt);
+        steer = clamp(angDiff(h.ang, want) * 1.5, -0.5, 0.5);
         const align = Math.max(0, Math.cos(angDiff(h.ang, want)));
         target = (gal ? 165 * B.spd * sBonus : mv.m > 0.6 ? 95 * B.spd : mv.m > 0.25 ? 60 : 36) * (0.4 + 0.6 * align);
       }
     }
     this.galloping = gal;
+    // otomobilin ön tekerlekleri direksiyonu izler, bırakınca yavaşça ortaya döner (çizim: Spr.motor)
+    if (h.motor) h.steer = (h.steer || 0) + (steer - (h.steer || 0)) * Math.min(1, dt * (steer ? 10 : 5));
     if (gal && !h.motor) { h.sta = Math.max(0, h.sta - dt * 9 * (G.hasPerk('rider') ? 0.75 : 1) * (1 - riding * 0.03)); }   // motor yorulmaz
     else h.sta = Math.min(h.maxSta, h.sta + dt * (urge ? 4 : 7));
     if (this.aiming) target = Math.min(target, 70);

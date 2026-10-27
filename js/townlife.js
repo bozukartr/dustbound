@@ -415,11 +415,13 @@ class Wagon extends Ent {
   }
   /* Korna (yakındaysa duyulur) */
   honk() { const P = G.player; if (P && dist2(this.x, this.y, P.x, P.y) < 340 * 340) Audio_.horn(this.x, this.y); }
-  /* Motorlu taşıtın kare başına süsü: ön tekerleklerin dönüşü (yön değişiminden), egzoz dumanı */
+  /* Motorlu taşıtın kare başına süsü: ön tekerleklerin dönüşü, egzoz dumanı. Oyuncu sürerken tekerlek açısını
+     direksiyon verir (updateRiding); NPC'nin otomobilinde yön değişiminden tahmin edilir; park etmiş, sürücüsüz
+     otomobil tekerleğini bırakıldığı açıda tutar */
   motorFx(dt) {
     const da = this._pa === undefined ? 0 : angDiff(this._pa, this.ang);
     this._pa = this.ang;
-    this.steer = (this.steer || 0) + (clamp(da / Math.max(dt, 0.001) * 0.3, -0.5, 0.5) - (this.steer || 0)) * Math.min(1, dt * 8);
+    if (this.driver && !this.rider) this.steer = (this.steer || 0) + (clamp(da / Math.max(dt, 0.001) * 0.3, -0.5, 0.5) - (this.steer || 0)) * Math.min(1, dt * 8);
     if (this.spd > 4 && Math.random() < dt * (2 + this.spd * 0.04) && G.onScreen(this.x, this.y, 40)) {
       const c = Math.cos(this.bang), s = Math.sin(this.bang), r = CAR_DIM.len / 2 + 1;
       G.parts.add('smoke', this.bx - c * r + s * 3, this.by - s * r - c * 3, -c * 6 + rnd(-3, 3), -s * 6 + rnd(-3, 3), 1.1, 1.6, 'rgba(90,90,96,0.5)');

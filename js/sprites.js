@@ -2561,17 +2561,19 @@ const Spr = {
     this.shadow(ctx, 0.8, 1.6, CAR_DIM.len / 2 + 0.4, CAR_DIM.w / 2 + 0.6, 0.24);
     for (const sy of [-1, 1]) {
       const Y = (a, b) => Math.min(sy * a, sy * b);   // |y| a..b aralığının üst kenarı
-      // ince, yüksek tekerlekler (öndekiler direksiyonla döner); dış yarıları çamurluğun dışında kalır
+      // ince, yüksek tekerlekler; dış yarıları çamurluğun dışında kalır. Ön tekerlekler direksiyonla döner (w.steer):
+      // dönük ön lastik çamurluğun yanından eğik taşar
       for (const ax of [FA, RA]) {
-        ctx.save(); ctx.translate(ax, sy * 5.4); if (ax === FA) ctx.rotate(w.steer || 0);
-        R(-3, -0.6, 6, 1.2, tire); R(-0.5, -0.6, 1, 1.2, '#3a342c');
+        const front = ax === FA;
+        ctx.save(); ctx.translate(ax, sy * (front ? 5.75 : 5.5)); if (front) ctx.rotate(w.steer || 0);
+        R(-3, -0.65, 6, 1.3, tire); R(-0.5, -0.65, 1, 1.3, '#3a342c');
         ctx.restore();
       }
       // basamak (kaburgalı) ve çamurluklar
       R(-5.4, Y(4, 5.3), 11.2, 1.3, '#4a443a'); R(-5.4, Y(4.95, 5.3), 11.2, 0.35, '#8c8678');
       ctx.fillStyle = '#36312a'; for (let x = -4.8; x < 5.6; x += 1.6) ctx.fillRect(x, Y(4, 4.95), 0.6, 0.95);
-      rr(5.6, Y(3.9, 5.7), 7.2, 1.8, 0.9, blk); R(6.4, Y(4.6, 5), 5.6, 0.4, gloss);
-      rr(-12.2, Y(3.9, 5.7), 7.2, 1.8, 0.9, blk); R(-11.4, Y(4.6, 5), 5.6, 0.4, gloss);
+      rr(5.6, Y(3.9, 5.3), 7.2, 1.4, 0.7, blk); R(6.4, Y(4.4, 4.8), 5.6, 0.4, gloss);
+      rr(-12.2, Y(3.9, 5.5), 7.2, 1.6, 0.8, blk); R(-11.4, Y(4.5, 4.9), 5.6, 0.4, gloss);
     }
     // gövde ve kaputa daralan ön panel
     rr(-13, -4, 15.8, 8, 1.3, blk);

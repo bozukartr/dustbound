@@ -1,8 +1,8 @@
 'use strict';
 /* Motor çağı: 1908'den sonra yollarda ve şehirlerde arabaların yerini yıllar geçtikçe artan payla tek tip otomobil alır
    (siyah, tenteli, atsız, gövdesi katı). Ahır motor çağında otomobil satar; otomobil kayıtta kalır. Sürüş: W gaz,
-   dururken direksiyon dönmez, A/D yalnızca giderken çevirir, S fren ve geri vites; otomobil yorulmaz. NPC'nin
-   otomobilini almak araç hırsızlığıdır. */
+   A/D otomobili yalnızca giderken çevirir, S fren ve geri vites; otomobil yorulmaz. Ön tekerlekler direksiyonu izler
+   (dururken de kırılır, geri viteste tuşun yönüne bakar). NPC'nin otomobilini almak araç hırsızlığıdır. */
 module.exports = {
   name: 'Motor çağı: otomobil',
   timeout: 300000,
@@ -19,7 +19,7 @@ module.exports = {
           const h = G.myCar; h.x = P.x; h.y = P.y; h.ang = 0; h.spd = 0; h.back = false; h.trail(true);
           P.mount(h, true); P.mountAnim = null; P.ang = 0;
         },
-        st() { const h = G.player.riding; return { x: Math.round(h.x), y: Math.round(h.y), ang: +h.ang.toFixed(3), spd: Math.round(h.spd), back: !!h.back, sta: h.sta, max: h.maxSta, motor: h.motor }; },
+        st() { const h = G.player.riding; return { x: Math.round(h.x), y: Math.round(h.y), ang: +h.ang.toFixed(3), spd: Math.round(h.spd), back: !!h.back, sta: h.sta, max: h.maxSta, motor: h.motor, steer: +(h.steer || 0).toFixed(3) }; },
       };
     });
     const st = () => p.evaluate(() => MT.st());
@@ -86,7 +86,7 @@ module.exports = {
       t.ok(a.ok && a.motor === 'car' && a.mine && a.body === '#16161a', 'yüklemeden sonra otomobil yerinde', a);
     });
 
-    await t.step('sürüş: dururken direksiyon dönmez; W gaz; W ile A sola kavis; Shift ile hızlanınca yorulmaz', async () => {
+    await t.step('sürüş: dururken otomobil yerinde dönmez; W gaz; W ile A sola kavis; Shift ile hızlanınca yorulmaz', async () => {
       await p.evaluate(() => MT.drive());
       const a = await st();
       await hold(['KeyD'], 600);
@@ -118,6 +118,35 @@ module.exports = {
       t.ok(a.spd > 30 && b.back && b.spd > 15 && b.x < b0.x - 15, 'S basılı: durur, sonra geri gider', { a, b0, b });
       t.ok(c.ang > 0.05, 'geri giderken A: burun sağa döner (direksiyon ters)', c);
       t.ok(d.spd < 3 && !d.back, 'S bırakılınca durur', d);
+    });
+
+    await t.step('ön tekerlekler direksiyonu izler: dururken de kırılır, bırakınca ortaya döner, geri viteste tuşun yönüne bakar', async () => {
+      await p.evaluate(() => MT.drive());
+      await down('KeyA'); await t.sleep(600);
+      const a = await st();
+      await up('KeyA'); await t.sleep(900);
+      const b = await st();
+      await down('KeyD'); await t.sleep(600);
+      const c = await st();
+      await up('KeyD'); await t.sleep(800);
+      t.ok(a.steer < -0.4 && Math.abs(a.ang) < 0.02, 'dururken A: tekerlekler sola kırılır, otomobil dönmez', a);
+      t.ok(Math.abs(b.steer) < 0.05, 'bırakınca ortaya döner', b);
+      t.ok(c.steer > 0.4, 'D: sağa kırılır', c);
+      await down('KeyS'); await t.sleep(2400); await down('KeyA'); await t.sleep(700);
+      const d = await st();
+      await up('KeyA'); await up('KeyS');
+      t.ok(d.back && d.steer < -0.4 && d.ang > 0.05, 'geri viteste A: tekerlek sola bakar, burun sağa döner', d);
+      // park edip inince tekerlek bırakıldığı açıda kalır; NPC'nin otomobilinde açı dönüş yönünden gelir
+      const e = await p.evaluate(() => {
+        const P = G.player, h = P.riding; h.steer = -0.45; P.dismount(); P.mountAnim = null;
+        for (let i = 0; i < 30; i++) G.update(1 / 30);
+        const kept = h.steer;
+        const w = G.motorize(new Wagon(null, 0, 1, false, { x: P.x + 200, y: P.y, ang: 0 })); w.driver = { look: randomLook('m'), name: 'X' };
+        w.motorFx(1 / 30); for (let i = 0; i < 20; i++) { w.ang += 0.04; w.motorFx(1 / 30); }
+        return { kept, npc: w.steer };
+      });
+      t.ok(Math.abs(e.kept + 0.45) < 0.01, 'park etmiş otomobilin tekerleği bırakıldığı açıda kalır', e);
+      t.ok(e.npc > 0.2, 'NPC otomobili sağa dönerken tekerlekleri sağa bakar', e);
     });
 
     await t.step('NPC otomobilini almak araç hırsızlığıdır', async () => {
