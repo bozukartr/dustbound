@@ -1,7 +1,8 @@
 'use strict';
 /* Motor çağı: 1908'den sonra yollarda ve şehirlerde arabaların yerini yıllar geçtikçe artan payla tek tip otomobil alır
    (siyah, tenteli, atsız, gövdesi katı). Ahır motor çağında otomobil satar; otomobil kayıtta kalır. Sürüş: W gaz,
-   A/D otomobili yalnızca giderken çevirir, S fren ve geri vites; otomobil yorulmaz. Ön tekerlekler direksiyonu izler
+   A/D otomobili yalnızca giderken çevirir, S fren ve geri vites; otomobil yorulmaz, arkadan itişlidir (arka dingilinin
+   çevresinde döner; yoldaki otomobilde arka dingil ön noktayı sürüklenerek izler). Ön tekerlekler direksiyonu izler
    (dururken de kırılır, geri viteste tuşun yönüne bakar). NPC'nin otomobilini almak araç hırsızlığıdır. */
 module.exports = {
   name: 'Motor çağı: otomobil',
@@ -118,6 +119,45 @@ module.exports = {
       t.ok(a.spd > 30 && b.back && b.spd > 15 && b.x < b0.x - 15, 'S basılı: durur, sonra geri gider', { a, b0, b });
       t.ok(c.ang > 0.05, 'geri giderken A: burun sağa döner (direksiyon ters)', c);
       t.ok(d.spd < 3 && !d.back, 'S bırakılınca durur', d);
+    });
+
+    await t.step('arkadan itişli: dönerken arka dingil izinde kalır, burun dönüşün içine girer; yoldaki otomobilde arka dingil ön noktayı sürüklenerek izler', async () => {
+      await p.evaluate(() => MT.drive());
+      await down('KeyW'); await t.sleep(900); await down('KeyA');
+      const r = await p.evaluate(async () => {
+        const h = G.player.riding, L = CAR_DIM.l + CAR_DIM.ra, S = [];
+        for (let i = 0; i < 12; i++) { S.push([h.x, h.y, h.ang]); await new Promise(res => setTimeout(res, 80)); }
+        // arka dingilin ve ön noktanın gövdeye dik (yanal) yer değiştirmesi, yol boyunca toplam
+        let rearLat = 0, frontLat = 0, path = 0;
+        for (let i = 1; i < S.length; i++) {
+          const [x0, y0, a0] = S[i - 1], [x1, y1, a1] = S[i], am = a0 + angDiff(a0, a1) / 2, nx = -Math.sin(am), ny = Math.cos(am);
+          const r0 = [x0 - Math.cos(a0) * L, y0 - Math.sin(a0) * L], r1 = [x1 - Math.cos(a1) * L, y1 - Math.sin(a1) * L];
+          rearLat += Math.abs((r1[0] - r0[0]) * nx + (r1[1] - r0[1]) * ny); frontLat += Math.abs((x1 - x0) * nx + (y1 - y0) * ny);
+          path += Math.hypot(r1[0] - r0[0], r1[1] - r0[1]);
+        }
+        return { rearLat, frontLat, path, turned: angDiff(S[0][2], S[S.length - 1][2]) };
+      });
+      await up('KeyA'); await up('KeyW');
+      t.ok(r.turned < -0.4 && r.path > 20, 'sola döner ve ilerler', r);
+      t.ok(r.rearLat < r.path * 0.08, 'arka dingil yana kaymaz', r);
+      t.ok(r.frontLat > r.rearLat * 3, 'burun dönüşün içine girer', r);
+      // yolda giden NPC otomobili: ön nokta viraja girince gövde geriden gelir, arka dingil yana kaymaz
+      const n = await p.evaluate(() => {
+        const P = G.player, w = G.motorize(new Wagon(null, 0, 1, false, { x: P.x + 300, y: P.y, ang: 0 }));
+        w.trail(true);
+        const rear = () => [w.bx - Math.cos(w.bang) * CAR_DIM.ra, w.by - Math.sin(w.bang) * CAR_DIM.ra];
+        let lag = 0, slip = 0, path = 0;
+        for (let i = 0; i < 60; i++) {
+          const r0 = rear(), b0 = w.bang;
+          w.ang += 0.03; w.x += Math.cos(w.ang) * 1.6; w.y += Math.sin(w.ang) * 1.6; w.trail();
+          const r1 = rear(), am = b0 + angDiff(b0, w.bang) / 2;
+          slip += Math.abs((r1[0] - r0[0]) * -Math.sin(am) + (r1[1] - r0[1]) * Math.cos(am)); path += Math.hypot(r1[0] - r0[0], r1[1] - r0[1]);
+          lag = Math.max(lag, angDiff(w.bang, w.ang));
+        }
+        return { lag, slip, path };
+      });
+      t.ok(n.lag > 0.15, 'gövde ön noktanın gidişinin gerisinden gelir', n);
+      t.ok(n.slip < n.path * 0.05, 'arka dingil yana kaymaz', n);
     });
 
     await t.step('ön tekerlekler direksiyonu izler: dururken de kırılır, bırakınca ortaya döner, geri viteste tuşun yönüne bakar', async () => {

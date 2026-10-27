@@ -279,8 +279,9 @@ const Bubbles = {
    Motor çağında (1908'den sonra, yıllar geçtikçe artan payla) arabaların yerini otomobil alır. Tek tip otomobil vardır:
    siyah, tenteli, uzun ince kaputlu, pirinç radyatörlü bir gezinti otomobili (motor: 'car'). Atsızdır, gövdesi katıdır
    (dorse gibi sürüklenmez); sürücü tentenin altındadır. */
-/* Otomobil ölçüleri: l ön noktanın (x, y) gövde ortasına (bx, by) uzaklığı, len boy, w en (kuşbakışı) */
-const CAR_DIM = { l: 10, len: 26, w: 12 };
+/* Otomobil ölçüleri: l ön noktanın (x, y) gövde ortasına (bx, by) uzaklığı, ra arka dingilin gövde ortasının arkasında
+   kalan uzaklığı, len boy, w en (kuşbakışı). Otomobil arkadan itişlidir: arka dingilin çevresinde döner (yana kaymaz) */
+const CAR_DIM = { l: 10, ra: 8.6, len: 26, w: 12 };
 class Wagon extends Ent {
   constructor(road, i, dir, stage, at) {
     super(road ? road.pts[i][0] : at.x, road ? road.pts[i][1] : at.y);
@@ -316,8 +317,18 @@ class Wagon extends Ent {
   /* x, y ve ang atların (çekici) konumu ve yönüdür. Araba gövdesi (bx, by, bang) atların
      arkasındaki çeki demirine bağlıdır ve tır dorsesi gibi arkadan sürüklenir: atlar döner, araba izler. */
   trail(init) {
-    // motorlu taşıt: gövde katı, ön noktanın tam arkasında
-    if (this.motor) { const l = CAR_DIM.l; this.bang = this.ang; this.bx = this.x - Math.cos(this.ang) * l; this.by = this.y - Math.sin(this.ang) * l; return; }
+    // otomobil: oyuncu sürerken gövde ön noktanın tam arkasındadır (dönüşü arka dingilin çevresinde: updateRiding);
+    // yolda giden otomobilde arka dingil ön noktanın izinden sürüklenir: arka tekerlekler yana kaymaz, virajın içinden geçer
+    if (this.motor) {
+      const l = CAR_DIM.l, ra = CAR_DIM.ra;
+      if (init || this.bx === undefined || this.rider === G.player) this.bang = this.ang;
+      else {
+        this.bang = Math.atan2(this.y - (this.by - Math.sin(this.bang) * ra), this.x - (this.bx - Math.cos(this.bang) * ra));
+        this.bang = this.ang - clamp(angDiff(this.bang, this.ang), -0.6, 0.6);   // direksiyon kilidi: keskin köşede arka biraz savrulur
+      }
+      this.bx = this.x - Math.cos(this.bang) * l; this.by = this.y - Math.sin(this.bang) * l;
+      return;
+    }
     const hx = this.x - Math.cos(this.ang) * 8, hy = this.y - Math.sin(this.ang) * 8;
     if (init || this.bx === undefined) this.bang = this.ang;
     else this.bang = Math.atan2(hy - this.by, hx - this.bx);
@@ -416,12 +427,10 @@ class Wagon extends Ent {
   /* Korna (yakındaysa duyulur) */
   honk() { const P = G.player; if (P && dist2(this.x, this.y, P.x, P.y) < 340 * 340) Audio_.horn(this.x, this.y); }
   /* Motorlu taşıtın kare başına süsü: ön tekerleklerin dönüşü, egzoz dumanı. Oyuncu sürerken tekerlek açısını
-     direksiyon verir (updateRiding); NPC'nin otomobilinde yön değişiminden tahmin edilir; park etmiş, sürücüsüz
-     otomobil tekerleğini bırakıldığı açıda tutar */
+     direksiyon verir (updateRiding); NPC'nin otomobilinde ön noktanın gidişiyle gövdenin arasındaki açıdır (arka dingil
+     sürüklendiği için bu tam direksiyon açısıdır); park etmiş, sürücüsüz otomobil tekerleğini bırakıldığı açıda tutar */
   motorFx(dt) {
-    const da = this._pa === undefined ? 0 : angDiff(this._pa, this.ang);
-    this._pa = this.ang;
-    if (this.driver && !this.rider) this.steer = (this.steer || 0) + (clamp(da / Math.max(dt, 0.001) * 0.3, -0.5, 0.5) - (this.steer || 0)) * Math.min(1, dt * 8);
+    if (this.driver && !this.rider) this.steer = (this.steer || 0) + (clamp(angDiff(this.bang, this.ang), -0.5, 0.5) - (this.steer || 0)) * Math.min(1, dt * 8);
     if (this.spd > 4 && Math.random() < dt * (2 + this.spd * 0.04) && G.onScreen(this.x, this.y, 40)) {
       const c = Math.cos(this.bang), s = Math.sin(this.bang), r = CAR_DIM.len / 2 + 1;
       G.parts.add('smoke', this.bx - c * r + s * 3, this.by - s * r - c * 3, -c * 6 + rnd(-3, 3), -s * 6 + rnd(-3, 3), 1.1, 1.6, 'rgba(90,90,96,0.5)');

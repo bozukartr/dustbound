@@ -335,6 +335,8 @@ class Player extends Ent {
     if (this.carry && !(h.mine ? G.stowOnWagon(h) : G.stowOnHorse(h))) return;
     this.riding = h; h.rider = this; h.state = 'idle';
     this.crouch = false; h.spd *= 0.3; h.back = false;
+    // otomobilde yön gövdeye oturur (yolda sürüklenen gövdenin açısı ön noktanınkinden biraz farklı olabilir)
+    if (h.motor && h.bx !== undefined) { h.ang = h.bang; h.x = h.bx + Math.cos(h.bang) * CAR_DIM.l; h.y = h.by + Math.sin(h.bang) * CAR_DIM.l; }
     const d = dist(this.x, this.y, h.x, h.y);
     if (instant || d < 2) { this.x = h.x; this.y = h.y; this.ang = h.ang; }
     else this.mountAnim = { on: true, h, t: 0, dur: 0.34 + Math.min(0.3, d / 140), fx: this.x, fy: this.y, fa: this.ang };
@@ -670,11 +672,19 @@ class Player extends Ent {
     // gösterdiği yöne döner, eğim hızı belirler. urge: binici atı sürüyor (dörtnaldan sert duruşta şahlanma için)
     let urge = false, brake = false, gal = false, steer = 0;   // steer: otomobilin ön tekerlek açısı (direksiyon girdisi)
     const wantGal = I.down('sprint') && h.sta > 2;
+    // yön değişimi: at (ve atın çektiği araba) olduğu yerde döner; otomobil arkadan itişlidir, arka dingilinin çevresinde
+    // döner: arka tekerlekler izinde kalır, burun dönüşün içine girer
+    const yaw = (da) => {
+      if (!h.motor) { h.ang += da; return; }
+      const L = CAR_DIM.l + CAR_DIM.ra, c0 = Math.cos(h.ang), s0 = Math.sin(h.ang);
+      h.ang += da;
+      h.move(L * (Math.cos(h.ang) - c0), L * (Math.sin(h.ang) - s0));
+    };
     if (mv.kb && mv.m > 0.1) {
       const fwd = mv.y < -0.1 ? 1 : mv.y > 0.1 ? -1 : 0, turn = mv.x > 0.1 ? 1 : mv.x < -0.1 ? -1 : 0;
       // dönüş hızı: dörtnalda geniş, adımda ve tırısta keskin, dururken yerinde; araba daha ağır döner. Motorlu taşıt
       // yerinde dönmez (hızla açılır) ve geri viteste direksiyon gerçek arabadaki gibi burnu ters yöne çevirir
-      if (turn) h.ang += turn * (h.motor ? 1.9 * clamp(h.spd / 45, 0, 1) * (h.back ? -1 : 1) : (h.spd > 130 ? 1.35 : h.spd > 12 ? 1.9 : 1.6) * (h.kind === 'wagon' ? 0.75 : 1)) * dt;
+      if (turn) yaw(turn * (h.motor ? 1.9 * clamp(h.spd / 45, 0, 1) * (h.back ? -1 : 1) : (h.spd > 130 ? 1.35 : h.spd > 12 ? 1.9 : 1.6) * (h.kind === 'wagon' ? 0.75 : 1)) * dt);
       steer = turn * 0.5;   // tekerlekler dururken de kırılır; geri viteste de tuşun yönüne bakar
       if (fwd > 0 && !(h.back && h.spd > 2)) {
         h.back = false; urge = true; gal = wantGal;
@@ -686,7 +696,7 @@ class Player extends Ent {
       else {
         h.back = false; urge = true; gal = wantGal;
         const want = Math.atan2(mv.y, mv.x);
-        h.ang = turnTo(h.ang, want, (h.spd > 130 ? 2.4 : 3.6) * (h.motor ? clamp(h.spd / 45, 0.15, 1) : 1) * dt);
+        yaw(angDiff(h.ang, turnTo(h.ang, want, (h.spd > 130 ? 2.4 : 3.6) * (h.motor ? clamp(h.spd / 45, 0.15, 1) : 1) * dt)));
         steer = clamp(angDiff(h.ang, want) * 1.5, -0.5, 0.5);
         const align = Math.max(0, Math.cos(angDiff(h.ang, want)));
         target = (gal ? 165 * B.spd * sBonus : mv.m > 0.6 ? 95 * B.spd : mv.m > 0.25 ? 60 : 36) * (0.4 + 0.6 * align);
