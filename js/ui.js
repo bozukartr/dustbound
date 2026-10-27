@@ -1677,13 +1677,15 @@ const UI = {
     return `<div class="jr-row">${Tr`<b>Nüfuz:</b> ${L.n} (${v})`}<div class="infbar"><i style="width:${v}%"></i>${INF_LV.slice(1).map(l => `<b style="left:${l.min}%"></b>`).join('')}</div>`
       + `<div class="jr-sm">${Tr`Servet ${sg(p.wealth)} · Onur ${sg(p.honor)} · Varlıklar ${sg(p.assets)}`}${p.taint ? ' · ' + Tr`Skandal ${sg(p.taint)}` : ''}${t && lv !== v ? ' · ' + Tr`${t.n} kasabasında ${lv}` : ''}</div><div class="jr-sm">${L.d}</div></div>`;
   },
-  /* Rüşvet söylentileri ve skandal lekesi (js/influence.js) */
+  /* Rüşvet söylentileri, maaştaki şerifler ve skandal lekesi (js/influence.js) */
   heatRow() {
     const I = G.infl;
     if (!I) return '';
     const hs = Object.keys(I.heat).filter(k => I.heat[k] >= 2).map(k => { const t = G.bizTown(k); return t ? `${t.n}: ${G.heatWord(I.heat[k])}` : ''; }).filter(Boolean);
     let h = '';
     if (hs.length) h += `<div class="jr-row jr-sm">${Tr`<b>Rüşvet söylentileri:</b> ${hs.join(' · ')}`}</div>`;
+    const ps = Object.keys(I.pay).map(k => { const t = G.bizTown(k); return t ? Tr`${t.n} (${fmtMoney(I.pay[k].w)}/gün)` : ''; }).filter(Boolean);
+    if (ps.length) h += `<div class="jr-row jr-sm">${Tr`<b>Maaştaki şerifler:</b> ${ps.join(' · ')}`}</div>`;
     if (I.taint > G.year) h += `<div class="jr-row jr-sm st-low">${Tr`Skandal lekesi: nüfuzun ${I.taint} yılına kadar ${BRIBE.taint} düşük.`}</div>`;
     return h;
   },
@@ -2232,6 +2234,15 @@ const UI = {
           const bt = G.bizTown(b.town), cop = G.officeCop(b), why = G.bribeWhy(bt), pr = G.bribePrice(bt);
           if (G.infLv(G.influence(bt)) >= 1 && !(cop && cop.bribeTried)) it.push({ icon: '💰', label: Tr('Dosyayı Kapat (Rüşvet)'), right: fmtMoney(pr), disabled: !!why || P.money < pr, why: why || Tr('Yeterli paran yok.'), fn: () => { if (G.bribeLaw(cop, bt) === 'honest') this.closeAll(); } });
         }
+        // nüfuzluysan şerifi maaşa bağlayabilirsin; anlaşma sürerken maaşı kesebilirsin (js/influence.js)
+        {
+          const bt = G.bizTown(b.town), cop = G.officeCop(b);
+          if (G.onPay(bt)) it.push({ icon: '🤝', label: Tr('Şerifin Maaşını Kes'), right: Tr`${fmtMoney(G.infl.pay[bt.id].w)}/gün`, fn: () => this.confirm(Tr('Şerifin Maaşını Kes'), Tr('Anlaşma biter; küsen şerif ağzından laf kaçırabilir.'), () => { G.payEnd(bt, 'cut'); if (cop) cop.say(pick(LINES.payCut), 2.5); }) });
+          else if (bt && G.infLv(G.influence(bt)) >= 1 && !(cop && cop.bribeTried)) {
+            const w = G.sheriffWage(bt), up = w * PAYROLL.sign, why = G.payWhy(bt);
+            it.push({ icon: '🤝', label: Tr('Şerifi Maaşa Bağla'), right: Tr`${fmtMoney(up)} + ${fmtMoney(w)}/gün`, disabled: !!why || P.money < up, why: why || Tr('Yeterli paran yok.'), fn: () => { if (G.payOffer(cop, bt) === 'honest') this.closeAll(); } });
+          }
+        }
         if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: Tr('Ödül Avı Ödülünü Al'), right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, Tr('Ödül avı')); G.addHonor(3); G.activeBounty = null; } });
         // omuzda ya da kapıdaki atın eyerinde getirilen suçlular
         for (const c of G.carriedAll()) if (c.e.kind === 'npc' && G.wantedValue(c.e)) it.push({ icon: '⚖', label: Tr`Teslim Et: ${c.e.name} ${c.e.dead ? Tr('(ölü)') : Tr('(canlı)')}`, right: fmtMoney(G.wantedValue(c.e)), fn: () => { G.deliverToSheriff(c); this.pop(); } });
@@ -2396,11 +2407,15 @@ const UI = {
     if (G.storyRumor()) return;
     const unk = G.world.pois.filter(p => (p.kind === 'landmark' || p.kind === 'camp') && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     const line = pick(LINES.rumor);
+    // tanınmış birine barmen bir kasabanın şerifinin rüşvet alıp almadığını da fısıldar (js/influence.js)
+    const shs = G.infLv(G.influence()) >= 1 ? G.world.towns.filter(t => t.buildings.some(x => x.type === 'sheriff' && !x.shut) && !G.onPay(t)) : [];
+    const sh = shs.length && chance(0.6) ? pick(shs) : null;
+    const extra = sh ? `<p>${G.lawHonest(sh) ? Tr`<b>${sh.n}</b> şerifi para yüzü görmemiş biriymiş; rüşvet teklif edeni içeri atıyormuş.` : Tr`<b>${sh.n}</b> şerifinin cebi delikmiş derler; doğru teklife kulak asarmış.`}</p>` : '';
     if (unk.length) {
       const p = pick(unk);
       G.rumored.add(p.id);
-      this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p><p>${Tr`Ayrıca <b>${p.n}</b> hakkında bir şeyler duydun. Haritanda <b>?</b> olarak işaretlendi.`}</p>`);
-    } else this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p>`);
+      this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p><p>${Tr`Ayrıca <b>${p.n}</b> hakkında bir şeyler duydun. Haritanda <b>?</b> olarak işaretlendi.`}</p>${extra}`);
+    } else this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p>${extra}`);
   },
   openSleep(where, cost) {
     const P = G.player;

@@ -22,6 +22,12 @@
      nüfuzun (birkaç yıl) düşer, kasabaya dürüst bir şerif atanır.
      BRIBE.reformYear'da kurgusal Islah Komisyonu kurulur: rüşvet
      pahalılaşır, dürüst şerif çoğalır, skandalda ceza kesilir.
+   - Şerifi maaşa bağlama (nüfuzlu): peşin bir ödeme ve günlük maaş. O
+     kasabada hafif suçlara göz yumulur, orta suçların ödülü yarıya iner,
+     eski ödülünle tanınmazsın, rüşvet ucuz ve kesindir, nüfuzun artar.
+     Maaş yavaşça söylenti biriktirir; ödenmezse ya da kesilirse küsen şerif
+     konuşur. On yılda bir (ve Islah Komisyonu kurulunca) şerif değişebilir:
+     yenisi rüşvet almıyorsa anlaşma biter.
    ========================================================== */
 
 const InfluenceSystems = {
@@ -55,6 +61,7 @@ const InfluenceSystems = {
       local += Math.min(10, 2 * this.biz.filter(z => !z.site && z.town === t.id).length);
       if (this.biz.some(z => z.fin && !z.site && z.town === t.id)) local += 10;
       if (this.estate) { const mb = this.world.buildings[this.estate.bid]; if (mb && mb.town === t.id) local += 5; }
+      if (this.onPay(t)) local += PAYROLL.local;   // maaştaki şerif
     }
     const taint = this.infl && this.infl.taint > this.year ? -BRIBE.taint : 0;   // skandal lekesi
     return { nw, wealth, honor, assets, local, taint };
@@ -79,13 +86,16 @@ const InfluenceSystems = {
   },
 
   /* ---------------- rüşvet ---------------- */
-  /* Kasabanın şerifi rüşvet alır mı: dünya tohumuna ve on yıla bağlı; skandaldan sonra dürüst biri atanır */
+  /* Kasabanın şerifi rüşvet alır mı: dünya tohumuna ve on yıla bağlı; skandaldan sonra dürüst biri atanır, maaştaki şerif
+     anlaşma sürdükçe rüşvet alır */
   lawHonest(t) {
     if (!t) return false;
-    const I = this.infl, y = this.year;
-    if (I.honest[t.id] > y) return true;
-    return hash2((this.seed % 9973) + 11, TOWNS.findIndex(d => d.id === t.id) + 7, Math.floor(y / 10)) < BRIBE.honest[y >= BRIBE.reformYear ? 1 : 0];
+    const I = this.infl;
+    if (I.honest[t.id] > this.year) return true;
+    if (I.pay[t.id]) return false;
+    return this.honestRoll(t);
   },
+  honestRoll(t) { const y = this.year; return hash2((this.seed % 9973) + 11, TOWNS.findIndex(d => d.id === t.id) + 7, Math.floor(y / 10)) < BRIBE.honest[y >= BRIBE.reformYear ? 1 : 0]; },
   /* Dosya rüşvetle kapanabilir mi: '' ya da nedeni */
   bribeWhy(t) {
     const L = this.law;
@@ -104,6 +114,7 @@ const InfluenceSystems = {
     if (L.level > 0) p *= 1 + 0.1 * L.level;
     if (this.year >= BRIBE.reformYear) p *= BRIBE.reform;
     if (t && this.biz.some(z => z.fin && !z.site && z.town === t.id)) p *= 0.75;
+    if (this.onPay(t)) p *= PAYROLL.bribe;
     return Math.ceil(p);
   },
   /* Rüşvet teklifi: by kanun adamı (şerif ofisinde masadaki), t kasaba. Döner: 'ok', 'no' (geri çevirdi) ya da 'honest'
@@ -116,7 +127,7 @@ const InfluenceSystems = {
     UI.subtitle(P.name, pick(LINES.bribeOffer), 2, true);
     if (by) by.bribeTried = true;
     if (this.lawHonest(t) || (by && by.honest)) { this.bribeFail(by); return 'honest'; }
-    const ch = clamp(0.55 + (this.influence(t) - INF_LV[c + 1].min) / 80 + this.skill('charisma') * 0.02, 0.2, 0.97);
+    const ch = this.onPay(t) ? 0.97 : clamp(0.55 + (this.influence(t) - INF_LV[c + 1].min) / 80 + this.skill('charisma') * 0.02, 0.2, 0.97);
     if (!chance(ch)) {
       if (by) setTimeout(() => by.say(pick(LINES.lawGreedy), 2.5), 600);
       UI.feed(Tr('Kanun adamı pazarlığa yanaşmadı.'), 'warn');
@@ -158,10 +169,10 @@ const InfluenceSystems = {
     for (const r of this.reports) r.done = true;
     for (const e of this.ents) if (e.kind === 'npc' && e.isLaw) { e.hostile = false; e.state = e.work !== undefined ? 'static' : 'idle'; if (!e.town && e !== keep) e.remove = true; }
   },
-  /* Kasabada söylenti birikir; eşik aşılınca skandal çıkabilir */
-  bribeHeat(t, c) {
+  /* Kasabada söylenti birikir (add verilmezse suçun sınıfına göre); eşik aşılınca skandal çıkabilir */
+  bribeHeat(t, c, add) {
     if (!t) return;
-    const I = this.infl, h = (I.heat[t.id] || 0) + BRIBE.heat[c];
+    const I = this.infl, h = (I.heat[t.id] || 0) + (add !== undefined ? add : BRIBE.heat[c]);
     I.heat[t.id] = h;
     if (h >= BRIBE.scandal && chance((h - BRIBE.scandal + 2) * 0.08 * (this.year >= BRIBE.reformYear ? 1.5 : 1))) this.scandal(t);
   },
@@ -169,6 +180,7 @@ const InfluenceSystems = {
     const I = this.infl, reform = this.year >= BRIBE.reformYear;
     I.heat[t.id] = 0;
     I.honest[t.id] = this.year + 8;
+    delete I.pay[t.id];   // görevden alınan şerifle anlaşma da biter
     I.taint = this.year + BRIBE.taintYrs;
     this.addHonor(-6);
     let fine = 0;
@@ -185,11 +197,81 @@ const InfluenceSystems = {
   /* Kasabadaki söylentinin sözü (Günlük) */
   heatWord(h) { return h >= BRIBE.scandal ? Tr('herkes konuşuyor') : h >= BRIBE.scandal * 0.6 ? Tr('dedikodu dolaşıyor') : Tr('fısıltılar'); },
 
+  /* ---------------- şerifi maaşa bağlama ---------------- */
+  onPay(t) { return !!(t && this.infl && this.infl.pay[t.id]); },
+  /* Bir yer maaştaki şerifin kasabası mı (suçun işlendiği yer) */
+  payTownAt(x, y) { const t = this.world.townAt(x, y, 60); return this.onPay(t) ? t : null; },
+  /* Günlük maaş: kasaba büyüdükçe şerifin bedeli artar; Islah Komisyonu'ndan sonra pahalı */
+  sheriffWage(t) { const S = this.devOf(t); return PAYROLL.wage[S ? clamp(S.tier, 0, PAYROLL.wage.length - 1) : 0] * (this.year >= BRIBE.reformYear ? BRIBE.reform : 1); },
+  /* Şerif dönemi: on yılda bir ve Islah Komisyonu kurulunca değişir */
+  payEra() { return Math.floor(this.year / 10) * 2 + (this.year >= BRIBE.reformYear ? 1 : 0); },
+  /* Anlaşma yapılabilir mi: '' ya da nedeni */
+  payWhy(t) {
+    if (this.law.level > 0) return Tr('Aranırken şerifle anlaşamazsın.');
+    if (this.player.masked) return Tr('Maskeyle pazarlık olmaz.');
+    if (this.infLv(this.influence(t)) < PAYROLL.lv) return Tr`Şerifi maaşa bağlamak için ${INF_LV[PAYROLL.lv].n} olmalısın.`;
+    if (this.infl.payTry[t.id] === this.day) return Tr('Şerif bugün bu konuyu konuşmak istemiyor.');
+    return '';
+  },
+  /* Şerifin masasında teklif: by şerif (yoksa null). Döner: 'ok', 'no' ya da 'honest' (teklif suç sayıldı) */
+  payOffer(by, t) {
+    const why = this.payWhy(t), P = this.player, I = this.infl;
+    if (why) { UI.feed(why, 'warn'); return 'no'; }
+    const w = this.sheriffWage(t), up = w * PAYROLL.sign;
+    if (P.money < up) { UI.feed(Tr('Yeterli paran yok.'), 'warn'); Audio_.ui('error'); return 'no'; }
+    UI.subtitle(P.name, pick(LINES.payOffer), 2, true);
+    if (this.lawHonest(t) || (by && by.honest)) { if (by) by.bribeTried = true; this.bribeFail(by); return 'honest'; }
+    const ch = clamp(0.5 + (this.influence(t) - INF_LV[PAYROLL.lv].min) / 60 + this.skill('charisma') * 0.02, 0.2, 0.95);
+    if (!chance(ch)) {
+      I.payTry[t.id] = this.day;
+      if (by) setTimeout(() => by.say(pick(LINES.lawGreedy), 2.5), 600);
+      UI.feed(Tr('Şerif anlaşmaya yanaşmadı. Başka bir gün yeniden dene.'), 'warn');
+      return 'no';
+    }
+    P.money -= up; Audio_.ui('cash');
+    I.pay[t.id] = { w, d: this.day, era: this.payEra(), miss: 0 };
+    I.paid = (I.paid || 0) + up;
+    if (by) setTimeout(() => by.say(pick(LINES.payDeal), 2.5), 600);
+    this.addHonor(-3);
+    this.skillXp('charisma', 3);
+    UI.toast(Tr('Şerif Maaşında'), Tr`${t.n} şerifi artık senin adamın: kasabada hafif suçlara göz yumar, orta suçların ödülü yarıya iner, eski ödülünle tanınmazsın ve rüşvet ucuzlar. Maaşı her gün bankandan ödenir.`, 'ok');
+    this.bribeHeat(t, 0, 1);
+    return 'ok';
+  },
+  /* Anlaşma biter. why: 'cut' (sen kestin), 'unpaid' (maaş ödenmedi), 'new' (yeni şerif atandı) */
+  payEnd(t, why) {
+    const I = this.infl;
+    if (!I.pay[t.id]) return;
+    delete I.pay[t.id];
+    if (why === 'new') { UI.toast(Tr('Yeni Şerif'), Tr`${t.n} kasabasına rüşvet almayan yeni bir şerif atandı. Anlaşman bitti.`, 'warn'); return; }
+    if (why === 'unpaid') UI.toast(Tr('Anlaşma Bozuldu'), Tr`${t.n} şerifi maaşını alamadı; anlaşma bitti. Küsen şerif ağzından laf kaçırabilir.`, 'warn');
+    else UI.feed(Tr`🤝 ${t.n} şerifiyle anlaşman bitti. Küsen şerif ağzından laf kaçırabilir.`, 'law');
+    this.bribeHeat(t, 0, PAYROLL.grudge);
+  },
+  /* Günlük maaşlar: önce banka, sonra cüzdan; iki gün ödenmezse anlaşma biter. Maaş yavaşça söylenti biriktirir. */
+  payDaily() {
+    const I = this.infl, era = this.payEra();
+    for (const id of Object.keys(I.pay)) {
+      const p = I.pay[id], t = this.bizTown(id);
+      if (!t) { delete I.pay[id]; continue; }
+      if (p.era !== era) { p.era = era; if (this.honestRoll(t)) { this.payEnd(t, 'new'); continue; } }
+      if (this.bank >= p.w) this.bank -= p.w;
+      else if (this.player.money >= p.w) this.player.money -= p.w;
+      else if (++p.miss >= 2) { this.payEnd(t, 'unpaid'); continue; }
+      else { UI.feed(Tr`🤝 ${t.n} şerifi maaşını alamadı. Yarın da ödenmezse anlaşma biter.`, 'warn'); continue; }
+      p.miss = 0; I.paid = (I.paid || 0) + p.w;
+      const h = (I.heat[id] || 0) + PAYROLL.heat / this.dpy;
+      I.heat[id] = h;
+      if (h >= BRIBE.scandal && chance(0.1 * (this.year >= BRIBE.reformYear ? 1.5 : 1))) this.scandal(t);
+    }
+  },
+
   /* ---------------- günlük ---------------- */
   /* Basamak değişimi: yükselince duyurulur, düşünce bildirilir; yılbaşında söylentiler yatışır */
   infDaily(d) {
     if (!this.infl) this.infInit();
     const I = this.infl;
+    this.payDaily();
     if (d !== undefined && d % this.dpy === 0) {
       const y = START_YEAR + d / this.dpy;
       for (const k in I.heat) { I.heat[k] *= 0.5; if (I.heat[k] < 0.5) delete I.heat[k]; }
@@ -203,7 +285,7 @@ const InfluenceSystems = {
   },
 
   /* ---------------- kayıt ---------------- */
-  infInit() { this.infl = { cur: 0, top: 0, heat: {}, honest: {}, taint: 0, paid: 0 }; },
+  infInit() { this.infl = { cur: 0, top: 0, heat: {}, honest: {}, taint: 0, paid: 0, pay: {}, payTry: {} }; },
   saveInfl() { return this.infl; },
   loadInfl(d) {
     this.infInit();

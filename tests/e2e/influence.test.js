@@ -164,6 +164,87 @@ module.exports = {
       t.ok(r.told < r.n * 0.8 && r.told > r.n * 0.3, 'tanıkların bir kısmı sustu', r);
     });
 
+    await t.step('şerifi maaşa bağlama: masada teklif, peşin ödeme, yerel nüfuz; günlük maaş söylenti biriktirir', async () => {
+      const r = await p.evaluate(() => {
+        const out = {}, t0 = TWN();
+        PATRON(); G.lawClear(); G.infl.honest = {}; G.infl.heat = {};
+        window.HONEST_ROLL = G.honestRoll; G.honestRoll = () => false; G.lawHonest = LAW_HONEST;
+        const b = t0.buildings.find(x => x.type === 'sheriff');
+        const loc0 = G.infParts(t0).local, m0 = G.player.money, w = G.sheriffWage(t0);
+        UI.openBuilding(b); out.desk = TH.menuLabels();
+        WITH_RANDOM(0.01, () => TH.clickItem(/Şerifi Maaşa Bağla/));
+        out.after = TH.menuLabels(); UI.closeAll();
+        out.pay = G.infl.pay[t0.id]; out.paid = m0 - G.player.money; out.up = w * PAYROLL.sign; out.w = w;
+        out.local = G.infParts(t0).local - loc0;
+        G.bank = 100; const h0 = G.infl.heat[t0.id] || 0;
+        G.payDaily(); out.bank = 100 - G.bank; out.heat = (G.infl.heat[t0.id] || 0) - h0;
+        return out;
+      });
+      t.ok(r.desk.some(l => /Şerifi Maaşa Bağla/.test(l)), 'şerif masasında seçenek', r.desk);
+      t.ok(r.pay && r.pay.w === r.w, 'anlaşma yapıldı', r.pay);
+      t.near(r.paid, r.up, 0.01, 'peşin ödeme');
+      t.ok(r.after.some(l => /Şerifin Maaşını Kes/.test(l)), 'maaşı kesme seçeneği', r.after);
+      t.eq(r.local, 10, 'kasabada nüfuz artar');
+      t.near(r.bank, r.w, 0.01, 'günlük maaş bankadan'); t.ok(r.heat > 0, 'maaş söylenti biriktirir');
+    });
+
+    await t.step('maaştaki şerifin kasabası: hafif suça göz yumulur, orta suçun ödülü yarıya iner, tanınmazsın, rüşvet ucuz', async () => {
+      const r = await p.evaluate(() => {
+        const out = {}, t0 = TWN(), P = G.player, LOS = G.los;
+        const sb = t0.buildings.find(x => x.type === 'sheriff');
+        TH.goto(sb.door.x, sb.door.y + 14); TH.clearNpcs(); G.lawClear();
+        G.los = () => true;
+        try {
+          out.here = !!G.payTownAt(P.x, P.y);
+          const cop = new NPC(P.x + 60, P.y, 'law', {}); cop.state = 'static'; G.addEnt(cop);
+          G.addEnt(new NPC(P.x - 30, P.y, 'town', {}));
+          G.crime('assault', P.x, P.y, null);
+          out.assault = [G.law.bounty, G.law.level, G.reports.filter(x => !x.done).length];
+          G.crime('robbery', P.x, P.y, null);
+          out.rob = [G.law.bounty, G.law.level];
+          const pp = G.infl.pay[t0.id];
+          out.bribe = G.bribePrice(t0); delete G.infl.pay[t0.id]; out.full = G.bribePrice(t0); G.infl.pay[t0.id] = pp;
+          // başında ödülle kanun adamının yanında: maaştaki şerifin kasabasında tanınmaz, başka yerde tanınır
+          G.lawClear(); G.law.bounty = 50; G.law.desc = G.outfit();
+          for (let k = 0; k < 10; k++) G.lawUpdate(1);
+          out.recogPaid = G.law.level;
+          delete G.infl.pay[t0.id];
+          for (let k = 0; k < 10; k++) G.lawUpdate(1);
+          out.recog = G.law.level;
+          G.infl.pay[t0.id] = pp;
+        } finally { G.los = LOS; }
+        G.lawClear(); TH.clearNpcs();
+        return out;
+      });
+      t.ok(r.here, 'şerif ofisinin önü maaştaki kasabada');
+      t.eq(r.assault, [0, 0, 0], 'hafif suça göz yumuldu');
+      t.eq(r.rob, [4, 1], 'soygunun ödülü yarıya indi');
+      t.ok(r.bribe < r.full * 0.6, 'rüşvet ucuz', r);
+      t.eq(r.recogPaid, 0, 'maaştaki kasabada tanınmaz'); t.eq(r.recog, 1, 'anlaşma yoksa tanınır');
+    });
+
+    await t.step('maaş ödenmezse ya da yeni şerif rüşvet almıyorsa anlaşma biter; barmen şerifleri fısıldar', async () => {
+      const r = await p.evaluate(() => {
+        const out = {}, t0 = TWN(), I = G.infl;
+        G.bank = 0; G.player.money = 0;
+        const h0 = I.heat[t0.id] || 0;
+        G.payDaily(); out.day1 = !!I.pay[t0.id];
+        G.payDaily(); out.day2 = !!I.pay[t0.id]; out.heat = (I.heat[t0.id] || 0) - h0;
+        G.player.money = 400000;
+        I.pay[t0.id] = { w: 1, d: G.day, era: G.payEra() - 1, miss: 0 };
+        G.honestRoll = () => true; G.payDaily(); out.newSheriff = !I.pay[t0.id];
+        G.honestRoll = HONEST_ROLL;
+        // barmen: tanınmış birine bir kasabanın şerifinin rüşvet alıp almadığını söyler
+        out.rumor = '';
+        for (let k = 0; k < 8 && !/şerif/.test(out.rumor); k++) { UI.rumor(); out.rumor = UI.top() ? UI.top().el.textContent : ''; UI.closeAll(); }
+        return out;
+      });
+      t.ok(r.day1, 'bir gün ödenmeyince sürer'); t.ok(!r.day2, 'iki gün ödenmeyince biter');
+      t.ok(r.heat >= 5, 'küsen şerif konuşur', r.heat);
+      t.ok(r.newSheriff, 'rüşvet almayan yeni şerif anlaşmayı bitirir');
+      t.ok(/şerif/.test(r.rumor), 'barmen şerifi fısıldar', r.rumor);
+    });
+
     await t.step('Islah Komisyonu: haber, rüşvet pahalılaşır; kayıttan yüklenince durum korunur', async () => {
       const r = await p.evaluate(async () => {
         const t0 = TWN();

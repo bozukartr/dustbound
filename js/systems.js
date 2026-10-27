@@ -451,6 +451,15 @@ const GameSystems = {
       if (victim && victim.res && !victim.dead) this.resOpinion(victim, -35, type === 'robbery' ? 'robbed' : 'hurt');
     }
     if (!instant && !ws.length) { UI.feed(Tr('Kimse görmedi...')); return; }
+    // maaştaki şerifin kasabası (js/influence.js): hafif suça göz yumulur, orta suçun ödülü yarıya iner
+    const pt = this.anonymous() ? null : this.payTownAt(x, y), cls = CRIME_CLS[type] !== undefined ? CRIME_CLS[type] : 1;
+    if (pt && cls === 0) {
+      const lw = ws.find(e => e.isLaw);
+      if (lw) lw.say(pick(LINES.lookAway), 2.5);
+      UI.feed(Tr`🤝 ${pt.n} şerifi maaşında: kanun görmezden geldi.`, 'law');
+      return;
+    }
+    if (pt && cls === 1) bounty = Math.round(bounty * PAYROLL.mid * 100) / 100;
     // küçük kabahat: kovalamaca yok, yalnızca para cezası
     if (minor) {
       if (this.anonymous()) { UI.feed(Tr('Maskeli olduğun için kimse seni tanımadı.')); return; }
@@ -672,7 +681,7 @@ const GameSystems = {
         // kıyafet eşkâle ne kadar uyuyor? (şapka + palto)
         const D = L.desc, match = D ? (D.hat === P.look.hat) + (D.coat === (P.coat || null)) : 2;
         const [need, near] = match === 2 ? [6, 70] : match === 1 ? [14, 45] : L.bounty >= 90 ? [20, 34] : [1e9, 0];
-        if (town) {
+        if (town && !this.onPay(town)) {   // maaştaki şerifin adamları seni tanımazdan gelir (js/influence.js)
           L.recog = (L.recog || 0) + dt;
           if (!off) for (const e of this.ents) if (e.kind === 'npc' && e.isLaw && !e.dead && dist(e.x, e.y, P.x, P.y) < near && L.recog > need && e.canSee(P.x, P.y, near)) {
             L.level = 1; L.lastX = P.x; L.lastY = P.y; L.unseen = 0; e.hostile = true;

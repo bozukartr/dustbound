@@ -692,6 +692,11 @@ const CRIME_CLS_N = ['Hafif suç', 'Orta suç', 'Soygun', 'Cinayet', 'Kanun adam
    pahalı, rüşvet almayan şerif çok (honest: önce / sonra), skandalda ceza */
 const BRIBE = { min: 3, cls: [0.7, 0.8, 0.9, 1], honor: [1, 2, 3, 5], heat: [1, 2, 4, 7], fail: 8, scandal: 10, taint: 15, taintYrs: 3,
   reformYear: 1915, reform: 1.4, honest: [0.2, 0.4] };
+/* Şerifi maaşa bağlama: lv gereken nüfuz basamağı; wage kasabanın basamağına (DEV_TIERS) göre günlük maaş (Islah
+   Komisyonu'ndan sonra BRIBE.reform kat); sign anlaşmada peşin ödenen gün sayısı; heat bir yılda biriken söylenti; local
+   o kasabadaki nüfuz; mid orta suçların ödül çarpanı; bribe o kasabada rüşvet çarpanı; grudge anlaşma bozulunca küsen
+   şerifin ağzından dökülen söylenti */
+const PAYROLL = { lv: 2, wage: [1, 1.5, 2, 3, 4], sign: 10, heat: 3, local: 10, mid: 0.5, bribe: 0.5, grudge: 5 };
 /* Rakip petrol şirketleri (kurgusal) */
 const OIL_COS = ['Kızılkaya Petrol', 'Batı Ovası Petrol Şirketi', 'Üç Kule Petrol', 'Kara Altın Ortaklığı', 'Kartaltepe Petrol', 'Demirtepe Yağcılık'];
 /* ---- Kendi bankan (js/tycoon.js) ----
@@ -895,6 +900,10 @@ const LINES = {
   lawGreedy: ['Bu kadarla olmaz.', 'Bugün olmaz. Başka zaman.', 'Bu iş bana pahalıya patlar.'],
   lawRefuse: ['Beni satın alamazsın!', 'Rüşvet mi? Bunu da dosyana yazıyorum!', 'Bu yıldızı parayla takmadım!'],
   infSilent: ['Onun işine karışmam.', 'Ben bir şey görmedim.', 'Belaya bulaşmam.'],
+  payOffer: ['Kasabanın huzuru ikimize de iyi gelir; masrafı benden.', 'Seninle uzun bir dostluk kurmak isterim, şerif.', 'Adamlarına iyi bakarım. Sen de bana.'],
+  payDeal: ['Anlaştık. Gözüm sende olmayacak.', 'Sen başımı ağrıtma, ben de seninkini.', 'Ödemeler aksamasın, yeter.'],
+  payCut: ['Pişman olacaksın.', 'Bunu unutmam.', 'Peki. Artık kendi başınasın.'],
+  lookAway: ['Bir şey görmedim.', 'Hadi, uzaklaş buradan.', 'Bu sefer görmedim say.'],
   maskLaw: ['Maskeni çıkar, yabancı!', 'O bez yüzünde ne arıyor? Çıkar onu!', 'Kasabada maskeli dolaşmak yasak, bilesin.'],
   maskTown: ['Neden maskelisin?', 'Tanrım, bir haydut!', 'Maskeli biri... Uzak dur benden.', 'Yüzünü neden saklıyorsun?'],
   reported: ['Şerif, adamı gördüm! Tarif edeyim...', 'Şu tarafa kaçtı, şerif!'],
