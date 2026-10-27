@@ -1604,6 +1604,7 @@ const UI = {
         <div class="jr-row">${Tr`<b>Doğum:</b> ${born} &nbsp; <b>Yaş:</b> ${G.age} &nbsp; <b>Yıl:</b> ${G.year}`}</div>
         <div class="jr-row">${Tr`<b>Geçmiş:</b> ${BG ? BG.n : ''}`}</div>
         <div class="jr-row">${Tr`<b>Onur:</b> ${honorTxt} (${Math.round(G.honor)})`}<div class="honorbar"><i style="left:${50 + G.honor / 2}%"></i></div></div>
+        ${this.infRow()}
         <div class="jr-row">${Tr`<b>Nakit:</b> ${fmtMoney(P.money)} &nbsp; <b>Banka:</b> ${fmtMoney(G.bank)}`}</div>
         <div class="jr-row">${Tr`<b>Başındaki Ödül:</b> ${fmtMoney(G.law.bounty)}`}</div>
         <div class="jr-row">${Tr`<b>At:</b> ${G.horse ? Tr`${G.horse.name} (${G.horse.def.n}) — Bağ ${G.horse.bondLv}/4` : Tr('Yok')}`}</div>
@@ -1667,6 +1668,13 @@ const UI = {
       : `<p class="jr-note">${Tr`Henüz kayda değer bir gelişme yok. Kasabalar yıllar içinde büyür ya da geriler; gazeteler ve kasabalılar olan biteni anlatır.`}</p>`;
     return h + `<p class="jr-note">${Tr`Demiryolu, güvenlik ve ticaret bir kasabayı büyütür; suç ve çevresindeki haydut kampları geriletir. Bir kasabadaki işletmelerin, evlerin ve mülklerin onun büyümesini hızlandırır, gerilemesini yavaşlatır. Kasabalar ${DEV_END_YEAR} yılına kadar gelişir.`}</p>`
       + `<p class="jr-note">${Tr`Büyüyen kasabaya yeni evler ve dükkânlar gelir, binalar boyanır, şehirde tuğla ve taşa döner; sokaklar çakıl, arnavut kaldırımı ve sonunda asfalt olur, yeni sokak lambaları dikilir. Gerileyen kasabada dükkânlar ve evler tahta perdeyle kapanır; hayalet kasabada lambalar söner. Değişiklikler sen oradayken değil, gözden uzakta olur.`}</p>`;
+  },
+  /* Nüfuz satırı (js/influence.js): basamak, puan, parçaları ve bulunduğun kasabadaki nüfuz */
+  infRow() {
+    if (!G.infl) return '';
+    const v = G.influence(), L = INF_LV[G.infLv(v)], p = G.infParts(), t = G.infTown(), lv = t ? G.influence(t) : v, sg = (x) => (x >= 0 ? '+' : '') + Math.round(x);
+    return `<div class="jr-row">${Tr`<b>Nüfuz:</b> ${L.n} (${v})`}<div class="infbar"><i style="width:${v}%"></i>${INF_LV.slice(1).map(l => `<b style="left:${l.min}%"></b>`).join('')}</div>`
+      + `<div class="jr-sm">${Tr`Servet ${sg(p.wealth)} · Onur ${sg(p.honor)} · Varlıklar ${sg(p.assets)}`}${t && lv !== v ? ' · ' + Tr`${t.n} kasabasında ${lv}` : ''}</div><div class="jr-sm">${L.d}</div></div>`;
   },
   /* İşlerim: işletmeler, stok, kasa, yük arabası */
   bizJournal() {

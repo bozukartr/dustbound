@@ -668,6 +668,15 @@ const ECO_NEWS = {
    ref rafinerinin fiyatı, refDays inşaat süresi, refYear en erken yılı, refMul rafine petrolün fiyat çarpanı; claim rakip
    şirketlerin sahipsiz sahaları aldığı yıllar (en erken–en geç), rivalGap rakibin yeni kule diktiği yıl aralığı */
 const OIL = { year: 1900, fields: 6, land: 600, well: 450, wellDays: 3, dry: 0.2, gush: 0.12, out: 40, res: [24000, 52000], ref: 3000, refDays: 5, refYear: 1902, refMul: 1.8, claim: [1903, 1926], rivalGap: 2 };
+/* ---- Nüfuz ve rüşvet (js/influence.js) ----
+   INF_LV: nüfuz basamakları (en düşük puan). Nüfuz = servet (en çok 60) + onur (−25…+25) + varlıklar + kasabaya özel. */
+const INF_LV = [
+  { n: 'Sıradan', min: 0, d: 'Kimse senin için kural esnetmez.' },
+  { n: 'Tanınmış', min: 25, d: 'Adın biliniyor: kanun adamları hafif suçlarda pazarlığa açık.' },
+  { n: 'Nüfuzlu', min: 50, d: 'Sözün para eder: hafif ve orta suçların dosyası kapanabilir, şerifi maaşa bağlayabilir, koruma tutabilirsin.' },
+  { n: 'Sözü Geçen', min: 75, d: 'Kasabalar paranı istiyor: soygun dosyaları bile kapanır, tanıkların bir kısmı susar.' },
+  { n: 'Patron', min: 90, d: 'Bölgenin en güçlü adı: cinayet dosyası bile kapanabilir, tanıklar çoğu zaman susar. Kanun adamı öldürmek ise asla affedilmez.' },
+];
 /* Rakip petrol şirketleri (kurgusal) */
 const OIL_COS = ['Kızılkaya Petrol', 'Batı Ovası Petrol Şirketi', 'Üç Kule Petrol', 'Kara Altın Ortaklığı', 'Kartaltepe Petrol', 'Demirtepe Yağcılık'];
 /* ---- Kendi bankan (js/tycoon.js) ----
