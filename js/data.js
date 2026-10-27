@@ -596,6 +596,8 @@ const BIZ = {
   hotel:    { tier: 3, p: 1425, inc: 12.5, goods: 'dry', cap: 8, use: 0.8 },
   brewery:  { tier: 3, p: 1500, inc: 13.35, goods: 'grain', cap: 8, use: 0.9 },
   gambling: { tier: 3, p: 1825, inc: 15.85, goods: 'drink', cap: 6, use: 0.6 },
+  // banka satılık çıkmaz: teklifle alınır ya da gelişmiş bir kasabadaki büyük arsaya kurulur; geliri faiz farkıdır (BANK)
+  bank:     { tier: 3, p: 2000, inc: 0 },
 };
 const BIZ_TIERS = ['', 'Küçük', 'Orta', 'Büyük'];
 const MGR_TRAITS = {
@@ -612,6 +614,61 @@ const HAUL_TRAITS = {
   coward:   { n: 'Korkak', d: 'Ucuzdur; ama haydut görünce yükü bırakıp kaçar.', spd: 1, wage: 0.55, risk: 1 },
 };
 const HAUL_HIRE = 10, HAUL_CAP = 6, HAUL_MAX = 4;
+
+/* ---- Tekelleşme (js/tycoon.js) ----
+   SECTORS: aynı pazara satan işletme türleri. Bir sektördeki payın, bütün kasabalardaki o türden işletmelerin değerinden
+   (fiyat × kasaba çarpanı) senin olanların oranıdır; petrolde bütün kuyuların günlük üretiminden seninkilerin oranı.
+   SECTOR_LV: hakimiyet basamakları. min en düşük pay; inc o sektördeki işletmelerinin gelir çarpanı (fiyatı artık sen
+   belirlersin); goods toptan mal çarpanı (tedarikçi büyük müşteriye indirim yapar); offer satmak istemeyen bir rakibe
+   yapılan teklifin fiyat çarpanı (büyüdükçe rakipler zorlanır, daha ucuza satar). */
+const SECTORS = {
+  gida:   { n: 'Gıda ve Erzak', types: ['general', 'bakery', 'butcher', 'mill'], ic: 'wheat' },
+  icki:   { n: 'İçki ve Eğlence', types: ['saloon', 'cantina', 'brewery', 'gambling'], ic: 'glass' },
+  hizmet: { n: 'Hizmet ve Zanaat', types: ['barber', 'laundry', 'tailor', 'pharmacy'], ic: 'scissors' },
+  demir:  { n: 'Demir ve Ahır', types: ['smith', 'stable'], ic: 'horseshoe' },
+  konak:  { n: 'Konaklama', types: ['hotel'], ic: 'bed' },
+  banka:  { n: 'Bankacılık', types: ['bank'], ic: 'bank' },
+};
+const SECTOR_LV = [
+  { n: 'Küçük', min: 0, inc: 1, goods: 1, offer: 2 },
+  { n: 'Güçlü', min: 0.25, inc: 1.05, goods: 0.95, offer: 1.75 },
+  { n: 'Hakim', min: 0.5, inc: 1.15, goods: 0.9, offer: 1.5 },
+  { n: 'Tekel', min: 0.75, inc: 1.3, goods: 0.85, offer: 1.3 },
+];
+/* Zor durumdaki rakip bu çarpanla satılığa çıkar (DISTRESS_YRS yıl bekler); TEKEL_YEAR'dan sonra ticaret odası tekelleri
+   soruşturur: günde 1/(TEKEL_ODDS × yıldaki gün) olasılıkla sektördeki işletmelerinin değerinin TEKEL_FINE katı ceza */
+const DISTRESS_MUL = 0.7, DISTRESS_YRS = 3, TEKEL_YEAR = 1905, TEKEL_ODDS = 4, TEKEL_FINE = 0.06;
+/* Ekonomi haberleri (gazete, gazeteci çocuk, Günlük). {p} oyuncunun adı, {x} sektör, {k} kasaba, {b} binanın türü, {m} tutar,
+   {c} rakip şirket. Büyük harfli yer tutucu ({X}, {B}) manşette büyük harfle yazılır. */
+const ECO_NEWS = {
+  hakim: { h: '{p}: {X} PAZARINDA SÖZ SAHİBİ', t: 'Bölgedeki {x} işletmelerinin yarısından fazlası artık tek elde: {p}. Rakipler fiyatlarını onunkine bakarak belirliyor.', s: '{p} {x} pazarına hakim oldu!' },
+  tekel: { h: '{X} PAZARINDA TEKEL', t: 'Bölgedeki {x} işletmelerinin neredeyse hepsi {p} adına çalışıyor. Küçük esnaf "fiyatları artık o belirliyor" diye yakınıyor.', s: '{x} pazarında tekel: {p}!' },
+  ceza: { h: 'TİCARET ODASINDAN TEKEL CEZASI', t: 'Ticaret odası, {x} pazarındaki tekeli yüzünden {p} için {m} ceza kesti. Kasabalılar kararı alkışladı.', s: '{p} için tekel cezası: {m}!' },
+  zor: { h: '{K}: {B} ZOR DURUMDA', t: '{k} kasabasındaki {b} büyük rakibinin gölgesinde müşteri bulamıyor. Sahibi dükkânı ucuza satmaya razı.', s: '{k}: {b} satılığa çıktı!' },
+  banka: { h: '{k}: YENİ BİR BANKA', t: '{p}, {k} kasabasında kendi bankasını açtı. Mermer tezgâhı ve çelik kasası görenleri hayran bırakıyor.', s: '{p} {k} kasabasında banka açtı!', good: 1 },
+  bankal: { h: '{k} BANKASI EL DEĞİŞTİRDİ', t: '{k} bankasının hissedarları bankayı sattı. Yeni sahibi {p}; mevduat sahipleri yeni patronu merakla bekliyor.', s: '{k} bankasının yeni sahibi: {p}' },
+  panik: { h: '{k}: BANKADA PANİK', t: 'Söylentiler yayılınca mevduat sahipleri {k} bankasının önünde kuyruk oldu. Herkes parasını geri istiyor.', s: '{k} bankasında panik!' },
+  atlatti: { h: '{k} BANKASI PANİĞİ ATLATTI', t: '{k} bankası kapısına dayanan herkese parasını kuruşu kuruşuna ödedi. Kuyruk dağılınca çoğu parasını geri yatırdı.', s: '{k} bankası paniği atlattı!', good: 1 },
+  iflas: { h: '{k} BANKASI BATTI', t: '{k} bankası ödemelerini durdurdu. Birikimini kaybeden aileler kapının önünde öfkeyle bekliyor; bankanın sahibi {p} ortalıkta görünmüyor.', s: '{k} bankası battı!' },
+  soygun: { h: '{k}: BANKA SOYULDU', t: 'Silahlı adamlar güpegündüz {k} bankasına girip kasayı boşalttı. Şerif ve adamları peşlerinde.', s: '{k} bankası soyuldu!' },
+};
+/* ---- Kendi bankan (js/tycoon.js) ----
+   pool: kasabanın basamağına göre bankalardaki toplam mevduat ($). Bankalar onu çekiciliklerine göre paylaşır: senin bankan
+   güvene ve mevduat faizine göre, ötekiler 1; mattress parasını yastık altında tutanlar. flow: mevduatın günlük olarak
+   hedefine yaklaşma oranı; reserve kasada kalması gereken karşılık (mevduatın). rates: mevduat faizi (yıllık) ve çekiciliği.
+   lends: kredi politikası; k mevduatın krediye giden kısmı, r kredi faizi, def yıllık batık oranı. cap0 kuruluş sermayesi;
+   wage veznedar, guard bekçi (günlük). run panik, rob soygun, spike büyük bir borçlunun batması: günlük olasılık. runDays
+   paniği durdurmak için süre (gün). minTier bankanın kurulabildiği en küçük kasaba basamağı; honor gereken itibar. */
+const BANK = {
+  pool: [1500, 3500, 7000, 13000, 22000], mattress: 0.5, flow: 0.15, reserve: 0.1,
+  rates: [{ n: 'Düşük', r: 0.01, pull: 0.65, d: 'Yıllık %1. Kâr payın büyük ama mevduat sahipleri öteki bankalara ya da yastık altına kayar.' },
+    { n: 'Orta', r: 0.02, pull: 1, d: 'Yıllık %2. Kasabanın alışık olduğu faiz.' },
+    { n: 'Yüksek', r: 0.035, pull: 1.45, d: 'Yıllık %3,5. Mevduat akın eder, halk bankana güvenir; ama faiz farkın daralır.' }],
+  lends: [{ n: 'Temkinli', k: 0.35, r: 0.09, def: 0.01, d: 'Mevduatın üçte biri krediye gider; yalnızca sağlam borçlulara. Kasa dolu, panikten korkmazsın; kâr az.' },
+    { n: 'Dengeli', k: 0.6, r: 0.11, def: 0.025, d: 'Mevduatın yarısından fazlası krediye gider. Kâr ve risk dengede.' },
+    { n: 'Cesur', k: 0.85, r: 0.14, def: 0.06, d: 'Neredeyse bütün mevduat krediye gider, yüksek faizle herkese. Kâr çok ama batık krediler artar, kasa boşalır; bir panik bankayı batırabilir.' }],
+  cap0: 400, wage: 1, guard: 0.6, run: 0.008, rob: 0.005, spike: 0.01, runDays: 2, minTier: 2, honor: 10,
+};
 
 /* ---- Başarımlar (perk içerir) ---- */
 const ACHIEVEMENTS = [

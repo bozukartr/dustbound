@@ -1676,6 +1676,7 @@ const UI = {
       if (free.length) h += `<p class="jr-note">${Tr`Boş arsaların: ${free.length}. Tabelasından ya da ilçe binasından inşaata başlayabilirsin.`}</p>`;
       const need = G.goodsNeeded(), nk = Object.keys(need).filter(g => need[g] > 0);
       if (nk.length) h += `<p class="jr-note">${Tr`Getirilmesi gereken mallar:`} ${nk.map(g => `${GOODS[g].n} ×${need[g]}`).join(', ')}</p>`;
+      h += this.secJournal();
     }
     if (G.haulers.length) {
       h += `<h3 class="jr-h">${Tr`Nakliyeciler`}</h3><table class="jr-biz">`;
@@ -1696,6 +1697,25 @@ const UI = {
       }
       if (C) h += `<tr><td>${Tr('Özel Fayton')}</td><td class="${!C.driver || C.unpaid ? 'st-low' : ''}">${C.driver ? Tr`Arabacı: ${escapeHtml(C.driver.name)}` : Tr('arabacı yok')}</td><td>${C.driver ? fmtMoney(CARRIAGE_WAGE) + Tr`/gün` : ''}</td></tr>`;
       if (G.club) h += `<tr><td>${Tr('Kulüp üyeliği')}</td><td colspan="2" class="dim">${Tr`${Math.max(0, G.day - G.club.since)} gündür üyesin`}</td></tr>`;
+      h += `</table>`;
+    }
+    return h;
+  },
+  /* Pazar payları ve hakimiyet (js/tycoon.js) */
+  secJournal() {
+    const S = G.sectors(), ticks = SECTOR_LV.slice(1).map(L => `<b style="left:${L.min * 100}%"></b>`).join('');
+    let h = `<h3 class="jr-h">${Tr`Pazar Payların`}</h3><table class="jr-biz jr-sec"><tr><th>${Tr`Sektör`}</th><th>${Tr`Payın`}</th><th>${Tr`İşletme`}</th><th>${Tr`Hakimiyet`}</th></tr>`;
+    for (const k in SECTORS) {
+      const s = S[k];
+      if (!s.n) continue;
+      h += `<tr><td>${SECTORS[k].n}</td><td>${G.pct(s.share)}<div class="sc-bar"><i style="width:${Math.round(s.share * 100)}%"></i>${ticks}</div></td><td>${s.own}/${s.n}</td><td class="sc-l${s.lv}">${s.own ? SECTOR_LV[s.lv].n : '—'}</td></tr>`;
+    }
+    h += `</table><p class="jr-note">${Tr`Bir sektördeki payın, bütün kasabalardaki o türden işletmelerin değerinden seninkilerin oranıdır. Payın %25'i geçince güçlü, %50'yi geçince hakim, %75'i geçince tekel olursun: o sektördeki işletmelerin daha çok kazanır, toptan mal ucuzlar, satmak istemeyen rakipler teklifine daha kolay razı olur. Hakim olduğun pazarda zorlanan rakipler ucuza satılığa çıkar. Tekelciler sevilmez; ${TEKEL_YEAR} yılından sonra ticaret odası tekellere ceza keser.`}</p>`;
+    if (G.tycoon && G.tycoon.fines) h += `<p class="jr-note st-low">${Tr`Ödenen tekel cezaları: ${fmtMoney(G.tycoon.fines)}`}</p>`;
+    const banks = G.biz.filter(z => z.fin && !z.site);
+    if (banks.length) {
+      h += `<h3 class="jr-h">${Tr`Bankaların`}</h3><table class="jr-biz"><tr><th>${Tr`Banka`}</th><th>${Tr`Mevduat`}</th><th>${Tr`Krediler`}</th><th>${Tr`Sermaye`}</th><th>${Tr`Güven`}</th><th>${Tr`Dünkü kâr`}</th></tr>`;
+      for (const z of banks) { const F = z.fin; h += `<tr><td>${G.bizName(z)}${F.run ? ` <span class="st-low">${Tr('(panik)')}</span>` : ''}</td><td>${fmtMoney(F.d)}</td><td>${fmtMoney(F.l)}</td><td class="${F.e < 0 ? 'st-low' : ''}">${fmtMoney(F.e)}</td><td>${G.bankTrustWord(F.tr)}</td><td class="${F.prof < 0 ? 'st-low' : ''}">${fmtMoney(F.prof)}</td></tr>`; }
       h += `</table>`;
     }
     return h;
@@ -2132,7 +2152,8 @@ const UI = {
         it.push(...G.storyBuildingActions(b));
         const z = G.bizOf(b);
         if (z) it.push(...this.bizItems(b, z));
-        else if (G.bizForSale(b)) it.push({ icon: '📜', label: Tr('Bu İşletmeyi Satın Al'), right: fmtMoney(G.bizPrice(b)), fn: () => this.confirmBuyBiz(b) });
+        else if (G.bizForSale(b)) it.push({ icon: '📜', label: G.bizDistress(b) ? Tr('Bu İşletmeyi Ucuza Satın Al') : Tr('Bu İşletmeyi Satın Al'), right: fmtMoney(G.bizPrice(b)), fn: () => this.confirmBuyBiz(b) });
+        else if (G.bizOfferable(b)) { const why = G.bizOfferWhy(b); it.push({ icon: '💰', label: Tr('Satın Alma Teklifi Yap'), right: fmtMoney(G.bizOfferPrice(b)), disabled: !!why, why, fn: () => this.confirmBuyBiz(b, true) }); }
         const gd = G.goodsAt(b);
         if (gd.length) it.push({ icon: '📦', label: Tr('Toptan Mal Al'), fn: () => this.openGoods(b) });
         for (const s of svc) if (!(z && (s === 'rob' || s === 'robbank'))) it.push(...this.svcItems(b, s));
@@ -2656,8 +2677,8 @@ const UI = {
     this.menu({
       title: Tr('İnşaat'), wallet: true, sub: () => Tr`${t.n} • ${BUILD_DAYS} günde biter`, cls: 'small buildpick', side: (it) => it.side || '',
       build: () => G.lotTypes(lot).sort((a, c) => BIZ[a].p - BIZ[c].p).map(k => {
-        const lo = G.bizBuildPrice(k, t, 'eco'), hi = G.bizBuildPrice(k, t, 'lux');
-        return { icon: BICON[k] ? Icons.glyph(BICON[k], '#efe6d2') : '🏪', label: BUILDINGS[k].n, right: fmtRange(lo, hi), disabled: G.player.money < lo, why: Tr('Yeterli paran yok.'),
+        const lo = G.bizBuildPrice(k, t, 'eco'), hi = G.bizBuildPrice(k, t, 'lux'), why = G.bizBuildWhy(k, lot);
+        return { icon: BICON[k] ? Icons.glyph(BICON[k], '#efe6d2') : '🏪', label: BUILDINGS[k].n, right: fmtRange(lo, hi), disabled: !!why || G.player.money < lo, why: why || Tr('Yeterli paran yok.'),
           side: this.bizSide(k, t) + `<div class="ps-p">${Tr('Dört tasarım: Ekonomik, Normal, Gelişmiş, Lüks.')}</div>`,
           fn: () => this.openTierPick({ type: k, glyph: BICON[k] || 'store', sub: () => Tr`${t.n} • ${BUILD_DAYS} günde biter`,
             note: Tr('Tasarım yalnızca görünümü ve fiyatı değiştirir; işletmenin geliri aynıdır.'),
@@ -2691,17 +2712,26 @@ const UI = {
   /* İşletme türü açıklaması (yan panel) */
   bizSide(type, t) {
     const B = BIZ[type];
-    return `<div class="ps-t">${BUILDINGS[type].n}</div><div class="ps-d">${Tr`${BIZ_TIERS[B.tier]} işletme`}</div><div class="ps-e">${Tr`Günlük brüt gelir: ~${fmtMoney(B.inc * G.bizTownMul(t))}`}<br>${B.goods ? Tr`Tükettiği mal: <b>${GOODS[B.goods].n}</b> (depo ${B.cap} sandık, günde ~${B.use})` : Tr('Mal gerektirmez.')}</div>`;
+    const k = G.secOf(type), S = k && G.sectors()[k];
+    const inc = type === 'bank' ? Tr`Geliri kredi faiziyle mevduat faizi arasındaki farktır. Kasabanın mevduatı: ~${fmtMoney(G.bankPool(t))}, öteki bankalarla paylaşılır.`
+      : Tr`Günlük brüt gelir: ~${fmtMoney(B.inc * G.bizTownMul(t))}` + '<br>' + (B.goods ? Tr`Tükettiği mal: <b>${GOODS[B.goods].n}</b> (depo ${B.cap} sandık, günde ~${B.use})` : Tr('Mal gerektirmez.'));
+    return `<div class="ps-t">${BUILDINGS[type].n}</div><div class="ps-d">${Tr`${BIZ_TIERS[B.tier]} işletme`}</div><div class="ps-e">${inc}</div>`
+      + (S ? `<div class="ps-p">${Tr`Sektör: <b>${SECTORS[k].n}</b> — payın ${G.pct(S.share)}`}${S.own ? ` (${SECTOR_LV[S.lv].n})` : ''}</div>` : '');
   },
-  confirmBuyBiz(b) {
-    const pr = G.bizPrice(b), kr = G.keeperOf(b);
-    this.confirm(Tr('İşletme Satın Al'), Tr`${b.name} — ${fmtMoney(pr)}. ${kr ? Tr`${kr.name} işletmeci olarak kalır.` : ''}`, () => { if (G.buyBiz(b)) this.closeAll(); }, Tr('Vazgeç'), Tr`Satın Al (${fmtMoney(pr)})`);
+  /* offer: satmak istemeyen sahibine teklif (js/tycoon.js) */
+  confirmBuyBiz(b, offer) {
+    const pr = offer ? G.bizOfferPrice(b) : G.bizPrice(b), kr = G.keeperOf(b), A = G.secAfter(b);
+    const why = offer ? Tr`Sahibi satmak istemiyor; ancak piyasa fiyatının ${G.pct(SECTOR_LV[A ? A.lv0 : 0].offer - 1)} fazlasına razı olur.` + ' ' : G.bizDistress(b) ? Tr('Sahibi zor durumda, ucuza satıyor.') + ' ' : '';
+    const sec = A ? ' ' + Tr`${SECTORS[A.k].n} pazarındaki payın: ${G.pct(A.before)} → ${G.pct(A.share)} (${SECTOR_LV[A.lv].n}).` : '';
+    this.confirm(offer ? Tr('Satın Alma Teklifi') : Tr('İşletme Satın Al'), why + Tr`${b.name} — ${fmtMoney(pr)}. ${kr ? Tr`${kr.name} işletmeci olarak kalır.` : ''}` + sec,
+      () => { if (G.buyBiz(b, pr)) this.closeAll(); }, Tr('Vazgeç'), offer ? Tr`Teklif Et (${fmtMoney(pr)})` : Tr`Satın Al (${fmtMoney(pr)})`);
   },
   /* Sahip olunan işletmenin menü öğeleri */
   bizItems(b, z) {
     const B = BIZ[z.type], T = MGR_TRAITS[z.mgr.trait], it = [];
     it.push({ header: Tr('İşletmen') });
-    it.push({ html: `<div class="biz-card"><div><b>${Tr`İşletmeci:`}</b> ${escapeHtml(z.mgr.name)} <span class="dim">(${T.n})</span></div><div><b>${Tr`Stok:`}</b> <span class="st-${G.bizStockCls(z)}">${G.bizStockWord(z)}</span>${B.goods ? ` <span class="dim">— ${GOODS[B.goods].n}</span>` : ''}</div><div><b>${Tr`Dünkü gelir:`}</b> ${fmtMoney(z.last)} &nbsp; <b>${Tr`Toplam:`}</b> ${fmtMoney(z.total)}</div>${z.tier ? `<div><b>${Tr`Tasarım:`}</b> ${BUILD_TIERS[z.tier].n}</div>` : ''}</div>` });
+    if (z.fin) return it.concat(this.bankItems(b, z));
+    it.push({ html: `<div class="biz-card"><div><b>${Tr`İşletmeci:`}</b> ${escapeHtml(z.mgr.name)} <span class="dim">(${T.n})</span></div><div><b>${Tr`Stok:`}</b> <span class="st-${G.bizStockCls(z)}">${G.bizStockWord(z)}</span>${B.goods ? ` <span class="dim">— ${GOODS[B.goods].n}</span>` : ''}</div><div><b>${Tr`Dünkü gelir:`}</b> ${fmtMoney(z.last)} &nbsp; <b>${Tr`Toplam:`}</b> ${fmtMoney(z.total)}</div>${z.tier ? `<div><b>${Tr`Tasarım:`}</b> ${BUILD_TIERS[z.tier].n}</div>` : ''}${this.bizSecLine(z)}</div>` });
     it.push({ icon: '💵', label: Tr('Kasayı Al'), right: fmtMoney(z.cash), disabled: z.cash < 0.01, why: Tr('Kasa boş.'), fn: () => G.bizCollect(z) });
     const dl = G.deliverables(b);
     if (dl.length) it.push({ icon: '📦', label: Tr`Mal Teslim Et (${dl.length})`, fn: () => G.deliverGoods(b) });
@@ -2709,6 +2739,55 @@ const UI = {
     it.push({ icon: '👤', label: Tr('İşletmeciyi Değiştir'), right: fmtMoney(5), fn: () => this.confirm(Tr('İşletmeciyi Değiştir'), Tr`${z.mgr.name} gönderilir, yerine yeni biri gelir.`, () => G.bizNewMgr(z)) });
     it.push({ header: Tr('Hizmetler') });
     return it;
+  },
+  /* Kendi bankan: durum kartı, kâr, yönetim (js/tycoon.js) */
+  bankItems(b, z) {
+    const F = z.fin, T = MGR_TRAITS[z.mgr.trait], it = [];
+    it.push({ html: `<div class="biz-card"><div><b>${Tr`Müdür:`}</b> ${escapeHtml(z.mgr.name)} <span class="dim">(${T.n})</span></div>${this.bankCard(z)}${this.bizSecLine(z)}</div>` });
+    if (F.run) it.push({ icon: '💰', cls: 'danger', label: Tr`Paniği Durdur: Sermaye Ekle`, right: fmtMoney(F.run.need), disabled: G.player.money < F.run.need, why: Tr('Yeterli paran yok.'), fn: () => G.bankAdd(z, F.run.need) });
+    it.push({ icon: '💵', label: Tr('Kârı Al'), right: fmtMoney(z.cash), disabled: z.cash < 0.01, why: Tr('Kasa boş.'), fn: () => G.bizCollect(z) });
+    it.push({ icon: '🏦', label: Tr('Bankayı Yönet'), fn: () => this.openBankMgmt(z) });
+    it.push({ icon: '🏦', label: z.bank ? Tr('Kâr hesabına aktarılıyor (%10 kesinti)') : Tr('Kâr kasada birikiyor'), right: z.bank ? Tr('Açık') : Tr('Kapalı'), fn: () => { z.bank = !z.bank; } });
+    it.push({ icon: '👤', label: Tr('Müdürü Değiştir'), right: fmtMoney(5), fn: () => this.confirm(Tr('Müdürü Değiştir'), Tr`${z.mgr.name} gönderilir, yerine yeni biri gelir.`, () => G.bizNewMgr(z)) });
+    it.push({ header: Tr('Hizmetler') });
+    return it;
+  },
+  bankCard(z) {
+    const F = z.fin, v = G.bankVault(F);
+    return `<div><b>${Tr`Mevduat:`}</b> ${fmtMoney(F.d)} &nbsp; <b>${Tr`Krediler:`}</b> ${fmtMoney(F.l)}</div>`
+      + `<div><b>${Tr`Kasa:`}</b> <span class="${v < F.d * 0.2 ? 'st-low' : ''}">${fmtMoney(Math.max(0, v))}</span> &nbsp; <b>${Tr`Sermaye:`}</b> <span class="${F.e < 0 ? 'st-low' : ''}">${fmtMoney(F.e)}</span></div>`
+      + `<div><b>${Tr`Güven:`}</b> <span class="${F.tr > 0.6 ? 'st-ok' : F.tr > 0.35 ? 'st-mid' : 'st-low'}">${G.bankTrustWord(F.tr)}</span> &nbsp; <b>${Tr`Dünkü kâr:`}</b> <span class="${F.prof < 0 ? 'st-low' : ''}">${fmtMoney(F.prof)}</span></div>`
+      + (F.run ? `<div class="st-low">${Tr`Ödemeler durdu: kuyruktakiler ${fmtMoney(F.run.need)} bekliyor. ${Math.max(0, F.run.until - G.day)} gün içinde sermaye eklemezsen banka batar.`}</div>` : '');
+  },
+  /* Faiz, kredi politikası, bekçi ve sermaye */
+  openBankMgmt(z) {
+    const F = z.fin, side = (n, d) => `<div class="ps-t">${n}</div><div class="ps-e">${d}</div>`;
+    this.menu({
+      title: Tr('Banka Yönetimi'), wallet: true, cls: 'small', sub: () => G.bizName(z), side: (it) => it.side || '',
+      build: () => {
+        const it = [{ html: `<div class="biz-card">${this.bankCard(z)}</div>` }];
+        if (F.run) it.push({ icon: '💰', cls: 'danger', label: Tr`Paniği Durdur: Sermaye Ekle`, right: fmtMoney(F.run.need), disabled: G.player.money < F.run.need, why: Tr('Yeterli paran yok.'), fn: () => G.bankAdd(z, F.run.need) });
+        it.push({ header: Tr('Mevduat Faizi') });
+        BANK.rates.forEach((R, i) => it.push({ icon: F.rd === i ? '✔' : '', label: R.n, right: Tr`yıllık ${G.pct(R.r, 1)}`, side: side(R.n, R.d), fn: () => { F.rd = i; } }));
+        it.push({ header: Tr('Kredi Politikası') });
+        BANK.lends.forEach((L, i) => it.push({ icon: F.rl === i ? '✔' : '', label: L.n, right: Tr`faiz ${G.pct(L.r, 1)}`, side: side(L.n, L.d), fn: () => { F.rl = i; } }));
+        it.push({ header: Tr('Güvenlik ve Sermaye') });
+        it.push({ icon: '🔫', label: F.g ? Tr('Bekçi: Var') : Tr('Bekçi: Yok'), right: Tr`${fmtMoney(BANK.guard)}/gün`, side: side(Tr('Bekçi'), Tr('Silahlı bir bekçi soyguncuları caydırır ve halkın güvenini artırır.')), fn: () => { F.g = !F.g; } });
+        const sc = side(Tr('Sermaye'), Tr('Sermaye, bankanın kendi parasıdır: zararları karşılar, kasayı doldurur ve güven verir. Panik anında kuyruktakilere önce sermaye ödenir.'));
+        for (const v of [100, 500]) it.push({ icon: '💰', label: Tr('Sermaye Ekle'), right: fmtMoney(v), side: sc, disabled: G.player.money < v, why: Tr('Yeterli paran yok.'), fn: () => G.bankAdd(z, v) });
+        const fr = G.bankFree(z);
+        it.push({ icon: '💵', label: Tr('Sermaye Çek'), right: fmtMoney(Math.min(100, fr)), side: sc, disabled: fr < 0.01, why: Tr('Kasada çekilebilecek sermaye yok.'), fn: () => G.bankTake(z, 100) });
+        it.push({ icon: '💵', label: Tr('Bütün Serbest Sermayeyi Çek'), right: fmtMoney(fr), side: sc, disabled: fr < 0.01, why: Tr('Kasada çekilebilecek sermaye yok.'), fn: () => G.bankTake(z, fr) });
+        return it;
+      },
+    });
+  },
+  /* İşletmenin sektörü ve oradaki hakimiyetin (js/tycoon.js) */
+  bizSecLine(z) {
+    const k = G.secOf(z.type);
+    if (!k) return '';
+    const S = G.sectors()[k], L = SECTOR_LV[S.lv];
+    return `<div><b>${Tr`Sektör:`}</b> ${SECTORS[k].n} <span class="dim">— ${Tr`payın ${G.pct(S.share)}`}</span> <span class="sc-l${S.lv}">${L.n}</span>${S.lv ? ` <span class="dim">(${Tr`gelir +${G.pct(L.inc - 1)}`})</span>` : ''}</div>`;
   },
   /* Toptan mal satışı */
   openGoods(b) {
@@ -2751,7 +2830,7 @@ const UI = {
     const here = G.world.towns.find(t => t.id === b.town) || G.nearestTown(G.player.x, G.player.y);
     this.menu({
       title: Tr('Satılık İşletmeler'), wallet: true, cls: 'small', side: (it) => it.side || '',
-      tabs: [Tr('İşletmeler'), Tr('Arsalar')],
+      tabs: [Tr('İşletmeler'), Tr('Arsalar'), Tr('Rakipler')],
       build: (m) => {
         const towns = G.world.towns.filter(t => t === here || G.visited.has(t.id)).sort((a, c) => dist(here.cx, here.cy, a.cx, a.cy) - dist(here.cx, here.cy, c.cx, c.cy));
         const it = [];
@@ -2760,7 +2839,13 @@ const UI = {
             const list = t.buildings.filter(x => G.bizForSale(x));
             if (!list.length) continue;
             it.push({ header: t.n });
-            for (const x of list) { const pr = G.bizPrice(x); it.push({ icon: BICON[x.type] ? Icons.glyph(BICON[x.type], '#efe6d2') : '🏪', label: BUILDINGS[x.type].n, right: fmtMoney(pr), disabled: G.player.money < pr, why: Tr('Yeterli paran yok.'), side: this.bizSide(x.type, t), fn: () => this.confirmBuyBiz(x) }); }
+            for (const x of list) { const pr = G.bizPrice(x); it.push({ icon: BICON[x.type] ? Icons.glyph(BICON[x.type], '#efe6d2') : '🏪', label: BUILDINGS[x.type].n + (G.bizDistress(x) ? ` <span class="st-mid">${Tr('(zor durumda)')}</span>` : ''), right: fmtMoney(pr), disabled: G.player.money < pr, why: Tr('Yeterli paran yok.'), side: this.bizSide(x.type, t), fn: () => this.confirmBuyBiz(x) }); }
+          } else if (m.tab === 2) {
+            // satmak istemeyen rakipler: teklifle alınır (bedel hakimiyetin arttıkça düşer)
+            const list = t.buildings.filter(x => G.bizOfferable(x));
+            if (!list.length) continue;
+            it.push({ header: t.n });
+            for (const x of list) { const pr = G.bizOfferPrice(x), why = G.bizOfferWhy(x); it.push({ icon: BICON[x.type] ? Icons.glyph(BICON[x.type], '#efe6d2') : '🏪', label: BUILDINGS[x.type].n, right: fmtMoney(pr), disabled: !!why || G.player.money < pr, why: why || Tr('Yeterli paran yok.'), side: this.bizSide(x.type, t) + `<div class="ps-p">${Tr('Sahibi satmak istemiyor; teklifin piyasa fiyatının üstünde olmalı. Pazardaki hakimiyetin arttıkça rakipler daha ucuza razı olur.')}</div>`, fn: () => this.confirmBuyBiz(x, true) }); }
           } else {
             const lots = (t.lots || []).filter(l => !G.lotBiz(l));
             if (!lots.length) continue;
