@@ -659,6 +659,9 @@ const ECO_NEWS = {
   sahaal: { h: '{c} SAHASINI SATTI', t: '{c}, {k} yakınlarındaki petrol sahasını kuyularıyla birlikte devretti. Yeni sahibi {p}.', s: '{k} yakınlarındaki petrol sahasının yeni sahibi: {p}' },
   zorp: { h: '{c} ZOR DURUMDA', t: 'Büyük rakibinin ucuz petrolüyle başa çıkamayan {c}, {k} yakınlarındaki sahasını ucuza elden çıkarmak istiyor.', s: '{c} sahasını ucuza satıyor!' },
   tukendi: { h: '{k} SAHASI TÜKENDİ', t: '{k} yakınlarındaki petrol sahasında kuyular bir bir kurudu. Sondajcılar yeni sızıntılar aramaya çıktı.', s: '{k} yakınlarındaki petrol tükendi!' },
+  skandal: { h: '{k}: RÜŞVET SKANDALI', t: '{k} şerifinin cebine giren paralar ortaya çıktı; gazetelerin parmak bastığı isim {p}. Şerif görevden alındı, yerine dürüstlüğüyle bilinen biri atandı.', s: '{k} rüşvet skandalında adı geçen: {p}' },
+  islah: { h: 'ISLAH KOMİSYONU KURULDU', t: 'Eyalet, kanun adamlarının cebine giren paraları soruşturacak bir ıslah komisyonu kurdu. {k} şerifi "bizim kasabada öyle şey olmaz" diyor.', s: 'Islah Komisyonu kuruldu: rüşvete savaş!' },
+  islahceza: { h: 'ISLAH KOMİSYONUNDAN RÜŞVET CEZASI', t: 'Islah Komisyonu, {k} şerifine rüşvet verdiği anlaşılan {p} için {m} ceza kesti. Şerif görevden alındı.', s: '{p} için rüşvet cezası: {m}!' },
   rafineri: { h: '{k}: RAFİNERİ AÇILDI', t: '{p}, {k} istasyonunun yanında bir rafineri kurdu. Baca gece gündüz tütüyor; ham petrol vagon vagon geliyor.', s: '{p} {k} istasyonunun yanında rafineri açtı!', good: 1 },
 };
 /* ---- Petrol (js/tycoon.js) ----
@@ -677,6 +680,18 @@ const INF_LV = [
   { n: 'Sözü Geçen', min: 75, d: 'Kasabalar paranı istiyor: soygun dosyaları bile kapanır, tanıkların bir kısmı susar.' },
   { n: 'Patron', min: 90, d: 'Bölgenin en güçlü adı: cinayet dosyası bile kapanabilir, tanıklar çoğu zaman susar. Kanun adamı öldürmek ise asla affedilmez.' },
 ];
+/* Suç dosyası sınıfları: 0 hafif, 1 orta, 2 soygun, 3 cinayet, 4 affedilmez (kanun adamı öldürme). Bir dosyanın rüşvetle
+   kapanması için en ağır suçunun sınıfı + 1 nüfuz basamağı gerekir; affedilmez suç hiç kapanmaz. */
+const CRIME_CLS = { trespass: 0, livestock: 0, livestockHurt: 0, looting: 0, trample: 0, assault: 0, bribery: 0,
+  robbery: 1, horsetheft: 1, cartheft: 1, assaultLaw: 1, storeNight: 2, storerob: 2, bankrob: 2, murder: 3, murderLaw: 4 };
+const CRIME_CLS_N = ['Hafif suç', 'Orta suç', 'Soygun', 'Cinayet', 'Kanun adamı öldürme'];
+/* Rüşvet: min en düşük bedel; cls sınıf çarpanı (ödüle; bedel nüfuzla ucuzlar ve hep resmî cezanın altında kalır: şerifin
+   cebine girer, bedeli onur ve söylentidir); honor onur kaybı ve heat söylenti (sınıfa göre); fail rüşvet
+   teklifi suçunun ödülü; scandal kasabadaki söylentinin skandala dönmeye başladığı eşik; taint skandaldan sonra
+   nüfuzun kaybı (taintYrs yıl); reformYear kurgusal Islah Komisyonu'nun kurulduğu yıl: sonrasında rüşvet reform kat
+   pahalı, rüşvet almayan şerif çok (honest: önce / sonra), skandalda ceza */
+const BRIBE = { min: 3, cls: [0.7, 0.8, 0.9, 1], honor: [1, 2, 3, 5], heat: [1, 2, 4, 7], fail: 8, scandal: 10, taint: 15, taintYrs: 3,
+  reformYear: 1915, reform: 1.4, honest: [0.2, 0.4] };
 /* Rakip petrol şirketleri (kurgusal) */
 const OIL_COS = ['Kızılkaya Petrol', 'Batı Ovası Petrol Şirketi', 'Üç Kule Petrol', 'Kara Altın Ortaklığı', 'Kartaltepe Petrol', 'Demirtepe Yağcılık'];
 /* ---- Kendi bankan (js/tycoon.js) ----
@@ -874,6 +889,12 @@ const LINES = {
   witnessHold: ['Ateş etme! Lütfen!', 'Tamam, tamam! Durdum!', 'Beni vurma!'],
   silenced: ['Tamam! Kimseye bir şey söylemeyeceğim!', 'Hiçbir şey görmedim, yemin ederim!', 'Ağzımı açmam, söz!'],
   bribed: ['Ne gördüğümü unuttum bile.', 'Bu para iyi gelir... Ben bir şey görmedim.', 'Sen hiç burada değildin, dostum.'],
+  // rüşvet (js/influence.js): oyuncunun teklifi, kabul eden, pazarlığa yanaşmayan ve dürüst kanun adamı
+  bribeOffer: ['Bu dosyayı unutalım, şerif.', 'Belki bu, sorunu çözer.', 'Aramızda kalsın.', 'Kasabanın sana ihtiyacı var; benim de.'],
+  lawBribed: ['Ben bir şey görmedim, efendim.', 'Dosya mı? Hangi dosya?', 'İyi günler. Kimseye bir şey söylemem.'],
+  lawGreedy: ['Bu kadarla olmaz.', 'Bugün olmaz. Başka zaman.', 'Bu iş bana pahalıya patlar.'],
+  lawRefuse: ['Beni satın alamazsın!', 'Rüşvet mi? Bunu da dosyana yazıyorum!', 'Bu yıldızı parayla takmadım!'],
+  infSilent: ['Onun işine karışmam.', 'Ben bir şey görmedim.', 'Belaya bulaşmam.'],
   maskLaw: ['Maskeni çıkar, yabancı!', 'O bez yüzünde ne arıyor? Çıkar onu!', 'Kasabada maskeli dolaşmak yasak, bilesin.'],
   maskTown: ['Neden maskelisin?', 'Tanrım, bir haydut!', 'Maskeli biri... Uzak dur benden.', 'Yüzünü neden saklıyorsun?'],
   reported: ['Şerif, adamı gördüm! Tarif edeyim...', 'Şu tarafa kaçtı, şerif!'],

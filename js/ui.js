@@ -1606,7 +1606,8 @@ const UI = {
         <div class="jr-row">${Tr`<b>Onur:</b> ${honorTxt} (${Math.round(G.honor)})`}<div class="honorbar"><i style="left:${50 + G.honor / 2}%"></i></div></div>
         ${this.infRow()}
         <div class="jr-row">${Tr`<b>Nakit:</b> ${fmtMoney(P.money)} &nbsp; <b>Banka:</b> ${fmtMoney(G.bank)}`}</div>
-        <div class="jr-row">${Tr`<b>Başındaki Ödül:</b> ${fmtMoney(G.law.bounty)}`}</div>
+        <div class="jr-row">${Tr`<b>Başındaki Ödül:</b> ${fmtMoney(G.law.bounty)}`}${G.law.bounty > 0 ? ` <span class="dim">(${Tr`dosya: ${CRIME_CLS_N[Math.min(4, G.recClass())]}`})</span>` : ''}</div>
+        ${this.heatRow()}
         <div class="jr-row">${Tr`<b>At:</b> ${G.horse ? Tr`${G.horse.name} (${G.horse.def.n}) — Bağ ${G.horse.bondLv}/4` : Tr('Yok')}`}</div>
         <div class="jr-row">${Tr`<b>Mülkler:</b> ${G.props.length ? G.props.map(id => PROPERTIES.find(p => p.id === id).n).join(', ') : Tr('Yok')}`}</div>
         <div class="jr-row">${Tr`<b>Aile:</b> ${G.family.spouse ? Tr`Eşi: ${G.family.spouse.name}` : Tr('Bekar')}${G.family.children.length ? Tr(' • Çocuklar: ') + G.family.children.map(c => c.name).join(', ') : ''}`}</div>
@@ -1674,7 +1675,17 @@ const UI = {
     if (!G.infl) return '';
     const v = G.influence(), L = INF_LV[G.infLv(v)], p = G.infParts(), t = G.infTown(), lv = t ? G.influence(t) : v, sg = (x) => (x >= 0 ? '+' : '') + Math.round(x);
     return `<div class="jr-row">${Tr`<b>Nüfuz:</b> ${L.n} (${v})`}<div class="infbar"><i style="width:${v}%"></i>${INF_LV.slice(1).map(l => `<b style="left:${l.min}%"></b>`).join('')}</div>`
-      + `<div class="jr-sm">${Tr`Servet ${sg(p.wealth)} · Onur ${sg(p.honor)} · Varlıklar ${sg(p.assets)}`}${t && lv !== v ? ' · ' + Tr`${t.n} kasabasında ${lv}` : ''}</div><div class="jr-sm">${L.d}</div></div>`;
+      + `<div class="jr-sm">${Tr`Servet ${sg(p.wealth)} · Onur ${sg(p.honor)} · Varlıklar ${sg(p.assets)}`}${p.taint ? ' · ' + Tr`Skandal ${sg(p.taint)}` : ''}${t && lv !== v ? ' · ' + Tr`${t.n} kasabasında ${lv}` : ''}</div><div class="jr-sm">${L.d}</div></div>`;
+  },
+  /* Rüşvet söylentileri ve skandal lekesi (js/influence.js) */
+  heatRow() {
+    const I = G.infl;
+    if (!I) return '';
+    const hs = Object.keys(I.heat).filter(k => I.heat[k] >= 2).map(k => { const t = G.bizTown(k); return t ? `${t.n}: ${G.heatWord(I.heat[k])}` : ''; }).filter(Boolean);
+    let h = '';
+    if (hs.length) h += `<div class="jr-row jr-sm">${Tr`<b>Rüşvet söylentileri:</b> ${hs.join(' · ')}`}</div>`;
+    if (I.taint > G.year) h += `<div class="jr-row jr-sm st-low">${Tr`Skandal lekesi: nüfuzun ${I.taint} yılına kadar ${BRIBE.taint} düşük.`}</div>`;
+    return h;
   },
   /* İşlerim: işletmeler, stok, kasa, yük arabası */
   bizJournal() {
@@ -2216,6 +2227,11 @@ const UI = {
         // aranırken masada teslim olunur (ceza ya da hapis); aranmıyorsan başındaki ödül doğrudan ödenir
         if (G.law.level > 0 && G.suspect()) it.push({ icon: '⚖', label: Tr('Teslim Ol'), right: fmtMoney(G.law.bounty + (G.law.maskBounty || 0)), fn: () => G.turnIn(b) });
         else if (G.law.bounty > 0) it.push({ icon: '⚖', label: Tr('Başındaki Ödülü Öde'), right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
+        // nüfuzluysan şerifle anlaşıp dosyayı kapatabilirsin (js/influence.js)
+        if ((G.law.level > 0 && G.suspect()) || G.law.bounty > 0) {
+          const bt = G.bizTown(b.town), cop = G.officeCop(b), why = G.bribeWhy(bt), pr = G.bribePrice(bt);
+          if (G.infLv(G.influence(bt)) >= 1 && !(cop && cop.bribeTried)) it.push({ icon: '💰', label: Tr('Dosyayı Kapat (Rüşvet)'), right: fmtMoney(pr), disabled: !!why || P.money < pr, why: why || Tr('Yeterli paran yok.'), fn: () => { if (G.bribeLaw(cop, bt) === 'honest') this.closeAll(); } });
+        }
         if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: Tr('Ödül Avı Ödülünü Al'), right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, Tr('Ödül avı')); G.addHonor(3); G.activeBounty = null; } });
         // omuzda ya da kapıdaki atın eyerinde getirilen suçlular
         for (const c of G.carriedAll()) if (c.e.kind === 'npc' && G.wantedValue(c.e)) it.push({ icon: '⚖', label: Tr`Teslim Et: ${c.e.name} ${c.e.dead ? Tr('(ölü)') : Tr('(canlı)')}`, right: fmtMoney(G.wantedValue(c.e)), fn: () => { G.deliverToSheriff(c); this.pop(); } });
