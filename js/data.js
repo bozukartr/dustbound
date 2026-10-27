@@ -366,7 +366,7 @@ const DEV_NEWS = {
 /* ---- Binalar ---- */
 const BUILDINGS = {
   general:  { n: 'Genel Mağaza', w: 10, h: 7, wall: '#8a6a48', roof: '#5b3a29', sign: '#c9a45c', svc: ['shop', 'news', 'rob'], shop: 'general' },
-  saloon:   { n: 'Saloon', w: 12, h: 9, wall: '#7a4f33', roof: '#46291c', sign: '#b3261e', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
+  saloon:   { n: 'Saloon', w: 12, h: 9, wall: '#7a4f33', roof: '#46291c', sign: '#b3261e', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'guards', 'rob'], shop: 'saloon', tall: 1 },
   sheriff:  { n: 'Şerif Ofisi', w: 9, h: 7, wall: '#9a8a70', roof: '#4a3a2a', sign: '#d8c080', svc: ['bounty', 'board'] },
   doctor:   { n: 'Doktor', w: 8, h: 7, wall: '#d8d0c0', roof: '#5a4a40', sign: '#e8e8e8', svc: ['heal', 'shop'], shop: 'doctor' },
   gunsmith: { n: 'Silahçı', w: 8, h: 6, wall: '#6a5a4a', roof: '#3a2e24', sign: '#909090', svc: ['shop', 'rob'], shop: 'gunsmith' },
@@ -400,7 +400,7 @@ const BUILDINGS = {
   smith:    { n: 'Demirci', w: 9, h: 6, wall: '#5a5048', roof: '#2e2824', sign: '#b0a090', svc: ['shop', 'horsecare'], shop: 'smith' },
   pharmacy: { n: 'Eczane', w: 7, h: 6, wall: '#d8d8c8', roof: '#3a5a4a', sign: '#80c0a0', svc: ['shop', 'rob'], shop: 'pharmacy' },
   laundry:  { n: 'Çamaşırhane', w: 8, h: 6, wall: '#b8b0a0', roof: '#5a6a7a', sign: '#a0c0e0', svc: ['bath'] },
-  gambling: { n: 'Kumarhane', w: 11, h: 8, wall: '#5a2a2a', roof: '#2a1414', sign: '#e0b040', svc: ['poker', 'blackjack', 'shop', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
+  gambling: { n: 'Kumarhane', w: 11, h: 8, wall: '#5a2a2a', roof: '#2a1414', sign: '#e0b040', svc: ['poker', 'blackjack', 'shop', 'rumor', 'guards', 'rob'], shop: 'saloon', tall: 1 },
   brewery:  { n: 'Bira İmalathanesi', w: 11, h: 8, wall: '#7a5030', roof: '#3a2818', sign: '#d8a040', svc: ['work', 'shop'], shop: 'brewery', work: 'brewery', brick: 1 },
   mill:     { n: 'Değirmen', w: 8, h: 7, wall: '#a88a60', roof: '#5a4030', sign: '#e0d0a0', svc: ['work', 'shop'], shop: 'mill', work: 'mill' },
   county:   { n: 'İlçe Binası', w: 10, h: 8, wall: '#b8a888', roof: '#3a3a44', sign: '#e8e0c0', svc: ['property'], brick: 1, tall: 1 },
@@ -408,7 +408,7 @@ const BUILDINGS = {
   warehouse:{ n: 'Toptancı Ambarı', w: 12, h: 8, wall: '#7a6a58', roof: '#40382e', sign: '#c8b080', svc: ['shop'], shop: 'warehouse' },
   // zengin şehrin açık hava pazarı: tenteli tezgâhlar, pahalı ama seçkin mallar
   market:   { n: 'Pazar Yeri', w: 12, h: 5, wall: '#8a6a48', roof: '#6a4a30', sign: '#e8d8a8', svc: ['shop'], shop: 'market', noInt: 1, market: 1 },
-  cantina:  { n: 'Cantina', w: 10, h: 8, wall: '#c89a68', roof: '#8a5a38', sign: '#e06040', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon' },
+  cantina:  { n: 'Cantina', w: 10, h: 8, wall: '#c89a68', roof: '#8a5a38', sign: '#e06040', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'guards', 'rob'], shop: 'saloon' },
   // Saint Clement'in iki katlı seçkin yapıları (dünya sürümü 5): satılık malikane ve üyelere açık özel kulüp
   mansion:  { n: 'Malikane', w: 14, h: 10, wall: '#d8d0c0', roof: '#3a3a44', svc: [], tall: 1 },
   club:     { n: 'Kulüp', w: 14, h: 10, wall: '#4a2e26', roof: '#2a2a30', sign: '#c8a040', svc: ['shop', 'poker'], shop: 'club', tall: 1 },
@@ -697,6 +697,29 @@ const BRIBE = { min: 3, cls: [0.7, 0.8, 0.9, 1], honor: [1, 2, 3, 5], heat: [1, 
    o kasabadaki nüfuz; mid orta suçların ödül çarpanı; bribe o kasabada rüşvet çarpanı; grudge anlaşma bozulunca küsen
    şerifin ağzından dökülen söylenti */
 const PAYROLL = { lv: 2, wage: [1, 1.5, 2, 3, 4], sign: 10, heat: 3, local: 10, mid: 0.5, bribe: 0.5, grudge: 5 };
+/* ---- Korumalar (js/guards.js) ----
+   GUARD_MAX nüfuz basamağına göre en çok koruma; GUARD_HIRE tutma bedeli (günlük ücretin katı); GUARD_LEASH çatışmada
+   senden en çok ne kadar uzaklaşır (px). GUARD_TRAITS: hp can, acc
+   nişan sapması, dmg mermi hasarı, wage günlük ücret, weapon silah, hush kanuna koşan tanığı susturma olasılığı; loyal
+   kanuna direnince yanında savaşır, coward canı yarıya inince kaçar. */
+const GUARD_MAX = [0, 0, 1, 2, 3], GUARD_HIRE = 10, GUARD_LEASH = 300;
+const GUARD_TRAITS = {
+  sharp: { n: 'Keskin Nişancı', d: 'Uzaktan ve isabetli vurur.', hp: 110, acc: 0.025, dmg: 60, wage: 1.2, weapon: 'rifle', hush: 0.2 },
+  brute: { n: 'İri Yarı', d: 'Kurşuna dayanıklıdır; tanıklar ondan çekinir.', hp: 190, acc: 0.08, dmg: 10, wage: 1, weapon: 'shotgun', hush: 0.6 },
+  loyal: { n: 'Sadık', d: 'Asla kaçmaz; kanuna direnirsen yanında savaşır.', hp: 130, acc: 0.05, dmg: 22, wage: 1.4, weapon: 'repeater', hush: 0.3, loyal: 1 },
+  cheap: { n: 'Ucuz', d: 'Ucuzdur; ama canı yanınca kaçar.', hp: 90, acc: 0.09, dmg: 16, wage: 0.5, weapon: 'cattleman', hush: 0.15, coward: 1 },
+};
+const GUARD_LINES = {
+  hire: ['Silahım senin için.', 'Ücretimi aksatma, gerisini bana bırak.', 'Arkanı kollarım, patron.'],
+  follow: ['Arkandayım.', 'Peşindeyim, patron.', 'Tamamdır.'],
+  wait: ['Burada beklerim.', 'Burayı tutarım.', 'Kimse geçemez.'],
+  fight: ['Patronu koruyun!', 'Eğil, patron!', 'Gelin bakalım!', 'Arkanı kolluyorum!'],
+  flee: ['Bu kadarına para almıyorum!', 'Ben kaçıyorum!', 'Yeter, ben yokum!'],
+  aside: ['Kanunla başım derde girmez, patron.', 'Bu işe karışamam.', 'Kanuna silah çekmem.'],
+  quit: ['Bu iş bana göre değil. Hoşça kal.', 'Kanunla savaşmak için tutulmadım.', 'Parasız silah çekmem. Ben gidiyorum.'],
+  hush: ['Sen bir şey görmedin, değil mi?', 'Çeneni kapalı tut, iyi olur.', 'Şerife gitmeyi aklından bile geçirme.'],
+  fired: ['Peki. Bir gün yine lazım olursam yerimi bilirsin.', 'Nasıl istersen, patron.'],
+};
 /* Rakip petrol şirketleri (kurgusal) */
 const OIL_COS = ['Kızılkaya Petrol', 'Batı Ovası Petrol Şirketi', 'Üç Kule Petrol', 'Kara Altın Ortaklığı', 'Kartaltepe Petrol', 'Demirtepe Yağcılık'];
 /* ---- Kendi bankan (js/tycoon.js) ----

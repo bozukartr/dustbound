@@ -1188,7 +1188,8 @@ class NPC extends Ent {
     if (this.quest === 'mentor' || this.quest === 'kin' || this.quest === 'ward') return;   // hikâyenin akıl hocası, yakını ve taşınan yaralısı: vurulamaz, suç da yazılmaz
     this.hp -= dmg;
     if (how !== 'drown') G.parts.burst('blood', this.x, this.y, 3 + Math.min(dmg, 200) / 12, 35, 0.6, 1.4);
-    if (by === 'player') {
+    if (by === 'player' && this.guard) G.guardHit(this);   // kendi korumanı vurdun (js/guards.js)
+    else if (by === 'player') {
       // yumruk kavgası: kasabalıya yumruk hemen suç sayılmaz, karakterine göre karşılık verir (brawl.js)
       const fair = (how === 'fist' && G.brawlHit(this)) || (this.fistOK && how === 'melee' && this.state === 'fightFist');
       if (this.role === 'hunter') G.hunterFight();   // ödül avcısını vurmak suç değildir
@@ -1302,6 +1303,7 @@ class NPC extends Ent {
     G.animTick(this, dt);
     if (G.railDodge(this, dt)) return;   // yaklaşan tren: raydan çekil ya da geçmeden bekle
     if (this.quest && G.questNpc(this, dt)) return;   // hikâyenin akıl hocası kendi yolunu izler
+    if (this.guard && G.guardNpc(this, dt)) return;   // koruman (js/guards.js)
     this.t -= dt; this.cool -= dt;
     const P = G.player;
     const pd = dist(this.x, this.y, P.x, P.y);
@@ -1463,7 +1465,10 @@ class NPC extends Ent {
     if (chance(0.6)) this.say(pick([Tr('Şarjör!'), Tr('Doldurmam lazım!'), Tr('Örtün beni!'), Tr('Mermi!')]), 1.6);
   }
   fight(dt, pd) {
-    const P = G.player, W = WEAPONS[this.weapon] || WEAPONS.cattleman;
+    // onu vuran korumayı (js/guards.js) bir süre hedef alır
+    if (this.foe && (this.foe.dead || this.foe.remove || !this.foe.guard || (this.foeT -= dt) <= 0)) this.foe = null;
+    const P = this.foe || G.player, W = WEAPONS[this.weapon] || WEAPONS.cattleman;
+    if (this.foe) pd = dist(this.x, this.y, P.x, P.y);
     if (this.mag === undefined) this.ammoInit();
     // görüş: oyuncunun yerini ancak onu görürken bilir; göremeyince son gördüğü yere yönelir ve orayı gözetler
     // (bina içindeki oyuncuyu duvarın ardından görüp nişan almaz)
@@ -1564,7 +1569,7 @@ class NPC extends Ent {
       walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held || (this.anim && this.anim.k === 'tie'),
       anim: this.anim && !this.dead ? this.anim.k : null, animT: this.anim ? this.anim.t : 0, gait: this.walkStyle || (this.gt && this.gt.style),
       hatK: this.anim && this.anim.k === 'tiphat' ? Math.sin(Math.min(1, this.anim.t / this.anim.dur) * Math.PI) : 0,
-      aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing', wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
+      aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing' || !!this.gAim, wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
       swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon, hold: this.state === 'flee' || this.state === 'report' ? null : this.carry2,
       head: this.lookAt != null && !this.dead ? clamp(angDiff(this.ang, this.lookAt), -1.2, 1.2) : 0,
     });

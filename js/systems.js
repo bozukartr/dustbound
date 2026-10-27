@@ -46,7 +46,7 @@ const GameSystems = {
     let inc = 0;
     for (const id of this.props) { const P = PROPERTIES.find(p => p.id === id); if (P && P.income) inc += P.income; }
     if (inc > 0) { inc *= this.hasPerk('tycoon') ? 1.5 : 1; this.bank += inc; UI.feed(Tr`🏠 Mülk geliri bankaya yatırıldı: ${fmtMoney(inc)}`); this.stats.earned += inc; }
-    this.bizDaily(); this.bizBuildTick(); this.tycoonDaily(d); this.haulDaily(); this.homeDaily(); this.estateDaily(); this.infDaily(d);
+    this.bizDaily(); this.bizBuildTick(); this.tycoonDaily(d); this.haulDaily(); this.homeDaily(); this.estateDaily(); this.infDaily(d); this.guardDaily();
     this.bounties = null; // ilanlar yenilenir
     const L = this.player.look;
     if (L.sex === 'm' && L.beard > 0) { L.beardLen = Math.min(1, (L.beardLen || 0.3) + 0.08); this.player._lk = null; }
@@ -436,7 +436,7 @@ const GameSystems = {
     const ilv = this.anonymous() || type === 'murderLaw' ? 0 : this.infLv(this.influence(this.world.townAt(x, y, 60) || this.nearestTown(x, y)));
     const hush = ilv >= 4 ? 0.4 : ilv >= 3 ? 0.2 : 0;
     for (const e of this.ents) {
-      if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'gang' || e.role === 'hunter' || e.role === 'spouse' || e.role === 'child' || e.silenced) continue;
+      if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'gang' || e.role === 'hunter' || e.role === 'spouse' || e.role === 'child' || e.guard || e.silenced) continue;
       if (e.state === 'hurt' || e.bound || this.floorHid(e)) continue;   // oyuncu otelin üst katındayken alt kattakiler bir şey görmez
       if (e.res && e !== victim && this.opOf(e.res) >= 50 && chance(0.5)) continue;   // oyuncuyu seven sakin bazen görmezden gelir
       const see = e === victim ? dist2(e.x, e.y, x, y) < 60 * 60 : dist2(e.x, e.y, x, y) < 340 * 340 && this.los(e.x, e.y, x, y);
@@ -637,7 +637,7 @@ const GameSystems = {
   watcher(r) {
     const P = this.player;
     for (const e of this.ents) {
-      if (e.kind !== 'npc' || e.dead || e.role === 'bandit' || e.role === 'gang' || e.state === 'hurt') continue;
+      if (e.kind !== 'npc' || e.dead || e.role === 'bandit' || e.role === 'gang' || e.guard || e.state === 'hurt') continue;
       const rr = e.isLaw ? r * 2 : r;
       if (Math.abs(e.x - P.x) > rr || Math.abs(e.y - P.y) > rr) continue;
       if (e.canSee(P.x, P.y, rr)) return e;
@@ -946,7 +946,7 @@ const GameSystems = {
       case O.TUB: return b.def.svc.includes('bath') ? { label: Tr('Küvet'), acts: svc('bath') } : null;
       case O.CARDTABLE: return { label: Tr('Kart Masası'), acts: svc('poker', 'blackjack') };
       case O.TABLE:
-        if (b.type === 'saloon' || b.type === 'cantina' || b.type === 'gambling') return { label: Tr('Masa'), acts: [...svc('meal'), ...svc('rumor'), ...svc('arm')] };
+        if (b.type === 'saloon' || b.type === 'cantina' || b.type === 'gambling') return { label: Tr('Masa'), acts: [...svc('meal'), ...svc('rumor'), ...svc('guards'), ...svc('arm')] };
         if (b.type === 'bakery') return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
         if (b.type === 'house') return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }, { n: Tr('Evi Ara'), hold: 1.2, fn: () => this.searchHouse(b) }] };
         return { label: Tr('Masa'), acts: [{ n: Tr('Otur ve Bekle'), fn: () => U.openWait() }] };
@@ -1091,7 +1091,9 @@ const GameSystems = {
       }
     }
     let hit = null, hd = wallD;
-    const cands = opts.npc ? [this.player, ...(this.horse && !this.horse.dead ? [this.horse] : []), ...this.ents.filter(e => e.kind === 'npc' && !e.hostile && !e.dead)] : this.ents;
+    // koruma (js/guards.js) yalnızca düşmana ve saldıran hayvana isabet ettirir; atışından önce yolun açık olduğuna bakar
+    const cands = opts.guard ? this.ents.filter(e => (e.kind === 'npc' && e.hostile && !e.dead) || (e.kind === 'animal' && !e.dead && e.state === 'attack'))
+      : opts.npc ? [this.player, ...(this.horse && !this.horse.dead ? [this.horse] : []), ...this.ents.filter(e => e.kind === 'npc' && !e.hostile && !e.dead)] : this.ents;
     for (const e of cands) {
       if (e === owner || e.dead || e.remove || e.hide || this.floorHid(e)) continue;   // üst kattayken alt kattakiler vurulmaz
       if (e === this.player && !opts.npc) continue;
@@ -1112,7 +1114,7 @@ const GameSystems = {
     if (hit) {
       const was = hit.dead;
       if (hit === this.player) { if (owner) Juice.hurtFrom(owner.x, owner.y); hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : owner && owner.role === 'hunter' ? 'avci' : 'haydut', false, owner, opts.weapon || (owner && owner.weapon)); }
-      else hit.hurt(dmg, owner === this.player ? 'player' : 'npc', 'gun');
+      else hit.hurt(dmg, owner === this.player || (opts.guard && hit.isLaw) ? 'player' : 'npc', 'gun');   // korumanın vurduğu kanun adamı senin suçun
       if (hit.kind === 'npc' || hit.kind === 'animal' || hit === this.player) Audio_.play('hit_flesh', { x: ex, y: ey, vol: hit === this.player ? 1.2 : 0.8 });
       else if (hit.kind === 'wagon') Audio_.play('hit_wood', { x: ex, y: ey });
       // vuruşun hissi: ölümde savrulma ve uçan şapka; oyuncunun isabetinde mikro duraklama
@@ -1164,7 +1166,7 @@ const GameSystems = {
       if (e.kind === 'animal') {
         if (e.def.beh === 'hostile' && d2 < 200 * 200) { e.state = 'attack'; e.t = 15; }
         else if (e.def.beh !== 'hostile') { e.state = 'flee'; e.t = rnd(6, 10); e.fleeFrom({ x, y }); }
-      } else if (e.kind === 'npc' && !e.hostile && e.role !== 'bandit' && type === 'gun') {
+      } else if (e.kind === 'npc' && !e.hostile && e.role !== 'bandit' && !e.guard && type === 'gun') {
         if (e.talk) e.talk = null;
         if (e.state !== 'hurt' && e.state !== 'static' && e.state !== 'report' && !e.bound) { e.state = e.role === 'town' && chance(0.4) ? 'cower' : 'flee'; e.t = rnd(5, 10); if (chance(0.2)) e.say(pick(LINES.flee), 2); if (e.state === 'cower') setTimeout(() => { if (e.state === 'cower') e.state = 'idle'; }, 8000); }
       } else if (e.kind === 'horse' && e.owner !== 'player' && !e.rider && type === 'gun' && !e.hitch) { e.state = 'flee'; e.t = 5; e.ang = Math.atan2(e.y - y, e.x - x); }
@@ -1183,6 +1185,7 @@ const GameSystems = {
     this.qEvent('kill', a);
   },
   onNpcKill(n, how) {
+    if (n.guard) { this.guardDied(n.guard, true); this.addHonor(-3); return; }   // kendi korumanı öldürdün (js/guards.js)
     this.stat('kills', 1);
     if (n.role === 'bandit' || n.role === 'target') { this.stat('bandits', 1); this.addHonor(1); this.skillXp('shooting', 6); }
     else if (n.isLaw) { if (!n.hostile || this.law.level === 0) this.crime('murderLaw', n.x, n.y, n); else { if (this.anonymous()) this.law.maskBounty = (this.law.maskBounty || 0) + 30; else this.law.bounty += 30; this.recAdd('murderLaw', 30, this.anonymous()); this.law.level = Math.min(5, this.law.level + (chance(0.4) ? 1 : 0)); this.addHonor(-4); UI.wanted(Tr('Kanun adamı öldürüldü'), 30); } }
@@ -1909,7 +1912,7 @@ const GameSystems = {
         const acts = this.npcActions(e);
         // barışçıl atlıya E'ye dokununca selam verilir; eyerden çekmek basılı tutunca açılan seçeneklerde
         if (acts.length > 1 && acts[0].pull && !e.hostile && !e.bountyId && e.role !== 'bandit' && e.role !== 'target') acts.push(acts.shift());
-        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)} <span class="dim">(${MOODS[this.moodOf(e.res)].n})</span>` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.servant ? `${e.name} · ${SERVANTS[e.servant].n}` : e.name, acts, 3);
+        if (acts.length) add(e.x, e.y, e.res ? `${e.name} · ${this.occName(e.res)} <span class="dim">(${MOODS[this.moodOf(e.res)].n})</span>` : e.role === 'hunter' ? `${e.name} · ${Tr('Ödül Avcısı')}` : e.servant ? `${e.name} · ${SERVANTS[e.servant].n}` : e.guard ? `${e.name} · ${GUARD_TRAITS[e.guard.trait].n} ${Tr('Koruma')}` : e.name, acts, 3);
       }
     }
     // kayıp eşyalar
@@ -2045,6 +2048,7 @@ const GameSystems = {
     return best;
   },
   npcActions(e) {
+    if (e.guard) return this.guardActions(e);
     if (e.servant) return this.servantActions(e);
     if (e.role === 'hunter') return this.hunterActions(e);
     if (e.quest === 'mentor') return this.mentorActions(e);

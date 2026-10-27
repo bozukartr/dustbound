@@ -57,6 +57,7 @@ const G = {
     this.dev = null; this._devF = null; this._devCamps = null; this._devB = null; this._bq = null;   // kasabaların gelişimi (js/develop.js, js/devworld.js)
     this.tycoon = null; this._sec = null;   // tekelleşme (js/tycoon.js)
     this.infl = null;   // nüfuz (js/influence.js)
+    this.guards = [];   // korumalar (js/guards.js)
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -319,7 +320,7 @@ const G = {
       weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, pins: this.pins, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), dev: this.saveDev(), tycoon: this.saveTycoon(), infl: this.saveInfl(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, pins: this.pins, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), dev: this.saveDev(), tycoon: this.saveTycoon(), infl: this.saveInfl(), guards: this.saveGuards(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -435,6 +436,7 @@ const G = {
     this.bqFlush(); this._bq = null;
     this.loadTycoon(d.tycoon);
     this.loadInfl(d.infl);
+    this.loadGuards(d.guards);
     this.pokerTables = d.poker || {};
     this.loadHaul(d.haul);
     // çevredeki dünya kaldığı gibi: NPC'ler, hayvanlar, arabalar, cesetler, yerdeki eşyalar
@@ -551,6 +553,7 @@ const G = {
     this.lawUpdate(dt);
     this.storyTick(dt);
     this.hunterTick(dt);
+    this.guardTick();
     this.oilTick(dt);
     this.witnessUpdate(dt);
     const ib = this.world.buildingAtPx(P.x, P.y);
@@ -1339,6 +1342,7 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(WorldSave));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(TycoonSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(InfluenceSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(GuardSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(RailSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BrawlSystems));
