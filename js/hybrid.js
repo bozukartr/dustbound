@@ -1158,7 +1158,7 @@ const HY = (() => {
   const phaseOf = (key) => key[0] === 'i' ? 0 : (+key[1]) / 8 * TAU;
 
   /* ---------------- WebGL ışık geçişi ---------------- */
-  const NL = 16, NW = 8;
+  const NL = 16, NW = 8, NTN = 14;   // NTN: son geçişte uygulanan renk tonu sayısı (FX.tints)
   const VS = `attribute vec2 aP; varying vec2 vU; void main(){ vU = aP * 0.5 + 0.5; gl_Position = vec4(aP, 0.0, 1.0); }`;
   const HP = `#ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
@@ -1267,14 +1267,24 @@ const HY = (() => {
       for (int i = -4; i <= 4; i++) { float w = exp(-float(i * i) / 8.0); vec3 c = texture2D(uT, vU + uDir * float(i)).rgb; s += max(c - uThr, 0.0) * w; wsum += w; }
       gl_FragColor = vec4(s / wsum, 1.0); }`;
   const FFS = `${HP} varying vec2 vU; uniform sampler2D uL; uniform sampler2D uB; uniform float uBloom; uniform vec2 uTone;
+    uniform vec4 uTk[${NTN}]; uniform float uTo[${NTN}]; uniform vec4 uVig;
     float b2(vec2 a){ a = floor(a); return fract(a.x * 0.5 + a.y * a.y * 0.75); }
     float bay(vec2 a){ return b2(0.5 * a) * 0.25 + b2(a); }
+    // 2D tuvalin soft-light karışımı (W3C): b alttaki, s ton rengi
+    vec3 softL(vec3 b, vec3 s){ vec3 d = mix(sqrt(b), ((16.0 * b - 12.0) * b + 4.0) * b, step(b, vec3(0.25)));
+      return mix(b + (2.0 * s - 1.0) * (d - b), b - (1.0 - 2.0 * s) * b * (1.0 - b), step(s, vec3(0.5))); }
     void main(){ vec3 c = texture2D(uL, vU).rgb + texture2D(uB, vU).rgb * uBloom;
       // omuz: parlak yüzeyler (kar, kum) patlamasın, dokusu kalsın
       c *= 1.04; vec3 hi = max(c - 0.75, 0.0); c = min(c, 0.75) + 0.25 * (1.0 - exp(-hi / 0.25));
       float dz = bay(gl_FragCoord.xy); c = floor(clamp(c, 0.0, 1.0) * 44.0 + dz) / 44.0;
       // renk tonu (klasikte CSS süzgeci: saturate, contrast): ekranın tam çözünürlüğünde ayrı bir geçiş olmasın diye burada
-      c = mix(vec3(dot(c, vec3(0.213, 0.715, 0.072))), c, uTone.x); c = (c - 0.5) * uTone.y + 0.5;
+      c = mix(vec3(dot(c, vec3(0.213, 0.715, 0.072))), c, uTone.x); c = clamp((c - 0.5) * uTone.y + 0.5, 0.0, 1.0);
+      // renk derecelendirme (FX.tints; klasikte 2D karışım geçişleri): uTo 0 düz renk, 1 soft-light, 2 renk çekme (saturation)
+      for (int i = 0; i < ${NTN}; i++) { vec4 T = uTk[i]; if (T.a <= 0.0) break;
+        vec3 B = uTo[i] < 0.5 ? T.rgb : uTo[i] < 1.5 ? softL(c, T.rgb) : vec3(dot(c, vec3(0.3, 0.59, 0.11)));
+        c = mix(c, B, T.a); }
+      // köşe karartması (css/style.css #fx-vignette ile aynı: pencereye göre elips, %55'ten köşede %50 siyaha)
+      if (uVig.z > 0.0) c *= 1.0 - 0.5 * clamp((length((gl_FragCoord.xy - uVig.xy) * uVig.zw) - 0.55) / 0.45, 0.0, 1.0);
       gl_FragColor = vec4(c, 1.0); }`;
   let gl = null, glc = null, failed = false, PL = null, PS = null, PB = null, PF = null, quad = null, texC = null, texG = null, rtL = null, rtS = null, rtA = null, rtB = null, RW = 0, RH = 0, lastVr = '';
   function compile(fs) {
@@ -1307,7 +1317,9 @@ const HY = (() => {
     if (soft && window.__hySoft) { soft = false; failed = false; }
     if (gl || failed) return !!gl;
     try {
-      const cv = glc = document.createElement('canvas');
+      // ekran dışı tuval: ışıklı görüntü ana tuvale kopyalanmadan devredilir (transferToImageBitmap). Sayfadaki bir WebGL
+      // tuvalini drawImage ile çizmek her karede yeni bir doku ayırıp görüntüyü oraya kopyalamak demek.
+      const cv = glc = typeof OffscreenCanvas !== 'undefined' && OffscreenCanvas.prototype.transferToImageBitmap && !window.__hyNoOff ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
       // ekran kartı tercihi (Ayarlar → Görüntü → Ekran Kartı): tasarruflu seçildiyse tümleşik kart istenir
       gl = glc.getContext('webgl', { antialias: false, alpha: false, depth: false, preserveDrawingBuffer: false, powerPreference: G.gpuPower ? G.gpuPower() : 'high-performance', failIfMajorPerformanceCaveat: !window.__hySoft });
       if (!gl) { soft = !window.__hySoft && !!document.createElement('canvas').getContext('webgl'); throw new Error(soft ? 'yazılım çizimi' : 'WebGL yok'); }
@@ -1465,11 +1477,25 @@ const HY = (() => {
     fgK = F.key; fgH = holeW; stat.fg++;
     return 1;
   }
-  // canlının gölgesi: güneşin tersine uzayan yumuşak şerit (dikey bir sütunun gölgesi)
+  // canlının gölgesi: güneşin tersine uzayan yumuşak şerit (dikey bir sütunun gölgesi). Şerit şekil başına bir kez küçük bir
+  // tuvale çizilir (güneş yönü 1/64 adımla); karede canlı başına tek drawImage olur (eskiden 12-14 ayrı yarı saydam elips).
+  // Canlılar yarım piksel ızgarasında durduğu için tuvalden kopya elipslerle piksel piksel aynı yere düşer.
+  const SHC = new Map();
+  let shcK = '';
   function creatureShadow(c, x, y, rx, ry, h, sd, k) {
     if (k < 0.02) return;
-    c.fillStyle = `rgba(0,0,0,${0.075 * k})`;
-    for (let z = 0; z <= h; z += 2) { const s = z < h * 0.6 ? 1 : 0.75; c.beginPath(); c.ellipse(x + sd[0] * z, y + sd[1] * z, rx * s, ry * s, 0, 0, TAU); c.fill(); }
+    const qx = Math.round(sd[0] * 64) / 64, qy = Math.round(sd[1] * 64) / 64, gk = qx + ',' + qy + ',' + k;
+    if (gk !== shcK) { SHC.clear(); shcK = gk; }
+    const key = rx + ',' + ry + ',' + h;
+    let s = SHC.get(key);
+    if (!s) {
+      const ax = Math.min(0, qx * h) - rx - 1, bx = Math.max(0, qx * h) + rx + 1, ay = Math.min(0, qy * h) - ry - 1, by = Math.max(0, qy * h) + ry + 1;
+      const ox = Math.ceil(-ax * S), oy = Math.ceil(-ay * S), cv = makeCanvas(Math.ceil(bx * S) + ox, Math.ceil(by * S) + oy), g = cv.getContext('2d');
+      g.setTransform(S, 0, 0, S, ox, oy); g.fillStyle = `rgba(0,0,0,${0.075 * k})`;
+      for (let z = 0; z <= h; z += 2) { const f = z < h * 0.6 ? 1 : 0.75; g.beginPath(); g.ellipse(qx * z, qy * z, rx * f, ry * f, 0, 0, TAU); g.fill(); }
+      s = { c: cv, ox, oy }; SHC.set(key, s);
+    }
+    c.drawImage(s.c, x - s.ox / S, y - s.oy / S, s.c.width / S, s.c.height / S);
   }
   function render(G, dt) {
     if (!init()) return false;
@@ -1708,14 +1734,27 @@ const HY = (() => {
     gl.useProgram(PF.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, rtL.t); gl.uniform1i(PF.u.uL, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, rtB.t); gl.uniform1i(PF.u.uB, 1); gl.uniform1f(PF.u.uBloom, 0.9 + S0.dark * 0.8);
     gl.uniform2f(PF.u.uTone, G.settings.tone === 1 ? 1 : 0.93, G.settings.tone === 1 ? 1 : 0.96);   // css/style.css --tone ile aynı
+    // renk tonları (FX.post'un derecelendirmesi) burada: her biri ekran boyu ayrı bir 2D karışım geçişi olmaz (soft-light
+    // karışımı tuvalde ekranın kopyalanıp yeniden boyanması demek)
+    FX.grade(dt); FX.graded = true;
+    const TQ = FX.tints(), TK = new Float32Array(NTN * 4), TO = new Float32Array(NTN);
+    TQ.slice(0, NTN).forEach(([, op, col, a], i) => { const c = hexToRgb(col); TK.set([c[0] / 255, c[1] / 255, c[2] / 255, a], i * 4); TO[i] = op === 'soft-light' ? 1 : op === 'saturation' ? 2 : 0; });
+    gl.uniform4fv(PF.u.uTk, TK); gl.uniform1fv(PF.u.uTo, TO);
+    // köşe karartması: pencerenin ortası (GL'de y aşağıdan) ve elipsin yarıçapları (köşeden geçer), tuval pikseliyle
+    { const zo = G.camZoom && G.camZoom.out > 0 ? G.camZoom.out : 1, k = S / (G.scale * zo), cw = innerWidth / 2, ch = innerHeight / 2;
+      gl.uniform4f(PF.u.uVig, (cw - (G.cvL || 0)) * S / G.scale, h2 - (ch - (G.cvT || 0)) * S / G.scale, 1 / (cw * Math.SQRT2 * k), 1 / (ch * Math.SQRT2 * k)); }
     scis(1); draw(PF); gl.disable(gl.SCISSOR_TEST);
+    FX.glTint = true;
     if (gl.isContextLost && gl.isContextLost()) return false;
     const t4 = performance.now(); seg('ışık (GPU komutları)', t4 - t3);
 
     /* 6) ekrana: ışıklı görüntü, sonra 2D üst katmanlar (alev, kuşlar, bulutlar, arayüz, hava, renk tonu) */
     const ctx = G.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (!PERF_OFF.present) ctx.drawImage(glc, 0, 0);
+    if (!PERF_OFF.present) {
+      if (glc.transferToImageBitmap) { const bm = glc.transferToImageBitmap(); ctx.drawImage(bm, 0, 0); bm.close(); }   // görünen alanın dışı siyah kalır
+      else ctx.drawImage(glc, 0, 0);
+    }
     const t5 = performance.now(); seg('GPU bekleme', t5 - t4);
     ctx.setTransform(S, 0, 0, S, 0, 0);
     ctx.save(); ctx.translate(-x0, -y0);
