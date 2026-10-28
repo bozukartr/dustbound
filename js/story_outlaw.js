@@ -94,7 +94,7 @@ STORIES.outlaw = {
     const P = this.player, L = this.law;
     if (S.choice === 'law') {
       // kanuna yardım eden kaçağın sicili temizlenir
-      L.bounty = 0; L.maskBounty = 0; L.desc = null; L.level = 0;
+      L.bounty = 0; L.maskBounty = 0; L.desc = null; L.level = 0; this.recClear();
       this.addHonor(8);
       UI.toast(Tr('Sicil Temizlendi'), Tr('Şerif, Vance\'i getirdiğin için başındaki ödülü kaldırdı.'), 'quest');
     } else this.addHonor(5);

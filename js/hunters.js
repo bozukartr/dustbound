@@ -35,7 +35,8 @@ const HunterSystems = {
     if (L.hunterNext === undefined) { L.hunterNext = this.clock + 360; return; }   // ödül yazıldıktan sonra birkaç saat haber yayılır
     if (this.clock < L.hunterNext) return;
     if (this.world.townAt(P.x, P.y, 60) || this.insideB || UI.isModal()) return;
-    const perHour = clamp(0.05 + L.bounty / 800, 0.05, 0.35);
+    // nüfuzlu ve korumalı birinin peşine düşmeye çekinirler (js/influence.js, js/guards.js)
+    const perHour = clamp(0.05 + L.bounty / 800, 0.05, 0.35) * (1 - this.influence() / 150) * (1 - 0.15 * this.guards.length);
     if (chance(perHour / 5.5)) this.hunterSpawn();
   },
   hunterSpawn() {

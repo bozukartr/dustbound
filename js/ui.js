@@ -791,6 +791,7 @@ const UI = {
       if (e.kind === 'npc') {
         if (e.witness && !e.witness.done) { const im = Icons.img('witness', '#fff4dc', 32); c.fillStyle = 'rgba(200,120,20,0.95)'; c.beginPath(); c.arc(x, y, 6, 0, TAU); c.fill(); if (im.complete) c.drawImage(im, x - 4.5, y - 4.5, 9, 9); }
         else if (e.hostile && (e.aggro || e.isLaw)) { c.fillStyle = e.isLaw ? '#e0e0ff' : '#e02020'; c.beginPath(); c.arc(x, y, 3, 0, TAU); c.fill(); c.strokeStyle = e.isLaw ? '#2040c0' : '#400'; c.lineWidth = 1; c.stroke(); }
+        else if (e.guard) { c.fillStyle = '#7cd07c'; c.beginPath(); c.arc(x, y, 2.6, 0, TAU); c.fill(); c.strokeStyle = '#1c4a1c'; c.lineWidth = 1; c.stroke(); }   // koruman
         else if (e.role === 'romance' || e.role === 'spouse') { const im = Icons.img('heart', '#e06090', 32); if (im.complete) c.drawImage(im, x - 5, y - 5, 10, 10); }
         else if (e.role === 'stranger') { const im = Icons.img('question', '#ffffff', 32); if (im.complete) c.drawImage(im, x - 5, y - 5, 10, 10); }
         else { c.fillStyle = 'rgba(40,30,20,0.55)'; c.fillRect(x - 1.5, y - 1.5, 3, 3); }
@@ -1604,8 +1605,11 @@ const UI = {
         <div class="jr-row">${Tr`<b>Doğum:</b> ${born} &nbsp; <b>Yaş:</b> ${G.age} &nbsp; <b>Yıl:</b> ${G.year}`}</div>
         <div class="jr-row">${Tr`<b>Geçmiş:</b> ${BG ? BG.n : ''}`}</div>
         <div class="jr-row">${Tr`<b>Onur:</b> ${honorTxt} (${Math.round(G.honor)})`}<div class="honorbar"><i style="left:${50 + G.honor / 2}%"></i></div></div>
+        ${this.infRow()}
         <div class="jr-row">${Tr`<b>Nakit:</b> ${fmtMoney(P.money)} &nbsp; <b>Banka:</b> ${fmtMoney(G.bank)}`}</div>
-        <div class="jr-row">${Tr`<b>Başındaki Ödül:</b> ${fmtMoney(G.law.bounty)}`}</div>
+        <div class="jr-row">${Tr`<b>Başındaki Ödül:</b> ${fmtMoney(G.law.bounty)}`}${G.law.bounty > 0 ? ` <span class="dim">(${Tr`dosya: ${CRIME_CLS_N[Math.min(4, G.recClass())]}`})</span>` : ''}</div>
+        ${this.heatRow()}
+        ${G.guards.length ? `<div class="jr-row">${Tr`<b>Korumalar:</b> ${G.guards.map(g => `${escapeHtml(g.name)} (${GUARD_TRAITS[g.trait].n})`).join(', ')}`}</div>` : ''}
         <div class="jr-row">${Tr`<b>At:</b> ${G.horse ? Tr`${G.horse.name} (${G.horse.def.n}) — Bağ ${G.horse.bondLv}/4` : Tr('Yok')}`}</div>
         <div class="jr-row">${Tr`<b>Mülkler:</b> ${G.props.length ? G.props.map(id => PROPERTIES.find(p => p.id === id).n).join(', ') : Tr('Yok')}`}</div>
         <div class="jr-row">${Tr`<b>Aile:</b> ${G.family.spouse ? Tr`Eşi: ${G.family.spouse.name}` : Tr('Bekar')}${G.family.children.length ? Tr(' • Çocuklar: ') + G.family.children.map(c => c.name).join(', ') : ''}`}</div>
@@ -1667,6 +1671,25 @@ const UI = {
       : `<p class="jr-note">${Tr`Henüz kayda değer bir gelişme yok. Kasabalar yıllar içinde büyür ya da geriler; gazeteler ve kasabalılar olan biteni anlatır.`}</p>`;
     return h + `<p class="jr-note">${Tr`Demiryolu, güvenlik ve ticaret bir kasabayı büyütür; suç ve çevresindeki haydut kampları geriletir. Bir kasabadaki işletmelerin, evlerin ve mülklerin onun büyümesini hızlandırır, gerilemesini yavaşlatır. Kasabalar ${DEV_END_YEAR} yılına kadar gelişir.`}</p>`
       + `<p class="jr-note">${Tr`Büyüyen kasabaya yeni evler ve dükkânlar gelir, binalar boyanır, şehirde tuğla ve taşa döner; sokaklar çakıl, arnavut kaldırımı ve sonunda asfalt olur, yeni sokak lambaları dikilir. Gerileyen kasabada dükkânlar ve evler tahta perdeyle kapanır; hayalet kasabada lambalar söner. Değişiklikler sen oradayken değil, gözden uzakta olur.`}</p>`;
+  },
+  /* Nüfuz satırı (js/influence.js): basamak, puan, parçaları ve bulunduğun kasabadaki nüfuz */
+  infRow() {
+    if (!G.infl) return '';
+    const v = G.influence(), L = INF_LV[G.infLv(v)], p = G.infParts(), t = G.infTown(), lv = t ? G.influence(t) : v, sg = (x) => (x >= 0 ? '+' : '') + Math.round(x);
+    return `<div class="jr-row">${Tr`<b>Nüfuz:</b> ${L.n} (${v})`}<div class="infbar"><i style="width:${v}%"></i>${INF_LV.slice(1).map(l => `<b style="left:${l.min}%"></b>`).join('')}</div>`
+      + `<div class="jr-sm">${Tr`Servet ${sg(p.wealth)} · Onur ${sg(p.honor)} · Varlıklar ${sg(p.assets)}`}${p.taint ? ' · ' + Tr`Skandal ${sg(p.taint)}` : ''}${t && lv !== v ? ' · ' + Tr`${t.n} kasabasında ${lv}` : ''}</div><div class="jr-sm">${L.d}</div></div>`;
+  },
+  /* Rüşvet söylentileri, maaştaki şerifler ve skandal lekesi (js/influence.js) */
+  heatRow() {
+    const I = G.infl;
+    if (!I) return '';
+    const hs = Object.keys(I.heat).filter(k => I.heat[k] >= 2).map(k => { const t = G.bizTown(k); return t ? `${t.n}: ${G.heatWord(I.heat[k])}` : ''; }).filter(Boolean);
+    let h = '';
+    if (hs.length) h += `<div class="jr-row jr-sm">${Tr`<b>Rüşvet söylentileri:</b> ${hs.join(' · ')}`}</div>`;
+    const ps = Object.keys(I.pay).map(k => { const t = G.bizTown(k); return t ? Tr`${t.n} (${fmtMoney(I.pay[k].w)}/gün)` : ''; }).filter(Boolean);
+    if (ps.length) h += `<div class="jr-row jr-sm">${Tr`<b>Maaştaki şerifler:</b> ${ps.join(' · ')}`}</div>`;
+    if (I.taint > G.year) h += `<div class="jr-row jr-sm st-low">${Tr`Skandal lekesi: nüfuzun ${I.taint} yılına kadar ${BRIBE.taint} düşük.`}</div>`;
+    return h;
   },
   /* İşlerim: işletmeler, stok, kasa, yük arabası */
   bizJournal() {
@@ -2192,6 +2215,8 @@ const UI = {
       case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
       case 'arm': it.push({ icon: '💪', label: Tr('Bilek Güreşi (25¢ bahis)'), fn: () => this.openArmWrestle() }); break;
       case 'rumor': it.push({ icon: '👂', qe: ['rumor'], label: Tr('Söylenti Dinle'), right: fmtMoney(SVC.rumor), fn: () => this.rumor() }); break;
+      // tanınmış birine iş arayan silahşorlar görünür; tutmak için nüfuzlu olmak gerekir (js/guards.js)
+      case 'guards': if (G.guards.length || G.infLv(G.influence()) >= 1) it.push({ icon: '🛡', label: Tr('Koruma Tut'), right: G.guardMax() ? `${G.guards.length}/${G.guardMax()}` : '', fn: () => this.openGuards(b) }); break;
       case 'rob': if (!G.bizOf(b)) it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) }); break;
       case 'news': it.push({ icon: '📰', label: Tr('Gazete Oku'), right: fmtMoney(0.1), fn: () => this.readNews() }); break;
       case 'room': {
@@ -2208,6 +2233,20 @@ const UI = {
         // aranırken masada teslim olunur (ceza ya da hapis); aranmıyorsan başındaki ödül doğrudan ödenir
         if (G.law.level > 0 && G.suspect()) it.push({ icon: '⚖', label: Tr('Teslim Ol'), right: fmtMoney(G.law.bounty + (G.law.maskBounty || 0)), fn: () => G.turnIn(b) });
         else if (G.law.bounty > 0) it.push({ icon: '⚖', label: Tr('Başındaki Ödülü Öde'), right: fmtMoney(G.law.bounty), fn: () => G.payBounty() });
+        // nüfuzluysan şerifle anlaşıp dosyayı kapatabilirsin (js/influence.js)
+        if ((G.law.level > 0 && G.suspect()) || G.law.bounty > 0) {
+          const bt = G.bizTown(b.town), cop = G.officeCop(b), why = G.bribeWhy(bt), pr = G.bribePrice(bt);
+          if (G.infLv(G.influence(bt)) >= 1 && !(cop && cop.bribeTried)) it.push({ icon: '💰', label: Tr('Dosyayı Kapat (Rüşvet)'), right: fmtMoney(pr), disabled: !!why || P.money < pr, why: why || Tr('Yeterli paran yok.'), fn: () => { if (G.bribeLaw(cop, bt) === 'honest') this.closeAll(); } });
+        }
+        // nüfuzluysan şerifi maaşa bağlayabilirsin; anlaşma sürerken maaşı kesebilirsin (js/influence.js)
+        {
+          const bt = G.bizTown(b.town), cop = G.officeCop(b);
+          if (G.onPay(bt)) it.push({ icon: '🤝', label: Tr('Şerifin Maaşını Kes'), right: Tr`${fmtMoney(G.infl.pay[bt.id].w)}/gün`, fn: () => this.confirm(Tr('Şerifin Maaşını Kes'), Tr('Anlaşma biter; küsen şerif ağzından laf kaçırabilir.'), () => { G.payEnd(bt, 'cut'); if (cop) cop.say(pick(LINES.payCut), 2.5); }) });
+          else if (bt && G.infLv(G.influence(bt)) >= 1 && !(cop && cop.bribeTried)) {
+            const w = G.sheriffWage(bt), up = w * PAYROLL.sign, why = G.payWhy(bt);
+            it.push({ icon: '🤝', label: Tr('Şerifi Maaşa Bağla'), right: Tr`${fmtMoney(up)} + ${fmtMoney(w)}/gün`, disabled: !!why || P.money < up, why: why || Tr('Yeterli paran yok.'), fn: () => { if (G.payOffer(cop, bt) === 'honest') this.closeAll(); } });
+          }
+        }
         if (G.activeBounty && G.activeBounty.done) it.push({ icon: '💰', label: Tr('Ödül Avı Ödülünü Al'), right: fmtMoney(G.activeBounty.reward), fn: () => { G.earn(G.activeBounty.reward, Tr('Ödül avı')); G.addHonor(3); G.activeBounty = null; } });
         // omuzda ya da kapıdaki atın eyerinde getirilen suçlular
         for (const c of G.carriedAll()) if (c.e.kind === 'npc' && G.wantedValue(c.e)) it.push({ icon: '⚖', label: Tr`Teslim Et: ${c.e.name} ${c.e.dead ? Tr('(ölü)') : Tr('(canlı)')}`, right: fmtMoney(G.wantedValue(c.e)), fn: () => { G.deliverToSheriff(c); this.pop(); } });
@@ -2372,11 +2411,15 @@ const UI = {
     if (G.storyRumor()) return;
     const unk = G.world.pois.filter(p => (p.kind === 'landmark' || p.kind === 'camp') && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     const line = pick(LINES.rumor);
+    // tanınmış birine barmen bir kasabanın şerifinin rüşvet alıp almadığını da fısıldar (js/influence.js)
+    const shs = G.infLv(G.influence()) >= 1 ? G.world.towns.filter(t => t.buildings.some(x => x.type === 'sheriff' && !x.shut) && !G.onPay(t)) : [];
+    const sh = shs.length && chance(0.6) ? pick(shs) : null;
+    const extra = sh ? `<p>${G.lawHonest(sh) ? Tr`<b>${sh.n}</b> şerifi para yüzü görmemiş biriymiş; rüşvet teklif edeni içeri atıyormuş.` : Tr`<b>${sh.n}</b> şerifinin cebi delikmiş derler; doğru teklife kulak asarmış.`}</p>` : '';
     if (unk.length) {
       const p = pick(unk);
       G.rumored.add(p.id);
-      this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p><p>${Tr`Ayrıca <b>${p.n}</b> hakkında bir şeyler duydun. Haritanda <b>?</b> olarak işaretlendi.`}</p>`);
-    } else this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p>`);
+      this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p><p>${Tr`Ayrıca <b>${p.n}</b> hakkında bir şeyler duydun. Haritanda <b>?</b> olarak işaretlendi.`}</p>${extra}`);
+    } else this.info(Tr('Barmen Fısıldıyor'), `<p class="quote">"${line}"</p>${extra}`);
   },
   openSleep(where, cost) {
     const P = G.player;
@@ -2907,6 +2950,25 @@ const UI = {
         const C = G.haulCandidates(t);
         it.push({ header: Tr('İş Arayanlar') });
         for (const c of C) it.push({ icon: '🚚', label: `${escapeHtml(c.name)} <span class="dim">(${HAUL_TRAITS[c.trait].n})</span>`, right: Tr`${fmtMoney(HAUL_HIRE)} + ${fmtMoney(HAUL_TRAITS[c.trait].wage)}/gün`, side: traitSide(c.trait, c.name), disabled: G.haulers.length >= HAUL_MAX || G.player.money < HAUL_HIRE, why: G.haulers.length >= HAUL_MAX ? Tr`En fazla ${HAUL_MAX} nakliyeci tutabilirsin.` : Tr('Yeterli paran yok.'), fn: () => { G.hireHauler(c, b); } });
+        return it;
+      },
+    });
+  },
+  /* Korumalar: tuttukların ve kasabada iş arayan silahşorlar (js/guards.js) */
+  openGuards(b) {
+    const t = G.world.towns.find(x => x.id === b.town) || G.nearestTown(b.door.x, b.door.y);
+    const side = (k, name, extra) => { const T = GUARD_TRAITS[k]; return `<div class="ps-t">${escapeHtml(name)}</div><div class="ps-d">${T.n}</div><div class="ps-e">${T.d}<br>${Tr`Silahı: ${WEAPONS[T.weapon].n} · Can ${T.hp}`}<br>${Tr`Peşin ${fmtMoney(G.guardFee(k))}, günlük ücret ${fmtMoney(T.wage)}.`}</div>${extra || ''}`; };
+    this.menu({
+      title: Tr('Korumalar'), wallet: true, sub: () => t.n, cls: 'small guardmenu', side: (it) => it.side || '',
+      build: () => {
+        const it = [];
+        if (G.guards.length) {
+          it.push({ header: Tr('Korumaların') });
+          for (const g of G.guards) it.push({ icon: '🛡', label: `${escapeHtml(g.name)} <span class="dim">(${GUARD_TRAITS[g.trait].n})</span>`, right: Tr('İşine Son Ver'), side: side(g.trait, g.name, `<div class="ps-p">${escapeHtml(G.guardStatus(g))}</div>`), fn: () => this.confirm(Tr('İşine Son Ver'), Tr`${g.name} ile yollarını ayırmak istiyor musun? Peşin ödediğin bedel geri gelmez.`, () => G.guardLeave(g, 'fired')) });
+        }
+        const why = G.guardWhy();
+        it.push({ header: Tr('İş Arayan Silahşorlar') });
+        for (const c of G.guardCandidates(t)) { const fee = G.guardFee(c.trait); it.push({ icon: '🔫', label: `${escapeHtml(c.name)} <span class="dim">(${GUARD_TRAITS[c.trait].n})</span>`, right: Tr`${fmtMoney(fee)} + ${fmtMoney(GUARD_TRAITS[c.trait].wage)}/gün`, side: side(c.trait, c.name), disabled: !!why || G.player.money < fee, why: why || Tr('Yeterli paran yok.'), fn: () => G.hireGuard(c) }); }
         return it;
       },
     });

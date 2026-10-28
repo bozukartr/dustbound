@@ -9,7 +9,7 @@
 const Handbook = {
   /* ipucu anahtarı → el kitabı konusu (G.hintOnce ilk kez gösterince konuyu işaretler) */
   HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison',
-    deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate', bank: 'tycoon', oil: 'tycoon' },
+    deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate', bank: 'tycoon', oil: 'tycoon', influence: 'influence', guards: 'influence' },
 
   unread() { const H = G.hints || {}; return this.topics().some(T => H['new:' + T.id]); },
 
@@ -103,6 +103,14 @@ const Handbook = {
         Tr`Tekelciler sevilmez: ilk tekelde itibarın düşer; ${TEKEL_YEAR} yılından sonra ticaret odası zaman zaman ceza keser.`,
         Tr`<b>Banka</b>: gelişmiş bir kasabanın büyük arsasına kurulur ya da kasabanın bankası teklifle alınır (itibar ${BANK.honor} ve üstü). Mevduat faizini, kredi politikasını ve bekçiyi sen seçersin. Kasada yeterli para yokken bir panik çıkarsa ${BANK.runDays} gün içinde sermaye eklemezsen banka batar.`,
         Tr`<b>Petrol</b>: ${OIL.year} yılından sonra kara sızıntılı arazileri satın alıp sondaj kulesi kur (${fmtMoney(OIL.well)}, ${OIL.wellDays} gün; kuyu kuru çıkabilir ya da fışkırabilir). Petrol her gün satılır; fiyatı otomobiller yaygınlaştıkça artar. İstasyonlu bir kasabaya kuracağın rafineri petrolünü ${dec(OIL.refMul)} katı fiyata sattırır.`,
+      ]) },
+      { id: 'influence', ic: 'cash', t: Tr('Nüfuz, Rüşvet ve Korumalar'), b: () => li([
+        Tr`<b>Nüfuz</b> (0–100) servetinden (en çok 60), onurundan (−25…+25) ve varlıklarından (pazar hakimiyeti, banka, malikane, kulüp) gelir; işletmelerinin, bankanın ve malikanenin olduğu kasabada daha yüksektir. Basamaklar: ${INF_LV.map(L => `${L.n} (${L.min})`).join(', ')}.`,
+        Tr`Başındaki ödülün dosyası, en ağır suçuna göre rüşvetle kapanır: hafif suç için ${INF_LV[1].n}, orta suç için ${INF_LV[2].n}, soygun için ${INF_LV[3].n}, cinayet için ${INF_LV[4].n} olmalısın. <b>Kanun adamı öldürmenin pazarlığı olmaz.</b> Tutuklamaya gelen kanun adamına, şerifin masasında ya da tutuklanınca teklif edersin; bedel resmî cezadan ucuzdur ve nüfuzun arttıkça düşer, ama onurun düşer ve kasabada söylenti birikir.`,
+        Tr`Bazı kasabaların şerifi rüşvet almaz: ona teklif yapmak ayrı bir suçtur (barmen kimin rüşvet aldığını fısıldayabilir). Söylenti büyürse skandal çıkar: gazeteye düşersin, onurun ve ${BRIBE.taintYrs} yıl boyunca nüfuzun düşer, kasabaya dürüst bir şerif atanır. ${BRIBE.reformYear} yılında kurulan Islah Komisyonu'ndan sonra rüşvet pahalanır ve skandalda ceza kesilir.`,
+        Tr`${INF_LV[PAYROLL.lv].n} olunca şerifin masasında <b>Şerifi Maaşa Bağla</b> seçeneği açılır: peşin ${PAYROLL.sign} günlük maaş, sonra her gün maaş. O kasabada hafif suçlara göz yumulur, orta suçların ödülü yarıya iner, eski ödülünle tanınmazsın, rüşvet yarı fiyatına ve neredeyse kesin kabul edilir. Maaş iki gün ödenmezse ya da kesersen küsen şerif konuşur; yeni gelen şerif rüşvet almıyorsa anlaşma biter.`,
+        Tr`${INF_LV[2].n} olunca saloon, cantina ve kumarhanelerden <b>koruma</b> tutabilirsin (${INF_LV[2].n}: ${GUARD_MAX[2]}, ${INF_LV[3].n}: ${GUARD_MAX[3]}, ${INF_LV[4].n}: ${GUARD_MAX[4]}): peşin bedel ve günlük ücret; iki gün ödenmezse giderler. ${GUARD_TRAITS.sharp.n} uzaktan vurur, ${GUARD_TRAITS.brute.n} dayanıklıdır ve tanıkları korkutur, ${GUARD_TRAITS.loyal.n} asla kaçmaz, ${GUARD_TRAITS.cheap.n} olan canı yanınca kaçar.`,
+        Tr`Korumalar peşinden gelir, binaya girince kapıda bekler; haydutlara, sana saldıran ödül avcılarına ve vahşi hayvanlara ateş eder, arada masum biri varsa ateş etmez. Kanuna kendiliğinden asla ateş etmezler: kanuna direnirsen yalnızca ${GUARD_TRAITS.loyal.n} olan yanında savaşır ve vurduğu kanun adamı senin suçun sayılır. Kanuna koşan tanığı susturmaya çalışırlar. Korumanın yanında ${g('interact')} ile bir yeri tutmasını isteyebilir ya da işine son verebilirsin.`,
       ]) },
       { id: 'estate', ic: 'house', t: Tr('Malikane, Kulüp ve Özel Fayton'), b: () => li([
         Tr`Saint Clement Malikanesi ${fmtMoney(MANSION_PRICE)}: kapısından ya da tapu dairesinden satın alınır, ev gibi kullanılır (yatakta uyku ve kayıt, sandık, ocak, küvet).`,

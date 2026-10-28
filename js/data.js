@@ -366,7 +366,7 @@ const DEV_NEWS = {
 /* ---- Binalar ---- */
 const BUILDINGS = {
   general:  { n: 'Genel Mağaza', w: 10, h: 7, wall: '#8a6a48', roof: '#5b3a29', sign: '#c9a45c', svc: ['shop', 'news', 'rob'], shop: 'general' },
-  saloon:   { n: 'Saloon', w: 12, h: 9, wall: '#7a4f33', roof: '#46291c', sign: '#b3261e', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
+  saloon:   { n: 'Saloon', w: 12, h: 9, wall: '#7a4f33', roof: '#46291c', sign: '#b3261e', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'guards', 'rob'], shop: 'saloon', tall: 1 },
   sheriff:  { n: 'Şerif Ofisi', w: 9, h: 7, wall: '#9a8a70', roof: '#4a3a2a', sign: '#d8c080', svc: ['bounty', 'board'] },
   doctor:   { n: 'Doktor', w: 8, h: 7, wall: '#d8d0c0', roof: '#5a4a40', sign: '#e8e8e8', svc: ['heal', 'shop'], shop: 'doctor' },
   gunsmith: { n: 'Silahçı', w: 8, h: 6, wall: '#6a5a4a', roof: '#3a2e24', sign: '#909090', svc: ['shop', 'rob'], shop: 'gunsmith' },
@@ -400,7 +400,7 @@ const BUILDINGS = {
   smith:    { n: 'Demirci', w: 9, h: 6, wall: '#5a5048', roof: '#2e2824', sign: '#b0a090', svc: ['shop', 'horsecare'], shop: 'smith' },
   pharmacy: { n: 'Eczane', w: 7, h: 6, wall: '#d8d8c8', roof: '#3a5a4a', sign: '#80c0a0', svc: ['shop', 'rob'], shop: 'pharmacy' },
   laundry:  { n: 'Çamaşırhane', w: 8, h: 6, wall: '#b8b0a0', roof: '#5a6a7a', sign: '#a0c0e0', svc: ['bath'] },
-  gambling: { n: 'Kumarhane', w: 11, h: 8, wall: '#5a2a2a', roof: '#2a1414', sign: '#e0b040', svc: ['poker', 'blackjack', 'shop', 'rumor', 'rob'], shop: 'saloon', tall: 1 },
+  gambling: { n: 'Kumarhane', w: 11, h: 8, wall: '#5a2a2a', roof: '#2a1414', sign: '#e0b040', svc: ['poker', 'blackjack', 'shop', 'rumor', 'guards', 'rob'], shop: 'saloon', tall: 1 },
   brewery:  { n: 'Bira İmalathanesi', w: 11, h: 8, wall: '#7a5030', roof: '#3a2818', sign: '#d8a040', svc: ['work', 'shop'], shop: 'brewery', work: 'brewery', brick: 1 },
   mill:     { n: 'Değirmen', w: 8, h: 7, wall: '#a88a60', roof: '#5a4030', sign: '#e0d0a0', svc: ['work', 'shop'], shop: 'mill', work: 'mill' },
   county:   { n: 'İlçe Binası', w: 10, h: 8, wall: '#b8a888', roof: '#3a3a44', sign: '#e8e0c0', svc: ['property'], brick: 1, tall: 1 },
@@ -408,7 +408,7 @@ const BUILDINGS = {
   warehouse:{ n: 'Toptancı Ambarı', w: 12, h: 8, wall: '#7a6a58', roof: '#40382e', sign: '#c8b080', svc: ['shop'], shop: 'warehouse' },
   // zengin şehrin açık hava pazarı: tenteli tezgâhlar, pahalı ama seçkin mallar
   market:   { n: 'Pazar Yeri', w: 12, h: 5, wall: '#8a6a48', roof: '#6a4a30', sign: '#e8d8a8', svc: ['shop'], shop: 'market', noInt: 1, market: 1 },
-  cantina:  { n: 'Cantina', w: 10, h: 8, wall: '#c89a68', roof: '#8a5a38', sign: '#e06040', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'rob'], shop: 'saloon' },
+  cantina:  { n: 'Cantina', w: 10, h: 8, wall: '#c89a68', roof: '#8a5a38', sign: '#e06040', svc: ['meal', 'shop', 'poker', 'blackjack', 'arm', 'rumor', 'guards', 'rob'], shop: 'saloon' },
   // Saint Clement'in iki katlı seçkin yapıları (dünya sürümü 5): satılık malikane ve üyelere açık özel kulüp
   mansion:  { n: 'Malikane', w: 14, h: 10, wall: '#d8d0c0', roof: '#3a3a44', svc: [], tall: 1 },
   club:     { n: 'Kulüp', w: 14, h: 10, wall: '#4a2e26', roof: '#2a2a30', sign: '#c8a040', svc: ['shop', 'poker'], shop: 'club', tall: 1 },
@@ -659,6 +659,9 @@ const ECO_NEWS = {
   sahaal: { h: '{c} SAHASINI SATTI', t: '{c}, {k} yakınlarındaki petrol sahasını kuyularıyla birlikte devretti. Yeni sahibi {p}.', s: '{k} yakınlarındaki petrol sahasının yeni sahibi: {p}' },
   zorp: { h: '{c} ZOR DURUMDA', t: 'Büyük rakibinin ucuz petrolüyle başa çıkamayan {c}, {k} yakınlarındaki sahasını ucuza elden çıkarmak istiyor.', s: '{c} sahasını ucuza satıyor!' },
   tukendi: { h: '{k} SAHASI TÜKENDİ', t: '{k} yakınlarındaki petrol sahasında kuyular bir bir kurudu. Sondajcılar yeni sızıntılar aramaya çıktı.', s: '{k} yakınlarındaki petrol tükendi!' },
+  skandal: { h: '{k}: RÜŞVET SKANDALI', t: '{k} şerifinin cebine giren paralar ortaya çıktı; gazetelerin parmak bastığı isim {p}. Şerif görevden alındı, yerine dürüstlüğüyle bilinen biri atandı.', s: '{k} rüşvet skandalında adı geçen: {p}' },
+  islah: { h: 'ISLAH KOMİSYONU KURULDU', t: 'Eyalet, kanun adamlarının cebine giren paraları soruşturacak bir ıslah komisyonu kurdu. {k} şerifi "bizim kasabada öyle şey olmaz" diyor.', s: 'Islah Komisyonu kuruldu: rüşvete savaş!' },
+  islahceza: { h: 'ISLAH KOMİSYONUNDAN RÜŞVET CEZASI', t: 'Islah Komisyonu, {k} şerifine rüşvet verdiği anlaşılan {p} için {m} ceza kesti. Şerif görevden alındı.', s: '{p} için rüşvet cezası: {m}!' },
   rafineri: { h: '{k}: RAFİNERİ AÇILDI', t: '{p}, {k} istasyonunun yanında bir rafineri kurdu. Baca gece gündüz tütüyor; ham petrol vagon vagon geliyor.', s: '{p} {k} istasyonunun yanında rafineri açtı!', good: 1 },
 };
 /* ---- Petrol (js/tycoon.js) ----
@@ -668,6 +671,55 @@ const ECO_NEWS = {
    ref rafinerinin fiyatı, refDays inşaat süresi, refYear en erken yılı, refMul rafine petrolün fiyat çarpanı; claim rakip
    şirketlerin sahipsiz sahaları aldığı yıllar (en erken–en geç), rivalGap rakibin yeni kule diktiği yıl aralığı */
 const OIL = { year: 1900, fields: 6, land: 600, well: 450, wellDays: 3, dry: 0.2, gush: 0.12, out: 40, res: [24000, 52000], ref: 3000, refDays: 5, refYear: 1902, refMul: 1.8, claim: [1903, 1926], rivalGap: 2 };
+/* ---- Nüfuz ve rüşvet (js/influence.js) ----
+   INF_LV: nüfuz basamakları (en düşük puan). Nüfuz = servet (en çok 60) + onur (−25…+25) + varlıklar + kasabaya özel. */
+const INF_LV = [
+  { n: 'Sıradan', min: 0, d: 'Kimse senin için kural esnetmez.' },
+  { n: 'Tanınmış', min: 25, d: 'Adın biliniyor: kanun adamları hafif suçlarda pazarlığa açık.' },
+  { n: 'Nüfuzlu', min: 50, d: 'Sözün para eder: hafif ve orta suçların dosyası kapanabilir, şerifi maaşa bağlayabilir, koruma tutabilirsin.' },
+  { n: 'Sözü Geçen', min: 75, d: 'Kasabalar paranı istiyor: soygun dosyaları bile kapanır, tanıkların bir kısmı susar.' },
+  { n: 'Patron', min: 90, d: 'Bölgenin en güçlü adı: cinayet dosyası bile kapanabilir, tanıklar çoğu zaman susar. Kanun adamı öldürmek ise asla affedilmez.' },
+];
+/* Suç dosyası sınıfları: 0 hafif, 1 orta, 2 soygun, 3 cinayet, 4 affedilmez (kanun adamı öldürme). Bir dosyanın rüşvetle
+   kapanması için en ağır suçunun sınıfı + 1 nüfuz basamağı gerekir; affedilmez suç hiç kapanmaz. */
+const CRIME_CLS = { trespass: 0, livestock: 0, livestockHurt: 0, looting: 0, trample: 0, assault: 0, bribery: 0,
+  robbery: 1, horsetheft: 1, cartheft: 1, assaultLaw: 1, storeNight: 2, storerob: 2, bankrob: 2, murder: 3, murderLaw: 4 };
+const CRIME_CLS_N = ['Hafif suç', 'Orta suç', 'Soygun', 'Cinayet', 'Kanun adamı öldürme'];
+/* Rüşvet: min en düşük bedel; cls sınıf çarpanı (ödüle; bedel nüfuzla ucuzlar ve hep resmî cezanın altında kalır: şerifin
+   cebine girer, bedeli onur ve söylentidir); honor onur kaybı ve heat söylenti (sınıfa göre); fail rüşvet
+   teklifi suçunun ödülü; scandal kasabadaki söylentinin skandala dönmeye başladığı eşik; taint skandaldan sonra
+   nüfuzun kaybı (taintYrs yıl); reformYear kurgusal Islah Komisyonu'nun kurulduğu yıl: sonrasında rüşvet reform kat
+   pahalı, rüşvet almayan şerif çok (honest: önce / sonra), skandalda ceza */
+const BRIBE = { min: 3, cls: [0.7, 0.8, 0.9, 1], honor: [1, 2, 3, 5], heat: [1, 2, 4, 7], fail: 8, scandal: 10, taint: 15, taintYrs: 3,
+  reformYear: 1915, reform: 1.4, honest: [0.2, 0.4] };
+/* Şerifi maaşa bağlama: lv gereken nüfuz basamağı; wage kasabanın basamağına (DEV_TIERS) göre günlük maaş (Islah
+   Komisyonu'ndan sonra BRIBE.reform kat); sign anlaşmada peşin ödenen gün sayısı; heat bir yılda biriken söylenti; local
+   o kasabadaki nüfuz; mid orta suçların ödül çarpanı; bribe o kasabada rüşvet çarpanı; grudge anlaşma bozulunca küsen
+   şerifin ağzından dökülen söylenti */
+const PAYROLL = { lv: 2, wage: [1, 1.5, 2, 3, 4], sign: 10, heat: 3, local: 10, mid: 0.5, bribe: 0.5, grudge: 5 };
+/* ---- Korumalar (js/guards.js) ----
+   GUARD_MAX nüfuz basamağına göre en çok koruma; GUARD_HIRE tutma bedeli (günlük ücretin katı); GUARD_LEASH çatışmada
+   senden en çok ne kadar uzaklaşır (px). GUARD_TRAITS: hp can, acc
+   nişan sapması, dmg mermi hasarı, wage günlük ücret, weapon silah, hush kanuna koşan tanığı susturma olasılığı; loyal
+   kanuna direnince yanında savaşır, coward canı yarıya inince kaçar. */
+const GUARD_MAX = [0, 0, 1, 2, 3], GUARD_HIRE = 10, GUARD_LEASH = 300;
+const GUARD_TRAITS = {
+  sharp: { n: 'Keskin Nişancı', d: 'Uzaktan ve isabetli vurur.', hp: 110, acc: 0.025, dmg: 60, wage: 1.2, weapon: 'rifle', hush: 0.2 },
+  brute: { n: 'İri Yarı', d: 'Kurşuna dayanıklıdır; tanıklar ondan çekinir.', hp: 190, acc: 0.08, dmg: 10, wage: 1, weapon: 'shotgun', hush: 0.6 },
+  loyal: { n: 'Sadık', d: 'Asla kaçmaz; kanuna direnirsen yanında savaşır.', hp: 130, acc: 0.05, dmg: 22, wage: 1.4, weapon: 'repeater', hush: 0.3, loyal: 1 },
+  cheap: { n: 'Ucuz', d: 'Ucuzdur; ama canı yanınca kaçar.', hp: 90, acc: 0.09, dmg: 16, wage: 0.5, weapon: 'cattleman', hush: 0.15, coward: 1 },
+};
+const GUARD_LINES = {
+  hire: ['Silahım senin için.', 'Ücretimi aksatma, gerisini bana bırak.', 'Arkanı kollarım, patron.'],
+  follow: ['Arkandayım.', 'Peşindeyim, patron.', 'Tamamdır.'],
+  wait: ['Burada beklerim.', 'Burayı tutarım.', 'Kimse geçemez.'],
+  fight: ['Patronu koruyun!', 'Eğil, patron!', 'Gelin bakalım!', 'Arkanı kolluyorum!'],
+  flee: ['Bu kadarına para almıyorum!', 'Ben kaçıyorum!', 'Yeter, ben yokum!'],
+  aside: ['Kanunla başım derde girmez, patron.', 'Bu işe karışamam.', 'Kanuna silah çekmem.'],
+  quit: ['Bu iş bana göre değil. Hoşça kal.', 'Kanunla savaşmak için tutulmadım.', 'Parasız silah çekmem. Ben gidiyorum.'],
+  hush: ['Sen bir şey görmedin, değil mi?', 'Çeneni kapalı tut, iyi olur.', 'Şerife gitmeyi aklından bile geçirme.'],
+  fired: ['Peki. Bir gün yine lazım olursam yerimi bilirsin.', 'Nasıl istersen, patron.'],
+};
 /* Rakip petrol şirketleri (kurgusal) */
 const OIL_COS = ['Kızılkaya Petrol', 'Batı Ovası Petrol Şirketi', 'Üç Kule Petrol', 'Kara Altın Ortaklığı', 'Kartaltepe Petrol', 'Demirtepe Yağcılık'];
 /* ---- Kendi bankan (js/tycoon.js) ----
@@ -865,6 +917,16 @@ const LINES = {
   witnessHold: ['Ateş etme! Lütfen!', 'Tamam, tamam! Durdum!', 'Beni vurma!'],
   silenced: ['Tamam! Kimseye bir şey söylemeyeceğim!', 'Hiçbir şey görmedim, yemin ederim!', 'Ağzımı açmam, söz!'],
   bribed: ['Ne gördüğümü unuttum bile.', 'Bu para iyi gelir... Ben bir şey görmedim.', 'Sen hiç burada değildin, dostum.'],
+  // rüşvet (js/influence.js): oyuncunun teklifi, kabul eden, pazarlığa yanaşmayan ve dürüst kanun adamı
+  bribeOffer: ['Bu dosyayı unutalım, şerif.', 'Belki bu, sorunu çözer.', 'Aramızda kalsın.', 'Kasabanın sana ihtiyacı var; benim de.'],
+  lawBribed: ['Ben bir şey görmedim, efendim.', 'Dosya mı? Hangi dosya?', 'İyi günler. Kimseye bir şey söylemem.'],
+  lawGreedy: ['Bu kadarla olmaz.', 'Bugün olmaz. Başka zaman.', 'Bu iş bana pahalıya patlar.'],
+  lawRefuse: ['Beni satın alamazsın!', 'Rüşvet mi? Bunu da dosyana yazıyorum!', 'Bu yıldızı parayla takmadım!'],
+  infSilent: ['Onun işine karışmam.', 'Ben bir şey görmedim.', 'Belaya bulaşmam.'],
+  payOffer: ['Kasabanın huzuru ikimize de iyi gelir; masrafı benden.', 'Seninle uzun bir dostluk kurmak isterim, şerif.', 'Adamlarına iyi bakarım. Sen de bana.'],
+  payDeal: ['Anlaştık. Gözüm sende olmayacak.', 'Sen başımı ağrıtma, ben de seninkini.', 'Ödemeler aksamasın, yeter.'],
+  payCut: ['Pişman olacaksın.', 'Bunu unutmam.', 'Peki. Artık kendi başınasın.'],
+  lookAway: ['Bir şey görmedim.', 'Hadi, uzaklaş buradan.', 'Bu sefer görmedim say.'],
   maskLaw: ['Maskeni çıkar, yabancı!', 'O bez yüzünde ne arıyor? Çıkar onu!', 'Kasabada maskeli dolaşmak yasak, bilesin.'],
   maskTown: ['Neden maskelisin?', 'Tanrım, bir haydut!', 'Maskeli biri... Uzak dur benden.', 'Yüzünü neden saklıyorsun?'],
   reported: ['Şerif, adamı gördüm! Tarif edeyim...', 'Şu tarafa kaçtı, şerif!'],
