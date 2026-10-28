@@ -311,5 +311,23 @@ module.exports = {
       t.ok(c.ds === 2 && c.gl && c.div === 'none', 'meleze dönünce yine gizli', c);
       t.eq(errs.length, 0, 'sayfa hatası yok', errs);
     });
+
+    await t.step('renk derecelendirmesi her çizimde tam bir kez güncellenir (melez ve klasik)', async () => {
+      const r = await p.evaluate(() => {
+        const gr = FX.grade, out = {};
+        let n = 0;
+        FX.grade = function (dt) { n++; return gr.call(this, dt); };
+        try {
+          for (const gfx of [0, 1]) {
+            G.settings.gfx = gfx; G.applySettings(); G.resize(); G.render(1 / 60);
+            n = 0; for (let k = 0; k < 10; k++) G.render(1 / 60);
+            out[G.ds === 2 ? 'melez' : 'klasik'] = n;
+          }
+        } finally { FX.grade = gr; G.settings.gfx = 0; G.applySettings(); G.resize(); }
+        return out;
+      });
+      t.eq(r.melez, 10, 'melez: 10 çizimde 10 güncelleme', r);
+      t.eq(r.klasik, 10, 'klasik: 10 çizimde 10 güncelleme', r);
+    });
   },
 };

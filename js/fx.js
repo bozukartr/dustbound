@@ -476,7 +476,8 @@ const FX = {
     ctx.fillStyle = col; ctx.fillRect(0, 0, G.vw, G.vh);
   },
   /* Renk derecelendirmesinin hedefleri (zaman, hava, biyom, durum) yumuşatılarak güncellenir. Karede bir kez: melez
-     çizimde ışık geçişinden önce (tonları son geçiş uygular), klasikte post içinde. */
+     çizimde ışık geçişinden önce (tonları son geçiş uygular; graded işaretlenir, post yeniden güncellemez), klasikte
+     post içinde. */
   grade(dt) {
     const P = G.player, W = G.world, g = this.g, h = G.hour;
     const env = G.envCache || {};
@@ -506,7 +507,6 @@ const FX = {
     const rate = { gold: 0.5, blue: 0.5, desert: 0.7, rain: 0.5, cold: 0.6, swamp: 0.6, hurt: 1.6, drunk: 0.8, frost: 0.35, poison: 0.7, de: 6 };
     if (!this.gradeInit) { this.gradeInit = true; for (const k in tg) g[k] = tg[k]; }
     else for (const k in tg) g[k] += (tg[k] - g[k]) * Math.min(1, dt * rate[k]);
-    this.graded = true;
   },
   /* Renk tonları, uygulanma sırasıyla: [aşama, karışım, renk, güç]. Aşama 0 genel derecelendirme, 1 sarhoşluk, 2 ayaz,
      3 zehir, 4 düşük sağlık; 2D çizimde her aşamanın tonu o aşamanın kenar efektinden hemen önce uygulanır */

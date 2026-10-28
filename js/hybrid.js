@@ -1736,7 +1736,7 @@ const HY = (() => {
     gl.uniform2f(PF.u.uTone, G.settings.tone === 1 ? 1 : 0.93, G.settings.tone === 1 ? 1 : 0.96);   // css/style.css --tone ile aynı
     // renk tonları (FX.post'un derecelendirmesi) burada: her biri ekran boyu ayrı bir 2D karışım geçişi olmaz (soft-light
     // karışımı tuvalde ekranın kopyalanıp yeniden boyanması demek)
-    FX.grade(dt);
+    FX.grade(dt); FX.graded = true;
     const TQ = FX.tints(), TK = new Float32Array(NTN * 4), TO = new Float32Array(NTN);
     TQ.slice(0, NTN).forEach(([, op, col, a], i) => { const c = hexToRgb(col); TK.set([c[0] / 255, c[1] / 255, c[2] / 255, a], i * 4); TO[i] = op === 'soft-light' ? 1 : op === 'saturation' ? 2 : 0; });
     gl.uniform4fv(PF.u.uTk, TK); gl.uniform1fv(PF.u.uTo, TO);
