@@ -1114,7 +1114,9 @@ const GameSystems = {
     if (hit) {
       const was = hit.dead;
       if (hit === this.player) { if (owner) Juice.hurtFrom(owner.x, owner.y); hit.hurt(dmg, owner && owner.role === 'law' ? 'kanun' : owner && owner.role === 'hunter' ? 'avci' : 'haydut', false, owner, opts.weapon || (owner && owner.weapon)); }
-      else hit.hurt(dmg, owner === this.player || (opts.guard && hit.isLaw) ? 'player' : 'npc', 'gun');   // korumanın vurduğu kanun adamı senin suçun
+      // korumanın (js/guards.js) vurduğu kanun adamı senin suçun; ödül hedefi ve hikâye kişileri de senin vurduğun gibi
+      // yere yığılabilir (canlı yakalanabilsin, hikâye bozulmasın)
+      else hit.hurt(dmg, owner === this.player || (opts.guard && (hit.isLaw || hit.role === 'target' || hit.quest || hit.storyNpc)) ? 'player' : 'npc', 'gun');
       if (hit.kind === 'npc' || hit.kind === 'animal' || hit === this.player) Audio_.play('hit_flesh', { x: ex, y: ey, vol: hit === this.player ? 1.2 : 0.8 });
       else if (hit.kind === 'wagon') Audio_.play('hit_wood', { x: ex, y: ey });
       // vuruşun hissi: ölümde savrulma ve uçan şapka; oyuncunun isabetinde mikro duraklama

@@ -115,6 +115,7 @@ module.exports = {
         const out = {}, P = G.player, L = G.law;
         OPEN();
         const e = GUARD(), g = e.guard;
+        e.x = P.x - 20; e.y = P.y; e.nav = null;   // açık alanda, oyuncunun yanında
         const cop = new NPC(P.x + 100, P.y, 'law', { hostile: true }); G.addEnt(cop);
         Object.assign(L, { level: 2, bounty: 30, resist: false, lastX: P.x, lastY: P.y, spawnT: 99 });
         const loyal = GUARD_TRAITS.loyal, other = GUARD_TRAITS.cheap;
@@ -131,6 +132,21 @@ module.exports = {
       });
       t.ok(!r.arrest, 'tutuklamada karışmaz'); t.ok(r.loyal, 'direnişte sadık kanun adamını hedef alır');
       t.ok(!r.other, 'öteki kanuna ateş etmez'); t.ok(r.left, 'çatışma büyüyünce gider');
+    });
+
+    await t.step('korumanın vurduğu ödül hedefi senin vurduğun gibi yere yığılır (canlı yakalanabilir)', async () => {
+      const r = await p.evaluate(() => {
+        OPEN();
+        const P = G.player, e = new NPC(P.x, P.y + 30, 'guard', {});   // atış korumanınki gibi (fireRay guard seçeneği)
+        const tg = new NPC(e.x + 80, e.y, 'target', { hostile: true }); tg.aggro = true; tg.hp = 20; G.addEnt(tg);
+        const b = new NPC(e.x + 80, e.y + 60, 'bandit', { hostile: true }); b.aggro = true; b.hp = 20; G.addEnt(b);
+        WITH_RANDOM(0.01, () => { G.fireRay(e.x + 5, e.y, 0, 300, 50, e, { guard: true }); G.fireRay(e.x + 5, e.y + 60, 0, 300, 50, e, { guard: true }); });
+        const out = { target: [tg.state, tg.dead], bandit: b.dead };
+        tg.remove = true; b.remove = true;
+        return out;
+      });
+      t.eq(r.target, ['downed', false], 'ödül hedefi yere yığıldı');
+      t.ok(r.bandit, 'haydut öldü');
     });
 
     await t.step('kanuna koşan tanığı susturur; ücret ödenmezse gider; vurursan gider; kayıtta korunur', async () => {
