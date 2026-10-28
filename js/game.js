@@ -190,6 +190,7 @@ const G = {
     c.width = this.vw * ds; c.height = this.vh * ds;
     c.style.width = this.vw * s + 'px'; c.style.height = this.vh * s + 'px';
     const L = Math.round((W - this.vw * s) / 2), Tp = Math.round((H - this.vh * s) / 2);
+    this.cvL = L; this.cvT = Tp;   // tuvalin penceredeki yeri (melez köşe karartması)
     c.style.left = L + 'px'; c.style.top = Tp + 'px';
     c.style.transformOrigin = `${W / 2 - L}px ${H / 2 - Tp}px`;   // yakınlaşma ekranın ortasından
     this._cRect = null;
@@ -465,9 +466,12 @@ const G = {
     try {
       if (this.state === 'play' || this.state === 'dead') this.update(dt);
       UI.update(dt);
+      this.hyOk = false;
       // harita ekranı bütün ekranı kapatır (opak): altındaki dünya çizilmez
       if (this.world && this.player && (this.state === 'play' || this.state === 'dead') && !UI.mapShown()) this.render(dt);
       else if (this.state === 'menu') { if (FX.drunkCss) FX.clearCss(); UI.menuBg(dt); }
+      // köşe karartması: melez çizim dünyayı çizdiyse son ışık geçişinde, değilse sayfadaki katman (#fx-vignette)
+      if (this._glv !== this.hyOk) { this._glv = this.hyOk; document.body.classList.toggle('glvig', this.hyOk); }
       UI.menuVid(this.state === 'menu' && !$('#mainmenu').classList.contains('hidden'));
     } catch (e) {
       console.error(e);
@@ -978,7 +982,7 @@ const G = {
   render(dt) {
     // melez çizim (js/hybrid.js): iki kat piksel, yükseklik haritasıyla güneş gölgesi, duvarda duran ışık
     if (this.ds === 2) {
-      if (HY.render(this, dt)) { if (this.binoc) this.binocDraw(); return; }
+      if (HY.render(this, dt)) { this.hyOk = true; if (this.binoc) this.binocDraw(); return; }
       this.resize();   // WebGL koptu: klasik çizime dön
     }
     const ctx = this.ctx, W = this.world, P = this.player, C = this.cam;

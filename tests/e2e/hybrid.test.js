@@ -294,5 +294,22 @@ module.exports = {
       t.ok(r.on > r.off + 4, 'mavi ton görüntüye uygulandı', r);
       t.eq(errs.length, 0, 'sayfa hatası yok', errs);
     });
+
+    await t.step('köşe karartması melezde son ışık geçişinde (sayfadaki katman gizli); klasikte sayfadaki katman', async () => {
+      const frames = (n) => p.evaluate(async (n) => { for (let k = 0; k < n; k++) await new Promise(r => requestAnimationFrame(r)); }, n);
+      const st = () => p.evaluate(() => ({ ds: G.ds, gl: document.body.classList.contains('glvig'), div: getComputedStyle(document.querySelector('#fx-vignette')).display }));
+      await frames(3);
+      const a = await st();
+      await p.evaluate(() => { G.settings.gfx = 1; G.applySettings(); G.resize(); });
+      await frames(3);
+      const b = await st();
+      await p.evaluate(() => { G.settings.gfx = 0; G.applySettings(); G.resize(); });
+      await frames(3);
+      const c = await st();
+      t.ok(a.ds === 2 && a.gl && a.div === 'none', 'melezde katman gizli', a);
+      t.ok(b.ds === 1 && !b.gl && b.div !== 'none', 'klasikte katman görünür', b);
+      t.ok(c.ds === 2 && c.gl && c.div === 'none', 'meleze dönünce yine gizli', c);
+      t.eq(errs.length, 0, 'sayfa hatası yok', errs);
+    });
   },
 };

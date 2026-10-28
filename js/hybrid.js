@@ -1267,7 +1267,7 @@ const HY = (() => {
       for (int i = -4; i <= 4; i++) { float w = exp(-float(i * i) / 8.0); vec3 c = texture2D(uT, vU + uDir * float(i)).rgb; s += max(c - uThr, 0.0) * w; wsum += w; }
       gl_FragColor = vec4(s / wsum, 1.0); }`;
   const FFS = `${HP} varying vec2 vU; uniform sampler2D uL; uniform sampler2D uB; uniform float uBloom; uniform vec2 uTone;
-    uniform vec4 uTk[${NTN}]; uniform float uTo[${NTN}];
+    uniform vec4 uTk[${NTN}]; uniform float uTo[${NTN}]; uniform vec4 uVig;
     float b2(vec2 a){ a = floor(a); return fract(a.x * 0.5 + a.y * a.y * 0.75); }
     float bay(vec2 a){ return b2(0.5 * a) * 0.25 + b2(a); }
     // 2D tuvalin soft-light karışımı (W3C): b alttaki, s ton rengi
@@ -1283,6 +1283,8 @@ const HY = (() => {
       for (int i = 0; i < ${NTN}; i++) { vec4 T = uTk[i]; if (T.a <= 0.0) break;
         vec3 B = uTo[i] < 0.5 ? T.rgb : uTo[i] < 1.5 ? softL(c, T.rgb) : vec3(dot(c, vec3(0.3, 0.59, 0.11)));
         c = mix(c, B, T.a); }
+      // köşe karartması (css/style.css #fx-vignette ile aynı: pencereye göre elips, %55'ten köşede %50 siyaha)
+      if (uVig.z > 0.0) c *= 1.0 - 0.5 * clamp((length((gl_FragCoord.xy - uVig.xy) * uVig.zw) - 0.55) / 0.45, 0.0, 1.0);
       gl_FragColor = vec4(c, 1.0); }`;
   let gl = null, glc = null, failed = false, PL = null, PS = null, PB = null, PF = null, quad = null, texC = null, texG = null, rtL = null, rtS = null, rtA = null, rtB = null, RW = 0, RH = 0, lastVr = '';
   function compile(fs) {
@@ -1738,6 +1740,9 @@ const HY = (() => {
     const TQ = FX.tints(), TK = new Float32Array(NTN * 4), TO = new Float32Array(NTN);
     TQ.slice(0, NTN).forEach(([, op, col, a], i) => { const c = hexToRgb(col); TK.set([c[0] / 255, c[1] / 255, c[2] / 255, a], i * 4); TO[i] = op === 'soft-light' ? 1 : op === 'saturation' ? 2 : 0; });
     gl.uniform4fv(PF.u.uTk, TK); gl.uniform1fv(PF.u.uTo, TO);
+    // köşe karartması: pencerenin ortası (GL'de y aşağıdan) ve elipsin yarıçapları (köşeden geçer), tuval pikseliyle
+    { const zo = G.camZoom && G.camZoom.out > 0 ? G.camZoom.out : 1, k = S / (G.scale * zo), cw = innerWidth / 2, ch = innerHeight / 2;
+      gl.uniform4f(PF.u.uVig, (cw - (G.cvL || 0)) * S / G.scale, h2 - (ch - (G.cvT || 0)) * S / G.scale, 1 / (cw * Math.SQRT2 * k), 1 / (ch * Math.SQRT2 * k)); }
     scis(1); draw(PF); gl.disable(gl.SCISSOR_TEST);
     FX.glTint = true;
     if (gl.isContextLost && gl.isContextLost()) return false;
