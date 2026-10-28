@@ -473,8 +473,20 @@ const G = {
     }
     Input.endFrame();
     this.presenceTick(dt);
-    // FPS ve kare başına işlemci süresi (oyunun kendi işi): FPS düşük ama süre kısaysa darboğaz ekran kartında
-    if (this.settings.fps) { this._fc = (this._fc || 0) + 1; this._ft = (this._ft || 0) + dt; this._fw = (this._fw || 0) + performance.now() - tf0; if (this._ft > 0.5) { $('#fps').textContent = Math.round(this._fc / this._ft) + ' FPS · ' + (this._fw / this._fc).toFixed(1) + ' ms'; this._fc = 0; this._ft = 0; this._fw = 0; } }
+    // FPS ve kare başına işlemci süresi (oyunun kendi işi): FPS düşük ama süre kısaysa darboğaz ekran kartında. Melez
+    // çizimde sürenin dökümü: 2D çizim (parçalar, canlılar, üst katman, son katmanlar), GL komutları ve ekran kartının
+    // kareyi bitirmesini bekleme (ışıklı görüntü ekrana kopyalanırken)
+    if (this.settings.fps) {
+      this._fc = (this._fc || 0) + 1; this._ft = (this._ft || 0) + dt; this._fw = (this._fw || 0) + performance.now() - tf0;
+      if (this._ft > 0.5) {
+        let t = Math.round(this._fc / this._ft) + ' FPS · ' + (this._fw / this._fc).toFixed(1) + ' ms';
+        if (this.ds === 2 && typeof HY !== 'undefined') {
+          const s = HY.stat.seg, v = (k) => s[k] || 0;
+          t += ` (2D ${(v('parçalar') + v('canlılar') + v('üst katman') + v('2D üst katman')).toFixed(1)} · GL ${v('ışık (GPU komutları)').toFixed(1)} · ${Tr('bekleme')} ${v('GPU bekleme').toFixed(1)})`;
+        }
+        $('#fps').textContent = t; this._fc = 0; this._ft = 0; this._fw = 0;
+      }
+    }
     requestAnimationFrame(t => this.frame(t));
   },
   /* Steam arkadaş listesinde görünen durum (rich presence) */

@@ -1172,7 +1172,8 @@ const HY = (() => {
     uniform vec4 uLP[${NL}]; uniform vec4 uLC[${NL}];
     uniform vec4 uIn; uniform vec4 uWin[${NW}]; uniform float uInAmb;
     uniform sampler2D uS; uniform vec2 uSRes; uniform vec2 uShOff;
-    float hgt(vec2 p){ return texture2D(uG, p / uRes).r * 85.0; }
+    uniform vec2 uGO; uniform vec2 uGR;   // yükseklik tamponu görünen alandan geniş: görünen alanın içindeki yeri ve boyu
+    float hgt(vec2 p){ return texture2D(uG, (p + uGO) / uGR).r * 85.0; }
     // yarım çözünürlüklü gölge ve köşe gölgesi (SHFS): dört komşu, yüksekliği bu piksele yakın olanlar ağır basar
     // (duvar dibi kenarı keskin kalır). x: güneş gölgesi, y: köşe gölgesi
     vec2 shadeAt(vec2 st0, float hr){
@@ -1185,7 +1186,7 @@ const HY = (() => {
     void main(){
       vec2 p = vec2(vU.x * uRes.x, (1.0 - vU.y) * uRes.y);
       vec2 uv = vec2(vU.x, 1.0 - vU.y);
-      vec3 col = texture2D(uC, uv).rgb; vec4 G = texture2D(uG, uv);
+      vec3 col = texture2D(uC, uv).rgb; vec4 G = texture2D(uG, (p + uGO) / uGR);
       float h = G.r * 85.0;
       bool emW = G.g > 0.998 && G.b > 0.998, emF = G.g > 0.992 && G.g < 0.998 && G.b > 0.998;
       vec3 n = vec3(0.0, 1.0, 0.0);
@@ -1231,12 +1232,12 @@ const HY = (() => {
       gl_FragColor = vec4(c, 1.0);
     }`;
   const SHFS = `${HP}
-    varying vec2 vU; uniform sampler2D uG; uniform vec2 uRes; uniform vec3 uSun; uniform float uShQ;
-    float hgt(vec2 p){ return texture2D(uG, p / uRes).r * 85.0; }
+    varying vec2 vU; uniform sampler2D uG; uniform vec2 uRes; uniform vec3 uSun; uniform float uShQ; uniform vec2 uGO; uniform vec2 uGR;
+    float hgt(vec2 p){ return texture2D(uG, (p + uGO) / uGR).r * 85.0; }
     float aoAt(vec2 p, vec2 o, float h){ float d1 = hgt(p + o * 6.0) - h, d2 = hgt(p + o * 12.0) - h; return clamp(d1 / 12.0, 0.0, 1.0) + clamp(d2 / 12.0, 0.0, 1.0) * 0.5; }
     void main(){
       vec2 p = floor(vec2(vU.x * uRes.x, (1.0 - vU.y) * uRes.y)) + 0.5;   // iki kat yoğun tuvalde 2x2 bloğun bir pikseli
-      vec4 G = texture2D(uG, p / uRes);
+      vec4 G = texture2D(uG, (p + uGO) / uGR);
       float h = G.r * 85.0;
       bool em = G.g > 0.992 && G.b > 0.998;
       vec3 n = vec3(0.0, 1.0, 0.0);
@@ -1314,7 +1315,7 @@ const HY = (() => {
       if (!window.__hySoft && ri && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(gl.getParameter(ri.UNMASKED_RENDERER_WEBGL))) { gl = null; soft = true; throw new Error('yazılım çizimi'); }
       PL = compile(LFS); PS = compile(SHFS); PB = compile(BFS); PF = compile(FFS);
       quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
-      texC = tex(0, 0, false); texG = tex(0, 0, false);
+      texC = tex(0, 0, false); texG = tex(0, 0, false); fgK = '';   // yeni bağlamın dokusu boş: FG yeniden çizilip yüklenir
       glc.addEventListener('webglcontextlost', (e) => { e.preventDefault(); if (glc === cv) { failed = true; gl = null; } });   // bilerek bırakılan eski bağlam sayılmaz
       return true;
     } catch (e) {
@@ -1366,19 +1367,103 @@ const HY = (() => {
   }
 
   /* ---------------- kare ---------------- */
-  let FC = null, FG = null, fc = null, fg = null, TO = null, TOG = null, to = null, tog = null;
-  // yükseklik tamponunun (FG) içeriğini belirleyenler (kamera, görünen parçalar, taç deliği, örtüler) ve gölge geçişinin
-  // girdileri geçen kareyle aynıysa FG yüklenmez, gölge geçişi yeniden çizilmez (canlılar FG'ye çizilmez: duran sahnede
-  // GPU işinin büyük kısmı kalkar)
-  let SID = 0, lastFgk = '', lastShk = '', lastSun = null, lastWk = '', shX = 0, shY = 0;
+  let FC = null, FG = null, fc = null, fg = null, HO = null, HOG = null, PG = null;
+  // yükseklik tamponu (FG) görünen alandan her yönde FGM tuval pikseli geniş ve dünyaya hizalı tutulur: içeriği (parçalar,
+  // örtüler) değişmedikçe ve kamera bu payın içinde kaldıkça yeniden çizilmez, ekran kartına yeniden yüklenmez; ışık ve
+  // gölge geçişleri kaymayı (uGO) telafi ederek okur. Dururken hiç, yürürken ~saniyede bir çizilir. Taç deliği kayınca
+  // (ağaç, lamba, tabela altında yürürken) yalnız eski ve yeni deliği kapsayan küçük kare (PG) çizilip o bölge yüklenir.
+  // Gölge geçişinin girdileri (görünen parçalar, taç deliği, örtüler) aynıysa gölge de yeniden hesaplanmaz.
+  const FGM = 128, HOLE = 137, PGS = 2 * HOLE;   // HOLE: taç deliğinin işlendiği kare (136 piksellik delik, kesirli konum için +1); PGS: yamanın boyu
+  let SID = 0, fgX = 0, fgY = 0, fgK = '', fgH = null, pgX = 0, pgY = 0, lastShk = '', lastSun = null, lastWk = '', shX = 0, shY = 0;
   const sidOf = (o) => o.sid || (o.sid = ++SID);
-  const stat = { frames: 0, ms: 0, built: 0, seg: {}, sync: 0 };   // sync: görünür olunca tek seferde pişen parça sayısı
+  const stat = { frames: 0, ms: 0, built: 0, seg: {}, sync: 0, fg: 0, fgp: 0 };   // sync: görünür olunca tek seferde pişen parça sayısı; fg: FG çizimi, fgp: taç deliği yaması
   const seg = (k, t) => { stat.seg[k] = (stat.seg[k] || 0) * 0.9 + t * 0.1; };
   function frameCanvas(w, h) {
     if (FC && FC.width === w && FC.height === h) return;
-    FC = makeCanvas(w, h); FG = makeCanvas(w, h); TO = makeCanvas(w, h); TOG = makeCanvas(w, h);
-    fc = FC.getContext('2d'); fg = FG.getContext('2d'); to = TO.getContext('2d'); tog = TOG.getContext('2d');
-    for (const c of [fc, fg, to, tog]) c.imageSmoothingEnabled = false;
+    FC = makeCanvas(w, h); FG = makeCanvas(w + 2 * FGM, h + 2 * FGM);
+    fc = FC.getContext('2d'); fg = FG.getContext('2d');
+    if (!HO) { HO = makeCanvas(HOLE, HOLE); HOG = makeCanvas(HOLE, HOLE); PG = makeCanvas(PGS, PGS); }
+    for (const c of [fc, fg, HO.getContext('2d'), HOG.getContext('2d'), PG.getContext('2d')]) c.imageSmoothingEnabled = false;
+    fgK = '';
+  }
+  /* Üst katman (ağaç taçları, çatı kenarları): list [tuval, x, y]. hole: oyuncu taç altındaysa tuvaldeki yeri; çevresinde
+     taç oyulur. Yalnız deliğin karesine değen parçalar küçük yardımcı tuvalde (scr) birleştirilip oyulur, geri kalanı
+     doğrudan çizilir (eskiden bütün tuval boyunda iki yardımcı tuval temizlenip birleştiriliyordu). */
+  function overlays(t, list, hole, scr, spr) {
+    if (!hole) { for (const [c, dx, dy] of list) t.drawImage(c, dx, dy); return; }
+    const sx = Math.floor(hole[0] - 68), sy = Math.floor(hole[1] - 68), sc = scr.getContext('2d');
+    sc.clearRect(0, 0, HOLE, HOLE);
+    for (const [c, dx, dy] of list) {
+      if (dx >= sx + HOLE || dx + c.width <= sx || dy >= sy + HOLE || dy + c.height <= sy) { t.drawImage(c, dx, dy); continue; }
+      t.save(); t.beginPath(); t.rect(dx, dy, c.width, c.height); t.rect(sx, sy, HOLE, HOLE); t.clip('evenodd'); t.drawImage(c, dx, dy); t.restore();
+      sc.drawImage(c, dx - sx, dy - sy);
+    }
+    sc.globalCompositeOperation = 'destination-out'; sc.drawImage(spr, hole[0] - 68 - sx, hole[1] - 68 - sy, 136, 136); sc.globalCompositeOperation = 'source-over';
+    t.drawImage(scr, sx, sy);
+  }
+  /* FG: kökeni (gx, gy) olan bölgenin içeriği ve anahtarı. Bölgedeki parçalar (henüz pişmeyen sıraya girer, pişince FG
+     yeniden çizilir) ve kapalı (yarıdan çok görünen) örtüler. Taç deliği anahtarda değil, ayrı izlenir (fgH). */
+  function fgScan(W, gx, gy, gw, gh, NC) {
+    const X1 = gx + gw / S, Y1 = gy + gh / S, items = [], ovs = [], cvs = [];
+    let key = gw + ',' + gh;
+    for (let cy = Math.floor(gy / HC); cy * HC < Y1; cy++) for (let cx = Math.floor(gx / HC); cx * HC < X1; cx++) {
+      if (cx < 0 || cy < 0 || cx >= NC || cy >= NC) continue;
+      const c = chunks.get(cy * 1024 + cx);
+      if (!c) { chunk(W, cx, cy, false); key += ',m' + cx + '.' + cy; continue; }
+      const dx = (cx * HC - gx) * S, dy = (cy * HC - gy) * S;
+      items.push([c.bg, dx, dy]); if (c.og) ovs.push([c.og, dx, dy]);
+      key += ',' + sidOf(c);
+    }
+    for (const b of W.buildings) {
+      const bxp = b.x * TS, byp = b.y * TS, bw = b.w * TS, bh = b.h * TS;
+      if (bxp + bw + 50 < gx || bxp - 50 > X1 || byp + bh + 30 < gy || byp - 80 > Y1) continue;
+      if ((b.coverA === undefined ? 1 : b.coverA) <= 0.5) continue;
+      if (!(b._hy && b._hy.gen === W._hyGen)) { key += ';?' + b.id; continue; }   // örtüsü henüz pişmedi
+      const cv = b._hy;
+      cvs.push([cv.g, (cv.x - gx) * S, (cv.y - gy) * S]); key += ';' + sidOf(cv);
+    }
+    return { key, items, ovs, cvs };
+  }
+  // FG içeriğinin (rx, ry, rw, rh) bölgesini t'ye çizer (t'nin dönüşümünü çağıran kurar): zemin, parçaların geometrisi,
+  // deliği oyulmuş üst katman, örtüler. Bölgeye değmeyen tuvaller atlanır.
+  function fgDraw(t, F, hole, spr, rx, ry, rw, rh) {
+    const hit = ([c, dx, dy]) => dx < rx + rw && dx + c.width > rx && dy < ry + rh && dy + c.height > ry;
+    t.fillStyle = 'rgb(0,124,124)'; t.fillRect(rx, ry, rw, rh);
+    for (const it of F.items) if (hit(it)) t.drawImage(it[0], it[1], it[2]);
+    overlays(t, F.ovs.filter(hit), hole, HOG, spr);
+    for (const it of F.cvs) if (hit(it)) t.drawImage(it[0], it[1], it[2]);
+  }
+  /* FG geçerli değilse (içerik değişti ya da kamera payın dışına çıktı) görünen alan ortada kalacak biçimde yeniden
+     çizilir; yalnız taç deliği kaydıysa eski ve yeni deliğin karelerini kapsayan yama (PG) çizilir. holeW: deliğin dünya
+     konumu (yoksa null). Döner: 0 değişmedi, 1 yeniden çizildi (FG yüklenmeli), 2 yama (PG, FG'de pgX/pgY'ye yüklenmeli) */
+  function fgUpdate(W, x0, y0, w2, h2, NC, holeW, spr) {
+    const gw = w2 + 2 * FGM, gh = h2 + 2 * FGM, ox = (x0 - fgX) * S, oy = (y0 - fgY) * S;
+    const hc = () => holeW ? [(holeW[0] - fgX) * S, (holeW[1] - fgY) * S] : null;   // deliğin FG tuvalindeki yeri
+    if (fgK && ox >= 0 && oy >= 0 && ox <= 2 * FGM && oy <= 2 * FGM) {
+      const F = fgScan(W, fgX, fgY, gw, gh, NC);
+      if (F.key === fgK) {
+        if (holeW ? fgH && holeW[0] === fgH[0] && holeW[1] === fgH[1] : !fgH) return 0;
+        let ux0 = Infinity, uy0 = Infinity, ux1 = -Infinity, uy1 = -Infinity;
+        for (const h of [fgH, holeW]) if (h) {
+          const sx = Math.floor((h[0] - fgX) * S - 68), sy = Math.floor((h[1] - fgY) * S - 68);
+          ux0 = Math.min(ux0, sx); uy0 = Math.min(uy0, sy); ux1 = Math.max(ux1, sx + HOLE); uy1 = Math.max(uy1, sy + HOLE);
+        }
+        if (ux1 - ux0 <= PGS && uy1 - uy0 <= PGS) {
+          pgX = clamp(Math.floor((ux0 + ux1 - PGS) / 2), 0, gw - PGS); pgY = clamp(Math.floor((uy0 + uy1 - PGS) / 2), 0, gh - PGS);
+          const pg = PG.getContext('2d');
+          pg.setTransform(1, 0, 0, 1, -pgX, -pgY);
+          fgDraw(pg, F, hc(), spr, pgX, pgY, PGS, PGS);
+          fgH = holeW; stat.fgp++;
+          return 2;
+        }
+      }
+    }
+    fgX = x0 - FGM / S; fgY = y0 - FGM / S;
+    const F = fgScan(W, fgX, fgY, gw, gh, NC);
+    fg.setTransform(1, 0, 0, 1, 0, 0); fg.globalAlpha = 1;
+    fgDraw(fg, F, hc(), spr, 0, 0, gw, gh);
+    fgK = F.key; fgH = holeW; stat.fg++;
+    return 1;
   }
   // canlının gölgesi: güneşin tersine uzayan yumuşak şerit (dikey bir sütunun gölgesi)
   function creatureShadow(c, x, y, rx, ry, h, sd, k) {
@@ -1396,12 +1481,13 @@ const HY = (() => {
     frameCanvas(w2, h2);
     const S0 = sunState(G), sd = [-S0.dir[0] / S0.dir[2], -S0.dir[1] / S0.dir[2]];
 
-    /* 1) parçalar: alt katman */
-    fc.setTransform(1, 0, 0, 1, 0, 0); fg.setTransform(1, 0, 0, 1, 0, 0);
-    fc.fillStyle = '#2c4b5e'; fc.fillRect(0, 0, w2, h2); fg.fillStyle = 'rgb(0,124,124)'; fg.fillRect(0, 0, w2, h2);
+    /* 1) parçalar: alt katman (yükseklik tamponu FG ayrı tutulur: 4. adımın sonu) */
+    fc.setTransform(1, 0, 0, 1, 0, 0);
     const NC = Math.ceil(WW * TS / HC), vis = [];
-    let wk = w2 + ',' + h2;   // FG'nin dünyadaki içeriği (kamera kökeninden bağımsız): parçalar, taç deliği, örtüler
+    let wk = w2 + ',' + h2;   // gölge geçişinin girdileri (kamera kökeninden bağımsız): görünen parçalar, taç deliği, örtüler
     const ccx0 = Math.floor(x0 / HC), ccy0 = Math.floor(y0 / HC), ccx1 = Math.floor(x1 / HC), ccy1 = Math.floor(y1 / HC);
+    // parçalar bütün tuvali kaplar; yalnız dünyanın kenarı görünürken boş kalan yer deniz rengiyle doldurulur
+    if (ccx0 < 0 || ccy0 < 0 || ccx1 >= NC || ccy1 >= NC) { fc.fillStyle = '#2c4b5e'; fc.fillRect(0, 0, w2, h2); }
     // gereken alan (görünen + halka) önbelleğe her zaman sığar; geçen karede atılan parçaların tuvalleri artık kullanılabilir
     NEED[0] = ccx0 - 1; NEED[1] = ccy0 - 1; NEED[2] = ccx1 + 1; NEED[3] = ccy1 + 1;
     cap = Math.max(28, (ccx1 - ccx0 + 3) * (ccy1 - ccy0 + 3) + 2);
@@ -1410,7 +1496,7 @@ const HY = (() => {
       if (cx < 0 || cy < 0 || cx >= NC || cy >= NC) continue;
       const c = chunk(W, cx, cy, true), dx = (cx * HC - x0) * S, dy = (cy * HC - y0) * S;
       vis.push([c, dx, dy]);
-      fc.drawImage(c.bc, dx, dy); fg.drawImage(c.bg, dx, dy);
+      fc.drawImage(c.bc, dx, dy);
       wk += ',' + sidOf(c);
     }
     // ileride gerekecek parçalar (hareket yönünde bir halka)
@@ -1521,15 +1607,10 @@ const HY = (() => {
 
     /* 4) üst katman (ağaç taçları, fener başları) ve bina örtüleri */
     fc.setTransform(1, 0, 0, 1, 0, 0);
-    const under = G.playerUnderCanopy();
-    if (under) {
-      to.clearRect(0, 0, w2, h2); tog.clearRect(0, 0, w2, h2);
-      for (const [c, dx, dy] of vis) if (c.oc) { to.drawImage(c.oc, dx, dy); tog.drawImage(c.og, dx, dy); }
-      const px = (P.x - x0) * S, py = (P.y - y0 - 4) * S;
-      wk += 'u' + P.x + ',' + P.y;
-      for (const c of [to, tog]) { c.globalCompositeOperation = 'destination-out'; c.drawImage(G.holeSpr, px - 68, py - 68, 136, 136); c.globalCompositeOperation = 'source-over'; }
-      fc.drawImage(TO, 0, 0); fg.drawImage(TOG, 0, 0);
-    } else for (const [c, dx, dy] of vis) if (c.oc) { fc.drawImage(c.oc, dx, dy); fg.drawImage(c.og, dx, dy); }
+    const under = G.playerUnderCanopy(), ovc = [];
+    if (under) wk += 'u' + P.x + ',' + P.y;
+    for (const [c, dx, dy] of vis) if (c.oc) ovc.push([c.oc, dx, dy]);
+    overlays(fc, ovc, under ? [(P.x - x0) * S, (P.y - y0 - 4) * S] : null, HO, G.holeSpr);
     const IB = G.insideB, k = Math.min(1, dt * 7);
     for (const b of W.buildings) {
       const bxp = b.x * TS, byp = b.y * TS, bw = b.w * TS, bh = b.h * TS;
@@ -1544,23 +1625,27 @@ const HY = (() => {
       b.coverA = b.coverA === undefined ? target : b.coverA + (target - b.coverA) * k;
       if (b.coverA < 0.02) continue;
       const cv = cover(b, W);
-      fc.globalAlpha = b.coverA; fg.globalAlpha = b.coverA > 0.5 ? 1 : 0;
-      fc.drawImage(cv.c, (cv.x - x0) * S, (cv.y - y0) * S); if (fg.globalAlpha) { fg.drawImage(cv.g, (cv.x - x0) * S, (cv.y - y0) * S); wk += ';' + sidOf(cv); }
+      fc.globalAlpha = b.coverA;
+      fc.drawImage(cv.c, (cv.x - x0) * S, (cv.y - y0) * S);
+      if (b.coverA > 0.5) wk += ';' + sidOf(cv);   // yükseklik tamponunda yalnız yarıdan çok görünen örtü durur
     }
-    fc.globalAlpha = 1; fg.globalAlpha = 1;
+    fc.globalAlpha = 1;
     fc.setTransform(S, 0, 0, S, -x0 * S, -y0 * S);
     Juice.drawAfterCovers(fc, x0, y0, x1, y1, dt);
     fc.setTransform(1, 0, 0, 1, 0, 0);
+    // yükseklik tamponu: yalnız içeriği değişince ya da kamera payın dışına çıkınca yeniden çizilir; taç deliği kayınca yamanır
+    const fgNew = fgUpdate(W, x0, y0, w2, h2, NC, under ? [P.x, P.y - 4] : null, G.holeSpr);
     const t3 = performance.now(); seg('üst katman', t3 - t2);
 
     /* 5) WebGL ışık */
     if (glc.width !== w2 || glc.height !== h2) { glc.width = w2; glc.height = h2; }
-    if (RW !== w2 || RH !== h2) { RW = w2; RH = h2; lastVr = ''; lastFgk = ''; lastWk = ''; rtL = rt(w2, h2, true, rtL); rtS = rt(w2 >> 1, h2 >> 1, false, rtS); rtA = rt(w2 >> 2, h2 >> 2, true, rtA); rtB = rt(w2 >> 2, h2 >> 2, true, rtB); }
-    const fgk = x0 + ',' + y0 + '|' + wk, fgSame = fgk === lastFgk;
-    lastFgk = fgk;
+    if (RW !== w2 || RH !== h2) { RW = w2; RH = h2; lastVr = ''; lastWk = ''; rtL = rt(w2, h2, true, rtL); rtS = rt(w2 >> 1, h2 >> 1, false, rtS); rtA = rt(w2 >> 2, h2 >> 2, true, rtA); rtB = rt(w2 >> 2, h2 >> 2, true, rtB); }
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texC); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FC);
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texG); if (!fgSame) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FG);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texG);
+    if (fgNew === 1) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FG);
+    else if (fgNew === 2) gl.texSubImage2D(gl.TEXTURE_2D, 0, pgX, pgY, gl.RGBA, gl.UNSIGNED_BYTE, PG);
+    const gOx = (x0 - fgX) * S, gOy = (y0 - fgY) * S;   // görünen alanın FG içindeki yeri (tuval pikseli)
     // görünür alan: tuvalin kenar payı yalnızca dörtnala uzaklaşınca görünür, iç mekânda yakınlaşınca daha da azı;
     // ışık ve gölge geçişleri yalnızca görünen kısma (parlama için birkaç piksel payla) çizilir
     const scis = (k) => { if (vr) { gl.enable(gl.SCISSOR_TEST); gl.scissor(Math.floor(vr[0] / k), Math.floor(vr[1] / k), Math.ceil(vr[2] / k), Math.ceil(vr[3] / k)); } else gl.disable(gl.SCISSOR_TEST); };
@@ -1590,12 +1675,14 @@ const HY = (() => {
       } else gl.disable(gl.SCISSOR_TEST);
       gl.useProgram(PS.p);
       gl.uniform1i(PS.u.uG, 1); gl.uniform2f(PS.u.uRes, w2, h2); gl.uniform3fv(PS.u.uSun, D); gl.uniform1f(PS.u.uShQ, shQ);
+      gl.uniform2f(PS.u.uGO, gOx, gOy); gl.uniform2f(PS.u.uGR, FG.width, FG.height);
       draw(PS);
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, rtL.fb); gl.viewport(0, 0, w2, h2); scis(1);
     const u = PL.u; gl.useProgram(PL.p);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, rtS.t);
     gl.uniform1i(u.uC, 0); gl.uniform1i(u.uG, 1); gl.uniform1i(u.uS, 2); gl.uniform2f(u.uSRes, rtS.w, rtS.h); gl.uniform2f(u.uRes, w2, h2); gl.uniform2f(u.uOrg, x0, y0);
+    gl.uniform2f(u.uGO, gOx, gOy); gl.uniform2f(u.uGR, FG.width, FG.height);
     gl.uniform2f(u.uShOff, shDx / w2, -shDy / h2);   // gölge hesaplandığından beri kamera kayması (GL'de y ters)
     gl.uniform3fv(u.uSun, S0.dir); gl.uniform3fv(u.uSunC, S0.sunC); gl.uniform3fv(u.uAmb, S0.amb);
     gl.uniform1f(u.uNight, clamp((S0.dark - 0.3) * 2.5, 0, 1)); gl.uniform1f(u.uDay, S0.day ? 1 : 0);
@@ -1648,7 +1735,7 @@ const HY = (() => {
   function reset() {
     try { const x = gl && gl.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); } catch (e) {}
     gl = null; glc = null; failed = false; soft = false;
-    PL = PS = PB = PF = null; quad = texC = texG = null; rtL = rtS = rtA = rtB = null; RW = RH = 0; lastVr = '';
+    PL = PS = PB = PF = null; quad = texC = texG = null; rtL = rtS = rtA = rtB = null; RW = RH = 0; lastVr = ''; fgK = '';
   }
 
   return {

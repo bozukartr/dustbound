@@ -233,6 +233,40 @@ module.exports = {
       t.eq(r.queued, 0, 'yerinde dururken yeni parça işi açılmaz (atılıp yeniden pişen parça yok)');
       t.eq(r.sync, 0, 'görünen parça tek seferde yeniden pişmez');
       t.ok(r.q.cached >= 30 && r.q.cap >= 32, 'önbellek halkayı alacak kadar büyüdü', r.q);
+    });
+
+    await t.step('yükseklik tamponu dururken hiç, yürürken yalnız kenar payı aşılınca yeniden çizilir; taç altında yalnız delik yamanır', async () => {
+      const r = await p.evaluate(async () => {
+        const frame = () => new Promise(res => requestAnimationFrame(() => res()));
+        const W = G.world, s = TH.openSpot(), P = G.player, n = () => [HY.stat.fg, HY.stat.fgp];
+        TH.clearNpcs(); P.x = s[0]; P.y = s[1]; G.cam.x = P.x; G.cam.y = P.y;
+        for (let k = 0; k < 8; k++) { await frame(); HY._jobs(1e9); }
+        const a = n();
+        for (let k = 0; k < 30; k++) await frame();
+        const b = n(), x0 = P.x;
+        for (let k = 0; k < 60; k++) { P.x += 2; await frame(); HY._jobs(1e9); }
+        const c = n(), open = { still: b[0] - a[0], stillPatch: b[1] - a[1], walk: c[0] - b[0], moved: P.x - x0 };
+        // ağacın hemen üstüne: oyuncu tacın altında, yürürken delik onunla kayar
+        let tp = null;
+        for (let r = 2; r < 160 && !tp; r++) for (let k = 0; k < 24 && !tp; k++) {
+          const q = k / 24 * TAU, x = (P.x >> 4) + Math.round(Math.cos(q) * r), y = (P.y >> 4) + Math.round(Math.sin(q) * r);
+          if (!W.inb(x, y) || W.townAt(x * TS, y * TS, 60)) continue;
+          const o = W.obj[y * WW + x];
+          if ((o === O.OAK || o === O.PINE) && !W.blocked(x * TS + 8, y * TS - 6, 3) && !W.blocked(x * TS + 24, y * TS - 6, 3)) tp = [x * TS + 8, y * TS - 6];
+        }
+        if (!tp) return { open, tree: null };
+        TH.clearNpcs(); P.x = tp[0]; P.y = tp[1]; G.cam.x = P.x; G.cam.y = P.y;
+        for (let k = 0; k < 8; k++) { await frame(); HY._jobs(1e9); }
+        const d = n(); let under = 0;
+        for (let k = 0; k < 16; k++) { P.x += 1; await frame(); if (G.playerUnderCanopy()) under++; HY._jobs(1e9); }
+        const e = n();
+        return { open, tree: { under, full: e[0] - d[0], patch: e[1] - d[1] } };
+      });
+      t.eq(r.open.still + r.open.stillPatch, 0, 'dururken yeniden çizilmez');
+      t.ok(r.open.walk >= 1 && r.open.walk <= 8, '120 piksel yürüyüşte birkaç kez (her karede değil)', r.open);
+      t.ok(r.tree, 'yakında ağaç var', r);
+      t.ok(r.tree.under >= 8, 'oyuncu tacın altında yürüdü', r.tree);
+      t.ok(r.tree.patch >= r.tree.under - 2 && r.tree.full <= 2, 'tacın altında yürürken her karede yalnız delik yamanır, tampon bütünüyle yeniden çizilmez', r.tree);
       t.eq(errs.length, 0, 'sayfa hatası yok', errs);
     });
   },
