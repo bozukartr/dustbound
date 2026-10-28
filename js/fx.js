@@ -448,7 +448,7 @@ const FX = {
   },
   /* Rüzgârla kayan bulut gölgeleri (açık/parçalı havada gündüz) */
   drawClouds(ctx) {
-    if (!this.full || G.insideB) return;
+    if (!this.full || G.insideB || PERF_OFF.clouds) return;
     const dl = G.daylight;
     if (dl < 0.3) return;
     const cover = (G.weather && G.weather.cloud) || 0, env = G.envCache || {};
@@ -471,7 +471,7 @@ const FX = {
 
   /* ---------------- Ekran geçişleri ---------------- */
   tint(ctx, op, col, a) {
-    if (a < 0.01) return;
+    if (a < 0.01 || PERF_OFF.tints) return;
     ctx.globalCompositeOperation = op; ctx.globalAlpha = Math.min(1, a);
     ctx.fillStyle = col; ctx.fillRect(0, 0, G.vw, G.vh);
   },

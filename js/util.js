@@ -157,6 +157,8 @@ function el(tag, cls, html) {
   if (html !== undefined) e.innerHTML = html;
   return e;
 }
+/* Darboğaz ölçümü (js/debug.js bench): ölçüm sırasında kapatılan çizim aşamaları. Oyunda her zaman boştur. */
+const PERF_OFF = {};
 function makeCanvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
