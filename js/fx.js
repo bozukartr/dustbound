@@ -471,13 +471,14 @@ const FX = {
 
   /* ---------------- Ekran geçişleri ---------------- */
   tint(ctx, op, col, a) {
-    if (a < 0.01 || PERF_OFF.tints) return;
+    if (a < 0.01) return;
     ctx.globalCompositeOperation = op; ctx.globalAlpha = Math.min(1, a);
     ctx.fillStyle = col; ctx.fillRect(0, 0, G.vw, G.vh);
   },
-  /* Renk derecelendirme + durum efektleri; ışıklandırmadan sonra çağrılır */
-  post(ctx, dt) {
-    const P = G.player, W = G.world, g = this.g, vw = G.vw, vh = G.vh, h = G.hour;
+  /* Renk derecelendirmesinin hedefleri (zaman, hava, biyom, durum) yumuşatılarak güncellenir. Karede bir kez: melez
+     çizimde ışık geçişinden önce (tonları son geçiş uygular), klasikte post içinde. */
+  grade(dt) {
+    const P = G.player, W = G.world, g = this.g, h = G.hour;
     const env = G.envCache || {};
     const out = G.insideB ? 0.25 : 1;
     // hedefler
@@ -505,34 +506,53 @@ const FX = {
     const rate = { gold: 0.5, blue: 0.5, desert: 0.7, rain: 0.5, cold: 0.6, swamp: 0.6, hurt: 1.6, drunk: 0.8, frost: 0.35, poison: 0.7, de: 6 };
     if (!this.gradeInit) { this.gradeInit = true; for (const k in tg) g[k] = tg[k]; }
     else for (const k in tg) g[k] += (tg[k] - g[k]) * Math.min(1, dt * rate[k]);
-
+    this.graded = true;
+  },
+  /* Renk tonları, uygulanma sırasıyla: [aşama, karışım, renk, güç]. Aşama 0 genel derecelendirme, 1 sarhoşluk, 2 ayaz,
+     3 zehir, 4 düşük sağlık; 2D çizimde her aşamanın tonu o aşamanın kenar efektinden hemen önce uygulanır */
+  tints() {
+    const g = this.g, q = [], T = (st, op, col, a) => { if (a >= 0.01) q.push([st, op, col, Math.min(1, a)]); };
+    if (PERF_OFF.tints) return q;
+    T(0, 'soft-light', '#ff8a3a', g.gold * 0.5);
+    T(0, 'source-over', 'rgb(255,128,48)', g.gold * 0.06);
+    T(0, 'soft-light', '#3450a8', g.blue * 0.5);
+    T(0, 'soft-light', '#ffb060', g.desert * (G.settings.tone === 1 ? 0.34 : 0.17));   // doğal tonda çöl turuncuya boğulmaz
+    T(0, 'saturation', '#808080', g.rain * 0.4);
+    T(0, 'soft-light', '#5a78a4', g.rain * 0.32);
+    T(0, 'soft-light', '#a8ccff', g.cold * 0.36);
+    T(0, 'soft-light', '#6e8a50', g.swamp * 0.34);
+    if (g.drunk > 0.02) T(1, 'soft-light', '#ffc070', g.drunk * 0.3);
+    if (g.frost > 0.02) T(2, 'soft-light', '#b8d4ff', g.frost * 0.25);
+    if (g.poison > 0.02) { T(3, 'soft-light', '#8fae3a', g.poison * 0.34); T(3, 'saturation', '#808080', g.poison * 0.16); }
+    if (g.hurt > 0.02) T(4, 'saturation', '#808080', g.hurt * 0.7);
+    return q;
+  },
+  /* Renk derecelendirme + durum efektleri; ışıklandırmadan sonra çağrılır. Melez çizim tonları son ışık geçişinde
+     uyguladıysa (glTint: her ton ekran boyu ayrı bir 2D karışım geçişi olmaz) burada yalnız kenar efektleri çizilir. */
+  post(ctx, dt) {
+    if (this.graded) this.graded = false; else this.grade(dt);
+    const P = G.player, g = this.g, vw = G.vw, vh = G.vh;
+    const q = this.glTint ? [] : this.tints(), tintAt = (st) => { for (const [s, op, col, a] of q) if (s === st) this.tint(ctx, op, col, a); };
+    this.glTint = false;
     // --- renk derecelendirme (zaman / hava / biyom)
-    this.tint(ctx, 'soft-light', '#ff8a3a', g.gold * 0.5);
-    this.tint(ctx, 'source-over', 'rgb(255,128,48)', g.gold * 0.06);
-    this.tint(ctx, 'soft-light', '#3450a8', g.blue * 0.5);
-    this.tint(ctx, 'soft-light', '#ffb060', g.desert * (G.settings.tone === 1 ? 0.34 : 0.17));   // doğal tonda çöl turuncuya boğulmaz
-    this.tint(ctx, 'saturation', '#808080', g.rain * 0.4);
-    this.tint(ctx, 'soft-light', '#5a78a4', g.rain * 0.32);
-    this.tint(ctx, 'soft-light', '#a8ccff', g.cold * 0.36);
-    this.tint(ctx, 'soft-light', '#6e8a50', g.swamp * 0.34);
+    tintAt(0);
     // --- sarhoşluk: çift görme + sıcak renk kayması
     if (g.drunk > 0.02) {
       const d = g.drunk, t = G.t;
-      this.tint(ctx, 'soft-light', '#ffc070', d * 0.3);
+      tintAt(1);
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 0.26 * d;
       ctx.drawImage(G.canvas, Math.sin(t * 1.3) * 2.6 * d, Math.cos(t * 0.9) * 1.6 * d, G.vw, G.vh);
     }
     // --- ayaz: kenarlarda buz kristalleri
     if (g.frost > 0.02) {
-      this.tint(ctx, 'soft-light', '#b8d4ff', g.frost * 0.25);
+      tintAt(2);
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = g.frost * 0.9;
       ctx.drawImage(this.frost(vw, vh), 0, 0);
     }
     // --- zehir: hastalıklı yeşil renk, bulantı dalgasıyla kabarıp sönen yeşil kenar, hafif çift görme; öğürürken kenar kararır
     if (g.poison > 0.02) {
       const k = g.poison, t = G.t, wave = 0.5 + 0.5 * Math.sin(t * 1.6), rk = P.retchT > 0 ? Math.sin((1 - P.retchT / Player.RETCH) * Math.PI) : 0;
-      this.tint(ctx, 'soft-light', '#8fae3a', k * 0.34);
-      this.tint(ctx, 'saturation', '#808080', k * 0.16);
+      tintAt(3);
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = Math.min(1, k * (0.42 + wave * 0.3 + rk * 0.4));
       ctx.drawImage(this.vigGreen, 0, 0, vw, vh);
       if (this.full) { ctx.globalAlpha = k * (0.1 + rk * 0.14); ctx.drawImage(G.canvas, Math.sin(t * 1.1) * 1.6 * k, Math.cos(t * 0.8) * 1.1 * k, G.vw, G.vh); }   // düşük kalitede tam ekran kopya yok
@@ -540,7 +560,7 @@ const FX = {
     // --- düşük sağlık: renk çekilir, kalp atışıyla nabız gibi atan kırmızı kenar
     if (g.hurt > 0.02) {
       const k = g.hurt;
-      this.tint(ctx, 'saturation', '#808080', k * 0.7);
+      tintAt(4);
       const bpm = 64 + k * 56;
       this.hb += dt * bpm / 60;
       if (this.hb >= 1) { this.hb -= 1; this.dub = false; if (G.state === 'play' && k > 0.2) Audio_.heart(0.18 + k * 0.3); }

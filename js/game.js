@@ -349,8 +349,10 @@ const G = {
     let thumb = null;
     try {
       if (this.canvas && this.canvas.width) {
-        const c = makeCanvas(224, 126), g = c.getContext('2d');
-        g.drawImage(this.canvas, 0, 0, c.width, c.height);
+        // yalnız ekranda görünen alan (yakınlaşma dahil): tuvalin görünmeyen kenarı melezde siyah kalır
+        const c = makeCanvas(224, 126), g = c.getContext('2d'), cv = this.canvas, k = cv.width / this.vw, zo = this.camZoom && this.camZoom.out > 0 ? this.camZoom.out : 1;
+        const hw = Math.min(this.vw / 2, innerWidth / (2 * this.scale * zo)), hh = Math.min(this.vh / 2, innerHeight / (2 * this.scale * zo));
+        g.drawImage(cv, (this.vw / 2 - hw) * k, (this.vh / 2 - hh) * k, 2 * hw * k, 2 * hh * k, 0, 0, c.width, c.height);
         thumb = c.toDataURL('image/jpeg', 0.72);
       }
     } catch (e) { thumb = null; }

@@ -269,5 +269,30 @@ module.exports = {
       t.ok(r.tree.patch >= r.tree.under - 2 && r.tree.full <= 2, 'tacın altında yürürken her karede yalnız delik yamanır, tampon bütünüyle yeniden çizilmez', r.tree);
       t.eq(errs.length, 0, 'sayfa hatası yok', errs);
     });
+
+    await t.step('renk tonları melezde son ışık geçişinde: 2D karışım geçişi çizilmez, ton görüntüye uygulanır', async () => {
+      const r = await p.evaluate(async () => {
+        const frame = () => new Promise(res => requestAnimationFrame(() => res()));
+        // akşam mavisi tam güçte (hedef her karede zorlanır)
+        const grade = FX.grade, tint = FX.tint;
+        let calls = 0;
+        FX.grade = function (dt) { grade.call(this, dt); this.g.blue = 1; this.g.gold = 0; };
+        FX.tint = function (...a) { calls++; return tint.apply(this, a); };
+        const blue = () => { const w = G.canvas.width, h = G.canvas.height, d = G.ctx.getImageData(w / 2 - 60, h / 2 - 60, 120, 120).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i + 2] - d[i]; return s / (d.length / 4); };
+        try {
+          for (let k = 0; k < 4; k++) await frame();
+          const n = FX.tints().length, on = blue(), c1 = calls;
+          PERF_OFF.tints = true;
+          for (let k = 0; k < 3; k++) await frame();
+          const off = blue();
+          return { ds: G.ds, n, calls: c1, on, off };
+        } finally { FX.grade = grade; FX.tint = tint; delete PERF_OFF.tints; }
+      });
+      t.eq(r.ds, 2, 'melez çizim');
+      t.ok(r.n >= 1, 'ton etkin', r);
+      t.eq(r.calls, 0, '2D ton geçişi çizilmedi');
+      t.ok(r.on > r.off + 4, 'mavi ton görüntüye uygulandı', r);
+      t.eq(errs.length, 0, 'sayfa hatası yok', errs);
+    });
   },
 };
