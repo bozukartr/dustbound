@@ -223,7 +223,7 @@ const Debug = {
   /* ---------------- panel ---------------- */
   TABS() {
     return [
-      ['overview', Tr('Genel'), 'gauge'], ['player', Tr('Oyuncu'), 'user'], ['world', Tr('Dünya'), 'globe'], ['spawn', Tr('Oluştur'), 'plus'],
+      ['overview', Tr('Genel'), 'gauge'], ['perf', Tr('Performans'), 'bolt'], ['player', Tr('Oyuncu'), 'user'], ['world', Tr('Dünya'), 'globe'], ['spawn', Tr('Oluştur'), 'plus'],
       ['layers', Tr('Katmanlar'), 'layers'], ['town', Tr('Kasaba'), 'home'], ['log', Tr('Günlük'), 'list'],
     ];
   },
@@ -234,6 +234,7 @@ const Debug = {
     plus: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/>',
     layers: '<path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5M3.5 16L12 20.5 20.5 16"/>',
     home: '<path d="M4 11l8-6.5 8 6.5V20H4z"/><path d="M10 20v-5h4v5"/>',
+    bolt: '<path d="M13.5 3L5.5 13.5h5.5l-1 7.5 8-10.5h-5.5z"/>',
     list: '<path d="M8 7h12M8 12h12M8 17h12"/><circle cx="4.5" cy="7" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="17" r="1"/>',
     close: '<path d="M6 6l12 12M18 6L6 18"/>',
     min: '<path d="M6 12h12"/>',
@@ -310,6 +311,10 @@ const Debug = {
         h += this.sec(Tr('Varlıklar'), this.rows([[Tr('Toplam'), 'ents'], ['NPC', 'npcs'], [Tr('Hayvan / at'), 'animals'], [Tr('Araba / diğer'), 'other'], [Tr('Parçacık / mermi'), 'parts'], [Tr('Chunk önbelleği'), 'chunks']]));
         h += this.sec(Tr('Kanun ve onur'), this.rows([[Tr('Aranma'), 'law'], [Tr('Tanıklar'), 'wit'], [Tr('Onur'), 'honor']]));
         h += this.sec(Tr('Oturum'), this.rows([[Tr('Dünya tohumu'), 'seed'], [Tr('Bellek'), 'mem'], [Tr('Başarımlar'), 'ach']]) + this.btns([this.btn(Tr('Kaydet'), 'save'), this.btn(Tr('Kaydı yükle'), 'load', 'ghost')]));
+        break;
+      case 'perf':
+        h += this.sec(Tr('Melez çizimin işlemci dökümü'), this.rows(this.SEGS().map(([k, n], i) => [n, 'sg' + i])) + this.rows([[Tr('Yükseklik tamponu: çizim / yama'), 'sgfg']]));
+        h += this.sec(Tr('Darboğaz ölçümü'), `<p class="dbg-note">${Tr('Çizim aşamaları sırayla kapatılıp kare süresi ölçülür (yarım dakika kadar). Kapatınca kare belirgin kısalan aşama pahalıdır. Ölçüm sürerken yerinde dur; görüntü yer yer bozulabilir.')}</p>` + this.btns([this.btn(Tr('Ölç'), 'bench', 'pri'), this.btn(Tr('Kopyala'), 'benchCopy', 'ghost')]) + `<div class="dbg-bench" id="dbg-bench">${this.benchHtml || this.esc(this.benchTxt || '')}</div>`);
         break;
       case 'player':
         h += this.sec(Tr('Hileler'), this.tog('god', Tr('Ölümsüzlük'), Tr('Hasar almazsın')) + this.tog('ammo', Tr('Sınırsız mermi')) + this.tog('stamina', Tr('Sınırsız dayanıklılık ve odak'), Tr('Binek dahil')) + this.tog('noclip', Tr('Duvarlardan geç'), Tr('Çarpışma kapalı')) + this.tog('nolaw', Tr('Kanun görmez'), Tr('Suçlar kaydedilmez, aranma sıfırlanır')) + this.slider('speed', Tr('Hareket hızı'), 0.5, 5, 0.25, o.speed, '×'));
@@ -408,6 +413,12 @@ const Debug = {
         const s = this.el.querySelector('[data-sl="hour"]');
         if (s && document.activeElement !== s) { s.value = G.hour.toFixed(2); this.el.querySelector('#dbg-sv-hour').textContent = G.timeStr(); }
         this.el.querySelectorAll('#dbg-wx button').forEach(b => b.classList.toggle('on', b.dataset.wx === G.weather.type));
+        break;
+      }
+      case 'perf': {
+        const sg = this.segs();
+        this.SEGS().forEach(([k], i) => this.set('sg' + i, sg ? sg[k].toFixed(2) + ' ms' : '—'));
+        this.set('sgfg', typeof HY !== 'undefined' && G.ds === 2 ? `${HY.stat.fg} / ${HY.stat.fgp}` : '—');
         break;
       }
       case 'town': this.refreshTown(force); break;
@@ -582,9 +593,96 @@ const Debug = {
       case 'loveTown': { const t = W.towns.find(x => x.id === this.el.querySelector('#dbg-town').value); for (const r of G.residents(t)) G.mem(r).op = 100; this.mark(); break; }
       case 'forget': G.resMem = {}; break;
       case 'logClear': this.log = []; this.refreshLog(); break;
+      case 'bench': this.bench(); break;
+      case 'benchCopy': if (this.benchTxt && navigator.clipboard) navigator.clipboard.writeText(this.benchTxt).catch(() => {}); UI.feed(Tr('Ölçüm panoya kopyalandı.')); break;
       case 'logCopy': { const txt = this.log.map(l => `[${l.t}] ${l.kind.toUpperCase()} ${l.msg}`).join('\n'); if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {}); UI.feed(Tr('Günlük panoya kopyalandı.')); break; }
     }
     this.refresh(true);
+  },
+
+  /* ---------------- darboğaz ölçümü ---------------- */
+  /* Çizim aşamaları sırayla kapatılıp (PERF_OFF) kare aralığı ölçülür. Kare aralığı ekran kartının işini de içerir: bir
+     aşama kapatılınca kare kısalıyorsa o aşama pahalıdır. Oyunun kare başına işlemci süresi ayrıca yazılır. */
+  // Melez çizimin kare başına işlemci süresi (HY.stat.seg, yumuşatılmış): adım → ad
+  SEGS() {
+    return [
+      ['parçalar', Tr('Zemin parçaları')], ['zemin ayrıntıları', Tr('Zemin ayrıntıları (ot, su köpüğü)')], ['canlılar', Tr('Canlılar, mermiler, parçacıklar')],
+      ['üst katman', Tr('Üst katman, örtüler, yükseklik tamponu')],
+      ['ışık (GPU komutları)', Tr('GL komutları')], ['GPU bekleme', Tr('Ekran kartını bekleme')], ['2D üst katman', Tr('Son 2D katmanlar (bulut, hava, ton)')],
+    ];
+  },
+  segs() {
+    if (typeof HY === 'undefined' || G.ds !== 2) return null;
+    const r = {}; for (const [k] of this.SEGS()) r[k] = HY.stat.seg[k] || 0;
+    return r;
+  },
+  BENCH() {
+    return [
+      ['clouds', Tr('Bulut gölgeleri')], ['tints', Tr('Renk tonları')], ['weather', Tr('Hava efektleri')],
+      ['ground', Tr('Zemin ayrıntıları (ot, su köpüğü)')], ['creatures', Tr('Canlılar, mermiler, parçacıklar')],
+      ['overlays', Tr('Üst katman (ağaç taçları)')], ['covers', Tr('Bina örtüleri')], ['chunks', Tr('Zemin parçaları')],
+      ['upload', Tr('Renk tuvalini ekran kartına yükleme')], ['light', Tr('Işık geçişi')], ['bloom', Tr('Parlama')],
+      ['present', Tr('Işıklı görüntüyü ekrana kopyalama')], ['hud', Tr('Arayüz (HUD)')],
+    ];
+  },
+  async bench(o = {}) {
+    if (this.benching) return;
+    this.benching = true;
+    const settle = o.settle || 400, win = o.win || 1200, hud = document.body.classList.contains('dbg-nohud');
+    const show = (s, html) => { this.benchTxt = s; this.benchHtml = html || ''; const e = this.el && this.el.querySelector('#dbg-bench'); if (e) { if (html) e.innerHTML = html; else e.textContent = s; } };
+    // ms boyunca kareler: zaman damgaları (kare aralığı) ve oyunun kare başına işlemci süresi
+    const frames = (ms) => new Promise(res => {
+      const ts = [], js = [], t0 = performance.now();
+      const tick = (t) => { ts.push(t); js.push(G.jsMs || 0); if (performance.now() - t0 < ms || ts.length < 3) requestAnimationFrame(tick); else res({ ts, js }); };
+      requestAnimationFrame(tick);
+    });
+    const measure = async () => {
+      await frames(settle);
+      const { ts, js } = await frames(win);
+      return { ft: (ts[ts.length - 1] - ts[0]) / Math.max(1, ts.length - 1), js: js.reduce((a, b) => a + b, 0) / js.length };
+    };
+    const ST = this.BENCH(), rows = [];
+    try {
+      show(Tr('Ölçülüyor…'));
+      const b0 = await measure(), sg = this.segs();
+      for (let i = 0; i < ST.length; i++) {
+        const [k, n] = ST[i];
+        show(`${Tr('Ölçülüyor…')} ${i + 1}/${ST.length} · ${n}`);
+        if (k === 'hud') document.body.classList.add('dbg-nohud'); else PERF_OFF[k] = true;
+        try { rows.push([n, await measure()]); } finally { if (k === 'hud') document.body.classList.toggle('dbg-nohud', hud); else delete PERF_OFF[k]; }
+      }
+      const b1 = await measure();
+      const R = this.benchReport(b0, b1, rows, sg);
+      show(R.txt, R.html);
+    } finally {
+      for (const k in PERF_OFF) delete PERF_OFF[k];
+      this.benching = false;
+    }
+  },
+  benchReport(b0, b1, rows, sg) {
+    const P = G.player, W = G.world, t = W.townAt(P.x, P.y, 20), base = (b0.ft + b1.ft) / 2, bj = (b0.js + b1.js) / 2;
+    const f = (v) => v.toFixed(1), d = (v) => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(1), w = Math.max(...rows.map(r => r[0].length));
+    const gpu = (typeof HY !== 'undefined' && HY.gpu()) || Platform.gpuProbe() || '?';
+    const wn = { clear: Tr('Açık hava'), cloudy: Tr('Bulutlu'), rain: Tr('Yağmurlu'), storm: Tr('Fırtınalı'), fog: Tr('Sisli') }[G.weather.type] || G.weather.type;
+    const head = [
+      `${Tr('Ekran kartı')}: ${gpu}`,
+      `${Tr('Pencere')} ${innerWidth}×${innerHeight} · DPR ${window.devicePixelRatio || 1} · ${Tr('Ölçek')} ${G.scale}x · ${G.ds === 2 ? Tr('Melez') : Tr('Klasik')} ${G.canvas.width}×${G.canvas.height}`,
+      `${Tr('Sahne')}: ${t ? t.n : Tr('kasaba dışı')}${G.insideB ? ' / ' + G.insideB.name : ''} · ${G.timeStr()} · ${wn}`,
+    ];
+    const txt = [
+      ...head,
+      `${Tr('Hepsi açık')}: ${f(base)} ms (${Math.round(1000 / base)} FPS) · ${Tr('İşlemci')} ${f(bj)} ms · ${Tr('Başta ve sonda')} ${f(b0.ft)} / ${f(b1.ft)} ms`,
+      ...(sg ? [`${Tr('Melez çizimin işlemci dökümü')}: ${this.SEGS().map(([k, n]) => `${n} ${f(sg[k])}`).join(' · ')} ms`] : []),
+      Tr('Kapatınca: kare süresi / işlemci süresi farkı (ms)'),
+      ...rows.map(([n, m]) => `  ${n.padEnd(w)}  ${d(m.ft - base).padStart(6)}  ${d(m.js - bj).padStart(6)}`),
+    ].join('\n');
+    // panelde: en çok kazandıran üç aşama (en az 1 ms) vurgulu
+    const cut = Math.min(-1, rows.map(r => r[1].ft - base).sort((a, b) => a - b)[2]);
+    const html = `<p class="dbg-note">${head.map(x => this.esc(x)).join('<br>')}</p><div class="dbg-rows">`
+      + `<div class="dbg-r"><span>${Tr('Hepsi açık')} <i>${Math.round(1000 / base)} FPS</i></span><b>${f(base)} <i>/ ${f(bj)}</i></b></div>`
+      + rows.map(([n, m]) => `<div class="dbg-r${m.ft - base <= cut ? ' hot' : ''}"><span>${this.esc(n)}</span><b>${d(m.ft - base)} <i>/ ${d(m.js - bj)}</i></b></div>`).join('')
+      + `</div><p class="dbg-note">${Tr('Kapatınca: kare süresi / işlemci süresi farkı (ms)')}</p>`;
+    return { txt, html };
   },
 
   /* ---------------- dünya katmanları (tam çözünürlük) ---------------- */

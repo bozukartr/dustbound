@@ -1104,6 +1104,10 @@ body.dying #game { filter: var(--tone) grayscale(0.9) brightness(0.5) contrast(1
 .dbg-tr > span:last-child { text-align: right; font-family: ui-monospace, monospace; }
 .dbg-tr.live .n::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-right: 6px; vertical-align: middle; }
 .dbg-log { height: 330px; overflow-y: auto; font: 11.5px/1.45 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; user-select: text; }
+.dbg-bench { margin-top: 8px; } .dbg-bench:empty { display: none; }
+.dbg-bench .dbg-r span { white-space: normal; } .dbg-bench .dbg-r span i { color: var(--mut); font-style: normal; opacity: 0.8; } .dbg-bench .dbg-r b { flex-shrink: 0; } .dbg-bench .dbg-note { margin: 0 0 6px; } .dbg-bench .dbg-rows + .dbg-note { margin: 6px 0 0; }
+.dbg-r.hot span, .dbg-r.hot b { color: var(--acc2); }
+.dbg-note { color: var(--mut); font-size: 11px; line-height: 1.45; margin: 0 0 8px; }
 .dbg-ll { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
 .dbg-ll time { color: #5c6473; flex-shrink: 0; }
 .dbg-ll.error span { color: #ff8787; } .dbg-ll.warn span { color: var(--acc2); } .dbg-ll.game span { color: #c5cad3; }

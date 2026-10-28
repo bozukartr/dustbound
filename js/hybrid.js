@@ -1496,7 +1496,7 @@ const HY = (() => {
       if (cx < 0 || cy < 0 || cx >= NC || cy >= NC) continue;
       const c = chunk(W, cx, cy, true), dx = (cx * HC - x0) * S, dy = (cy * HC - y0) * S;
       vis.push([c, dx, dy]);
-      fc.drawImage(c.bc, dx, dy);
+      if (!PERF_OFF.chunks) fc.drawImage(c.bc, dx, dy);
       wk += ',' + sidOf(c);
     }
     // ileride gerekecek parçalar (hareket yönünde bir halka)
@@ -1506,22 +1506,22 @@ const HY = (() => {
     /* 2) zemin katmanı (2D): izler, köpük, otlar, yerdeki eşyalar */
     fc.setTransform(S, 0, 0, S, -x0 * S, -y0 * S);
     FX.beginFrame();
-    FX.drawGround(fc);
-    Juice.drawGround(fc, x0, y0, x1, y1);
+    const gd = !PERF_OFF.ground;   // darboğaz ölçümünde zemin ayrıntıları çizilmez (ateşler yine toplanır)
+    if (gd) { FX.drawGround(fc); Juice.drawGround(fc, x0, y0, x1, y1); }
     const fires = [], tile = W.tile, obj = W.obj, day = G.day, t = G.t, fxFull = FX.full;
     const tx0 = Math.max(0, (x0 >> 4) - 1), ty0 = Math.max(0, (y0 >> 4) - 1), tx1 = Math.min(WW - 1, (x1 >> 4) + 1), ty1 = Math.min(WH - 1, (y1 >> 4) + 1);
     for (let ty = ty0; ty <= ty1; ty++) {
       const row = ty * WW;
       for (let tx = tx0; tx <= tx1; tx++) {
-        if (tile[row + tx] === T.WATER) { FX.foam(fc, tx, ty, t); if (fxFull) Juice.water(fc, tx, ty, t); }
+        if (gd && tile[row + tx] === T.WATER) { FX.foam(fc, tx, ty, t); if (fxFull) Juice.water(fc, tx, ty, t); }
         const o = obj[row + tx];
         if (!o) continue;
         if (o >= 20 && o <= 28) {
           if (W.season === 3 && W.snowyTile(tx, ty)) continue;
           const hv = W.harvested.get(row + tx);
           if (hv !== undefined && hv > day) continue;
-          Spr.herb(fc, o, tx * TS + 8, ty * TS + 10, t, dist2(tx * TS + 8, ty * TS + 8, P.x, P.y) < 60 * 60);
-        } else if (o === O.ARTIFACT) { if (W.harvested.get(row + tx) === undefined) Spr.sparkle(fc, tx * TS + 8, ty * TS + 8, t + tx); }
+          if (gd) Spr.herb(fc, o, tx * TS + 8, ty * TS + 10, t, dist2(tx * TS + 8, ty * TS + 8, P.x, P.y) < 60 * 60);
+        } else if (o === O.ARTIFACT) { if (gd && W.harvested.get(row + tx) === undefined) Spr.sparkle(fc, tx * TS + 8, ty * TS + 8, t + tx); }
         else if (o === O.CAMPFIRE) { fires.push([tx * TS + 8, ty * TS + 8]); if (Math.random() < dt * 6) G.parts.add('ember', tx * TS + 8, ty * TS + 4, 0, -10, 1, 1); FX.fireSource(tx * TS + 8, ty * TS + 8); }
         else if (o === O.STEAM) { if (Math.random() < dt * 18) G.parts.add('steam', tx * TS + rnd(-40, 56), ty * TS + rnd(-40, 56), rnd(-4, 4), -6, 2.5, 3); }
       }
@@ -1533,6 +1533,7 @@ const HY = (() => {
     G.drawTumbles(fc);
 
     /* 3) canlılar: güneşe göre gölge, sonra sprite */
+    const t15 = performance.now(); seg('zemin ayrıntıları', t15 - t1);
     const vis2 = [];
     for (const e of G.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !G.floorHid(e)) vis2.push(e);
     if (P.riding) vis2.push(P.riding);
@@ -1554,7 +1555,7 @@ const HY = (() => {
     };
     // her varlık kamerayla aynı yarım piksel ızgarasına oturur: kayarken titremez
     let sdx = 0, sdy = 0;
-    for (const e of vis2) {
+    if (!PERF_OFF.creatures) for (const e of vis2) {
       if (e === P && P.riding) continue;
       const nx = Math.round(e.x * S) / S - e.x, ny = Math.round(e.y * S) / S - e.y;
       fc.translate(nx - sdx, ny - sdy); sdx = nx; sdy = ny;
@@ -1601,16 +1602,15 @@ const HY = (() => {
       e.draw(fc);   // araba, sandık, post, kamp, dekor: 2D çizim
     }
     fc.translate(-sdx, -sdy);
-    G.drawProjs(fc);
-    G.parts.draw(fc, x0, y0, x1, y1);
-    const t2 = performance.now(); seg('canlılar', t2 - t1);
+    if (!PERF_OFF.creatures) { G.drawProjs(fc); G.parts.draw(fc, x0, y0, x1, y1); }
+    const t2 = performance.now(); seg('canlılar', t2 - t15);
 
     /* 4) üst katman (ağaç taçları, fener başları) ve bina örtüleri */
     fc.setTransform(1, 0, 0, 1, 0, 0);
     const under = G.playerUnderCanopy(), ovc = [];
     if (under) wk += 'u' + P.x + ',' + P.y;
     for (const [c, dx, dy] of vis) if (c.oc) ovc.push([c.oc, dx, dy]);
-    overlays(fc, ovc, under ? [(P.x - x0) * S, (P.y - y0 - 4) * S] : null, HO, G.holeSpr);
+    if (!PERF_OFF.overlays) overlays(fc, ovc, under ? [(P.x - x0) * S, (P.y - y0 - 4) * S] : null, HO, G.holeSpr);
     const IB = G.insideB, k = Math.min(1, dt * 7);
     for (const b of W.buildings) {
       const bxp = b.x * TS, byp = b.y * TS, bw = b.w * TS, bh = b.h * TS;
@@ -1626,7 +1626,7 @@ const HY = (() => {
       if (b.coverA < 0.02) continue;
       const cv = cover(b, W);
       fc.globalAlpha = b.coverA;
-      fc.drawImage(cv.c, (cv.x - x0) * S, (cv.y - y0) * S);
+      if (!PERF_OFF.covers) fc.drawImage(cv.c, (cv.x - x0) * S, (cv.y - y0) * S);
       if (b.coverA > 0.5) wk += ';' + sidOf(cv);   // yükseklik tamponunda yalnız yarıdan çok görünen örtü durur
     }
     fc.globalAlpha = 1;
@@ -1641,7 +1641,7 @@ const HY = (() => {
     if (glc.width !== w2 || glc.height !== h2) { glc.width = w2; glc.height = h2; }
     if (RW !== w2 || RH !== h2) { RW = w2; RH = h2; lastVr = ''; lastWk = ''; rtL = rt(w2, h2, true, rtL); rtS = rt(w2 >> 1, h2 >> 1, false, rtS); rtA = rt(w2 >> 2, h2 >> 2, true, rtA); rtB = rt(w2 >> 2, h2 >> 2, true, rtB); }
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texC); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FC);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texC); if (!PERF_OFF.upload) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FC);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texG);
     if (fgNew === 1) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, FG);
     else if (fgNew === 2) gl.texSubImage2D(gl.TEXTURE_2D, 0, pgX, pgY, gl.RGBA, gl.UNSIGNED_BYTE, PG);
@@ -1697,13 +1697,13 @@ const HY = (() => {
       WN.set([IB.door.x - 8, IB.door.x + 8, 0, 14], k2 * 4);
     } else { gl.uniform4f(u.uIn, 0, 0, 0, 0); gl.uniform1f(u.uInAmb, 1); }
     gl.uniform4fv(u.uWin, WN);
-    draw(PL);
+    if (!PERF_OFF.light) draw(PL);
     gl.disable(gl.SCISSOR_TEST);
     // parlama: dörtte bir çözünürlükte yatay + dikey bulanıklık
     gl.bindFramebuffer(gl.FRAMEBUFFER, rtA.fb); gl.viewport(0, 0, rtA.w, rtA.h);
-    gl.useProgram(PB.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, rtL.t); gl.uniform1i(PB.u.uT, 0); gl.uniform2f(PB.u.uDir, 2.5 / rtA.w, 0); gl.uniform1f(PB.u.uThr, 1.15 - S0.dark * 0.4); draw(PB);   // gündüz yalnızca çok parlak (ışıyan) yerler parlar
+    gl.useProgram(PB.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, rtL.t); gl.uniform1i(PB.u.uT, 0); gl.uniform2f(PB.u.uDir, 2.5 / rtA.w, 0); gl.uniform1f(PB.u.uThr, 1.15 - S0.dark * 0.4); if (!PERF_OFF.bloom) draw(PB);   // gündüz yalnızca çok parlak (ışıyan) yerler parlar
     gl.bindFramebuffer(gl.FRAMEBUFFER, rtB.fb);
-    gl.bindTexture(gl.TEXTURE_2D, rtA.t); gl.uniform2f(PB.u.uDir, 0, 2.5 / rtA.h); gl.uniform1f(PB.u.uThr, 0); draw(PB);
+    gl.bindTexture(gl.TEXTURE_2D, rtA.t); gl.uniform2f(PB.u.uDir, 0, 2.5 / rtA.h); gl.uniform1f(PB.u.uThr, 0); if (!PERF_OFF.bloom) draw(PB);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w2, h2);
     gl.useProgram(PF.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, rtL.t); gl.uniform1i(PF.u.uL, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, rtB.t); gl.uniform1i(PF.u.uB, 1); gl.uniform1f(PF.u.uBloom, 0.9 + S0.dark * 0.8);
@@ -1715,7 +1715,7 @@ const HY = (() => {
     /* 6) ekrana: ışıklı görüntü, sonra 2D üst katmanlar (alev, kuşlar, bulutlar, arayüz, hava, renk tonu) */
     const ctx = G.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(glc, 0, 0);
+    if (!PERF_OFF.present) ctx.drawImage(glc, 0, 0);
     const t5 = performance.now(); seg('GPU bekleme', t5 - t4);
     ctx.setTransform(S, 0, 0, S, 0, 0);
     ctx.save(); ctx.translate(-x0, -y0);
@@ -1756,6 +1756,7 @@ const HY = (() => {
     },
     get _cost() { return { ...cost, v: camV }; },
     available() { return init(); },
+    gpu() { try { const ri = gl && gl.getExtension('WEBGL_debug_renderer_info'); return gl ? String(gl.getParameter(ri ? ri.UNMASKED_RENDERER_WEBGL : gl.RENDERER)) : ''; } catch (e) { return ''; } },   // darboğaz ölçümü için
     get canvas() { return glc; },
   };
 })();
