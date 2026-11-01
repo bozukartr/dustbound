@@ -88,9 +88,11 @@ module.exports = {
         TH.goto(c.x + 70, c.y - 60); UI.closeAll();
       });
       const S = [];
+      // her örnek arasında oyun bir saniye ilerler (sabit adımla: makine yüklüyken kare hızı düşse de aynı oyun süresi)
       for (let k = 0; k < 16; k++) {
-        await t.sleep(1000);
         S.push(await p.evaluate(() => {
+          if (UI.isModal()) UI.closeAll();
+          for (let f = 0; f < 30; f++) G.update(1 / 30);
           const W = G.world, out = [];
           for (const e of G.ents) if (!e.remove && e.city && (e.kind === 'wagon' || e.cityRide)) {
             const tt = W.tileAtPx(e.x, e.y), d = e.kind === 'wagon' ? e.ang : (e.hAng === undefined ? e.ang : e.hAng);
