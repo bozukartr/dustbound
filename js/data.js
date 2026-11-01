@@ -217,6 +217,15 @@ const ANIMALS = {
   chicken:  { n: 'Tavuk', hp: 6, spd: 50, len: 4, wid: 3, col: '#e8e4dc', col2: '#c83020', beh: 'flee', sense: 50, pelt: ['feather', 2], meat: ['raw_bird', 1], xp: 1, b: {}, grp: [1, 1], shape: 'bird', owned: 1 },
 };
 
+/* Balık türleri suyun iklimine göre (balık tutma ve Rehber): soğuk sular (iklim < 0,3), sıcak sular ve bataklık
+   (iklim > 0,7, bataklık ya da çamur), ılıman sular */
+const FISH_POOLS = {
+  cold: ['fish_trout', 'fish_salmon', 'fish_pike', 'fish_perch'],
+  warm: ['fish_catfish', 'fish_bass', 'fish_perch'],
+  mild: ['fish_perch', 'fish_bass', 'fish_trout', 'fish_pike', 'fish_catfish'],
+};
+function fishPool(biome, heat) { return FISH_POOLS[heat < 0.3 ? 'cold' : biome === 'SWAMP' || biome === 'MUD' || heat > 0.7 ? 'warm' : 'mild']; }
+
 const HORSE_BREEDS = {
   nag:        { n: 'Yaşlı Kısrak', p: 0, spd: 0.86, sta: 85, hp: 90, cols: ['#6b4a2e', '#7a6a5a'] },
   morgan:     { n: 'Morgan', p: 70, spd: 0.95, sta: 100, hp: 110, cols: ['#5a3b24', '#2b1d14', '#8a6040'] },

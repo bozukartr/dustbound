@@ -537,6 +537,9 @@ table.stats td:last-child { text-align: right; font-family: var(--type); }
 .hb-tab { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 15px; }
 .hb-tab td { padding: 4px 8px; border-bottom: 1px solid rgba(201, 164, 92, 0.15); vertical-align: top; }
 .hb-tab td:nth-child(2) { white-space: nowrap; color: #e8c070; }
+.hb-tab th { text-align: left; font-family: var(--sc); font-weight: normal; font-size: 14px; color: var(--gold); padding: 4px 8px; border-bottom: 1px solid rgba(201, 164, 92, 0.35); }
+.hb-tab small { display: block; font-size: 13px; color: #bcb09a; }
+.hb-wild td:first-child { white-space: nowrap; }
 .tab-new { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: #e8b84a; box-shadow: 0 0 6px rgba(232, 184, 74, 0.8); vertical-align: 2px; }
 .hl-more { display: block; margin-top: 5px; font-size: 14px; color: #c9b48a; }
 table.ctrl { border-collapse: collapse; width: 100%; font-size: 15px; }
