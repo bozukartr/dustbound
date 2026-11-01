@@ -62,7 +62,7 @@ async function runFile(file, browser, url) {
     sleep,
     /* Yeni tarayıcı bağlamı: temiz localStorage, varsayılan Türkçe */
     async page(o = {}) {
-      const ctx = await browser.newContext({ locale: o.locale || 'tr-TR', viewport: o.viewport || { width: 1280, height: 720 } });
+      const ctx = await browser.newContext({ locale: o.locale || 'tr-TR', viewport: o.viewport || { width: 1280, height: 720 }, deviceScaleFactor: o.dpr || 1 });   // dpr: ekranın piksel yoğunluğu (ör. 4K'da 2)
       contexts.push(ctx);
       const p = await ctx.newPage();
       p.on('pageerror', (e) => { const k = e.message; if (!pageErrors.has(k)) pageErrors.set(k, (e.stack || '').split('\n').slice(0, 3).join(' | ')); });

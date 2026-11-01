@@ -254,6 +254,7 @@ const UI = {
       const e = el_('div', 'toast tk-' + (kind || 'none'), `<div class="t-k">${{ ach: Tr('BAŞARIM'), skill: Tr('YETENEK'), year: Tr('YAŞ'), family: Tr('AİLE'), bounty: Tr('ÖDÜL'), horse: Tr('AT'), ok: '' }[kind] || ''}</div><div class="t-t">${Icons.iconize(title)}</div><div class="t-s">${Icons.iconize(sub || '')}</div>`);
       e._key = key;
       this.el.toasts.appendChild(e);
+      this.toastDodge();
       const dur = Q.length ? 3600 : 5200;
       setTimeout(() => { e.classList.add('out'); this.toastPump(); }, dur);
       setTimeout(() => e.remove(), dur + 800);
@@ -265,7 +266,17 @@ const UI = {
     // alttaki pirinç çizgi kalan süreyi gösterir
     h.style.setProperty('--dur', dur + 's'); h.classList.remove('tick'); void h.offsetWidth; h.classList.add('tick');
     clearTimeout(this._helpT);
-    this._helpT = setTimeout(() => h.classList.add('hidden'), dur * 1000);
+    this._helpT = setTimeout(() => { h.classList.add('hidden'); this.toastDodge(); }, dur * 1000);
+    this.toastDodge();
+  },
+  /* Dar ekranda (küçük pencere, Steam Deck) ortadaki bildirim sol üstteki yardım kutusunun üstüne binmesin:
+     kesişirlerse bildirimler yardımın altına iner, yardım kapanınca yerine döner */
+  toastDodge() {
+    const t = this.el.toasts, h = this.el.help;
+    if (t.style.top) t.style.top = '';
+    if (h.classList.contains('hidden') || !t.children.length) return;
+    const a = h.getBoundingClientRect(), b = t.getBoundingClientRect(), o = this.el.hud.getBoundingClientRect();
+    if (b.left < a.right + 8 && b.right > a.left - 8 && b.top < a.bottom + 8) t.style.top = Math.round(a.bottom - o.top + 8) + 'px';
   },
   /* Koç ipuçları: oyuncu bir mekaniği kaçırınca (çarkı hiç açmadan yumrukla dövüşmek, nişan almadan
      ateş etmek) ekranın ortasında tek satır belirir. Öğrenilince (çark açılınca, nişanla ateş edilince)
