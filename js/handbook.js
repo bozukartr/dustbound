@@ -9,7 +9,7 @@
    ========================================================== */
 const Handbook = {
   /* ipucu anahtarı → el kitabı konusu (G.hintOnce ilk kez gösterince konuyu işaretler) */
-  HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison',
+  HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison', faint: 'death',
     deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', hunt: 'hunt', lassoAnimal: 'hunt', fish: 'fish', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate', bank: 'tycoon', oil: 'tycoon', influence: 'influence', guards: 'influence' },
 
   unread() { const H = G.hints || {}; return this.topics().some(T => H['new:' + T.id]); },
@@ -24,6 +24,9 @@ const Handbook = {
     const rawN = Object.values(ITEMS).filter(it => it.raw).map(it => Math.round(it.raw * 100));
     const meds = Object.values(ITEMS).filter(it => it.c === 'med' && it.e).sort((a, b) => a.p - b.p);
     const focus = Object.values(ITEMS).filter(it => it.e && it.e.deadeye > 0).sort((a, b) => b.e.deadeye - a.e.deadeye);
+    // hayatta kalma sayıları (SURV): aşamalara varış saatleri (en şiddetli ve en hafif maruziyette), zehir
+    const S = SURV, gmax = S.GAIN[0] + S.GAIN[1], gmin = S.GAIN[0];
+    const poisonH = S.POISON_MIN / 60, poisonSec = Math.round(S.POISON_MIN / MIN_PER_SEC), poisonSum = Math.round(S.POISON_HP * poisonH / 2);
     return [
       { id: 'time', ic: 'hourglass', t: Tr('Zaman'), b: () => li([
         Tr`Oyunda bir saat gerçekte yaklaşık <b>${hour} saniye</b>, bir gün yaklaşık <b>${dayMin} dakika</b> sürer.`,
@@ -31,7 +34,7 @@ const Handbook = {
         Tr('Uyurken zaman hızla akar; açlık ve susuzluk uyurken yarı hızla azalır, uyku dolar.'),
       ]) },
       { id: 'health', ic: 'heart', t: Tr('Sağlık ve İyileşme'), b: () => li([
-        Tr('Canın kendiliğinden dolar: açlık ve susuzluk 20\'nin, uyku 10\'un üstündeyken, hasta değilken, donmuyor ve sıcak çarpmıyorken.'),
+        Tr('Canın kendiliğinden dolar: açlık ve susuzluk 20\'nin, uyku 10\'un üstündeyken; hasta ya da zehirli değilken, sıcaktan ya da soğuktan bitkin değilken.'),
         Tr('Hızı oyun saatinde <b>7 can</b>; açlık ve susuzluk 60\'ın üstündeyse <b>13</b>, uyurken 8 fazlası.'),
         Tr('Canın %20\'nin altına inince yürüyüşün %15 yavaşlar.'),
         Tr`Doktor <b>${fmtMoney(SVC.heal * (G.hasPerk('saint') ? 0.5 : 1))}</b> karşılığında canını, hastalığını ve zehrini tamamen iyileştirir (30 oyun dakikası).`,
@@ -40,7 +43,8 @@ const Handbook = {
       { id: 'needs', ic: 'meat', t: Tr('Açlık, Susuzluk ve Uyku'), b: () => li([
         Tr('Oyun saatinde açlık <b>2,8</b>, susuzluk <b>4</b>, uyku <b>3,4</b> azalır. Koşarken açlık ve susuzluk 1,5 kat hızlı azalır; sıcakta susuzluk 2,5 kata kadar hızlanır; çok sarhoşken uyku 1,5 kat hızlı azalır.'),
         Tr('Hayatta Kalma yeteneğinin her seviyesi açlık ve susuzluğu %4 yavaşlatır.'),
-        Tr('Sıfıra inerlerse can gider: açlıkta saatte <b>6</b>, susuzlukta <b>10</b>, uykusuzlukta <b>3</b>.'),
+        Tr`Sıfıra inerlerse can gider: açlıkta saatte <b>${S.HUNGER_HP}</b>, susuzlukta <b>${S.THIRST_HP}</b>, uykusuzlukta <b>${S.TIRED_HP}</b>.`,
+        Tr('Uyurken ya da beklerken tehlike seni kaldırır: sıcaktan ya da soğuktan bitkin düşmek, susuzluğun ya da açlığın 5\'e inmesi, canının belirgin düşmesi. Uykuda ölmezsin.'),
         Tr('Uyku 20\'nin altındayken koşu dayanıklılığı 1,5 kat hızlı tükenir; 15\'in altında dayanıklılık yavaş dolar; 10\'un altında en yüksek dayanıklılık %40 düşer.'),
         Tr`Matara 5 yudum alır, her yudum susuzluğu 32 doldurur (${g('quick')} ile hızlıca iç). Kuyu, çeşme ve nehir başında dolar.`,
         Tr('Nehir ya da gölden içmek susuzluğu 40 doldurur ama %6 (bataklıkta %20) hastalık riski taşır; kuyu ve çeşme temizdir.'),
@@ -49,13 +53,19 @@ const Handbook = {
       { id: 'temp', ic: 'snow', t: Tr('Sıcak ve Soğuk'), b: () => li([
         Tr('Sağ üstteki rozet <b>hissedilen sıcaklıktır</b>: bölge, mevsim, gece (çölde daha çok soğur), yağmur ve kar, giydiğin palto ve ateşe yakınlık belirler. Bina içinde 21 °C\'ye yaklaşır.'),
         Tr('Sıcak yemek ve içecek bir süre +8 °C ısıtır; sarsaparilla sıcakta −7 °C serinletir; geniş kenarlı şapka sıcakta −2 °C; yağmurluk olmadan yağmur −3 °C.'),
+        Tr`Ateş ve sıcak yemek seni en çok <b>${S.WARM_CAP} °C</b>'ye dek ısıtır: ateş başında sıcaktan bunalmazsın.`,
         Tr('Hissedilen sıcaklık yavaş değişir: ateşe yaklaşınca ya da uzaklaşınca yaklaşık 20 oyun dakikasında oturur.'),
-        Tr`Senin için şu an: <b>${coldT} °C</b> altında üşürsün, <b>${hotT} °C</b> üstünde sıcak çarpar. Hayatta Kalma yeteneğinin her seviyesi eşikleri 0,4 °C genişletir.`,
-        Tr('Donarken saatte 14 cana kadar gider, dayanıklılık yarı hızla dolar; eşiğin 4 °C altından sonra can kendiliğinden dolmaz.'),
-        Tr('Sıcak çarpması eşiğin 6 °C üstünden sonra can götürür (saatte en çok 10) ve can kendiliğinden dolmaz.'),
+        Tr`Senin için şu an: <b>${coldT} °C</b> altında üşürsün, <b>${hotT} °C</b> üstünde sıcak basar (1. aşama). Hayatta Kalma yeteneğinin her seviyesi eşikleri 0,4 °C genişletir.`,
+        Tr('Sıcak ve soğuk hemen can götürmez: maruz kaldıkça vücudunda bir yük birikir ve üç aşamada ağırlaşır.'),
+        Tr('<b>1. Sıcak basıyor / Üşüyorsun:</b> sıcakta susuzluk, soğukta açlık hızlanır; dayanıklılık %40\'a kadar yavaş dolar. Can gitmez.'),
+        Tr`<b>2. Sıcaktan bitkinsin / Titriyorsun:</b> %${Math.round((1 - S.STAGE2_SPD) * 100)} yavaş yürürsün, elin titrer (nişan dağılımı ${dec(S.STAGE2_AIM)} kat), can kendiliğinden dolmaz.`,
+        Tr`<b>3. Sıcak çarpması / Donma:</b> maruz kalmayı sürdürdükçe can gider: sıcakta saatte ${S.HEAT_DMG[0]}-${S.HEAT_DMG[0] + S.HEAT_DMG[1]}, soğukta ${S.COLD_DMG[0]}-${S.COLD_DMG[0] + S.COLD_DMG[1]}.`,
+        Tr`En kızgın sıcakta ya da ayazda 2. aşama yaklaşık <b>${dec(S.LOAD2 / gmax)} saatte</b>, 3. aşama <b>${dec(S.LOAD3 / gmax)} saatte</b> gelir; hafif sıcakta ya da soğukta ${dec(S.LOAD2 / gmin)} ve ${dec(S.LOAD3 / gmin)} saatte.`,
+        Tr('Bina içinde yük hızla azalır. Su içmek, suya girmek ve sarsaparilla sıcağın; ateş, sıcak yemek ve içecek soğuğun yükünü hızla azaltır. Sağ üstteki kart 2. aşamada çıkar; çubuğu dolunca 3. aşama başlar.'),
       ]) },
       { id: 'poison', ic: 'skull', t: Tr('Zehir ve Hastalık'), b: () => li([
-        Tr('Yılan sokması seni <b>90 saniye</b> zehirler: saniyede 1,6 can (toplam ~144). Tedavi etmezsen tam canla bile ölebilirsin.'),
+        Tr`Yılan sokması seni <b>${dec(poisonH)} oyun saati</b> (yaklaşık ${poisonSec} saniye) zehirler: zehir başta güçlüdür (saatte ${S.POISON_HP} can), azaldıkça zayıflar; tek sokma toplam ~${poisonSum} can götürür.`,
+        Tr`Zehir tek başına canını <b>%${Math.round(S.POISON_FLOOR * 100)}</b>'in altına indirmez ama zehirliyken can kendiliğinden dolmaz. Asıl tehlike zehirliyken yeni bir sokma ya da yara almaktır; zehirliyken her yeni sokma zehri ${dec(S.POISON_MORE / 60)} saat uzatır (en çok ${dec(S.POISON_MAX / 60)} saat).`,
         Tr`<b>Panzehir</b> ve <b>Yılan Yağı</b> zehri anında söker, doktor da tedavi eder. ${g('quick')} zehirliyken önce panzehiri kullanır.`,
         Tr('Laudanum 3 saat boyunca aldığın her hasarı (zehir dahil) %40 azaltır. At sırtındayken yılan seni zehirleyemez.'),
         Tr`Hastalık kaynakları: çiğ et ve balık (%${Math.min(...rawN)}-${Math.max(...rawN)} ihtimal), nehir ve göl suyu, 62 yaşından sonra her doğum gününde artan bir ihtimal.`,
@@ -102,7 +112,7 @@ const Handbook = {
           Tr`Vahşi hayvan kasabalarda görülmez. Kasaba dışında çevrende hep 14 kadar hayvan dolaşır; yenileri ${mi(420)}–${mi(640)} ötede, oranın arazisine göre doğar (tablo). Gece kurt ve çakal daha sık görülür; ayı ve puma her yerde seyrektir.`,
           Tr`Ürkek hayvan seni tablodaki uzaklıktan fark eder. Çömelirsen bu uzaklık yarıya iner, gece %20 kısalır; koşarken %30, at sırtında %20 uzar. Avcılık yeteneğinin her seviyesi %3, <b>${A('hunt100').n}</b> başarımı %30 kısaltır.`,
           Tr`Silah sesi ${mi(620)} içindeki ürkek hayvanları kaçırır, ${mi(200)} içindeki saldırganları üstüne çeker. Av yayının sesi yalnızca ${mi(50)} duyulur; tam gerilmiş ok ${WEAPONS.bow.dmg} hasar verir. Ok satan dükkânlar: ${arrowShops}; ${R('arrows').need.feather} tüyden ${R('arrows').outAmmo.arrow} ok da yapabilirsin.`,
-          Tr('Yaralanan ürkek hayvan kaçar, saldırgan olan üstüne gelir. Hayvanlar derin suya girmez; sığ suya yalnızca timsah ve sana saldıran hayvan girer. Çıngıraklı yılanın sokması seni 90 saniye zehirler (at sırtındayken zehirlemez). Vahşi hayvanla yakın dövüşe girme: uzaktan vur ya da atla uzaklaş.'),
+          Tr`Yaralanan ürkek hayvan kaçar, saldırgan olan üstüne gelir. Hayvanlar derin suya girmez; sığ suya yalnızca timsah ve sana saldıran hayvan girer. Çıngıraklı yılanın sokması seni ${dec(poisonH)} oyun saati zehirler (at sırtındayken zehirlemez). Vahşi hayvanla yakın dövüşe girme: uzaktan vur ya da atla uzaklaş.`,
         ]) + `<table class="hb-tab hb-wild"><tr><th>${Tr('Hayvan')}</th><th>${Tr('Post')}</th><th>${Tr('Nerede')}</th><th>${Tr('Davranış')}</th><th>${Tr('Verdikleri')}</th></tr>${rows}</table>` + li([
           Tr`Tablodaki post fiyatı kasabalardaki Kasap & Tuzakçı dükkânının verdiğidir. Hayvan ürünü alanlar ve verdikleri: ${buyers}. Nerede bulunurlar: Tuzakçı — ${cabin.n} (${bios(cabin)}); Kürkçüler — gezgin ${camp.n} (${bios(camp)}).`,
           Tr`Leşin yanında ${g('interact')} basılı tutup <b>Derisini Yüz</b>: postu, eti ve erkek geyikten boynuzu alırsın. Küçük post çantaya girer; büyük post (${names(wild.filter(d => ITEMS[d.pelt[0]].big))}) omzuna alınır (elin doluysa ya da at sırtındaysan yere bırakılır), atının yanında eyere yükleyebilirsin. Eyer ${HORSE_CAP} birim taşır: büyük leş 2, küçük leş ve post 1. Yük taşırken koşamaz, silah kullanamazsın.`,
@@ -143,6 +153,8 @@ const Handbook = {
         Tr`Başındaki ödül ${fmtMoney(HUNTER_MIN)} ve üstündeyse birkaç saat sonra kasaba dışında ödül avcıları peşine düşebilir; ödül arttıkça daha sık ve daha kalabalık gelirler (2-4 kişi). Parayla anlaşabilir (ödülün %60'ı), teslim olabilir ya da çatışabilirsin; onları öldürmek suç değildir.`,
       ]) },
       { id: 'death', ic: 'grave', t: Tr('Ölüm ve Doktor'), b: () => li([
+        Tr`Sıcak, soğuk, susuzluk, açlık, uykusuzluk ya da hastalık canını bitirmek üzereyken (can %${Math.round(S.FAINT_HP * 100)}) ölmeden önce <b>bayılırsın</b>: ${S.FAINT_H[0]}-${S.FAINT_H[1]} saat sonra olduğun yerde en az %${Math.round(S.FAINT_WAKE * 100)} canla kendine gelirsin. Yoldan geçen biri de seni en yakın doktora götürebilir (kasabaya yakınsan daha olası; doktor ${fmtMoney(SVC.heal * 1.5 * (G.hasPerk('saint') ? 0.5 : 1))} alır). Aranırken kimse yardım etmez.`,
+        Tr`Bayıldıktan sonraki ${S.FAINT_CD / 60} oyun saatinde can yine biterse bu kez bayılmadan ölürsün. Kurşun, hayvan saldırısı, düşme ve zehir seni bayıltmaz.`,
         Tr('Ölünce bir doktor seni kurtarır: cebindeki paranın dörtte biri gider (bankadaki para güvende), kalıcı iz kalır (en yüksek can −3), aranıyorsan aranman biter ama ödül kalır.'),
         Tr('18 saat sonra %60 canla uyanırsın; açlık ve susuzluk en az 50, uyku en az 60 olur; zehir ve hastalık geçer.'),
         Tr('Ölüm ekranı ölüm sebebini, seni öldüreni, son iki dakikada aldığın hasarı ve bir öğüt gösterir.'),

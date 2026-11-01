@@ -14,7 +14,8 @@ module.exports = {
       if (G.horse) { G.horse.x = s[0] + 400; G.horse.y = s[1]; }
       window.revive = () => {
         UI.closeAll(); TH.clearNpcs(); G.state = 'play'; G.dmgLog = []; G.deathInfo = null; G.deathCause = null;
-        const P = G.player; P.hp = P.maxHp; P.poison = 0; P.sick = 0; P.hunger = P.thirst = P.energy = 80; TH.goto(spot[0], spot[1]);
+        const P = G.player; P.hp = P.maxHp; P.poison = 0; P.sick = 0; P.faintCd = 0; P.hunger = P.thirst = P.energy = 80; TH.goto(spot[0], spot[1]);
+        G.heatLoad = G.coldLoad = 0;
         G.difficulty = 'normal';
       };
       window.npc = (role, weapon, name, dx = -40) => { const P = G.player, n = new NPC(P.x + dx, P.y, role, { hostile: true, weapon, name }); G.addEnt(n); return n; };
@@ -28,7 +29,7 @@ module.exports = {
         // dünyaya eklenmeyen haydut: yalnızca saldıranın kimliği (kendisi ateş etmesin)
         const b = new NPC(P.x - 40, P.y, 'bandit', { weapon: 'repeater', name: 'Tom Reed' });
         P.hurt(10, 'haydut', false, b, 'repeater'); G.update(1 / 30); P.hurt(12, 'haydut', false, b, 'repeater');
-        P.poison = 20; P.poisonBy = 'snake';
+        P.poison = 360; P.poisonBy = 'snake';
         for (let f = 0; f < 60; f++) G.update(1 / 30);
         P.poison = 0; P.thirst = 0;
         for (let f = 0; f < 30; f++) G.update(1 / 30);
@@ -39,7 +40,7 @@ module.exports = {
       const by = s => r.find(e => e.src === s);
       t.ok(by('haydut') && by('haydut').n === 2 && by('haydut').sum === 22, 'iki isabet tek satırda', r);
       t.eq([by('haydut').who, by('haydut').weapon], ['Tom Reed', 'repeater'], 'saldıran ve silahı');
-      t.ok(by('zehir') && by('zehir').who === 'Çıngıraklı Yılan' && by('zehir').sum > 2, 'zehir satırı, yılanın adıyla', r);
+      t.ok(by('zehir') && by('zehir').who === 'Çıngıraklı Yılan' && by('zehir').sum > 0.5, 'zehir satırı, yılanın adıyla', r);
       t.ok(by('thirst') && by('thirst').sum > 0, 'susuzluk ayrı satır', r);
     });
 
@@ -88,7 +89,7 @@ module.exports = {
 
     await t.step('susuzluktan ölüm: sebep çevrili, döküm ve öğüt', async () => {
       await p.evaluate(() => {
-        revive(); const P = G.player; P.thirst = 0; P.hunger = 50; P.hp = 2; P.money = 0;
+        revive(); const P = G.player; P.thirst = 0; P.hunger = 50; P.hp = 2; P.money = 0; P.faintCd = 600;   // yakın zamanda bayıldı: bu kez ölür
         for (let f = 0; f < 30 * 30 && G.state === 'play'; f++) G.update(1 / 30);
       });
       await p.evaluate(() => waitDeath());

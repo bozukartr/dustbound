@@ -17,7 +17,7 @@ module.exports = {
       window.hintTick0 = G.hintTick; G.hintTick = () => {};
       window.reset = () => {
         const P = G.player; UI.closeAll(); G.state = 'play'; TH.goto(spot[0], spot[1]);
-        P.poison = 0; P.sick = 0; P.hunger = P.thirst = P.energy = 80; P.hp = P.maxHp; G.coldness = G.hotness = 0;
+        P.poison = 0; P.sick = 0; P.faintCd = 0; P.hunger = P.thirst = P.energy = 80; P.hp = P.maxHp; G.coldness = G.hotness = 0; G.heatLoad = G.coldLoad = 0;
         UI.el.help.classList.add('hidden');
       };
       // Günlük'ü Rehber sekmesinde aç, içeriği oku
@@ -57,22 +57,27 @@ module.exports = {
         reset(); P.energy = 0; out.tired = G.survRates(false).parts.tired;
         reset(); P.hunger = P.thirst = 50; out.reg = G.survRates(false).reg;
         reset(); out.regFull = G.survRates(false).reg; out.regSleep = G.survRates(true).reg; out.married = G.hasPerk('married');
-        // zehir: 90 sn, saniyede 1,6 (yenilenme kapalı)
-        reset(); P.hunger = 15; P.poison = 90; P.hp = 90;
+        // zehir oyun saatiyle: başta saatte 16 can, kalan süreyle zayıflar; bir sokma (6 oyun saati) ~48 can (yenilenme kapalı)
+        reset(); P.hunger = 15; P.poison = SURV.POISON_MIN; P.hp = 100;
         for (let f = 0; f < 30; f++) G.update(1 / 30);
-        out.poisonPerSec = 90 - P.hp; out.poisonLeft = P.poison;
+        out.poisonPerSec = 100 - P.hp; out.poisonLeft = P.poison;
+        reset(); P.poison = SURV.POISON_MIN; P.hp = 100;
+        for (let k = 0; k < 36; k++) G.survivalUpdate(10, false);
+        out.poisonSum = 100 - P.hp; out.poisonEnd = P.poison; out.mps = MIN_PER_SEC;
         reset();
         return out;
       });
       t.near(r.secPerHour, 27, 0.5, 'oyun saati ≈ 27 gerçek saniye');
       t.ok(/bir saat gerçekte yaklaşık 27 saniye/.test(r.text) && /bir gün yaklaşık 11 dakika/.test(r.text), 'Rehber: saat ve gün', r.text.slice(0, 300));
-      t.eq([r.hunger, r.thirst, r.tired], [6, 10, 3], 'oyunda açlık, susuzluk, uykusuzluk can kaybı');
-      t.ok(/açlıkta saatte 6, susuzlukta 10, uykusuzlukta 3/.test(r.text), 'Rehber: aynı sayılar');
+      t.eq([r.hunger, r.thirst, r.tired], [2, 4, 3], 'oyunda açlık, susuzluk, uykusuzluk can kaybı');
+      t.ok(/açlıkta saatte 2, susuzlukta 4, uykusuzlukta 3/.test(r.text), 'Rehber: aynı sayılar');
       t.ok(!r.married, 'evli değil (yenilenme çarpanı yok)');
       t.eq([r.reg, r.regFull, r.regSleep - r.regFull], [7, 13, 8], 'oyunda can yenilenmesi');
       t.ok(/Hızı oyun saatinde 7 can; açlık ve susuzluk 60'ın üstündeyse 13, uyurken 8 fazlası/.test(r.text), 'Rehber: aynı sayılar');
-      t.near(r.poisonPerSec, 1.6, 0.1, 'oyunda zehir saniyede 1,6'); t.near(r.poisonLeft, 89, 0.1, 'zehir saniyede 1 azalır (90 sn)');
-      t.ok(/90 saniye/.test(r.text) && /saniyede 1,6 can/.test(r.text), 'Rehber: zehir');
+      t.near(r.poisonPerSec, 16 * r.mps / 60, 0.03, 'oyunda tam güçteki zehir oyun saatinde 16 can');
+      t.near(r.poisonLeft, 360 - r.mps, 0.05, 'zehir oyun saatiyle azalır');
+      t.near(r.poisonSum, 48, 0.5, 'bir sokma toplam ~48 can'); t.eq(r.poisonEnd, 0, '6 oyun saatinde geçer');
+      t.ok(/6 oyun saati \(yaklaşık 164 saniye\)/.test(r.text) && /saatte 16 can/.test(r.text) && /toplam ~48 can/.test(r.text) && /canını %15'in altına indirmez/.test(r.text), 'Rehber: zehir', r.text.match(/Yılan sokması.{0,400}/));
       t.ok(r.text.includes(`ödül ${r.money} ve üstündeyse`), 'Rehber: ödül avcısı eşiği HUNTER_MIN', r.money);
     });
 
@@ -142,7 +147,7 @@ module.exports = {
     await t.step('üşüme ve sıcak çarpma eşiği oyuncuya göre; oyundaki eşikle aynı', async () => {
       const r = await p.evaluate(() => {
         reset(); const P = G.player, out = {};
-        const read = () => { const m = guide().text.match(/Senin için şu an: (-?[\d,]+) °C altında üşürsün, (-?[\d,]+) °C üstünde sıcak çarpar/); UI.closeAll(); return m ? [m[1], m[2]] : null; };
+        const read = () => { const m = guide().text.match(/Senin için şu an: (-?[\d,]+) °C altında üşürsün, (-?[\d,]+) °C üstünde sıcak basar/); UI.closeAll(); return m ? [m[1], m[2]] : null; };
         // oyunun eşiği: hissedilen sıcaklık eşiğin hemen altında/üstündeyken üşüme ve sıcak çarpma başlar mı
         const amb0 = G.ambientTemp, coat0 = P.coat, hat0 = P.look.hat;
         const feel = v => {   // hissedilen = ortam: palto, şapka, ateş, yağmur, sıcak içecek ve serinletici yok
@@ -222,7 +227,7 @@ module.exports = {
         reset();
         return out;
       });
-      t.near(r.bite1.poison, 90, 1, 'yılan soktu: 90 sn zehir');
+      t.near(r.bite1.poison, 360, 1, 'yılan soktu: 6 oyun saati zehir');
       t.ok(/Yılan soktu!/.test(r.bite1.help) && /Ayrıntılar/.test(r.bite1.help) && r.bite1.flag === 1, 'ilk sokma: Zehir ve Hastalık konusu yeni', r.bite1);
       t.ok(/Yılan soktu!/.test(r.bite2.help) && !/Ayrıntılar/.test(r.bite2.help), 'sonraki sokmalarda uyarı yine çıkar, yönlendirme yok', r.bite2.help);
       t.ok(/Midene bir şey dokundu\./.test(r.sick.help) && /Ayrıntılar/.test(r.sick.help) && r.sick.flag === 1, 'ilk hastalık: aynı konu', r.sick);

@@ -30,7 +30,7 @@ const G = {
   scale: 3, vw: 640, vh: 360,
   settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, mapHide: [], gfx: 0, gpu: 0 },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0, dev: 0 },
-  coldness: 0, hotness: 0, feltTemp: 20, nearFire: false,
+  coldness: 0, hotness: 0, feltTemp: 20, nearFire: false, heatLoad: 0, coldLoad: 0,
 
   resetState() {
     this.ents = []; this.projs = []; this.trains = []; this.parts = new Particles();
@@ -46,7 +46,7 @@ const G = {
     this.visited = new Set(); this.discovered = new Set(); this.rumored = new Set();
     this.props = []; this.family = { spouse: null, children: [] }; this.romances = {}; this.stable = [];
     this.campCleared = {}; this.chestsOpened = {}; this.graves = {}; this.dailyTalk = {}; this.robbed = {}; this.lostItems = []; this.events = [];
-    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.debugUsed = false;
+    this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.heatLoad = 0; this.coldLoad = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null; this.hideout = null; this.pins = [];
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.myCar = null; this.haulers = []; this.raids = [];
@@ -316,9 +316,9 @@ const G = {
     const data = {
       v: SAVE_V, seed: this.seed, clock: this.clock, pace: this.pace, difficulty: this.difficulty, background: this.background,
       profile: this.profile,
-      player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, immuneT: P.immuneT, painT: P.painT, limberT: P.limberT, coolT: P.coolT, canteen: P.canteen, coat: P.coat, mask: P.masked ? P.mask : null, lastMask: P.lastMask || null, lantern: P.lantern, riding: !!P.riding },
+      player: { x: P.x, y: P.y, name: P.name, look: P.look, inv: P.inv, weapons: [...P.weapons], ammo: P.ammo, clip: P.clip, weapon: P.weapon, money: P.money, hp: P.hp, sta: P.sta, de: P.de, hunger: P.hunger, thirst: P.thirst, energy: P.energy, clean: P.clean, deCore: P.deCore, sick: P.sick, immuneT: P.immuneT, painT: P.painT, limberT: P.limberT, coolT: P.coolT, poison: P.poison, poisonBy: P.poisonBy, faintCd: P.faintCd, canteen: P.canteen, coat: P.coat, mask: P.masked ? P.mask : null, lastMask: P.lastMask || null, lantern: P.lantern, riding: !!P.riding },
       horse: h ? { breed: h.breed, name: h.name, look: h.look, hp: h.hp, bond: h.bond, x: h.x, y: h.y, dead: h.dead } : null,
-      weather: this.weather, law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
+      weather: this.weather, loads: [this.heatLoad || 0, this.coldLoad || 0], law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
       story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, pins: this.pins, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), dev: this.saveDev(), tycoon: this.saveTycoon(), infl: this.saveInfl(), guards: this.saveGuards(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
@@ -400,7 +400,7 @@ const G = {
     await this.buildWorld(d.seed, this.season);
     this.devPrep();   // kasabaların üretimdeki sokakları (oyuncunun ve gelişimin değişikliklerinden önce)
     Object.assign(this, { clock: d.clock, pace: d.pace, difficulty: d.difficulty, background: d.background, profile: d.profile, honor: d.honor, bank: d.bank, scars: d.scars || 0 });
-    Object.assign(this.weather, d.weather); Object.assign(this.law, d.law); this.law.level = 0; this.law.maskBounty = 0; this.law.masked = false; this.law.resist = false; this.law.arrestT = 0; this.law.warned = false;
+    Object.assign(this.weather, d.weather); [this.heatLoad, this.coldLoad] = Array.isArray(d.loads) ? d.loads.map(v => +v || 0) : [0, 0]; Object.assign(this.law, d.law); this.law.level = 0; this.law.maskBounty = 0; this.law.masked = false; this.law.resist = false; this.law.arrestT = 0; this.law.warned = false;
     Object.assign(this.stats, d.stats); Object.assign(this.skills, d.skills); this.achieved = d.achieved || {};
     this.visited = new Set(d.visited); this.discovered = new Set(d.discovered); this.rumored = new Set(d.rumored || []);
     this.props = d.props || []; this.family = d.family || { spouse: null, children: [] }; this.romances = d.romances || {}; this.stable = d.stable || [];
@@ -414,7 +414,7 @@ const G = {
     this.rebuildFog();
     const p = d.player;
     const P = this.player = new Player(p.x, p.y, { name: p.name, look: p.look });
-    Object.assign(P, { inv: p.inv, ammo: p.ammo, clip: p.clip, weapon: p.weapon, money: p.money, hp: p.hp, sta: p.sta, de: p.de, hunger: p.hunger, thirst: p.thirst, energy: p.energy, clean: p.clean, deCore: p.deCore, sick: p.sick, immuneT: p.immuneT || 0, painT: p.painT || 0, limberT: p.limberT || 0, coolT: p.coolT || 0, canteen: p.canteen, coat: p.coat, mask: p.mask || null, lastMask: p.lastMask || null, lantern: p.lantern });
+    Object.assign(P, { inv: p.inv, ammo: p.ammo, clip: p.clip, weapon: p.weapon, money: p.money, hp: p.hp, sta: p.sta, de: p.de, hunger: p.hunger, thirst: p.thirst, energy: p.energy, clean: p.clean, deCore: p.deCore, sick: p.sick, immuneT: p.immuneT || 0, painT: p.painT || 0, limberT: p.limberT || 0, coolT: p.coolT || 0, poison: p.poison || 0, poisonBy: p.poisonBy || null, faintCd: p.faintCd || 0, canteen: p.canteen, coat: p.coat, mask: p.mask || null, lastMask: p.lastMask || null, lantern: p.lantern });
     P.weapons = new Set(p.weapons);
     // otelin üst katında kaydedildiyse o kat geri kurulur (oyuncunun yeri zemin katta bir eşyanın içine düşebilir)
     this.hotelRent = d.hotelRent || null;
@@ -468,7 +468,7 @@ const G = {
       UI.update(dt);
       this.hyOk = false;
       // harita ekranı bütün ekranı kapatır (opak): altındaki dünya çizilmez
-      if (this.world && this.player && (this.state === 'play' || this.state === 'dead') && !UI.mapShown()) this.render(dt);
+      if (this.world && this.player && (this.state === 'play' || this.state === 'dead' || this.state === 'faint') && !UI.mapShown()) this.render(dt);
       else if (this.state === 'menu') { if (FX.drunkCss) FX.clearCss(); UI.menuBg(dt); }
       // köşe karartması: melez çizim dünyayı çizdiyse son ışık geçişinde, değilse sayfadaki katman (#fx-vignette)
       if (this._glv !== this.hyOk) { this._glv = this.hyOk; document.body.classList.toggle('glvig', this.hyOk); }
@@ -566,8 +566,7 @@ const G = {
       P.de -= dt * 18 * (this.hasPerk('longshot') ? 0.75 : 1);
       if (P.de <= 0 || !P.aiming) { P.de = Math.max(0, P.de); P.deadeye = false; Audio_.tone(300, 0.3, 'sine', 0.08, null, 0, 150); }
     } else P.de = Math.min(100, P.de + dt * (0.6 + P.deCore / 60));
-    if (P.poison > 0) { P.poison -= dt; P.hurt(dt * 1.6, 'zehir', true); }
-    P.poisonFx(dt);
+    P.poisonFx(dt);   // zehrin hasarı oyun saatiyle survivalUpdate'te
     P.hp = Math.min(P.hp, P.maxHp);
     this.lawUpdate(dt);
     this.storyTick(dt);
@@ -700,8 +699,8 @@ const G = {
     if (P.hunger < 30) this.hintOnce('hunger', Tr`Açıkıyorsun. ${g('satchel')} ile çantanı açıp yemek ye ya da ${g('quick')} ile hızlıca bir şeyler atıştır.`);
     else if (P.thirst < 30) this.hintOnce('thirst', Tr`Susadın. Mataranı iç (${g('quick')}) ya da bir nehir/kuyu başında ${g('interact')} ile su iç.`);
     else if (P.energy < 25) this.hintOnce('sleep', Tr`Yorgunsun. Bir otelde, evinde ya da kampta (${g('camp')} basılı tut) uyu.`);
-    else if (this.coldness > 0.05) this.hintOnce('cold', Tr('Üşüyorsun! Kalın bir palto giy, ateş yak ya da sıcak bir şeyler iç. Terzilerden kürk alabilirsin.'));
-    else if (this.hotness > 0.05) this.hintOnce('hot', Tr('Sıcak çarpıyor! Daha sık su iç, geniş kenarlı şapka ya da keten gömlek giy.'));
+    else if (this.coldness > 0.05) this.hintOnce('cold', Tr('Üşüyorsun! Soğukta uzun kalırsan önce titremeye başlar, sonra donarsın. Kalın bir palto giy, ateş yak ya da sıcak bir şeyler iç. Terzilerden kürk alabilirsin.'));
+    else if (this.hotness > 0.05) this.hintOnce('hot', Tr('Sıcak basıyor! Güneşte uzun kalırsan önce bitkin düşer, sonra sıcak çarpmasına uğrarsın. Sık su iç, bir binaya gir; geniş kenarlı şapka ya da keten gömlek giy.'));
     else if (this.isNight) this.hintOnce('night', Tr`Gece çöktü. ${g('lantern')} ile fenerini yak. Kurtlar gece daha tehlikelidir.`);
     // klavyede at ve araba dizginle sürülür (ipucu bu yüzden ayrı: eski kayıtta da bir kez çıkar)
     else if (P.riding && !P.riding.motor && Input.device === 'kb') this.hintOnce('rideKb', Tr`At sırtında ${g('moveUp')} ile sür, ${g('moveLeft')} ${g('moveRight')} ile dön, ${g('moveDown')} ile dur; durunca basılı tutarsan geri gidersin. ${g('sprint')} basılı tutarak dörtnala koş, atının dayanıklılığına dikkat et. ${g('interact')} ile in.`, 10);
@@ -1337,7 +1336,8 @@ const G = {
     this.scars = Math.min(30, (this.scars || 0) + 3);
     P.x = doc.door.x; P.y = doc.door.y + 10;
     if (P.riding) P.dismount();
-    P.hp = P.maxHp * 0.6; P.hunger = Math.max(P.hunger, 50); P.thirst = Math.max(P.thirst, 50); P.energy = Math.max(P.energy, 60); P.poison = 0; P.sick = 0; P.retchT = 0;
+    P.hp = P.maxHp * 0.6; P.hunger = Math.max(P.hunger, 50); P.thirst = Math.max(P.thirst, 50); P.energy = Math.max(P.energy, 60); P.poison = 0; P.sick = 0; P.retchT = 0; P.faintCd = 0;
+    this.heatLoad = this.coldLoad = 0;
     P.deadeye = false; this.dmgLog = [];
     this.law.level = 0;
     for (const e of this.ents) if (e.kind === 'npc' && (e.hostile || e.role === 'bandit')) e.remove = true;
