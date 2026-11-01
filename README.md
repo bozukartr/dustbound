@@ -432,19 +432,19 @@ Oyunun ana sistemleri gerçek tarayıcıda uçtan uca sınanır (Playwright, ba�
 ```
 npm install                      # ilk seferde: Playwright
 npx playwright install chromium  # ilk seferde: tarayıcı
-npm test                         # bütün testler (~3 dk)
+npm test                         # bütün testler (iki dosya aynı anda, ~20 dk)
 npm test -- carry law            # adında "carry" ya da "law" geçen test dosyaları
 npm test -- --jobs 1 --headed    # tek tek, tarayıcı görünür
 npm test -- --list               # test dosyalarını listele
 ```
 
-Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir sunucudan açar, her dosyayı temiz bir tarayıcı bağlamında (boş kayıt, Türkçe) çalıştırır ve her adımı doğrular; sayfada yakalanmamış bir JavaScript hatası olursa dosya başarısız sayılır. Başarısız adımların ekran görüntüleri `tests/output/` altına yazılır.
+Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir sunucudan açar, her dosyayı temiz bir tarayıcı bağlamında (boş kayıt, Türkçe) çalıştırır ve her adımı doğrular; sayfada yakalanmamış bir JavaScript hatası olursa ya da oyun bir hatayı yakalayıp konsola yazarsa (ana döngü ve ekran kararması hataları yakalayıp sürdürür) dosya başarısız sayılır. Başarısız adımların ekran görüntüleri `tests/output/` altına yazılır.
 
 | Dosya | Kapsam |
 |---|---|
 | `camera` | iç mekân yakınlaşması: yumuşak geçiş, binayı ortalama, doluluk oranı, içeride sabit kamera (oyuncu dolaşırken sahne 60 ve 144 Hz'de kıpırdamaz), yakınken fareyle nişan, çıkınca uzaklaşma; piksel kamerası oyuncuya kilitli (60 ve 144 Hz'de sabit hızla yürürken oyuncu ekranda sıçramaz, zemin geri kaymaz; durup kalkarken ve geri dönerken klasik ve melez ızgarada sahne geri sekmez); bina görünen alana sığmıyorsa kamera oyuncuyu bina içinde izler |
 | `juice` | his efektleri: isabet duraklaması, savrulma ve uçan şapka, dinamit izi ve şok dalgası, dörtnala uzaklaşma, şahlanma, boşta animasyon, sönen pencereler, para sayacı, kardaki ayak izi (yürüyüş yönüne döner, klasikte tek piksel enli, melezde iki kat ayrıntılı, karda hafif kararma, yağan karla dolar) |
-| `npclife` | NPC aklı: duvara takılmadan ve aynı çizgiden olmadan doğal yürüme, arabaların çakışmaması, ayrı park yerleri, sürücünün inip sandık taşıması ve geri dönmesi, satır satır sohbet, sataşma ve karşılık verme, selam ve selamı almama tepkisi, boşta hareket çeşitliliği, silaha el kaldırma, atlıdan kaçma |
+| `npclife` | NPC aklı: duvara takılmadan (o anki yürüyüş hızının %30'undan az ilerleme takılma sayılır; kalkıştaki yumuşak hızlanma ve duvar boyunca kayma sayılmaz) ve aynı çizgiden olmadan doğal yürüme, arabaların çakışmaması, ayrı park yerleri, sürücünün inip sandık taşıması ve geri dönmesi, satır satır sohbet, sataşma ve karşılık verme, selam ve selamı almama tepkisi, boşta hareket çeşitliliği, silaha el kaldırma, atlıdan kaçma |
 | `mounted` | at ve araba üstünde selamlaşma: eyerden yakındakini selamlama (E'ye dokunmak yine iner, selam seçeneklerde ve istemde), sakinin ata binmiş oyuncuyu selamlaması ve eyerden karşılık, dörtnala geçene selam verilmemesi, atla uzaklaşana küsülmemesi, sataşana eyerden karşılık, yayayken atlıyı selamlama (haydutta önce eyerden çekmek), araba sürücüsünü yayayken (araba giderken de) ve at üstünden selamlama; ilk eylemi basılı tutmalı hedefte gerçek tuşla kısa basınca seçenekler; tutuklamaya gelen kanun adamına at üstünden, uzaktan (gerçek tuşla basılı tutarak) teslim olma |
 | `ridekeys` | dizginle sürüş (gerçek tuşlarla): W'nin atı baktığı yöne sürmesi, bırakınca durma, D'nin dururken atı yerinde sağa çevirmesi, W+A ile sola kavis, S ile frenin bırakmaktan hızlı durdurması, durunca S basılıyken geri gitme ve bırakınca durma, geri giderken W'nin durdurup ileri sürmesi, Shift+W ile dörtnala ve dörtnalda daha geniş dönüş, yük arabasının da dizginle sürülmesi (W ileri, W+D sağa, S geri), yürürken tuşların ekrandaki yönler olması, klavyede bir kez çıkan dizgin ipucu |
 | `talkkeys` | konuşma tuşları: yayayken kişinin önünde istemde E Selamla ve Q Kışkırt, gerçek Q tuşuyla kışkırtma (onur, karşılık, kişinin tepkisi); E basılı tutunca açılan seçeneklerde kışkırtma olmaması; kanun adamında Q satırı olmaması ve Odak uyarısı; nişan alırken Q'nun Odak açması; at üstünde Q'nun kışkırtmaması |
@@ -519,6 +519,7 @@ Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir su
 | `create_layout` | karakter belgesi düzeni: 12 farklı rastgele karakter (kısa, en uzun, boşluksuz, Türkçe harfli isimler; beş geçmiş, zorluk, yaşlanma, hikâye) × 4 bölüm × 6 ekran boyutu (960×540 – 2560×1080), Türkçe ve İngilizce: ekran dışına çıkan, kırpılan ya da kesik (…) metin, kaydırma gerektiren alan, çakışan kart/damga/alt çubuk yok; kartların boyu karakterden ve bölümden bağımsız; belge yazı tiplerinin Türkçe dilimleri yüklü |
 | `debug` | hata ayıklama paneli şifresi ve kilidi; darboğaz ölçümü melez çizimde her aşamayı sırayla kapatır, sonucu satır satır yazar, bitince hepsi (arayüz dahil) geri açılır |
 | `stress` | 45 sn rastgele tuş ve fare girdisi |
+| `soak` | uzun oynanış taraması: her kasaba gündüz ve gece (değişen hava), çöl, kızıl kaya, kar, orman, çayır ve bataklık (öğlen ve gece), at sırtında dörtnala ve yaya, bina içleri, haydut, kurt ve kanun adamlarıyla çatışma, uyku ve bekleme, kaydet-yükle, Klasik çizim ve İngilizce; her durumda oyuncu, kamera, canlılar ve hayatta kalma değerleri sayı kalır, arayüzde NaN, undefined ya da [object Object] yazmaz; canlı ve parçacık sayısı sınırlı, kayıt 2 MB'ın altında |
 
 Yeni bir test için `tests/e2e/` altına `ad.test.js` ekle: `module.exports = { name, async run(t) { const p = await t.newGame(); await t.step('…', async () => { t.ok(…); }); } }`. Sayfa içinde `TH` yardımcıları (boş yer bulma, ışınlanma, binaya girme, menü öğesine tıklama) hazır gelir.
 

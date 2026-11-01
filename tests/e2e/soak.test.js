@@ -72,9 +72,10 @@ module.exports = {
         const P = G.player, s = spotOf([T.GRASS, T.DRY]); setHour(10); setWeather('clear'); go(s[0], s[1]);
         let h = G.horse; if (!h || h.dead) { h = new Horse(P.x, P.y, 'mustang', { owner: 'player' }); G.addEnt(h); G.setHorse(h, true); }
         h.dead = false; h.hp = h.maxHp; h.x = P.x; h.y = P.y; P.mount(h, true);
-        const d0 = Input.down, x0 = P.x, y0 = P.y;
-        Input.down = k => k === 'moveUp' || k === 'sprint' || d0.call(Input, k);
-        try { play(5, 'at sırtında'); } finally { Input.down = d0; }
+        // klavyeyle dizgin: W ileri (yön girdisi), Shift dörtnala
+        const d0 = Input.down, mvq = Input.moveVec, x0 = P.x, y0 = P.y;
+        Input.down = k => k === 'sprint' || d0.call(Input, k); Input.moveVec = () => ({ x: 0, y: -1, m: 1, kb: true });
+        try { play(5, 'at sırtında'); } finally { Input.down = d0; Input.moveVec = mvq; }
         const ride = Math.hypot(P.x - x0, P.y - y0);
         P.dismount();
         const mv0 = Input.moveVec, x1 = P.x, y1 = P.y;

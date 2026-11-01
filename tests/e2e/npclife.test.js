@@ -12,7 +12,9 @@ module.exports = {
         const tw = TH.town('harlow'); TH.goto(tw.spawn.x, tw.spawn.y);
         G.clock = Math.floor(G.clock / 1440) * 1440 + 1440 + 13 * 60;
         const w0 = NPC.prototype.walk;
-        NPC.prototype.walk = function (dt, sp, dir) { const ox = this.x, oy = this.y; w0.call(this, dt, sp, dir); if (Math.hypot(this.x - ox, this.y - oy) < sp * this.slow() * dt * 0.3) this.press = (this.press || 0) + dt; };
+        // duvara yüklenme: NPC o anki yürüyüş hızının %30'undan az ilerliyor (durup kalkarken yumuşak hızlanma ve atlının
+        // dönüşte yavaşlaması sayılmaz; eskiden hedef hıza göre ölçülürdü ve her kalkışın ilk kareleri takılma sayılırdı)
+        NPC.prototype.walk = function (dt, sp, dir) { const ox = this.x, oy = this.y; w0.call(this, dt, sp, dir); const cur = (this.wspd || 0) * this.slow(); if (cur > 1 && Math.hypot(this.x - ox, this.y - oy) < cur * dt * 0.3) this.press = (this.press || 0) + dt; };
         for (const e of G.ents) e.press = 0;
         let walkers = 0;
         for (let f = 0; f < 30 * 75; f++) { G.update(1 / 30); if (f === 900) walkers = G.ents.filter(e => e.kind === 'npc' && (e.nav || e.goal)).length; }
