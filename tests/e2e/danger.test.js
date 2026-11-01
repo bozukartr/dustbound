@@ -181,7 +181,7 @@ module.exports = {
       t.ok(/TİTRİYORSUN/.test(r.cold2.text) && /ısınana dek/.test(r.cold2.text) && /Kahve ×1/.test(r.cold2.text) && /Ateşe yaklaş/.test(r.cold2.text), 'soğuk 2. aşama', r.cold2.text);
       t.eq(r.coldBar, '60%', 'çubuk: yük 1,5 / 2,5');
       t.ok(/DONUYORSUN/.test(r.cold3.text), 'soğuk 3. aşama', r.cold3.text);
-      t.ok(/SICAKTAN BİTKİNSİN/.test(r.heat2.text) && /Sarsaparilla ×1/.test(r.heat2.text) && !/Bira/.test(r.heat2.text) && /Gölgeye/.test(r.heat2.text), 'sıcak 2. aşama: içki önerilmez', r.heat2.text);
+      t.ok(/SICAKTAN BİTKİNSİN/.test(r.heat2.text) && /Sarsaparilla ×1/.test(r.heat2.text) && !/Bira/.test(r.heat2.text) && /Bir binaya ya da serin suya gir/.test(r.heat2.text), 'sıcak 2. aşama: içki önerilmez', r.heat2.text);
       t.ok(/SICAK ÇARPMASI/.test(r.heat3.text), 'sıcak 3. aşama', r.heat3.text);
       t.ok(/BİTKİNSİN/.test(r.tired.text) && /uyuyana dek/.test(r.tired.text) && /Uyu:/.test(r.tired.text), 'bitkinlik', r.tired.text);
       t.ok(/HASTASIN/.test(r.sick.text) && /2 dk 44 sn/.test(r.sick.text) && /Kinin ×1/.test(r.sick.text), 'hastalık: 6 oyun saati ≈ 2 dk 44 sn', r.sick.text);

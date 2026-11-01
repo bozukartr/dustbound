@@ -206,7 +206,7 @@ const Input = {
     }
     return false;
   },
-  consume(a) { this.prev[a] = true; this.state[a] = this.state[a]; this.hold[a] = 0; this.prev[a] = this.state[a]; },
+  consume(a) { this.prev[a] = this.state[a]; this.hold[a] = 0; },   // basış tüketildi: tuş bırakılıp yeniden basılana dek pressed() false
   moveVec() {
     let x = 0, y = 0;
     if (this.state.moveUp) y -= 1;

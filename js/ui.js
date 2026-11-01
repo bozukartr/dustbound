@@ -439,7 +439,7 @@ const UI = {
         const coat = Object.keys(P.inv).filter(id => ITEMS[id] && ITEMS[id].coat && ITEMS[id].coat.warm > cur).sort((a, b) => ITEMS[b].coat.warm - ITEMS[a].coat.warm)[0];
         return [Tr('Ateşe yaklaş ya da bir binaya gir.') + (P.has('bedroll') ? ' ' + Tr`Kamp ateşi için ${g('camp')} basılı tut.` : ''), coat ? Tr`Daha kalın giysin var: ${ITEMS[coat].n}` : ''];
       }
-      case 'heat': return [Tr('Gölgeye ya da bir binaya gir, su iç.')];
+      case 'heat': return [Tr('Bir binaya ya da serin suya gir, su iç.')];
       case 'tired': return [Tr`Uyu: otel, evin ya da kamp (${g('camp')} basılı tut).`];
     }
     return [];

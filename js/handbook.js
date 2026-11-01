@@ -154,7 +154,7 @@ const Handbook = {
       ]) },
       { id: 'death', ic: 'grave', t: Tr('Ölüm ve Doktor'), b: () => li([
         Tr`Sıcak, soğuk, susuzluk, açlık, uykusuzluk ya da hastalık canını bitirmek üzereyken (can %${Math.round(S.FAINT_HP * 100)}) ölmeden önce <b>bayılırsın</b>: ${S.FAINT_H[0]}-${S.FAINT_H[1]} saat sonra olduğun yerde en az %${Math.round(S.FAINT_WAKE * 100)} canla kendine gelirsin. Yoldan geçen biri de seni en yakın doktora götürebilir (kasabaya yakınsan daha olası; doktor ${fmtMoney(SVC.heal * 1.5 * (G.hasPerk('saint') ? 0.5 : 1))} alır). Aranırken kimse yardım etmez.`,
-        Tr`Bayıldıktan sonraki ${S.FAINT_CD / 60} oyun saatinde can yine biterse bu kez bayılmadan ölürsün. Kurşun, hayvan saldırısı, düşme ve zehir seni bayıltmaz.`,
+        Tr`Kendine geldikten sonraki ${S.FAINT_CD / 60} oyun saatinde can yine biterse bu kez bayılmadan ölürsün. Kurşun, hayvan saldırısı, düşme ve zehir seni bayıltmaz.`,
         Tr('Ölünce bir doktor seni kurtarır: cebindeki paranın dörtte biri gider (bankadaki para güvende), kalıcı iz kalır (en yüksek can −3), aranıyorsan aranman biter ama ödül kalır.'),
         Tr('18 saat sonra %60 canla uyanırsın; açlık ve susuzluk en az 50, uyku en az 60 olur; zehir ve hastalık geçer.'),
         Tr('Ölüm ekranı ölüm sebebini, seni öldüreni, son iki dakikada aldığın hasarı ve bir öğüt gösterir.'),
