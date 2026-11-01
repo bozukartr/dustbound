@@ -408,7 +408,7 @@ I18N.add('en', {
     "Hastalık": "Sickness",
     "Vahşi hayvanlarla yakın dövüşe girme; uzaktan vur ya da at sırtında kaç.": "Don't fight wild animals up close; shoot from a distance or flee on horseback.",
     "Yılan sokunca hemen Panzehir ya da Yılan Yağı kullan; {0} zehirliyken önce panzehiri seçer. At sırtındayken yılan zehirleyemez.": "When a snake bites, use Antidote or Snake Oil right away; {0} picks the antidote first while you're poisoned. Snakes can't poison you on horseback.",
-    "Mataranı dolu tut; kuyu ve nehir başında doldurulur. Susuzluk sıfıra inince can hızla gider.": "Keep your canteen full; refill it at wells and rivers. Once thirst hits zero, health drains fast.",
+    "Mataranı dolu tut; kuyu ve nehir başında doldurulur. Susuzluk sıfıra inince can gider; önce bayılırsın ama kısa sürede yine düşersen ölürsün.": "Keep your canteen full; refill it at wells and rivers. Once thirst hits zero you lose health; you pass out first, but if it happens again soon you die.",
     "Çantanda hep yiyecek bulunsun. Açlık sıfıra inince can yavaş yavaş gider.": "Always keep food in your satchel. Once hunger hits zero, health slowly drains.",
     "Soğuk bölgelere kalın paltoyla git; ateş, sıcak yemek ve kahve ısıtır.": "Wear a heavy coat in cold country; fire, hot food and coffee warm you up.",
     "Çölde sık su iç; Sarsaparilla serinletir, geniş kenarlı şapka korur.": "Drink often in the desert; Sarsaparilla cools you and a wide-brimmed hat protects you.",

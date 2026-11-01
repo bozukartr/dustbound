@@ -1339,7 +1339,7 @@ const GameSystems = {
     const g = k => Input.glyph(k);
     switch (src) {
       case 'zehir': return Tr`Yılan sokunca hemen Panzehir ya da Yılan Yağı kullan; ${g('quick')} zehirliyken önce panzehiri seçer. At sırtındayken yılan zehirleyemez.`;
-      case 'thirst': return Tr('Mataranı dolu tut; kuyu ve nehir başında doldurulur. Susuzluk sıfıra inince can hızla gider.');
+      case 'thirst': return Tr('Mataranı dolu tut; kuyu ve nehir başında doldurulur. Susuzluk sıfıra inince can gider; önce bayılırsın ama kısa sürede yine düşersen ölürsün.');
       case 'hunger': return Tr('Çantanda hep yiyecek bulunsun. Açlık sıfıra inince can yavaş yavaş gider.');
       case 'cold': return Tr('Soğuk bölgelere kalın paltoyla git; ateş, sıcak yemek ve kahve ısıtır.');
       case 'heat': return Tr('Çölde sık su iç; Sarsaparilla serinletir, geniş kenarlı şapka korur.');

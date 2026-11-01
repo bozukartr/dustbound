@@ -88,7 +88,8 @@ module.exports = {
         const P = G.player, out = {};
         reset(); P.thirst = 0; P.hp = 30; P.poison = 120;
         out.fcF = G.dangerForecast(); out.textF = card().text;
-        out.fainted = runUntil(200, () => G.state !== 'play'); out.state = G.state; out.hpF = P.hp / P.maxHp;
+        G.dmgLog = []; out.fainted = runUntil(200, () => G.state !== 'play'); out.state = G.state; out.hpF = P.hp / P.maxHp;
+        out.srcF = [...new Set(G.dmgLog.map(e => e.src))].sort();
         await fadeDone();
         reset(); P.thirst = 0; P.hp = 20; P.faintCd = 1000;
         out.fcD = G.dangerForecast(); out.textD = card().text;
@@ -99,6 +100,7 @@ module.exports = {
       t.ok(r.fcF.faint && r.fcF.ttd > 0, 'tahmin: bayılma', r.fcF);
       t.ok(/Bu gidişle bayılmaya/.test(r.textF), 'kartta bayılmaya yazar', r.textF);
       t.eq(r.state, 'faint', 'bayıldı');
+      t.eq(r.srcF, ['thirst', 'zehir'], 'can yalnızca susuzluk ve zehirden gitti');
       t.near(r.fainted, r.fcF.ttd, 1.5, 'bayılma anı tahmine yakın');
       t.near(r.hpF, 0.1, 0.01, 'can %10\'da bayılır');
       t.ok(!r.fcD.faint && r.fcD.ttd > 0, 'yakın zamanda bayıldıysan tahmin ölüm', r.fcD);
