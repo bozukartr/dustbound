@@ -58,8 +58,10 @@ module.exports = {
       await p.evaluate(() => { const s = TH.openSpot(); TH.goto(s[0], s[1]); });
       await t.sleep(300);
       const x0 = await p.evaluate(() => G.player.x);
-      await p.keyboard.down('KeyD'); await t.sleep(700); await p.keyboard.up('KeyD');
-      const dx = await p.evaluate((x0) => G.player.x - x0, x0);
+      // tuş basılıyken oyuncu sağa ilerlemeli; kare hızı düşük olsa da (aynı anda birkaç test) en çok 3 sn beklenir
+      await p.keyboard.down('KeyD');
+      let dx = 0;
+      try { for (let k = 0; k < 30 && dx <= 20; k++) { await t.sleep(100); dx = await p.evaluate((x0) => G.player.x - x0, x0); } } finally { await p.keyboard.up('KeyD'); }
       t.ok(dx > 20, 'oyuncu sağa yürümeli', dx);
     });
     await t.step('duraklatma menüsü ve harita açılıp kapanır', async () => {

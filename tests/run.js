@@ -12,6 +12,7 @@
    t: page(), newGame(), step(), ok(), eq(), near(), sleep()
    Oyun sayfası bağımlılıksız küçük bir statik sunucudan açılır.
    Başarısız adımların ekran görüntüleri tests/output/ altına yazılır.
+   Sayfadaki yakalanmamış hatalar ve konsola yazılan hatalar (console.error) dosyayı başarısız sayar.
    ========================================================== */
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 const { loadPlaywright, AssertionError, sleep, pageHelpers } = require('./lib');
@@ -65,6 +66,14 @@ async function runFile(file, browser, url) {
       contexts.push(ctx);
       const p = await ctx.newPage();
       p.on('pageerror', (e) => { const k = e.message; if (!pageErrors.has(k)) pageErrors.set(k, (e.stack || '').split('\n').slice(0, 3).join(' | ')); });
+      // oyunun kendisinin yakalayıp konsola yazdığı hatalar da (ana döngü, ekran kararması) sayfa hatasıdır; testin bilerek
+      // kestiği ya da geciktirdiği isteklerin yükleme hataları sayılmaz
+      p.on('console', (m) => {
+        if (m.type() !== 'error') return;
+        const L = m.text().split('\n'), k = L[0];
+        if (/^Failed to load resource|net::ERR_/.test(k) || pageErrors.has(k)) return;
+        pageErrors.set(k, ['console.error', ...L.slice(1, 3).map(x => x.trim())].join(' | '));
+      });
       // Paralel sayfalar birbirinin odağını çalar; oyun odak kaybında duraklatma menüsünü
       // açtığı için testlerde pencere "blur" olayı yok sayılır.
       await p.addInitScript(() => { window.addEventListener('blur', (e) => { if (e.target === window) e.stopImmediatePropagation(); }, true); });
