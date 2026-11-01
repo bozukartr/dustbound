@@ -7,6 +7,21 @@
 
 const MIN_PER_SEC = 2.2; // gerçek saniye başına oyun dakikası
 const TRUCE_SEC = 30;    // aranan oyuncu şerif ofisine girince kanunun ateş etmeden teslim olmasını beklediği süre (sn)
+/* Hayatta kalma ayarları (Rehber ve tehlike kartı da bunları okur). Süreler oyun dakikası, can oranları en yüksek cana göre. */
+const SURV = {
+  WARM_CAP: 26,                 // ateş ve sıcak yemek hissedilen sıcaklığı yalnızca bu dereceye dek yükseltir (ateş başında sıcaktan bunalınmaz)
+  LOAD2: 1, LOAD3: 2.5, LOAD_MAX: 3,   // sıcak/soğuk yükü: 2. aşama (bitkinlik) ve 3. aşama (sıcak çarpması/donma) eşikleri, tavan
+  GAIN: [0.2, 0.6],             // maruz kalırken oyun saatinde biriken yük: a + b × şiddet (şiddet 0-1)
+  REC: 0.5, REC_FAST: 1.5,      // maruz kalmayınca saatte azalan yük; içeride, ateş başında (soğuk), suda ya da serinlemişken (sıcak) hızlı
+  HEAT_DMG: [3, 7], COLD_DMG: [3, 9],  // 3. aşamada, maruz kaldıkça oyun saatinde giden can: a + b × şiddet
+  DRINK: 0.4, WARM: 0.4,        // su içmek sıcak yükünü, sıcak yiyecek/içecek soğuk yükünü bu kadar azaltır
+  STAGE2_SPD: 0.88, STAGE2_AIM: 1.5,   // 2. aşamada yürüyüş hızı ve nişan dağılımı çarpanı
+  POISON_MIN: 360, POISON_MORE: 120, POISON_MAX: 720,   // yılan sokması: ilk sokmada, zehirliyken her yeni sokmada eklenen süre, tavan
+  POISON_HP: 16,                // tam güçteki zehrin (kalan süre ≥ ilk sokma) oyun saatinde götürdüğü can; zehir azaldıkça zayıflar
+  POISON_FLOOR: 0.15,           // zehir tek başına canı bu oranın altına indirmez
+  HUNGER_HP: 2, THIRST_HP: 4, TIRED_HP: 3, SICK_HP: 2.5,   // sıfıra inen ihtiyaçların ve hastalığın oyun saatinde götürdüğü can
+  FAINT_HP: 0.1, FAINT_WAKE: 0.15, FAINT_CD: 720, FAINT_FEE: 3, FAINT_H: [2, 4],   // bayılma: can oranı, kendine gelince en az can, yeniden bayılamama süresi, doktor ücreti, baygın kalınan saat
+};
 
 const GameSystems = {
   /* ================= ZAMAN ================= */
@@ -143,8 +158,9 @@ const GameSystems = {
     return T0;
   },
 
-  /* ================= HAYATTA KALMA ================= */
-  survivalUpdate(dtMin, sleeping) {
+  /* ================= HAYATTA KALMA =================
+     travel: trende, posta arabasında ya da faytonda geçen süre (içerisi gibi korunaklı; yolda bayılıp ölünmez) */
+  survivalUpdate(dtMin, sleeping, travel) {
     const P = this.player;
     const hours = dtMin / 60;
     const surv = 1 - this.skill('survival') * 0.04;
@@ -152,12 +168,13 @@ const GameSystems = {
     const amb = this.ambientTemp(P.x, P.y);
     let felt = amb;
     if (P.coat) felt += ITEMS[P.coat].coat.warm;
-    if (P.warmBuff > 0) felt += 8;
     if (P.coolT > 0 && amb > 20) felt -= 7;   // sarsaparilla: sıcakta serinletir
-    felt += this.fireHeat || 0;   // ateşe yakınlığa göre (checkFire)
+    // ateş (checkFire: yakınlığa göre) ve sıcak yemek ısıtır ama yalnızca rahat bir sıcaklığa dek: ateş başında sıcaktan bunalınmaz
+    const warm = (this.fireHeat || 0) + (P.warmBuff > 0 ? 8 : 0);
+    if (warm > 0 && felt < SURV.WARM_CAP) felt = Math.min(SURV.WARM_CAP, felt + warm);
     if (P.look.hat === 'wide' && amb > 28) felt -= 2;
-    if (this.envCache && this.envCache.rain > 0.3 && !(P.coat && ITEMS[P.coat].coat.rain) && !this.insideB) felt -= 3;
-    if (this.insideB) felt = lerp(felt, 21, 0.6); // iç mekân: rüzgâr ve güneşten korunur
+    if (this.envCache && this.envCache.rain > 0.3 && !(P.coat && ITEMS[P.coat].coat.rain) && !this.insideB && !travel) felt -= 3;
+    if (this.insideB || travel) felt = lerp(felt, 21, 0.6); // iç mekân: rüzgâr ve güneşten korunur
     if (sleeping) felt = Math.max(felt, 18);
     // hissedilen sıcaklık yavaşça değişir: ateşe yaklaşınca ısınmak, uzaklaşınca soğumak zaman alır (~20 oyun dakikası)
     if (!this._feltOk || dtMin > 30) { this.feltTemp = felt; this._feltOk = true; }
@@ -167,67 +184,118 @@ const GameSystems = {
     const hotT = 33 + (this.hasPerk('desert') ? 6 : 0) + this.skill('survival') * 0.4;
     this.coldness = clamp((coldT - felt) / 14, 0, 1);
     this.hotness = clamp((felt - hotT) / 12, 0, 1);
+    // sıcak ve soğuk yükü: zararı anlık sıcaklık değil, birikmiş maruziyet verir (aşamalar: heatStage, coldStage)
+    const t = this.world.tileAtPx(P.x, P.y);
+    this.heatLoad = this.loadStep(this.heatLoad, this.hotness, hours, this.loadFast('heat', travel, t));
+    this.coldLoad = this.loadStep(this.coldLoad, this.coldness, hours, this.loadFast('cold', travel, t));
     const act = P.sprinting ? 1.5 : 1;
     const sl = sleeping ? 0.5 : 1;
-    P.hunger = Math.max(0, P.hunger - 2.8 * hours * surv * act * sl);
+    // 1. aşama: sıcakta susuzluk, soğukta açlık hızlanır
+    P.hunger = Math.max(0, P.hunger - 2.8 * hours * surv * act * sl * (1 + this.coldness * 0.5));
     P.thirst = Math.max(0, P.thirst - 4 * hours * surv * act * sl * (1 + this.hotness * 1.5));
     if (!sleeping) P.energy = Math.max(0, P.energy - 3.4 * hours * (P.drunk > 40 ? 1.5 : 1));
     P.clean = Math.max(0, P.clean - 1 * hours);
     P.drunk = Math.max(0, P.drunk - 25 * hours);
     P.warmBuff = Math.max(0, P.warmBuff - dtMin);
-    for (const k of ['immuneT', 'painT', 'limberT', 'coolT']) if (P[k] > 0) P[k] = Math.max(0, P[k] - dtMin);
+    for (const k of ['immuneT', 'limberT', 'coolT', 'faintCd']) if (P[k] > 0) P[k] = Math.max(0, P[k] - dtMin);
     P.deCore = Math.max(0, P.deCore - 1.2 * hours * (this.hasPerk('deadeye') ? 0.6 : 1));
     if (P.sick > 0) P.sick = Math.max(0, P.sick - hours);
     // bölge istatistikleri
-    const t = this.world.tileAtPx(P.x, P.y);
     if (t === T.DESERT || t === T.REDROCK) this.stats.hoursDesert += hours;
     if (amb < 2) this.stats.hoursCold += hours;
-    // sağlık
-    const { reg, dmg, key, parts } = this.survRates(sleeping);
-    P.hp = Math.min(P.maxHp, P.hp + reg * hours);
-    if (dmg > 0) {
-      for (const k in parts) this.logHurt(k, Math.min(P.hp, parts[k] * hours));
-      P.hp -= dmg * hours;
-      if (P.hp <= 0) { P.hp = 0; this.playerDied(key); }
-    }
+    // sağlık: yenilenme, hayatta kalma hasarı ve zehir (tehlike kartının tahmini de aynı adımı kullanır)
+    const hp0 = P.hp, s = { hp: P.hp, sick: P.sick, poison: P.poison, painT: P.painT, heatLoad: this.heatLoad, coldLoad: this.coldLoad };
+    const r = this.hpStep(s, dtMin, sleeping);
+    P.poison = s.poison; P.painT = s.painT;
+    if (r.pd > 0) this.logHurt('zehir', r.pd);
+    if (r.dmg > 0) for (const k in r.parts) this.logHurt(k, Math.min(P.hp, r.parts[k] * hours));
+    let hp = s.hp;
+    if (travel) hp = Math.max(hp, Math.min(hp0, P.maxHp * SURV.FAINT_HP));   // yolculukta yol arkadaşları ayakta tutar
+    P.hp = hp;
+    if (r.dmg > 0 && !travel && hp < hp0 && hp <= P.maxHp * SURV.FAINT_HP && !(P.faintCd > 0)) { P.hp = Math.max(1, hp); this.faint(r.key); return; }
+    if (P.hp <= 0) { P.hp = 0; this.playerDied(r.key || 'zehir'); }
   },
-  /* Oyun saati başına can yenilenmesi ve hayatta kalma hasarı (açlık, susuzluk, soğuk, sıcak, bitkinlik, hastalık).
-     Tehlike kartının ölüm tahmini de bunu kullanır; sick verilirse o hastalık değeriyle (ör. 0: hastalık geçince). */
-  survRates(sleeping, sick = this.player.sick) {
+  /* Yükün bir adımı: maruz kalırken birikir, kalmayınca azalır (fast: hızlı toparlanma) */
+  loadStep(L, e, hours, fast) {
+    if (e > 0) return Math.min(SURV.LOAD_MAX, (L || 0) + (SURV.GAIN[0] + SURV.GAIN[1] * e) * hours);
+    return Math.max(0, (L || 0) - (fast ? SURV.REC_FAST : SURV.REC) * hours);
+  },
+  /* Yük hızlı mı azalır: içeride ya da yolculukta her ikisi; ateş başında ya da ısınmışken soğuk; suyun içinde ya da serinlemişken sıcak */
+  loadFast(kind, travel, tile) {
     const P = this.player;
+    if (this.insideB || travel) return true;
+    return kind === 'cold' ? !!this.nearFire || P.warmBuff > 0 : tile === T.WATER || P.coolT > 0;
+  },
+  /* Aşama: 3 (yük ≥ LOAD3: can gider), 2 (yük ≥ LOAD2: bitkinlik), 1 (şu an maruz kalıyorsun), 0 */
+  stageOf(L, e) { return L >= SURV.LOAD3 ? 3 : L >= SURV.LOAD2 ? 2 : e > 0 ? 1 : 0; },
+  get heatStage() { return this.stageOf(this.heatLoad, this.hotness); },
+  get coldStage() { return this.stageOf(this.coldLoad, this.coldness); },
+  /* 2. aşama ve sonrası: yürüyüş yavaşlar, nişan titrer, can kendiliğinden dolmaz */
+  get worn() { return this.heatLoad >= SURV.LOAD2 || this.coldLoad >= SURV.LOAD2; },
+  /* Canın bir adımı: yenilenme, hayatta kalma hasarı ve zehir. survivalUpdate ve ölüm tahmini aynı hesabı kullanır.
+     s: { hp, sick, poison, painT, heatLoad, coldLoad } yerinde değişir; memo verilirse oranlar duruma göre önbelleklenir. */
+  hpStep(s, dtMin, sleeping, memo) {
+    const P = this.player, hours = dtMin / 60;
+    const mk = memo && `${s.sick > 0}|${s.poison > 0}|${this.stageOf(s.heatLoad, 0)}|${this.stageOf(s.coldLoad, 0)}`;
+    const r = memo ? (memo[mk] || (memo[mk] = this.survRates(sleeping, s))) : this.survRates(sleeping, s);
+    s.hp = Math.min(P.maxHp, s.hp + r.reg * hours) - r.dmg * hours;
+    // zehir: başta güçlü, kalan süreyle orantılı zayıflar; tek başına canı POISON_FLOOR'un altına indirmez; laudanum acısını uyuşturur
+    let pd = 0;
+    if (s.poison > 0) {
+      const m = Math.min(dtMin, s.poison), a = Math.min(2, s.poison / SURV.POISON_MIN), b = Math.min(2, (s.poison - m) / SURV.POISON_MIN);
+      pd = SURV.POISON_HP * (a + b) / 2 * m / 60 * (s.painT > 0 ? 0.6 : 1);
+      pd = Math.max(0, Math.min(pd, s.hp - P.maxHp * SURV.POISON_FLOOR));
+      s.hp -= pd;
+      s.poison = Math.max(0, s.poison - dtMin);
+    }
+    if (s.painT > 0) s.painT = Math.max(0, s.painT - dtMin);
+    return { reg: r.reg, dmg: r.dmg, key: r.key, parts: r.parts, pd };
+  },
+  /* Oyun saati başına can yenilenmesi ve hayatta kalma hasarı (açlık, susuzluk, sıcak çarpması, donma, bitkinlik, hastalık).
+     s: durum (varsayılan oyuncunun şu anki durumu; tahmin kendi kopyasını verir) */
+  survRates(sleeping, s) {
+    const P = this.player;
+    const sick = s ? s.sick : P.sick, poison = s ? s.poison : P.poison;
+    const hL = s ? s.heatLoad : this.heatLoad, cL = s ? s.coldLoad : this.coldLoad;
     let reg = 0;
-    if (P.hunger > 20 && P.thirst > 20 && P.energy > 10 && sick <= 0 && this.coldness < 0.3 && this.hotness < 0.5) {
+    // 2. aşamada (bitkinlik), hastayken ya da zehirliyken can kendiliğinden dolmaz
+    if (P.hunger > 20 && P.thirst > 20 && P.energy > 10 && sick <= 0 && !(poison > 0) && hL < SURV.LOAD2 && cL < SURV.LOAD2) {
       reg = 7 + (P.hunger > 60 && P.thirst > 60 ? 6 : 0) + (sleeping ? 8 : 0);
       if (this.hasPerk('married')) reg *= 1.25;
     }
     const parts = {};   // can/oyun saati, kaynak kaynak
-    if (P.hunger <= 0) parts.hunger = 6;
-    if (P.thirst <= 0) parts.thirst = 10;
-    if (this.coldness > 0.1) parts.cold = 14 * this.coldness;
-    if (this.hotness > 0.5) parts.heat = 10 * this.hotness;
-    if (P.energy <= 0) parts.tired = 3;
-    if (sick > 0) parts.sick = 2.5;
+    if (P.hunger <= 0) parts.hunger = SURV.HUNGER_HP;
+    if (P.thirst <= 0) parts.thirst = SURV.THIRST_HP;
+    // 3. aşama: yalnızca hâlâ maruz kalırken can gider (gölgeye ya da ateşe ulaşınca durur)
+    if (cL >= SURV.LOAD3 && this.coldness > 0) parts.cold = SURV.COLD_DMG[0] + SURV.COLD_DMG[1] * this.coldness;
+    if (hL >= SURV.LOAD3 && this.hotness > 0) parts.heat = SURV.HEAT_DMG[0] + SURV.HEAT_DMG[1] * this.hotness;
+    if (P.energy <= 0) parts.tired = SURV.TIRED_HP;
+    if (sick > 0) parts.sick = SURV.SICK_HP;
     let dmg = 0;
     for (const k in parts) dmg += parts[k];
     // ölüm sebebi önceliği: sıcak, soğuk, susuzluk, açlık; bunlar yoksa bitkinlik, hastalık
     const key = parts.heat ? 'heat' : parts.cold ? 'cold' : parts.thirst ? 'thirst' : parts.hunger ? 'hunger' : parts.tired ? 'tired' : parts.sick ? 'sick' : null;
     return { reg, dmg, key, parts };
   },
-  /* Bu gidişle ölüme kalan süre (gerçek saniye): zehir kalan süresince, hastalık geçene dek, açlık, susuzluk, soğuk,
-     sıcak ve bitkinlik sürdükçe can gider; arada yenilenen can da hesaba katılır. ttd: ölüme kalan süre (yarım saatte
-     ölmüyorsan null); low: canın ineceği en düşük oran (0-1). */
+  /* Bu gidişle bayılmaya ya da ölüme kalan süre (gerçek saniye): oyunun kendi adımıyla (hpStep) yarım saat ileriye
+     bakılır; sıcak/soğuk yükü şimdiki sıcaklıkla birikir ya da azalır, zehir ve hastalık geçer. ttd: kalan süre (yarım
+     saatte bir şey olmuyorsa null); faint: önce bayılırsın (yakın zamanda bayılmadıysan); low: canın ineceği en düşük oran. */
   dangerForecast() {
-    const P = this.player, k = MIN_PER_SEC / 60;   // gerçek saniyede geçen oyun saati
-    const now = this.survRates(false), well = P.sick > 0 ? this.survRates(false, 0) : now;
-    const sickS = P.sick > 0 ? P.sick / k : 0, painS = P.painT > 0 ? P.painT / MIN_PER_SEC : 0, pois = Math.max(0, P.poison);
-    let hp = P.hp, low = hp;
+    const P = this.player, dm = MIN_PER_SEC, k = dm / 60;   // gerçek saniyede geçen oyun dakikası / saati
+    const t0 = this.world.tileAtPx(P.x, P.y), fh = this.loadFast('heat', false, t0), fc = this.loadFast('cold', false, t0);
+    const s = { hp: P.hp, sick: Math.max(0, P.sick), poison: Math.max(0, P.poison), painT: Math.max(0, P.painT), heatLoad: this.heatLoad || 0, coldLoad: this.coldLoad || 0 };
+    const faintHp = P.faintCd > 0 ? -1 : P.maxHp * SURV.FAINT_HP, memo = {};
+    let low = s.hp;
     for (let t = 0; t < 1800; t++) {
-      const r = t < sickS ? now : well, h0 = hp;
-      hp = Math.min(P.maxHp, hp + r.reg * k) - r.dmg * k;
-      if (t < pois) hp -= Math.min(1, pois - t) * 1.6 * (t < painS ? 0.6 : 1);   // laudanum zehrin acısını da uyuşturur
-      if (hp <= 0) return { ttd: t + h0 / Math.max(1e-6, h0 - hp), low: 0 };
-      low = Math.min(low, hp);
-      if (t >= pois && t >= sickS && r.dmg <= 0) break;   // can götüren bir şey kalmadı
+      s.heatLoad = this.loadStep(s.heatLoad, this.hotness, k, fh); s.coldLoad = this.loadStep(s.coldLoad, this.coldness, k, fc);
+      if (s.sick > 0) s.sick = Math.max(0, s.sick - k);
+      const h0 = s.hp, r = this.hpStep(s, dm, false, memo);
+      if (r.dmg > 0 && s.hp < h0 && s.hp <= faintHp) return { ttd: t + (h0 - faintHp) / Math.max(1e-6, h0 - s.hp), low: SURV.FAINT_HP, faint: true };
+      if (s.hp <= 0) return { ttd: t + h0 / Math.max(1e-6, h0 - s.hp), low: 0 };
+      low = Math.min(low, s.hp);
+      // can götüren bir şey kalmadı ve kalmayacak: zehir, hastalık bitti; yük 3. aşamaya ulaşmayacak
+      const rising = (this.hotness > 0 && s.heatLoad < SURV.LOAD3) || (this.coldness > 0 && s.coldLoad < SURV.LOAD3);
+      if (s.poison <= 0 && s.sick <= 0 && r.dmg <= 0 && !rising) break;
     }
     return { ttd: null, low: clamp(low / P.maxHp, 0, 1) };
   },
@@ -252,7 +320,8 @@ const GameSystems = {
     if (e.energy) P.energy = clamp(P.energy + e.energy, 0, 100);
     if (e.deadeye) { P.de = clamp(P.de + e.deadeye, 0, 100); P.deCore = clamp(P.deCore + e.deadeye * 0.5, 0, 100); }
     if (e.drunk) P.drunk = clamp(P.drunk + e.drunk, 0, 100);
-    if (e.warmth) P.warmBuff = Math.max(P.warmBuff, e.warmth * 4);
+    if (e.warmth) { P.warmBuff = Math.max(P.warmBuff, e.warmth * 4); this.warmUp(); }
+    if (e.thirst > 0 && !e.drunk) this.coolDown();
     if (e.cure) { if (P.sick > 0) UI.feed(Tr('Kendini daha iyi hissediyorsun.')); P.sick = 0; }
     if (e.poison) { if (P.poison > 0) UI.feed(Tr('Zehir etkisini yitirdi.')); P.poison = 0; }
     // süreli etkiler (oyun dakikası)
@@ -269,6 +338,9 @@ const GameSystems = {
     return true;
   },
   /* Hastalık kapma: kinin etkisi sürerken hastalanmazsın */
+  /* Su içmek sıcak yükünü, sıcak bir şey yiyip içmek soğuk yükünü biraz azaltır */
+  coolDown() { this.heatLoad = Math.max(0, (this.heatLoad || 0) - SURV.DRINK); },
+  warmUp() { this.coldLoad = Math.max(0, (this.coldLoad || 0) - SURV.WARM); },
   sicken(v, msg, t = 5) {
     const P = this.player;
     if (P.immuneT > 0) return false;
@@ -281,6 +353,7 @@ const GameSystems = {
     if (!P.has('canteen')) { UI.feed(Tr('Mataran yok.'), 'warn'); return; }
     if (P.canteen <= 0) { UI.feed(Tr('Matara boş. Bir kuyu ya da nehirde doldur.'), 'warn'); return; }
     P.canteen--; P.thirst = Math.min(100, P.thirst + 32);
+    this.coolDown();
     if (!Audio_.play('drink')) Audio_.tone(500, 0.1, 'sine', 0.05, null, 0, 300);
     UI.feed(Tr`🫗 Matara: ${P.canteen}/5`);
   },
@@ -1266,7 +1339,7 @@ const GameSystems = {
     const g = k => Input.glyph(k);
     switch (src) {
       case 'zehir': return Tr`Yılan sokunca hemen Panzehir ya da Yılan Yağı kullan; ${g('quick')} zehirliyken önce panzehiri seçer. At sırtındayken yılan zehirleyemez.`;
-      case 'thirst': return Tr('Mataranı dolu tut; kuyu ve nehir başında doldurulur. Susuzluk sıfıra inince can hızla gider.');
+      case 'thirst': return Tr('Mataranı dolu tut; kuyu ve nehir başında doldurulur. Susuzluk sıfıra inince can gider; önce bayılırsın ama kısa sürede yine düşersen ölürsün.');
       case 'hunger': return Tr('Çantanda hep yiyecek bulunsun. Açlık sıfıra inince can yavaş yavaş gider.');
       case 'cold': return Tr('Soğuk bölgelere kalın paltoyla git; ateş, sıcak yemek ve kahve ısıtır.');
       case 'heat': return Tr('Çölde sık su iç; Sarsaparilla serinletir, geniş kenarlı şapka korur.');
@@ -2341,6 +2414,7 @@ const GameSystems = {
   drinkWater(clean) {
     const P = this.player;
     P.thirst = Math.min(100, P.thirst + 40);
+    this.coolDown();
     if (!Audio_.play('drink')) Audio_.tone(400, 0.2, 'sine', 0.05, null, 0, 250);
     if (!clean) {
       const t = this.world.tileAtPx(P.x, P.y);
@@ -2509,31 +2583,124 @@ const GameSystems = {
     const P = this.player;
     if (this.law.level > 0) { UI.feed(Tr('Aranırken uyuyamazsın!'), 'warn'); return; }
     UI.fade(() => {
-      const steps = Math.round(hours * 6);
-      for (let k = 0; k < steps; k++) {
+      // tehlike (restBreak) uykuyu böler: uykuda ölünmez
+      const steps = Math.round(hours * 6), hp0 = P.hp;
+      let why = null;
+      for (let k = 0; k < steps && !why; k++) {
+        const h1 = P.hp;
         this.advanceClock(10);
         this.weatherUpdate(10);
         this.survivalUpdate(10, true);
         P.energy = Math.min(100, P.energy + 12.5 / 6);
         if (this.state !== 'play') return;
+        why = this.restBreak(hp0, h1);
       }
-      P.sta = P.maxSta; P.de = Math.max(P.de, 50);
-      if (where === 'home' && this.hasPerk('home')) { P.hp = P.maxHp; P.deCore = 100; }
-      if (where === 'home' && this.family.spouse) { P.hp = P.maxHp; UI.feed(Tr`❤ ${this.family.spouse.name} ile huzurlu bir uyku.`); }
-      if (where === 'hotel') P.clean = Math.max(P.clean, 60);
-      if (where === 'home' && this.insideB && this.insideB.type === 'mansion') this.estateWake();   // aşçının kahvaltısı
+      if (why) {
+        UI.fadeText(Tr('Uykun bölündü...'));
+        UI.help(Tr`Uykun bölündü. ${why}`, 8);
+      } else {
+        P.sta = P.maxSta; P.de = Math.max(P.de, 50);
+        if (where === 'home' && this.hasPerk('home')) { P.hp = P.maxHp; P.deCore = 100; }
+        if (where === 'home' && this.family.spouse) { P.hp = P.maxHp; UI.feed(Tr`❤ ${this.family.spouse.name} ile huzurlu bir uyku.`); }
+        if (where === 'hotel') P.clean = Math.max(P.clean, 60);
+        if (where === 'home' && this.insideB && this.insideB.type === 'mansion') this.estateWake();   // aşçının kahvaltısı
+      }
       this.saveGame(true);
       UI.feed(Tr('💾 Oyun kaydedildi'));
       // uyurken saldırı
-      if (where === 'camp' && this.isNight && chance(0.1) && !this.storyOn) { this.eventT = 0; UI.help(Tr('Bir ses seni uyandırdı...'), 4); }
+      if (!why && where === 'camp' && this.isNight && chance(0.1) && !this.storyOn) { this.eventT = 0; UI.help(Tr('Bir ses seni uyandırdı...'), 4); }
       this.qEvent('sleep', where);
     }, Tr`${hours} saat uyudun...`);
   },
   passTime(hours) {
+    const P = this.player;
     UI.fade(() => {
-      const steps = Math.round(hours * 6);
-      for (let k = 0; k < steps; k++) { this.advanceClock(10); this.weatherUpdate(10); this.survivalUpdate(10, false); if (this.state !== 'play') return; }
+      const steps = Math.round(hours * 6), hp0 = P.hp;
+      let why = null;
+      for (let k = 0; k < steps && !why; k++) {
+        const h1 = P.hp;
+        this.advanceClock(10); this.weatherUpdate(10); this.survivalUpdate(10, false);
+        if (this.state !== 'play') return;
+        why = this.restBreak(hp0, h1);
+      }
+      if (why) { UI.fadeText(Tr('Beklemeyi bıraktın...')); UI.help(Tr`Beklemeyi bıraktın. ${why}`, 8); }
     }, Tr`${hours} saat geçti...`);
+  },
+  /* Uyurken ya da beklerken tehlike: sıcak/soğukta 2. aşama, susuzluk ya da açlık dibe vurdu, can belirgin düşüyor.
+     Sebebi ve ne yapmalı yazar (yoksa null). hp0: dinlenmeye başlarken, hPrev: bu adımdan önceki can */
+  restBreak(hp0, hPrev) {
+    const P = this.player;
+    if (this.heatStage >= 2) return Tr('Sıcak bunalttı: bir binaya gir, su iç.');
+    if (this.coldStage >= 2) return Tr('Titriyorsun: ateş yak ya da bir binaya gir.');
+    if (P.thirst <= 5) return Tr('Boğazın kurudu: su iç.');
+    if (P.hunger <= 5) return Tr('Açlıktan miden kazınıyor: bir şey ye.');
+    if (P.hp < hPrev && (hp0 - P.hp >= 10 || P.hp < P.maxHp * 0.25)) return P.poison > 0 ? Tr('Zehrin sancısı geçmiyor: panzehir kullan ya da doktora git.') : Tr('Kendini kötü hissediyorsun.');
+    return null;
+  },
+  /* ================= BAYILMA =================
+     Sıcak, soğuk, susuzluk, açlık, uykusuzluk ya da hastalık canını bitirmek üzereyken (can %10'a inince) ölmeden önce
+     bayılırsın: birkaç saat sonra olduğun yerde kendine gelirsin ya da yoldan geçen biri seni en yakın doktora götürür
+     (kasabaya yakınsan daha olası; aranırken kimse yardım etmez). Bayıldıktan sonraki 12 oyun saatinde can yine biterse
+     bayılmadan ölürsün. */
+  faint(cause) {
+    const P = this.player;
+    if (this.state !== 'play') return;
+    this.state = 'faint';
+    P.faintCd = SURV.FAINT_CD;
+    if (this.ride) this.rideEnd(false);
+    P.mountAnim = null;
+    if (P.riding) P.dismount();
+    if (this.binoc) this.binocOff();
+    P.deadeye = false; P.aiming = false; P.sprinting = false; P.retchT = 0; P.vx = P.vy = 0;
+    this.stat('faints', 1);
+    Audio_.thud(0.5);
+    UI.fade(() => this.faintWake(cause), Tr('Bayıldın...'));
+  },
+  faintWake(cause) {
+    // iki rastlantı en başta: baygın kalınan saat ve yardımın gelip gelmediği
+    const P = this.player, hrs = rndi(SURV.FAINT_H[0], SURV.FAINT_H[1]), roll = Math.random();
+    // baygınken geçen saatler: ihtiyaçlar uykudaki gibi yavaş azalır, uyku dolar, zehir ve hastalık sürer
+    for (let k = 0; k < hrs * 6; k++) { this.advanceClock(10); this.weatherUpdate(10); }
+    P.hunger = Math.max(0, P.hunger - 1.4 * hrs); P.thirst = Math.max(0, P.thirst - 2 * hrs);
+    P.energy = Math.min(100, P.energy + 12.5 * hrs);
+    P.poison = Math.max(0, P.poison - hrs * 60); P.sick = Math.max(0, P.sick - hrs);
+    this.heatLoad = Math.min(this.heatLoad || 0, SURV.LOAD2 + 0.5); this.coldLoad = Math.min(this.coldLoad || 0, SURV.LOAD2 + 0.5);
+    this._feltOk = false;
+    const town = this.nearestTown(P.x, P.y, t => t.buildings.some(b => b.type === 'doctor'));
+    const doc = town && town.buildings.find(b => b.type === 'doctor');
+    const d = town ? dist(P.x, P.y, town.cx, town.cy) : Infinity;
+    const help = this.law.level > 0 || !doc ? 0 : d < 2500 ? 0.75 : d < 7000 ? 0.5 : 0.3;
+    this.state = 'play';
+    let msg;
+    if (roll < help) {
+      // yoldan geçen biri doktora götürür: doktor ayıltır, zehri ve hastalığı tedavi eder
+      const fee = Math.min(P.money, SVC.heal * 1.5 * (this.hasPerk('saint') ? 0.5 : 1));
+      P.money -= fee;
+      P.x = doc.door.x; P.y = doc.door.y + 10;
+      P.hp = Math.max(P.hp, P.maxHp * 0.5); P.thirst = Math.max(P.thirst, 40); P.hunger = Math.max(P.hunger, 30);
+      P.poison = 0; P.sick = 0; this.heatLoad = this.coldLoad = 0;
+      this.cam.x = P.x; this.cam.y = P.y;
+      this.prefetch(true);
+      msg = fee > 0 ? Tr`Yoldan geçen biri seni baygın bulup ${town.n} doktoruna getirdi. Doktor seni ayılttı ve <b>${fmtMoney(fee)}</b> aldı.`
+        : Tr`Yoldan geçen biri seni baygın bulup ${town.n} doktoruna getirdi. Cebinde para yoktu; doktor seni yine de ayılttı.`;
+    } else {
+      P.hp = Math.max(P.hp, P.maxHp * SURV.FAINT_WAKE);
+      msg = Tr`Bayıldın; ${hrs} saat sonra olduğun yerde kendine geldin. ${this.faintTip(cause)}`;
+    }
+    msg += ' ' + Tr('Yakında yine bu hâle düşersen bu kez ölebilirsin.');
+    if (!this.hintOnce('faint', msg, 10)) UI.help(msg, 10);
+    this.saveGame(true);
+  },
+  faintTip(cause) {
+    switch (cause) {
+      case 'heat': return Tr('Hâlâ sıcaktan bitkinsin: bir binaya gir, su iç.');
+      case 'cold': return Tr('Hâlâ titriyorsun: ateş yak ya da bir binaya gir.');
+      case 'thirst': return Tr('Hemen su bulmalısın.');
+      case 'hunger': return Tr('Hemen bir şeyler yemelisin.');
+      case 'tired': return Tr('Bir an önce uyumalısın.');
+      case 'sick': return Tr('Bir doktora görün.');
+    }
+    return '';
   },
   /* Kanun kaçağının saklı kampı: kasabanın dışında, haydut kamplarından ve yerlerden uzak, düz ve açık bir yer */
   findHideout(town) {

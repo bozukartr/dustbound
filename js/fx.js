@@ -500,7 +500,7 @@ const FX = {
       hurt: G.state === 'play' || G.state === 'dead' ? clamp((0.42 - P.hp / P.maxHp) / 0.3, 0, 1) : 0,
       drunk: clamp((P.drunk - 22) / 55, 0, 1),
       frost: G.insideB ? 0 : clamp(G.coldness * 1.4 - 0.1, 0, 1),
-      poison: G.state === 'play' && P.poison > 0 ? clamp(0.6 + (1 - P.hp / P.maxHp) * 0.5, 0, 1) : 0,   // can azaldıkça koyulaşır
+      poison: G.state === 'play' && P.poison > 0 ? clamp(0.45 + 0.25 * P.poisonK + (1 - P.hp / P.maxHp) * 0.5, 0, 1) : 0,   // zehir güçlüyken ve can azaldıkça koyulaşır
       de: P.deadeye ? 1 : 0,
     };
     if (G.state === 'dead') tg.hurt = 1;

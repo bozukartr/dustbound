@@ -402,7 +402,7 @@ const EstateSystems = {
     const mins = Math.max(0, R.len - R.done) / CARRIAGE_SPD * MIN_PER_SEC;
     UI.fade(() => {
       if (!this.ride) return;
-      if (mins > 1) { this.advanceClock(mins); this.survivalUpdate(mins, false); }
+      if (mins > 1) { this.advanceClock(mins); this.survivalUpdate(mins, false, true); }
       const end = R.route[R.route.length - 1], pv = R.route[R.route.length - 2] || [end[0] - 1, end[1]];
       w.x = end[0]; w.y = end[1]; w.ang = Math.atan2(end[1] - pv[1], end[0] - pv[0]); w.bx = undefined; w.trail(true);
       R.done = R.len; R.ri = R.route.length;

@@ -1,8 +1,8 @@
 'use strict';
-/* Zehir: Yılan Yağı da Panzehir gibi zehri söker. Zehir içten içe tüketir: kan akıtmaz, ekranı sarsmaz, ata geçmez.
-   Zehirliyken ten solgunlaşır, ter damlar, hafifçe sendeler ve ara ara öğürür (iki büklüm, neredeyse durur, iki kez
-   safra; atta öğürmez); ekrana yeşil, nabız gibi atan bir kenar gelir. Ölüm sebepleri: attan düşme, ödül avcısı
-   kurşunu, zehirlenme. */
+/* Zehir: Yılan Yağı da Panzehir gibi zehri söker. Zehir oyun saatiyle içten içe tüketir: kan akıtmaz, ekranı sarsmaz,
+   ata geçmez; tek başına canı %15'in altına indirmez, asıl tehlike zehirliyken yeni bir sokmadır. Zehirliyken ten
+   solgunlaşır, ter damlar, hafifçe sendeler ve ara ara öğürür (iki büklüm, neredeyse durur, iki kez safra; atta
+   öğürmez); ekrana yeşil, nabız gibi atan bir kenar gelir. Ölüm sebepleri: attan düşme, ödül avcısı kurşunu, yılan. */
 module.exports = {
   name: 'Zehir',
   timeout: 240000,
@@ -49,7 +49,7 @@ module.exports = {
         const P = G.player, out = {}, hunger0 = P.hunger;
         P.hunger = 15;   // açken can kendiliğinden dolmaz: yalnızca zehrin hasarı ölçülür
         P.hp = P.maxHp; clearParts(); G.fx.flash = 0; G.fx.shake = 0;
-        P.poison = 30; P.retchCd = 99;
+        P.poison = 360; P.retchCd = 99;
         const hp0 = P.hp; let shake = 0, flash = 0, sweat = 0;
         // ter damlası yere değince kaybolur (~0,3 sn): kare kare en çok görüleni say
         for (let f = 0; f < 60; f++) { G.update(1 / 30); shake = Math.max(shake, G.fx.shake); flash = Math.max(flash, G.fx.flash); sweat = Math.max(sweat, countParts('drop')); }
@@ -63,19 +63,19 @@ module.exports = {
         P.dismount(); P.poison = 0; P.hp = P.maxHp; P.hunger = hunger0; h.x = P.x + 400;
         return out;
       });
-      t.near(r.lost, 3.2, 0.3, '2 sn zehir: 1,6/sn');
+      t.near(r.lost, 2 * 16 * 2.2 / 60, 0.1, '2 sn zehir: tam güçte oyun saatinde 16 can');
       t.eq(r.blood, 0, 'kan parçacığı yok');
       t.ok(r.shake < 0.01 && r.flash < 0.01, 'sarsıntı ve kırmızı parlama yok', r);
       t.ok(r.sweat > 0, 'ter damlıyor', r.sweat);
       t.eq(r.horseLost, 0, 'at zarar görmez');
-      t.near(r.riderLost, 1.6, 0.2, 'atta da binici zehirden etkilenir');
+      t.near(r.riderLost, 16 * 2.2 / 60, 0.08, 'atta da binici zehirden etkilenir');
     });
 
     await t.step('zehirliyken öğürür: iki büklüm, neredeyse durur, iki kez safra; atta öğürmez', async () => {
       const r = await p.evaluate(() => {
         const P = G.player, out = {};
         TH.goto(spot[0], spot[1]); clearParts();
-        P.hp = P.maxHp; P.poison = 40; P.retchT = 0; P.retchCd = 0.05;
+        P.hp = P.maxHp; P.poison = 360; P.retchT = 0; P.retchCd = 0.05;
         let f0 = -1;
         for (let f = 0; f < 30 && f0 < 0; f++) { G.update(1 / 30); if (P.retchT > 0) f0 = f; }
         out.started = f0 >= 0;
@@ -106,7 +106,7 @@ module.exports = {
       t.near(r.frames, 27, 2, 'yaklaşık 0,9 sn sürer');
       t.ok(r.heave > 1, 'gövde öne kasılır', r.heave);
       t.eq(r.bile, 10, 'iki kasılmada beşer damla safra');
-      t.ok(r.cd >= 4 && r.cd <= 7.2, 'sonraki öğürme 5-8 sn sonra (öğürme süresi düşülmüş)', r.cd);
+      t.ok(r.cd >= 4 && r.cd <= 7.2, 'tam güçte zehirde sonraki öğürme 5-8 sn sonra (öğürme süresi düşülmüş)', r.cd);
       t.ok(r.landed, 'safra yere düşüp kalır');
       t.ok(r.walkRetch < r.walkNormal * 0.5, 'öğürürken neredeyse durur', r);
       t.eq(r.rideRetch, 0, 'atta öğürmez');
@@ -125,7 +125,7 @@ module.exports = {
           for (let f = 0; f < 15; f++) { G.update(1 / 30); m = Math.max(m, Math.abs(P.y - y0)); }
           return m;
         });
-        const sick = drift(30), well = drift(0);
+        const sick = drift(360), well = drift(0);
         P.poison = 0;
         return { sick, well };
       });
@@ -138,7 +138,7 @@ module.exports = {
         const P = G.player, out = {};
         TH.goto(spot[0], spot[1]);
         P.poison = 0; const base = P.lookNow();
-        P.poison = 30; const sick = P.lookNow();
+        P.poison = 360; const sick = P.lookNow();
         out.diff = sick !== base && sick.skin !== base.skin; out.same = P.lookNow() === sick;
         out.coatSame = sick.coat === base.coat && sick.hat === base.hat;
         // ekran efekti: zehirliyken yükselir, geçince söner (çizimle güncellenir)
@@ -174,9 +174,14 @@ module.exports = {
           return G.deathCause;
         };
         out.hunter = shoot('hunter'); out.law = shoot('law'); out.bandit = shoot('bandit');
-        // zehirlenme: kansız
-        revive(); clearParts(); P.hp = 1; P.poison = 10; run(2);
-        out.poison = G.deathCause; out.poisonBlood = countParts('blood');
+        // zehir tek başına öldürmez: can %15'te durur, kan akmaz
+        revive(); clearParts(); P.hunger = 15; P.hp = P.maxHp * 0.17; P.poison = 360; run(4);
+        out.floor = P.hp / P.maxHp; out.alive = G.state === 'play'; out.poisonBlood = countParts('blood'); P.hunger = 80;
+        // asıl tehlike zehirliyken yeni bir sokma
+        revive(); P.poison = 360; P.hp = 4;
+        const sn = new Animal(P.x + 8, P.y, 'snake'); sn.state = 'attack'; sn.t = 25; G.addEnt(sn);
+        for (let f = 0; f < 150 && G.state === 'play'; f++) G.update(1 / 30);
+        out.bite = G.deathCause; sn.remove = true;
         revive(); G.ents = G.ents.filter(e => !e.remove);
         return out;
       });
@@ -184,8 +189,9 @@ module.exports = {
       t.eq(r.hunter, 'ödül avcısı kurşunu', 'ödül avcısı vurunca');
       t.eq(r.law, 'kanun adamlarının kurşunu', 'şerif vurunca');
       t.eq(r.bandit, 'haydut kurşunu', 'haydut vurunca');
-      t.eq(r.poison, 'zehirlenme', 'zehirden');
-      t.eq(r.poisonBlood, 0, 'zehirden ölümde kan yok');
+      t.ok(r.alive && Math.abs(r.floor - 0.15) < 0.002, 'zehir tek başına öldürmez: can %15\'te durur', r);
+      t.eq(r.poisonBlood, 0, 'zehir kan akıtmaz');
+      t.eq(r.bite, 'Çıngıraklı Yılan saldırısı', 'zehirliyken yeni sokma öldürür');
     });
   },
 };

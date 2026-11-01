@@ -256,7 +256,8 @@ class Player extends Ent {
     this.sta = 100; this.de = 60;
     this.hunger = 85; this.thirst = 85; this.energy = 90; this.clean = 90; this.drunk = 0; this.warmBuff = 0;
     this.deCore = 70;
-    this.sick = 0; this.poison = 0;
+    this.sick = 0; this.poison = 0;   // poison: zehrin kalan süresi (oyun dakikası)
+    this.faintCd = 0;   // bayıldıktan sonra yeniden bayılamama süresi (oyun dakikası)
     this.retchT = 0; this.retchCd = 3; this.sweatT = 0;   // zehir görüntüsü: öğürme süresi/arası, ter damlası
     this.poisonBy = null;   // zehirleyen hayvan türü (ölüm ekranı için)
     this.immuneT = 0; this.painT = 0; this.limberT = 0; this.coolT = 0;   // ilaçların süreli etkileri (oyun dakikası)
@@ -410,7 +411,7 @@ class Player extends Ent {
     if (this.retchCd <= 0) {
       // atta, nişan alırken, yük taşırken, doldururken ya da bir pencere açıkken öğürmez; biraz sonra yeniden dener
       if (this.riding || this.mountAnim || this.aiming || this.carry || this.reloadT > 0 || this.swing > 0 || G.uiBlocksMove) this.retchCd = rnd(1, 2);
-      else { this.retchCd = rnd(5, 8); this.retchT = Player.RETCH; }
+      else { this.retchCd = rnd(5, 8) / (0.4 + 0.6 * this.poisonK); this.retchT = Player.RETCH; }   // zehir zayıfladıkça daha seyrek
     }
   }
   spitBile() {
@@ -422,6 +423,8 @@ class Player extends Ent {
     }
     Audio_.retch(0.2);
   }
+  /* zehrin gücü (0-1): kalan süre ilk sokmanınkine eşit ya da fazlaysa tam */
+  get poisonK() { return this.poison > 0 ? Math.min(1, this.poison / SURV.POISON_MIN) : 0; }
   /* öğürürken gövdenin öne kasılması (çizimde bakış yönüne kayma, px) */
   get heave() { return this.retchT > 0 ? Math.abs(Math.sin((1 - this.retchT / Player.RETCH) * Math.PI * 2)) * 1.3 : 0; }
 
@@ -609,20 +612,21 @@ class Player extends Ent {
       this.sta -= dt * 16 * (this.energy < 20 ? 1.5 : 1) * (this.limberT > 0 ? 0.4 : 1);
       if (this.sta < 0) this.sta = 0;
     } else {
-      const regen = 14 * (this.energy < 15 ? 0.4 : 1) * (G.coldness > 0.5 ? 0.5 : 1) * (this.limberT > 0 ? 1.5 : 1);
+      const regen = 14 * (this.energy < 15 ? 0.4 : 1) * (1 - 0.4 * Math.max(G.coldness, G.hotness)) * (this.limberT > 0 ? 1.5 : 1);   // sıcakta ve soğukta yavaş dolar
       this.sta = Math.min(this.maxSta, this.sta + dt * regen);
     }
     if (this.aiming) speed = Math.min(speed, 32);
     if (this.carry) speed = Math.min(speed, this.carry.kind === 'pelt' ? 46 : this.carry.kind === 'crate' ? 42 : 38);   // yük taşırken koşulamaz
     if (age > 60) speed *= 1 - Math.min(0.25, (age - 60) * 0.012);
     if (this.hp < this.maxHp * 0.2) speed *= 0.85;
+    if (G.worn) speed *= SURV.STAGE2_SPD;   // sıcaktan ya da soğuktan bitkin
     speed *= this.slow();
     if (this.reloadT > 0) speed *= 0.8;
     if (this.retchT > 0) speed *= 0.3;   // öğürürken iki büklüm: neredeyse durur
     let dx = mv.x * mv.m, dy = mv.y * mv.m;
     if (this.drunk > 20) { const w = Math.sin(G.t * 2.3) * this.drunk / 100; const c = Math.cos(w), s = Math.sin(w); const nx = dx * c - dy * s; dy = dx * s + dy * c; dx = nx; }
     // zehirliyken hafif sendeleme (sarhoşluktan yumuşak, en çok ~11°)
-    if (this.poison > 0) { const w = (Math.sin(G.t * 1.9) + Math.sin(G.t * 0.73 + 1.3)) * 0.1; const c = Math.cos(w), s = Math.sin(w); const nx = dx * c - dy * s; dy = dx * s + dy * c; dx = nx; }
+    if (this.poison > 0) { const w = (Math.sin(G.t * 1.9) + Math.sin(G.t * 0.73 + 1.3)) * 0.1 * (0.5 + 0.5 * this.poisonK); const c = Math.cos(w), s = Math.sin(w); const nx = dx * c - dy * s; dy = dx * s + dy * c; dx = nx; }
     if (dx || dy) speed *= G.slopeMul(this.x, this.y, Math.atan2(dy, dx));   // yokuş yukarı yavaş, aşağı biraz hızlı
     // Hız bir anda değişmez: kalkışta yumuşak ivmelenme, koşuya geçerken daha ağır hızlanma,
     // bırakınca kısa bir yavaşlama; yön değişirken gövde biraz süzülür (ağırlık hissi)
@@ -815,7 +819,7 @@ class Player extends Ent {
     this.spent = this.spent || {}; this.spent[this.weapon] = (this.spent[this.weapon] || 0) + 1;
     this.fireCd = Wp.rate;
     const lvl = G.skill('shooting');
-    let spread = Wp.spread * (1 - lvl * 0.05) * (this.aiming ? 1 : this.rsAim ? 1.7 : 2.6) * (this.riding && this.riding.spd > 60 ? 1.8 : 1) * (this.drunk > 30 ? 1.8 : 1);
+    let spread = Wp.spread * (1 - lvl * 0.05) * (this.aiming ? 1 : this.rsAim ? 1.7 : 2.6) * (this.riding && this.riding.spd > 60 ? 1.8 : 1) * (this.drunk > 30 ? 1.8 : 1) * (G.worn ? SURV.STAGE2_AIM : 1);   // bitkinken el titrer
     if (this.deadeye) spread *= 0.1;
     spread *= 1 - 0.45 * clamp((this.aimSteady || 0) / 0.7, 0, 1);   // nişan oturdukça dağılım daralır
     // nişan almadan ateş eden oyuncuya sağ tık (kolda L2) hatırlatılır; nişanla ateş edince öğrenilmiş sayılır
@@ -847,7 +851,7 @@ class Player extends Ent {
     this.ammo.arrow--;
     this.fireCd = 0.5;
     const lvl = G.skill('shooting');
-    const spread = 0.03 * (1 - lvl * 0.05) * (this.deadeye ? 0.1 : 1);
+    const spread = 0.03 * (1 - lvl * 0.05) * (this.deadeye ? 0.1 : 1) * (G.worn ? SURV.STAGE2_AIM : 1);
     const a = this.shotAng() + (Math.random() - 0.5) * spread;
     const sp = 260 + 260 * this.draw_;
     G.projs.push({ type: 'arrow', x: this.x + Math.cos(a) * 8, y: this.y + Math.sin(a) * 8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1.4, dmg: WEAPONS.bow.dmg * (0.4 + 0.6 * this.draw_), owner: this, ang: a });
@@ -1091,7 +1095,7 @@ class Animal extends Ent {
           Juice.hurtFrom(this.x, this.y);
           P.hurt(d.dmg * (G.difficulty === 'hard' ? 1.2 : 1), this.type, false, this);
           if (d.venom && !G.player.riding) {
-            P.poison = Math.max(P.poison, 90); P.poisonBy = this.type;
+            P.poison = Math.min(SURV.POISON_MAX, Math.max(P.poison + SURV.POISON_MORE, SURV.POISON_MIN)); P.poisonBy = this.type;   // zehirliyken her yeni sokma uzatır
             const msg = Tr('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.');
             if (!G.hintOnce('poison', msg, 6)) UI.help(msg, 6);
           }

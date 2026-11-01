@@ -338,6 +338,9 @@ const UI = {
     }, quick ? 280 : 600);
   },
 
+  /* kararmış ekrandaki yazıyı değiştir (ör. uyku bölününce) */
+  fadeText(t) { $('#fader-text').textContent = t || ''; },
+
   /* ================= HUD ================= */
   setCore(id, ring, core, on = true) {
     const e = this.cache['core' + id] || (this.cache['core' + id] = $('#' + id));
@@ -410,15 +413,17 @@ const UI = {
      tuşu, en yakın doktor). Durum geçince kart kaybolur. */
   dangerList() {
     const P = G.player;
-    if (!(P.poison > 0 || P.sick > 0 || P.thirst <= 0 || P.hunger <= 0 || G.coldness > 0.1 || G.hotness > 0.5 || P.energy <= 0)) return [];
+    const hs = G.heatStage, cs = G.coldStage;
+    if (!(P.poison > 0 || P.sick > 0 || P.thirst <= 0 || P.hunger <= 0 || cs >= 2 || hs >= 2 || P.energy <= 0)) return [];
     const sober = e => !e.drunk;
     return [
-      { id: 'poison', g: 'skull', col: '#b8e070', on: P.poison > 0, t: Tr('ZEHİRLENDİN'), left: P.poison, max: 90, fix: e => e.poison, rank: e => e.health || 0, doc: true, none: Tr('Çantanda panzehir yok.') },
+      { id: 'poison', g: 'skull', col: '#b8e070', on: P.poison > 0, t: Tr('ZEHİRLENDİN'), left: P.poison / MIN_PER_SEC, max: SURV.POISON_MIN / MIN_PER_SEC, fix: e => e.poison, rank: e => e.health || 0, doc: true, none: Tr('Çantanda panzehir yok.') },
       { id: 'sick', g: 'sick', col: '#b8d890', on: P.sick > 0, t: Tr('HASTASIN'), left: P.sick * 60 / MIN_PER_SEC, fix: e => e.cure, rank: e => (e.health || 0) + (e.immune || 0), doc: true, none: Tr('Çantanda hastalığa iyi gelen bir şey yok.') },
       { id: 'thirst', g: 'drop', col: '#8cc8f0', on: P.thirst <= 0, t: Tr('SUSUZSUN'), until: Tr('su içene dek'), fix: e => e.thirst > 0 && sober(e), rank: e => e.thirst },
       { id: 'hunger', g: 'meat', col: '#e8b080', on: P.hunger <= 0, t: Tr('AÇSIN'), until: Tr('bir şey yiyene dek'), fix: e => e.hunger > 0, rank: (e, it) => e.hunger - (it.raw ? 50 : 0), none: Tr('Yiyeceğin yok: genel mağaza ya da saloondan al, ya da avlan.') },
-      { id: 'cold', g: 'snow', col: '#9cc8ff', on: G.coldness > 0.1, t: Tr('DONUYORSUN'), until: Tr('ısınana dek'), fix: e => e.warmth > 0, rank: e => e.warmth },
-      { id: 'heat', g: 'sun', col: '#ffb060', on: G.hotness > 0.5, t: Tr('SICAK ÇARPIYOR'), until: Tr('serinleyene dek'), fix: e => (e.cool > 0 || e.thirst > 0) && sober(e), rank: e => (e.cool || 0) * 10 + (e.thirst || 0) },
+      // sıcak ve soğuk: 2. aşamada (bitkinlik) görünür; çubuk birikmiş yükü gösterir (dolunca 3. aşama: can gider)
+      { id: 'cold', g: 'snow', col: '#9cc8ff', on: cs >= 2, t: cs >= 3 ? Tr('DONUYORSUN') : Tr('TİTRİYORSUN'), until: Tr('ısınana dek'), bar: G.coldLoad / SURV.LOAD3, fix: e => e.warmth > 0, rank: e => e.warmth },
+      { id: 'heat', g: 'sun', col: '#ffb060', on: hs >= 2, t: hs >= 3 ? Tr('SICAK ÇARPMASI') : Tr('SICAKTAN BİTKİNSİN'), until: Tr('serinleyene dek'), bar: G.heatLoad / SURV.LOAD3, fix: e => (e.cool > 0 || e.thirst > 0) && sober(e), rank: e => (e.cool || 0) * 10 + (e.thirst || 0) },
       { id: 'tired', g: 'moon', col: '#c8b8e8', on: P.energy <= 0, t: Tr('BİTKİNSİN'), until: Tr('uyuyana dek'), fix: e => e.energy > 0, rank: e => e.energy },
     ].filter(d => d.on);
   },
@@ -451,7 +456,7 @@ const UI = {
     let html = '';
     if (list.length) {
       const P = G.player, fc = G.dangerForecast(), q = G.quickPick();
-      html = fc.ttd !== null ? `<div class="dg-ttd${fc.ttd < 30 ? ' crit' : ''}">${Icons.glyph('hourglass', '#f2a890')}${Tr`Bu gidişle ölüme <b>${fmtSec(fc.ttd)}</b>`}</div>`
+      html = fc.ttd !== null ? `<div class="dg-ttd${fc.ttd < 30 ? ' crit' : ''}">${Icons.glyph('hourglass', '#f2a890')}${fc.faint ? Tr`Bu gidişle bayılmaya <b>${fmtSec(fc.ttd)}</b>` : Tr`Bu gidişle ölüme <b>${fmtSec(fc.ttd)}</b>`}</div>`
         : `<div class="dg-ttd ok">${Icons.glyph('heart', '#c8d8a8')}${Tr`Bu gidişle ölmezsin · en düşük can %${Math.round(fc.low * 100)}`}</div>`;
       for (const d of list.slice(0, 3)) {
         const ids = Object.keys(P.inv).filter(id => { const it = ITEMS[id]; return it && it.e && it.c !== 'horse' && d.fix(it.e, it); })
@@ -463,7 +468,7 @@ const UI = {
         lines.push(...this.dangerTips(d, q));
         if (d.doc && !ids.length) lines.push(this.doctorLine());
         html += `<div class="dg-c" data-id="${d.id}" style="--c:${d.col}"><div class="dg-h">${Icons.glyph(d.g, d.col)}${d.t}<span>${d.left !== undefined ? fmtSec(d.left) : d.until}</span></div>`
-          + (d.max ? `<div class="dg-bar"><i style="width:${Math.round(clamp(d.left / d.max, 0, 1) * 100)}%"></i></div>` : '')
+          + (d.max || d.bar !== undefined ? `<div class="dg-bar"><i style="width:${Math.round(clamp(d.max ? d.left / d.max : d.bar, 0, 1) * 100)}%"></i></div>` : '')
           + lines.filter(Boolean).map(l => `<div class="dg-a">${l}</div>`).join('') + '</div>';
       }
     }
@@ -498,7 +503,7 @@ const UI = {
       $('.dl-orb', ev).innerHTML = Icons.glyph(wg, '#f2ead8');
       $('.dl-t', ev).textContent = ft + '°';
       ev.classList.toggle('cold', cold); ev.classList.toggle('hot', hot);
-      ev.title = cold ? Tr('Üşüyorsun') : hot ? Tr('Sıcak çarpıyor') : Tr('Hissedilen sıcaklık');
+      ev.title = cold ? Tr('Üşüyorsun') : hot ? Tr('Sıcak basıyor') : Tr('Hissedilen sıcaklık');
     }
     const ha = Math.round((G.hour - 12) * 30) / 2;   // yarım derecelik adımla (iki oyun dakikası)
     if (ev._ha !== ha) { ev._ha = ha; ev.style.setProperty('--ha', ha + 'deg'); }
@@ -550,8 +555,10 @@ const UI = {
     if (P.sick > 0) gi('sick', Tr('Hasta'), '#b8d890');
     if (P.poison > 0) gi('skull', Tr('Zehirlendin'), '#b8e070', 1);
     if (P.drunk > 30) gi('mug', Tr('Sarhoş'), '#e8c060');
-    if (G.coldness > 0) gi('snow', Tr('Üşüyorsun'), '#9cc8ff', 1);
-    if (G.hotness > 0) gi('sun', Tr('Sıcak çarpıyor'), '#ffb060', 1);
+    // sıcak ve soğuğun aşaması: 1 maruz kalıyorsun, 2 bitkinlik (yanıp söner), 3 can gidiyor
+    const cst = G.coldStage, hst = G.heatStage;
+    if (cst) gi('snow', [Tr('Üşüyorsun'), Tr('Titriyorsun: yavaşladın, elin titriyor, can dolmuyor'), Tr('Donuyorsun: can gidiyor')][cst - 1], '#9cc8ff', cst >= 2);
+    if (hst) gi('sun', [Tr('Sıcak basıyor'), Tr('Sıcaktan bitkinsin: yavaşladın, elin titriyor, can dolmuyor'), Tr('Sıcak çarpması: can gidiyor')][hst - 1], '#ffb060', hst >= 2);
     if (P.warmBuff > 0) gi('steam', Tr('Isınmış'), '#f0d8b0');
     if (P.immuneT > 0) gi('cross', Tr('Kinin: hastalığa karşı korunuyorsun'), '#e8e0c8');
     if (P.painT > 0) gi('heartp', Tr('Laudanum: acı uyuştu'), '#d8a0c8');
@@ -2600,7 +2607,7 @@ const UI = {
           this.closeAll();
           this.fade(() => {
             G.advanceClock(hrs * 60);
-            G.survivalUpdate(hrs * 60, false);
+            G.survivalUpdate(hrs * 60, false, true);
             const st = t.station;
             if (P.riding) P.dismount();
             P.x = st.door.x; P.y = st.door.y + 12;
@@ -2634,7 +2641,7 @@ const UI = {
           const late = chance(0.15) ? rndi(1, 3) : 0;
           this.fade(() => {
             G.advanceClock((hrs + late) * 60);
-            G.survivalUpdate((hrs + late) * 60, false);
+            G.survivalUpdate((hrs + late) * 60, false, true);
             if (P.riding) P.dismount();
             const st = t.buildings.find(x => x.type === 'post') || t.buildings.find(x => x.type === 'stable');
             if (st) { P.x = st.door.x; P.y = st.door.y + 14; } else { P.x = t.spawn.x; P.y = t.spawn.y; }

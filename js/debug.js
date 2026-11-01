@@ -387,7 +387,7 @@ const Debug = {
         this.set('date', `${G.dateStr()} <i>• ${G.age} ${Tr('yaş')}</i>`);
         const wn = { clear: Tr('Açık hava'), cloudy: Tr('Bulutlu'), rain: Tr('Yağmurlu'), storm: Tr('Fırtınalı'), fog: Tr('Sisli') }[G.weather.type] || G.weather.type;
         this.set('weather', `${wn} <i>i ${G.weather.i.toFixed(2)} • ${Tr('yağmur')} ${(env.rain || 0).toFixed(2)}</i>`);
-        this.set('temp', `${G.feltTemp.toFixed(1)}° <i>${Tr('ortam')} ${G.ambientTemp(P.x, P.y).toFixed(1)}° • ${Tr('ateş')} +${(G.fireHeat || 0).toFixed(0)}</i>`);
+        this.set('temp', `${G.feltTemp.toFixed(1)}° <i>${Tr('ortam')} ${G.ambientTemp(P.x, P.y).toFixed(1)}° • ${Tr('ateş')} +${(G.fireHeat || 0).toFixed(0)} • ${Tr('yük')} ${(G.heatLoad || 0).toFixed(2)}/${(G.coldLoad || 0).toFixed(2)}</i>`);
         const k = {}; for (const e of G.ents) k[e.kind] = (k[e.kind] || 0) + 1;
         const npcs = G.ents.filter(e => e.kind === 'npc'), res = npcs.filter(e => e.res).length, host = npcs.filter(e => e.hostile && !e.dead).length;
         this.set('ents', G.ents.length);
@@ -547,7 +547,7 @@ const Debug = {
       case 'save': G.saveGame(); break;
       case 'load': G.loadGame(G.slot); this.toggle(); break;
       case 'heal': P.hp = P.maxHp; P.poison = 0; this.mark(); break;
-      case 'needs': P.hunger = P.thirst = P.energy = 100; P.sick = 0; P.poison = 0; this.mark(); break;
+      case 'needs': P.hunger = P.thirst = P.energy = 100; P.sick = 0; P.poison = 0; G.heatLoad = G.coldLoad = 0; this.mark(); break;
       case 'clean': P.clean = 100; break;
       case 'weapons': for (const w of Object.keys(WEAPONS)) if (w !== 'fists' && !WEAPONS[w].throw) P.giveWeapon(w, true); this.act('refill'); this.mark(); break;
       case 'refill': for (const k of Object.keys(AMMO)) P.ammo[k] = AMMO[k].max; for (const w of P.weapons) if (WEAPONS[w].clip) P.clip[w] = WEAPONS[w].clip; this.mark(); break;
