@@ -15,7 +15,7 @@ module.exports = {
       await p.evaluate(async () => { G.saveGame(true); await G.loadGame(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 60000 });
       await t.helpers(p);
-      await p.evaluate(() => { window.__storyFast = true; UI.el.help.classList.add('hidden'); });
+      await p.evaluate(() => { window.__storyFast = true; UI.el.help.classList.add('hidden'); G.godMode = true; });
     };
 
     await t.step('Tuzakçı hikâyeyle başlar: Cedar Falls, Elias, kamp ve yerler', async () => {
@@ -29,7 +29,8 @@ module.exports = {
       await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
       await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 });
       await t.sleep(600); await t.helpers(p);
-      await p.evaluate(() => { window.__storyFast = true; UI.el.help.classList.add('hidden'); });
+      // ormanda rastgele çıkan bir boz ayı oyuncuyu öldürüp hikâyeyi durdurmasın (hikâyenin kendi hayvanları ayrıca sınanır)
+      await p.evaluate(() => { window.__storyFast = true; UI.el.help.classList.add('hidden'); G.godMode = true; });
       await waitStep(0, 0);
       await p.waitForFunction(() => G.mentorEnt(), null, { timeout: 8000 });
       const r = await p.evaluate(() => {
