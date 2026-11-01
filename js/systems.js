@@ -1181,6 +1181,7 @@ const GameSystems = {
     if (a.type === 'bear') this.stat('bears', 1);
     this.skillXp('hunting', a.def.xp);
     if (a.def.owned) this.crime('livestock', a.x, a.y, a);
+    else this.hintOnce('hunt', Tr`İlk avın! Leşin yanında ${Input.glyph('interact')} basılı tutup <b>derisini yüz</b> ya da leşi bütün olarak omzuna al. Postu ve leşi kasap ya da tuzakçı alır.`, 9);
     const d = dist(this.player.x, this.player.y, a.x, a.y);
     if (d > 400) this.stat('longKills', 1);
     a.how = how;   // hikâye: ör. yayla avlanmış mı

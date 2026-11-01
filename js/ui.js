@@ -3169,7 +3169,7 @@ const UI = {
     const st = { phase: 'cast', t: 0, wait: rnd(3, 10) * (bait ? 0.6 : 1) * (G.hasPerk('fisher') ? 0.6 : 1), tension: 0.3, dist: 1, fish: null, power: 0 };
     const tile = W.biomeAt(P.x, P.y);
     const heat = W.climateAt(P.x, P.y);
-    const pool = heat < 0.3 ? ['fish_trout', 'fish_salmon', 'fish_pike', 'fish_perch'] : tile === 'SWAMP' || tile === 'MUD' || heat > 0.7 ? ['fish_catfish', 'fish_bass', 'fish_perch'] : ['fish_perch', 'fish_bass', 'fish_trout', 'fish_pike', 'fish_catfish'];
+    const pool = fishPool(tile, heat);
     const draw = () => {
       let body = '';
       if (st.phase === 'cast') body = `<div class="f-msg">${Tr`Oltanı atmak için ${Input.glyph('confirm')} basılı tut ve bırak`}</div><div class="f-bar"><i style="width:${st.power * 100}%"></i></div>`;
@@ -3206,6 +3206,7 @@ const UI = {
         if (st.dist <= 0) {
           st.phase = 'end'; const it = ITEMS[st.fish];
           st.msg = Tr`${Icons.item(st.fish, 'ic inl')} ${it.n} tuttun!`; P.addItem(st.fish, 1); G.stat('fish', 1); G.skillXp('survival', 4); Audio_.ui('cash');
+          G.hintOnce('fish', Tr('İlk balığın! Hangi balığın vuracağı suyun iklimine göre değişir; yem balığın daha çabuk vurmasını sağlar.'), 8);
           if (bait && chance(0.5)) P.removeItem('bait', 1);
         }
       } else if (st.phase === 'end') {

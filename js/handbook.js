@@ -2,14 +2,15 @@
 /* ==========================================================
    FRONTIER'S END — Rehber el kitabı (Günlük → Rehber)
    Oyunun ince işleyişini konu konu anlatır. Sayılar oyunun
-   kurallarıyla aynıdır; ilaç ve Odak listeleri eşya verisinden
+   kurallarıyla aynıdır; ilaç ve Odak listeleri eşya verisinden,
+   av ve balık tabloları hayvan, eşya ve dükkân verisinden
    okunur. Bir mekanikle ilk kez karşılaşınca ilgili konu "yeni"
    diye işaretlenir (G.guideFlag), Rehber açılınca okunmuş sayılır.
    ========================================================== */
 const Handbook = {
   /* ipucu anahtarı → el kitabı konusu (G.hintOnce ilk kez gösterince konuyu işaretler) */
   HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison',
-    deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate', bank: 'tycoon', oil: 'tycoon', influence: 'influence', guards: 'influence' },
+    deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', hunt: 'hunt', lassoAnimal: 'hunt', fish: 'fish', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate', bank: 'tycoon', oil: 'tycoon', influence: 'influence', guards: 'influence' },
 
   unread() { const H = G.hints || {}; return this.topics().some(T => H['new:' + T.id]); },
 
@@ -79,6 +80,60 @@ const Handbook = {
         Tr`Islıkla (${g('whistle')}) çağırırsın; at çok uzaktaysa yakınına gelir. Islık 3 saniyede bir çalınır.`,
         Tr`Klavyede at ve araba dizginle sürülür: ${g('moveUp')} ileri (gaz), ${g('moveLeft')} ${g('moveRight')} sola ve sağa döner (dururken yerinde, dörtnalda daha geniş), ${g('moveDown')} frendir; durunca basılı tutarsan geri gidersin. Kolda sol analog atı gösterdiği yöne çevirir.`,
       ]) },
+      { id: 'hunt', ic: 'paw', t: Tr('Av'), b: () => {
+        const BIO = { GRASS: Tr('Çayır'), DRY: Tr('Kurak ova'), FOREST: Tr('Orman'), DESERT: Tr('Çöl'), SNOW: Tr('Karlı dağ'), ROCK: Tr('Kayalık'), REDROCK: Tr('Kızıl kayalık'), SWAMP: Tr('Bataklık') };
+        const wild = Object.values(ANIMALS).filter(d => !d.owned), names = a => a.map(d => d.n).join(', ');
+        const pelt = d => ITEMS[d.pelt[0]].p * d.pelt[1] * (G.hasPerk('hunt25') ? 1.15 : 1);   // kasabadaki kasabın verdiği
+        const rows = wild.slice().sort((a, b) => ({ flee: 0, skittish: 1, hostile: 2 })[a.beh] - ({ flee: 0, skittish: 1, hostile: 2 })[b.beh] || a.hp - b.hp).map(d => {
+          const where = Object.keys(d.b).sort((x, y) => d.b[y] - d.b[x]).map(k => BIO[k] || k).join(', ');
+          const herd = [d.grp[1] > 1 ? Tr`${d.grp[0]}–${d.grp[1]} arası sürü` : Tr('Yalnız'), d.night > 1 ? Tr`gece ${dec(d.night)} kat sık` : ''].filter(Boolean).join(' · ');
+          const beh = d.beh === 'hostile' ? Tr`<b>Saldırgan</b>: ${mi(d.aggro)} içinde saldırır, ${d.dmg} hasar` + (d.venom ? Tr(', zehirler') : '')
+            : d.beh === 'skittish' ? Tr`<b>Fırsatçı</b>: gece ya da canın azken ${mi(d.aggro)} içinde saldırır (${d.dmg} hasar), yoksa kaçar`
+            : Tr`<b>Ürkek</b>: seni ${mi(d.sense)} uzaktan fark edip kaçar`;
+          const loot = [`${ITEMS[d.pelt[0]].n}${d.pelt[1] > 1 ? ' ×' + d.pelt[1] : ''}`, d.meat && `${ITEMS[d.meat[0]].n} ×${d.meat[1]}`, d.extra && Tr`${ITEMS[d.extra[0]].n} (erkekte)`].filter(Boolean).join(', ');
+          return `<tr><td>${Icons.item(d.pelt[0], 'ic inl')} <b>${d.n}</b><small>${herd}</small></td><td>${fmtMoney(pelt(d))}</td><td>${where}</td><td>${beh}</td><td>${loot}</td></tr>`;
+        }).join('');
+        const buyers = Object.values(SHOPS).filter(S => S.buy && S.buy.animal).sort((a, b) => b.buy.animal - a.buy.animal).map(S => `${S.n} %${Math.round(S.buy.animal * 100)}`).join(', ');
+        const arrowShops = Object.values(SHOPS).filter(S => (S.ammo || []).includes('arrow')).map(S => S.n).join(', ');
+        const R = id => RECIPES.find(r => r.id === id), A = id => ACHIEVEMENTS.find(a => a.id === id);
+        const cabin = LANDMARKS.find(l => l.type === 'trapper'), camp = NOMADS.find(n => n.shop === 'nomad_trappers'), bios = l => l.bio.map(k => BIO[k] || k).join(', ');
+        const ach = ['hunt1', 'hunt25', 'hunt100', 'bear'].map(A).filter(Boolean).map(a => `<b>${a.n}</b> (${a.d.replace(/\.$/, '')}): ${a.perk}`);
+        return li([
+          Tr`Vahşi hayvan kasabalarda görülmez. Kasaba dışında çevrende hep 14 kadar hayvan dolaşır; yenileri ${mi(420)}–${mi(640)} ötede, oranın arazisine göre doğar (tablo). Gece kurt ve çakal daha sık görülür; ayı ve puma her yerde seyrektir.`,
+          Tr`Ürkek hayvan seni tablodaki uzaklıktan fark eder. Çömelirsen bu uzaklık yarıya iner, gece %20 kısalır; koşarken %30, at sırtında %20 uzar. Avcılık yeteneğinin her seviyesi %3, <b>${A('hunt100').n}</b> başarımı %30 kısaltır.`,
+          Tr`Silah sesi ${mi(620)} içindeki ürkek hayvanları kaçırır, ${mi(200)} içindeki saldırganları üstüne çeker. Av yayının sesi yalnızca ${mi(50)} duyulur; tam gerilmiş ok ${WEAPONS.bow.dmg} hasar verir. Ok satan dükkânlar: ${arrowShops}; ${R('arrows').need.feather} tüyden ${R('arrows').outAmmo.arrow} ok da yapabilirsin.`,
+          Tr('Yaralanan ürkek hayvan kaçar, saldırgan olan üstüne gelir. Hayvanlar derin suya girmez; sığ suya yalnızca timsah ve sana saldıran hayvan girer. Çıngıraklı yılanın sokması seni 90 saniye zehirler (at sırtındayken zehirlemez). Vahşi hayvanla yakın dövüşe girme: uzaktan vur ya da atla uzaklaş.'),
+        ]) + `<table class="hb-tab hb-wild"><tr><th>${Tr('Hayvan')}</th><th>${Tr('Post')}</th><th>${Tr('Nerede')}</th><th>${Tr('Davranış')}</th><th>${Tr('Verdikleri')}</th></tr>${rows}</table>` + li([
+          Tr`Tablodaki post fiyatı kasabalardaki Kasap & Tuzakçı dükkânının verdiğidir. Hayvan ürünü alanlar ve verdikleri: ${buyers}. Nerede bulunurlar: Tuzakçı — ${cabin.n} (${bios(cabin)}); Kürkçüler — gezgin ${camp.n} (${bios(camp)}).`,
+          Tr`Leşin yanında ${g('interact')} basılı tutup <b>Derisini Yüz</b>: postu, eti ve erkek geyikten boynuzu alırsın. Küçük post çantaya girer; büyük post (${names(wild.filter(d => ITEMS[d.pelt[0]].big))}) omzuna alınır (elin doluysa ya da at sırtındaysan yere bırakılır), atının yanında eyere yükleyebilirsin. Eyer ${HORSE_CAP} birim taşır: büyük leş 2, küçük leş ve post 1. Yük taşırken koşamaz, silah kullanamazsın.`,
+          Tr`Leşi yüzmeden bütün olarak omzuna alıp satabilirsin: post ve etin toplamından %10 fazlasına gider. ${names(wild.filter(d => G.heavyCarcass({ def: d })))} omza alınamayacak kadar iridir; önce derisini yüz.`,
+          Tr`Leşi ${mi(500)} uzakta 3 dakikadan fazla bırakırsan ya da ${mi(1200)} uzaklaşırsan kaybolur; yere bıraktığın post ${mi(1600)} uzaklaşınca kaybolur.`,
+          Tr`Çiğ eti kampta ya da evindeki ocakta pişir (<b>Pişir ve Üret</b>); çiğ yersen hastalanabilirsin. ${R('antidote').need.snake_skin} yılan derisi ve ${R('antidote').need.sage} adaçayından panzehir yapılır.`,
+          Tr`<b>Kement</b> hayvanı yakalar; kementteki hayvan çırpınıp bir süre sonra kurtulur (ayı bir iki saniyede, yabani at 7–10 saniyede). ${names(wild.filter(d => G.canTieAnimal({ def: d })))} yanına gidip ${g('interact')} basılı tutarak bağlanır. Bağlı hayvan 2,5–3,7 dakika sonra kurtulur (Avcılık her seviyede 10 saniye uzatır) ve suda boğulur; <b>Kes</b> ile öldürür ya da serbest bırakırsın.`,
+          Tr`<b>Yabani at</b> evcilleştirilir: yaya ve çömelerek yaklaşırsan seni ancak ${mi(16)} kala fark eder. Yanındayken ${g('interact')} basılı tutup <b>Sakinleştir ve Evcilleştir</b>: %65 ihtimal, Binicilik yeteneğinin her seviyesi %4, kementteyse %25 ekler. Başarırsan yeni atın olur, eskisi ahıra gider.`,
+          Tr('Avcılık yeteneği avladıkça (iri av daha çok), deri yüzdükçe ve hayvan bağladıkça gelişir; 5. seviyeden sonra deri yüzerken %30 ihtimalle bir post fazla çıkar.'),
+          Tr`Av başarımları: ${ach.join('; ')}.`,
+          Tr('Dürbünle uzaktaki hayvanların adını görürsün; saldırganların adı kırmızı yazılır.'),
+          Tr`İnek ve tavuk çiftlik hayvanıdır: vurmak onurunu 1, öldürmek 3 düşürür (tavukta 1); biri görürse suç olur (ödül ${fmtMoney(3)}, tavukta ${fmtMoney(0.5)}).`,
+        ]);
+      } },
+      { id: 'fish', ic: 'fish', t: Tr('Balık Avı'), b: () => {
+        const WAT = { cold: Tr('Kuzeyin ve dağların soğuk suları'), mild: Tr('Ilıman sular'), warm: Tr('Güneyin sıcak suları ve bataklık') };
+        const fish = Object.keys(ITEMS).filter(id => /^fish_/.test(id)).sort((a, b) => ITEMS[a].p - ITEMS[b].p);
+        const where = id => { const ks = ['cold', 'mild', 'warm'].filter(k => FISH_POOLS[k].includes(id)); return ks.length === 3 ? Tr('Her yerde') : ks.map(k => WAT[k]).join(', '); };
+        const rows = fish.map(id => `<tr><td>${Icons.item(id, 'ic inl')} ${ITEMS[id].n}</td><td>${fmtMoney(ITEMS[id].p)}</td><td>${where(id)}</td><td>${Tr`Açlık +${ITEMS[id].e.hunger}`}</td></tr>`).join('');
+        const rodShops = Object.values(SHOPS).filter(S => (S.sell || []).includes('fishing_rod')).map(S => S.n).join(', ');
+        const buyers = Object.values(SHOPS).filter(S => S.buy && S.buy.food).sort((a, b) => b.buy.food - a.buy.food).slice(0, 3).map(S => `${S.n} %${Math.round(S.buy.food * 100)}`).join(', ');
+        const fisher = ACHIEVEMENTS.find(a => a.id === 'fisher');
+        return li([
+          Tr`<b>Olta</b> (${fmtMoney(ITEMS.fishing_rod.p)}) satan dükkânlar: ${rodShops}. Nehir ya da göl kenarında ${g('interact')} → <b>Balık Tut</b>.`,
+          Tr`Oltayı atmak için ${g('confirm')} basılı tut ve bırak; beklerken zaman hızlı akar. Balık vurunca ${dec(1.1)} saniye içinde ${g('confirm')} tuşuna bas; erken çekersen balık kaçar.`,
+          Tr`Makarayı sarmak için ${g('confirm')} basılı tut: balık yaklaşır ama misina gerilir, gerginlik dolarsa misina kopar. Bırakınca gerginlik düşer ama balık uzaklaşır; çok uzaklaşırsa kaçar. Değerli balık daha sert çeker.`,
+          Tr`<b>${ITEMS.bait.n}</b> (${fmtMoney(ITEMS.bait.p)}) balığın vurmasını hızlandırır: bekleme %40 kısalır, her tutuşta %50 ihtimalle bir yem biter. <b>${fisher.n}</b> başarımı (${fisher.d.replace(/\.$/, '')}) beklemeyi bir %40 daha kısaltır.`,
+          Tr('Hangi balığın vuracağı suyun iklimine göre değişir (tablo). Her balık Hayatta Kalma yeteneğini geliştirir. Çiğ balık hasta edebilir; kampta ya da ocakta pişir.'),
+          Tr`Balığı en iyi alanlar (tablodaki değerin yüzdesiyle): ${buyers}.`,
+        ]) + `<table class="hb-tab"><tr><th>${Tr('Balık')}</th><th>${Tr('Değer')}</th><th>${Tr('Nerede')}</th><th>${Tr('Doyurur')}</th></tr>${rows}</table>`;
+      } },
       { id: 'law', ic: 'star', t: Tr('Kanun ve Ödül Avcıları'), b: () => li([
         Tr`Suçunu gören tanık, ${mi(800)} içindeki en yakın kanun adamına ya da şerif ofisine koşar. Ulaşırsa ya da süre dolarsa (kanun yakınsa 40, değilse 70 saniye) aranmaya başlarsın.`,
         Tr`Tanığa silah doğrultup ${g('interact')} ile tehdit edebilir ya da rüşvet verebilirsin; tanık kalmazsa suç kayda geçmez. Maskeliyken işlediğin suç maskeli bir yabancıya yazılır.`,

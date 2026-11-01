@@ -29,7 +29,7 @@ module.exports = {
           toc: [...el.querySelectorAll('.hb-toc-i')].map(a => ({ id: a.dataset.hb, t: a.textContent, isNew: a.classList.contains('new') })),
           secs: [...el.querySelectorAll('.hb-sec')].map(s => s.id.slice(3)),
           newBadge: [...el.querySelectorAll('.hb-sec .hb-new')].map(b => b.closest('.hb-sec').id.slice(3)),
-          meds: el.querySelectorAll('.hb-tab tr').length, welcome: !!el.querySelector('.guide .st-btn'),
+          meds: el.querySelectorAll('#hb-meds .hb-tab tr').length, welcome: !!el.querySelector('.guide .st-btn'),
         };
       };
       window.helpText = () => (UI.el.help.classList.contains('hidden') ? '' : UI.el.help.innerText.replace(/\s+/g, ' '));
@@ -39,7 +39,7 @@ module.exports = {
       const r = await p.evaluate(() => { reset(); const g = guide(); UI.closeAll(); return { g, n: Handbook.topics().length }; });
       t.eq(r.g.toc.map(x => x.id), r.g.secs, 'içindekiler konularla aynı sırada');
       t.eq(r.g.secs.length, r.n, 'bütün konular');
-      for (const id of ['time', 'health', 'needs', 'temp', 'poison', 'meds', 'deadeye', 'horse', 'law', 'death', 'money', 'biz', 'aging', 'controls']) t.ok(r.g.secs.includes(id), 'konu: ' + id, r.g.secs);
+      for (const id of ['time', 'health', 'needs', 'temp', 'poison', 'meds', 'deadeye', 'horse', 'hunt', 'fish', 'law', 'death', 'money', 'biz', 'aging', 'controls']) t.ok(r.g.secs.includes(id), 'konu: ' + id, r.g.secs);
       t.ok(!/undefined|NaN|null|\{\d\}/.test(r.g.text), 'boş ya da bozuk değer yok', r.g.text.match(/.{40}(undefined|NaN|null|\{\d\}).{40}/));
       t.ok(r.g.welcome, 'hoş geldin rehberi düğmesi duruyor');
       t.ok(!r.g.toc.some(x => x.isNew) && !r.g.newBadge.length, 'yeni oyunda yeni işaret yok', r.g.toc);
@@ -91,6 +91,52 @@ module.exports = {
       t.ok(r.oil && /Zehri yok eder/.test(r.oil) && /Hastalığı iyileştirir/.test(r.oil) && /Odak \+100/.test(r.oil), 'Yılan Yağı satırı', r.oil);
       for (const f of r.focus) t.ok(r.fd.includes(f), 'Odak: ' + f, r.fd);
       t.ok(r.fd.includes('Yılan Yağı +100'), 'Odak listesinde Yılan Yağı +100');
+    });
+
+    await t.step('Av ve Balık Avı: tablolar hayvan, eşya ve dükkân verisinden, oyundaki kurallarla aynı; ilk av konuyu işaretler', async () => {
+      const r = await p.evaluate(() => {
+        reset(); UI.openJournal(8);
+        const cells = sel => [...document.querySelectorAll(sel)].slice(1).map(tr => [...tr.cells].map(c => c.innerText.replace(/\s+/g, ' ').trim()));
+        const out = { rows: cells('#hb-hunt .hb-wild tr'), fishRows: cells('#hb-fish .hb-tab tr'), hunt: document.querySelector('#hb-hunt').innerText.replace(/\s+/g, ' '), fish: document.querySelector('#hb-fish').innerText.replace(/\s+/g, ' ') };
+        UI.closeAll();
+        out.wild = Object.values(ANIMALS).filter(d => !d.owned).map(d => ({ n: d.n, pelt: fmtMoney(ITEMS[d.pelt[0]].p * d.pelt[1]), beh: d.beh, big: !!ITEMS[d.pelt[0]].big }));
+        out.farm = Object.values(ANIMALS).filter(d => d.owned).map(d => d.n);
+        out.dist = { gun: fmtDist(620), bow: fmtDist(50), aggro: fmtDist(200) };
+        out.fishItems = Object.keys(ITEMS).filter(id => /^fish_/.test(id)).map(id => ITEMS[id].n);
+        out.salmonOnlyCold = FISH_POOLS.cold.includes('fish_salmon') && !FISH_POOLS.mild.includes('fish_salmon') && !FISH_POOLS.warm.includes('fish_salmon');
+        out.pools = [fishPool('FOREST', 0.1) === FISH_POOLS.cold, fishPool('SWAMP', 0.5) === FISH_POOLS.warm, fishPool('DESERT', 0.9) === FISH_POOLS.warm, fishPool('GRASS', 0.5) === FISH_POOLS.mild];
+        // balık tutma aynı havuzu kullanır
+        const fp = fishPool; let asked = null; window.fishPool = (b, h) => (asked = [b, h], fp(b, h));
+        const P = G.player; P.addItem('fishing_rod', 1); UI.startFishing(); UI.closeAll(); window.fishPool = fp;
+        out.fishAsked = !!asked;
+        // yüzme: küçük post çantaya, büyük post omza
+        const kill = type => { const a = new Animal(P.x + 10, P.y, type); G.addEnt(a); a.hurt(9999, 'player', 'knife'); return a; };
+        G.hints = {}; reset(); P.carry = null; const pelt0 = P.count('rabbit_pelt');
+        const rab = kill('rabbit'); out.hint = { help: helpText(), flag: G.hints['new:hunt'] }; G.skin(rab);
+        out.smallToBag = P.count('rabbit_pelt') > pelt0 && !P.carry;
+        const deer = kill('deer'); G.skin(deer);
+        out.bigToShoulder = !!(P.carry && P.carry.kind === 'pelt' && P.carry.id === 'deer_hide');
+        P.carry = null; reset();
+        return out;
+      });
+      t.eq(r.rows.length, r.wild.length, 'her vahşi tür bir satır', r.rows.map(x => x[0]));
+      for (const w of r.wild) {
+        const row = r.rows.find(x => x[0].startsWith(w.n));
+        t.ok(row && row[1] === w.pelt, 'post fiyatı veriden: ' + w.n, row);
+        t.ok(row && row[3].startsWith({ flee: 'Ürkek', skittish: 'Fırsatçı', hostile: 'Saldırgan' }[w.beh]), 'davranış: ' + w.n, row);
+      }
+      for (const n of r.farm) t.ok(!r.rows.some(x => x[0].startsWith(n)), 'çiftlik hayvanı tabloda yok: ' + n);
+      t.ok(r.hunt.includes(`Silah sesi ${r.dist.gun} içindeki`) && r.hunt.includes(`${r.dist.aggro} içindeki saldırganları`) && r.hunt.includes(`yalnızca ${r.dist.bow} duyulur`), 'ses mesafeleri', r.dist);
+      t.ok(/Tuzakçı %115, Kürkçüler %105, Kasap %100/.test(r.hunt), 'postu alanlar dükkân verisinden, en iyi ödeyen başta');
+      t.ok(/İnek ve tavuk çiftlik hayvanıdır/.test(r.hunt), 'çiftlik hayvanı uyarısı');
+      t.eq(r.fishRows.map(x => x[0]).sort(), r.fishItems.slice().sort(), 'her balık bir satır');
+      t.ok(r.salmonOnlyCold && r.fishRows.find(x => x[0] === 'Somon')[2] === 'Kuzeyin ve dağların soğuk suları', 'somon yalnızca soğuk sularda (FISH_POOLS)');
+      t.eq(r.fishRows.find(x => x[0] === 'Levrek')[2], 'Her yerde', 'levrek her yerde');
+      t.eq(r.pools, [true, true, true, true], 'iklime göre havuz: soğuk, bataklık, sıcak, ılıman');
+      t.ok(r.fishAsked, 'balık tutma aynı havuzu kullanır');
+      t.ok(/Olta/.test(r.fish) && /Solucan Yem/.test(r.fish) && /Oltanın Ustası/.test(r.fish), 'balık konusu: olta, yem, başarım');
+      t.ok(r.smallToBag && r.bigToShoulder, 'yüzme: küçük post çantaya, büyük post omza (Rehber\'deki gibi)', r);
+      t.ok(/İlk avın!/.test(r.hint.help) && /Ayrıntılar/.test(r.hint.help) && r.hint.flag === 1, 'ilk av: ipucu Rehber\'e yönlendirir, Av konusu yeni', r.hint);
     });
 
     await t.step('üşüme ve sıcak çarpma eşiği oyuncuya göre; oyundaki eşikle aynı', async () => {
