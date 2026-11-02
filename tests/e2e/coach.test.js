@@ -5,7 +5,7 @@
    - ses: yeni varsayılan seviyeler, eski varsayılanların bir kez taşınması, miks sırası (yağmur silahtan alçak) */
 module.exports = {
   name: 'Koç ipuçları ve ses miksi',
-  timeout: 300000,
+  timeout: 600000,   // iki yeni hayat: ağır yükte dünya üretimi uzar
   async run(t) {
     const p = await t.newGame();
     const coach = () => p.evaluate(() => { const el = document.getElementById('coach'); return { on: el.classList.contains('show'), txt: el.textContent }; });

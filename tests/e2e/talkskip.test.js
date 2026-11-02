@@ -12,11 +12,14 @@ module.exports = {
     await p.evaluate(() => UI.el.help.classList.add('hidden'));
 
     await t.step('Sully ile konuşurken görev satırında sıradaki hedef görünür ("…" değil, üstü çizili değil)', async () => {
+      // Sully dünyaya hikâye başladıktan sonra gelir: yük altında gecikebilir
+      await p.waitForFunction(() => !!G.sullyEnt(), null, { timeout: 30000 }).catch(() => {});
       const ok = await p.evaluate(() => { const e = G.sullyEnt(); const a = G.sullyActions(e).find(x => x.n === Tr('Konuş')); if (!a) return false; a.fn(); return true; });
       t.ok(ok, 'Konuş seçeneği');
-      await t.sleep(300);
-      const s = await S(), h = await hud();
+      // görev satırı kare döngüsünde güncellenir: yük altında gecikir, sıradaki hedef yazılana kadar (en çok 8 sn) beklenir
       const next = await p.evaluate(() => G.qCh().steps[1].t.call(G, G.story));
+      await p.waitForFunction((n) => { const o = document.querySelector('#hud-quest .hq-o'); return !!(o && o.textContent.includes(n)); }, next, { timeout: 8000 }).catch(() => {});
+      const s = await S(), h = await hud();
       t.ok(s.wait && s.talking && s.st === 0, 'konuşma sürüyor, adım henüz bitmedi', s);
       t.ok(h.txt.includes(next) && !h.done && !/…/.test(h.txt), 'sıradaki hedef görünüyor', h);
       t.eq(await p.evaluate(() => G.sullyActions(G.sullyEnt()).length), 0, 'konuşma sürerken Sully ile etkileşim yok (tuş konuşmayı geçer)');
@@ -25,7 +28,8 @@ module.exports = {
 
     await t.step('Enter\'a dokununca satır geçer (beklemeden)', async () => {
       const q0 = (await S()).q;
-      await p.keyboard.press('Enter'); await t.sleep(150);
+      await p.keyboard.press('Enter');
+      await p.waitForFunction((q0) => (G.story.talkQ ? G.story.talkQ.length : -1) < q0, q0, { timeout: 8000 }).catch(() => {});
       const q1 = (await S()).q;
       t.eq(q1, q0 - 1, 'bir satır geçti');
     });
@@ -38,7 +42,7 @@ module.exports = {
       await p.keyboard.down('Enter');
       await p.waitForFunction(() => G.story.st === 1 && !G.story.wait, null, { timeout: 8000 }).catch(() => {});
       await p.keyboard.up('Enter');
-      await p.waitForFunction(() => G.story.st === 1 && !G.story.wait, null, { timeout: 4000 });
+      await p.waitForFunction(() => G.story.st === 1 && !G.story.wait, null, { timeout: 15000 });
       const s = await S(), h = await hud(), dg = await p.evaluate((a) => G.t - a, g0);
       t.ok(dg < 3, 'beklemeden sıradaki adım (oyun saniyesi)', dg);
       t.eq(s.n, 1, 'konuşma sırasındaki selamlaşma sayıldı');
@@ -53,9 +57,11 @@ module.exports = {
         for (let k = 0; k < 24; k++) { const s = TH.openSpot(x0 + (k % 6) * 400, y0 + ((k / 6) | 0) * 400); TH.goto(s[0], s[1]); TH.clearNpcs(); if (!G.findInteraction()) break; }
         G.qSay([['S', Tr('Bir.')], ['S', Tr('İki.')], ['S', Tr('Üç.')]]);
       });
-      await t.sleep(400);
+      // arayüzün etkileşim taraması boş yeri görene kadar beklenir (yük altında gecikir)
+      await t.sleep(400); await p.waitForFunction(() => !UI.curInteract, null, { timeout: 8000 }).catch(() => {});
       const r0 = await p.evaluate(() => ({ q: G.story.talkQ.length, it: !!UI.curInteract }));
-      await p.keyboard.press('KeyE'); await t.sleep(150);
+      await p.keyboard.press('KeyE');
+      await p.waitForFunction((q0) => (G.story.talkQ ? G.story.talkQ.length : 0) < q0, r0.q, { timeout: 8000 }).catch(() => {});
       const q1 = await p.evaluate(() => G.story.talkQ ? G.story.talkQ.length : 0);
       t.ok(!r0.it, 'önünde etkileşim yok', r0);
       t.eq(q1, r0.q - 1, 'E ile bir satır geçti');
@@ -75,7 +81,7 @@ module.exports = {
       await p.keyboard.down('Space');
       await p.waitForFunction(() => !G.storyTalking(), null, { timeout: 8000 }).catch(() => {});
       await p.keyboard.up('Space');
-      await p.waitForFunction(() => G.story.ch === 2 && G.story.st === 0 && !G.story.wait, null, { timeout: 4000 });
+      await p.waitForFunction(() => G.story.ch === 2 && G.story.st === 0 && !G.story.wait, null, { timeout: 15000 });
       t.ok(true, 'Boşluk ile geçildi, ilk adım başladı');
     });
   },

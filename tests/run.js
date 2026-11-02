@@ -101,7 +101,8 @@ async function runFile(file, browser, url) {
       await p.keyboard.press('Enter'); await sleep(400);
       // karakter ekranı adım adım: her bölümde İleri, sonunda Hayata Başla
       await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
-      await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 });
+      // dünya üretimi yazılımla çizen tarayıcıda uzun sürer; aynı anda dört tarayıcı üretirken 150 sn'yi aşabilir
+      await p.waitForFunction(() => G.state === 'play', null, { timeout: 300000 });
       await sleep(600);
       await p.evaluate(pageHelpers);
       await p.evaluate(() => { UI.el.help.classList.add('hidden'); });
