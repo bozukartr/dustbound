@@ -30,13 +30,17 @@ module.exports = {
     await t.step('E basılı tutunca bağlanır, omuza alınır; yükle koşulamaz', async () => {
       await p.evaluate(() => { const P = G.player; P.x = TG.x - 10; P.y = TG.y; P.ang = 0; });
       await t.sleep(250);
-      await p.keyboard.down('KeyE'); await t.sleep(1300); await p.keyboard.up('KeyE'); await t.sleep(200);
+      // basılı tutma süresi oyun saatiyle sayılır: makine yüklüyken kare hızı düşse de bağlanana dek (en çok 5 sn) basılı tutulur
+      await p.keyboard.down('KeyE');
+      try { for (let k = 0; k < 50 && (await p.evaluate(() => TG.state)) !== 'tied'; k++) await t.sleep(100); } finally { await p.keyboard.up('KeyE'); }
+      await t.sleep(200);
       t.eq(await p.evaluate(() => TG.state), 'tied', 'bağlanmalı');
       await p.keyboard.press('KeyE'); await t.sleep(300);
       t.ok(await p.evaluate(() => G.player.carry === TG && !G.ents.includes(TG)), 'omuzda olmalı');
-      const s0 = await p.evaluate(() => [G.player.x, G.player.y]);
+      // hız oyun saatiyle ölçülür (px/sn): yükle koşulamaz (koşu 88, yükle yürüyüş en çok 46)
+      const s0 = await p.evaluate(() => [G.player.x, G.player.y, G.t]);
       await p.keyboard.down('ShiftLeft'); await p.keyboard.down('KeyD'); await t.sleep(1000); await p.keyboard.up('KeyD'); await p.keyboard.up('ShiftLeft');
-      const sp = await p.evaluate((s0) => dist(G.player.x, G.player.y, s0[0], s0[1]), s0);
+      const sp = await p.evaluate((s0) => dist(G.player.x, G.player.y, s0[0], s0[1]) / Math.max(0.05, G.t - s0[2]), s0);
       t.ok(sp > 10 && sp < 60, 'yükle yavaş yürümeli (koşamaz)', sp);
     });
     await t.step('eyere yüklenir, şerif ofisinde teslim edilir', async () => {
