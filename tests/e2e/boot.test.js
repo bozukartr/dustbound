@@ -10,8 +10,10 @@ module.exports = {
       t.ok(!items.includes('cont') && !items.includes('load'), 'kayıt yokken Devam Et / Kayıt Yükle olmamalı', items);
     });
     await t.step('karakter ekranı açılır, oyun başlar', async () => {
-      await p.keyboard.press('Enter'); await t.sleep(500);
-      t.ok(await p.evaluate(() => !!document.querySelector('.create')), 'karakter oluşturma ekranı açılmalı');
+      await p.keyboard.press('Enter');
+      // takımın ilk dosyası: iki tarayıcı birden açılırken ilk kareler yavaş; ekran gelene kadar beklenir
+      const open = await p.waitForFunction(() => !!document.querySelector('.create'), null, { timeout: 10000 }).then(() => true, () => false);
+      t.ok(open, 'karakter oluşturma ekranı açılmalı', await p.evaluate(() => ({ state: G.state, top: UI.top() && UI.top().el && UI.top().el.className, focus: UI.top() && UI.top().focusEl && UI.top().focusEl.dataset.id })));
       await t.newGame({ page: p });
       const s = await p.evaluate(() => ({ state: G.state, slot: G.slot, town: G.curTown, hud: !document.getElementById('hud').classList.contains('hidden') }));
       t.eq(s.state, 'play', 'oyun durumu');

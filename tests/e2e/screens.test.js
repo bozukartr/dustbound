@@ -1,9 +1,10 @@
 'use strict';
-/* Ekran boyutları: Steam Deck (1280×800), 4K (1920×1080 mantıksal, piksel yoğunluğu 2), geniş ekran (3440×1440) ve küçük
-   pencere (1024×640). Ana menü, karakter ekranı, HUD, duraklatma, Günlük'ün bütün sekmeleri, harita, çanta ve dükkân
+/* Ekran boyutları: Steam Deck (1280×800), 4K (1920×1080 mantıksal, piksel yoğunluğu 2), geniş ekran (3440×1440), küçük
+   pencere (1024×640), masaüstü sürümünün açılış penceresi (1280×720) ve en küçük penceresi (960×540; desktop/main.js). Ana menü, karakter ekranı, HUD, duraklatma, Günlük'ün bütün sekmeleri, harita, çanta ve dükkân
    pencereden taşmaz (kaydırılan ya da kırpılan kutuların içi sayılmaz); HUD'un köşe blokları birbirine binmez; ortadaki
    bildirim sol üstteki yardım kutusunun üstüne binmez (dar ekranda yardımın altına iner). */
-const SIZES = [[1280, 800, 1, 'Steam Deck'], [1920, 1080, 2, '4K'], [3440, 1440, 1, 'geniş ekran'], [1024, 640, 1, 'küçük pencere']];
+const SIZES = [[1280, 800, 1, 'Steam Deck'], [1920, 1080, 2, '4K'], [3440, 1440, 1, 'geniş ekran'], [1024, 640, 1, 'küçük pencere'],
+  [1280, 720, 1, 'açılış penceresi'], [960, 540, 1, 'en küçük pencere']];
 module.exports = {
   name: 'Ekran boyutları',
   timeout: 600000,
