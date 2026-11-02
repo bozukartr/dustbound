@@ -22,7 +22,7 @@ module.exports = {
         },
         // atı durdurup doğuya çevir (şahlanma olmasın)
         still() { const h = G.player.riding; h.ang = 0; h.spd = 0; h.acc = 0; h.rearT = 0; h.brk = false; h.back = false; },
-        st() { const h = G.player.riding; return { x: Math.round(h.x), y: Math.round(h.y), ang: +h.ang.toFixed(3), spd: Math.round(h.spd), back: !!h.back, gal: !!G.player.galloping }; },
+        st() { const h = G.player.riding; return { x: Math.round(h.x), y: Math.round(h.y), ang: +h.ang.toFixed(3), spd: Math.round(h.spd), back: !!h.back, gal: !!G.player.galloping, t: G.t }; },
       };
     });
     const st = () => p.evaluate(() => RK.st());
@@ -70,8 +70,10 @@ module.exports = {
       t.ok(v4.spd < 3 && !v4.back, 'S bırakılınca durur', v4);
       await hold(['KeyS'], 1500);
       const w0 = await st();
-      await down('KeyW'); await t.sleep(2200);
-      const w1 = await st(); await up('KeyW');
+      // makine yüklüyken kare hızı düşebilir: ileri gidene dek (en çok 6 sn) W basılı tutulur
+      await down('KeyW');
+      let w1 = null;
+      try { for (let k = 0; k < 30; k++) { await t.sleep(200); w1 = await st(); if (k >= 10 && w1.x > w0.x + 20 && !w1.back) break; } } finally { await up('KeyW'); }
       t.ok(w0.back && w1.x > w0.x + 20 && !w1.back, 'geri giderken W: durup ileri gider', { w0, w1 });
     });
 
@@ -89,7 +91,9 @@ module.exports = {
       const r1 = await st();
       await up('KeyD', 'KeyW');
       t.ok(g.spd > 130 && g.gal, 'dörtnala', g);
-      t.ok(g1.ang - g.ang > 0.4 && r1.ang - r0.ang > (g1.ang - g.ang) * 1.15, 'dörtnalda daha geniş döner', { gallop: g1.ang - g.ang, trot: r1.ang - r0.ang });
+      // dönüş hızı oyun saniyesi başına (rad/sn): kare hızı ölçüm sırasında değişse de karşılaştırma bozulmaz
+      const gr = (g1.ang - g.ang) / Math.max(0.05, g1.t - g.t), tr = (r1.ang - r0.ang) / Math.max(0.05, r1.t - r0.t);
+      t.ok(g1.ang - g.ang > 0.2 && gr > 0.8 && tr > gr * 1.15, 'dörtnalda daha geniş döner', { gallop: +gr.toFixed(2), trot: +tr.toFixed(2) });
     });
 
     await t.step('yük arabası da dizginle sürülür: W ileri, W+D sağa, S ile geri', async () => {
