@@ -36,7 +36,10 @@ module.exports = {
     await t.step('E basılı tutunca açılan seçeneklerde kışkırtma yok (atlı yolcu: Selamla, Attan İndir)', async () => {
       await p.evaluate(() => { window.N = KT.put('traveler', { mounted: true }); });
       await t.sleep(300);
-      await p.keyboard.down('KeyE'); await t.sleep(600); await p.keyboard.up('KeyE'); await t.sleep(200);
+      // menü basılı tutmanın oyun saatiyle 0,35 sn'sinde açılır: açılana kadar basılı tutulur
+      await p.keyboard.down('KeyE');
+      await p.waitForFunction(() => TH.menuLabels().length > 0, null, { timeout: 6000 }).catch(() => {});
+      await p.keyboard.up('KeyE'); await t.sleep(200);
       const labels = await p.evaluate(() => { const l = TH.menuLabels(); UI.closeAll(); return l; });
       t.ok(labels.includes('Selamla') && labels.includes('Attan İndir') && !labels.includes('Kışkırt'), 'menüde kışkırtma yok', labels);
     });

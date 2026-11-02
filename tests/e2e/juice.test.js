@@ -56,7 +56,8 @@ module.exports = {
       await p.keyboard.down('KeyW'); await t.sleep(350);
       const m = await p.evaluate(() => { const h = G.player.riding; return { spd: h.spd, k: Juice.rearK(h) }; });
       t.eq(m.spd, 0, 'şahlanırken ilerlemez'); t.ok(m.k > 0.3, 'ön taraf havada', m.k);
-      await t.sleep(1200);
+      // şahlanma oyun saatiyle biter: yük altında gerçek zamanla daha uzun sürer; bitip at yeniden yürüyene kadar beklenir
+      await p.waitForFunction(() => { const h = G.player.riding; return h && h.rearT === 0 && h.spd > 10; }, null, { timeout: 10000 }).catch(() => {});
       const e = await p.evaluate(() => ({ rt: G.player.riding.rearT, spd: G.player.riding.spd }));
       await p.keyboard.up('KeyW');
       t.eq(e.rt, 0, 'şahlanma biter'); t.ok(e.spd > 10, 'yeniden yürür', e.spd);

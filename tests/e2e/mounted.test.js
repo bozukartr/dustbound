@@ -153,7 +153,10 @@ module.exports = {
       await t.sleep(250);
       const r0 = await p.evaluate(() => { const it = G.findInteraction(); return { far: !!(it && it.far), a0: it && it.actions[0].n, d: dist(COP.x, COP.y, G.player.x, G.player.y) }; });
       t.ok(r0.far && r0.a0 === 'Teslim Ol' && r0.d > 48, 'uzaktaki kanun adamına teslim seçeneği', r0);
-      await p.keyboard.down('KeyE'); await t.sleep(1000); await p.keyboard.up('KeyE'); await t.sleep(300);
+      // teslim olma basılı tutmanın oyun saatiyle dolar: tutuklama menüsü gelene kadar basılı tutulur
+      await p.keyboard.down('KeyE');
+      await p.waitForFunction(() => TH.menuLabels().some(x => /Cezayı Öde/.test(x)), null, { timeout: 8000 }).catch(() => {});
+      await p.keyboard.up('KeyE'); await t.sleep(300);
       const labels = await p.evaluate(() => TH.menuLabels());
       t.ok(labels.some(x => /Cezayı Öde/.test(x)), 'basılı tutunca teslim olunur (tutuklama menüsü)', labels);
       await p.evaluate(() => TH.clickItem(/Cezayı/)); await t.sleep(300);

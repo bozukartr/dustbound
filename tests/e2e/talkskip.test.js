@@ -33,11 +33,14 @@ module.exports = {
     await t.step('konuşma sürerken yapılan iş (selamlaşma) sıradaki hedefte sayılır; basılı tutunca konuşmanın hepsi geçer, hedef hemen gelir', async () => {
       // konuşma bitmeden bir kasabalıyı selamla
       await p.evaluate(() => { const P = G.player; const e = G.ents.filter(e => e.kind === 'npc' && !e.quest && !e.dead && !e.hostile && e.role !== 'law').sort((a, b) => dist(a.x, a.y, P.x, P.y) - dist(b.x, b.y, P.x, P.y))[0]; G.greet(e); });
-      const t0 = Date.now();
-      await p.keyboard.down('Enter'); await t.sleep(900); await p.keyboard.up('Enter');
+      // basılı tutma oyun saatiyle dolar (0,6 sn): yük altında gerçek zamanla daha uzun sürer; konuşma geçilene kadar basılı tutulur
+      const g0 = await p.evaluate(() => G.t);
+      await p.keyboard.down('Enter');
+      await p.waitForFunction(() => G.story.st === 1 && !G.story.wait, null, { timeout: 8000 }).catch(() => {});
+      await p.keyboard.up('Enter');
       await p.waitForFunction(() => G.story.st === 1 && !G.story.wait, null, { timeout: 4000 });
-      const s = await S(), h = await hud();
-      t.ok(Date.now() - t0 < 3000, 'beklemeden sıradaki adım', Date.now() - t0);
+      const s = await S(), h = await hud(), dg = await p.evaluate((a) => G.t - a, g0);
+      t.ok(dg < 3, 'beklemeden sıradaki adım (oyun saniyesi)', dg);
       t.eq(s.n, 1, 'konuşma sırasındaki selamlaşma sayıldı');
       t.ok(!h.done && /selamla/i.test(h.txt), 'görev satırı yeni hedef', h);
     });
@@ -56,7 +59,9 @@ module.exports = {
       const q1 = await p.evaluate(() => G.story.talkQ ? G.story.talkQ.length : 0);
       t.ok(!r0.it, 'önünde etkileşim yok', r0);
       t.eq(q1, r0.q - 1, 'E ile bir satır geçti');
-      await p.keyboard.down('KeyE'); await t.sleep(900); await p.keyboard.up('KeyE');
+      await p.keyboard.down('KeyE');
+      await p.waitForFunction(() => !G.storyTalking(), null, { timeout: 8000 }).catch(() => {});
+      await p.keyboard.up('KeyE');
       t.ok(await p.evaluate(() => !G.storyTalking()), 'basılı tutunca konuşma bitti');
     });
 
@@ -67,7 +72,9 @@ module.exports = {
       const first = await p.evaluate(() => G.storyDef().chapters[2].steps[0].t.call(G, G.story));
       t.ok(s.ch === 2 && s.st === -1 && s.talking, 'bölüm 3 açılış konuşması sürüyor', s);
       t.ok(h.txt.includes(first) && !/…/.test(h.txt), 'ilk hedef görünüyor', h);
-      await p.keyboard.down('Space'); await t.sleep(900); await p.keyboard.up('Space');
+      await p.keyboard.down('Space');
+      await p.waitForFunction(() => !G.storyTalking(), null, { timeout: 8000 }).catch(() => {});
+      await p.keyboard.up('Space');
       await p.waitForFunction(() => G.story.ch === 2 && G.story.st === 0 && !G.story.wait, null, { timeout: 4000 });
       t.ok(true, 'Boşluk ile geçildi, ilk adım başladı');
     });
