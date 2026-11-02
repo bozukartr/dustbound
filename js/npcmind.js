@@ -407,7 +407,8 @@ const NpcMind = {
   /* İki (ya da üç) sakin arasında sohbet başlat */
   startTalk(a, b, t, lines) {
     const ppl = [a, b];
-    const c = this.ents.find(o => o !== a && o !== b && o.res && !o.dead && !o.hostile && !o.talk && o.state !== 'flee' && dist2(o.x, o.y, a.x, a.y) < 34 * 34 && chance(0.4));
+    // üçüncü kişi: yeni bir sohbetten çıkmış olan (bekleme süresinde) katılmaz
+    const c = this.ents.find(o => o !== a && o !== b && o.res && !o.dead && !o.hostile && !o.talk && !(o.talkCd > this.clock) && o.state !== 'flee' && dist2(o.x, o.y, a.x, a.y) < 34 * 34 && chance(0.4));
     if (c) ppl.push(c);
     const script = (lines || pick(this.talkPool(a, b, t))).map(l => this.fmtTalk(l, t));
     const T = { ppl, script, i: 0, t: 0.3, t0: this.clock };

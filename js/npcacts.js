@@ -175,7 +175,7 @@ const NpcActs = {
     const m = this.mem(r); m.snubDay = this.day;
     // dedikoducu ya da huysuzsa yakındaki birine dert yanar
     if (mood === 'gossip' || mood === 'grumpy' || chance(0.3)) {
-      const o = this.ents.find(o => o !== e && o.res && !o.dead && !o.talk && !o.hostile && o.state !== 'flee' && dist2(o.x, o.y, e.x, e.y) < 70 * 70);
+      const o = this.ents.find(o => o !== e && o.res && !o.dead && !o.talk && !(o.talkCd > this.clock) && !o.hostile && o.state !== 'flee' && dist2(o.x, o.y, e.x, e.y) < 70 * 70);
       if (o) setTimeout(() => { if (!e.dead && !e.remove && !o.dead && !o.remove && !e.talk && !o.talk) this.startTalk(e, o, r.t, pick(SNUB_TALK)); }, 2600);
     }
   },
@@ -299,7 +299,7 @@ const NpcActs = {
           }
           // yakındaki biriyle yol sohbeti
           if (chance(dt * 0.06)) {
-            const o = this.ents.find(o => o.res && !o.dead && !o.talk && !o.hostile && o.state !== 'flee' && dist2(o.x, o.y, e.x, e.y) < 60 * 60);
+            const o = this.ents.find(o => o.res && !o.dead && !o.talk && !(o.talkCd > this.clock) && !o.hostile && o.state !== 'flee' && dist2(o.x, o.y, e.x, e.y) < 60 * 60);   // yeni sohbetten çıkan katılmaz
             if (o) this.startTalk(e, o, w.stopT, pick(TEAM_TALK));
           }
         }

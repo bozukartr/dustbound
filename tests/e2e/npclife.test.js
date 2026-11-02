@@ -85,6 +85,25 @@ module.exports = {
       t.ok(seen.has('Birinci satır.') && seen.has('İkinci satır.') && seen.has('Üçüncü satır.'), 'üç satır sırayla görünmeli', [...seen]);
       t.ok(end.done && !end.talk.some(Boolean) && end.cd, 'sohbet biter, bir süre yeniden başlamaz', end);
     });
+    await t.step('sohbetten yeni çıkan, yakında başlayan bir sohbete üçüncü kişi olarak da katılmaz', async () => {
+      const r = await p.evaluate(() => {
+        const tw = TH.town('harlow'), [x, y, z] = G.ents.filter(e => e.res && !e.dead && !e.remove && !e.child && !e.talk).slice(0, 3);
+        if (!z) return { err: 'üç sakin yok' };
+        // çevresinde başka sakin olmayan açık bir yer: üçüncü kişi yalnız z olabilir
+        const s = TH.openSpot();
+        x.x = s[0]; x.y = s[1]; y.x = s[0] + 14; y.y = s[1]; z.x = s[0]; z.y = s[1] + 16;
+        const once = () => { const T = G.startTalk(x, y, tw, ['Bir.']), inZ = T.ppl.includes(z); for (const q of T.ppl) q.talk = null; G.talks.splice(G.talks.indexOf(T), 1); return inZ; };
+        const r0 = Math.random; Math.random = () => 0;   // üçüncü kişinin katılma şansı hep tutar
+        try {
+          z.talkCd = G.clock + 30; const cool = once();
+          z.talkCd = 0; const free = once();
+          return { cool, free };
+        } finally { Math.random = r0; }
+      });
+      t.ok(!r.err, r.err);
+      t.ok(!r.cool, 'bekleme süresindeki sakin katılmaz', r);
+      t.ok(r.free, 'bekleme süresi bitmiş sakin katılabilir', r);
+    });
     await t.step('kirli oyuncuya sataşır; karşılık verilince güler ya da bozulur', async () => {
       const r = await p.evaluate(() => {
         const P = G.player, tw = TH.town('harlow');
@@ -111,6 +130,8 @@ module.exports = {
     await t.step('silah doğrultulan sivil ellerini kaldırır; dörtnala gelen atlıdan yana sıçrar', async () => {
       const r = await p.evaluate(() => {
         const P = G.player, e = TE;
+        // yana sıçrama duvara, çite ya da arabaya takılmasın: kasaba dışında açık bir yer
+        const s = TH.openSpot(); TH.goto(s[0], s[1]);
         e.state = 'idle'; e.talk = null; e.x = P.x + 40; e.y = P.y; e.handsT = 0;
         P.giveWeapon('cattleman', true); P.weapon = 'cattleman'; P.aiming = true; P.aimAng = 0;
         G.perceive(e, 0.016);
@@ -194,9 +215,15 @@ module.exports = {
         const A = sp[0], B = sp.find(s => dist2(s.x, s.y, A.x, A.y) > 180 * 180) || sp[sp.length - 1];
         const mk = () => { const n = new NPC(A.x, A.y, 'traveler', {}); n.state = 'idle'; G.addEnt(n); return n; };
         const ns = [mk(), mk()], tr = [[], []];
-        for (let f = 0; f < 30 * 25; f++) {
-          ns.forEach((n, i) => { if (G.navStep(n, B.x, B.y, 1 / 30, 30) === 'moving') tr[i].push([n.x, n.y]); });
-        }
+        // kavis payı rastgele (parça başına ±16 px'e dek): sıfıra yakın çekiliş yolu düz bırakabilir (doğal bir durum).
+        // Mekanizma kesin sınansın diye bu iki kişinin kavisleri güçlü ve karşı yönlere çekilir
+        const br = G.bendRoute; let k = 0;
+        G.bendRoute = function (e, R) { const r0 = Math.random, v = (k++ % 2) ? 0.1 : 0.9; Math.random = () => v; try { return br.call(this, e, R); } finally { Math.random = r0; } };
+        try {
+          for (let f = 0; f < 30 * 25; f++) {
+            ns.forEach((n, i) => { if (G.navStep(n, B.x, B.y, 1 / 30, 30) === 'moving') tr[i].push([n.x, n.y]); });
+          }
+        } finally { G.bendRoute = br; }
         ns.forEach(n => { n.remove = true; });
         // düz çizgiden sapma ve iki yol arasındaki fark
         const dev = (a) => { const [x0, y0] = a[0], [x1, y1] = a[a.length - 1], L = Math.hypot(x1 - x0, y1 - y0) || 1; return Math.max(...a.map(([x, y]) => Math.abs((x1 - x0) * (y0 - y) - (x0 - x) * (y1 - y0)) / L)); };
