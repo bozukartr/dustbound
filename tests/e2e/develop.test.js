@@ -108,6 +108,9 @@ module.exports = {
       const r = await p.evaluate(() => {
         G.devInit(); G.devYear(G.year, true);
         const T = TH.town('harlow'), feeds = [];
+        // dünyaya göre bu yıla düşen başka bir gelişme (bir kasabanın kaderi) haber seçimini bozmasın: son iki yılın
+        // kayıtlarından yalnız Harlow'un büyümesi kalır
+        G.dev.log = G.dev.log.filter(e => e.y <= G.year - 2); G.dev.fresh.length = 0;
         const f = UI.feed; UI.feed = (s) => { feeds.push(String(s)); };
         G.devLog(G.year, T, 'up', 3); G.devAnnounce();
         UI.feed = f;
