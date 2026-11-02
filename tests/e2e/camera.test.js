@@ -58,8 +58,10 @@ module.exports = {
     });
     await t.step('içeride kamera oyuncuyu izlemez: binanın ortasında durur, oyuncu yürürken sahne kıpırdamaz (60 ve 144 Hz)', async () => {
       const r = await p.evaluate(() => {
-        const P = G.player, C = G.cam, b = GB, x0 = P.x, y0 = P.y;
-        const out = { dx: Math.abs(C.x - (b.x + b.w / 2) * TS), dy: Math.abs(C.y - (b.y + b.h / 2) * TS) };
+        const P = G.player, C = G.cam, b = GB, x0 = P.x, y0 = P.y, cx = (b.x + b.w / 2) * TS, cy = (b.y + b.h / 2) * TS;
+        // yük altında girişten sonraki kayma bitmemiş olabilir: kamera önce yerine oturur (en çok 10 sn'lik adım)
+        for (let i = 0; i < 600 && (Math.abs(C.x - cx) > 0.001 || Math.abs(C.y - cy) > 0.001); i++) G.updateCamera(1 / 60);
+        const out = { dx: Math.abs(C.x - cx), dy: Math.abs(C.y - cy) };
         for (const fps of [60, 144]) {
           const ox0 = C.ox, oy0 = C.oy;
           let moved = 0;

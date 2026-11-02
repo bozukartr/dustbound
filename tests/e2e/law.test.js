@@ -43,7 +43,7 @@ module.exports = {
       await setup();
       // kanun adamı suçu kendisi görür: rapor anında işler (tanığın koşusu ilk adımda sınandı)
       await p.evaluate(() => { G.player.addItem('mask_bandana', 1, true); if (!G.player.masked) G.toggleMask(); window.law = mk(60, 0, 'law'); law.state = 'static'; G.crime('robbery', G.player.x, G.player.y, null); });
-      await p.waitForFunction(() => G.law.level > 0, null, { timeout: 10000 });
+      await p.waitForFunction(() => G.law.level > 0, null, { timeout: 30000 });   // yük altında oyun saati yavaş akar
       const r = await p.evaluate(() => ({ masked: G.law.masked, mb: G.law.maskBounty, b: G.law.bounty }));
       t.ok(r.masked && r.mb > 0 && r.b === 0, 'ödül maskeli yabancıya yazılmalı', r);
       await p.evaluate(() => { for (const e of G.ents) if (e.kind === 'npc') { e.x = G.player.x + 700; e.y = G.player.y; e.hostile = false; } if (G.player.masked) G.toggleMask(); });
@@ -146,8 +146,9 @@ module.exports = {
     await t.step('aranırken ofise giren oyuncuya ateşkes: ateş edilmez, teslim olup cezayı öder', async () => {
       // üç yıldız: normalde kanun gördüğü yerde ateş eder
       t.ok(await office({ level: 3, bounty: 60 }), 'masada şerif olmalı');
-      await p.evaluate(() => TH.inside(ofc));
-      await t.sleep(4500);
+      // ateşkes geri sayımı oyun saatiyle: 4,5 oyun saniyesi beklenir (yük altında gerçek zamanla daha uzun)
+      const t0 = await p.evaluate(() => { TH.inside(ofc); return G.t; });
+      await p.waitForFunction((t0) => G.t - t0 >= 4.5, t0, { timeout: 40000 }).catch(() => {});
       const r = await p.evaluate(() => ({ truce: !!G.truce, shots, hp: G.player.hp / G.player.maxHp, moved: dist(ofc.staffNpc.x, ofc.staffNpc.y, ofc.staff.x, ofc.staff.y), hostile: !!ofc.staffNpc.hostile,
         hud: !document.querySelector('#hud-wanted .wanted-truce').classList.contains('hidden') && document.querySelector('#hud-wanted .wanted-truce').textContent, acts: TH.actions() }));
       t.ok(r.truce, 'ofiste ateşkes başlamalı'); t.eq(r.shots, 0, 'kanun ateş etmemeli'); t.ok(r.hp > 0.99, 'can azalmamalı', r.hp);

@@ -35,7 +35,10 @@ module.exports = {
       try { for (let k = 0; k < 50 && (await p.evaluate(() => TG.state)) !== 'tied'; k++) await t.sleep(100); } finally { await p.keyboard.up('KeyE'); }
       await t.sleep(200);
       t.eq(await p.evaluate(() => TG.state), 'tied', 'bağlanmalı');
-      await p.keyboard.press('KeyE'); await t.sleep(300);
+      // etkileşim taraması bağlı kişiyi görünce kısa basılır (basış ve bırakış ayrı karelerde işlenir: yükte beklenir)
+      await p.waitForFunction(() => { const it = UI.curInteract; return !!(it && it.actions.some(a => a.n === 'Omzuna Al')); }, null, { timeout: 8000 }).catch(() => {});
+      await p.keyboard.press('KeyE');
+      await p.waitForFunction(() => G.player.carry === TG, null, { timeout: 8000 }).catch(() => {});
       t.ok(await p.evaluate(() => G.player.carry === TG && !G.ents.includes(TG)), 'omuzda olmalı');
       // hız oyun saatiyle ölçülür (px/sn): yükle koşulamaz (koşu 88, yükle yürüyüş en çok 46)
       const s0 = await p.evaluate(() => [G.player.x, G.player.y, G.t]);

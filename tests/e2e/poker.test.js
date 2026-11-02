@@ -50,6 +50,9 @@ module.exports = {
       t.eq(r, [], 'poker her üç yerde de olmalı');
     });
     await t.step('klavyeyle bir el: dağıt, gör, kart değiştir, sonuç; para korunur', async () => {
+      // poker tuşları her karede bir okunur: ardışık basışlar arasında iki kare beklenir (yük altında kare uzar)
+      const frames = (n) => p.evaluate((n) => new Promise(res => { const f0 = G.fno || 0, k = () => ((G.fno || 0) - f0 >= n ? res() : requestAnimationFrame(k)); requestAnimationFrame(k); }), n);
+      const key = async (k) => { await p.keyboard.press(k); await frames(2); };
       // rakipler hep görsün ki kart değiştirme ve el gösterme kesin yaşansın
       await p.evaluate(() => {
         PK.aiAct = Poker.aiAct;
@@ -58,17 +61,18 @@ module.exports = {
       });
       await t.sleep(200);
       const t0 = await p.evaluate(() => ({ total: PK.total(), clock: G.clock }));
-      await p.keyboard.press('Enter'); await t.sleep(300);
+      await key('Enter');
+      await p.waitForFunction(() => PK.top().phase !== 'idle', null, { timeout: 8000 }).catch(() => {});
       t.ok(await p.evaluate(() => PK.top().phase !== 'idle'), 'Enter eli dağıtmalı');
       let swapped = false;
-      for (let n = 0; n < 200; n++) {
+      for (let n = 0; n < 600; n++) {
         const s = await p.evaluate(() => { const st = PK.top(); return { ph: st.phase, turn: Poker.toAct(st), folded: st.seats[0].folded }; });
         if (s.ph === 'idle') break;
         if (s.ph === 'draw' && !s.folded) {
-          await p.keyboard.press('Enter'); await t.sleep(60); await p.keyboard.press('ArrowRight'); await t.sleep(60); await p.keyboard.press('Enter'); await t.sleep(60);
+          await key('Enter'); await key('ArrowRight'); await key('Enter');
           t.eq(await p.evaluate(() => PK.top().sel.size), 2, 'iki kart seçilmeli');
-          await p.keyboard.press('KeyX'); swapped = true;
-        } else if (s.turn === 0) await p.keyboard.press('Enter');
+          await key('KeyX'); swapped = true;
+        } else if (s.turn === 0) await key('Enter');
         await t.sleep(80);
       }
       const r = await p.evaluate(() => { Poker.aiAct = PK.aiAct; const st = PK.top(); return { ph: st.phase, msg: st.msg, pot: st.pot, total: PK.total(), drew: st.seats[0].drew, reveal: st.reveal, shown: document.querySelectorAll('.pk-seat .card.sm:not(.back)').length, clock: G.clock, hands: st.seats.filter(s => s.hand.length === 5).length }; });
@@ -85,7 +89,7 @@ module.exports = {
       await p.evaluate(() => { PK.top().msg = ''; Poker.aiAct = (st) => { const i = Poker.toAct(st); if (i < 0 || st.seats[i].me) return false; Poker.act(st, i, 'call'); return true; }; });
       await p.click('.pk-b[data-a="deal"]');
       await t.sleep(200);
-      for (let n = 0; n < 100; n++) {
+      for (let n = 0; n < 300; n++) {
         const s = await p.evaluate(() => { const st = PK.top(); return { ph: st.phase, turn: Poker.toAct(st) }; });
         if (s.ph === 'idle' || s.ph === 'draw') break;
         if (s.turn === 0) await p.click('.pk-b[data-a="call"]');
@@ -99,13 +103,13 @@ module.exports = {
         t.eq(await p.evaluate(() => [...PK.top().sel]), [0], 'ikinci tık seçimi kaldırır');
         await p.evaluate(() => { Poker.aiAct = PK.aiAct; });
         await p.click('.pk-b[data-a="draw"]');
-        for (let n = 0; n < 100 && await p.evaluate(() => PK.top().phase !== 'idle' && Poker.toAct(PK.top()) !== 0); n++) await t.sleep(60);
+        for (let n = 0; n < 300 && await p.evaluate(() => PK.top().phase !== 'idle' && Poker.toAct(PK.top()) !== 0); n++) await t.sleep(60);
       }
       t.eq(r.ph, 'draw', 'kart değiştirme aşamasına gelinmeli');
       const st = await p.evaluate(() => ({ ph: PK.top().phase, m0: G.player.money, put: PK.top().seats[0].total }));
       if (st.ph !== 'idle') {
         await p.click('.pk-b[data-a="fold"]');
-        for (let n = 0; n < 150 && await p.evaluate(() => PK.top().phase !== 'idle'); n++) await t.sleep(60);
+        for (let n = 0; n < 450 && await p.evaluate(() => PK.top().phase !== 'idle'); n++) await t.sleep(60);
         const e = await p.evaluate(() => ({ ph: PK.top().phase, m: G.player.money, folded: PK.top().seats[0].folded, total: PK.top().seats[0].total, win: PK.top().seats[0].win }));
         t.eq(e.ph, 'idle', 'el bitmeli'); t.ok(e.folded && !e.win, 'çekilmiş olmalı');
         t.near(e.m, st.m0, 0.001, 'çekilince fazladan para gitmez');

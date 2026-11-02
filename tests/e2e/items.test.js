@@ -52,7 +52,11 @@ module.exports = {
       const run = async () => {
         await p.evaluate(() => { G.player.sta = G.player.maxSta; });
         const s0 = await p.evaluate(() => G.player.sta);
-        await p.keyboard.down('ShiftLeft'); await p.keyboard.down('KeyD'); await t.sleep(1200); await p.keyboard.up('KeyD'); await p.keyboard.up('ShiftLeft');
+        // 1,2 oyun saniyesi koşulur (yük altında oyun saati gerçek zamandan yavaş akar)
+        const t0 = await p.evaluate(() => G.t);
+        await p.keyboard.down('ShiftLeft'); await p.keyboard.down('KeyD');
+        await p.waitForFunction((t0) => G.t - t0 >= 1.2, t0, { timeout: 15000 }).catch(() => {});
+        await p.keyboard.up('KeyD'); await p.keyboard.up('ShiftLeft');
         return s0 - await p.evaluate(() => G.player.sta);
       };
       const plain = await run();
@@ -136,14 +140,17 @@ module.exports = {
       t.ok(!r.err, r.err); t.ok(r.on, 'dürbün açılmalı');
       // önce klavyeyle sola (geyiğe) bak
       const x0 = await p.evaluate(() => G.player.x);
-      await p.keyboard.down('KeyA'); await t.sleep(1500); await p.keyboard.up('KeyA'); await t.sleep(600);
+      // görüş oyun saatiyle kayar: yük altında daha uzun sürer; görüş ve kamera sola varana kadar basılı tutulur
+      await p.keyboard.down('KeyA');
+      await p.waitForFunction(() => G.binoc && G.binoc.x < -300 && G.cam.x - G.player.x < -250, null, { timeout: 15000 }).catch(() => {});
+      await p.keyboard.up('KeyA'); await t.sleep(600);
       const l = await p.evaluate(() => ({ bx: G.binoc.x, cam: G.cam.x - G.player.x, px: G.player.x, labels: [...document.querySelectorAll('#binoc .bn-l')].map(n => n.textContent) }));
       t.near(l.px, x0, 0.01, 'dürbünle bakarken oyuncu yürümez');
       t.ok(l.bx < -300 && l.cam < -250, 'görüş sola kaymalı', l);
       t.ok(l.labels.some(s => /Geyik/.test(s)), 'geyik etiketlenmeli', l.labels);
       // sonra uzaktaki yere
       await p.evaluate(() => { G.binoc.x = PO.x - G.player.x; G.binoc.y = PO.y - G.player.y; G.binoc.mouse = false; });
-      await t.sleep(900);
+      await p.waitForFunction(() => G.rumored.has(PO.id), null, { timeout: 10000 }).catch(() => {});
       const q = await p.evaluate(() => ({ rumored: G.rumored.has(PO.id), discovered: G.discovered.has(PO.id), feed: TH.feeds.some(f => /Uzakta/.test(f)) }));
       t.ok(q.rumored && !q.discovered, 'yer haritada işaretlenir ama keşfedilmiş sayılmaz', q); t.ok(q.feed, 'bildirim');
     });

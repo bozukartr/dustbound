@@ -28,7 +28,9 @@ module.exports = {
     const st = () => p.evaluate(() => RK.st());
     const down = async (...ks) => { for (const k of ks) await p.keyboard.down(k); };
     const up = async (...ks) => { for (const k of ks) await p.keyboard.up(k); };
-    const hold = async (ks, ms) => { await down(...ks); await t.sleep(ms); await up(...ks); };
+    // süreler oyun saatiyle: yük altında kareler seyrekleşince gerçek zamanla tutulan tuş daha az yol aldırır
+    const wait = async (sec) => { const t0 = await p.evaluate(() => G.t); await p.waitForFunction((a) => G.t - a.t0 >= a.sec, { t0, sec }, { timeout: sec * 8000 + 4000 }).catch(() => {}); };
+    const hold = async (ks, ms) => { await down(...ks); await wait(ms / 1000); await up(...ks); };
 
     await t.step('W atı baktığı yöne sürer; D tek başına dururken atı yerinde sağa çevirir, ilerletmez', async () => {
       await p.evaluate(() => RK.mount());
@@ -36,7 +38,7 @@ module.exports = {
       await hold(['KeyW'], 1300);
       const b = await st();
       t.ok(b.x - a.x > 30 && Math.abs(b.y - a.y) < 6 && Math.abs(b.ang) < 0.02, 'W: doğuya (baktığı yöne) gider, yön değişmez', { a, b });
-      await t.sleep(1600);
+      await wait(1.6);
       const c = await st();
       t.ok(c.spd < 3, 'W bırakılınca at durur', c);
       await hold(['KeyD'], 600);
@@ -57,13 +59,13 @@ module.exports = {
       await p.evaluate(() => RK.still());
       await hold(['KeyW'], 1400);
       const v0 = await st();
-      await down('KeyS'); await t.sleep(700);
+      await down('KeyS'); await wait(0.7);
       const v1 = await st();
-      await t.sleep(1500);
+      await wait(1.5);
       const v2 = await st();
-      await t.sleep(900);
+      await wait(0.9);
       const v3 = await st();
-      await up('KeyS'); await t.sleep(1300);
+      await up('KeyS'); await wait(1.3);
       const v4 = await st();
       t.ok(v0.spd > 70 && v1.spd < v0.spd * 0.45, 'S fren: hız hızla düşer', { v0, v1 });
       t.ok(v2.back && v3.back && v3.x < v2.x - 5 && Math.abs(v3.ang) < 0.05, 'durduktan sonra S basılı: geri geri gider, yön değişmez', { v2, v3 });
@@ -79,15 +81,15 @@ module.exports = {
 
     await t.step('Shift + W dörtnala; dörtnalda dönüş tırıstakinden geniş', async () => {
       await p.evaluate(() => RK.mount());
-      await down('ShiftLeft', 'KeyW'); await t.sleep(2600);
+      await down('ShiftLeft', 'KeyW'); await wait(2.6);
       const g = await st();
-      await down('KeyD'); await t.sleep(400);
+      await down('KeyD'); await wait(0.4);
       const g1 = await st();
-      await up('KeyD', 'KeyW', 'ShiftLeft'); await t.sleep(2600);
+      await up('KeyD', 'KeyW', 'ShiftLeft'); await wait(2.6);
       await p.evaluate(() => RK.still());
-      await down('KeyW'); await t.sleep(900);
+      await down('KeyW'); await wait(0.9);
       const r0 = await st();
-      await down('KeyD'); await t.sleep(400);
+      await down('KeyD'); await wait(0.4);
       const r1 = await st();
       await up('KeyD', 'KeyW');
       t.ok(g.spd > 130 && g.gal, 'dörtnala', g);
@@ -97,7 +99,7 @@ module.exports = {
     });
 
     await t.step('yük arabası da dizginle sürülür: W ileri, W+D sağa, S ile geri', async () => {
-      await t.sleep(1500);
+      await wait(1.5);
       await p.evaluate(() => RK.mount(true));
       const a = await st();
       await hold(['KeyW'], 1500);
@@ -106,7 +108,7 @@ module.exports = {
       await hold(['KeyW', 'KeyD'], 900);
       const c = await st();
       t.ok(c.ang > 0.5, 'W+D: araba sağa döner', c);
-      await t.sleep(2200);
+      await wait(2.2);
       const d0 = await st();
       await hold(['KeyS'], 1600);
       const d1 = await st();
@@ -118,9 +120,9 @@ module.exports = {
     await t.step('yürürken tuşlar ekrandaki yönlerdir (D doğu, S güney)', async () => {
       await p.evaluate(() => { const s = TH.openSpot(undefined, undefined, 120); TH.goto(s[0], s[1]); G.player.ang = Math.PI; });
       const a = await p.evaluate(() => [G.player.x, G.player.y]);
-      await hold(['KeyD'], 700); await t.sleep(300);
+      await hold(['KeyD'], 700); await wait(0.3);
       const b = await p.evaluate(() => [G.player.x, G.player.y]);
-      await hold(['KeyS'], 700); await t.sleep(300);
+      await hold(['KeyS'], 700); await wait(0.3);
       const c = await p.evaluate(() => [G.player.x, G.player.y]);
       t.ok(b[0] - a[0] > 20 && Math.abs(b[1] - a[1]) < 6, 'D: doğuya yürür', { a, b });
       t.ok(c[1] - b[1] > 20 && Math.abs(c[0] - b[0]) < 6, 'S: güneye yürür', { b, c });
