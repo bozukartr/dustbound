@@ -32,7 +32,15 @@ module.exports = {
     await t.step('yolda iki yönden gelen arabalar üst üste binmez, hepsi yoluna devam eder', async () => {
       const r = await p.evaluate(() => {
         const W = G.world, road = W.roads.filter(r => !r.spur && r.pts.length > 40)[0];
-        const mid = road.pts[20]; TH.goto(mid[0] + 40, mid[1] + 40); TH.clearNpcs();
+        // oyuncu yolun kenarında, yoldan en az 50 px uzakta durur: yolda dikilen oyuncuyu arabalar (doğru olarak) bekler
+        const mid = road.pts[20], a = road.pts[19], b = road.pts[21], nx = -(b[1] - a[1]), ny = b[0] - a[0], nl = Math.hypot(nx, ny) || 1;
+        let spot = null;
+        for (const off of [70, -70, 100, -100, 140, -140]) {
+          const x = mid[0] + nx / nl * off, y = mid[1] + ny / nl * off;
+          if (Math.min(...road.pts.map(q => Math.hypot(q[0] - x, q[1] - y))) >= 50 && !W.blocked(x, y, 6) && !W.isWaterPx(x, y)) { spot = [x, y]; break; }
+        }
+        spot = spot || [mid[0] + 40, mid[1] + 40];
+        TH.goto(spot[0], spot[1]); TH.clearNpcs();
         G.eventT = 1e9; G.travelT = 1e9;   // yol olayları (düello, soygun) testi bölmesin
         for (const e of G.ents) if (e.kind === 'wagon') e.remove = true; G.ents = G.ents.filter(e => !e.remove);
         const ws = [new Wagon(road, 10, 1, false), new Wagon(road, 14, 1, true), new Wagon(road, 30, -1, false), new Wagon(road, 26, -1, true), new Wagon(road, 6, 1, true)];
