@@ -170,6 +170,7 @@ const G = {
     const base = w >= 1500 && h >= 1000 ? 1.2 : w <= 800 ? 0.75 : 1;
     const hs = Math.min((HUD_SCALES[S.hudScale === undefined ? 2 : S.hudScale] || 1) * base, h / 560);
     document.documentElement.style.setProperty('--hs', hs.toFixed(3));
+    if (typeof UI !== 'undefined' && UI.cache) UI.dangerFit();   // sağ üst sütun sağ alttakine binmesin
   },
   resize() {
     this.hudScaleApply();

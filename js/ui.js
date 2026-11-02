@@ -483,7 +483,18 @@ const UI = {
           + lines.filter(Boolean).map(l => `<div class="dg-a">${l}</div>`).join('') + '</div>';
       }
     }
-    if (el._k !== html) { el._k = html; el.innerHTML = html; el.classList.toggle('hidden', !html); }
+    if (el._k !== html) { el._k = html; el.innerHTML = html; el.classList.toggle('hidden', !html); if (html) this.dangerFit(); }
+  },
+  /* Tehlike kartı sağ üst sütunda: kısa pencerede (ör. 960×540) sağ alttaki silah kartına ve tuş istemlerine inmesin.
+     Yer yetmezse adım adım sıkışır: önce sonraki durumların öğütleri, sonra ilk durumun ek satırları ve öbür çubuklar,
+     en son yalnız ilk durum kalır. Kart, istemler ya da pencere boyu değişince yeniden ölçülür. */
+  dangerFit() {
+    const el = this.cache.dg || (this.cache.dg = $('#hud-danger'));
+    if (!el || el.classList.contains('hidden')) return;
+    const tr = this.cache.htr || (this.cache.htr = $('#hud-tr')), br = this.cache.hbr || (this.cache.hbr = $('#hud-br'));
+    const room = () => br.getBoundingClientRect().top - 8 - tr.getBoundingClientRect().bottom;
+    el.classList.remove('tight', 'tighter', 'tightest');
+    for (const c of ['tight', 'tighter', 'tightest']) { if (room() >= 0) break; el.classList.add(c); }
   },
   hudUpdate() {
     const P = G.player;
@@ -684,6 +695,7 @@ const UI = {
     }
     const key = lines.join('');
     if (this._pk !== key) { this._pk = key; this.el.prompts.innerHTML = key; }
+    if (this._pn !== lines.length) { this._pn = lines.length; this.dangerFit(); }   // istem bloğu büyüdü ya da küçüldü: tehlike kartı sığıyor mu
   },
   contextMenu(it) {
     // peek: menü bu seçenekte açılır (at üstünde yakındakiyle ilk eylem); görevi ilerleten seçenek varsa o

@@ -45,9 +45,11 @@ module.exports = {
         r.create = await p.evaluate(() => overflow(document.querySelector('.modal')));
         await t.newGame({ page: p });
         await helpers();
-        // HUD dolu: yardım kutusu, başarım bildirimi, tehlike kartı, silah kartı
+        // HUD dolu: yardım kutusu, başarım bildirimi, üç durumlu tehlike kartı, silah kartı ve tuş istemleri
         await p.evaluate(() => {
           UI.closeAll(); const P = G.player; P.giveWeapon('cattleman', true); P.weapon = 'cattleman'; P.poison = 200; G.heatLoad = 1.4; G.hotness = 0.4;
+          P.thirst = 0; P.hunger = 0;   // tehlike kartının en kalabalık hâli: üç durum
+          if (G.horse) { G.horse.dead = false; G.horse.x = P.x + 14; G.horse.y = P.y + 4; }   // at yanında: sağ altta tuş istemleri de dolu
           UI.help('<b>Yardım kutusu</b>: uzunca bir ipucu metni. Burada iki üç satır yazı olur ve kutu sol üst köşede durur.', 20);
           UI.toast('Başarım', 'Uzunca bir başarım açıklaması', 'ach'); UI.hudUpdate(); UI.dangerCard();
         });
