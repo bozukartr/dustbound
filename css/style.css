@@ -187,6 +187,11 @@ body.modal-open #hud > :not(#toasts):not(#feed) { opacity: 0.0; }
 #hud-danger .dg-bar i { display: block; height: 100%; background: var(--c); }
 #hud-danger .dg-a { color: #d8ccb4; margin-top: 2px; }
 #hud-danger .btn { min-width: 17px; height: 17px; padding: 0 4px; margin: 0 2px 0 4px; font-size: 10px; vertical-align: 0; }
+/* kısa pencerede sığdırma (UI.dangerFit): sağ alttaki silah kartına ve istemlere inmesin */
+#hud-danger.tight .dg-c + .dg-c .dg-a { display: none; }
+#hud-danger.tighter .dg-a + .dg-a, #hud-danger.tighter .dg-c + .dg-c .dg-bar { display: none; }
+#hud-danger.tighter .dg-c + .dg-c { margin-top: 3px; padding-top: 3px; }
+#hud-danger.tightest .dg-c + .dg-c { display: none; }
 
 /* Yardım kartı: pirinç mühür, alttaki çizgi kalan süreyi gösterir */
 #hud-help { position: absolute; left: 24px; top: 20px; max-width: 460px; padding: 13px 18px 15px 58px; font-size: 17px; line-height: 1.45; color: #efe6d2;

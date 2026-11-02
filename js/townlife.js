@@ -377,6 +377,15 @@ class Wagon extends Ent {
   }
   /* Çarpışma çemberleri: önde atlar, arkada gövde */
   circles() { return [[this.x, this.y, 5.5], [this.bx, this.by, 7]]; }
+  /* (x, y, r) arabaya ne kadar giriyor (> 0 içeride): iki çember ve aralarındaki oklar. Atlarla araba (otomobilde gövdenin
+     ortası) arasındaki boşluk 4 px yarıçaplı bir kapsül sayılır: hayvan ya da at aradan geçemez (hayvan ve at çarpışması) */
+  penAt(x, y, r) {
+    const C = this.circles();
+    let m = -Infinity;
+    for (const [cx, cy, cr] of C) m = Math.max(m, cr + r - Math.hypot(x - cx, y - cy));
+    const [ax, ay] = C[0], [bx, by] = C[1], vx = bx - ax, vy = by - ay, t = clamp(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1), 0, 1);
+    return Math.max(m, 4 + r - Math.hypot(x - ax - vx * t, y - ay - vy * t));
+  }
   overlapWith(o) {
     let m = 0;
     for (const [x1, y1, r1] of this.circles()) for (const [x2, y2, r2] of o.circles()) { const v = r1 + r2 - Math.hypot(x1 - x2, y1 - y2); if (v > m) m = v; }

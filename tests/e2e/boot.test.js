@@ -10,8 +10,10 @@ module.exports = {
       t.ok(!items.includes('cont') && !items.includes('load'), 'kayıt yokken Devam Et / Kayıt Yükle olmamalı', items);
     });
     await t.step('karakter ekranı açılır, oyun başlar', async () => {
-      await p.keyboard.press('Enter'); await t.sleep(500);
-      t.ok(await p.evaluate(() => !!document.querySelector('.create')), 'karakter oluşturma ekranı açılmalı');
+      await p.keyboard.press('Enter');
+      // takımın ilk dosyası: iki tarayıcı birden açılırken ilk kareler yavaş; ekran gelene kadar beklenir
+      const open = await p.waitForFunction(() => !!document.querySelector('.create'), null, { timeout: 10000 }).then(() => true, () => false);
+      t.ok(open, 'karakter oluşturma ekranı açılmalı', await p.evaluate(() => ({ state: G.state, top: UI.top() && UI.top().el && UI.top().el.className, focus: UI.top() && UI.top().focusEl && UI.top().focusEl.dataset.id })));
       await t.newGame({ page: p });
       const s = await p.evaluate(() => ({ state: G.state, slot: G.slot, town: G.curTown, hud: !document.getElementById('hud').classList.contains('hidden') }));
       t.eq(s.state, 'play', 'oyun durumu');
@@ -58,8 +60,10 @@ module.exports = {
       await p.evaluate(() => { const s = TH.openSpot(); TH.goto(s[0], s[1]); });
       await t.sleep(300);
       const x0 = await p.evaluate(() => G.player.x);
-      await p.keyboard.down('KeyD'); await t.sleep(700); await p.keyboard.up('KeyD');
-      const dx = await p.evaluate((x0) => G.player.x - x0, x0);
+      // tuş basılıyken oyuncu sağa ilerlemeli; kare hızı düşük olsa da (aynı anda birkaç test) en çok 3 sn beklenir
+      await p.keyboard.down('KeyD');
+      let dx = 0;
+      try { for (let k = 0; k < 30 && dx <= 20; k++) { await t.sleep(100); dx = await p.evaluate((x0) => G.player.x - x0, x0); } } finally { await p.keyboard.up('KeyD'); }
       t.ok(dx > 20, 'oyuncu sağa yürümeli', dx);
     });
     await t.step('duraklatma menüsü ve harita açılıp kapanır', async () => {

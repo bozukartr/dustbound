@@ -254,6 +254,7 @@ const UI = {
       const e = el_('div', 'toast tk-' + (kind || 'none'), `<div class="t-k">${{ ach: Tr('BAŞARIM'), skill: Tr('YETENEK'), year: Tr('YAŞ'), family: Tr('AİLE'), bounty: Tr('ÖDÜL'), horse: Tr('AT'), ok: '' }[kind] || ''}</div><div class="t-t">${Icons.iconize(title)}</div><div class="t-s">${Icons.iconize(sub || '')}</div>`);
       e._key = key;
       this.el.toasts.appendChild(e);
+      this.toastDodge();
       const dur = Q.length ? 3600 : 5200;
       setTimeout(() => { e.classList.add('out'); this.toastPump(); }, dur);
       setTimeout(() => e.remove(), dur + 800);
@@ -265,7 +266,17 @@ const UI = {
     // alttaki pirinç çizgi kalan süreyi gösterir
     h.style.setProperty('--dur', dur + 's'); h.classList.remove('tick'); void h.offsetWidth; h.classList.add('tick');
     clearTimeout(this._helpT);
-    this._helpT = setTimeout(() => h.classList.add('hidden'), dur * 1000);
+    this._helpT = setTimeout(() => { h.classList.add('hidden'); this.toastDodge(); }, dur * 1000);
+    this.toastDodge();
+  },
+  /* Dar ekranda (küçük pencere, Steam Deck) ortadaki bildirim sol üstteki yardım kutusunun üstüne binmesin:
+     kesişirlerse bildirimler yardımın altına iner, yardım kapanınca yerine döner */
+  toastDodge() {
+    const t = this.el.toasts, h = this.el.help;
+    if (t.style.top) t.style.top = '';
+    if (h.classList.contains('hidden') || !t.children.length) return;
+    const a = h.getBoundingClientRect(), b = t.getBoundingClientRect(), o = this.el.hud.getBoundingClientRect();
+    if (b.left < a.right + 8 && b.right > a.left - 8 && b.top < a.bottom + 8) t.style.top = Math.round(a.bottom - o.top + 8) + 'px';
   },
   /* Koç ipuçları: oyuncu bir mekaniği kaçırınca (çarkı hiç açmadan yumrukla dövüşmek, nişan almadan
      ateş etmek) ekranın ortasında tek satır belirir. Öğrenilince (çark açılınca, nişanla ateş edilince)
@@ -439,7 +450,7 @@ const UI = {
         const coat = Object.keys(P.inv).filter(id => ITEMS[id] && ITEMS[id].coat && ITEMS[id].coat.warm > cur).sort((a, b) => ITEMS[b].coat.warm - ITEMS[a].coat.warm)[0];
         return [Tr('Ateşe yaklaş ya da bir binaya gir.') + (P.has('bedroll') ? ' ' + Tr`Kamp ateşi için ${g('camp')} basılı tut.` : ''), coat ? Tr`Daha kalın giysin var: ${ITEMS[coat].n}` : ''];
       }
-      case 'heat': return [Tr('Gölgeye ya da bir binaya gir, su iç.')];
+      case 'heat': return [Tr('Bir binaya ya da serin suya gir, su iç.')];
       case 'tired': return [Tr`Uyu: otel, evin ya da kamp (${g('camp')} basılı tut).`];
     }
     return [];
@@ -472,7 +483,18 @@ const UI = {
           + lines.filter(Boolean).map(l => `<div class="dg-a">${l}</div>`).join('') + '</div>';
       }
     }
-    if (el._k !== html) { el._k = html; el.innerHTML = html; el.classList.toggle('hidden', !html); }
+    if (el._k !== html) { el._k = html; el.innerHTML = html; el.classList.toggle('hidden', !html); if (html) this.dangerFit(); }
+  },
+  /* Tehlike kartı sağ üst sütunda: kısa pencerede (ör. 960×540) sağ alttaki silah kartına ve tuş istemlerine inmesin.
+     Yer yetmezse adım adım sıkışır: önce sonraki durumların öğütleri, sonra ilk durumun ek satırları ve öbür çubuklar,
+     en son yalnız ilk durum kalır. Kart, istemler ya da pencere boyu değişince yeniden ölçülür. */
+  dangerFit() {
+    const el = this.cache.dg || (this.cache.dg = $('#hud-danger'));
+    if (!el || el.classList.contains('hidden')) return;
+    const tr = this.cache.htr || (this.cache.htr = $('#hud-tr')), br = this.cache.hbr || (this.cache.hbr = $('#hud-br'));
+    const room = () => br.getBoundingClientRect().top - 8 - tr.getBoundingClientRect().bottom;
+    el.classList.remove('tight', 'tighter', 'tightest');
+    for (const c of ['tight', 'tighter', 'tightest']) { if (room() >= 0) break; el.classList.add(c); }
   },
   hudUpdate() {
     const P = G.player;
@@ -673,6 +695,7 @@ const UI = {
     }
     const key = lines.join('');
     if (this._pk !== key) { this._pk = key; this.el.prompts.innerHTML = key; }
+    if (this._pn !== lines.length) { this._pn = lines.length; this.dangerFit(); }   // istem bloğu büyüdü ya da küçüldü: tehlike kartı sığıyor mu
   },
   contextMenu(it) {
     // peek: menü bu seçenekte açılır (at üstünde yakındakiyle ilk eylem); görevi ilerleten seçenek varsa o
@@ -3294,6 +3317,22 @@ const UI = {
     $('#ld-rider').innerHTML = Icons.glyph('horse', '#ecd9b2');
   },
   loading(msg, p) { $('#ld-msg').textContent = msg; const v = Math.round(p * 100) + '%'; $('#ld-fill').style.width = v; $('#ld-rider').style.left = v; },
+  /* Kaydı aç (ana menüde Devam Et, Kayıt Yükle). Açılamazsa (dosya bozuk ya da eksik, eski sürüm, yüklemede hata)
+     nedeni söylenir: oyun içinden açılmak istendiyse ve oyun bozulmadıysa oyun sürer; yoksa ana menüye dönülür
+     (menü gizlenmiş ya da yükleme ekranı açık kalıp boş ekranda kalınmaz). */
+  async loadSave(n, kind) {
+    let ok = false, broke = false;
+    try { ok = await G.loadGame(n, kind); } catch (e) { broke = true; console.warn('kayıt yüklenemedi:', e); }
+    if (ok) return true;
+    const old = !broke && G.loadErr === 'old';
+    const why = old ? Tr('Bu kayıt oyunun eski bir sürümüne ait ve açılamıyor. Yeni bir hayata başla.')
+      : Tr('Kayıt dosyası bozuk ya da eksik olduğu için açılamadı. Kayıt Yükle\'den aynı yuvanın öbür kaydını (otomatik ya da elle) deneyebilirsin.');
+    if (!broke && G.state === 'play') { if (!old) this.feed(why, 'warn'); return false; }   // eski sürüm uyarısını loadGame verdi
+    this.showLoading(false);
+    this.showMainMenu();
+    this.info(Tr('Kayıt Açılamadı'), `<p>${why}</p>`);
+    return false;
+  },
   showMainMenu() {
     G.state = 'menu';
     this.closeAll();
@@ -3329,7 +3368,7 @@ const UI = {
         Audio_.unlock();
         Audio_.ui('ok');
         const id = n.dataset.id;
-        if (id === 'cont') { this.pop(m); mm.classList.add('hidden'); G.loadGame(); }
+        if (id === 'cont') { this.pop(m); mm.classList.add('hidden'); this.loadSave(); }
         else if (id === 'load') this.openSlots('load');
         else if (id === 'new') { if (info) this.openSlots('new'); else { this.pop(m); this.showCreate(1); } }
         else if (id === 'set') this.openSettings();
@@ -3382,7 +3421,7 @@ const UI = {
         if (used.auto || used.manual) this.confirm(Tr('Yuvanın Üzerine Yaz'), Tr`${k}. yuvadaki hayat silinecek ve yerine yenisi başlayacak. Emin misin?`, go, Tr('Vazgeç'), Tr('Sil ve Başla'));
         else go();
       } else if (a === 'load') {
-        const go = () => { this.closeAll(); $('#mainmenu').classList.add('hidden'); G.loadGame(k, n.dataset.kind); };
+        const go = () => { this.closeAll(); $('#mainmenu').classList.add('hidden'); this.loadSave(k, n.dataset.kind); };
         if (G.state === 'play') this.confirm(Tr('Kayıt Yükle'), Tr('Son kayıttan sonraki ilerleme kaybolacak. Yüklensin mi?'), go, Tr('Vazgeç'), Tr('Yükle'));
         else go();
       } else if (a === 'del') {

@@ -77,19 +77,24 @@ module.exports = {
       const r = await p.evaluate(() => {
         __to(1940);
         const E = G.world.towns.map(T => __E(T));
-        // elektrikten sonraki lamba kayıtları elektrikli lamba dikmiş olmalı
-        const late = [];
+        // elektrikten sonraki lamba kayıtları elektrikli lamba dikmiş olmalı; elektrikten önce kaldırıma dikilenler de
+        // (kasaba geliştikçe sınırın dışına taşanlar dahil) elektrik gelince dönüşmüş olmalı
+        const late = [], early = [];
         for (const T of G.world.towns) {
           const ops = G.dev.ops.filter(op => op[1] === T.id), ei = ops.findIndex(op => op[0] === 'e');
           if (ei < 0) continue;
           for (const op of ops.slice(ei + 1)) if (op[0] === 'l') for (const i of op[2]) late.push(G.world.obj[i]);
+          for (const op of ops.slice(0, ei)) if (op[0] === 'l') for (const i of op[2]) early.push([T.id, i % WW, (i / WW) | 0, G.world.obj[i]]);
         }
-        return { E, gasLate: late.filter(o => o === O.LAMP).length, elLate: late.filter(o => o === O.ELAMP).length };
+        return { E, gasLate: late.filter(o => o === O.LAMP).length, elLate: late.filter(o => o === O.ELAMP).length,
+          gasEarly: early.filter(e => e[3] === O.LAMP), elEarly: early.filter(e => e[3] === O.ELAMP).length };
       });
       const live = r.E.filter(e => !e.ghost);
       t.ok(live.length && live.every(e => e.elec), 'hayalet olmayan her kasabada elektrik', r.E.map(e => [e.id, e.tier, e.ghost, e.elec]));
       t.ok(r.E.filter(e => e.ghost).every(e => !e.elec || e.poles.length), 'hayalet kasaba elektriksiz (ya da önceden gelmişse direkleri durur)');
       t.ok(r.gasLate === 0 && r.elLate > 0, 'sonradan dikilen lambalar elektrikli', { gas: r.gasLate, el: r.elLate });
+      t.eq(r.gasEarly, [], 'elektrikten önce kaldırıma dikilen lambalar da (sınırın dışındakiler dahil) elektrikli');
+      t.ok(r.elEarly > 0, 'elektrikten önce dikilen lamba var', r.elEarly);
     });
 
     await t.step('kayıt ve yükleme: direkler, lambalar, ışıklar ve teller aynı kurulur', async () => {

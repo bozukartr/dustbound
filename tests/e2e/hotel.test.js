@@ -328,9 +328,13 @@ module.exports = {
         t.ok(ok, `çizici ${gfx}: kilitli odalar karanlık, kiralanan oda görünür`, lum);
         await p.evaluate(() => G.hotelStairs(HB, 0));
         await fade(); await t.sleep(500);
-        const down = await p.evaluate(() => [!G.upB, HB.floor || 0, HY.stat.frames]);
+        const down = await p.evaluate(() => [!G.upB, HB.floor || 0]);
         t.ok(up[0] && up[1] === 1 && down[0] && down[1] === 0, `çizici ${gfx}: çıkılıp inildi`, { up, down });
-        if (!gfx) t.ok(down[2] > f0 + 10, 'melez çizim kareleri çizildi', [f0, down[2]]);
+        // yazılımla çizen test tarayıcısı yük altında yavaşlar: kare sayısı bir süre beklenerek denetlenir
+        if (!gfx) {
+          const drawn = await p.waitForFunction((n) => HY.stat.frames > n, f0 + 10, { timeout: 15000 }).then(() => true, () => false);
+          t.ok(drawn, 'melez çizim kareleri çizildi', [f0, await p.evaluate(() => HY.stat.frames)]);
+        }
       }
     });
   },

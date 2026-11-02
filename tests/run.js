@@ -12,6 +12,7 @@
    t: page(), newGame(), step(), ok(), eq(), near(), sleep()
    Oyun sayfası bağımlılıksız küçük bir statik sunucudan açılır.
    Başarısız adımların ekran görüntüleri tests/output/ altına yazılır.
+   Sayfadaki yakalanmamış hatalar ve konsola yazılan hatalar (console.error) dosyayı başarısız sayar.
    ========================================================== */
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 const { loadPlaywright, AssertionError, sleep, pageHelpers } = require('./lib');
@@ -61,10 +62,18 @@ async function runFile(file, browser, url) {
     sleep,
     /* Yeni tarayıcı bağlamı: temiz localStorage, varsayılan Türkçe */
     async page(o = {}) {
-      const ctx = await browser.newContext({ locale: o.locale || 'tr-TR', viewport: o.viewport || { width: 1280, height: 720 } });
+      const ctx = await browser.newContext({ locale: o.locale || 'tr-TR', viewport: o.viewport || { width: 1280, height: 720 }, deviceScaleFactor: o.dpr || 1 });   // dpr: ekranın piksel yoğunluğu (ör. 4K'da 2)
       contexts.push(ctx);
       const p = await ctx.newPage();
       p.on('pageerror', (e) => { const k = e.message; if (!pageErrors.has(k)) pageErrors.set(k, (e.stack || '').split('\n').slice(0, 3).join(' | ')); });
+      // oyunun kendisinin yakalayıp konsola yazdığı hatalar da (ana döngü, ekran kararması) sayfa hatasıdır; testin bilerek
+      // kestiği ya da geciktirdiği isteklerin yükleme hataları sayılmaz
+      p.on('console', (m) => {
+        if (m.type() !== 'error') return;
+        const L = m.text().split('\n'), k = L[0];
+        if (/^Failed to load resource|net::ERR_/.test(k) || pageErrors.has(k)) return;
+        pageErrors.set(k, ['console.error', ...L.slice(1, 3).map(x => x.trim())].join(' | '));
+      });
       // Paralel sayfalar birbirinin odağını çalar; oyun odak kaybında duraklatma menüsünü
       // açtığı için testlerde pencere "blur" olayı yok sayılır.
       await p.addInitScript(() => { window.addEventListener('blur', (e) => { if (e.target === window) e.stopImmediatePropagation(); }, true); });
@@ -83,16 +92,22 @@ async function runFile(file, browser, url) {
       await p.goto(url + (o.path || 'index.html'));   // path: başka bir sayfa (ör. demo paketi)
       // wait: false → menüyü bekleme (açılış videosu testi)
       await p.waitForFunction((w) => typeof G !== 'undefined' && (!w || G.state === 'menu'), o.wait !== false, { timeout: 30000 });
+      // yeni açılan pencere doğduğu kare ve sonrakinde tuş almaz (onu açan tuş aynı anda seçim yapmasın): yük altında bu iki
+      // kare uzun sürer, testin ilk basışı yutulmasın diye ana menü onları geçene kadar beklenir
+      if (o.wait !== false) await p.waitForFunction(() => { const m = UI.top(); return !m || UI.frame - m.born >= 2; }, null, { timeout: 30000 }).catch(() => {});
       return p;
     },
     /* Ana menüden yeni hayat başlat (karakter ekranında varsayılanlarla) */
     async newGame(o = {}) {
       const p = o.page || await t.page(o);
       await sleep(300);
-      await p.keyboard.press('Enter'); await sleep(400);
+      await p.keyboard.press('Enter');
+      await p.waitForFunction(() => !!document.querySelector('#cr-go'), null, { timeout: 30000 }).catch(() => {});
+      await sleep(200);
       // karakter ekranı adım adım: her bölümde İleri, sonunda Hayata Başla
       await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
-      await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 });
+      // dünya üretimi yazılımla çizen tarayıcıda uzun sürer; aynı anda dört tarayıcı üretirken 150 sn'yi aşabilir
+      await p.waitForFunction(() => G.state === 'play', null, { timeout: 300000 });
       await sleep(600);
       await p.evaluate(pageHelpers);
       await p.evaluate(() => { UI.el.help.classList.add('hidden'); });

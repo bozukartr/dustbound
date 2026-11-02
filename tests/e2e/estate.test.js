@@ -248,17 +248,19 @@ module.exports = {
       t.ok(r.dests.includes('Harlow') && !r.dests.includes('Saint Clement'), 'gidilecek yerler: bilinen öbür kasabalar', r.dests);
       t.ok(!r.wanted, 'aranırken arabacı yola çıkmaz');
       t.ok(r.ride, 'yolculuk başladı');
-      await t.sleep(2500);
+      // yük altında oyun saati gerçek zamandan yavaş akar: fayton yeterince yol alana kadar beklenir
+      await p.waitForFunction(() => Math.hypot(G.player.x - RX[0], G.player.y - RX[1]) > 66, null, { timeout: 15000 }).catch(() => {});   // denetim yuvarlanmış değerle (> 60)
       const m = await p.evaluate(() => ({ moved: Math.round(Math.hypot(G.player.x - RX[0], G.player.y - RX[1])), acts: TH.actions(), horse: Math.round(Math.hypot(G.horse.x - G.coach.bx, G.horse.y - G.coach.by)), prompt: !!document.querySelector('.prompt') && /Yolu Atla/.test(document.body.innerHTML) }));
       t.ok(m.moved > 60, 'fayton yolu kendisi sürüyor', m.moved);
       t.ok(m.acts.includes('Faytondan İn'), 'yolcuyken inme seçeneği', m.acts);
       t.ok(m.horse < 30, 'at faytonun arkasına bağlı', m.horse);
       t.ok(m.prompt, 'yolu atla istemi');
       // onay tuşunu basılı tut: halka dolar, yol atlanır
+      // dolum oyun saatiyle (1 oyun saniyesi): halka dolmaya başlayınca bakılır, yol atlanana kadar basılı tutulur
       await p.keyboard.down('Enter');
-      await t.sleep(500);
-      const hold = await p.evaluate(() => [G.ride && G.ride.hold, !!document.querySelector('.prompt.holding')]);
-      await t.sleep(1000);
+      const hold = await p.waitForFunction(() => G.ride && G.ride.hold > 0.2 && [G.ride.hold, !!document.querySelector('.prompt.holding')], null, { timeout: 8000 })
+        .then(h => h.jsonValue(), () => p.evaluate(() => [G.ride && G.ride.hold, !!document.querySelector('.prompt.holding')]));
+      await p.waitForFunction(() => !G.ride && !G.player.passenger, null, { timeout: 15000 }).catch(() => {});
       await p.keyboard.up('Enter');
       await p.waitForFunction(() => !G.ride && !G.player.passenger, null, { timeout: 15000 });
       await t.sleep(600);

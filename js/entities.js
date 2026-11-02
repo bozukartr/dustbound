@@ -101,9 +101,12 @@ class Ent {
     // noIndoor: bina içine giremez; uzun gövdeliler (at) için burun ve sağrı da denetlenir, baş kapıdan içeri uzanmasın
     const ba = this.mounted && this.hAng !== undefined ? this.hAng : this.ang;   // atlı NPC'de gövde atın baktığı yöndedir
     const c = this.len ? Math.cos(ba) : 0, s = this.len ? Math.sin(ba) : 0;
-    // trenin vagonları ve arabalar katıdır; içinde kalmış biri (çarpışma anı, üstüne gelen araba) dışarı çıkabilir
+    // trenin vagonları ve arabalar katıdır; içinde kalmış biri (çarpışma anı, üstüne gelen araba) dışarı çıkabilir. Arabanın
+    // içine düşen hayvan ya da at yalnız dışarı doğru gidebilir: daha derine (gövdenin altından karşıya) geçemez
     const inSolid = G.solidAt ? G.solidAt(this.x, this.y, this.r, this) : null;
-    const ok = (x, y) => !W.blocked(x, y, this.r) && (inSolid || !G.solidAt || !G.solidAt(x, y, this.r, this)) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)
+    const pen = inSolid && inSolid.kind === 'wagon' ? (x, y) => inSolid.penAt(x, y, this.r) : null;
+    const pen0 = pen ? pen(this.x, this.y) : 0;
+    const ok = (x, y) => !W.blocked(x, y, this.r) && (inSolid ? !pen || pen(x, y) <= pen0 + 1e-6 : !G.solidAt || !G.solidAt(x, y, this.r, this)) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)
       || (this.len && (W.indoorPx(x + c * this.len, y + s * this.len) || W.indoorPx(x - c * this.len * 0.8, y - s * this.len * 0.8)))));
     if (ok(this.x + dx, this.y + dy)) { this.x += dx; this.y += dy; this._slide = 0; return true; }
     const len = Math.hypot(dx, dy);
@@ -1198,7 +1201,8 @@ class NPC extends Ent {
       const fair = (how === 'fist' && G.brawlHit(this)) || (this.fistOK && how === 'melee' && this.state === 'fightFist');
       if (this.role === 'hunter') G.hunterFight();   // ödül avcısını vurmak suç değildir
       else if (!this.hostile && this.role !== 'bandit' && !fair) {
-        if (this.hp > 0 && !this.assaulted) { this.assaulted = true; G.crime(this.isLaw ? 'assaultLaw' : 'assault', this.x, this.y, this); }
+        // yumrukla ya da dipçikle bayıltmak da saldırıdır: bayılan ölmez (cinayet yazılmaz), vuruş da suçsuz kalmasın
+        if ((this.hp > 0 || how === 'fist' || how === 'melee') && !this.assaulted) { this.assaulted = true; G.crime(this.isLaw ? 'assaultLaw' : 'assault', this.x, this.y, this); }
       }
       if (this.isLaw) this.hostile = true;
       if (this.role === 'bandit' || this.role === 'target') this.hostile = true;

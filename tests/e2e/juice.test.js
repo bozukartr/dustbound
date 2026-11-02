@@ -21,7 +21,8 @@ module.exports = {
       });
       t.ok(r.dead, 'ölmeli'); t.ok(r.hs > 0.03, 'mikro duraklama', r.hs); t.ok(r.kb, 'savrulma başlamalı');
       t.eq(r.hats, 1, 'şapka uçmalı'); t.eq(r.hat, 'none', 'şapka başından düşmeli');
-      await p.waitForFunction(() => Juice.hats[0] && Juice.hats[0].z === 0 && !JN.kb, null, { timeout: 4000 }).catch(() => {});
+      // şapka seker: yere çarptığı karede yüksekliği 0 olur ama hızı tersine döner; tam durunca hızı da 0'dır
+      await p.waitForFunction(() => Juice.hats[0] && Juice.hats[0].z === 0 && Juice.hats[0].vz === 0 && !JN.kb, null, { timeout: 10000 }).catch(() => {});
       const s = await p.evaluate(() => ({ hs: G.hitStopT, dx: JN.x - JX, kb: !!JN.kb, z: Juice.hats[0].z, hx: Juice.hats[0].x - JX }));
       t.ok(s.hs <= 0, 'duraklama biter'); t.ok(s.dx > 3, 'ceset vuruş yönünde kaymalı', s.dx); t.ok(!s.kb, 'kayma durur');
       t.eq(s.z, 0, 'şapka yere düşer'); t.ok(s.hx > 0, 'şapka ileri uçar', s.hx);
@@ -41,11 +42,12 @@ module.exports = {
       await setup();
       await p.evaluate(() => { const P = G.player, h = G.horse; h.x = P.x; h.y = P.y; h.ang = 0; h.state = 'idle'; h.dead = false; h.sta = h.maxSta; P.mount(h, true); P.ang = 0; });
       await p.keyboard.down('ShiftLeft'); await p.keyboard.down('KeyW');   // at doğuya bakıyor: W ileri (dizgin)
-      await t.sleep(2600);
+      // yük altında kareler seyrekleşir ve oyun saati gerçek zamandan yavaş akar: at hızlanıp kamera uzaklaşana kadar beklenir
+      await p.waitForFunction(() => G.player.riding && G.player.riding.spd > 130 && G.camZoom.sz < 0.96, null, { timeout: 12000 }).catch(() => {});
       const g = await p.evaluate(() => ({ sz: G.camZoom.sz, spd: G.player.riding.spd, tf: G.canvas.style.transform }));
       await p.keyboard.up('KeyW'); await p.keyboard.up('ShiftLeft');
       t.ok(g.spd > 130, 'dörtnal', g.spd); t.ok(g.sz < 0.96, 'kamera uzaklaşmalı', g); t.ok(/scale\(0\.9/.test(g.tf), 'tuval küçülmeli', g.tf);
-      await t.sleep(2500);
+      await p.waitForFunction(() => G.camZoom.sz > 0.995 && !G.canvas.style.transform, null, { timeout: 12000 }).catch(() => {});
       const s = await p.evaluate(() => ({ sz: G.camZoom.sz, tf: G.canvas.style.transform }));
       t.ok(s.sz > 0.995, 'durunca geri yakınlaşır', s); t.eq(s.tf, '', 'dönüşüm kalkar');
     });
@@ -55,7 +57,8 @@ module.exports = {
       await p.keyboard.down('KeyW'); await t.sleep(350);
       const m = await p.evaluate(() => { const h = G.player.riding; return { spd: h.spd, k: Juice.rearK(h) }; });
       t.eq(m.spd, 0, 'şahlanırken ilerlemez'); t.ok(m.k > 0.3, 'ön taraf havada', m.k);
-      await t.sleep(1200);
+      // şahlanma oyun saatiyle biter: yük altında gerçek zamanla daha uzun sürer; bitip at yeniden yürüyene kadar beklenir
+      await p.waitForFunction(() => { const h = G.player.riding; return h && h.rearT === 0 && h.spd > 10; }, null, { timeout: 10000 }).catch(() => {});
       const e = await p.evaluate(() => ({ rt: G.player.riding.rearT, spd: G.player.riding.spd }));
       await p.keyboard.up('KeyW');
       t.eq(e.rt, 0, 'şahlanma biter'); t.ok(e.spd > 10, 'yeniden yürür', e.spd);

@@ -17,10 +17,19 @@ module.exports = {
       t.near(r.z, 1, 0.001, 'ölçek'); t.eq(r.tf, '', 'dönüşüm yok'); t.ok(!r.inside, 'dışarıda');
     });
     await t.step('yürüyerek girince kamera yumuşakça binaya yaklaşır ve binayı ortalar', async () => {
+      // yük altında oyun saati gerçek zamandan yavaş akar: kapıdan girilene kadar yürünür (girince birkaç örnek daha),
+      // yakınlaşma hedef ölçeğe oturana kadar örneklenir
       await p.keyboard.down('KeyW');
       const samples = [];
-      for (let k = 0; k < 14; k++) { await t.sleep(90); samples.push((await z()).z); }
-      await p.keyboard.up('KeyW');
+      let held = true, inK = -1;
+      for (let k = 0; k < 120; k++) {
+        await t.sleep(90);
+        const s = await z(); samples.push(s.z);
+        if (s.inside && inK < 0) inK = k;
+        if (held && inK >= 0 && k - inK >= 3) { await p.keyboard.up('KeyW'); held = false; }
+        if (inK >= 0 && k - inK >= 4 && s.z > 1.2 && Math.abs(s.z - samples[k - 1]) < 1e-6) break;
+      }
+      if (held) await p.keyboard.up('KeyW');
       await t.sleep(1000);
       const r = await p.evaluate(() => {
         const b = GB, Z = G.camZoom, bw = b.w * TS * Z.z, bh = (b.h + 1) * TS * Z.z;
@@ -49,8 +58,10 @@ module.exports = {
     });
     await t.step('içeride kamera oyuncuyu izlemez: binanın ortasında durur, oyuncu yürürken sahne kıpırdamaz (60 ve 144 Hz)', async () => {
       const r = await p.evaluate(() => {
-        const P = G.player, C = G.cam, b = GB, x0 = P.x, y0 = P.y;
-        const out = { dx: Math.abs(C.x - (b.x + b.w / 2) * TS), dy: Math.abs(C.y - (b.y + b.h / 2) * TS) };
+        const P = G.player, C = G.cam, b = GB, x0 = P.x, y0 = P.y, cx = (b.x + b.w / 2) * TS, cy = (b.y + b.h / 2) * TS;
+        // yük altında girişten sonraki kayma bitmemiş olabilir: kamera önce yerine oturur (en çok 10 sn'lik adım)
+        for (let i = 0; i < 600 && (Math.abs(C.x - cx) > 0.001 || Math.abs(C.y - cy) > 0.001); i++) G.updateCamera(1 / 60);
+        const out = { dx: Math.abs(C.x - cx), dy: Math.abs(C.y - cy) };
         for (const fps of [60, 144]) {
           const ox0 = C.ox, oy0 = C.oy;
           let moved = 0;
@@ -79,10 +90,18 @@ module.exports = {
     });
     await t.step('çıkınca kamera aynı yumuşaklıkla uzaklaşır', async () => {
       await p.evaluate(() => { const P = G.player; P.x = GB.door.x; P.y = GB.door.y - 18; P.ang = Math.PI / 2; });
+      // girişteki gibi: kapıdan çıkılana kadar yürünür, uzaklaşma 1'e oturana kadar örneklenir
       await p.keyboard.down('KeyS');
       const samples = [];
-      for (let k = 0; k < 14; k++) { await t.sleep(90); samples.push((await z()).z); }
-      await p.keyboard.up('KeyS');
+      let held = true, outK = -1;
+      for (let k = 0; k < 120; k++) {
+        await t.sleep(90);
+        const s = await z(); samples.push(s.z);
+        if (!s.inside && outK < 0) outK = k;
+        if (held && outK >= 0 && k - outK >= 3) { await p.keyboard.up('KeyS'); held = false; }
+        if (outK >= 0 && k - outK >= 4 && s.z === 1) break;
+      }
+      if (held) await p.keyboard.up('KeyS');
       await t.sleep(1000);
       const r = await z();
       t.ok(!r.inside, 'dışarıda'); t.near(r.z, 1, 0.001, 'ölçek 1'); t.eq(r.tf, '', 'dönüşüm kalktı');

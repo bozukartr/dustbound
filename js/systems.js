@@ -1464,7 +1464,7 @@ const GameSystems = {
           const s = this.family.spouse;
           const n = new NPC(b.door.x + 10, b.door.y + 10, 'spouse', { look: s.look, name: s.name, home: { x: b.door.x, y: b.door.y + 16, r: 40 } });
           n.poi = p.pid; n.keep = true; this.addEnt(n);
-          this.family.children.forEach((c, i) => { const k = new NPC(b.door.x - 10 - i * 8, b.door.y + 16, 'child', { look: randomLook(c.sex), name: c.name, home: { x: b.door.x, y: b.door.y + 20, r: 50 } }); k.child = true; k.poi = p.pid; k.keep = true; this.addEnt(k); });
+          this.family.children.forEach((c, i) => { const k = new NPC(b.door.x - 10 - i * 8, b.door.y + 16, 'child', { look: c.look || (c.look = randomLook(c.sex)), name: c.name, home: { x: b.door.x, y: b.door.y + 20, r: 50 } }); k.child = true; k.poi = p.pid; k.keep = true; this.addEnt(k); });
         } else if (d > 1100 && p.spawned) { p.spawned = false; for (const e of ents) if (e.poi === p.pid) e.remove = true; }
       }
     }
@@ -2651,7 +2651,10 @@ const GameSystems = {
     P.mountAnim = null;
     if (P.riding) P.dismount();
     if (this.binoc) this.binocOff();
-    P.deadeye = false; P.aiming = false; P.sprinting = false; P.retchT = 0; P.vx = P.vy = 0;
+    // yere yığılan omzundakini düşürür (doktora onunla taşınmaz), kement de elinden kayar
+    this.dropCarry(true);
+    if (P.rope) P.releaseRope();
+    P.deadeye = false; P.aiming = false; P.sprinting = false; P.crouch = false; P.retchT = 0; P.vx = P.vy = 0;
     this.stat('faints', 1);
     Audio_.thud(0.5);
     UI.fade(() => this.faintWake(cause), Tr('Bayıldın...'));

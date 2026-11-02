@@ -26,7 +26,9 @@ module.exports = {
     const st = () => p.evaluate(() => MT.st());
     const down = async (...ks) => { for (const k of ks) await p.keyboard.down(k); };
     const up = async (...ks) => { for (const k of ks) await p.keyboard.up(k); };
-    const hold = async (ks, ms) => { await down(...ks); await t.sleep(ms); await up(...ks); };
+    // süreler oyun saatiyle: yük altında kareler seyrekleşince gerçek zamanla tutulan tuş daha az yol aldırır
+    const wait = async (s) => { const t0 = await p.evaluate(() => G.t); await p.waitForFunction((a) => G.t - a.t0 >= a.s, { t0, s }, { timeout: s * 6000 + 3000 }).catch(() => {}); };
+    const hold = async (ks, ms) => { await down(...ks); await wait(ms / 1000); await up(...ks); };
 
     await t.step('motor payı yıla göre artar; araba tek tip, atsız, gövdesi katı otomobile döner', async () => {
       const r = await p.evaluate(() => {
@@ -108,13 +110,13 @@ module.exports = {
       await p.evaluate(() => MT.drive());
       await hold(['KeyW'], 1200);
       const a = await st();
-      await down('KeyS'); await t.sleep(1400);
+      await down('KeyS'); await wait(1.4);
       const b0 = await st();
-      await t.sleep(2000);
+      await wait(2);
       const b = await st();
-      await down('KeyA'); await t.sleep(700); await up('KeyA');
+      await down('KeyA'); await wait(0.7); await up('KeyA');
       const c = await st();
-      await up('KeyS'); await t.sleep(1200);
+      await up('KeyS'); await wait(1.2);
       const d = await st();
       t.ok(a.spd > 30 && b.back && b.spd > 15 && b.x < b0.x - 15, 'S basılı: durur, sonra geri gider', { a, b0, b });
       t.ok(c.ang > 0.05, 'geri giderken A: burun sağa döner (direksiyon ters)', c);
@@ -123,10 +125,12 @@ module.exports = {
 
     await t.step('arkadan itişli: dönerken arka dingil izinde kalır, burun dönüşün içine girer; yoldaki otomobilde arka dingil ön noktayı sürüklenerek izler', async () => {
       await p.evaluate(() => MT.drive());
-      await down('KeyW'); await t.sleep(900); await down('KeyA');
+      await down('KeyW'); await wait(0.9); await down('KeyA');
       const r = await p.evaluate(async () => {
         const h = G.player.riding, L = CAR_DIM.l + CAR_DIM.ra, S = [];
-        for (let i = 0; i < 12; i++) { S.push([h.x, h.y, h.ang]); await new Promise(res => setTimeout(res, 80)); }
+        // örnekler oyun saatiyle 0,08 sn arayla (yük altında gerçek zamanla daha az yol alınır)
+        const waitG = (s) => new Promise(res => { const t0 = G.t, k = () => (G.t - t0 >= s ? res() : setTimeout(k, 8)); k(); });
+        for (let i = 0; i < 12; i++) { S.push([h.x, h.y, h.ang]); await waitG(0.08); }
         // arka dingilin ve ön noktanın gövdeye dik (yanal) yer değiştirmesi, yol boyunca toplam
         let rearLat = 0, frontLat = 0, path = 0;
         for (let i = 1; i < S.length; i++) {
@@ -162,17 +166,17 @@ module.exports = {
 
     await t.step('ön tekerlekler direksiyonu izler: dururken de kırılır, bırakınca ortaya döner, geri viteste tuşun yönüne bakar', async () => {
       await p.evaluate(() => MT.drive());
-      await down('KeyA'); await t.sleep(600);
+      await down('KeyA'); await wait(0.6);
       const a = await st();
-      await up('KeyA'); await t.sleep(900);
+      await up('KeyA'); await wait(0.9);
       const b = await st();
-      await down('KeyD'); await t.sleep(600);
+      await down('KeyD'); await wait(0.6);
       const c = await st();
-      await up('KeyD'); await t.sleep(800);
+      await up('KeyD'); await wait(0.8);
       t.ok(a.steer < -0.4 && Math.abs(a.ang) < 0.02, 'dururken A: tekerlekler sola kırılır, otomobil dönmez', a);
       t.ok(Math.abs(b.steer) < 0.05, 'bırakınca ortaya döner', b);
       t.ok(c.steer > 0.4, 'D: sağa kırılır', c);
-      await down('KeyS'); await t.sleep(2400); await down('KeyA'); await t.sleep(700);
+      await down('KeyS'); await wait(2.4); await down('KeyA'); await wait(0.7);
       const d = await st();
       await up('KeyA'); await up('KeyS');
       t.ok(d.back && d.steer < -0.4 && d.ang > 0.05, 'geri viteste A: tekerlek sola bakar, burun sağa döner', d);

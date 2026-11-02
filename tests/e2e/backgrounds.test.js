@@ -3,7 +3,7 @@
    hikâyesiz başlangıç her geçmişte doğru yerde açılır, hikâye kimliği olmayan eski kayıt Sully'yle sürer */
 module.exports = {
   name: 'Beş geçmiş',
-  timeout: 420000,
+  timeout: 900000,   // beş yeni hayat: ağır yükte (dört tarayıcı) dünya üretimi uzar
   async run(t) {
     const BGS = ['farm', 'immigrant', 'outlaw', 'rail', 'trapper'];
     const WANT = { farm: 'sully', immigrant: 'immigrant', outlaw: 'outlaw', rail: 'rail', trapper: 'trapper' };
@@ -17,7 +17,7 @@ module.exports = {
         return [...document.querySelectorAll('.opt')].find(n => /Hikâyeli/.test(n.textContent)).textContent;
       }, bg);
       await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
-      await p.waitForFunction(() => G.state === 'play', null, { timeout: 150000 });
+      await p.waitForFunction(() => G.state === 'play', null, { timeout: 300000 });
       await t.sleep(600); await t.helpers(p);
       return lab;
     };

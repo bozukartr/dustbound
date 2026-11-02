@@ -179,7 +179,7 @@ STORIES.immigrant = {
     },
     /* 4 — Telgraf: postaneye gir, memura sor, son mektubu oku */
     {
-      t: () => Tr('Telgraf'),
+      t: () => Tr('@bölüm|Telgraf'),
       steps: [
         { t: () => Tr('Postaneye gir'), ev: 'enter', ok: (b) => b && (b.type === 'post' || b.type === 'saloon'), at() { return this.sDoor(this.sBld(['post', 'saloon']), 4); }, wp: true,
           on() { const p = this.sDoor(this.sBld(['post', 'saloon']), 22); if (p) this.sullyGo(p.x - 14, p.y); },

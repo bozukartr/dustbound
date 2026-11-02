@@ -66,5 +66,43 @@ module.exports = {
       t.eq(r.free, 1, 'yeni hayat 1. yuvaya yazılabilir');
       t.ok(!r.loaded && /eski bir sürümüne ait/.test(r.feed), 'doğrudan yüklenmek istenince açılmaz, uyarı verir', r);
     });
+    await t.step('bozuk kayıt: oyun içinden açılamazsa oyun sürer; ana menüden açılamazsa ya da yükleme yarıda kalırsa ana menüye dönülür', async () => {
+      await t.sleep(2000);   // önceki adımdaki ölümün ekranı (1,8 sn sonra açılır) araya girmesin
+      const r = await p.evaluate(async () => {
+        const out = {}, wait = (ms) => new Promise(res => setTimeout(res, ms));
+        const seen = () => {
+          const top = UI.top();
+          return { state: G.state, menu: !document.getElementById('mainmenu').classList.contains('hidden'), loading: !document.getElementById('loading').classList.contains('hidden'),
+            modal: top && top.el ? top.el.innerText.replace(/\s+/g, ' ') : '' };
+        };
+        // 3. yuvada geçerli bir kayıt; sonra dosyası yarıda kesilir (eşitleme ya da disk hatası gibi)
+        UI.closeAll(); G.startPlay(); G.difficulty = 'story'; G.slot = 3; G.saveGame(true);
+        const raw = Platform.get(slotKey(3, 'auto'));
+        Platform.set(slotKey(3, 'auto'), raw.slice(0, raw.length >> 1));
+        // oyun içinden (Kayıt Yükle): açılmaz, oyun sürer, uyarı verilir
+        TH.feeds.length = 0;
+        out.inGame = Object.assign(seen(), { ok: await UI.loadSave(3, 'auto'), feed: TH.feeds.slice(-1)[0] || '' });
+        // ana menüden Devam Et
+        UI.showMainMenu(); await wait(300);
+        const cont = document.querySelector('#mm-items .mm-item[data-id="cont"]');
+        out.cont = !!cont;
+        if (cont) cont.click();
+        await wait(500);
+        out.menu = seen(); UI.closeAll();
+        // dosya sağlam ama yükleme yarıda hata verirse yükleme ekranında kalınmaz
+        G.startPlay(); G.saveGame(true);
+        const ld = G.loadDev; G.loadDev = () => { throw new Error('deneme'); };
+        let ok;
+        try { ok = await UI.loadSave(3, 'auto'); } finally { G.loadDev = ld; }
+        out.thrown = Object.assign(seen(), { ok });
+        UI.closeAll();
+        return out;
+      });
+      const bad = /Kayıt dosyası bozuk ya da eksik olduğu için açılamadı/;
+      t.ok(!r.inGame.ok && r.inGame.state === 'play' && !r.inGame.menu && bad.test(r.inGame.feed), 'oyun içinden: açılmaz, oyun sürer, uyarı', r.inGame);
+      t.ok(r.cont, 'Devam Et görünür');
+      t.ok(r.menu.state === 'menu' && r.menu.menu && !r.menu.loading && /Kayıt Açılamadı/.test(r.menu.modal) && bad.test(r.menu.modal), 'ana menüden: menüye dönülür ve neden söylenir', r.menu);
+      t.ok(!r.thrown.ok && r.thrown.state === 'menu' && r.thrown.menu && !r.thrown.loading && /Kayıt Açılamadı/.test(r.thrown.modal), 'yükleme yarıda kalınca: yükleme ekranında kalınmaz, ana menüye dönülür', r.thrown);
+    });
   },
 };

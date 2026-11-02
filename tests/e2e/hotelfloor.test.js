@@ -142,6 +142,7 @@ module.exports = {
         const cop = new NPC(best.x, best.y, 'law', { hostile: true, mounted: true, weapon: 'cattleman' }); cop.personal = false;
         G.addEnt(cop);
         window.RD = rider; window.CP = cop; window.VIO = []; window.CP0 = Math.round(dist(cop.x, cop.y, P.x, P.y));
+        window.CPL = cop.mounted;   // inince bırakılan at bu görünüşü taşır: rastgele dünyada kasabaya gelen başka atlıların atları sayılmaz
         window.H0 = new Set(G.ents.filter(e => e.kind === 'horse'));
         const nose = (e) => { const a = e.hAng === undefined ? e.ang : e.hAng; return W.indoorPx(e.x + Math.cos(a) * 10, e.y + Math.sin(a) * 10); };
         window.WATCH = setInterval(() => {
@@ -151,10 +152,12 @@ module.exports = {
       });
       await p.waitForFunction(() => !CP.mounted, null, { timeout: 3000 }).catch(() => {});
       const alight = await p.evaluate(() => ({ mounted: !!CP.mounted, t: Math.round(dist(CP.x, CP.y, G.player.x, G.player.y)), d0: CP0 }));
+      // yük altında oyun saati yavaş akar: kanun adamı yaklaşana (ya da içeri girene) kadar en az 5, en çok 25 sn beklenir
       await t.sleep(5000);
+      await p.waitForFunction((t0) => G.world.buildingAtPx(CP.x, CP.y) === HB || dist(CP.x, CP.y, G.player.x, G.player.y) < t0 - 40, alight.t, { timeout: 20000 }).catch(() => {});
       const r = await p.evaluate(() => {
         clearInterval(WATCH);
-        const P = G.player, W = G.world, horses = G.ents.filter(e => e.kind === 'horse' && !H0.has(e));
+        const P = G.player, W = G.world, horses = G.ents.filter(e => e.kind === 'horse' && !H0.has(e) && e.look === CPL);
         const out = { vio: VIO.slice(0, 5), riderMounted: !!RD.mounted, riderIn: W.indoorPx(RD.x, RD.y), copMounted: !!CP.mounted, horses: horses.map(h => [h.owner, !!h.rider, Math.round(h.x - HB.door.x), Math.round(h.y - HB.door.y)]),
           horseOut: horses.every(h => !W.indoorPx(h.x, h.y)), copD: Math.round(dist(CP.x, CP.y, P.x, P.y)), copIn: W.buildingAtPx(CP.x, CP.y) === HB };
         const L = G.law; L.level = 0; L.bounty = 0; for (const e of G.ents) if (e.kind === 'npc' || e.kind === 'horse' && e.owner === 'npc') e.remove = true;

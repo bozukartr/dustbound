@@ -11,8 +11,11 @@ module.exports = {
       seen: [...document.querySelectorAll('.cr-tab')].map(n => n.classList.contains('seen')),
       state: G.state,
     }));
+    // tuşlar her karede bir okunur: ardışık basışlar arasında iki kare beklenir (yük altında kare uzar)
+    const frames = (n) => p.evaluate((n) => new Promise(res => { const f0 = G.fno || 0, k = () => ((G.fno || 0) - f0 >= n ? res() : requestAnimationFrame(k)); requestAnimationFrame(k); }), n);
+    const tabIs = (i) => p.waitForFunction((i) => [...document.querySelectorAll('.cr-tab')].findIndex(n => n.classList.contains('on')) === i, i, { timeout: 10000 }).catch(() => {});
     await t.step('ekran açılınca isim yazılabilir, ana düğme bir sonraki bölüme götürür', async () => {
-      await t.sleep(300); await p.keyboard.press('Enter'); await t.sleep(500);
+      await t.sleep(300); await p.keyboard.press('Enter'); await tabIs(0); await frames(2); await t.sleep(200);
       const r = await st();
       const focus = await p.evaluate(() => document.activeElement && document.activeElement.id);
       t.eq(r.tab, 0, 'Kimlik bölümü'); t.eq(focus, 'cr-name', 'isim kutusu odakta');
@@ -21,7 +24,7 @@ module.exports = {
     });
     await t.step('isim yazıp iki kez Enter: oyun başlamaz, sıradaki bölüme geçer', async () => {
       await p.keyboard.press('Control+A'); await p.keyboard.type('Jesse <Callahan>');
-      await p.keyboard.press('Enter'); await t.sleep(200); await p.keyboard.press('Enter'); await t.sleep(300);
+      await p.keyboard.press('Enter'); await frames(2); await t.sleep(200); await p.keyboard.press('Enter'); await frames(2); await tabIs(1);
       const r = await st();
       t.eq(r.state === 'play', false, 'oyun başlamadı');
       // isim kutusu odaktayken bölüm değişirse yazı modu kapanır
@@ -55,7 +58,7 @@ module.exports = {
       t.ok(/Kıyafet|Görünüm/.test(r.lab) && !/Hayata/.test(r.lab), 'Sırada: bakılmamış bölüm', r.lab);
       t.ok(r.after === 1 || r.after === 2, 'bakılmamış bölüme götürdü', r.after);
       await p.evaluate(() => document.activeElement && document.activeElement.blur());
-      await p.keyboard.press('Escape'); await t.sleep(250);
+      await p.keyboard.press('Escape'); await frames(2); await tabIs(r.after - 1);
       const s1 = await st();
       t.eq(s1.tab, r.after - 1, 'Esc bir önceki bölüm'); t.ok(!!(await p.evaluate(() => document.querySelector('.create'))), 'ekran açık');
     });

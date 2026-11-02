@@ -299,8 +299,12 @@ module.exports = {
       await t.sleep(1500);
       const base = await wind();
       await p.evaluate(({ x, y }) => { TH.goto(x, y); TH.clearNpcs(); }, spots.hi);
-      await t.sleep(4500);
-      const r = await wind(), want = Math.min(1, Math.max(0, (spots.hi.e - 168) / 50));
+      // yükseklik hissi oyun saatiyle saniyede 0,8 oranla oturur: yük altında gerçek zamanla daha uzun sürer
+      const want = Math.min(1, Math.max(0, (spots.hi.e - 168) / 50));
+      // (hedefe yaklaşınca tam değerine oturur: iki yoklama arasında değişmeyince yerine oturmuştur)
+      await p.waitForFunction(() => { const v = [G.alt || 0, G.camZoom.az], pv = window.__altPrev; window.__altPrev = v; return !!pv && v[0] > 0.1 && v[0] === pv[0] && v[1] === pv[1]; }, null, { timeout: 25000, polling: 200 }).catch(() => {});
+      await t.sleep(500);
+      const r = await wind();
       t.near(r.alt, want, 0.06, 'yükseklik hissi bulunduğun yerin yükseltisine göre');
       t.ok(r.az < 1 - (1 - 1 / r.os) * 0.85 * want + 0.01 && r.az < 0.985, 'kamera biraz uzaklaşır', r);
       t.ok(r.out >= 1 / r.os - 1e-6, 'kenar payını aşmaz', r);
@@ -314,7 +318,9 @@ module.exports = {
 
     await t.step('aşağı inince kamera ve rüzgâr eski hâline döner', async () => {
       await p.evaluate(([x, y]) => { TH.goto(x, y); TH.clearNpcs(); }, spots.lo);
-      await t.sleep(8000);
+      // yük altında oyun saati gerçek zamandan yavaş akar: yükseklik hissi ve kamera yerine oturana kadar beklenir
+      await p.waitForFunction(() => !G.alt && G.camZoom.az === 1 && !G.canvas.style.transform, null, { timeout: 25000 }).catch(() => {});
+      await t.sleep(500);
       const r = await wind();
       t.ok(spots.loE < 160, 'alçak yer', spots.loE);
       t.eq(r.alt, 0, 'yükseklik sıfır');

@@ -137,7 +137,18 @@ module.exports = {
     await t.step('korumanın vurduğu ödül hedefi senin vurduğun gibi yere yığılır (canlı yakalanabilir)', async () => {
       const r = await p.evaluate(() => {
         OPEN();
-        const P = G.player, e = new NPC(P.x, P.y + 30, 'guard', {});   // atış korumanınki gibi (fireRay guard seçeneği)
+        // açık yer araması zemini 15 px aralıkla yoklar: küçük katı bir nesne (çit direği, kaya) mermiyi kesebilir.
+        // İki atış çizgisi de açık olan bir yer seçilir
+        const P = G.player, W = G.world;
+        const line = (x0, y0) => { for (let d = 0; d <= 84; d += 2) { const i = ((y0 >> 4) * WW) + ((x0 + d) >> 4); if (W.solid[i] && !isWaterT(W.tile[i])) return false; } return true; };
+        const clear = () => line(P.x + 5, P.y + 30) && line(P.x + 5, P.y + 90);
+        for (const [dx, dy] of [[600, 0], [-600, 0], [0, 600], [0, -600], [900, 900], [-900, -900]]) {
+          if (clear()) break;
+          const s = TH.openSpot(P.x + dx, P.y + dy); TH.goto(s[0], s[1]);
+          for (const o of G.ents) if ((o.kind === 'npc' && !o.guard) || o.kind === 'animal') o.remove = true;
+          G.ents = G.ents.filter(o => !o.remove);
+        }
+        const e = new NPC(P.x, P.y + 30, 'guard', {});   // atış korumanınki gibi (fireRay guard seçeneği)
         const tg = new NPC(e.x + 80, e.y, 'target', { hostile: true }); tg.aggro = true; tg.hp = 20; G.addEnt(tg);
         const b = new NPC(e.x + 80, e.y + 60, 'bandit', { hostile: true }); b.aggro = true; b.hp = 20; G.addEnt(b);
         WITH_RANDOM(0.01, () => { G.fireRay(e.x + 5, e.y, 0, 300, 50, e, { guard: true }); G.fireRay(e.x + 5, e.y + 60, 0, 300, 50, e, { guard: true }); });

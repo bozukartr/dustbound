@@ -82,11 +82,13 @@ module.exports = {
     await t.step('mekâna göre yankı ve zemin', async () => {
       const r = await p.evaluate(async () => {
         const wait = () => new Promise(res => setTimeout(res, 700));
+        // yankı seçimi kare döngüsünde aralıklarla yapılır: yük altında gecikir, beklenen yankı gelene kadar (en çok 10 sn) beklenir
+        const until = async (f) => { const t0 = performance.now(); while (!f() && performance.now() - t0 < 10000) await new Promise(res => setTimeout(res, 50)); };
         const out = {};
         const b = G.world.buildings.find(b => b.town === 'harlow' && b.type === 'saloon');
-        TH.inside(b); await wait(); await wait(); out.saloon = Audio_.revName; out.floor = Audio_.surface(G.player.x, G.player.y); out.ambLP = Audio_.ambLP.frequency.value;
-        const tw = TH.town('harlow'); TH.goto(tw.spawn.x, tw.spawn.y); await wait(); out.town = Audio_.revName;
-        const s = TH.openSpot(tw.cx + 2200, tw.cy, 60); TH.goto(s[0], s[1]); await wait(); out.wild = Audio_.revName;
+        TH.inside(b); await until(() => Audio_.revName === 'hall'); await wait(); await wait(); out.saloon = Audio_.revName; out.floor = Audio_.surface(G.player.x, G.player.y); out.ambLP = Audio_.ambLP.frequency.value;
+        const tw = TH.town('harlow'); TH.goto(tw.spawn.x, tw.spawn.y); await until(() => Audio_.revName === 'street'); out.town = Audio_.revName;
+        const s = TH.openSpot(tw.cx + 2200, tw.cy, 60); TH.goto(s[0], s[1]); await until(() => ['open', 'forest', 'canyon'].includes(Audio_.revName)); out.wild = Audio_.revName;
         return out;
       });
       t.eq(r.saloon, 'hall', 'saloonda geniş oda yankısı'); t.eq(r.floor, 'wood', 'içeride tahta zemin');
@@ -154,21 +156,22 @@ module.exports = {
         P.giveWeapon('lasso', true); P.weapon = 'lasso'; P.fireCd = 0; P.aimAng = 0; P.ang = 0;
         const fresh = (fn) => { const b = new Set(Audio_.voices); fn(); return Audio_.voices.find(v => !b.has(v) && v.name === 'lasso'); };
         // boşluğa atış: ilmek menzilin sonunda düşer
-        const V = fresh(() => P.throwLasso()), proj = G.projs.find(q => q.type === 'lasso'), t0 = performance.now();
+        // süreler oyun saatiyle (G.t, sn) ölçülür: makine yüklüyken kare hızı düşse de aynı
+        const V = fresh(() => P.throwLasso()), proj = G.projs.find(q => q.type === 'lasso'), t0 = performance.now(), g0 = G.t;
         while (G.projs.includes(proj) && performance.now() - t0 < 3000) await wait(10);
-        const flight = performance.now() - t0;
+        const flight = G.t - g0;
         await wait(60);
         const out = { flight, thrown: !!V, throwDone: !!V && V.done, len: V ? V.src.buffer.duration : 0 };
         // yumruk savuruşu aynı kaydı hızlı çalar
         P.weapon = 'fists';
-        const M = fresh(() => P.melee()), t1 = performance.now();
+        const M = fresh(() => P.melee()), t1 = performance.now(), g1 = G.t;
         while (M && !M.done && performance.now() - t1 < 3000) await wait(10);
-        return { ...out, swung: !!M, swing: performance.now() - t1 };
+        return { ...out, swung: !!M, swing: G.t - g1 };
       });
       t.ok(r.thrown && r.len > 1, 'kement uzun kaydı çalar', r);
-      t.ok(r.flight < 800, 'ilmek kısa sürede düşer', r);
+      t.ok(r.flight < 0.8, 'ilmek kısa sürede düşer', r);
       t.ok(r.throwDone, 'ilmek düşünce ip sesi kesilir (kaydın sonunu beklemez)', r);
-      t.ok(r.swung && r.swing < 600, 'savuruş sesi kol animasyonuyla biter', r);
+      t.ok(r.swung && r.swing < 0.6, 'savuruş sesi kol animasyonuyla biter', r);
     });
     await t.step('seslendirme anahtarı araçla aynı; Türkçe kaydı olmayan satırda İngilizce kayıt çalar, kaydı hiç olmayan satır sessizce geçer', async () => {
       const fs = require('fs'), path = require('path');
@@ -281,11 +284,13 @@ module.exports = {
         Audio_.whistle = () => { W++; }; Audio_.neigh = () => { N++; };
         const P = G.player, h = G.horse; if (P.riding) P.dismount(true);
         G._whistleT = undefined; h._neighT = undefined;
+        // at ıslığa oyun saatiyle biraz gecikerek kişner: yük altında gecikme uzar, kişneme gelene kadar (en çok 8 sn) beklenir
+        const until = async (f) => { const t0 = performance.now(); while (!f() && performance.now() - t0 < 8000) await new Promise(res => setTimeout(res, 50)); };
         for (let k = 0; k < 6; k++) { h.x = P.x + 300; h.y = P.y; G.whistle(); }
-        await new Promise(res => setTimeout(res, 700));
+        await until(() => N >= 1); await new Promise(res => setTimeout(res, 700));
         const first = [W, N];
         G.t += 3.5; h.x = P.x + 300; G.whistle();
-        await new Promise(res => setTimeout(res, 700));
+        await until(() => W >= 2); await new Promise(res => setTimeout(res, 700));
         const after = [W, N];
         Audio_.whistle = w; Audio_.neigh = n;
         return { first, after };

@@ -12,7 +12,9 @@ module.exports = {
         const tw = TH.town('harlow'); TH.goto(tw.spawn.x, tw.spawn.y);
         G.clock = Math.floor(G.clock / 1440) * 1440 + 1440 + 13 * 60;
         const w0 = NPC.prototype.walk;
-        NPC.prototype.walk = function (dt, sp, dir) { const ox = this.x, oy = this.y; w0.call(this, dt, sp, dir); if (Math.hypot(this.x - ox, this.y - oy) < sp * this.slow() * dt * 0.3) this.press = (this.press || 0) + dt; };
+        // duvara yüklenme: NPC o anki yürüyüş hızının %30'undan az ilerliyor (durup kalkarken yumuşak hızlanma ve atlının
+        // dönüşte yavaşlaması sayılmaz; eskiden hedef hıza göre ölçülürdü ve her kalkışın ilk kareleri takılma sayılırdı)
+        NPC.prototype.walk = function (dt, sp, dir) { const ox = this.x, oy = this.y; w0.call(this, dt, sp, dir); const cur = (this.wspd || 0) * this.slow(); if (cur > 1 && Math.hypot(this.x - ox, this.y - oy) < cur * dt * 0.3) this.press = (this.press || 0) + dt; };
         for (const e of G.ents) e.press = 0;
         let walkers = 0;
         for (let f = 0; f < 30 * 75; f++) { G.update(1 / 30); if (f === 900) walkers = G.ents.filter(e => e.kind === 'npc' && (e.nav || e.goal)).length; }
@@ -30,7 +32,15 @@ module.exports = {
     await t.step('yolda iki yönden gelen arabalar üst üste binmez, hepsi yoluna devam eder', async () => {
       const r = await p.evaluate(() => {
         const W = G.world, road = W.roads.filter(r => !r.spur && r.pts.length > 40)[0];
-        const mid = road.pts[20]; TH.goto(mid[0] + 40, mid[1] + 40); TH.clearNpcs();
+        // oyuncu yolun kenarında, yoldan en az 50 px uzakta durur: yolda dikilen oyuncuyu arabalar (doğru olarak) bekler
+        const mid = road.pts[20], a = road.pts[19], b = road.pts[21], nx = -(b[1] - a[1]), ny = b[0] - a[0], nl = Math.hypot(nx, ny) || 1;
+        let spot = null;
+        for (const off of [70, -70, 100, -100, 140, -140]) {
+          const x = mid[0] + nx / nl * off, y = mid[1] + ny / nl * off;
+          if (Math.min(...road.pts.map(q => Math.hypot(q[0] - x, q[1] - y))) >= 50 && !W.blocked(x, y, 6) && !W.isWaterPx(x, y)) { spot = [x, y]; break; }
+        }
+        spot = spot || [mid[0] + 40, mid[1] + 40];
+        TH.goto(spot[0], spot[1]); TH.clearNpcs();
         G.eventT = 1e9; G.travelT = 1e9;   // yol olayları (düello, soygun) testi bölmesin
         for (const e of G.ents) if (e.kind === 'wagon') e.remove = true; G.ents = G.ents.filter(e => !e.remove);
         const ws = [new Wagon(road, 10, 1, false), new Wagon(road, 14, 1, true), new Wagon(road, 30, -1, false), new Wagon(road, 26, -1, true), new Wagon(road, 6, 1, true)];
@@ -75,6 +85,25 @@ module.exports = {
       t.ok(seen.has('Birinci satır.') && seen.has('İkinci satır.') && seen.has('Üçüncü satır.'), 'üç satır sırayla görünmeli', [...seen]);
       t.ok(end.done && !end.talk.some(Boolean) && end.cd, 'sohbet biter, bir süre yeniden başlamaz', end);
     });
+    await t.step('sohbetten yeni çıkan, yakında başlayan bir sohbete üçüncü kişi olarak da katılmaz', async () => {
+      const r = await p.evaluate(() => {
+        const tw = TH.town('harlow'), [x, y, z] = G.ents.filter(e => e.res && !e.dead && !e.remove && !e.child && !e.talk).slice(0, 3);
+        if (!z) return { err: 'üç sakin yok' };
+        // çevresinde başka sakin olmayan açık bir yer: üçüncü kişi yalnız z olabilir
+        const s = TH.openSpot();
+        x.x = s[0]; x.y = s[1]; y.x = s[0] + 14; y.y = s[1]; z.x = s[0]; z.y = s[1] + 16;
+        const once = () => { const T = G.startTalk(x, y, tw, ['Bir.']), inZ = T.ppl.includes(z); for (const q of T.ppl) q.talk = null; G.talks.splice(G.talks.indexOf(T), 1); return inZ; };
+        const r0 = Math.random; Math.random = () => 0;   // üçüncü kişinin katılma şansı hep tutar
+        try {
+          z.talkCd = G.clock + 30; const cool = once();
+          z.talkCd = 0; const free = once();
+          return { cool, free };
+        } finally { Math.random = r0; }
+      });
+      t.ok(!r.err, r.err);
+      t.ok(!r.cool, 'bekleme süresindeki sakin katılmaz', r);
+      t.ok(r.free, 'bekleme süresi bitmiş sakin katılabilir', r);
+    });
     await t.step('kirli oyuncuya sataşır; karşılık verilince güler ya da bozulur', async () => {
       const r = await p.evaluate(() => {
         const P = G.player, tw = TH.town('harlow');
@@ -101,6 +130,8 @@ module.exports = {
     await t.step('silah doğrultulan sivil ellerini kaldırır; dörtnala gelen atlıdan yana sıçrar', async () => {
       const r = await p.evaluate(() => {
         const P = G.player, e = TE;
+        // yana sıçrama duvara, çite ya da arabaya takılmasın: kasaba dışında açık bir yer
+        const s = TH.openSpot(); TH.goto(s[0], s[1]);
         e.state = 'idle'; e.talk = null; e.x = P.x + 40; e.y = P.y; e.handsT = 0;
         P.giveWeapon('cattleman', true); P.weapon = 'cattleman'; P.aiming = true; P.aimAng = 0;
         G.perceive(e, 0.016);
@@ -184,9 +215,15 @@ module.exports = {
         const A = sp[0], B = sp.find(s => dist2(s.x, s.y, A.x, A.y) > 180 * 180) || sp[sp.length - 1];
         const mk = () => { const n = new NPC(A.x, A.y, 'traveler', {}); n.state = 'idle'; G.addEnt(n); return n; };
         const ns = [mk(), mk()], tr = [[], []];
-        for (let f = 0; f < 30 * 25; f++) {
-          ns.forEach((n, i) => { if (G.navStep(n, B.x, B.y, 1 / 30, 30) === 'moving') tr[i].push([n.x, n.y]); });
-        }
+        // kavis payı rastgele (parça başına ±16 px'e dek): sıfıra yakın çekiliş yolu düz bırakabilir (doğal bir durum).
+        // Mekanizma kesin sınansın diye bu iki kişinin kavisleri güçlü ve karşı yönlere çekilir
+        const br = G.bendRoute; let k = 0;
+        G.bendRoute = function (e, R) { const r0 = Math.random, v = (k++ % 2) ? 0.1 : 0.9; Math.random = () => v; try { return br.call(this, e, R); } finally { Math.random = r0; } };
+        try {
+          for (let f = 0; f < 30 * 25; f++) {
+            ns.forEach((n, i) => { if (G.navStep(n, B.x, B.y, 1 / 30, 30) === 'moving') tr[i].push([n.x, n.y]); });
+          }
+        } finally { G.bendRoute = br; }
         ns.forEach(n => { n.remove = true; });
         // düz çizgiden sapma ve iki yol arasındaki fark
         const dev = (a) => { const [x0, y0] = a[0], [x1, y1] = a[a.length - 1], L = Math.hypot(x1 - x0, y1 - y0) || 1; return Math.max(...a.map(([x, y]) => Math.abs((x1 - x0) * (y0 - y) - (x0 - x) * (y1 - y0)) / L)); };

@@ -7,7 +7,9 @@ module.exports = {
     // gerçek şifre depoda hiçbir yerde düz yazılmaz: test kendi geçici şifresini kurar
     const PIN = '8642';
     await p.evaluate((pin) => { Debug.PIN_HASH = Debug.pinHash(pin); }, PIN);
-    const combo = async () => { await p.keyboard.down('Control'); await p.keyboard.down('Alt'); await p.keyboard.press('KeyC'); await p.keyboard.up('Alt'); await p.keyboard.up('Control'); await t.sleep(250); };
+    // tuşlar ağır yükte de ayrı karelerde işlensin: basışlardan sonra iki kare beklenir
+    const frames = (n) => p.evaluate((n) => new Promise(res => { const f0 = G.fno || 0, k = () => ((G.fno || 0) - f0 >= n ? res() : requestAnimationFrame(k)); requestAnimationFrame(k); }), n);
+    const combo = async () => { await p.keyboard.down('Control'); await p.keyboard.down('Alt'); await p.keyboard.press('KeyC'); await p.keyboard.up('Alt'); await p.keyboard.up('Control'); await frames(3); await t.sleep(250); };
     await t.step('kısayol şifre sorar; yanlış şifre açmaz, oyuncu yürümez', async () => {
       await combo();
       t.ok(await p.evaluate(() => !!Debug.pin && !Debug.open), 'şifre penceresi açılmalı');
@@ -28,7 +30,7 @@ module.exports = {
     await t.step('3 hatalı denemede 30 sn kilit; Esc kapatır', async () => {
       await p.evaluate(() => { if (Debug.open) Debug.toggle(); if (Debug.pin) Debug.closePin(); Debug.unlocked = false; Debug.fails = 0; });
       await combo();
-      for (let k = 0; k < 3; k++) { await p.keyboard.type('0000'); await t.sleep(900); }
+      for (let k = 0; k < 3; k++) { for (const ch of '0000') { await p.keyboard.press(ch); await frames(2); } await t.sleep(900); }
       await combo();
       t.ok(await p.evaluate(() => !Debug.pin && !Debug.open && Debug.lockUntil > performance.now()), 'kilitlenmeli');
       await p.evaluate(() => { Debug.lockUntil = 0; }); await combo(); await t.sleep(150);
