@@ -89,7 +89,9 @@ module.exports = {
       t.ok(r.acts.some(a => /Maymuncuk/.test(a)), 'maymuncukla açma seçeneği', r.acts);
       t.ok(r.open, 'mini oyun açılmalı'); t.eq(r.pins, 3, 'evde 3 pim');
       await t.sleep(200);
-      for (let k = 0; k < 3; k++) { await p.keyboard.press('Enter'); await t.sleep(120); }
+      // her basış bir pim iter (çubuk baştan sona yeşil); makine yüklüyken kare aralığı uzayıp iki basış bir sayılabilir:
+      // kapı açılana dek basılır (en çok 10)
+      for (let k = 0; k < 10 && !(await p.evaluate(() => G.doorOpen(LB))); k++) { await p.keyboard.press('Enter'); await t.sleep(200); }
       await t.sleep(700);
       const e = await p.evaluate(() => ({ open: G.doorOpen(LB), modal: UI.isModal(), picks: G.player.count('lockpick'), stat: G.stats.locksPicked }));
       t.ok(e.open, 'kapı açılmalı'); t.ok(!e.modal, 'mini oyun kapanmalı'); t.eq(e.picks, 2, 'başarıda maymuncuk harcanmaz'); t.eq(e.stat, 1, 'istatistik');
