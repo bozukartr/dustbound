@@ -66,7 +66,7 @@ const RailSystems = {
     for (const o of L) {
       if (o === self || Math.abs(o.x - x) > 34 || Math.abs(o.y - y) > 34) continue;
       if (self && (o.rider === self || self.riding === o || o.driverEnt === self || (self === P && P.riding === o))) continue;
-      for (const [cx, cy, cr] of o.circles()) if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < (cr + r) * (cr + r)) return o;
+      if (o.penAt(x, y, r) > 0) return o;   // gövde, atlar ve aralarındaki oklar
     }
     return null;
   },
