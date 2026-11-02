@@ -314,7 +314,9 @@ module.exports = {
 
     await t.step('aşağı inince kamera ve rüzgâr eski hâline döner', async () => {
       await p.evaluate(([x, y]) => { TH.goto(x, y); TH.clearNpcs(); }, spots.lo);
-      await t.sleep(8000);
+      // yük altında oyun saati gerçek zamandan yavaş akar: yükseklik hissi ve kamera yerine oturana kadar beklenir
+      await p.waitForFunction(() => !G.alt && G.camZoom.az === 1 && !G.canvas.style.transform, null, { timeout: 25000 }).catch(() => {});
+      await t.sleep(500);
       const r = await wind();
       t.ok(spots.loE < 160, 'alçak yer', spots.loE);
       t.eq(r.alt, 0, 'yükseklik sıfır');
