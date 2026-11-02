@@ -41,11 +41,12 @@ module.exports = {
       await setup();
       await p.evaluate(() => { const P = G.player, h = G.horse; h.x = P.x; h.y = P.y; h.ang = 0; h.state = 'idle'; h.dead = false; h.sta = h.maxSta; P.mount(h, true); P.ang = 0; });
       await p.keyboard.down('ShiftLeft'); await p.keyboard.down('KeyW');   // at doğuya bakıyor: W ileri (dizgin)
-      await t.sleep(2600);
+      // yük altında kareler seyrekleşir ve oyun saati gerçek zamandan yavaş akar: at hızlanıp kamera uzaklaşana kadar beklenir
+      await p.waitForFunction(() => G.player.riding && G.player.riding.spd > 130 && G.camZoom.sz < 0.96, null, { timeout: 12000 }).catch(() => {});
       const g = await p.evaluate(() => ({ sz: G.camZoom.sz, spd: G.player.riding.spd, tf: G.canvas.style.transform }));
       await p.keyboard.up('KeyW'); await p.keyboard.up('ShiftLeft');
       t.ok(g.spd > 130, 'dörtnal', g.spd); t.ok(g.sz < 0.96, 'kamera uzaklaşmalı', g); t.ok(/scale\(0\.9/.test(g.tf), 'tuval küçülmeli', g.tf);
-      await t.sleep(2500);
+      await p.waitForFunction(() => G.camZoom.sz > 0.995 && !G.canvas.style.transform, null, { timeout: 12000 }).catch(() => {});
       const s = await p.evaluate(() => ({ sz: G.camZoom.sz, tf: G.canvas.style.transform }));
       t.ok(s.sz > 0.995, 'durunca geri yakınlaşır', s); t.eq(s.tf, '', 'dönüşüm kalkar');
     });
