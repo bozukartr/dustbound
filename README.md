@@ -439,7 +439,7 @@ npm test -- --jobs 1 --headed    # tek tek, tarayıcı görünür
 npm test -- --list               # test dosyalarını listele
 ```
 
-Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir sunucudan açar, her dosyayı temiz bir tarayıcı bağlamında (boş kayıt, Türkçe) çalıştırır ve her adımı doğrular; sayfada yakalanmamış bir JavaScript hatası olursa ya da oyun bir hatayı yakalayıp konsola yazarsa (ana döngü ve ekran kararması hataları yakalayıp sürdürür) dosya başarısız sayılır. Başarısız adımların ekran görüntüleri `tests/output/` altına yazılır.
+Test çalıştırıcı (`tests/run.js`) oyunu bağımlılıksız küçük bir sunucudan açar, her dosyayı temiz bir tarayıcı bağlamında (boş kayıt, Türkçe) çalıştırır ve her adımı doğrular; sayfada yakalanmamış bir JavaScript hatası olursa ya da oyun bir hatayı yakalayıp konsola yazarsa (ana döngü ve ekran kararması hataları yakalayıp sürdürür) dosya başarısız sayılır. Başarısız adımların ekran görüntüleri `tests/output/` altına yazılır. Testler yük altında da kararlıdır (dört tarayıcı aynı anda, `--jobs 4`, ile de sınandı): oyun içi süreler (basılı tutma, sürüş, şahlanma, geri sayımlar) gerçek zamanla değil oyun saatiyle (`G.t`) beklenir, ardışık tuş ve kol basışları arasında iki kare beklenir, bir etkileşime basmadan önce arayüzün o hedefi gördüğü beklenir; sabit bir bekleme yerine sonuç gelene kadar (üst sınırla) yoklanır.
 
 | Dosya | Kapsam |
 |---|---|
