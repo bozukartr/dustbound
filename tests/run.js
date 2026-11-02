@@ -92,13 +92,18 @@ async function runFile(file, browser, url) {
       await p.goto(url + (o.path || 'index.html'));   // path: başka bir sayfa (ör. demo paketi)
       // wait: false → menüyü bekleme (açılış videosu testi)
       await p.waitForFunction((w) => typeof G !== 'undefined' && (!w || G.state === 'menu'), o.wait !== false, { timeout: 30000 });
+      // yeni açılan pencere doğduğu kare ve sonrakinde tuş almaz (onu açan tuş aynı anda seçim yapmasın): yük altında bu iki
+      // kare uzun sürer, testin ilk basışı yutulmasın diye ana menü onları geçene kadar beklenir
+      if (o.wait !== false) await p.waitForFunction(() => { const m = UI.top(); return !m || UI.frame - m.born >= 2; }, null, { timeout: 30000 }).catch(() => {});
       return p;
     },
     /* Ana menüden yeni hayat başlat (karakter ekranında varsayılanlarla) */
     async newGame(o = {}) {
       const p = o.page || await t.page(o);
       await sleep(300);
-      await p.keyboard.press('Enter'); await sleep(400);
+      await p.keyboard.press('Enter');
+      await p.waitForFunction(() => !!document.querySelector('#cr-go'), null, { timeout: 30000 }).catch(() => {});
+      await sleep(200);
       // karakter ekranı adım adım: her bölümde İleri, sonunda Hayata Başla
       await p.evaluate(() => { for (let k = 0; k < 8 && document.querySelector('#cr-go'); k++) document.querySelector('#cr-go').click(); });
       // dünya üretimi yazılımla çizen tarayıcıda uzun sürer; aynı anda dört tarayıcı üretirken 150 sn'yi aşabilir
