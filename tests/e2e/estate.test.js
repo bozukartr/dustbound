@@ -249,7 +249,7 @@ module.exports = {
       t.ok(!r.wanted, 'aranırken arabacı yola çıkmaz');
       t.ok(r.ride, 'yolculuk başladı');
       // yük altında oyun saati gerçek zamandan yavaş akar: fayton yeterince yol alana kadar beklenir
-      await p.waitForFunction(() => Math.hypot(G.player.x - RX[0], G.player.y - RX[1]) > 60, null, { timeout: 15000 }).catch(() => {});
+      await p.waitForFunction(() => Math.hypot(G.player.x - RX[0], G.player.y - RX[1]) > 66, null, { timeout: 15000 }).catch(() => {});   // denetim yuvarlanmış değerle (> 60)
       const m = await p.evaluate(() => ({ moved: Math.round(Math.hypot(G.player.x - RX[0], G.player.y - RX[1])), acts: TH.actions(), horse: Math.round(Math.hypot(G.horse.x - G.coach.bx, G.horse.y - G.coach.by)), prompt: !!document.querySelector('.prompt') && /Yolu Atla/.test(document.body.innerHTML) }));
       t.ok(m.moved > 60, 'fayton yolu kendisi sürüyor', m.moved);
       t.ok(m.acts.includes('Faytondan İn'), 'yolcuyken inme seçeneği', m.acts);
