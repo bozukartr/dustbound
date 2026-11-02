@@ -481,13 +481,16 @@ const DevWorldSystems = {
     (D.elec || (D.elec = {}))[op[1]] = 1;
     if (!t) return;
     for (const i of op[2]) if (!W.obj[i] && !(W.flags[i] & 8)) W.obj[i] = O.UPOLE;
-    for (let y = t.y - 2; y < t.y + t.h + 2; y++) for (let x = t.x - 2; x < t.x + t.w + 2; x++) {
-      const i = y * WW + x;
-      if (!W.inb(x, y) || W.obj[i] !== O.LAMP) continue;
+    const conv = (i) => {
+      if (W.obj[i] !== O.LAMP) return;
       W.obj[i] = O.ELAMP;
-      const L = W.lights.find(l => l.type === 'lamp' && l.x === x * TS + 8 && l.y === y * TS + 2);
+      const x = i % WW, y = (i / WW) | 0, L = W.lights.find(l => l.type === 'lamp' && l.x === x * TS + 8 && l.y === y * TS + 2);
       if (L) { L.el = 1; L.r = 70; }
-    }
+    };
+    // kasabanın sınırından 3 karo öteye dek (direk ve tellerle aynı pay) ve kasabanın bütün kaldırımları: kasaba geliştikçe
+    // kaldırımına dikilen lambalar sınırı aşabilir; hiçbir gaz lambası elektrikli kasabada sarı titreyerek kalmasın
+    for (let y = t.y - 3; y < t.y + t.h + 3; y++) for (let x = t.x - 3; x < t.x + t.w + 3; x++) if (W.inb(x, y)) conv(y * WW + x);
+    if (t._dv && t._dv.sw) for (const i of t._dv.sw) conv(i);
     W._lN = -1;   // ışık ızgarası yeni yarıçaplarla yeniden kurulsun
     t._lamps = null;
     this.devWires(t);
