@@ -152,7 +152,9 @@ module.exports = {
       });
       await p.waitForFunction(() => !CP.mounted, null, { timeout: 3000 }).catch(() => {});
       const alight = await p.evaluate(() => ({ mounted: !!CP.mounted, t: Math.round(dist(CP.x, CP.y, G.player.x, G.player.y)), d0: CP0 }));
+      // yük altında oyun saati yavaş akar: kanun adamı yaklaşana (ya da içeri girene) kadar en az 5, en çok 25 sn beklenir
       await t.sleep(5000);
+      await p.waitForFunction((t0) => G.world.buildingAtPx(CP.x, CP.y) === HB || dist(CP.x, CP.y, G.player.x, G.player.y) < t0 - 40, alight.t, { timeout: 20000 }).catch(() => {});
       const r = await p.evaluate(() => {
         clearInterval(WATCH);
         const P = G.player, W = G.world, horses = G.ents.filter(e => e.kind === 'horse' && !H0.has(e) && e.look === CPL);
