@@ -1198,7 +1198,8 @@ class NPC extends Ent {
       const fair = (how === 'fist' && G.brawlHit(this)) || (this.fistOK && how === 'melee' && this.state === 'fightFist');
       if (this.role === 'hunter') G.hunterFight();   // ödül avcısını vurmak suç değildir
       else if (!this.hostile && this.role !== 'bandit' && !fair) {
-        if (this.hp > 0 && !this.assaulted) { this.assaulted = true; G.crime(this.isLaw ? 'assaultLaw' : 'assault', this.x, this.y, this); }
+        // yumrukla ya da dipçikle bayıltmak da saldırıdır: bayılan ölmez (cinayet yazılmaz), vuruş da suçsuz kalmasın
+        if ((this.hp > 0 || how === 'fist' || how === 'melee') && !this.assaulted) { this.assaulted = true; G.crime(this.isLaw ? 'assaultLaw' : 'assault', this.x, this.y, this); }
       }
       if (this.isLaw) this.hostile = true;
       if (this.role === 'bandit' || this.role === 'target') this.hostile = true;

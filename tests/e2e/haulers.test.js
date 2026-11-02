@@ -31,8 +31,13 @@ module.exports = {
         window.hx0 = h.x; return { pts: h.route.length, ent: !!h.ent };
       });
       t.ok(r.pts > 20, 'kasabalar arası rota', r.pts); t.ok(r.ent, 'araba yolda olmalı');
-      await t.sleep(2500);
-      const moved = await p.evaluate(() => { const h = G.haulers[0]; return { d: Math.abs(h.x - hx0) + Math.abs(h.ent ? 0 : 1), ent: !!h.ent, sync: h.ent && Math.abs(h.ent.x - h.x) < 2 }; });
+      // araba hemzemin geçitte yaklaşan treni bekleyebilir: ilerleyene dek en çok 10 sn beklenir
+      let moved = null;
+      for (let k = 0; k < 40; k++) {
+        await t.sleep(250);
+        moved = await p.evaluate(() => { const h = G.haulers[0]; return { d: Math.abs(h.x - hx0) + Math.abs(h.ent ? 0 : 1), ent: !!h.ent, sync: h.ent && Math.abs(h.ent.x - h.x) < 2 }; });
+        if (moved.d > 10) break;
+      }
       t.ok(moved.d > 10, 'araba ilerlemeli', moved); t.ok(moved.sync, 'dünyadaki araba rotayla eşleşmeli');
     });
     await t.step('baskına yetişilip haydutlar yenilirse yük kurtulur', async () => {
