@@ -75,6 +75,27 @@ module.exports = {
       t.ok(r.crime, 'teslim olana vurmak suç', r);
     });
 
+    await t.step('teslim olanı ya da karşılıksız birini yumrukla bayıltmak da saldırı suçudur', async () => {
+      const r = await p.evaluate(() => {
+        const out = {};
+        // teslim olmuş ve canı az: bu yumruk onu bayıltır (eskiden yere yığıldığı için suç yazılmazdı)
+        BR.grit(0.95); BR.rnd(0.2);
+        const n = BR.spawn('town');
+        n.brawl = { hits: 4, free: 0, fought: true, yielded: true, won: false, t: G.t }; n.state = 'glare'; n.hp = 2;
+        BR.punch(n);
+        out.yielded = { state: n.state, crime: !!n.assaulted };
+        // karşılık vermeyen biri: üçüncü yumruk onu bayıltsa da suç
+        BR.grit(0.02); BR.rnd(0.99);
+        const m = BR.spawn('town', { sex: 'f' });
+        BR.punch(m); BR.punch(m); m.hp = 2; BR.punch(m);
+        out.free = { state: m.state, crime: !!m.assaulted };
+        BR.rndReset(); BR.gritReset();
+        return out;
+      });
+      t.eq(r.yielded, { state: 'downed', crime: true }, 'teslim olanı bayıltmak suç');
+      t.eq(r.free, { state: 'downed', crime: true }, 'karşılıksız birini üçüncü yumrukla bayıltmak suç');
+    });
+
     await t.step('sakin biri karşılık vermez: ilk iki yumruk suç değil, üçüncüsü saldırı', async () => {
       const r = await p.evaluate(() => {
         BR.grit(0.02); BR.rnd(0.3);
