@@ -4699,6 +4699,8 @@ I18N.add('en', {
     "Kulüp üyeliği {0}; aranırken, maskeliyken ya da kirliyken içeri alınmazsın. Üst katta poker girişi {1}-{2}, bilardo bahsi {3}-{4} (kazanan iki katını alır).": "Club membership {0}; you won't be let in while wanted, masked or dirty. Upstairs, the poker ante is {1}-{2} and the billiards bet {3}-{4} (the winner takes double).",
     "Özel fayton ahırdan {0}, arabacının günlüğü {1}. Bin ve gideceğin yeri seç: yolu izle ya da {2} tuşunu basılı tutarak atla (zaman yine geçer). {3} ile inersin. Biri saldırırsa ya da kanun görünürse arabacı durur.": "Private carriage from the stable {0}, the coachman's daily wage {1}. Board and choose where to go: watch the ride or skip it by holding {2} (time still passes). {3} gets you off. The coachman stops if someone attacks or the law shows up.",
     "Bu kayıt oyunun eski bir sürümüne ait ve açılamıyor. Yeni bir hayata başla.": "This save belongs to an older version of the game and can no longer be opened. Start a new life.",
+    "Kayıt dosyası bozuk ya da eksik olduğu için açılamadı. Kayıt Yükle'den aynı yuvanın öbür kaydını (otomatik ya da elle) deneyebilirsin.": "The save file is damaged or incomplete and could not be opened. You can try the slot's other save (auto or manual) from Load Game.",
+    "Kayıt Açılamadı": "Could Not Open Save",
     "+1 yıl": "+1 year",
     "+10 yıl": "+10 years",
     "Gelişim": "Development",

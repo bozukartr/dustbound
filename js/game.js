@@ -388,11 +388,12 @@ const G = {
   /* n, kind verilmezse en yeni kayıt yüklenir; kind verilmezse o yuvanın en yeni kaydı */
   async loadGame(n, kind) {
     const L = n && kind ? { n, kind } : this.latestSave(n);
-    if (!L) return false;
+    this.loadErr = null;   // açılamazsa nedeni: 'bad' (dosya bozuk ya da yok), 'old' (eski sürüm) — UI.loadSave
+    if (!L) { this.loadErr = 'bad'; return false; }
     let d;
     try { d = JSON.parse(Platform.get(slotKey(L.n, L.kind))); } catch (e) { d = null; }
-    if (!d) return false;
-    if (!(d.v >= SAVE_V)) { UI.feed(Tr('Bu kayıt oyunun eski bir sürümüne ait ve açılamıyor. Yeni bir hayata başla.'), 'warn'); return false; }
+    if (!d || typeof d !== 'object') { this.loadErr = 'bad'; return false; }
+    if (!(d.v >= SAVE_V)) { this.loadErr = 'old'; UI.feed(Tr('Bu kayıt oyunun eski bir sürümüne ait ve açılamıyor. Yeni bir hayata başla.'), 'warn'); return false; }
     this.resetState();
     this.slot = L.n;
     this.seed = d.seed;
@@ -502,7 +503,7 @@ const G = {
     this._presT = (this._presT || 0) - dt;
     if (this._presT > 0) return;
     this._presT = 5;
-    if ((this.state === 'play' || this.state === 'dead') && this.player && this.world) {
+    if ((this.state === 'play' || this.state === 'dead' || this.state === 'faint') && this.player && this.world) {
       const P = this.player, t = this.world.townAt(P.x, P.y, 60);
       Platform.presence('age', this.age);
       Platform.presence('place', t ? t.n : this.world.regionAt(P.x, P.y));
@@ -1334,6 +1335,9 @@ const G = {
     const lost = P.money * 0.25;
     P.money -= lost;
     this.scars = Math.min(30, (this.scars || 0) + 3);
+    // omzundaki yük (ceset, bağlı kişi, leş) düştüğün yerde kalır; kement de elinden kaymıştır
+    this.dropCarry(true);
+    if (P.rope) P.releaseRope();
     P.x = doc.door.x; P.y = doc.door.y + 10;
     if (P.riding) P.dismount();
     P.hp = P.maxHp * 0.6; P.hunger = Math.max(P.hunger, 50); P.thirst = Math.max(P.thirst, 50); P.energy = Math.max(P.energy, 60); P.poison = 0; P.sick = 0; P.retchT = 0; P.faintCd = 0;

@@ -161,6 +161,11 @@ module.exports = {
         fixFaint(0.99);   // kimse gelmez, 4 saat baygın
         let f = 0; while (G.state === 'play' && f < 30 * 120) { G.update(1 / 30); f++; }
         out.state = G.state; out.hpF = P.hp / P.maxHp; out.fade = fadeText(); const c0 = G.clock, x0 = P.x, y0 = P.y;
+        // Steam durumu (arkadaş listesi) baygınken de oyunda; ana menüde görünmez
+        const pres = {}, pr0 = Platform.presence, st0 = Object.getOwnPropertyDescriptor(Platform, 'steam');
+        Object.defineProperty(Platform, 'steam', { get: () => true, configurable: true }); Platform.presence = (k, v) => { pres[k] = v; };
+        try { G._presT = 0; G.presenceTick(0.1); } finally { Platform.presence = pr0; Object.defineProperty(Platform, 'steam', st0); }
+        out.presence = pres.steam_display;
         await fadeDone();
         Object.assign(out, { hours: (G.clock - c0) / 60, moved: Math.hypot(P.x - x0, P.y - y0), hp: P.hp / P.maxHp, cd: P.faintCd, help: helpText(), faints: G.stats.faints });
         // yakında yine: bayılmadan ölür
@@ -172,6 +177,7 @@ module.exports = {
       t.eq(r.state, 'faint', 'can %10\'a inince bayıldı');
       t.near(r.hpF, 0.1, 0.01, 'bayılırken can');
       t.eq(r.fade, 'Bayıldın...', 'ekrandaki yazı');
+      t.eq(r.presence, '#StatusPlaying', 'Steam durumu baygınken de oyunda');
       t.near(r.hours, 4, 0.05, '4 saat baygın kaldı');
       t.ok(r.moved < 1, 'olduğu yerde', r.moved);
       t.near(r.hp, 0.15, 0.005, '%15 canla kendine geldi');
@@ -186,12 +192,17 @@ module.exports = {
         const P = G.player, out = {};
         const faintNow = async (wanted) => {
           reset(); P.thirst = 0; P.hp = P.maxHp * 0.11; P.money = 5; P.poison = 100; G.heatLoad = 2.6;
+          // omzunda bir sandık: bayılınca olduğu yere düşer, doktora onunla taşınmaz
+          const cr = new Crate(P.x, P.y, 'dry'); G.addEnt(cr); G.pickUp(cr);
+          const held = P.carry === cr, fx = P.x, fy = P.y;
           fixFaint(0.01);   // yardım gelir (gelebiliyorsa), 2 saat baygın
           let f = 0; while (G.state === 'play' && f < 30 * 60) { G.update(1 / 30); f++; }
           if (wanted) G.law.level = 1;
           try { await fadeDone(); } finally { G.law.level = 0; }
           const tw = G.nearestTown(P.x, P.y, t => t.buildings.some(b => b.type === 'doctor')), doc = tw.buildings.find(b => b.type === 'doctor');
-          return { atDoc: Math.hypot(P.x - doc.door.x, P.y - (doc.door.y + 10)) < 1, money: P.money, hp: P.hp / P.maxHp, thirst: P.thirst, poison: P.poison, heat: G.heatLoad, help: helpText(), town: tw.n };
+          const dropped = held && !P.carry && G.ents.includes(cr) && Math.hypot(cr.x - fx, cr.y - fy) < 20;
+          cr.remove = true;
+          return { atDoc: Math.hypot(P.x - doc.door.x, P.y - (doc.door.y + 10)) < 1, money: P.money, hp: P.hp / P.maxHp, thirst: P.thirst, poison: P.poison, heat: G.heatLoad, help: helpText(), town: tw.n, dropped };
         };
         out.rescue = await faintNow(false);
         out.wanted = await faintNow(true);
@@ -203,6 +214,7 @@ module.exports = {
       t.ok(r.rescue.hp >= 0.499 && r.rescue.thirst >= 39.9 && r.rescue.poison === 0 && r.rescue.heat === 0, 'ayıltıldı ve tedavi edildi', r.rescue);
       t.ok(r.rescue.help.includes(`Yoldan geçen biri seni baygın bulup ${r.rescue.town} doktoruna getirdi.`), 'mesaj', r.rescue.help);
       t.ok(!r.wanted.atDoc && r.wanted.money === 5, 'aranırken kimse götürmez', r.wanted);
+      t.ok(r.rescue.dropped && r.wanted.dropped, 'omuzdaki yük bayılınca olduğu yere düşer (doktora taşınmaz)', { rescue: r.rescue.dropped, wanted: r.wanted.dropped });
       t.near(r.wanted.heat, 1.5, 0.01, 'kendine gelince yük 2. aşamaya iner');
     });
 

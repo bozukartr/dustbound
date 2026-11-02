@@ -3305,6 +3305,22 @@ const UI = {
     $('#ld-rider').innerHTML = Icons.glyph('horse', '#ecd9b2');
   },
   loading(msg, p) { $('#ld-msg').textContent = msg; const v = Math.round(p * 100) + '%'; $('#ld-fill').style.width = v; $('#ld-rider').style.left = v; },
+  /* Kaydı aç (ana menüde Devam Et, Kayıt Yükle). Açılamazsa (dosya bozuk ya da eksik, eski sürüm, yüklemede hata)
+     nedeni söylenir: oyun içinden açılmak istendiyse ve oyun bozulmadıysa oyun sürer; yoksa ana menüye dönülür
+     (menü gizlenmiş ya da yükleme ekranı açık kalıp boş ekranda kalınmaz). */
+  async loadSave(n, kind) {
+    let ok = false, broke = false;
+    try { ok = await G.loadGame(n, kind); } catch (e) { broke = true; console.warn('kayıt yüklenemedi:', e); }
+    if (ok) return true;
+    const old = !broke && G.loadErr === 'old';
+    const why = old ? Tr('Bu kayıt oyunun eski bir sürümüne ait ve açılamıyor. Yeni bir hayata başla.')
+      : Tr('Kayıt dosyası bozuk ya da eksik olduğu için açılamadı. Kayıt Yükle\'den aynı yuvanın öbür kaydını (otomatik ya da elle) deneyebilirsin.');
+    if (!broke && G.state === 'play') { if (!old) this.feed(why, 'warn'); return false; }   // eski sürüm uyarısını loadGame verdi
+    this.showLoading(false);
+    this.showMainMenu();
+    this.info(Tr('Kayıt Açılamadı'), `<p>${why}</p>`);
+    return false;
+  },
   showMainMenu() {
     G.state = 'menu';
     this.closeAll();
@@ -3340,7 +3356,7 @@ const UI = {
         Audio_.unlock();
         Audio_.ui('ok');
         const id = n.dataset.id;
-        if (id === 'cont') { this.pop(m); mm.classList.add('hidden'); G.loadGame(); }
+        if (id === 'cont') { this.pop(m); mm.classList.add('hidden'); this.loadSave(); }
         else if (id === 'load') this.openSlots('load');
         else if (id === 'new') { if (info) this.openSlots('new'); else { this.pop(m); this.showCreate(1); } }
         else if (id === 'set') this.openSettings();
@@ -3393,7 +3409,7 @@ const UI = {
         if (used.auto || used.manual) this.confirm(Tr('Yuvanın Üzerine Yaz'), Tr`${k}. yuvadaki hayat silinecek ve yerine yenisi başlayacak. Emin misin?`, go, Tr('Vazgeç'), Tr('Sil ve Başla'));
         else go();
       } else if (a === 'load') {
-        const go = () => { this.closeAll(); $('#mainmenu').classList.add('hidden'); G.loadGame(k, n.dataset.kind); };
+        const go = () => { this.closeAll(); $('#mainmenu').classList.add('hidden'); this.loadSave(k, n.dataset.kind); };
         if (G.state === 'play') this.confirm(Tr('Kayıt Yükle'), Tr('Son kayıttan sonraki ilerleme kaybolacak. Yüklensin mi?'), go, Tr('Vazgeç'), Tr('Yükle'));
         else go();
       } else if (a === 'del') {

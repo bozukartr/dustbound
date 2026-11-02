@@ -66,6 +66,8 @@ module.exports = {
     await t.step('ölüm ekranı: döküm, doktorun bedeli ve öğüt; Devam Et bedeli gerçekten öder', async () => {
       await p.evaluate(() => {
         revive(); const P = G.player; P.money = 6.4; G.bank = 12.5; G.law.level = 2; G.law.bounty = 30; window.scars0 = G.scars || 0;
+        // omzunda bir sandık: öldüğü yerde kalır, doktora onunla gelinmez
+        window.CR = new Crate(P.x, P.y, 'dry'); G.addEnt(CR); G.pickUp(CR); window.CRX = [P.x, P.y, P.carry === CR];
         const h = npc('hunter', 'winchester', 'Jed Barlow'); P.hp = 15; G.fireRay(h.x, h.y, 0, 120, 60, h, { npc: true }); h.remove = true;
       });
       await p.evaluate(() => waitDeath());
@@ -75,6 +77,7 @@ module.exports = {
         document.querySelector('#ds-cont').click();
         const P = G.player;
         Object.assign(out, { money: P.money, bank: G.bank, scars: (G.scars || 0) - scars0, level: G.law.level, bounty: G.law.bounty, log: G.dmgLog.length, state: G.state });
+        out.dropped = CRX[2] && !P.carry && G.ents.includes(CR) && Math.hypot(CR.x - CRX[0], CR.y - CRX[1]) < 20; CR.remove = true;
         return out;
       });
       t.ok(r.grid, 'ayrıntılı ekran');
@@ -85,6 +88,7 @@ module.exports = {
       t.eq(r.state, 'play', 'doktor kurtardı');
       t.near(r.money, 4.8, 0.001, 'paranın dörtte biri gitti'); t.eq(r.bank, 12.5, 'banka güvende');
       t.eq(r.scars, 3, 'kalıcı iz'); t.eq(r.level, 0, 'aranma bitti'); t.eq(r.bounty, 30, 'ödül kaldı'); t.eq(r.log, 0, 'döküm sıfırlandı');
+      t.ok(r.dropped, 'omuzdaki yük öldüğü yerde kaldı, doktora gelmedi');
     });
 
     await t.step('susuzluktan ölüm: sebep çevrili, döküm ve öğüt', async () => {

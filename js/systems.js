@@ -2651,7 +2651,10 @@ const GameSystems = {
     P.mountAnim = null;
     if (P.riding) P.dismount();
     if (this.binoc) this.binocOff();
-    P.deadeye = false; P.aiming = false; P.sprinting = false; P.retchT = 0; P.vx = P.vy = 0;
+    // yere yığılan omzundakini düşürür (doktora onunla taşınmaz), kement de elinden kayar
+    this.dropCarry(true);
+    if (P.rope) P.releaseRope();
+    P.deadeye = false; P.aiming = false; P.sprinting = false; P.crouch = false; P.retchT = 0; P.vx = P.vy = 0;
     this.stat('faints', 1);
     Audio_.thud(0.5);
     UI.fade(() => this.faintWake(cause), Tr('Bayıldın...'));

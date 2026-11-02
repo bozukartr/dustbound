@@ -33,7 +33,8 @@ module.exports = {
       t.ok(r.dur > 8 && r.dur < 12.5, 'kapanış kartı kesilmiş kısa döngü', r);
       t.eq(await drawSpy(), 0, 'çizilen sahne durdu');
       // kayıt varken son hayat kartı sahneyi (sağ alt: ateş ve kovboy) kapatmaz, sağ üste çıkar
-      const card = await p.evaluate(() => { G.saveInfo = () => ({ name: 'Deneme', age: 30, money: 100, bg: 'farmer', place: '', year: 1891, playtime: 60 }); UI.showMainMenu(); const b = document.getElementById('mm-card').getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(document.querySelector('.mm-title h1')); const tt = rg.getBoundingClientRect(); return { left: b.left, bottom: b.bottom, h: innerHeight, titleR: tt.right }; });
+      // (sahte kayıt bilgisi yalnız kartın yerini ölçmek için; ölçünce kaldırılır: Devam Et'in ardında açılacak kayıt yok)
+      const card = await p.evaluate(() => { const si = G.saveInfo; G.saveInfo = () => ({ name: 'Deneme', age: 30, money: 100, bg: 'farmer', place: '', year: 1891, playtime: 60 }); UI.showMainMenu(); const b = document.getElementById('mm-card').getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(document.querySelector('.mm-title h1')); const tt = rg.getBoundingClientRect(); G.saveInfo = si; UI.showMainMenu(); return { left: b.left, bottom: b.bottom, h: innerHeight, titleR: tt.right }; });
       t.ok(card.bottom < card.h * 0.3 && card.left > card.titleR, 'son hayat kartı sağ üst köşede, başlığa değmiyor', card);
     });
 
