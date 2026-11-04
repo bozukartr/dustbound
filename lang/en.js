@@ -4701,6 +4701,8 @@ I18N.add('en', {
     "Bu kayıt oyunun eski bir sürümüne ait ve açılamıyor. Yeni bir hayata başla.": "This save belongs to an older version of the game and can no longer be opened. Start a new life.",
     "Kayıt dosyası bozuk ya da eksik olduğu için açılamadı. Kayıt Yükle'den aynı yuvanın öbür kaydını (otomatik ya da elle) deneyebilirsin.": "The save file is damaged or incomplete and could not be opened. You can try the slot's other save (auto or manual) from Load Game.",
     "Kayıt Açılamadı": "Could Not Open Save",
+    "Oyun Rehberi (Wiki)": "Game Guide (Wiki)",
+    "Rehber tarayıcında açıldı": "The guide opened in your browser",
     "+1 yıl": "+1 year",
     "+10 yıl": "+10 years",
     "Gelişim": "Development",

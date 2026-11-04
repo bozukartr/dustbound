@@ -72,6 +72,12 @@ const Platform = {
   },
 
   /* ---------------- Pencere ---------------- */
+  /* Dış bağlantıyı (yalnız https) varsayılan tarayıcıda açar. Masaüstünde pencere açma isteğini
+     desktop/main.js yakalayıp shell.openExternal ile tarayıcıya verir; tarayıcıda yeni sekme açılır. */
+  openUrl(url) {
+    if (!/^https:\/\//.test(String(url))) return false;
+    try { window.open(url, '_blank', 'noopener'); return true; } catch (e) { return false; }
+  },
   get canQuit() { return this.desktop; },
   quit() { if (this.native) this.native.quit(); },
   isFullscreen() {

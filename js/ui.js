@@ -3377,6 +3377,23 @@ const UI = {
         else if (id === 'about') this.info("Frontier's End", `<p>${Tr`<b>Frontier's End</b>, 1890'lar Amerika'sında geçen 2D açık dünya hayatta kalma ve rol yapma oyunudur.`}</p><p>${Tr`İstersen kısa bir hikâyeyle başla, istersen doğrudan hayatın içine dal. 18 yaşında başla; avlan, çalış, sev, keşfet; itibar sahibi ve zengin biri olmaya çalış.`}</p><p class="dim">${Tr`HTML5 Canvas • Prosedürel dünya, grafik ve ses`}</p>`);
       };
     });
+    // Wiki düğmesi: çevrimiçi rehberi oyunun diliyle açar (yön tuşlarıyla "sağ" ile de seçilir)
+    const wk = $('#mm-wiki', mm), tip = $('.mm-wiki-tip', wk);
+    const label = Tr('Oyun Rehberi (Wiki)');
+    wk.setAttribute('aria-label', label);
+    wk.title = label;
+    tip.textContent = label;
+    wk.classList.remove('opened');
+    wk.onmouseenter = () => m.setFocus(wk, true);
+    wk.onclick = () => {
+      Audio_.unlock();
+      Audio_.ui('ok');
+      const opened = Platform.openUrl(`${WIKI_URL}?lang=${I18N.lang === 'en' ? 'en' : 'tr'}`);
+      tip.textContent = opened ? Tr('Rehber tarayıcında açıldı') : WIKI_URL;
+      wk.classList.add('opened');
+      clearTimeout(this._wikiT);
+      this._wikiT = setTimeout(() => { tip.textContent = label; wk.classList.remove('opened'); }, 2600);
+    };
     this.stack.push(m);
     m.focusFirst();
     this.updatePauseState();
@@ -3786,6 +3803,8 @@ const UI = {
 
 const el_ = el;
 const GAME_VERSION = '0.9.0';
+/* Oyunun çevrimiçi rehberi (bozukartr/frontiersend deposu, GitHub Pages); ana menüdeki Wiki düğmesi açar */
+const WIKI_URL = 'https://bozukartr.github.io/frontiersend/';
 const I_WHEEL_HINT = (page) => {
   const pad = Input.device === 'pad';
   const sw = pad ? Input.padGlyph(PS.R1) : `${Input.kbGlyph('KeyQ')}${Input.kbGlyph('KeyE')}`;
