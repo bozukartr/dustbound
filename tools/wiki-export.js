@@ -301,4 +301,4 @@ function main() {
 if (require.main === module) {
   try { main(); } catch (e) { console.error(e.message); process.exit(1); }
 }
-module.exports = { build, serialize };
+module.exports = { build, serialize, loadEn };
