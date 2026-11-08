@@ -152,7 +152,7 @@ const HomeSystems = {
     return true;
   },
   buyDeed() {
-    if (!this.player.has('land_deed') || this.player.count('land_deed') < ITEMS.land_deed.max) {
+    if (!this.player.has('land_deed') || this.player.count('land_deed') < this.player.cap('land_deed')) {
       if (!this.spend(DEED_PRICE)) return false;
       this.player.addItem('land_deed', 1, true);
       UI.feed(Tr('📜 Arazi tapusu aldın. Kazıkları çaktığın yere yasal yapı kurabilirsin.'));

@@ -285,11 +285,13 @@ class Player extends Ent {
   /* ---- envanter ---- */
   count(id) { return this.inv[id] || 0; }
   has(id, n = 1) { return (this.inv[id] || 0) >= n; }
+  /* Taşıma sınırı: eşyanın sınırı, terzinin büyüttüğü heybeyle (js/legends.js) */
+  cap(id) { return G.itemCap ? G.itemCap(id) : ITEMS[id] ? ITEMS[id].max : 0; }
   addItem(id, n = 1, silent) {
     const it = ITEMS[id];
     if (!it) return 0;
     const cur = this.inv[id] || 0;
-    const add = Math.max(0, Math.min(n, it.max - cur));
+    const add = Math.max(0, Math.min(n, this.cap(id) - cur));
     if (add > 0) this.inv[id] = cur + add;
     if (!silent) {
       if (add > 0) UI.feed(`${Icons.item(it.id, 'ic inl')} +${add} ${it.n}`);
@@ -612,7 +614,7 @@ class Player extends Ent {
     this.sprinting = false;
     if (wantSprint && this.sta > 1 && !this.crouch) {
       speed = 88; this.sprinting = true;
-      this.sta -= dt * 16 * (this.energy < 20 ? 1.5 : 1) * (this.limberT > 0 ? 0.4 : 1);
+      this.sta -= dt * 16 * (this.energy < 20 ? 1.5 : 1) * (this.limberT > 0 ? 0.4 : 1) * G.coatFx('sta');
       if (this.sta < 0) this.sta = 0;
     } else {
       const regen = 14 * (this.energy < 15 ? 0.4 : 1) * (1 - 0.4 * Math.max(G.coldness, G.hotness)) * (this.limberT > 0 ? 1.5 : 1);   // sıcakta ve soğukta yavaş dolar
@@ -1017,10 +1019,12 @@ class Animal extends Ent {
     if (this.hp <= 0) {
       this.hp = 0; this.dead = true; this.state = 'dead'; this.deadT = 0; this.mv = 0;
       if (G.player.rope === this) G.player.rope = null;
+      if (this.legend) G.legendKilled(this);   // efsane kim vurursa vursun bir daha gelmez (js/legends.js)
       if (by === 'player') G.onAnimalKill(this, how);
       return;
     }
     if (this.bound) { if (this.def.owned && by === 'player') G.crime('livestockHurt', this.x, this.y); return; }
+    if (this.legend && G.legendHurt(this)) return;   // efsanenin huyu: kudurur, saldırır ya da çekilir
     if (this.def.beh === 'flee' || this.def.beh === 'passive') { this.state = 'flee'; this.t = rnd(5, 9); this.fleeFrom(G.player); }
     else { this.state = 'attack'; this.t = 20; }
     if (this.def.owned && by === 'player') G.crime('livestockHurt', this.x, this.y);
@@ -1067,11 +1071,11 @@ class Animal extends Ent {
     const pd = dist(this.x, this.y, P.x, P.y);
     this.t -= dt; this.atkCd -= dt; this.railT = (this.railT || 0) - dt;
     G.railShy(this);   // yaklaşan tren: raydan kaçar, raya doğru gidiyorsa yön değiştirir
-    let sense = d.sense * (P.crouch ? 0.5 : 1) * (P.sprinting ? 1.3 : 1) * (P.riding ? 1.2 : 1) * (G.hasPerk('hunt100') ? 0.7 : 1) * (1 - G.skill('hunting') * 0.03);
+    let sense = d.sense * (P.crouch ? 0.5 : 1) * (P.sprinting ? 1.3 : 1) * (P.riding ? 1.2 : 1) * (G.hasPerk('hunt100') ? 0.7 : 1) * (1 - G.skill('hunting') * 0.03) * G.coatFx('scent');
     if (G.isNight) sense *= 0.8;
     if (d.tame && P.crouch && !P.riding) sense = 16;
     if (this.state === 'idle' || this.state === 'wander') {
-      if (d.beh === 'hostile' && pd < d.aggro * (G.isNight && d.night ? 1.3 : 1)) { this.state = 'attack'; this.t = 25; if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar') Audio_.growl(this.type, this.x, this.y); }
+      if (d.beh === 'hostile' && pd < d.aggro * (G.isNight && d.night ? 1.3 : 1) * G.coatFx('aggro')) { this.state = 'attack'; this.t = 25; if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar') Audio_.growl(this.type, this.x, this.y); }
       else if (d.beh === 'skittish' && pd < d.aggro && (P.hp < P.maxHp * 0.35 || G.isNight)) { this.state = 'attack'; this.t = 12; }
       else if ((d.beh === 'flee' || d.beh === 'skittish') && pd < sense) { this.state = 'flee'; this.t = rnd(5, 9); this.fleeFrom(P); }
       else if (d.beh === 'passive' && pd < 20) { this.state = 'flee'; this.t = 2; this.fleeFrom(P); }
@@ -1096,13 +1100,14 @@ class Animal extends Ent {
         if (this.atkCd <= 0) {
           this.atkCd = 1.1;
           Juice.hurtFrom(this.x, this.y);
-          P.hurt(d.dmg * (G.difficulty === 'hard' ? 1.2 : 1), this.type, false, this);
-          if (d.venom && !G.player.riding) {
+          P.hurt(d.dmg * (G.difficulty === 'hard' ? 1.2 : 1) * G.coatFx('guard'), this.type, false, this);
+          if (d.venom && !G.player.riding && !G.coatFx('venom', 0)) {
             P.poison = Math.min(SURV.POISON_MAX, Math.max(P.poison + SURV.POISON_MORE, SURV.POISON_MIN)); P.poisonBy = this.type;   // zehirliyken her yeni sokma uzatır
             const msg = Tr('Yılan soktu! Zehirlendin. <b>Panzehir</b> ya da <b>Yılan Yağı</b> kullan.');
             if (!G.hintOnce('poison', msg, 6)) UI.help(msg, 6);
           }
           if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar' || this.type === 'gator') Audio_.growl(this.type, this.x, this.y);
+          if (this.legend) G.legendStrike(this);
         }
       }
       if (this.t <= 0 || pd > 420) { this.state = 'idle'; this.t = 3; }
@@ -1784,6 +1789,50 @@ class Prop extends Ent {
       ctx.fillStyle = this.col === 'snow' ? 'rgba(236,240,246,0.85)' : 'rgba(0,0,0,0)'; ctx.fillRect(x - 17, y - 15, 34, 2);
       ctx.fillStyle = '#2a1c12'; ctx.fillRect(x - 3, y - 8, 6, 10); ctx.fillStyle = '#5a4a3a'; ctx.fillRect(x + 7, y - 9, 4, 3);
       ctx.fillStyle = '#4a4440'; ctx.fillRect(x + 9, y - 30, 3, 8);
+    } else if (this.type === 'bones') {
+      // efsanenin ini: dağınık kemikler ve bir kafatası
+      Spr.shadow(ctx, x + 1, y + 1.5, 10, 2.6, 0.16);
+      ctx.fillStyle = '#d8d0bc'; ctx.fillRect(x - 9, y - 1, 7, 1.4); ctx.fillRect(x - 2, y + 2.4, 6.5, 1.2); ctx.fillRect(x + 3.4, y - 4, 1.2, 5);
+      for (const [bx, by] of [[-9, -0.3], [-2, -0.3], [-2, 3], [4.5, 3]]) Spr.circ(ctx, x + bx, y + by, 1, '#e8e2d0');
+      ctx.fillStyle = '#e4ddca'; ctx.beginPath(); ctx.ellipse(x + 7, y - 1.4, 2.8, 2.1, 0.3, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#2a2420'; ctx.fillRect(x + 6, y - 2, 0.9, 0.9); ctx.fillRect(x + 7.6, y - 1.6, 0.9, 0.9);
+      ctx.strokeStyle = '#cfc6b0'; ctx.lineWidth = 0.7; ctx.beginPath(); for (let k = 0; k < 4; k++) { ctx.moveTo(x - 6 + k * 2, y + 5); ctx.quadraticCurveTo(x - 5 + k * 2, y + 3, x - 4 + k * 2, y + 5.4); } ctx.stroke();
+    } else if (this.type === 'tuft') {
+      // dikenli çalıya takılmış kar beyazı tüy
+      Spr.shadow(ctx, x + 1, y + 2, 6, 2, 0.2);
+      for (const [bx, by, r] of [[-2.5, 0, 3], [2, -1, 3.2], [0, -3, 2.6]]) Spr.circ(ctx, x + bx, y + by, r, '#4a5a34');
+      ctx.strokeStyle = '#f4f4f0'; ctx.lineWidth = 0.8; ctx.beginPath();
+      for (let k = 0; k < 5; k++) { const a = this.ang + k * 0.5 - 1; ctx.moveTo(x + 1, y - 2); ctx.lineTo(x + 1 + Math.cos(a) * 4, y - 2 + Math.sin(a) * 2.4); }
+      ctx.stroke(); Spr.circ(ctx, x + 1, y - 2, 1.4, '#ffffff');
+    } else if (this.type === 'scrape') {
+      // pençe ya da boynuz izleri: toprakta üç derin çizik, yanında koparılmış kabuk
+      const c = Math.cos(this.ang), s = Math.sin(this.ang);
+      ctx.strokeStyle = 'rgba(46,30,18,0.7)'; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (let k = -1; k <= 1; k++) { const ox = -s * k * 2.4, oy = c * k * 2.4; ctx.moveTo(x - c * 6 + ox, y - s * 6 + oy); ctx.lineTo(x + c * 6 + ox, y + s * 6 + oy); }
+      ctx.stroke();
+      ctx.fillStyle = '#8a6a44'; ctx.fillRect(x + c * 8 - 1.5, y + s * 8 - 0.8, 3, 1.6); ctx.fillStyle = '#c8a878'; ctx.fillRect(x - c * 8 - 1, y - s * 8 - 0.6, 2.2, 1.2);
+    } else if (this.type === 'carcass') {
+      // yarısı yenmiş bir leş: kaburgalar açıkta
+      Spr.shadow(ctx, x + 1, y + 2, 9, 3, 0.25);
+      ctx.fillStyle = 'rgba(110,20,14,0.5)'; ctx.beginPath(); ctx.ellipse(x, y + 1, 9, 3.5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#a0703e'; ctx.beginPath(); ctx.ellipse(x - 3, y, 5, 2.6, 0.1, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#e0d4bc'; for (let k = 0; k < 4; k++) ctx.fillRect(x + 1 + k * 1.8, y - 2.4, 0.9, 4.4);
+      ctx.fillStyle = '#7a5236'; ctx.fillRect(x - 9, y - 1, 3, 1.4); ctx.fillRect(x + 8, y + 1, 3, 1.2);
+    } else if (this.type === 'hoof') {
+      // iri, yarık toynak izleri
+      const c = Math.cos(this.ang), s = Math.sin(this.ang);
+      ctx.fillStyle = 'rgba(48,32,20,0.62)';
+      for (let k = -1; k <= 1; k++) for (const o of [-3.6, 3.6]) {
+        const px = x + c * (k * 9 + (o > 0 ? 3 : 0)) - s * o, py = y + s * (k * 9 + (o > 0 ? 3 : 0)) + c * o;
+        ctx.beginPath(); ctx.ellipse(px - s * 0.9, py + c * 0.9, 1.9, 1.2, this.ang, 0, TAU); ctx.ellipse(px + s * 0.9, py - c * 0.9, 1.9, 1.2, this.ang, 0, TAU); ctx.fill();
+      }
+    } else if (this.type === 'slide') {
+      // çamurda timsahın sürünme izi: geniş bir oluk, iki yanında pençeler
+      const c = Math.cos(this.ang), s = Math.sin(this.ang);
+      ctx.strokeStyle = 'rgba(40,34,22,0.4)'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x - c * 12, y - s * 12); ctx.lineTo(x + c * 12, y + s * 12); ctx.stroke(); ctx.lineCap = 'butt';
+      ctx.fillStyle = 'rgba(40,30,18,0.6)';
+      for (let k = -1; k <= 1; k++) for (const o of [-4.6, 4.6]) { const px = x + c * (k * 8 + (o > 0 ? 3 : 0)) - s * o, py = y + s * (k * 8 + (o > 0 ? 3 : 0)) + c * o; for (let t = -1; t <= 1; t++) ctx.fillRect(px + c * 1.6 - s * t, py + s * 1.6 + c * t, 0.9, 0.9); }
     }
   }
 }
@@ -1793,8 +1842,9 @@ class Pelt extends Ent {
   constructor(x, y, id, q = 1) {
     super(x, y);
     this.kind = 'pelt'; this.id = id; this.q = q; this.r = 0; this.ang = rnd(-0.5, 0.5); this.big = !!ITEMS[id].big; this.age = 0;
-    const src = Object.values(ANIMALS).find(a => a.pelt && a.pelt[0] === id);
-    this.col = src ? src.col : '#8a6a4a';
+    const src = Object.values(ANIMALS).find(a => a.pelt && a.pelt[0] === id), L = ITEMS[id].legend && LEGENDS[ITEMS[id].legend];
+    this.col = L ? L.def.col : src ? src.col : '#8a6a4a';
+    if (L) this.keep = true;   // efsanevi post uzakta bırakılsa da kaybolmaz
   }
   get name() { return this.q > 1 ? Tr`Kusursuz ${ITEMS[this.id].n}` : ITEMS[this.id].n; }
   update(dt) { this.age += dt; }

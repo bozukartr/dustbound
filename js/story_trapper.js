@@ -105,7 +105,7 @@ STORIES.trapper = {
   onEvent(type, d, S) {
     // yaydan başka bir şeyle vurulan geyik: Elias söylenir, sürü sonra yeniden belirir
     if (type === 'kill' && d && d.storyDeer && d.how !== 'arrow' && S.ch === 1 && !S.flags.notBow) { S.flags.notBow = 1; this.qSay([['S', Tr('Yayla dedim. Silah sesi bütün ormanı uyandırır; bir dahaki sürüde okunu kullan.')]]); }
-    if (type === 'kill' && d && d.legend) S.flags.bear = 1;
+    if (type === 'kill' && d && d.legend === true) S.flags.bear = 1;   // yalnızca Yaşlı Kral (dünyanın efsanelerinin legend'ı kimliktir: js/legends.js)
   },
   propActions(e, S) {
     const st = this.qStep();
@@ -408,8 +408,8 @@ STORIES.trapper = {
           at() { const S = this.story; return S.btrail[Math.min(S.bi || 0, S.btrail.length - 1)]; }, wp: true,
           hint: () => Tr`Yerdeki iri pençe izlerini izle. Ayıya yaklaşırken çömelirsen seni geç fark eder.`,
           done() { const D = this.story.den; this.sullyGo(D.x - 260, D.y + 60); } },
-        { t: () => Tr('Yaşlı Kral\'ı avla'), ev: 'kill', ok: (a) => !!(a && a.legend),
-          at() { return this.ents.find(e => e.legend && !e.dead && !e.remove) || this.story.den; },
+        { t: () => Tr('Yaşlı Kral\'ı avla'), ev: 'kill', ok: (a) => !!(a && a.legend === true),
+          at() { return this.ents.find(e => e.legend === true && !e.dead && !e.remove) || this.story.den; },
           hint: () => Tr`Uzaktan ateş et ve mesafeni koru. Nişan alırken ${Input.glyph('deadeye')} ile <b>Odak</b>'ı aç; zaman yavaşlar. Yaraladıkça ayı daha da hırçınlaşır.`,
           after: () => [
             ['S', Tr('...Bitti. Yirmi yıl. Bitti.')],
@@ -579,7 +579,7 @@ Object.assign(Story, {
     // geyik sürüsü (bölüm 2, avlanana kadar)
     if (S.ch === 1 && S.st <= 1) this.trHerd(S);
     // Yaşlı Kral: izler bitince vadide
-    if (S.ch === 8 && S.st >= 1 && !S.flags.bear && near(S.den, 800) && !this.ents.some(e => e.legend && !e.remove)) {
+    if (S.ch === 8 && S.st >= 1 && !S.flags.bear && near(S.den, 800) && !this.ents.some(e => e.legend === true && !e.remove)) {
       const s = this.sSpot(S.den.x, S.den.y, 0, 50), b = new Animal(s[0], s[1], 'bear');
       b.def = Object.assign({}, ANIMALS.bear, OLD_KING, { n: Tr('Yaşlı Kral') });
       b.hp = b.maxHp = OLD_KING.hp; b.legend = true; b.keep = true; b.male = true; b.home = { x: S.den.x, y: S.den.y, r: 80 };

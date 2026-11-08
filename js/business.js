@@ -177,7 +177,7 @@ const BizSystems = {
     let toW = 0, toH = 0, toP = 0, toG = 0;
     for (let k = 0; k < n; k++) {
       if (w && w.crates.length < WAGON_CAP) { w.crates.push(g); toW++; continue; }
-      if (h && this.loadWeight(h.load) + 2 <= HORSE_CAP) { h.load.push(new Crate(0, 0, g)); toH++; continue; }
+      if (h && this.loadWeight(h.load) + 2 <= this.horseCap()) { h.load.push(new Crate(0, 0, g)); toH++; continue; }
       if (!P.carry && !P.riding) { P.carry = new Crate(0, 0, g); toP++; continue; }
       const a = rnd(0, TAU);
       this.addEnt(new Crate(b.door.x + Math.cos(a) * rnd(8, 18), b.door.y + 8 + Math.abs(Math.sin(a)) * 12, g));

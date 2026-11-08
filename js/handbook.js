@@ -10,7 +10,7 @@
 const Handbook = {
   /* ipucu anahtarı → el kitabı konusu (G.hintOnce ilk kez gösterince konuyu işaretler) */
   HINT_TOPIC: { hunger: 'needs', thirst: 'needs', sleep: 'needs', water: 'needs', cold: 'temp', hot: 'temp', poison: 'poison', sick: 'poison', faint: 'death',
-    deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', hunt: 'hunt', lassoAnimal: 'hunt', fish: 'fish', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate', bank: 'tycoon', oil: 'tycoon', influence: 'influence', guards: 'influence' },
+    deadeye: 'deadeye', ride: 'horse', rideKb: 'horse', hunt: 'hunt', lassoAnimal: 'hunt', fish: 'fish', law: 'law', witness: 'law', hunters: 'law', masked: 'law', surrender: 'law', office: 'law', death: 'death', aging: 'aging', hotel: 'needs', mansion: 'estate', club: 'estate', coach: 'estate', bank: 'tycoon', oil: 'tycoon', influence: 'influence', guards: 'influence', madecoat: 'craft' },
 
   unread() { const H = G.hints || {}; return this.topics().some(T => H['new:' + T.id]); },
 
@@ -115,7 +115,7 @@ const Handbook = {
           Tr`Yaralanan ürkek hayvan kaçar, saldırgan olan üstüne gelir. Hayvanlar derin suya girmez; sığ suya yalnızca timsah ve sana saldıran hayvan girer. Çıngıraklı yılanın sokması seni ${dec(poisonH)} oyun saati zehirler (at sırtındayken zehirlemez). Vahşi hayvanla yakın dövüşe girme: uzaktan vur ya da atla uzaklaş.`,
         ]) + `<table class="hb-tab hb-wild"><tr><th>${Tr('Hayvan')}</th><th>${Tr('Post')}</th><th>${Tr('Nerede')}</th><th>${Tr('Davranış')}</th><th>${Tr('Verdikleri')}</th></tr>${rows}</table>` + li([
           Tr`Tablodaki post fiyatı kasabalardaki Kasap & Tuzakçı dükkânının verdiğidir. Hayvan ürünü alanlar ve verdikleri: ${buyers}. Nerede bulunurlar: Tuzakçı — ${cabin.n} (${bios(cabin)}); Kürkçüler — gezgin ${camp.n} (${bios(camp)}).`,
-          Tr`Leşin yanında ${g('interact')} basılı tutup <b>Derisini Yüz</b>: postu, eti ve erkek geyikten boynuzu alırsın. Küçük post çantaya girer; büyük post (${names(wild.filter(d => ITEMS[d.pelt[0]].big))}) omzuna alınır (elin doluysa ya da at sırtındaysan yere bırakılır), atının yanında eyere yükleyebilirsin. Eyer ${HORSE_CAP} birim taşır: büyük leş 2, küçük leş ve post 1. Yük taşırken koşamaz, silah kullanamazsın.`,
+          Tr`Leşin yanında ${g('interact')} basılı tutup <b>Derisini Yüz</b>: postu, eti ve erkek geyikten boynuzu alırsın. Küçük post çantaya girer; büyük post (${names(wild.filter(d => ITEMS[d.pelt[0]].big))}) omzuna alınır (elin doluysa ya da at sırtındaysan yere bırakılır), atının yanında eyere yükleyebilirsin. Eyer ${G.horseCap()} birim taşır: büyük leş 2, küçük leş ve post 1. Yük taşırken koşamaz, silah kullanamazsın.`,
           Tr`Leşi yüzmeden bütün olarak omzuna alıp satabilirsin: post ve etin toplamından %10 fazlasına gider. ${names(wild.filter(d => G.heavyCarcass({ def: d })))} omza alınamayacak kadar iridir; önce derisini yüz.`,
           Tr`Leşi ${mi(500)} uzakta 3 dakikadan fazla bırakırsan ya da ${mi(1200)} uzaklaşırsan kaybolur; yere bıraktığın post ${mi(1600)} uzaklaşınca kaybolur.`,
           Tr`Çiğ eti kampta ya da evindeki ocakta pişir (<b>Pişir ve Üret</b>); çiğ yersen hastalanabilirsin. ${R('antidote').need.snake_skin} yılan derisi ve ${R('antidote').need.sage} adaçayından panzehir yapılır.`,
@@ -143,6 +143,48 @@ const Handbook = {
           Tr('Hangi balığın vuracağı suyun iklimine göre değişir (tablo). Her balık Hayatta Kalma yeteneğini geliştirir. Çiğ balık hasta edebilir; kampta ya da ocakta pişir.'),
           Tr`Balığı en iyi alanlar (tablodaki değerin yüzdesiyle): ${buyers}.`,
         ]) + `<table class="hb-tab"><tr><th>${Tr('Balık')}</th><th>${Tr('Değer')}</th><th>${Tr('Nerede')}</th><th>${Tr('Doyurur')}</th></tr>${rows}</table>`;
+      } },
+      { id: 'legends', ic: 'trophy', t: Tr('Efsaneler'), b: () => {
+        // bilinmeyenin yeri ve vakti gizli; söylentisi duyulunca açılır (js/legends.js)
+        const R = id => G.lgR ? G.lgR(id) : {}, A = id => ACHIEVEMENTS.find(a => a.id === id);
+        const st = (id, fish) => { const r = R(id); return r.k ? (fish ? Tr`Tutuldu (${fmtKg(r.kg || 0)})` : Tr('Avlandı')) : r.f ? (fish ? Tr('Suyu bulundu') : Tr('İni bulundu')) : r.r ? Tr('Söylenti') : Tr('Bilinmiyor'); };
+        const known = id => { const r = R(id); return r.r || r.f || r.k; };
+        const where = id => (known(id) ? G.legendRegion(id) : '?'), when = id => (known(id) ? G.legendWhen(G.legendDef(id).when) : '?');
+        const beasts = Object.entries(LEGENDS).map(([id, L]) => `<tr><td>${Icons.item(L.pelt, 'ic inl')} <b>${L.n}</b><small>${ANIMALS[L.base].n}</small></td><td>${where(id)}</td><td>${when(id)}</td><td>${L.d}</td><td>${[ITEMS[L.pelt].n, L.trophy && ITEMS[L.trophy].n].filter(Boolean).join(', ')}</td><td>${st(id)}</td></tr>`).join('');
+        const fish = Object.entries(LEGEND_FISH).map(([id, F]) => `<tr><td>${Icons.item(F.item, 'ic inl')} <b>${F.n}</b></td><td>${where(id)}</td><td>${when(id)}</td><td>${dec(F.kg[0])}–${dec(F.kg[1])} kg</td><td>${fmtMoney(ITEMS[F.item].p)}</td><td>${st(id, true)}</td></tr>`).join('');
+        const ach = ['legend1', 'legend6', 'legendfish'].map(A).filter(Boolean).map(a => `<b>${a.n}</b> (${a.d.replace(/\.$/, '')}): ${a.perk}`);
+        return li([
+          Tr`Dünyada birkaç nadir yer var: altı efsanevi hayvanın ini ve dört efsanevi balığın suyu. Her biri yalnızca belli bir saatte ya da havada görünür ve bir hayatta bir kez avlanır ya da tutulur.`,
+          Tr`<b>Söylenti</b>: barmen ve münzevi arada bir efsane anlatır, gazetenin av köşesinde de çıkabilir. Tuzakçı kulübesinde <b>Av Efsanelerini Sor</b>, liman deposunda <b>Balıkçı Efsanelerini Dinle</b> (${fmtMoney(SVC.tales)}) bir efsaneyi kesin anlatır. Söylenti haritada bir arama çemberi açar (hayvanda ${mi(LEGEND_R.beast[0])}, balıkta ${mi(LEGEND_R.fish[0])} yarıçap).`,
+          Tr`<b>İzler</b>: inin çevresinde üç iz var (tüy tutamı, pençe izi, yarım leş, sürünme izi). Yanında ${g('interact')} basılı tutup <b>İzi İncele</b>: her iz çemberi daraltır (${mi(LEGEND_R.beast[1])}, ${mi(LEGEND_R.beast[2])}), üçüncüsünde in haritaya işlenir. Söylentisini duymadığın bir efsanenin izini bulursan söylenti sayılır.`,
+          Tr`Efsane yalnızca vakti gelince ininin yakınında, sürüsüyle ya da tek başına belirir; vakti değilken ine varırsan ne zaman geldiği söylenir. Sen uzaklaşınca ya da vakti geçince kaybolur. Kemente dayanmaz, bağlanamaz; her birinin bir huyu vardır (tablo).`,
+          Tr`Avlayınca derisini yüz: eşsiz post (büyükleri omza alınır, yere bıraksan da kaybolmaz), iki kat et ve bazılarından ganimet. Terzi her efsanevi posttan eşsiz bir giysi diker (<b>Terzi ve Zanaat</b>); postu satarsan iyi para eder.`,
+        ]) + `<table class="hb-tab hb-legend"><tr><th>${Tr('Efsane')}</th><th>${Tr('Nerede')}</th><th>${Tr('Ne zaman')}</th><th>${Tr('Huyu')}</th><th>${Tr('Verdikleri')}</th><th>${Tr('Durum')}</th></tr>${beasts}</table>` + li([
+          Tr`<b>Efsanevi balık</b> yalnızca kendi suyunda (${mi(160)} içinde) ve vaktinde vurur: o anda olta vurursa %40 ihtimalle (yemle %55) odur. Vakti gelince suda kıpırtı ve sıçrayan balık görürsün.`,
+          Tr`Sıradan balıktan on kat sert çeker ve arada kaçmaya atılır: <b>Kaçmaya çalışıyor!</b> yazınca makarayı bırak, gerginlik düşünce yeniden sar. Misina koparsa ya da balık kaçarsa o gün bir daha vurmaz.`,
+        ]) + `<table class="hb-tab hb-legend"><tr><th>${Tr('Balık')}</th><th>${Tr('Nerede')}</th><th>${Tr('Ne zaman')}</th><th>${Tr('Ağırlık')}</th><th>${Tr('Değer')}</th><th>${Tr('Durum')}</th></tr>${fish}</table>` + li([Tr`Efsane başarımları: ${ach.join('; ')}.`]);
+      } },
+      { id: 'craft', ic: 'scissors', t: Tr('Terzi ve Zanaat'), b: () => {
+        const pct = v => Math.round(Math.abs(1 - v) * 100);
+        const fx = c => [c.warm ? `${c.warm > 0 ? '+' : ''}${c.warm}°C` : '', c.rain ? Tr('yağmur geçirmez') : '', c.scent ? Tr`hayvanlar seni %${pct(c.scent)} geç fark eder` : '',
+          c.guard ? Tr`hayvan saldırısı %${pct(c.guard)} az yaralar` : '', c.aggro ? Tr`saldırgan hayvanlar %${pct(c.aggro)} daha yakından saldırır` : '',
+          c.sta ? Tr`koşarken dayanıklılık %${pct(c.sta)} yavaş tükenir` : '', c.de ? Tr`Odak %${pct(c.de)} yavaş tükenir` : '', c.venom ? Tr('yılan sokması zehirlemez') : ''].filter(Boolean).join(', ');
+        const need = n => Object.entries(n).map(([id, k]) => `${ITEMS[id].n}${k > 1 ? ' ×' + k : ''}`).join(', ');
+        const hrs = h => Tr`${G.orderHours({ h })} sa`;
+        const coats = TAILOR.map(R => `<tr><td>${Icons.item(R.id, 'ic inl')} ${ITEMS[R.id].n}</td><td>${need(R.need)}</td><td>${fmtMoney(R.fee)}</td><td>${hrs(R.h)}</td><td>${fx(ITEMS[R.id].coat)}</td></tr>`).join('');
+        const tiers = (L, f) => L.slice(1).map(S => `<tr><td>${S.n}</td><td>${need(S.need)}</td><td>${fmtMoney(S.fee)}</td><td>${hrs(S.h)}</td><td>${f(S)}</td></tr>`).join('');
+        const A = ACHIEVEMENTS.find(a => a.id === 'tailor');
+        return li([
+          Tr`Postlar satmanın ötesinde işe yarar: kasabalardaki terzide <b>Postundan Diktir</b> dersen terzi kendi postundan, dükkânda bulunmayan giysiler diker ve heybeni büyütür. Ahırdaki saraç da eyerini büyütür.`,
+          Tr('Postlar çantandan, omzundan ya da kapıdaki atının eyerinden alınır; ücret peşin. Sipariş birkaç saatte hazır olur, hazır olunca haber gelir; aynı kasabanın terzisinden (eyerde ahırından) teslim alırsın.'),
+          Tr`Dikilen giysiyi ${g('satchel')} Çanta → <b>Alet & Giysi</b> sekmesinden giyersin. Efsanevi giysiler için o efsanenin postu gerekir (<b>Efsaneler</b>).`,
+        ]) + `<table class="hb-tab hb-craft"><tr><th>${Tr('Giysi')}</th><th>${Tr('Gerekenler')}</th><th>${Tr('Ücret')}</th><th>${Tr('Süre')}</th><th>${Tr('Etkisi')}</th></tr>${coats}</table>`
+          + `<table class="hb-tab hb-craft"><tr><th>${Tr('Heybe')}</th><th>${Tr('Gerekenler')}</th><th>${Tr('Ücret')}</th><th>${Tr('Süre')}</th><th>${Tr('Etkisi')}</th></tr>${tiers(SATCHEL, S => Tr`taşıma sınırı ×${dec(S.mul)}`)}</table>`
+          + `<table class="hb-tab hb-craft"><tr><th>${Tr('Eyer')}</th><th>${Tr('Gerekenler')}</th><th>${Tr('Ücret')}</th><th>${Tr('Süre')}</th><th>${Tr('Etkisi')}</th></tr>${tiers(SADDLE, S => Tr`${S.cap} birim yük`)}</table>`
+          + li([
+            Tr`Heybe yığılan eşyaların (yiyecek, ilaç, bitki, av ürünü, değerli ve koleksiyon eşyası) taşıma sınırını büyütür; alet, belge, giysi ve patlayıcı aynı kalır. Basamaklar sırayla diktirilir. Şimdiki heyben: <b>${SATCHEL[G.gear ? G.gear.bag : 0].n}</b>; eyerin: <b>${SADDLE[G.gear ? G.gear.saddle : 0].n}</b> (${G.horseCap()} birim; büyük leş 2, küçük leş ve post 1).`,
+            A ? Tr`<b>${A.n}</b> başarımı (${A.d.replace(/\.$/, '')}): ${A.perk}.` : '',
+          ]);
       } },
       { id: 'law', ic: 'star', t: Tr('Kanun ve Ödül Avcıları'), b: () => li([
         Tr`Suçunu gören tanık, ${mi(800)} içindeki en yakın kanun adamına ya da şerif ofisine koşar. Ulaşırsa ya da süre dolarsa (kanun yakınsa 40, değilse 70 saniye) aranmaya başlarsın.`,

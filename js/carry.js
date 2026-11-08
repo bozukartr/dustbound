@@ -10,7 +10,7 @@
      suç sana yazılır; ceset taşırken görülmek de öyle
    ========================================================== */
 
-const HORSE_CAP = 4;   // eyer kapasitesi (ceset/leş 2, küçük leş ve post 1)
+const HORSE_CAP = 4;   // eyer kapasitesi (ceset/leş 2, küçük leş ve post 1); saraç büyütür: G.horseCap() (js/legends.js)
 
 const CarrySystems = {
   /* ---------------- yük ---------------- */
@@ -56,7 +56,7 @@ const CarrySystems = {
     const P = this.player, e = P.carry;
     if (!e) return true;
     if (!h || h.dead || h !== this.horse) { UI.feed(Tr('Yükü yalnızca kendi atına yükleyebilirsin.'), 'warn'); return false; }
-    if (this.loadWeight(h.load) + this.carryWeight(e) > HORSE_CAP) { UI.feed(Tr`${h.name} daha fazla taşıyamaz. Önce bir yükü indir.`, 'warn'); return false; }
+    if (this.loadWeight(h.load) + this.carryWeight(e) > this.horseCap()) { UI.feed(Tr`${h.name} daha fazla taşıyamaz. Önce bir yükü indir.`, 'warn'); return false; }
     P.carry = null;
     h.load.push(e);
     Audio_.thud(0.2);
@@ -135,7 +135,7 @@ const CarrySystems = {
   lassoAnimal(a) {
     const P = this.player, d = a.def;
     a.state = 'lassoed'; a.wrig = 0; a.spd = 0;
-    a.lasT = a.type === 'whorse' ? rnd(7, 10) : a.type === 'bear' ? rnd(1, 1.6) : d.beh === 'hostile' ? rnd(2.2, 3.2) : clamp(11 - d.len * 0.45, 2, 9);
+    a.lasT = a.legend ? rnd(0.6, 1) : a.type === 'whorse' ? rnd(7, 10) : a.type === 'bear' ? rnd(1, 1.6) : d.beh === 'hostile' ? rnd(2.2, 3.2) : clamp(11 - d.len * 0.45, 2, 9);   // efsane kemente dayanmaz
     a.lasT *= 1 + this.skill('riding') * 0.04;
     P.rope = a;
     Audio_.thud(0.3);
@@ -143,7 +143,7 @@ const CarrySystems = {
     this.hintOnce('lassoAnimal', Tr`Kementle bir hayvan yakaladın. Küçük ve orta boy hayvanlara yaklaşıp ${Input.glyph('interact')} basılı tutarak <b>bağlayabilirsin</b>. Yabani at kementteyken çok daha kolay evcilleşir. Bağlı hayvan suda boğulur.`, 9);
     this.skillXp('riding', 1);
   },
-  canTieAnimal(a) { return a.def.len <= 13 && a.def.shape !== 'snake'; },
+  canTieAnimal(a) { return a.def.len <= 13 && a.def.shape !== 'snake' && !a.legend; },
   hogtieAnimal(a) {
     const P = this.player;
     if (P.rope === a) P.rope = null;
@@ -378,13 +378,13 @@ const CarrySystems = {
   serCarry(e) {
     if (e.kind === 'crate') return { k: 'crate', g: e.g };
     if (e.kind === 'pelt') return { k: 'pelt', id: e.id, q: e.q };
-    if (e.kind === 'animal') return { k: 'animal', type: e.type, male: e.male, look: e.look };
+    if (e.kind === 'animal') return { k: 'animal', type: e.type, male: e.male, look: e.look, legend: e.legend || undefined };
     return { k: 'npc', role: e.role, name: e.name, look: e.look, dead: e.dead, state: e.state, tieT: e.tieT, money: e.money, weapon: e.weapon, looted: e.looted, bountyId: e.bountyId || null, quest: e.quest || null, evidence: !!e.evidence, hostile: e.hostile, assaulted: !!e.assaulted };
   },
   deserCarry(d) {
     if (d.k === 'crate') return new Crate(0, 0, d.g);
     if (d.k === 'pelt') return new Pelt(0, 0, d.id, d.q || 1);
-    if (d.k === 'animal') { const a = new Animal(0, 0, d.type); a.dead = true; a.state = 'dead'; a.hp = 0; a.male = d.male; if (d.look) a.look = d.look; return a; }
+    if (d.k === 'animal') { const a = new Animal(0, 0, d.type); a.dead = true; a.state = 'dead'; a.hp = 0; a.male = d.male; if (d.look) a.look = d.look; if (d.legend && LEGENDS[d.legend]) { this.legendApply(a, d.legend); a.keep = true; } return a; }
     const n = new NPC(0, 0, d.role, { name: d.name, look: d.look, hostile: d.hostile, weapon: d.weapon, money: d.money });
     n.looted = d.looted; n.evidence = d.evidence; n.assaulted = d.assaulted;
     if (d.bountyId) { n.bountyId = d.bountyId; n.keep = true; }

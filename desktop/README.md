@@ -44,7 +44,7 @@ Paketlenmiş sürüm Steam dışından açılırsa `restartAppIfNecessary` oyunu
 
 ## Steamworks panelinde yapılacaklar
 
-1. **Stats & Achievements:** `steam/achievements.csv` içindeki 45 başarımı API adları, İngilizce ve Türkçe ad/açıklamalarıyla gir. Simgeleri `steam/achievement-icons/` klasöründen yükle ve **Publish** et.
+1. **Stats & Achievements:** `steam/achievements.csv` içindeki 49 başarımı API adları, İngilizce ve Türkçe ad/açıklamalarıyla gir. Simgeleri `steam/achievement-icons/` klasöründen yükle ve **Publish** et.
 2. **Simgeler:** App Admin > Community Assets bölümüne `steam/icons/community_icon.jpg` (Community Icon) ve `steam/icons/client_icon.ico` (Client Icon) dosyalarını yükle.
 3. **Steam Cloud → Auto-Cloud:** Kotayı ayarla (örn. 10 MB, 20 dosya). Kök yolları ekle:
    - Windows: Root `WinAppDataRoaming`, Subdirectory `Frontier's End/saves`, Pattern `*.json`
