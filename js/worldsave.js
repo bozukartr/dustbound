@@ -29,7 +29,7 @@ const WorldSave = {
       || e.role === 'spouse' || e.role === 'child' || e.role === 'stranger' || e.keep || e.job || e.bountyId || e.nomad !== undefined;
     if (e.kind === 'horse') return e.owner === 'player' || e.rider || e.nomad !== undefined;
     if (e.kind === 'wagon') return e.mine || e.hauler || e.rider || e.coach;   // özel fayton malikane sisteminden yeniden çağrılır
-    if (e.kind === 'animal') return e.nomad !== undefined || (e.legend && !e.dead) || !!e.lgPack;   // yaşayan efsane ve sürüsü inde yeniden belirir; leşi kalır
+    if (e.kind === 'animal') return e.nomad !== undefined || (!!e.legend && !e.dead) || (!!e.lgPack && !e.dead);   // yaşayan efsane ve sürüsü inde yeniden belirir; leşleri kalır
     return e.kind === 'prop' || e.kind === 'camp' || e.kind === 'ent';
   },
   pick(e, keys) { const o = {}; for (const k of keys) if (e[k] !== undefined && e[k] !== null) o[k] = e[k]; return o; },

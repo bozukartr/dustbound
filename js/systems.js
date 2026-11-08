@@ -2293,7 +2293,7 @@ const GameSystems = {
     Audio_.ui('pick');
   },
   skin(a) {
-    if (a.legend) { this.legendSkin(a); return; }   // efsanevi av: eşsiz post ve ganimet (js/legends.js)
+    if (a.legend && LEGENDS[a.legend]) { this.legendSkin(a); return; }   // efsanevi av: eşsiz post ve ganimet (js/legends.js); hikâyenin Yaşlı Kral'ı sıradan ayı postu verir
     const P = this.player, d = a.def;
     a.skinned = true;
     const lvl = this.skill('hunting');

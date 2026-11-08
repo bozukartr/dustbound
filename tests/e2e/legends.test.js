@@ -200,9 +200,16 @@ module.exports = {
         const S = G.saveEnts(); CLEAN(); G.loadEnts(S);
         const back = G.ents.find(e => e.kind === 'animal' && e.legend === 'tooth');
         out.saved = back && [back.dead, back.def.n, back.def.pelt[0], back.keep];
+        // hikâyenin Yaşlı Kral'ı (legend: true, efsane kimliği yok): sıradan ayı postu, çökme yok
+        P.carry = null; CLEAN();
+        const ok = new Animal(P.x + 12, P.y, 'bear'); ok.legend = true; ok.keep = true; G.addEnt(ok); ok.hurt(9999, 'player', 'gun'); G.skin(ok);
+        out.oldKing = [P.carry && P.carry.id, !!G.lgR('true').k];
+        // sürüden ölen sıradan kurt kayda girer (yaşayanı girmez)
+        const w = new Animal(P.x + 20, P.y, 'wolf'); w.lgPack = 'ghost'; G.addEnt(w); out.packLive = G.skipEnt(w); w.hurt(9999, 'player', 'gun'); out.packDead = G.skipEnt(w);
         P.carry = null; CLEAN();
         return out;
       });
+      t.eq(r.oldKing, ['bear_pelt', false], 'hikâyenin Yaşlı Kral\'ı sıradan ayı postu verir'); t.eq([r.packLive, r.packDead], [true, false], 'sürünün leşi kayda girer');
       t.eq(r.killed, [true, 1], 'avlandı, sayıldı'); t.ok(r.ach, 'Efsane Avcısı başarımı');
       t.ok(r.acts.includes('Derisini Yüz'), 'leşte Derisini Yüz', r.acts);
       t.eq(r.pelt, 1, 'beyaz kurt postu çantada'); t.eq(r.keepAfter, false, 'yüzülen leş artık sıradan');
