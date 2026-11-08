@@ -1373,6 +1373,8 @@ const HY = (() => {
     for (const tr of G.trains) if (tr.pos[0] && night) { const [x, y, a] = tr.pos[0]; add(x + Math.cos(a) * 40, y + Math.sin(a) * 40, 10, 80, [1.0, 0.95, 0.8], 0.9); }
     // motorlu taşıtların farları (motoru çalışırken)
     if (night) for (const e of G.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt) add(e.x + Math.cos(e.ang) * 22, e.y + Math.sin(e.ang) * 22, 8, 62, [1.0, 0.95, 0.82], 0.95 * nk);
+    // Ak Hayalet gecenin içinde soluk bir ay ışığıyla görünür (js/legends.js)
+    if (night) for (const e of G.ents) if (e.legend === 'ghost' && !e.dead && !e.remove) add(e.x, e.y, 10, 50, [0.74, 0.82, 1.0], 0.6 * nk);
     const cx = x0 + vw / 2, cy = y0 + vh / 2;
     out.sort((a, b) => (b.inner - a.inner) || dist2(a.x, a.y, cx, cy) - dist2(b.x, b.y, cx, cy));
     return out.slice(0, NL);

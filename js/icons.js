@@ -95,6 +95,12 @@ const IK = {
   },
   dynamite: () => `<g transform="rotate(-20 16 16)">${OUT(_r(6, 9, 6, 19, IC.red, 1) + _r(13, 9, 6, 19, '#c8402c', 1) + _r(20, 9, 6, 19, IC.red, 1) + _r(5.5, 13, 21, 2.5, IC.B, 0) + _r(5.5, 22, 21, 2.5, IC.B, 0))}${_s('M16 9 Q16 4 20 3', IC.P, 1.3)}${_c(20.5, 3, 1.8, '#ffd060', NS)}</g>`,
   hide2: t => IK.pelt(t, 'rgba(0,0,0,0.12)'),
+  // efsanevi eşyalar: köşede altın bir yıldız
+  lgStar: () => OUT(_p('M26 2.5 L27.3 5.8 L30.8 6 L28.1 8.2 L29 11.6 L26 9.7 L23 11.6 L23.9 8.2 L21.2 6 L24.7 5.8Z', IC.gold)),
+  claw: () => `<g stroke="${IC.D}" stroke-width="4.4" fill="none" stroke-linecap="round">${'<path d="M8 26 Q6 14 13 6 M15 27 Q14 15 21 8 M22 27 Q22 18 27 12"/>'}</g>` + _s('M8 26 Q6 14 13 6 M15 27 Q14 15 21 8 M22 27 Q22 18 27 12', '#3a3430', 2.4) + _s('M11.5 9 L13 6 M19.5 11 L21 8 M26 14.5 L27 12', IC.L, 1.2),
+  horn: () => OUT(_p('M5 26 Q4 12 15 7 Q24 4 28 10 Q22 9 17 12 Q11 16 11 27Z', '#2e2622') + _p('M24 6 Q27 7 28 10 Q25 8.6 23 8.8Z', '#8a8274', NS)),
+  fang: () => OUT(_p('M11 5 Q21 4 22 9 Q22 19 15 28 Q16 18 11 12 Q9 8 11 5Z', '#e8dcb0') + _p('M11 5 Q21 4 22 9 L19 9 Q15 7 11 8Z', '#b8a878', NS) + _s('M14 13 Q16 18 15 24', 'rgba(120,100,60,0.5)', 0.9)),
+  whisker: (t, b) => IK.fish(t, b) + _s('M4.5 16 Q1 18 1.5 23 M5 16.5 Q2.5 20 4 25 M4.5 15.5 Q1.5 12 2.5 8', IC.D, 0.9),
 };
 
 /* ---------------- Eşya → ikon ---------------- */
@@ -128,6 +134,15 @@ const ITEM_ICON = {
   mask_sack: () => OUT(_p('M7 27 Q4 14 8 8 Q16 1 24 8 Q28 14 25 27Z', '#c8a870') + _e(12, 14, 2.4, 2, IC.D, 0, NS) + _e(20, 14, 2.4, 2, IC.D, 0, NS) + _s('M7 24 Q16 21 25 24', '#7a5a30', 1.6) + _s('M10 9 l1 2 M18 7 l1 2 M22 19 l1 2 M11 20 l1 1', '#9a7a48', 0.9)),
   hat_cowboy: () => IK.hat('cowboy', '#6a4a30'), hat_bowler: () => IK.hat('bowler', '#2a2420'), hat_flat: () => IK.hat('flat', '#5a5048'), hat_wide: () => IK.hat('wide', '#a08a64'), hat_boss: () => IK.hat('boss', '#7a6a54'), hat_straw: () => IK.hat('straw', '#d4ba7a'), hat_top: () => IK.hat('top', '#26222a'), hat_fur: () => IK.hat('fur', '#7a5a3a'), hat_bonnet: () => IK.hat('bonnet', '#8a6a7a'),
   dynamite: IK.dynamite,
+  // terzinin senin postundan diktikleri
+  coat_buck: () => IK.coat('#a0703e'), coat_wolf: () => IK.coat('#7d7d7d'), coat_cougar: () => IK.shirt('#b8905c'), coat_gator: () => IK.shirt('#4a5a36'), coat_bison: () => IK.coat('#4a3322'), coat_bear: () => IK.coat('#4a3020'),
+  coat_lg_ghost: () => IK.coat('#e6e6e0') + IK.lgStar(), coat_lg_scar: () => IK.coat('#3a2418') + IK.lgStar(), coat_lg_gold: () => IK.coat('#d8a838') + IK.lgStar(),
+  coat_lg_crown: () => IK.coat('#8a5a32') + IK.lgStar(), coat_lg_iron: () => IK.coat('#2e2016') + IK.lgStar(), coat_lg_tooth: () => IK.shirt('#3e4a2c') + IK.lgStar(),
+  // efsanevi av ve balık
+  lg_ghost_pelt: () => IK.pelt('#ecece6', 'rgba(190,200,215,0.35)') + IK.lgStar(), lg_scar_pelt: () => IK.hide2('#3a2418') + IK.lgStar(), lg_gold_pelt: () => IK.pelt('#d8a838', 'rgba(255,240,180,0.35)') + IK.lgStar(),
+  lg_crown_hide: () => IK.pelt('#8a5a32') + IK.lgStar(), lg_iron_hide: () => IK.hide2('#2e2016') + IK.lgStar(), lg_tooth_skin: () => IK.hide2('#2e3a22') + IK.lgStar(),
+  lg_scar_claw: () => IK.claw() + IK.lgStar(), lg_crown_antler: () => IK.antler() + IK.lgStar(), lg_iron_horn: () => IK.horn() + IK.lgStar(), lg_tooth_fang: () => IK.fang() + IK.lgStar(),
+  lg_fish_ghost: () => IK.fish('#c8d0d8', '#f0f4f8') + IK.lgStar(), lg_fish_copper: () => IK.fish('#c87838', '#f0c090') + IK.lgStar(), lg_fish_whisker: () => IK.whisker('#4a4a40', '#8a8a70') + IK.lgStar(), lg_fish_jaw: () => IK.fish('#4a6a40', '#c8d0a0') + IK.lgStar(),
 };
 
 /* ---------------- Silahlar (48x24) ---------------- */

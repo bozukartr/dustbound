@@ -29,7 +29,7 @@ const G = {
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
   settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, mapHide: [], gfx: 0, gpu: 0 },
-  timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0, dev: 0 },
+  timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0, dev: 0, leg: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false, heatLoad: 0, coldLoad: 0,
 
   resetState() {
@@ -58,6 +58,7 @@ const G = {
     this.tycoon = null; this._sec = null;   // tekelleşme (js/tycoon.js)
     this.infl = null;   // nüfuz (js/influence.js)
     this.guards = [];   // korumalar (js/guards.js)
+    this.legendInit();   // efsaneler, terzi siparişleri, heybe ve eyer (js/legends.js)
     if (this.binoc) this.binocOff();
     this.reveal = new Uint8Array(FW * FW);
     if (!this.fogCanvas || this.fogCanvas.width !== FW) { this.fogCanvas = makeCanvas(FW, FW); this.fogCtx = this.fogCanvas.getContext('2d', { willReadFrequently: true }); }
@@ -286,6 +287,7 @@ const G = {
     World.initTables(seed);
     this.world = w;
     w.doorFn = (b) => this.doorOpen(b);
+    this._lgSp = null; this.legendSpots();   // efsanelerin inleri ve suları: oyuncunun evleri dünyaya eklenmeden (js/legends.js)
     this.insideB = null; this.exitB = null;
     this.trains = w.lines.map((l, i) => new Train(l, i));
     UI.loading(Tr('Hazır.'), 1);
@@ -322,7 +324,7 @@ const G = {
       weather: this.weather, loads: [this.heatLoad || 0, this.coldLoad || 0], law: this.law, honor: this.honor, bank: this.bank, scars: this.scars, stats: this.stats, skills: this.skills, achieved: this.achieved,
       visited: [...this.visited], discovered: [...this.discovered], rumored: [...this.rumored], props: this.props, family: this.family, romances: this.romances, stable: this.stable,
       campCleared: this.campCleared, chestsOpened: this.chestsOpened, robbed: this.robbed, graves: this.graves, harvested: [...this.world.harvested], treasure: this.treasure, activeBounty: this.activeBounty, stash: this.stash,
-      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, pins: this.pins, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), dev: this.saveDev(), tycoon: this.saveTycoon(), infl: this.saveInfl(), guards: this.saveGuards(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
+      story: this.saveStory(), hideout: this.hideout, upB: this.upB ? this.upB.id : null, hotelRent: this.hotelRent, reveal: enc(this.reveal), hints: this.hints, pins: this.pins, carry: this.saveCarry(), biz: this.saveBiz(), haul: this.saveHaul(), homes: this.saveHomes(), estate: this.saveEstate(), dev: this.saveDev(), tycoon: this.saveTycoon(), infl: this.saveInfl(), guards: this.saveGuards(), legends: this.saveLegends(), world: this.saveEnts(), poker: this.pokerTables, playtime: Math.round(this.playtime), resMem: this.resMem, debugUsed: !!this.debugUsed, savedAt: Date.now(),
     };
     try {
       Platform.set(slotKey(this.slot, kind), JSON.stringify(data));
@@ -442,6 +444,7 @@ const G = {
     this.loadTycoon(d.tycoon);
     this.loadInfl(d.infl);
     this.loadGuards(d.guards);
+    this.loadLegends(d.legends);
     this.pokerTables = d.poker || {};
     this.loadHaul(d.haul);
     // çevredeki dünya kaldığı gibi: NPC'ler, hayvanlar, arabalar, cesetler, yerdeki eşyalar
@@ -565,7 +568,7 @@ const G = {
     this.survivalUpdate(dmin, false);
     // dead eye
     if (P.deadeye) {
-      P.de -= dt * 18 * (this.hasPerk('longshot') ? 0.75 : 1);
+      P.de -= dt * 18 * (this.hasPerk('longshot') ? 0.75 : 1) * this.coatFx('de');
       if (P.de <= 0 || !P.aiming) { P.de = Math.max(0, P.de); P.deadeye = false; Audio_.tone(300, 0.3, 'sine', 0.08, null, 0, 150); }
     } else P.de = Math.min(100, P.de + dt * (0.6 + P.deCore / 60));
     P.poisonFx(dt);   // zehrin hasarı oyun saatiyle survivalUpdate'te
@@ -596,7 +599,8 @@ const G = {
     if (this.exitB && (ib || dist2(P.x, P.y, this.exitB.door.x, this.exitB.door.y) > 30 * 30)) this.exitB = null;
     const T_ = this.timers;
     T_.spawn -= dt; if (T_.spawn <= 0) { T_.spawn = 1; this.spawnTick(); }
-    T_.dev -= dt; if (T_.dev <= 0) { T_.dev = 0.5; this.devTick(); }   // görüş alanından çıkan kasabanın bekleyen gelişimi
+    T_.dev -= dt; if (T_.dev <= 0) { T_.dev = 0.5; this.devTick(); }
+    T_.leg -= dt; if (T_.leg <= 0) { T_.leg = 0.5; this.legendTick(); }   // efsaneler ve siparişler (js/legends.js)   // görüş alanından çıkan kasabanın bekleyen gelişimi
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
     T_.ach -= dt; if (T_.ach <= 0) { T_.ach = 1; this.checkAchievements(); }
     T_.fire -= dt; if (T_.fire <= 0) { T_.fire = 0.5; this.checkFire(); if (this.t > 30) this.hintTick(); }
@@ -1313,6 +1317,7 @@ const G = {
     for (const tr of this.trains) if (tr.pos[0]) { const [x, y, a] = tr.pos[0]; if (inView(x, y, 120)) lights.push([x + Math.cos(a) * 50, y + Math.sin(a) * 50, 70, 0.9]); }
     // motorlu taşıtların farları (motoru çalışırken)
     if (night) for (const e of this.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt && inView(e.x, e.y, 90)) lights.push([e.x + Math.cos(e.ang) * 24, e.y + Math.sin(e.ang) * 24, 48, 0.85]);
+    if (night) for (const e of this.ents) if (e.legend === 'ghost' && !e.dead && !e.remove && inView(e.x, e.y, 50)) lights.push([e.x, e.y, 42, 0.55]);   // Ak Hayalet: soluk ay ışığı
     for (const [x, y, r, a] of lights) {
       lc.globalAlpha = Math.min(1, a);
       lc.drawImage(this.lightSpr, x - x0 - r, y - y0 - r, r * 2, r * 2);
@@ -1369,6 +1374,7 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(TycoonSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(InfluenceSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(GuardSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HaulSystems));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(LegendSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(RailSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BrawlSystems));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(HunterSystems));

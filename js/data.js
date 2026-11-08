@@ -80,6 +80,17 @@ const ITEMS = {
   horse_hide:   { n: 'At Derisi', c: 'animal', p: 1.5, i: '🐴', max: 10 },
   feather:      { n: 'Tüy', c: 'animal', p: 0.04, i: '🪶', max: 60 },
   antler:       { n: 'Geyik Boynuzu', c: 'animal', p: 0.85, i: '🦌', max: 20 },
+  // ---- Efsanevi av (js/legends.js): her biri bir hayatta bir kez; büyük postlar omuzda taşınır
+  lg_ghost_pelt: { n: 'Ak Hayalet Postu', c: 'animal', p: 45, i: '🐺', max: 1, legend: 'ghost', d: 'Kar beyazı, kusursuz bir kurt postu. Terzi bundan eşsiz bir pelerin diker.' },
+  lg_scar_pelt:  { n: 'Yaralı Pençe Postu', c: 'animal', p: 90, i: '🐻', max: 1, big: 1, legend: 'scar', d: 'Dev bir boz ayının yara izli postu. Terzi bundan eşsiz bir kürk diker.' },
+  lg_gold_pelt:  { n: 'Altın Gölge Postu', c: 'animal', p: 60, i: '🐆', max: 1, big: 1, legend: 'gold', d: 'Altın tüylü bir pumanın postu. Terzi bundan eşsiz bir ceket diker.' },
+  lg_crown_hide: { n: 'Taç Boynuz Derisi', c: 'animal', p: 40, i: '🦌', max: 1, big: 1, legend: 'crown', d: 'Dev bir kızıl geyiğin derisi. Terzi bundan eşsiz bir ceket diker.' },
+  lg_iron_hide:  { n: 'Demir Boynuz Derisi', c: 'animal', p: 70, i: '🦬', max: 1, big: 1, legend: 'iron', d: 'Kara bir bizon boğasının kalın derisi. Terzi bundan eşsiz bir manto diker.' },
+  lg_tooth_skin: { n: 'Yaşlı Diş Derisi', c: 'animal', p: 65, i: '🐊', max: 1, big: 1, legend: 'tooth', d: 'Bataklığın en yaşlı timsahının derisi. Terzi bundan eşsiz bir yelek diker.' },
+  lg_scar_claw:  { n: 'Yaralı Pençe\'nin Pençesi', c: 'collect', p: 25, i: '🐾', max: 1, legend: 'scar', d: 'Bir insan elinden büyük, kararmış bir pençe.' },
+  lg_crown_antler:{ n: 'Taç Boynuz\'un Boynuzları', c: 'collect', p: 45, i: '🦌', max: 1, legend: 'crown', d: 'On dört çatallı dev bir boynuz çifti.' },
+  lg_iron_horn:  { n: 'Demir Boynuz\'un Boynuzu', c: 'collect', p: 30, i: '🦬', max: 1, legend: 'iron', d: 'Kırık ucu demir gibi sertleşmiş kara bir boynuz.' },
+  lg_tooth_fang: { n: 'Yaşlı Diş\'in Dişi', c: 'collect', p: 20, i: '🦷', max: 1, legend: 'tooth', d: 'Bir avuç uzunluğunda, sararmış bir timsah dişi.' },
   // ---- Balıklar
   fish_perch:   { n: 'Levrek', c: 'food', p: 0.2, i: '🐟', e: { hunger: 10 }, raw: 0.3, cook: 'cooked_fish', max: 15, d: 'Küçük ama lezzetli.' },
   fish_bass:    { n: 'Karabalık', c: 'food', p: 0.3, i: '🐟', e: { hunger: 12 }, raw: 0.3, cook: 'cooked_fish', max: 15, d: 'Güzel bir av.' },
@@ -87,6 +98,11 @@ const ITEMS = {
   fish_catfish: { n: 'Yayın Balığı', c: 'food', p: 0.5, i: '🐡', e: { hunger: 16 }, raw: 0.3, cook: 'cooked_fish', max: 10, d: 'Bataklıkların bıyıklı devi.' },
   fish_salmon:  { n: 'Somon', c: 'food', p: 0.6, i: '🐟', e: { hunger: 18 }, raw: 0.3, cook: 'cooked_fish', max: 10, d: 'Kuzeyin değerli balığı.' },
   fish_pike:    { n: 'Turna Balığı', c: 'food', p: 0.6, i: '🐟', e: { hunger: 18 }, raw: 0.3, cook: 'cooked_fish', max: 10, d: 'Dişli ve inatçı.' },
+  // efsanevi balıklar (js/legends.js): her biri tek bir suda, belirli saatte ya da havada vurur
+  lg_fish_ghost:  { n: 'Gölün Hayaleti', c: 'food', p: 25, i: '🐟', e: { hunger: 40 }, raw: 0.3, cook: 'cooked_fish', max: 1, legend: 'lakeghost', d: 'Soluk pullu dev bir göl alabalığı. Kuzeyin balıkçıları ona yıllarca olta salladı.' },
+  lg_fish_copper: { n: 'Bakır Pul', c: 'food', p: 30, i: '🐟', e: { hunger: 40 }, raw: 0.3, cook: 'cooked_fish', max: 1, legend: 'copper', d: 'Pulları bakır gibi parlayan dev bir somon.' },
+  lg_fish_whisker:{ n: 'Yaşlı Bıyık', c: 'food', p: 35, i: '🐡', e: { hunger: 50 }, raw: 0.3, cook: 'cooked_fish', max: 1, legend: 'whisker', d: 'Bıyıkları kol boyu, bataklığın dev yayın balığı.' },
+  lg_fish_jaw:    { n: 'Demir Çene', c: 'food', p: 28, i: '🐟', e: { hunger: 40 }, raw: 0.3, cook: 'cooked_fish', max: 1, legend: 'jaw', d: 'Çenesinde eski olta iğneleri taşıyan dev bir turna.' },
   // ---- Değerli
   gold_nugget:  { n: 'Altın Parçası', c: 'valuable', p: 10, i: '✨', max: 99, d: 'Nehir yatağından çıkan saf altın.' },
   silver_ore:   { n: 'Gümüş Cevheri', c: 'valuable', p: 1.5, i: '⚪', max: 50 },
@@ -128,6 +144,21 @@ const ITEMS = {
   coat_fur:      { n: 'Kürk Manto', c: 'clothing', p: 50, i: '🧥', max: 1, coat: { warm: 18, col: '#4a3a2c', len: 0.9 }, d: 'Kuzeyin dondurucu soğuğu için. (+18°C)' },
   coat_poncho:   { n: 'Panço', c: 'clothing', p: 5.75, i: '🧣', max: 1, coat: { warm: 3, col: '#9a4a2a', len: 0.5, rain: 1 }, d: 'Yağmurdan korur. (+3°C)' },
   coat_linen:    { n: 'Keten Gömlek', c: 'clothing', p: 3, i: '👕', max: 1, coat: { warm: -5, col: '#d8cdb4', len: 0 }, d: 'Sıcak çölde serin tutar. (-5°C)' },
+  // terzinin senin postundan diktikleri (TAILOR): dükkânda satılmaz. coat: scent hayvanların seni fark etme uzaklığı,
+  // guard hayvan saldırısının hasarı, aggro saldırgan hayvanın üstüne gelme uzaklığı, sta koşarken dayanıklılık, de Odak tüketimi
+  // çarpanı; venom: yılan sokması zehirlemez
+  coat_buck:     { n: 'Geyik Derisi Ceket', c: 'clothing', p: 16, i: '🧥', max: 1, made: 1, coat: { warm: 7, col: '#a0703e', len: 0.6, rain: 1 }, d: 'Yağlanmış geyik derisi; yağmuru geçirmez. (+7°C)' },
+  coat_wolf:     { n: 'Kurt Postu Palto', c: 'clothing', p: 28, i: '🧥', max: 1, made: 1, coat: { warm: 15, col: '#7d7d7d', len: 0.9, scent: 0.85 }, d: 'Kurdun kokusu üstüne siner. (+15°C, hayvanlar seni %15 geç fark eder)' },
+  coat_cougar:   { n: 'Puma Postu Yelek', c: 'clothing', p: 24, i: '🧥', max: 1, made: 1, coat: { warm: 6, col: '#b8905c', len: 0.5, scent: 0.8 }, d: 'Hafif ve sessiz. (+6°C, hayvanlar seni %20 geç fark eder)' },
+  coat_gator:    { n: 'Timsah Derisi Yelek', c: 'clothing', p: 30, i: '🧥', max: 1, made: 1, coat: { warm: 1, col: '#4a5a36', len: 0.5, guard: 0.85 }, d: 'Pençeye ve dişe karşı kalın bir zırh. (+1°C, hayvan saldırısı %15 az yaralar)' },
+  coat_bison:    { n: 'Bizon Postu Manto', c: 'clothing', p: 38, i: '🧥', max: 1, made: 1, coat: { warm: 20, col: '#4a3322', len: 1, rain: 1 }, d: 'Ağır ve sıcak; yağmuru geçirmez. (+20°C)' },
+  coat_bear:     { n: 'Ayı Postu Kürk', c: 'clothing', p: 45, i: '🧥', max: 1, made: 1, coat: { warm: 22, col: '#4a3020', len: 1 }, d: 'Dükkândaki kürkten sıcak. (+22°C)' },
+  coat_lg_ghost: { n: 'Ak Hayalet Pelerini', c: 'clothing', p: 150, i: '🧥', max: 1, made: 1, legend: 'ghost', coat: { warm: 18, col: '#e6e6e0', len: 1, scent: 0.6 }, d: 'Kar beyazı bir kurt postundan pelerin. (+18°C, hayvanlar seni %40 geç fark eder)' },
+  coat_lg_scar:  { n: 'Yaralı Pençe Kürkü', c: 'clothing', p: 200, i: '🧥', max: 1, made: 1, legend: 'scar', coat: { warm: 28, col: '#3a2418', len: 1, guard: 0.7, aggro: 0.6 }, d: 'Yırtıcılar bu kokudan çekinir. (+28°C, hayvan saldırısı %30 az yaralar, saldırgan hayvanlar ancak çok yaklaşınca saldırır)' },
+  coat_lg_gold:  { n: 'Altın Gölge Ceketi', c: 'clothing', p: 170, i: '🧥', max: 1, made: 1, legend: 'gold', coat: { warm: 9, col: '#d8a838', len: 0.6, scent: 0.8, de: 0.75 }, d: 'Avcının sabrını verir. (+9°C, hayvanlar seni %20 geç fark eder, Odak %25 yavaş tükenir)' },
+  coat_lg_crown: { n: 'Taç Boynuz Ceketi', c: 'clothing', p: 150, i: '🧥', max: 1, made: 1, legend: 'crown', coat: { warm: 10, col: '#8a5a32', len: 0.7, rain: 1, sta: 0.75 }, d: 'Hafif ve dayanıklı; yağmuru geçirmez. (+10°C, koşarken dayanıklılık %25 yavaş tükenir)' },
+  coat_lg_iron:  { n: 'Demir Boynuz Mantosu', c: 'clothing', p: 180, i: '🧥', max: 1, made: 1, legend: 'iron', coat: { warm: 24, col: '#2e2016', len: 1, rain: 1, guard: 0.85 }, d: 'Fırtınaya ve boynuza karşı. (+24°C, yağmuru geçirmez, hayvan saldırısı %15 az yaralar)' },
+  coat_lg_tooth: { n: 'Yaşlı Diş Yeleği', c: 'clothing', p: 170, i: '🧥', max: 1, made: 1, legend: 'tooth', coat: { warm: 2, col: '#3e4a2c', len: 0.5, guard: 0.75, venom: 1 }, d: 'Hiçbir diş bu deriyi delemez. (+2°C, hayvan saldırısı %25 az yaralar, yılan sokması zehirlemez)' },
   hat_cowboy:    { n: 'Kovboy Şapkası', c: 'clothing', p: 10, i: '🤠', max: 1, hat: 'cowboy', d: 'Güneşten korur.' },
   hat_bowler:    { n: 'Melon Şapka', c: 'clothing', p: 5, i: '🎩', max: 1, hat: 'bowler' },
   hat_flat:      { n: 'Kasket', c: 'clothing', p: 1.5, i: '🧢', max: 1, hat: 'flat' },
@@ -225,6 +256,76 @@ const FISH_POOLS = {
   mild: ['fish_perch', 'fish_bass', 'fish_trout', 'fish_pike', 'fish_catfish'],
 };
 function fishPool(biome, heat) { return FISH_POOLS[heat < 0.3 ? 'cold' : biome === 'SWAMP' || biome === 'MUD' || heat > 0.7 ? 'warm' : 'mild']; }
+
+/* ---- Efsaneler (js/legends.js) ----
+   Dünyada birkaç nadir yer: her efsanevi hayvanın bir ini, her efsanevi balığın bir suyu var. Yalnızca koşulu tutunca
+   (saat ya da hava: LEGEND_WHEN) görünür ya da vurur; her hayatta bir kez avlanır/tutulur. Yerleri dünyadan hesaplanır
+   (near: aramanın başladığı dünya oranı). Hayvanlar: base türünün üstüne def yazılır; pack: yanındaki sıradan hayvanlar,
+   hitRun: vurup çekilir, rage: canı yarıya inince kudurur, wary: kaçarsa o gün dönmez, charge: vurulunca saldırır;
+   clue: inin çevresindeki iz nesnesi. Balıklar: heat suyun iklim aralığı, str çekiş gücü, kg ağırlık aralığı. */
+const LEGEND_WHEN = {
+  night: { n: 'gece vakti', h: [20.5, 5] },
+  day:   { n: 'gündüzleri', h: [7, 19] },
+  dawn:  { n: 'şafakta', h: [4.5, 8.5] },
+  dusk:  { n: 'akşam alacasında', h: [17.5, 21] },
+  rain:  { n: 'yağmurda', wx: ['rain', 'storm'] },
+  fog:   { n: 'sisli havada', wx: ['fog'] },
+};
+const LEGENDS = {
+  ghost: { n: 'Ak Hayalet', base: 'wolf', near: [0.3, 0.07], bio: ['SNOW', 'ROCK', 'FOREST'], when: ['night'], pack: 3, hitRun: 1, clue: 'tuft',
+    def: { hp: 260, dmg: 20, spd: 128, len: 13, wid: 5, col: '#e6e6e0', col2: '#ffffff', sense: 260, aggro: 230, xp: 120 }, pelt: 'lg_ghost_pelt',
+    d: 'Kar beyazı dev bir kurt. Sürüsüyle geceleri avlanır; vurup çekilir, karanlıkta yeniden belirir.' },
+  scar: { n: 'Yaralı Pençe', base: 'bear', near: [0.12, 0.3], bio: ['FOREST', 'ROCK', 'SNOW'], when: ['day'], rage: 1, clue: 'scrape',
+    def: { hp: 950, dmg: 44, spd: 100, len: 23, wid: 13, col: '#3a2418', col2: '#7a6a5a', sense: 170, aggro: 180, xp: 160 }, pelt: 'lg_scar_pelt', trophy: 'lg_scar_claw',
+    d: 'Yüzünde üç derin yara izi olan dev bir boz ayı. Gündüz dolaşır; canı yarıya inince kudurur.' },
+  gold: { n: 'Altın Gölge', base: 'cougar', near: [0.46, 0.85], bio: ['REDROCK', 'ROCK', 'DRY', 'DESERT'], when: ['dawn', 'dusk'], hitRun: 1, clue: 'carcass',
+    def: { hp: 300, dmg: 30, spd: 142, len: 15, wid: 5, col: '#d8a838', col2: '#f4e0a8', sense: 320, aggro: 190, xp: 140 }, pelt: 'lg_gold_pelt',
+    d: 'Altın tüylü, gölge gibi sessiz bir puma. Şafakta ve akşam alacasında avlanır; yaralanınca kayalara çekilip yeniden saldırır.' },
+  crown: { n: 'Taç Boynuz', base: 'elk', near: [0.62, 0.15], bio: ['FOREST', 'GRASS'], when: ['dawn', 'fog'], wary: 1, male: 1, clue: 'scrape',
+    def: { hp: 320, spd: 112, len: 19, wid: 7, col: '#8a5a32', col2: '#e0c898', sense: 330, xp: 130, antler: 3 }, pelt: 'lg_crown_hide', trophy: 'lg_crown_antler',
+    d: 'Boynuzları taç gibi dallanan dev bir kızıl geyik. Şafakta ya da siste görünür; çok ürkektir, kaçarsa o gün geri gelmez.' },
+  iron: { n: 'Demir Boynuz', base: 'bison', near: [0.5, 0.48], bio: ['DRY', 'GRASS'], when: ['day'], pack: 4, charge: 1, male: 1, clue: 'hoof',
+    def: { hp: 700, dmg: 40, spd: 82, len: 25, wid: 11, col: '#2e2016', col2: '#5a4430', sense: 130, xp: 150 }, pelt: 'lg_iron_hide', trophy: 'lg_iron_horn',
+    d: 'Sürünün başındaki kara dev bir bizon boğası. Gündüz otlar; vurulunca kaçmaz, üstüne saldırır.' },
+  tooth: { n: 'Yaşlı Diş', base: 'gator', near: [0.76, 0.86], coast: 1, when: ['night', 'rain'], clue: 'slide',
+    def: { hp: 650, dmg: 46, spd: 74, len: 30, wid: 7, col: '#2e3a22', col2: '#8a8a5a', sense: 120, aggro: 110, xp: 150 }, pelt: 'lg_tooth_skin', trophy: 'lg_tooth_fang',
+    d: 'Bataklığın en yaşlı timsahı; boyu bir arabayı geçer. Gece ya da yağmurda kıyıya çıkar.' },
+};
+const LEGEND_FISH = {
+  lakeghost: { n: 'Gölün Hayaleti', item: 'lg_fish_ghost', near: [0.36, 0.12], heat: [0, 0.32], when: ['night'], str: 2.6, kg: [14, 19] },
+  copper:    { n: 'Bakır Pul', item: 'lg_fish_copper', near: [0.74, 0.22], heat: [0, 0.45], when: ['dawn'], str: 2.8, kg: [16, 22] },
+  whisker:   { n: 'Yaşlı Bıyık', item: 'lg_fish_whisker', near: [0.7, 0.8], heat: [0.6, 1], when: ['rain'], str: 3.2, kg: [38, 52] },
+  jaw:       { n: 'Demir Çene', item: 'lg_fish_jaw', near: [0.56, 0.4], heat: [0.3, 0.7], when: ['dusk'], str: 3, kg: [17, 24] },
+};
+
+/* ---- Terzi siparişi (js/legends.js): kendi postundan giysi, heybe ve eyer ----
+   need: istenen postlar (çantadan, omzundan ya da kapıdaki atının eyerinden alınır), fee: dikiş ücreti, h: hazır olma süresi
+   (oyun saati). SATCHEL: heybe basamakları (mul: eşyaların taşıma sınırı çarpanı), SADDLE: eyer basamakları (cap: eyerin yükü) */
+const TAILOR = [
+  { id: 'coat_buck', need: { deer_hide: 2 }, fee: 3, h: 12 },
+  { id: 'coat_wolf', need: { wolf_pelt: 3 }, fee: 5, h: 24 },
+  { id: 'coat_cougar', need: { cougar_pelt: 1, deer_hide: 1 }, fee: 5, h: 24 },
+  { id: 'coat_gator', need: { gator_skin: 1, snake_skin: 2 }, fee: 6, h: 24 },
+  { id: 'coat_bison', need: { bison_hide: 1 }, fee: 6, h: 24 },
+  { id: 'coat_bear', need: { bear_pelt: 1, fox_pelt: 1 }, fee: 7, h: 24 },
+  { id: 'coat_lg_ghost', need: { lg_ghost_pelt: 1, wolf_pelt: 2 }, fee: 20, h: 48 },
+  { id: 'coat_lg_scar', need: { lg_scar_pelt: 1, bear_pelt: 1 }, fee: 25, h: 48 },
+  { id: 'coat_lg_gold', need: { lg_gold_pelt: 1, cougar_pelt: 1 }, fee: 20, h: 48 },
+  { id: 'coat_lg_crown', need: { lg_crown_hide: 1, deer_hide: 2 }, fee: 20, h: 48 },
+  { id: 'coat_lg_iron', need: { lg_iron_hide: 1, bison_hide: 1 }, fee: 25, h: 48 },
+  { id: 'coat_lg_tooth', need: { lg_tooth_skin: 1, gator_skin: 1 }, fee: 22, h: 48 },
+];
+const SATCHEL = [
+  { n: 'Heybe', mul: 1 },
+  { n: 'Deri Heybe', mul: 1.5, need: { deer_hide: 2, prong_hide: 1 }, fee: 4, h: 12 },
+  { n: 'Kürk Astarlı Heybe', mul: 2, need: { elk_hide: 1, wolf_pelt: 2, fox_pelt: 2 }, fee: 9, h: 24 },
+  { n: 'Avcı Heybesi', mul: 3, need: { bison_hide: 1, bear_pelt: 1, cougar_pelt: 1 }, fee: 18, h: 36 },
+];
+const SADDLE = [
+  { n: 'Eyer', cap: 4 },
+  { n: 'Yük Eyeri', cap: 6, need: { deer_hide: 2, boar_hide: 1 }, fee: 6, h: 12 },
+  { n: 'Avcı Eyeri', cap: 8, need: { bison_hide: 1, elk_hide: 1 }, fee: 14, h: 24 },
+];
 
 const HORSE_BREEDS = {
   nag:        { n: 'Yaşlı Kısrak', p: 0, spd: 0.86, sta: 85, hp: 90, cols: ['#6b4a2e', '#7a6a5a'] },
@@ -380,18 +481,18 @@ const BUILDINGS = {
   doctor:   { n: 'Doktor', w: 8, h: 7, wall: '#d8d0c0', roof: '#5a4a40', sign: '#e8e8e8', svc: ['heal', 'shop'], shop: 'doctor' },
   gunsmith: { n: 'Silahçı', w: 8, h: 6, wall: '#6a5a4a', roof: '#3a2e24', sign: '#909090', svc: ['shop', 'rob'], shop: 'gunsmith' },
   butcher:  { n: 'Kasap & Tuzakçı', w: 8, h: 6, wall: '#8a5040', roof: '#4a2a20', sign: '#a04030', svc: ['shop'], shop: 'butcher' },
-  stable:   { n: 'Ahır', w: 11, h: 7, wall: '#9a6a3a', roof: '#6a3a22', sign: '#c08040', svc: ['horses', 'shop', 'horsecare', 'stage'], shop: 'stable', stable: 1 },
+  stable:   { n: 'Ahır', w: 11, h: 7, wall: '#9a6a3a', roof: '#6a3a22', sign: '#c08040', svc: ['horses', 'shop', 'horsecare', 'saddle', 'stage'], shop: 'stable', stable: 1 },
   hotel:    { n: 'Otel', w: 10, h: 8, wall: '#a07a5a', roof: '#5a3a2a', sign: '#e0c080', svc: ['room', 'bath'], tall: 1 },
   bank:     { n: 'Banka', w: 10, h: 8, wall: '#8a4a3a', roof: '#3a2a24', sign: '#d8b040', svc: ['bank', 'robbank'], brick: 1, tall: 1 },
   station:  { n: 'Tren İstasyonu', w: 11, h: 6, wall: '#7a6a50', roof: '#3a4a5a', sign: '#e0e0d0', svc: ['train'] },
   church:   { n: 'Kilise', w: 8, h: 10, wall: '#e8e0d0', roof: '#5a4a44', sign: '#ffffff', svc: ['donate', 'pray'], church: 1 },
   land:     { n: 'Tapu Dairesi', w: 7, h: 6, wall: '#9a8a6a', roof: '#4a4030', sign: '#80a060', svc: ['property'] },
   barber:   { n: 'Berber', w: 7, h: 6, wall: '#c0b0a0', roof: '#6a3030', sign: '#d04040', svc: ['barber'] },
-  tailor:   { n: 'Terzi', w: 8, h: 6, wall: '#a09080', roof: '#4a3a4a', sign: '#a080c0', svc: ['shop'], shop: 'tailor' },
+  tailor:   { n: 'Terzi', w: 8, h: 6, wall: '#a09080', roof: '#4a3a4a', sign: '#a080c0', svc: ['shop', 'order'], shop: 'tailor' },
   fence:    { n: 'Kaçakçı', w: 7, h: 6, wall: '#5a4a3a', roof: '#2a2420', sign: '#606060', svc: ['shop'], shop: 'fence' },
   mine:     { n: 'Maden Ofisi', w: 8, h: 6, wall: '#6a6058', roof: '#3a3430', sign: '#a0a0a0', svc: ['work', 'shop'], shop: 'mine', work: 'mine' },
   lumber:   { n: 'Kereste Fabrikası', w: 11, h: 7, wall: '#8a6a40', roof: '#4a3a22', sign: '#c0a060', svc: ['work'], work: 'lumber' },
-  docks:    { n: 'Liman Deposu', w: 10, h: 6, wall: '#6a6a60', roof: '#3a3a40', sign: '#6080a0', svc: ['work', 'shop'], shop: 'docks', work: 'docks' },
+  docks:    { n: 'Liman Deposu', w: 10, h: 6, wall: '#6a6a60', roof: '#3a3a40', sign: '#6080a0', svc: ['work', 'shop', 'tales'], shop: 'docks', work: 'docks' },
   ranch:    { n: 'Çiftlik Evi', w: 8, h: 6, wall: '#a07850', roof: '#6a4030', sign: '#c0a070', svc: ['work'], work: 'ranch' },
   barn:     { n: 'Ambar', w: 8, h: 7, wall: '#8a2a20', roof: '#4a2a22', sign: '#8a2a20', svc: [] },
   hs_shack: { n: 'Baraka', w: 6, h: 5, wall: '#7a5a3a', roof: '#4a3424', svc: [], home: 1 },
@@ -400,7 +501,7 @@ const BUILDINGS = {
   house:    { n: 'Ev', lock: 1, w: 6, h: 6, wall: '#9a8060', roof: '#5a4030', svc: [] },
   property: { n: 'Satılık Mülk', w: 7, h: 6, wall: '#a08a6a', roof: '#4a3a2a', sign: '#80a060', svc: ['home'] },
   ruin:     { n: 'Harabe', w: 6, h: 5, wall: '#5a4a3a', roof: '#2a2420', svc: [], ruin: 1, noInt: 1 },
-  cabin:    { n: 'Kulübe', w: 6, h: 5, wall: '#6a4a2a', roof: '#3a2a1a', sign: '#a08050', svc: ['shop'], shop: 'trapper' },
+  cabin:    { n: 'Kulübe', w: 6, h: 5, wall: '#6a4a2a', roof: '#3a2a1a', sign: '#a08050', svc: ['shop', 'tales'], shop: 'trapper' },
   hermit:   { n: 'Münzevi Kulübesi', noInt: 1, w: 5, h: 4, wall: '#5a4a32', roof: '#3a3022', svc: ['shop', 'rumor'], shop: 'hermit' },
   lighthouse:{ n: 'Deniz Feneri', w: 4, h: 4, wall: '#e8e0d8', roof: '#a02a20', svc: [], light: 1, noInt: 1 },
   mineentrance:{ n: 'Maden Girişi', w: 5, h: 3, wall: '#3a3028', roof: '#2a2420', svc: [], mine: 1, noInt: 1 },
@@ -468,7 +569,7 @@ const SHOPS = {
 const PURCHASABLE = new Set(Object.values(SHOPS).flatMap(S => S.sell || []));
 /* Hizmet ücretleri ($): ürün değildir ama genel fiyat düzeyini izler. Otel odası kasabanın fiyat çarpanıyla çarpılır;
    biletler uzaklığa göre (tren en az trainMin, posta arabası en az stageMin; her piksel için trainPx / stagePx). */
-const SVC = { room: 1, bath: 0.5, heal: 2, horsecare: 0.5, barber: 0.3, rumor: 0.1, fetchWagon: 1, trainMin: 0.5, trainPx: 1 / 5000, stageMin: 0.8, stagePx: 1 / 3600 };
+const SVC = { room: 1, bath: 0.5, heal: 2, horsecare: 0.5, barber: 0.3, rumor: 0.1, tales: 0.5, fetchWagon: 1, trainMin: 0.5, trainPx: 1 / 5000, stageMin: 0.8, stagePx: 1 / 3600 };
 
 /* ---- Önemli yerler ---- */
 const LANDMARKS = [
@@ -761,6 +862,8 @@ const ACHIEVEMENTS = [
   { id: 'hunt25',    n: 'Avcı',                  d: '25 hayvan avla.', perk: 'Post satış fiyatları +%15', s: 'animals', v: 25 },
   { id: 'hunt100',   n: 'Vahşi Batı\'nın Avcısı', d: '100 hayvan avla.', perk: 'Hayvanlar seni %30 daha geç fark eder', s: 'animals', v: 100 },
   { id: 'bear',      n: 'Ayı Boğuşan',           d: 'Bir boz ayı avla.', perk: 'Maksimum sağlık +15', s: 'bears', v: 1 },
+  { id: 'legend1',   n: 'Efsane Avcısı',         d: 'Efsanevi bir hayvan avla.', perk: 'Efsanelerin arama çemberi %25 daha dar', s: 'legends', v: 1 },
+  { id: 'legend6',   n: 'Vahşinin Efendisi',     d: 'Altı efsanevi hayvanın hepsini avla.', perk: 'Av ürünleri her dükkânda %10 daha değerli', s: 'legends', v: 6 },
   { id: 'explore5',  n: 'Meraklı Gezgin',        d: '5 yer keşfet.', perk: 'Harita açılma yarıçapı +%35', s: 'discoveries', v: 5 },
   { id: 'explore20', n: 'Kaşif',                 d: '20 yer keşfet.', perk: 'Yakındaki keşfedilmemiş yerler haritada "?" olarak görünür', s: 'discoveries', v: 20 },
   { id: 'towns',     n: 'Bütün Kasabalar',       d: 'En az 8 kasabayı ziyaret et.', perk: 'Tren biletleri %50 indirimli', s: 'towns', v: 8 },
@@ -769,6 +872,8 @@ const ACHIEVEMENTS = [
   { id: 'eater',     n: 'Demir Mide',            d: '60 kez yemek ye.', perk: 'Yiyecekler %20 daha fazla doyurur, çiğ et daha az hasta eder', s: 'eaten', v: 60 },
   { id: 'herbs',     n: 'Şifacı',                d: '50 bitki topla.', perk: 'Bitki toplarken 2 kat verim şansı', s: 'herbs', v: 50 },
   { id: 'fisher',    n: 'Oltanın Ustası',        d: '20 balık tut.', perk: 'Balıklar daha çabuk vurur', s: 'fish', v: 20 },
+  { id: 'legendfish',n: 'Derinlerin Ustası',     d: 'Dört efsanevi balığın hepsini tut.', perk: 'Misina %15 daha zor gerilir', s: 'legendFish', v: 4 },
+  { id: 'tailor',    n: 'Kendi Postundan',       d: 'Terziye kendi postundan bir giysi diktir.', perk: 'Terzi ve saraç siparişleri %25 daha çabuk hazırlanır', s: 'orders', v: 1 },
   { id: 'longshot',  n: 'Keskin Nişancı',        d: '10 hedefi 25 metreden uzaktan vur.', perk: 'Odak %25 daha yavaş tükenir', s: 'longKills', v: 10 },
   { id: 'gunslinger',n: 'Silahşör',              d: '25 haydut öldür.', perk: 'Şarjör değiştirme %25 hızlı', s: 'bandits', v: 25 },
   { id: 'rich',      n: 'Cebi Dolu',             d: 'Cebinde $250 biriktir.', perk: 'Dükkanlarda %10 indirim', s: 'maxCash', v: 250 },

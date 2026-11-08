@@ -481,6 +481,7 @@ const GameSystems = {
     if (!r) return 0;
     let p = it.p * r * this.priceMul(false);
     if (it.c === 'animal' && this.hasPerk('hunt25')) p *= 1.15;
+    if (it.c === 'animal' && this.hasPerk('legend6')) p *= 1.1;
     // dükkanlarda satılan bir eşya, en ucuza alınabileceği fiyatın altında satılır (al-sat döngüsüyle para basılamasın)
     if (PURCHASABLE.has(id)) p = Math.min(p, it.p * 0.6);
     return Math.max(0.01, p);
@@ -1303,7 +1304,7 @@ const GameSystems = {
     for (let i = L.length - 1; i >= 0; i--) if (L[i].key === key && now - L[i].t1 < 15) { e = L[i]; break; }
     if (!e) {
       const P = this.player;
-      const who = by && by.kind === 'npc' ? by.name : src === 'zehir' && ANIMALS[P.poisonBy] ? ANIMALS[P.poisonBy].n : null;
+      const who = by && by.kind === 'npc' ? by.name : by && by.kind === 'animal' && by.legend ? by.def.n : src === 'zehir' && ANIMALS[P.poisonBy] ? ANIMALS[P.poisonBy].n : null;
       e = { key, src, who, weapon: weapon || (by && by.kind === 'npc' && by.weapon) || null, sum: 0, n: 0, t0: now, t1: now };
       L.push(e);
       if (L.length > 8 || now - L[0].t1 > 120) L = this.dmgLog = L.filter(x => now - x.t1 <= 120).sort((a, b) => a.t1 - b.t1).slice(-8);
@@ -1979,6 +1980,8 @@ const GameSystems = {
         continue;
       }
       if (e.kind === 'camp') { add(e.x, e.y, Tr('Kamp'), [{ n: Tr('Kamp Menüsü'), fn: () => UI.openCamp() }], 4); continue; }
+      // efsanenin izi: incelenince arama çemberi daralır (js/legends.js)
+      if (e.kind === 'prop' && e.lgClue) { add(e.x, e.y, e.label, [{ n: Tr('İzi İncele'), hold: 0.8, fn: () => this.legendClue(e) }], 1); continue; }
       // hikâyenin yerleştirdiği nesneler (kaya, sandık vb.)
       if (e.kind === 'prop' && e.storyAct) { const acts = this.storyPropActions(e); if (acts.length) add(e.x, e.y, e.label || e.type, acts, e.big ? 1 : 4); continue; }
       if (e.kind === 'wagon') { this.wagonActions(e, add); continue; }
@@ -2290,6 +2293,7 @@ const GameSystems = {
     Audio_.ui('pick');
   },
   skin(a) {
+    if (a.legend) { this.legendSkin(a); return; }   // efsanevi av: eşsiz post ve ganimet (js/legends.js)
     const P = this.player, d = a.def;
     a.skinned = true;
     const lvl = this.skill('hunting');

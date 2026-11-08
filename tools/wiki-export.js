@@ -34,7 +34,8 @@ function loadData() {
     'BUILDINGS', 'JOBS', 'SHOPS', 'SVC', 'LANDMARKS', 'NOMADS', 'PROPERTIES', 'MANSION_PRICE', 'SERVANTS', 'CLUB_FEE', 'CARRIAGE_PRICE',
     'CARRIAGE_WAGE', 'BUILD_TIERS', 'HOME_TYPES', 'HOME_ADDONS', 'DEED_PRICE', 'HOME_FINE', 'GOODS', 'BIZ', 'WAGON_PRICE', 'WAGON_CAP',
     'BUILD_DAYS', 'CAR_PRICE', 'CAR_YEAR', 'SECTOR_LV', 'OIL', 'INF_LV', 'BRIBE', 'PAYROLL', 'GUARD_MAX', 'BANK', 'ACHIEVEMENTS', 'SKILLS',
-    'BACKGROUNDS', 'DIFFICULTIES', 'LIFE_PACES', 'RECIPES', 'START_YEAR', 'START_AGE', 'DEV_END_YEAR'];
+    'BACKGROUNDS', 'DIFFICULTIES', 'LIFE_PACES', 'RECIPES', 'START_YEAR', 'START_AGE', 'DEV_END_YEAR', 'REGIONS',
+    'LEGEND_WHEN', 'LEGENDS', 'LEGEND_FISH', 'TAILOR', 'SATCHEL', 'SADDLE'];
   vm.runInContext(read('js/data.js') + `\n;globalThis.__D = { ${names.join(', ')} };`, ctx, { filename: 'data.js' });
   return ctx.__D;
 }
@@ -129,10 +130,10 @@ function build() {
   for (const [id, it] of Object.entries(D.ITEMS)) {
     const r = { n: nm(it.n), c: it.c, p: it.p, max: it.max || 10 };
     if (it.e && Object.keys(it.e).length) r.e = it.e;
-    if (it.coat) r.warm = it.coat.warm;
+    if (it.coat) { r.warm = it.coat.warm; for (const k of ['rain', 'scent', 'guard', 'aggro', 'sta', 'de', 'venom']) if (it.coat[k] !== undefined) r[k] = it.coat[k]; }   // giysinin etkileri (js/legends.js coatFx)
     if (it.hat) r.hat = it.hat;
     if (it.mask) r.mask = it.mask;
-    for (const k of ['big', 'raw', 'cook', 'gift']) if (it[k]) r[k] = it[k];
+    for (const k of ['big', 'raw', 'cook', 'gift', 'made', 'legend']) if (it[k]) r[k] = it[k];
     items[id] = r;
   }
   const weapons = {};
@@ -173,6 +174,15 @@ function build() {
   const achievements = D.ACHIEVEMENTS.filter(a => !/^story/.test(a.id)).map(a => Object.assign({ id: a.id, n: nm(a.n), d: nm(a.d) }, a.perk ? { perk: nm(a.perk) } : {}));
   const skills = {};
   for (const [id, s] of Object.entries(D.SKILLS)) skills[id] = { n: nm(s.n), d: nm(s.d) };
+  // efsaneler (js/legends.js): bölge, aramanın başladığı noktaya en yakın bölgedir (oyun da yeri oradan arar)
+  const regionOf = (near) => D.REGIONS.reduce((b, r) => ((r.x - near[0]) ** 2 + (r.y - near[1]) ** 2 < (b.x - near[0]) ** 2 + (b.y - near[1]) ** 2 ? r : b)).n;
+  const legendWhen = Object.fromEntries(Object.entries(D.LEGEND_WHEN).map(([k, w]) => [k, Object.assign({ n: nm(w.n) }, w.h ? { h: w.h } : { wx: w.wx })]));
+  const legends = Object.fromEntries(Object.entries(D.LEGENDS).map(([id, L]) => [id, Object.assign({ n: nm(L.n), base: L.base, region: regionOf(L.near), when: L.when, pelt: L.pelt },
+    L.trophy ? { trophy: L.trophy } : {}, pick(L, ['pack', 'hitRun', 'rage', 'wary', 'charge']), pick(L.def, ['hp', 'dmg', 'spd']))]));
+  const legendFish = Object.fromEntries(Object.entries(D.LEGEND_FISH).map(([id, F]) => [id, { n: nm(F.n), item: F.item, region: regionOf(F.near), when: F.when, kg: F.kg, str: F.str }]));
+  const tailor = D.TAILOR.map(R => ({ id: R.id, need: R.need, fee: R.fee, h: R.h }));
+  const tiers = (L, key) => L.map(S => Object.assign({ n: nm(S.n), [key]: S[key] }, S.need ? { need: S.need, fee: S.fee, h: S.h } : {}));
+  const satchel = tiers(D.SATCHEL, 'mul'), saddle = tiers(D.SADDLE, 'cap');
   const jobs = {};
   for (const [id, j] of Object.entries(D.JOBS)) {
     const where = Object.keys(D.BUILDINGS).find(b => D.BUILDINGS[b].work === id);
@@ -228,6 +238,7 @@ function build() {
   const data = {
     items, weapons, ammo, horses, animals, fish: D.FISH_POOLS, shops, buildings, towns, townKinds, landmarks, nomads, recipes,
     achievements, skills, jobs, biz, goods, props, home, backgrounds, gather, ore, svc: D.SVC, c, d,
+    legendWhen, legends, legendFish, tailor, satchel, saddle,
   };
   // her bağlantı geçerli mi (dükkânın sattığı eşya, hayvanın verdiği post, tarifin malzemesi…)
   const bad = [];
@@ -240,6 +251,9 @@ function build() {
   for (const [id, a] of Object.entries(animals)) for (const k of ['pelt', 'meat', 'extra']) if (a[k] && !isItem(a[k][0])) bad.push(`hayvan ${id}: ${k} yok`);
   for (const r of recipes) for (const x of Object.keys(Object.assign({}, r.need, r.out))) if (!isItem(x)) bad.push(`tarif ${r.id}: eşya yok: ${x}`);
   for (const x of [...gather, ...ore]) if (!isItem(x)) bad.push(`toplanabilir eşya yok: ${x}`);
+  for (const [id, L] of Object.entries(legends)) for (const x of [L.pelt, L.trophy].filter(Boolean)) if (!isItem(x)) bad.push(`efsane ${id}: eşya yok: ${x}`);
+  for (const [id, F] of Object.entries(legendFish)) if (!isItem(F.item)) bad.push(`efsanevi balık ${id}: eşya yok`);
+  for (const R of [...tailor, ...satchel, ...saddle]) for (const x of [R.id, ...Object.keys(R.need || {})].filter(Boolean)) if (!isItem(x)) bad.push(`sipariş: eşya yok: ${x}`);
   if (missing.length) bad.push('İngilizce adı olmayanlar: ' + [...new Set(missing)].join(', '));
   if (bad.length) throw new Error('Wiki verisi tutarsız:\n  ' + bad.join('\n  '));
 

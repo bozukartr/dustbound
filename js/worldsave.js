@@ -13,7 +13,7 @@
 
 const NPC_KEYS = ['ang', 'hp', 'maxHp', 'hostile', 'weapon', 'money', 'looted', 'state', 't', 'home', 'town', 'keepTown', 'poi', 'keepPoi', 'camp', 'romId',
   'mounted', 'hAng', 'dead', 'deadT', 'tieT', 'downT', 'assaulted', 'evidence', 'child', 'carry2', 'goHome', 'target', 'pi', 'pdir', 'aggro', 'robbed', 'greetDay', 'bribeTried', 'silenced', 'mag', 'spare'];
-const ANIMAL_KEYS = ['ang', 'hp', 'maxHp', 'dead', 'deadT', 'skinned', 'male', 'look', 'state', 't', 'home', 'poi', 'town', 'keepTown', 'tieT', 'tame'];
+const ANIMAL_KEYS = ['ang', 'hp', 'maxHp', 'dead', 'deadT', 'skinned', 'male', 'look', 'state', 't', 'home', 'poi', 'town', 'keepTown', 'tieT', 'tame', 'legend'];
 const HORSE_KEYS = ['ang', 'hp', 'dead', 'saddle', 'hitch', 'town', 'state', 'bond', 'owner'];
 const WAGON_KEYS = ['ang', 'bx', 'by', 'bang', 'pi', 'dir', 'stage', 'max', 'cargo', 'body', 'hc', 'owner', 'route', 'ri', 'leg', 'parkT', 'exitPt', 'hp', 'name', 'motor', 'def'];
 /* Yüklemede güvenli hâle çevrilen anlık durumlar (kovalama, rapor, kementte...) */
@@ -29,7 +29,7 @@ const WorldSave = {
       || e.role === 'spouse' || e.role === 'child' || e.role === 'stranger' || e.keep || e.job || e.bountyId || e.nomad !== undefined;
     if (e.kind === 'horse') return e.owner === 'player' || e.rider || e.nomad !== undefined;
     if (e.kind === 'wagon') return e.mine || e.hauler || e.rider || e.coach;   // özel fayton malikane sisteminden yeniden çağrılır
-    if (e.kind === 'animal') return e.nomad !== undefined;
+    if (e.kind === 'animal') return e.nomad !== undefined || (e.legend && !e.dead) || !!e.lgPack;   // yaşayan efsane ve sürüsü inde yeniden belirir; leşi kalır
     return e.kind === 'prop' || e.kind === 'camp' || e.kind === 'ent';
   },
   pick(e, keys) { const o = {}; for (const k of keys) if (e[k] !== undefined && e[k] !== null) o[k] = e[k]; return o; },
@@ -100,6 +100,7 @@ const WorldSave = {
           if (!ANIMALS[b.type]) continue;
           e = new Animal(b.x, b.y, b.type);
           for (const k of ANIMAL_KEYS) if (b[k] !== undefined) e[k] = b[k];
+          if (e.legend) { if (LEGENDS[e.legend]) { this.legendApply(e, e.legend); e.keep = !e.skinned; } else e.legend = undefined; }   // efsanenin leşi
           if (b.camp !== undefined) e.camp = b.camp;
           if (e.dead) { e.state = 'dead'; e.hp = 0; }
         } else if (b.k === 'horse') {

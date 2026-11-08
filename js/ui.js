@@ -251,7 +251,7 @@ const UI = {
     const Q = this.toastQ;
     while (Q && Q.length && this.el.toasts.querySelectorAll('.toast:not(.out)').length < 2) {
       const { title, sub, kind, key } = Q.shift();
-      const e = el_('div', 'toast tk-' + (kind || 'none'), `<div class="t-k">${{ ach: Tr('BAŞARIM'), skill: Tr('YETENEK'), year: Tr('YAŞ'), family: Tr('AİLE'), bounty: Tr('ÖDÜL'), horse: Tr('AT'), ok: '' }[kind] || ''}</div><div class="t-t">${Icons.iconize(title)}</div><div class="t-s">${Icons.iconize(sub || '')}</div>`);
+      const e = el_('div', 'toast tk-' + (kind || 'none'), `<div class="t-k">${{ ach: Tr('BAŞARIM'), skill: Tr('YETENEK'), year: Tr('YAŞ'), family: Tr('AİLE'), bounty: Tr('ÖDÜL'), horse: Tr('AT'), legend: Tr('EFSANE'), ok: '' }[kind] || ''}</div><div class="t-t">${Icons.iconize(title)}</div><div class="t-s">${Icons.iconize(sub || '')}</div>`);
       e._key = key;
       this.el.toasts.appendChild(e);
       this.toastDodge();
@@ -1007,6 +1007,7 @@ const UI = {
     else if (key === 'tent') poi((p, k) => k && p.kind === 'camp');
     else if (key === 'eye') poi((p, k) => k && !['camp', 'property', 'home'].includes(p.kind));
     else if (key === 'question') poi((p, k, r) => r && !k);
+    else if (key === 'paw') out.push(...G.legendTargets());
     else if (key === 'derrick' && G.tycoon && G.year >= OIL.year) {
       G.tycoon.oil.f.forEach((f, i) => { if (f.known) { const p = G.oilPos(i); out.push({ x: p.x, y: p.y, n: Tr`Petrol sahası: ${G.oilName(i)}` }); } });
       const R = G.tycoon.oil.ref; if (R) out.push({ x: R.x * TS + 8, y: R.y * TS + 8, n: Tr('Rafinerin') });
@@ -1111,7 +1112,9 @@ const UI = {
     for (const p of G.world.pois) if (G.discovered.has(p.id) || G.rumored.has(p.id)) { const d = dist2(p.x, p.y, wx, wy); if (d < bd) { bd = d; best = p; } }
     for (const t of G.world.towns) if (G.visited.has(t.id) || G.reveal[((t.cy / TS / 4) | 0) * FW + ((t.cx / TS / 4) | 0)]) { const d = dist2(t.cx, t.cy, wx, wy); if (d < bd * 4) { bd = d / 4; best = { n: t.n, desc: t.desc + (G.visited.has(t.id) ? '' : Tr(' (Henüz ziyaret edilmedi)')) }; } }
     let html = '';
+    const lh = !best && G.legendMapInfo(wx, wy, 26 / this.map.zoom * TS);   // efsane işareti (js/legends.js)
     if (best) html = `<div class="mi-n">${best.n}</div><div class="mi-d">${best.desc || ''}${G.rumored.has(best.id) && !G.discovered.has(best.id) ? Tr(' <i>(söylenti)</i>') : ''}</div>`;
+    else if (lh) html = lh;
     else html = `<div class="mi-n">${G.world.regionAt(wx, wy)}</div>`;
     if (this._mh !== html) { this._mh = html; $('#map-info').innerHTML = html; }
     const hint = Tr`${Input.device === 'pad' ? Input.padGlyph(PS.UP) + Input.padGlyph(PS.DOWN) + Tr(' Açıklamalar &nbsp; ') + Input.glyph('confirm') + Tr(' Hedef Koy &nbsp; ') + Input.glyph('alt') + Tr(' Hedefi Kaldır &nbsp; ') + Input.glyph('tabL') + Tr(' İşaret &nbsp; ') + Input.glyph('tabR') + Tr(' Gizle/Göster &nbsp; ') + Input.padGlyph(PS.R2) + Input.padGlyph(PS.L2) + Tr(' Yakınlaştır &nbsp; ') + Input.glyph('alt2') + Tr(' Konumum') : Tr('Sol Tık: Hedef &nbsp; Shift+Tık: İşaret &nbsp; Açıklamaya Tık: En Yakın Yer &nbsp; Sağ Tık / X: Kaldır &nbsp; Tekerlek: Yakınlaştır &nbsp; Sürükle: Kaydır')} &nbsp; ${Input.glyph('back')} Kapat`;
@@ -1242,6 +1245,8 @@ const UI = {
     // hazine
     if (G.treasure && G.player.has('treasure_map')) { const [x, y] = toS(G.treasure.x + G.treasure.ox || G.treasure.x, G.treasure.y); c.strokeStyle = 'rgba(140,20,10,0.6)'; c.lineWidth = 2; c.setLineDash([4, 4]); c.beginPath(); c.arc(x, y, 180 / TS * M.zoom * 4, 0, TAU); c.stroke(); c.setLineDash([]); }
         const badge = (wx, wy, g, bg, col = '#fff', r = 10) => { const [x, y] = toS(wx, wy); c.fillStyle = bg; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); const im = Icons.img(g, col, 32); if (ok(im)) c.drawImage(im, x - r * 0.72, y - r * 0.72, r * 1.44, r * 1.44); };
+    // efsaneler: söylenti çemberi, bilinen in ve sular (js/legends.js)
+    if (!hid.has('paw')) G.legendMap(c, toS, M.zoom, badge);
     if (G.activeBounty && !G.activeBounty.done && G.activeBounty.status !== 'carried') badge(G.activeBounty.bx || G.activeBounty.x, G.activeBounty.by || G.activeBounty.y, 'skull', 'rgba(150,20,20,0.9)');
     if (G.camp) badge(G.camp.x, G.camp.y, 'tent', 'rgba(30,20,12,0.85)', '#efe6d2');
     // işletmelerin (altın) ve yük araban
@@ -2245,6 +2250,13 @@ const UI = {
       case 'blackjack': it.push({ icon: '🃏', label: Tr('Yirmi Bir Oyna'), fn: () => this.openBlackjack() }); break;
       case 'arm': it.push({ icon: '💪', label: Tr('Bilek Güreşi (25¢ bahis)'), fn: () => this.openArmWrestle() }); break;
       case 'rumor': it.push({ icon: '👂', qe: ['rumor'], label: Tr('Söylenti Dinle'), right: fmtMoney(SVC.rumor), fn: () => this.rumor() }); break;
+      // efsaneler ve posttan zanaat (js/legends.js)
+      case 'tales': it.push({ icon: '👂', label: b.type === 'docks' ? Tr('Balıkçı Efsanelerini Dinle') : Tr('Av Efsanelerini Sor'), right: fmtMoney(SVC.tales), fn: () => this.legendTales(b.type === 'docks' ? 'fish' : 'beast') }); break;
+      case 'order': case 'saddle': {
+        const rd = G.orders.filter(o => G.orderHere(o, b) && G.orderReady(o)).length;
+        it.push({ icon: s === 'order' ? '👔' : '🐴', label: s === 'order' ? Tr('Postundan Diktir') : Tr('Saraç: Eyerini Büyüt'), right: rd ? Tr`${rd} sipariş hazır` : '', cls: rd ? 'pref' : '', fn: () => (s === 'order' ? this.openTailor(b) : this.openSaddler(b)) });
+        break;
+      }
       // tanınmış birine iş arayan silahşorlar görünür; tutmak için nüfuzlu olmak gerekir (js/guards.js)
       case 'guards': if (G.guards.length || G.infLv(G.influence()) >= 1) it.push({ icon: '🛡', label: Tr('Koruma Tut'), right: G.guardMax() ? `${G.guards.length}/${G.guardMax()}` : '', fn: () => this.openGuards(b) }); break;
       case 'rob': if (!G.bizOf(b)) it.push({ icon: '🔫', label: Tr('Dükkanı Soy'), cls: 'danger', fn: () => this.robStore(b) }); break;
@@ -2340,7 +2352,7 @@ const UI = {
               if (!it) continue;
               if (id === 'treasure_map' && (G.treasure || P.has('treasure_map'))) continue;
               const pr = (id === 'treasure_map' ? 50 : it.p) * G.priceMul(true) * regional;
-              const full = P.count(id) >= it.max;
+              const full = P.count(id) >= P.cap(id);
               items.push({ qe: ['buy', { id, shop: shopId }], icon: Icons.item(id), label: it.n, right: `${fmtMoney(pr)} <small>[${P.count(id)}]</small>`, disabled: full, why: Tr('Daha fazla taşıyamazsın.'), sideHtml: this.itemSide(it), fn: () => { if (G.spend(pr)) { P.addItem(id, 1, true); if (id === 'treasure_map') G.makeTreasure(); if (it.autoUse) G.consume(id); Audio_.ui('cash'); G.qEvent('buy', { id, shop: shopId }); if (shopId === 'saloon' && (id === 'beer' || id === 'whiskey' || id === 'sarsaparilla')) G.qEvent('drink', id); } } });
             }
           }
@@ -2399,6 +2411,7 @@ const UI = {
     const unk = G.world.pois.filter(p => p.kind === 'landmark' && !G.discovered.has(p.id) && !G.rumored.has(p.id));
     let extra = '';
     if (unk.length && chance(0.5)) { const p = pick(unk); G.rumored.add(p.id); extra = `<p class="dim">${Tr`Gazetenin arka sayfasında <b>${p.n}</b> hakkında bir okur mektubu var. Haritanda işaretlendi.`}</p>`; }
+    else if (chance(0.3)) { const lg = G.legendRumor(); if (lg) extra = `<p class="dim">${Tr('Av köşesinde bir okur mektubu:')} ${lg} ${Tr('Haritanda arama çemberi olarak işaretlendi.')}</p>`; }   // efsaneler (js/legends.js)
     this.info('The Frontier Gazette', `<div class="news"><div class="nw-h">${h}</div><p>${t}</p></div>${extra}`);
   },
   openDuel(e) {
@@ -2444,7 +2457,10 @@ const UI = {
     // tanınmış birine barmen bir kasabanın şerifinin rüşvet alıp almadığını da fısıldar (js/influence.js)
     const shs = G.infLv(G.influence()) >= 1 ? G.world.towns.filter(t => t.buildings.some(x => x.type === 'sheriff' && !x.shut) && !G.onPay(t)) : [];
     const sh = shs.length && chance(0.6) ? pick(shs) : null;
-    const extra = sh ? `<p>${G.lawHonest(sh) ? Tr`<b>${sh.n}</b> şerifi para yüzü görmemiş biriymiş; rüşvet teklif edeni içeri atıyormuş.` : Tr`<b>${sh.n}</b> şerifinin cebi delikmiş derler; doğru teklife kulak asarmış.`}</p>` : '';
+    let extra = sh ? `<p>${G.lawHonest(sh) ? Tr`<b>${sh.n}</b> şerifi para yüzü görmemiş biriymiş; rüşvet teklif edeni içeri atıyormuş.` : Tr`<b>${sh.n}</b> şerifinin cebi delikmiş derler; doğru teklife kulak asarmış.`}</p>` : '';
+    // efsaneler: arada bir av ya da balık efsanesi de anlatılır (js/legends.js)
+    const lg = chance(0.3) ? G.legendRumor() : null;
+    if (lg) extra += `<p>${lg} ${Tr('Haritanda arama çemberi olarak işaretlendi.')}</p>`;
     if (unk.length) {
       const p = pick(unk);
       G.rumored.add(p.id);
@@ -3205,7 +3221,7 @@ const UI = {
       if (st.phase === 'cast') body = `<div class="f-msg">${Tr`Oltanı atmak için ${Input.glyph('confirm')} basılı tut ve bırak`}</div><div class="f-bar"><i style="width:${st.power * 100}%"></i></div>`;
       else if (st.phase === 'wait') body = `<div class="f-msg">${Tr`Bekle...`} <span class="bob">〰</span></div>`;
       else if (st.phase === 'bite') body = `<div class="f-msg big">${Tr`VURDU! ${Input.glyph('confirm')}`}</div>`;
-      else if (st.phase === 'reel') body = `<div class="f-msg">${Tr`Makarayı sar: ${Input.glyph('confirm')} basılı tut — gerginliğe dikkat!`}</div><div class="f-lab">${Tr`Gerginlik`}</div><div class="f-bar tension"><i style="width:${st.tension * 100}%" class="${st.tension > 0.8 ? 'hot' : ''}"></i></div><div class="f-lab">${Tr`Mesafe`}</div><div class="f-bar"><i style="width:${st.dist * 100}%"></i></div>`;
+      else if (st.phase === 'reel') body = `${st.legend ? `<div class="f-msg big f-legend">${Tr`Efsanevi balık: ${LEGEND_FISH[st.legend].n}`}</div>` : ''}<div class="f-msg${st.surge > 0 ? ' f-surge' : ''}">${st.surge > 0 ? Tr('Kaçmaya çalışıyor! Misinayı gevşet!') : Tr`Makarayı sar: ${Input.glyph('confirm')} basılı tut — gerginliğe dikkat!`}</div><div class="f-lab">${Tr`Gerginlik`}</div><div class="f-bar tension"><i style="width:${st.tension * 100}%" class="${st.tension > 0.8 ? 'hot' : ''}"></i></div><div class="f-lab">${Tr`Mesafe`}</div><div class="f-bar"><i style="width:${st.dist * 100}%"></i></div>`;
       else body = `<div class="f-msg big">${st.msg}</div><div class="f-msg">${Tr`${Input.glyph('confirm')} Tekrar &nbsp; ${Input.glyph('back')} Bitir`}</div>`;
       el.innerHTML = `<div class="f-inner"><div class="p-title">${Tr`Balık Tutma`}</div>${body}<div class="p-foot">${Tr`${Input.glyph('back')} Bırak`}</div></div>`;
     };
@@ -3224,23 +3240,37 @@ const UI = {
         if (I.pressed('confirm')) { st.msg = Tr('Çok erken çektin!'); st.phase = 'end'; }
       } else if (st.phase === 'bite') {
         st.t += dt;
-        if (I.pressed('confirm')) { st.phase = 'reel'; st.fish = pick(pool); st.str = rnd(0.6, 1.4) * (ITEMS[st.fish].p / 4); }
+        if (I.pressed('confirm')) {
+          st.phase = 'reel';
+          // efsanevi balığın suyunda ve vaktindeysen o vurmuş olabilir (js/legends.js): çok sert çeker, arada kaçmaya atılır
+          const lg = G.legendFishBite();
+          if (lg) { st.legend = lg; st.fish = LEGEND_FISH[lg].item; st.str = LEGEND_FISH[lg].str * rnd(0.95, 1.1); st.surge = 0; st.surgeT = rnd(3, 5); Audio_.tone(140, 0.4, 'sawtooth', 0.05); }
+          else { st.fish = pick(pool); st.str = rnd(0.6, 1.4) * (ITEMS[st.fish].p / 4); }
+        }
         else if (st.t > 1.1) { st.msg = Tr('Balık kaçtı...'); st.phase = 'end'; }
       } else if (st.phase === 'reel') {
-        const pull = (0.5 + Math.sin(G.t * 4 + Math.sin(G.t * 1.3) * 3) * 0.5) * st.str;
-        if (I.down('confirm')) { st.tension += dt * (0.35 + pull * 0.5); st.dist -= dt * 0.18; }
-        else { st.tension -= dt * 0.55; st.dist += dt * 0.04 * pull; }
+        const L = st.legend;
+        if (L) { st.surgeT -= dt; if (st.surge > 0) st.surge -= dt; else if (st.surgeT <= 0) { st.surge = rnd(1, 1.6); st.surgeT = rnd(3.5, 6.5); Audio_.tone(170, 0.25, 'sawtooth', 0.05); } }
+        const pull = (0.5 + Math.sin(G.t * 4 + Math.sin(G.t * 1.3) * 3) * 0.5) * st.str * (st.surge > 0 ? 1.8 : 1);
+        const line = G.hasPerk('legendfish') ? 0.85 : 1;   // Derinlerin Ustası: misina daha zor gerilir
+        if (I.down('confirm')) { st.tension += dt * (L ? 0.3 + pull * 0.28 : 0.35 + pull * 0.5) * line; st.dist -= dt * (L ? (st.surge > 0 ? 0.02 : 0.17) : 0.18); }
+        else { st.tension -= dt * (L ? 0.6 : 0.55); st.dist += dt * (L ? 0.03 : 0.04) * pull; }
         st.tension = clamp(st.tension, 0, 1.01); st.dist = clamp(st.dist, 0, 1.2);
-        if (st.tension >= 1) { st.msg = Tr('Misina koptu!'); st.phase = 'end'; Audio_.ui('error'); }
-        if (st.dist >= 1.2) { st.msg = Tr('Balık kaçtı...'); st.phase = 'end'; }
-        if (st.dist <= 0) {
+        if (st.tension >= 1) { st.msg = L ? Tr`Misina koptu! ${LEGEND_FISH[L].n} derinlere kaçtı; bugün bir daha vurmaz.` : Tr('Misina koptu!'); st.phase = 'end'; Audio_.ui('error'); if (L) G.legendFishLost(L); }
+        else if (st.dist >= 1.2) { st.msg = L ? Tr`${LEGEND_FISH[L].n} kaçtı; bugün bir daha vurmaz.` : Tr('Balık kaçtı...'); st.phase = 'end'; if (L) G.legendFishLost(L); }
+        else if (st.dist <= 0 && L) {
+          st.phase = 'end';
+          const kg = G.legendFishCaught(L);
+          st.msg = Tr`${Icons.item(st.fish, 'ic inl')} ${ITEMS[st.fish].n} tuttun! (${fmtKg(kg)})`; Audio_.ui('cash');
+          if (bait && chance(0.5)) P.removeItem('bait', 1);
+        } else if (st.dist <= 0) {
           st.phase = 'end'; const it = ITEMS[st.fish];
           st.msg = Tr`${Icons.item(st.fish, 'ic inl')} ${it.n} tuttun!`; P.addItem(st.fish, 1); G.stat('fish', 1); G.skillXp('survival', 4); Audio_.ui('cash');
           G.hintOnce('fish', Tr('İlk balığın! Hangi balığın vuracağı suyun iklimine göre değişir; yem balığın daha çabuk vurmasını sağlar.'), 8);
           if (bait && chance(0.5)) P.removeItem('bait', 1);
         }
       } else if (st.phase === 'end') {
-        if (I.pressed('confirm')) { st.phase = 'cast'; st.power = 0; st.wait = rnd(3, 10) * (P.has('bait') ? 0.6 : 1) * (G.hasPerk('fisher') ? 0.6 : 1); }
+        if (I.pressed('confirm')) { st.phase = 'cast'; st.power = 0; st.legend = null; st.surge = 0; st.wait = rnd(3, 10) * (P.has('bait') ? 0.6 : 1) * (G.hasPerk('fisher') ? 0.6 : 1); }
       }
       draw();
     };
@@ -3831,7 +3861,7 @@ function radarSegs(pts) {
 }
 const RADAR_B = new Set(['general', 'saloon', 'sheriff', 'doctor', 'gunsmith', 'butcher', 'stable', 'hotel', 'station', 'bank', 'mine', 'lumber', 'docks', 'ranch', 'cabin', 'hermit', 'property', 'fence', 'bakery', 'smith', 'pharmacy', 'gambling', 'brewery', 'mill', 'county', 'post', 'warehouse', 'cantina', 'mansion', 'club']);
 /* Harita açıklamaları: [simge, ad]; MAP_LEGEND_B: simgenin bina türleri */
-const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['derrick', Tr('Petrol')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
+const mapLegend = () => [['store', Tr('Mağaza')], ['glass', Tr('Saloon')], ['star', Tr('Şerif')], ['cross', Tr('Doktor')], ['gun', Tr('Silahçı')], ['horseshoe', Tr('Ahır')], ['bed', Tr('Otel')], ['train', Tr('İstasyon')], ['bank', Tr('Banka')], ['house', Tr('Mülk')], ['pick', Tr('İş')], ['derrick', Tr('Petrol')], ['tent', Tr('Haydut Kampı')], ['eye', Tr('Önemli Yer')], ['paw', Tr('Efsane')], ['question', Tr('Söylenti')], ['waypoint', Tr('Hedef')]];
 const MAP_PINS = 24;   // haritaya konabilecek en çok işaret
 const MAP_LEGEND_B = { store: ['general'], glass: ['saloon', 'cantina', 'gambling'], star: ['sheriff'], cross: ['doctor', 'pharmacy'], gun: ['gunsmith'], horseshoe: ['stable'], bed: ['hotel'], train: ['station'], bank: ['bank'], pick: ['mine', 'smith', 'lumber'] };
 const BICON = { general: 'store', saloon: 'glass', sheriff: 'star', doctor: 'cross', gunsmith: 'gun', butcher: 'cleaver', stable: 'horseshoe', hotel: 'bed', bank: 'bank', station: 'train', church: 'church', land: 'scroll', barber: 'barber', tailor: 'scissors', fence: 'bag', mine: 'pick', lumber: 'axe', docks: 'anchor', ranch: 'wheat', cabin: 'fox', hermit: 'hut', property: 'house', bakery: 'wheat', smith: 'pick', pharmacy: 'cross', laundry: 'drop', gambling: 'glass', brewery: 'mug', mill: 'windmill', county: 'scroll', post: 'scroll', warehouse: 'bag', cantina: 'glass', mansion: 'house', club: 'cards' };

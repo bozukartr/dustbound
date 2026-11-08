@@ -2549,7 +2549,7 @@ const Spr = {
 
   /* ---------- Hayvanlar ---------- */
   animal(ctx, a) {
-    const d = a.def, x = a.x, y = a.y;
+    const d = a.def, x = a.x, y = a.y, ty = a.type;   // tür adıyla: efsanenin def'i kendi kopyası (js/legends.js)
     ctx.save(); ctx.translate(x, y); ctx.rotate(a.ang);
     const L = d.len, Wd = d.wid, c = d.col, c2 = d.col2;
     const p = a.phase || 0, m = a.dead ? 0 : Math.min(1, a.mv || 0);
@@ -2580,7 +2580,7 @@ const Spr = {
       ctx.fillStyle = '#a07030'; ctx.fillRect(-1 + lo, -1.8, 2, 0.8); ctx.fillRect(-1 - lo, 1, 2, 0.8);
       this.ell(ctx, -2.5, 0, 2.6, Wd * 0.85, shadeHex(bodyC, -0.15));
       this.ell(ctx, 0, 0, L * 0.5, Wd * 0.62, bodyC);
-      this.circ(ctx, L * 0.55, 0, 1.4, a.def === ANIMALS.chicken ? '#f0ece4' : '#6a4a3a');
+      this.circ(ctx, L * 0.55, 0, 1.4, ty === 'chicken' ? '#f0ece4' : '#6a4a3a');
       ctx.fillStyle = c2; ctx.fillRect(L * 0.55 + 0.6, -0.5, 1.5, 1);
       ctx.restore(); return;
     }
@@ -2604,17 +2604,17 @@ const Spr = {
       this.ell(ctx, px + o, py, 1.6 * Wd / 5 + 0.6, 1.1, leg);
     }
     // kuyruk
-    ctx.strokeStyle = d.tail ? c : (d.beh === 'hostile' || d === ANIMALS.fox || d === ANIMALS.coyote ? c : c2);
-    ctx.lineWidth = (d === ANIMALS.fox || d === ANIMALS.wolf || d === ANIMALS.coyote) ? 2.4 : 1.2;
+    ctx.strokeStyle = d.tail ? c : (d.beh === 'hostile' || ty === 'fox' || ty === 'coyote' ? c : c2);
+    ctx.lineWidth = (ty === 'fox' || ty === 'wolf' || ty === 'coyote') ? 2.4 : 1.2;
     ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(-L * 0.45, 0); ctx.lineTo(-L * 0.45 - (d.tail ? 8 : d.bear ? 1 : 4), Math.sin(p * 0.7) * (d.tail ? 2.5 : 1)); ctx.stroke();
     ctx.lineCap = 'butt';
-    if (d === ANIMALS.fox) this.circ(ctx, -L * 0.45 - 4, Math.sin(p * 0.7), 1, '#f0e8e0');
+    if (ty === 'fox') this.circ(ctx, -L * 0.45 - 4, Math.sin(p * 0.7), 1, '#f0e8e0');
     // gövde
     this.ell(ctx, 0, 0, L * 0.5, Wd * 0.5, bodyC);
     if (d.hump) this.ell(ctx, L * 0.15, 0, L * 0.3, Wd * 0.55, a.skinned ? bodyC : c2);
     if (!a.skinned) { ctx.fillStyle = shadeHex(c, 0.15); ctx.beginPath(); ctx.ellipse(-L * 0.05, 0, L * 0.35, Wd * 0.18, 0, 0, TAU); ctx.fill(); }
-    if (d === ANIMALS.deer || d === ANIMALS.pronghorn || d === ANIMALS.elk) this.ell(ctx, -L * 0.45, 0, 1.4, 1.6, c2);
+    if (ty === 'deer' || ty === 'pronghorn' || ty === 'elk') this.ell(ctx, -L * 0.45, 0, 1.4, 1.6, c2);
     // baş
     const hx = L * 0.5 + (d.bear ? 1.5 : 2.5), hr = d.bear ? Wd * 0.34 : Wd * 0.28;
     this.ell(ctx, hx - 1.5, 0, 2.5, hr * 0.8, bodyC);
@@ -2624,14 +2624,16 @@ const Spr = {
     ctx.fillRect(hx - 1.5, -hr - 1, 1.6, 1.6); ctx.fillRect(hx - 1.5, hr - 0.6, 1.6, 1.6);
     if (d.antler && a.male) {
       ctx.strokeStyle = '#d8c8a0'; ctx.lineWidth = 0.9;
-      const s = d.antler === 2 ? 1.5 : 1;
+      const s = d.antler >= 3 ? 2.1 : d.antler === 2 ? 1.5 : 1;
       for (const sg of [-1, 1]) {
         ctx.beginPath(); ctx.moveTo(hx - 1, sg * 1.5); ctx.lineTo(hx - 4 * s, sg * 6 * s); ctx.moveTo(hx - 2.5 * s, sg * 4 * s); ctx.lineTo(hx + 0.5, sg * 5.5 * s); ctx.moveTo(hx - 3.5 * s, sg * 5.3 * s); ctx.lineTo(hx - 6 * s, sg * 4 * s); ctx.stroke();
       }
     }
-    if (d === ANIMALS.boar) { ctx.fillStyle = '#f0e8d8'; ctx.fillRect(hx + 1, -1.8, 1.5, 0.7); ctx.fillRect(hx + 1, 1.1, 1.5, 0.7); }
-    if (d === ANIMALS.bison) { ctx.fillStyle = '#d8d0c0'; ctx.fillRect(hx - 1, -hr - 1.6, 1, 1.6); ctx.fillRect(hx - 1, hr, 1, 1.6); }
-    if (d === ANIMALS.cow && !a.skinned) { this.circ(ctx, -2, -1, 1.8, c2); this.circ(ctx, 3, 1.5, 1.4, c2); }
+    if (ty === 'boar') { ctx.fillStyle = '#f0e8d8'; ctx.fillRect(hx + 1, -1.8, 1.5, 0.7); ctx.fillRect(hx + 1, 1.1, 1.5, 0.7); }
+    if (ty === 'bison') { ctx.fillStyle = '#d8d0c0'; ctx.fillRect(hx - 1, -hr - 1.6, 1, 1.6); ctx.fillRect(hx - 1, hr, 1, 1.6); }
+    if (ty === 'cow' && !a.skinned) { this.circ(ctx, -2, -1, 1.8, c2); this.circ(ctx, 3, 1.5, 1.4, c2); }
+    // Yaralı Pençe: yüzünde üç soluk yara izi
+    if (a.legend === 'scar' && !a.skinned) { ctx.strokeStyle = 'rgba(214,190,170,0.85)'; ctx.lineWidth = 0.7; ctx.beginPath(); for (let k = -1; k <= 1; k++) { ctx.moveTo(hx - 1.5, k * 1.6 - 1); ctx.lineTo(hx + 1.8, k * 1.6 + 1); } ctx.stroke(); }
     ctx.restore();
   },
 
