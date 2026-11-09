@@ -153,9 +153,11 @@ const Juice = {
     if (rain > 0.15) this.wet = Math.min(1, this.wet + dt * 0.06 * rain); else this.wet = Math.max(0, this.wet - dt * 0.0035);
     if (G.insideB || G.state !== 'play') return;
     const x0 = C.ox, y0 = C.oy, vw = G.vw, vh = G.vh, biome = W.areaTile(P.x, P.y), day = dl > 0.6;
+    // Ayarlar → Grafik → Çevre Ayrıntıları kapalıysa yenileri doğmaz (var olanlar biter)
+    const amb = !!G.settings.ambient;
     const dryB = biome === T.DESERT || biome === T.DRY || biome === T.REDROCK || biome === T.SAND || biome === T.MESA;
     // toz şeytanı: kurak arazide, öğleden sonra, rüzgârlı ve kuru havada
-    if (dryB && day && hr > 11 && hr < 18 && rain < 0.1 && this.devils.length < 1 && Math.random() < dt * 0.02) {
+    if (amb && dryB && day && hr > 11 && hr < 18 && rain < 0.1 && this.devils.length < 1 && Math.random() < dt * 0.02) {
       const dir = Math.random() < 0.5 ? 1 : -1;
       this.devils.push({ x: dir > 0 ? x0 - 30 : x0 + vw + 30, y: y0 + rnd(40, vh - 20), vx: dir * rnd(10, 22), vy: rnd(-5, 5), t: 0, life: rnd(28, 45), h: rnd(22, 34) });
     }
@@ -167,13 +169,13 @@ const Juice = {
     }
     // şahin gölgesi: gündüz açık arazide daire çizer
     const open = biome === T.GRASS || biome === T.DRY || biome === T.DESERT || biome === T.REDROCK;
-    if (!this.hawk && open && day && rain < 0.2 && Math.random() < dt * 0.01) this.hawk = { cx: P.x + rnd(-120, 120), cy: P.y + rnd(-80, 80), r: rnd(55, 90), a: Math.random() * TAU, w: rnd(0.25, 0.4) * (Math.random() < 0.5 ? 1 : -1), vx: rnd(-8, 8), vy: rnd(-6, 6), t: 0, life: rnd(30, 60) };
+    if (amb && !this.hawk && open && day && rain < 0.2 && Math.random() < dt * 0.01) this.hawk = { cx: P.x + rnd(-120, 120), cy: P.y + rnd(-80, 80), r: rnd(55, 90), a: Math.random() * TAU, w: rnd(0.25, 0.4) * (Math.random() < 0.5 ? 1 : -1), vx: rnd(-8, 8), vy: rnd(-6, 6), t: 0, life: rnd(30, 60) };
     if (this.hawk) {
       const h = this.hawk; h.t += dt; h.a += h.w * dt; h.cx += h.vx * dt; h.cy += h.vy * dt;
       if (h.t > h.life || Math.abs(h.cx - P.x) > 700 || Math.abs(h.cy - P.y) > 500) this.hawk = null;
     }
     // sıçrayan balık
-    if (day && this.fish.length < 2 && Math.random() < dt * 0.25) {
+    if (amb && day && this.fish.length < 2 && Math.random() < dt * 0.25) {
       for (let k = 0; k < 8; k++) {
         const x = x0 + rnd(20, vw - 20), y = y0 + rnd(20, vh - 20), tx = x >> 4, ty = y >> 4;
         if (!W.inb(tx, ty) || W.tile[ty * WW + tx] !== T.WATER || (W.flags[ty * WW + tx] & 2) || !W.isWaterPx(x + 12, y) || !W.isWaterPx(x - 12, y)) continue;
@@ -189,7 +191,7 @@ const Juice = {
     }
     // ateş böcekleri: yaz gecelerinde orman, bataklık ve çayırda
     const night = dl < 0.25, green = biome === T.FOREST || biome === T.SWAMP || biome === T.GRASS;
-    if (night && W.season === 1 && green && rain < 0.1) {
+    if (amb && night && W.season === 1 && green && rain < 0.1) {
       while (this.flies.length < 22) this.flies.push({ x: x0 + rnd(0, vw), y: y0 + rnd(0, vh), vx: rnd(-6, 6), vy: rnd(-6, 6), ph: Math.random() * TAU, sp: rnd(1.2, 2.6) });
     } else if (this.flies.length) this.flies.length = 0;
     for (const f of this.flies) {

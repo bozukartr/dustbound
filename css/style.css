@@ -37,8 +37,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 #app { position: fixed; inset: 0; overflow: hidden; }
 /* Görüntü tonu: Doğal (varsayılan) renkleri biraz yumuşatır, kontrastı ve parlak yüzeyleri indirir; göz yormaz.
    Canlı, eski doygun görünüm. Odak ve sarhoşluk süzgeçleri tonun üstüne eklenir. */
-:root { --tone: saturate(0.93) contrast(0.96); }
-body.vivid { --tone: saturate(1); }
+:root { --bri: 1; --tone: saturate(0.93) contrast(0.96) brightness(var(--bri)); }
+body.vivid { --tone: saturate(1) brightness(var(--bri)); }
 #game { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; transition: filter 0.4s; filter: var(--tone); }
 /* Melez çizimde ton son ışık geçişinde (js/hybrid.js): tuvalde süzgeç yok, ekranın tam çözünürlüğünde ayrı bir geçiş olmaz */
 body.hyb { --tone: saturate(1); }
@@ -46,7 +46,7 @@ body.hyb #game { filter: none; }
 body.deadeye #game { filter: var(--tone) sepia(0.85) saturate(1.8) contrast(1.2) hue-rotate(-12deg) brightness(0.95); }
 body.drunk #game { filter: var(--tone) blur(0.5px); }
 #fx-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%); }
-body.glvig #fx-vignette { display: none; }   /* melez çizim köşe karartmasını son ışık geçişinde uygular (tam ekran katman her karede yeniden karıştırılmaz) */
+body.glvig #fx-vignette, body.novig #fx-vignette { display: none; }   /* melez çizim köşe karartmasını son ışık geçişinde uygular (tam ekran katman her karede yeniden karıştırılmaz) */
 #fx-hurt { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(150, 0, 0, 0.85) 100%); }
 #fx-deadeye { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s; background: radial-gradient(ellipse at center, transparent 30%, rgba(90, 30, 0, 0.5) 100%); }
 body.deadeye #fx-deadeye { opacity: 1; }
@@ -1180,6 +1180,11 @@ body.dbg-nohud #hud { display: none; }
 .st-list { padding: 10px 0; }
 .st-row { min-height: 58px; padding: 10px 24px; border-bottom: 1px solid rgba(201, 164, 92, 0.07); }
 .st-row .pi-l { font-size: 19px; }
+/* Grafik sekmesi: bölüm başlıkları, yalnızca Melez'de etkili ayarların etiketi; Klasik'teyken bu satırlar soluk */
+.st-hdr { padding: 16px 24px 6px; font-family: var(--sc); font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); opacity: 0.8; border-bottom: 1px solid rgba(201, 164, 92, 0.18); }
+.st-tag { margin-left: 10px; padding: 1px 6px; border: 1px solid rgba(201, 164, 92, 0.45); border-radius: 2px; font-family: var(--sc); font-style: normal; font-size: 11px; letter-spacing: 0.08em; color: var(--gold); vertical-align: 3px; }
+.st-row.st-dim .pi-l, .st-row.st-dim .st-ctl { opacity: 0.45; }
+.st-hyn { margin-top: 10px; font-size: 15px; color: var(--gold); opacity: 0.85; }
 .st-ctl { display: flex; align-items: center; gap: 10px; }
 /* ses: dilimli pirinç gösterge */
 .st-slider { position: relative; width: 210px; height: 26px; display: flex; align-items: center; cursor: pointer; touch-action: none; }

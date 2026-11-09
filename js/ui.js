@@ -1976,18 +1976,23 @@ const UI = {
       ${ok ? `<div class="pz-obj"><div class="pz-ok">${ok}</div><div class="pz-ot"><i></i><b>${ot}</b>${od ? `<span>${od}</span>` : ''}</div></div>` : ''}
     </div>`;
   },
-  /* Ayarlar: sekmeli (Genel / Ses / Görüntü / Kontroller). Her satırın kendi denetimi var:
+  /* Ayarlar: sekmeli (Genel / Ses / Görüntü / Grafik / Kontroller). Her satırın kendi denetimi var:
      ses için dilimli kaydırıcı, açık/kapalı için anahtar, seçenekler için düğme dizisi.
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0 };
+    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0,
+      gfxPreset: 2, fpsCap: 0, bright: 2, ...GFX_PRESETS[2] };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
-      padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], fxq: [Tr('Tam'), Tr('Sade')], gfx: [Tr('Melez'), Tr('Klasik')], tone: [Tr('Doğal'), Tr('Canlı')],
+      padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], gfx: [Tr('Melez'), Tr('Klasik')], tone: [Tr('Doğal'), Tr('Canlı')],
       zoom: [Tr('Otomatik'), '1x', '2x', '3x', '4x', '5x'],
       hudScale: HUD_SCALES.map(v => Math.round(v * 100) + '%'), meters: [Tr('Gerektiğinde'), Tr('Her Zaman')],
       gpu: this.gpuOpts(),
+      gfxPreset: [Tr('Düşük'), Tr('Orta'), Tr('Yüksek'), Tr('Ultra'), Tr('Özel')], hyRes: [Tr('Tam'), Tr('Yarım')],
+      fpsCap: [Tr('Sınırsız'), '144', '120', '60', '30'], shadows: [Tr('Kapalı'), Tr('Düşük'), Tr('Yüksek'), Tr('Ultra')],
+      lightN: GFX.LIGHTS.map(String), weather: [Tr('Az'), Tr('Tam')], parts: [Tr('Az'), Tr('Normal'), Tr('Çok')], smoke: [Tr('Az'), Tr('Tam')],
+      bright: ['−20%', '−10%', Tr('Normal'), '+10%', '+20%'],
     };
     const TABS = [
       { n: Tr('@ayar|Genel'), g: 'gear', rows: [
@@ -2004,13 +2009,36 @@ const UI = {
       ] },
       { n: Tr('Görüntü'), g: 'eye', rows: [
         ...(Platform.canFullscreen === false ? [] : [['fullscreen', Tr('Tam Ekran'), 'fs', Tr('Oyunu tam ekranda ya da pencerede çalıştırır. Tercih kaydedilir; tarayıcıda tam ekrandan çıkmak için Esc tuşunu basılı tut.')]]),
-        ['gfx', Tr('Grafik'), 'opt', Tr('Melez: iki kat piksel ayrıntısı, güneşe göre gölgeler, duvarda duran gece ışıkları, ışıyan pencereler ve fenerler. Klasik: eski düz çizim; zayıf bilgisayarlar için daha hafif. Ekran kartı bulunamazsa Klasik kullanılır.')],
-        ['gpu', Tr('Ekran Kartı'), 'opt', Tr('Oyunun çizileceği ekran kartı. Otomatik, varsa güçlü (harici) kartı kullanır. Dizüstünde tasarruflu (tümleşik) kart pili uzatır ama Melez çizimde kare sayısı düşer.')],
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
         ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
         ['meters', Tr('Göstergeler'), 'opt', Tr('Gerektiğinde: radarın yayındaki halkalar (sağlık, dayanıklılık, odak ve ihtiyaçlar) doluyken söner; azalınca, değişince, çatışmada, nişan alırken ve genişletilmiş HUD\'da görünür. Her Zaman: hepsi hep ekranda.')],
+      ] },
+      { n: Tr('Grafik'), g: 'sun', rows: [
+        ['gfxPreset', Tr('Hazır Ayar'), 'opt', Tr('Bütün grafik ayarlarını tek seçimle kurar. Düşük: zayıf bilgisayarlar ve tümleşik ekran kartları için; Melez yarım çözünürlükte, gölge, parlama, bulut ve süslemeler kapalı. Orta: yarım çözünürlük, sade gölge ve temel efektler. Yüksek: oyunun tam görünümü. Ultra: daha ince güneş gölgesi ve daha çok parçacık. Aşağıdan tek bir ayarı değiştirince seviye Özel olur.')],
+        ['_hDraw', Tr('Çizim'), 'hdr'],
+        ['gfx', Tr('Çizim Yöntemi'), 'opt', Tr('Melez: iki kat piksel ayrıntısı, güneşe göre gölgeler, duvarda duran gece ışıkları, ışıyan pencereler ve fenerler. Klasik: eski düz çizim; zayıf bilgisayarlar için daha hafif. Ekran kartı bulunamazsa Klasik kullanılır.')],
+        ['hyRes', Tr('Çözünürlük'), 'opt', Tr('Melez çizimin ekrana çizildiği yoğunluk. Tam: dünya pikseli başına 2x2 piksel; ışık ve gölge daha ince, kamera yarım piksel adımlarla kayar. Yarım: dünya pikseli başına 1 piksel; ekran kartının işi dörtte bire iner, kare sayısı en çok bu ayarla artar.'), 'hy'],
+        ['fpsCap', Tr('Kare Hızı Sınırı'), 'opt', Tr('Saniyede en çok kaç kare çizileceği. Sınırsız: ekranın tazeleme hızı kadar. 60\'ı tutturamayan bilgisayarda 30 seçmek, 30 ile 50 arasında dalgalanan kare hızından daha akıcı görünür; dizüstünde pil ve ısı da azalır.')],
+        ['gpu', Tr('Ekran Kartı'), 'opt', Tr('Oyunun çizileceği ekran kartı. Otomatik, varsa güçlü (harici) kartı kullanır. Dizüstünde tasarruflu (tümleşik) kart pili uzatır ama Melez çizimde kare sayısı düşer.')],
+        ['_hLight', Tr('Işık ve Gölge'), 'hdr'],
+        ['shadows', Tr('Güneş Gölgeleri'), 'opt', Tr('Binaların, ağaçların ve kayaların güneşe göre düşen gölgesi. Düşük: daha kaba adımlarla, daha ucuz. Ultra: daha ince kenar ve en uzun gölgeler. Kapalı: gölge hesaplanmaz; canlılar yalnızca ayak dibinde küçük bir gölge bırakır.')],
+        ['ao', Tr('Ortam Gölgesi'), 'tog', Tr('Duvar diplerinde, köşelerde ve dar aralıklarda hafif kararma. Sahneye derinlik katar.'), 'hy'],
+        ['lightN', Tr('Işık Sayısı'), 'opt', Tr('Gece aynı anda hesaplanan en çok ışık sayısı (fener, sokak lambası, pencere, kamp ateşi). Az ışık kalabalık kasabada geceyi hızlandırır; uzaktaki ışıklar söner.')],
+        ['lightOcc', Tr('Işığın Duvarda Kesilmesi'), 'tog', Tr('Fener ve lamba ışığı duvarlarda ve binalarda durur, arkası karanlık kalır. Kapalıyken ışık engelleri aşar; gece kasabada ekran kartının işi azalır.'), 'hy'],
+        ['bloom', Tr('Parlama'), 'tog', Tr('Ateş, fener ve ışıyan pencerelerin çevresine taşan sıcak ışık hâlesi.')],
+        ['_hFx', Tr('Görsel Efektler'), 'hdr'],
+        ['clouds', Tr('Bulut Gölgeleri'), 'tog', Tr('Rüzgârla yerde kayan bulut gölgeleri (gündüz, açık ve parçalı havada).')],
+        ['weather', Tr('Hava Efektleri'), 'opt', Tr('Yağmur damlaları, kar taneleri, toz ve sudaki yağmur halkalarının yoğunluğu. Az: daha seyrek ve daha hafif.')],
+        ['parts', Tr('Parçacıklar'), 'opt', Tr('Toz, kıvılcım, kan, kovan, kıymık ve buhar gibi küçük parçacıkların sayısı. Çok: büyük çatışmalarda ve patlamalarda daha çok parçacık.')],
+        ['tracks', Tr('Ayak İzleri'), 'tog', Tr('Kumda, çamurda ve karda kalan ayak, nal ve pati izleri.')],
+        ['smoke', Tr('Duman'), 'opt', Tr('Baca, kamp ateşi ve silah dumanının yoğunluğu.')],
+        ['sway', Tr('Salınan Bitkiler'), 'tog', Tr('Rüzgârda salınan otlar, sazlar, çiçekler ve çalılar. Kapalıyken yerinde durur (zemine işlenir).')],
+        ['ambient', Tr('Çevre Ayrıntıları'), 'tog', Tr('Toz şeytanları, süzülen şahin gölgesi, sıçrayan balıklar, sudaki parıltı ve sonbaharda dökülen yapraklar.')],
+        ['_hColor', Tr('Renk'), 'hdr'],
+        ['grade', Tr('Renk Derecelendirmesi'), 'tog', Tr('Gün doğumu ve batımında altın, gecenin mavisi, çölün sıcağı, yağmurun griliği gibi saate, havaya ve yöreye göre renk tonları. Sağlık ve zehir gibi durum efektleri her zaman görünür.')],
+        ['vignette', Tr('Köşe Karartması'), 'tog', Tr('Ekranın köşelerine doğru hafif kararma.')],
         ['tone', Tr('Görüntü Tonu'), 'opt', Tr('Doğal: gerçeğe yakın, yumuşak renkler ve daha düşük kontrast; uzun oyunda gözü yormaz. Canlı: daha doygun, parlak renkler.')],
-        ['fxq', Tr('Görsel Efektler'), 'opt', Tr('Tam: bulut gölgeleri, duman, izler, su halkaları ve renk tonlaması. Sade: zayıf bilgisayarlar için azaltılmış efektler.')],
+        ['bright', Tr('Parlaklık'), 'opt', Tr('Bütün görüntünün parlaklığı. Ekranın karanlıksa ya da gece çok karanlık görünüyorsa artır.')],
       ] },
       { n: Tr('Kontroller'), g: 'pad', rows: [
         ['padGlyphs', Tr('Kol Simgeleri'), 'opt', Tr('Ekranda gösterilecek oyun kolu tuş simgeleri. Otomatik, bağlı kolu tanır.')],
@@ -2025,7 +2053,7 @@ const UI = {
     const valTxt = (k, t) => {
       const v = cur(k, t);
       if (t === 'vol') return Math.round(v * 100) + '%';
-      if (t === 'bool' || t === 'fs') return v ? Tr('Açık') : Tr('Kapalı');
+      if (t === 'bool' || t === 'fs' || t === 'tog') return v ? Tr('Açık') : Tr('Kapalı');
       if (t === 'lang') return (I18N.LANGS.find(l => l[0] === v) || I18N.LANGS[0])[1];
       if (t === 'opt') return OPTL[k][v === undefined ? 1 : v];
       return '';
@@ -2033,15 +2061,18 @@ const UI = {
     const control = (k, t) => {
       const v = cur(k, t);
       if (t === 'vol') { const pc = Math.round(v * 100); return `<div class="st-slider" data-slider="${k}"><div class="st-sl-track"><div class="st-sl-fill" style="width:${pc}%"></div><div class="st-sl-knob" style="left:${pc}%"></div></div></div><span class="st-num">${pc}</span>`; }
-      if (t === 'bool' || t === 'fs') return `<div class="st-tog ${v ? 'on' : ''}"><span>${Tr('Kapalı')}</span><span>${Tr('Açık')}</span><b></b></div>`;
+      if (t === 'bool' || t === 'fs' || t === 'tog') return `<div class="st-tog ${v ? 'on' : ''}"><span>${Tr('Kapalı')}</span><span>${Tr('Açık')}</span><b></b></div>`;
       if (t === 'lang') return `<div class="st-seg">${I18N.LANGS.map(l => `<span class="${l[0] === v ? 'on' : ''}" data-v="${l[0]}">${l[1]}</span>`).join('')}</div>`;
       if (t === 'opt') return `<div class="st-seg">${OPTL[k].map((o, i) => `<span class="${i === (v === undefined ? 1 : v) ? 'on' : ''}" data-v="${i}">${o}</span>`).join('')}</div>`;
       return `<span class="st-link">${Icons.glyph('pad', 'currentColor')} ›</span>`;
     };
+    // yalnızca Melez çizimde etkili ayar (satırın 5. öğesi 'hy'): Klasik'te soluk görünür, yan panel söyler
+    const hyOnly = (row) => row[4] === 'hy' && !G.hybridOn();
     const side = (row) => {
-      const [k, n, t, d] = row;
+      const [k, n, t, d0] = row;
+      const d = d0 + (row[4] === 'hy' ? `<div class="st-hyn">${hyOnly(row) ? Tr('Bu ayar yalnızca Melez çizimde etkilidir; şu an Klasik çizim kullanılıyor.') : Tr('Yalnızca Melez çizimde etkilidir.')}</div>` : '');
       const T = TABS[m.tab];
-      return `<div class="st-side-ic">${Icons.glyph(T.g, '#c9a45c')}</div><div class="ps-t">${n}</div>${t !== 'link' ? `<div class="st-side-v">${valTxt(k, t)}</div>` : ''}<div class="ps-d st-desc">${d}</div>${k === 'gpu' ? this.gpuSide() : ''}${k in DEF ? `<div class="st-def">${Tr`Varsayılan:`} ${t === 'vol' ? Math.round(DEF[k] * 100) + '%' : t === 'bool' ? (DEF[k] ? Tr('Açık') : Tr('Kapalı')) : OPTL[k][DEF[k]]}</div>` : ''}`;
+      return `<div class="st-side-ic">${Icons.glyph(T.g, '#c9a45c')}</div><div class="ps-t">${n}</div>${t !== 'link' ? `<div class="st-side-v">${valTxt(k, t)}</div>` : ''}<div class="ps-d st-desc">${d}</div>${k === 'gpu' ? this.gpuSide() : ''}${k in DEF ? `<div class="st-def">${Tr`Varsayılan:`} ${t === 'vol' ? Math.round(DEF[k] * 100) + '%' : t === 'bool' || t === 'tog' ? (DEF[k] ? Tr('Açık') : Tr('Kapalı')) : OPTL[k][DEF[k]]}</div>` : ''}`;
     };
     const change = (k, t, d, direct) => {
       if (t === 'lang') {
@@ -2064,7 +2095,13 @@ const UI = {
       if (t === 'link') { G.saveSettings(); this.openControls(); return; }
       if (t === 'vol') S[k] = clamp(direct !== undefined ? direct : Math.round((S[k] + d * 0.05) * 20) / 20, 0, 1);
       else if (t === 'bool') S[k] = direct !== undefined ? direct : !S[k];
+      else if (t === 'tog') S[k] = direct !== undefined ? (direct ? 1 : 0) : (S[k] ? 0 : 1);
+      // hazır seviye: ←/→ dört seviye arasında döner (Özel'den sağa Düşük, sola Ultra); Özel yalnızca tıklanarak seçilir
+      else if (k === 'gfxPreset' && direct === undefined) { const c = S.gfxPreset; S.gfxPreset = c >= GFX.CUSTOM ? (d > 0 ? 0 : GFX.CUSTOM - 1) : (c + d + GFX.CUSTOM) % GFX.CUSTOM; }
       else if (t === 'opt') { const n = OPTL[k].length; S[k] = direct !== undefined ? direct : ((S[k] === undefined ? 1 : S[k]) + d + n) % n; }
+      // hazır seviye seçilince bütün grafik ayarları kurulur (Özel seçilirse değerler kalır); tek ayar değişince seviye yeniden bulunur
+      if (k === 'gfxPreset') GFX.apply(S, S.gfxPreset);
+      else if (GFX_KEYS.includes(k)) S.gfxPreset = GFX.presetOf(S);
       G.applySettings();
       if (t === 'vol') Audio_.ui('move');
       render();
@@ -2089,7 +2126,7 @@ const UI = {
       const fk = m.focusEl ? m.focusEl.dataset.k : focusKey;
       el.innerHTML = `<div class="p-head st-head"><div class="p-title">${Tr`Ayarlar`}</div></div>
         <div class="p-tabs st-tabs">${Input.glyph('tabL')}${TABS.map((x, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${Icons.glyph(x.g, 'currentColor')}${x.n}</span>`).join('')}${Input.glyph('tabR')}</div>
-        <div class="p-body st-body"><div class="p-list scroll st-list">${T.rows.map(r => `<div class="p-item nav st-row" data-k="${r[0]}" data-t="${r[2]}" ${r[2] !== 'link' ? 'data-lr' : ''}><span class="pi-l">${r[1]}</span><span class="st-ctl">${control(r[0], r[2])}</span></div>`).join('')}</div><div class="p-side st-side"></div></div>
+        <div class="p-body st-body"><div class="p-list scroll st-list">${T.rows.map(r => r[2] === 'hdr' ? `<div class="st-hdr">${r[1]}</div>` : `<div class="p-item nav st-row${hyOnly(r) ? ' st-dim' : ''}" data-k="${r[0]}" data-t="${r[2]}" ${r[2] !== 'link' ? 'data-lr' : ''}><span class="pi-l">${r[1]}${r[4] === 'hy' ? `<i class="st-tag">${Tr('Melez')}</i>` : ''}</span><span class="st-ctl">${control(r[0], r[2])}</span></div>`).join('')}</div><div class="p-side st-side"></div></div>
         <div class="p-foot st-foot"><span class="st-hint">${Tr`${Input.glyph('left')}${Input.glyph('right')} Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme`}</span>
           <span class="st-btns"><button class="st-btn nav" data-act="reset">${Input.glyph('alt')} ${Tr`Sekmeyi Varsayılana Döndür`}</button><button class="st-btn nav pref" data-act="close">${Input.glyph('back')} ${Tr`Kaydet ve Kapat`}</button></span></div>`;
       $('[data-act="close"]', el).onclick = () => { Audio_.ui('ok'); m.onBack(); };

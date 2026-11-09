@@ -19,10 +19,12 @@ module.exports = {
       t.near(await p.evaluate(() => G.settings.master), Math.min(1, m0 + 0.05), 0.001, 'sağ ok sesi artırır');
       await p.keyboard.press('KeyE'); await t.sleep(200);
       t.eq(await p.evaluate(() => document.querySelector('.st-tabs .tab.on').dataset.tab), '2', 'E sonraki sekmeye geçer');
-      await p.evaluate(() => document.querySelector('.st-row[data-k="fxq"] [data-v="1"]').click());
-      t.eq(await p.evaluate(() => G.settings.fxq), 1, 'görsel efektler: Sade');
+      await p.keyboard.press('KeyE'); await t.sleep(200);
+      t.eq(await p.evaluate(() => document.querySelector('.st-tabs .tab.on').dataset.tab), '3', 'Grafik sekmesi');
+      await p.evaluate(() => document.querySelector('.st-row[data-k="gfxPreset"] [data-v="0"]').click());
+      t.eq(await p.evaluate(() => [G.settings.gfxPreset, G.settings.shadows, G.settings.bloom]), [0, 0, 0], 'hazır ayar: Düşük');
       await p.keyboard.press('KeyX'); await t.sleep(200);
-      t.eq(await p.evaluate(() => G.settings.fxq), 0, 'Alt tuşu sekmeyi varsayılana döndürür');
+      t.eq(await p.evaluate(() => [G.settings.gfxPreset, G.settings.shadows, G.settings.bloom]), [2, 2, 1], 'Alt tuşu sekmeyi varsayılana döndürür (Yüksek)');
       const side = await p.evaluate(() => document.querySelector('.st-side .ps-t').textContent);
       t.ok(side.length > 2, 'yan panelde açıklama olmalı');
       await p.keyboard.press('Escape'); await t.sleep(200);

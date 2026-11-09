@@ -115,7 +115,7 @@ module.exports = {
         gpuInfo: () => Promise.resolve({ launch: '${launch}', saved: '${launch}', platform: 'win32', env: [], envBad: false, optimus: true, renderer: '', webgl: 'enabled',
           devices: [{ vendorId: 0x8086, deviceId: 0x5917, name: 'Intel(R) UHD Graphics 620', active: true, pref: 2 }, { vendorId: 0x10de, deviceId: 0x2520, name: 'NVIDIA GeForce RTX 3060 Laptop GPU', active: false, pref: 3 }] }),`).replace('quit: () => {},', 'quit: () => { log.quit = (log.quit || 0) + 1; },');
       const p = await t.page({ init: gpuMock('auto') });
-      await p.evaluate(() => UI.openSettings(2)); await t.sleep(400);
+      await p.evaluate(() => UI.openSettings(3)); await t.sleep(400);
       const r = await p.evaluate(() => {
         const row = document.querySelector('.st-row[data-k="gpu"]'); UI.top().setFocus(row, true);
         return { opts: [...row.querySelectorAll('.st-seg span')].map(n => n.textContent), side: document.querySelector('.st-side').innerText, cards: UI.gpuDet.cards.map(c => [c.short, c.role]) };

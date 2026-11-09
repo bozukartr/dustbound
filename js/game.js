@@ -28,7 +28,9 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, fxq: 0, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, mapHide: [], gfx: 0, gpu: 0 },
+  settings: { master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, mapHide: [], gfx: 0, gpu: 0,
+    // grafik (Ayarlar → Grafik): hazır seviye Yüksek, kare hızı sınırsız, parlaklık normal (js/fx.js GFX)
+    gfxPreset: 2, fpsCap: 0, bright: 2, ...GFX_PRESETS[2] },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0, dev: 0, leg: 0 },
   coldness: 0, hotness: 0, feltTemp: 20, nearFire: false, heatLoad: 0, coldLoad: 0,
 
@@ -106,6 +108,7 @@ const G = {
         if (!s.mixV) { const D = { master: [0.8, 0.7], sfx: [0.8, 0.7], music: [0.5, 0.4], amb: [0.6, 0.5] }; for (const k in D) if (s[k] === D[k][0]) s[k] = D[k][1]; s.mixV = 2; }
         Object.assign(this.settings, s);
       }
+      GFX.migrate(this.settings, s);
     } catch (e) {}
     // masaüstünde geçerli olan, bu açılışta uygulanan ekran kartı tercihidir (desktop.json)
     if (Platform.gpuLaunch) this.settings.gpu = Platform.GPU_PREFS.indexOf(Platform.gpuLaunch);
@@ -141,9 +144,12 @@ const G = {
     Object.assign(Audio_.vol, { master: S.master, music: S.music, sfx: S.sfx, amb: S.amb });
     Audio_.applyVolumes();
     $('#fps') && $('#fps').classList.toggle('hidden', !S.fps);
-    // efekt kalitesi değişince salınan bitkiler chunk'a gömülür / çıkarılır
-    if (this._fxq !== undefined && this._fxq !== S.fxq && this.world) this.world.refreshChunks();
-    this._fxq = S.fxq;
+    // salınan bitkiler açılıp kapanınca bitkiler parçalara gömülür / çıkarılır (Ayarlar → Grafik)
+    if (this._sway !== undefined && this._sway !== S.sway && this.world) this.world.refreshChunks();
+    this._sway = S.sway;
+    // parlaklık (Klasik: tuvalin CSS süzgecinde, Melez: son ışık geçişinde) ve köşe karartması
+    document.documentElement.style.setProperty('--bri', String(GFX.BRIGHT[S.bright] || 1));
+    document.body.classList.toggle('novig', !S.vignette);
     // görüntü tonu: 0 doğal (yumuşak, gerçekçi), 1 canlı (eski doygun renkler)
     document.body.classList.toggle('vivid', S.tone === 1);
     if (this._tone !== S.tone) { setTerrainTone(S.tone !== 1); if (this._tone !== undefined && this.world) this.world.refreshChunks(); }
@@ -184,11 +190,12 @@ const G = {
     this.os = OVERSCAN;
     this.vw = Math.ceil(W / s * OVERSCAN); this.vh = Math.ceil(H / s * OVERSCAN);
     const c = this.canvas;
-    // melez çizimde tuval iki kat yoğun (dünya pikseli başına 2x2 piksel); klasikte 1
-    const ds = this.hybridOn() ? 2 : 1;
-    if (ds === 2 && this.ds !== 2 && this.world) HY.flush(this.world);   // klasikteyken değişen yerler eskimiş kalmasın
-    this.ds = ds;
-    document.body.classList.toggle('hyb', ds === 2);   // melezde renk tonu ışık geçişinde (tuvalde CSS süzgeci yok)
+    // melez çizimde tuval iki kat yoğun (dünya pikseli başına 2x2 piksel); klasikte ve Melez yarım çözünürlükte 1.
+    // hy: melez çizim açık mı (yoğunluktan ayrı: yarım çözünürlükte melez açık, yoğunluk 1)
+    const hy = this.hybridOn(), ds = hy && !this.settings.hyRes ? 2 : 1;
+    if (hy && !this.hy && this.world) HY.flush(this.world);   // klasikteyken değişen yerler eskimiş kalmasın
+    this.hy = hy; this.ds = ds;
+    document.body.classList.toggle('hyb', hy);   // melezde renk tonu ışık geçişinde (tuvalde CSS süzgeci yok)
     c.width = this.vw * ds; c.height = this.vh * ds;
     c.style.width = this.vw * s + 'px'; c.style.height = this.vh * s + 'px';
     const L = Math.round((W - this.vw * s) / 2), Tp = Math.round((H - this.vh * s) / 2);
@@ -459,6 +466,15 @@ const G = {
 
   /* ---------------- Döngü ---------------- */
   frame(ts) {
+    // kare hızı sınırı (Ayarlar → Grafik): sıradaki karenin zamanı gelmediyse bu ekran yenilemesi atlanır. Ekranın
+    // tazeleme aralığı sınırı tam bölmüyorsa (144 Hz'de 60) kareler ortalamada sınırda kalır; geride kalınca yeniden başlar
+    const cap = GFX.FPS[this.settings.fpsCap] || 0;
+    if (cap && this.last) {
+      const iv = 1000 / cap;
+      if (this._due === undefined || ts - this._due > iv) this._due = ts;
+      if (ts < this._due - 1.5) { requestAnimationFrame(t => this.frame(t)); return; }
+      this._due += iv;
+    } else this._due = undefined;
     const tf0 = performance.now();
     this.fno = (this.fno || 0) + 1;   // kare sayacı (kare başına iş bütçeleri için)
     const dt = clamp((ts - this.last) / 1000, 0, 0.05);   // zaman geri gitmez, uzun duraksama tek kareye yayılmaz
@@ -492,7 +508,7 @@ const G = {
       this._fc = (this._fc || 0) + 1; this._ft = (this._ft || 0) + dt; this._fw = (this._fw || 0) + performance.now() - tf0;
       if (this._ft > 0.5) {
         let t = Math.round(this._fc / this._ft) + ' FPS · ' + (this._fw / this._fc).toFixed(1) + ' ms';
-        if (this.ds === 2 && typeof HY !== 'undefined') {
+        if (this.hy && typeof HY !== 'undefined') {
           const s = HY.stat.seg, v = (k) => s[k] || 0;
           t += ` (2D ${(v('parçalar') + v('zemin ayrıntıları') + v('canlılar') + v('üst katman') + v('2D üst katman')).toFixed(1)} · GL ${v('ışık (GPU komutları)').toFixed(1)} · ${Tr('bekleme')} ${v('GPU bekleme').toFixed(1)})`;
         }
@@ -966,7 +982,7 @@ const G = {
     // piksel kamerası oyuncuya kilitli: kamera oyuncuyu izlerken oyuncunun yuvarlanmış konumuyla birlikte yuvarlanır;
     // böylece karakter ekranda titremez, zemin onunla aynı adımda kayar. Kamera durunca (içeride) kendi konumuyla
     // yuvarlanır: oyuncuya kilitli yuvarlama, oyuncu yürüdükçe bütün sahneyi bir piksel ileri geri oynatırdı.
-    // Melez çizimde (iki kat yoğun tuval) ızgara yarım pikseldir.
+    // Melez çizimde (iki kat yoğun tuval) ızgara yarım pikseldir; yarım çözünürlükte ve Klasik'te tam piksel.
     const q = this.ds === 2 ? 2 : 1, R = (v) => Math.round(v * q) / q;
     const ex = C.x - this.vw / 2 + sx, ey = C.y - this.vh / 2 + sy;
     // atın önden bakış payı değişirken (hızlanıp yavaşlarken) kilitli yuvarlama sahneyi bir kare geri oynatabilir:
@@ -1005,7 +1021,7 @@ const G = {
     return A;
   },
   prefetch(sync) {
-    if (this.ds === 2) return;   // melez çizim kendi parçalarını pişirir; 2D parçalar boşuna pişip bellekte kalmasın
+    if (this.hy) return;   // melez çizim kendi parçalarını pişirir; 2D parçalar boşuna pişip bellekte kalmasın
     const W = this.world, A = this.chunkArea(), cx0 = A[0], cy0 = A[1], cx1 = A[2], cy1 = A[3];
     const NC = WW / CHUNK;
     if (sync) for (let cy = Math.max(0, cy0); cy <= Math.min(NC - 1, cy1); cy++) for (let cx = Math.max(0, cx0); cx <= Math.min(NC - 1, cx1); cx++) W.getChunk(cx, cy, true);
@@ -1015,7 +1031,7 @@ const G = {
   /* ---------------- Render ---------------- */
   render(dt) {
     // melez çizim (js/hybrid.js): iki kat piksel, yükseklik haritasıyla güneş gölgesi, duvarda duran ışık
-    if (this.ds === 2) {
+    if (this.hy) {
       if (HY.render(this, dt)) { this.hyOk = true; if (this.binoc) this.binocDraw(); return; }
       this.resize();   // WebGL koptu: klasik çizime dön
     }
@@ -1040,16 +1056,16 @@ const G = {
     // dinamik zemin öğeleri
     const tx0 = Math.max(0, (x0 >> 4) - 1), ty0 = Math.max(0, (y0 >> 4) - 1), tx1 = Math.min(WW - 1, (x1 >> 4) + 1), ty1 = Math.min(WH - 1, (y1 >> 4) + 1);
     const obj = W.obj, tile = W.tile, flags = W.flags, day = this.day, t = this.t;
-    const fxFull = FX.full, autumn = W.season === 2;
+    const swayOn = !!this.settings.sway, amb = !!this.settings.ambient, autumn = W.season === 2;
     const fires = [];
     for (let ty = ty0; ty <= ty1; ty++) {
       const row = ty * WW;
       for (let tx = tx0; tx <= tx1; tx++) {
-        if (tile[row + tx] === T.WATER) { FX.foam(ctx, tx, ty, t); if (fxFull) Juice.water(ctx, tx, ty, t); }
+        if (tile[row + tx] === T.WATER) { FX.foam(ctx, tx, ty, t); if (amb) Juice.water(ctx, tx, ty, t); }
         const o = obj[row + tx];
         if (!o) continue;
-        if (fxFull && SWAY_O[o] && !(flags[row + tx] & 16)) { FX.sway(ctx, o, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77)); continue; }
-        if (autumn && fxFull && (o === O.OAK || o === O.APPLE || o === O.BIRCH)) FX.leafTree(tx * TS + 8, ty * TS - 4, hash2(tx, ty, 78));
+        if (swayOn && SWAY_O[o] && !(flags[row + tx] & 16)) { FX.sway(ctx, o, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77)); continue; }
+        if (autumn && amb && (o === O.OAK || o === O.APPLE || o === O.BIRCH)) FX.leafTree(tx * TS + 8, ty * TS - 4, hash2(tx, ty, 78));
         if (o >= 20 && o <= 28) {
           if (W.season === 3 && W.snowyTile(tx, ty)) continue;
           const hv = W.harvested.get(row + tx);
@@ -1070,7 +1086,7 @@ const G = {
     for (const tr of this.trains) tr.draw(ctx, x0, y0, x1, y1);
     this.drawTumbles(ctx);
     // varlıklar
-    Juice.sunOn = !this.insideB;   // varlık gölgeleri güneşe göre
+    Juice.sunOn = !this.insideB && this.settings.shadows > 0;   // varlık gölgeleri güneşe göre (Ayarlar → Grafik → Güneş Gölgeleri)
     const vis = [];
     for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !this.floorHid(e)) vis.push(e);
     if (P.riding) vis.push(P.riding);
@@ -1258,11 +1274,11 @@ const G = {
     const vw = this.vw, vh = this.vh;
     if (env.cloud > 0.05) { ctx.fillStyle = `rgba(40,48,60,${env.cloud * 0.22})`; ctx.fillRect(0, 0, vw, vh); }
     if (this.insideB) return;
-    const wind = clamp(FX.wind.x * 0.55, -0.4, 0.4);
+    const wind = clamp(FX.wind.x * 0.55, -0.4, 0.4), wk = this.settings.weather ? 1 : 0.4;   // Ayarlar → Grafik → Hava Efektleri: Az
     if (env.rain > 0.05) {
       ctx.strokeStyle = `rgba(190,205,225,${0.25 + env.rain * 0.35})`; ctx.lineWidth = 1;
       ctx.beginPath();
-      const n = Math.floor(this.rain.length * env.rain);
+      const n = Math.floor(this.rain.length * env.rain * wk);
       for (let i = 0; i < n; i++) {
         const r = this.rain[i];
         r.y += dt * 1.6 * r.s; r.x += dt * wind * r.s;
@@ -1275,7 +1291,7 @@ const G = {
     }
     if (env.snow > 0.05) {
       ctx.fillStyle = 'rgba(250,250,255,0.85)';
-      const n = Math.floor(this.rain.length * env.snow * 0.7);
+      const n = Math.floor(this.rain.length * env.snow * 0.7 * wk);
       for (let i = 0; i < n; i++) {
         const r = this.rain[i];
         r.y += dt * 0.12 * r.s; r.x += dt * (wind * 0.25 + Math.sin(this.t + i) * 0.03);
@@ -1288,7 +1304,7 @@ const G = {
     if (env.dust > 0.05) {
       ctx.fillStyle = `rgba(180,140,90,${env.dust * 0.45})`; ctx.fillRect(0, 0, vw, vh);
       ctx.fillStyle = `rgba(200,160,110,${env.dust * 0.5})`;
-      for (let i = 0; i < 120; i++) { const r = this.rain[i]; r.x += dt * 0.6 * r.s; if (r.x > 1) { r.x -= 1; r.y = Math.random(); } ctx.fillRect(r.x * vw, r.y * vh, 3, 1); }
+      for (let i = 0, n = Math.round(120 * wk); i < n; i++) { const r = this.rain[i]; r.x += dt * 0.6 * r.s; if (r.x > 1) { r.x -= 1; r.y = Math.random(); } ctx.fillRect(r.x * vw, r.y * vh, 3, 1); }
     }
     // yüksekte rüzgârla savrulan ince zerreler (toz, kar kırıntısı): rüzgâr yönünde hızlı, kısa çizgiler
     const al = this.alt || 0;
@@ -1347,6 +1363,9 @@ const G = {
     // motorlu taşıtların farları (motoru çalışırken)
     if (night) for (const e of this.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt && inView(e.x, e.y, 90)) lights.push([e.x + Math.cos(e.ang) * 24, e.y + Math.sin(e.ang) * 24, 48, 0.85]);
     if (night) for (const e of this.ents) if (e.legend === 'ghost' && !e.dead && !e.remove && inView(e.x, e.y, 50)) lights.push([e.x, e.y, 42, 0.55]);   // Ak Hayalet: soluk ay ışığı
+    // Ayarlar → Grafik → Işık Sayısı: ekranın ortasına en yakın ışıklar kalır
+    const nL = GFX.LIGHTS[this.settings.lightN] || GFX.LIGHTS[2];
+    if (lights.length > nL) { const cx = x0 + vw / 2, cy = y0 + vh / 2; lights.sort((a, b) => dist2(a[0], a[1], cx, cy) - dist2(b[0], b[1], cx, cy)); lights.length = nL; }
     for (const [x, y, r, a] of lights) {
       lc.globalAlpha = Math.min(1, a);
       lc.drawImage(this.lightSpr, x - x0 - r, y - y0 - r, r * 2, r * 2);
@@ -1354,7 +1373,8 @@ const G = {
     lc.globalAlpha = 1;
     lc.globalCompositeOperation = 'source-over';
     ctx.drawImage(this.light, 0, 0);
-    // sıcak parıltı
+    // sıcak parıltı (Ayarlar → Grafik → Parlama)
+    if (!this.settings.bloom) return;
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = Math.min(1, dark * 1.2);
     for (const [x, y, r] of lights) ctx.drawImage(this.glowSpr, x - x0 - r * 0.6, y - y0 - r * 0.6, r * 1.2, r * 1.2);

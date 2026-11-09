@@ -23,7 +23,10 @@ function randomName(sex) { return pick(NAMES[sex]) + ' ' + pick(NAMES.last); }
 class Particles {
   constructor() { this.list = []; this.pool = []; }
   add(type, x, y, vx, vy, life, size, col) {
-    if (this.list.length > 700) return;
+    // Ayarlar → Grafik → Parçacıklar: doğma oranı ve aynı anda en çok (mermi izi hep çizilir)
+    const PL = (typeof G !== 'undefined' && G.settings && GFX.PARTS[G.settings.parts]) || GFX.PARTS[1];
+    if (this.list.length > PL[1]) return;
+    if (PL[0] < 1 && type !== 'tracer' && Math.random() > PL[0]) return;
     const p = this.pool.pop() || {};
     p.type = type; p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.life = life; p.max = life; p.size = size; p.col = col; p.z = 0; p.vz = 0; p.x2 = 0; p.y2 = 0;
     this.list.push(p);
