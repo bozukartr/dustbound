@@ -193,14 +193,26 @@ module.exports = {
       t.eq(errs, [], 'sayfada hata yok');
     });
 
-    await t.step('kare hızı sınırı: 30 seçilince saniyede yarı kadar kare çizilir', async () => {
-      const rate = (cap) => g.evaluate((cap) => new Promise(res => { G.settings.fpsCap = cap; const f0 = G.fno; setTimeout(() => res(G.fno - f0), 1500); }), cap);
-      await rate(0);
-      const free = await rate(0), c30 = await rate(4), c60 = await rate(3);
-      await g.evaluate(() => { G.settings.fpsCap = 0; });
-      t.ok(free > 60, 'sınırsız', free);
-      t.ok(Math.abs(c30 / free - 0.5) < 0.12, '30: yarısı', { free, c30 });
-      t.ok(Math.abs(c60 / free - 1) < 0.12, '60 Hz ekranda 60: değişmez', { free, c60 });
+    await t.step('kare hızı sınırı: ekran yenilemelerinden yalnızca sınıra düşenler çizilir (60 ve 144 Hz, titreşimli aralık)', async () => {
+      // ana döngü sahte zaman damgalarıyla doğrudan çağrılır (makinenin yükünden bağımsız); çizilen kare G.fno ile sayılır
+      const r = await g.evaluate(() => {
+        const sim = (cap, hz, sec, jit) => {
+          const raf = window.requestAnimationFrame; window.requestAnimationFrame = () => 0;
+          const n = Math.round(hz * sec); let ts = performance.now(); const f0 = G.fno;
+          G.settings.fpsCap = cap; G._due = undefined; G.last = ts;
+          try { for (let i = 1; i <= n; i++) G.frame(ts + i * 1000 / hz + (jit ? Math.sin(i * 1.7) * jit : 0)); }
+          finally { window.requestAnimationFrame = raf; G.settings.fpsCap = 0; G._due = undefined; G.last = performance.now(); }
+          return G.fno - f0;
+        };
+        return { free60: sim(0, 60, 2), c30at60: sim(4, 60, 2), c60at60: sim(3, 60, 2, 0.6), c60at144: sim(3, 144, 2), c30at144: sim(4, 144, 2), c120at144: sim(2, 144, 2), free144: sim(0, 144, 2) };
+      });
+      t.eq(r.free60, 120, 'sınırsız: her yenileme çizilir');
+      t.eq(r.c30at60, 60, '60 Hz ekranda 30: her iki yenilemeden biri');
+      t.eq(r.c60at60, 120, '60 Hz ekranda 60: titreşimli aralıkta da kare atlanmaz');
+      t.ok(Math.abs(r.c60at144 - 120) <= 2, '144 Hz ekranda 60: saniyede ~60', r);
+      t.ok(Math.abs(r.c30at144 - 60) <= 2, '144 Hz ekranda 30: saniyede ~30', r);
+      t.ok(Math.abs(r.c120at144 - 240) <= 3, '144 Hz ekranda 120: saniyede ~120', r);
+      t.eq(r.free144, 288, '144 Hz ekranda sınırsız: her yenileme');
     });
 
     await t.step('Melez: gölge ve ortam gölgesi geçişi, ışık sayısı, parlama, köşe karartması ayara göre', async () => {
