@@ -914,8 +914,18 @@ const G = {
   },
   updateCamera(dt) {
     const P = this.player, C = this.cam;
-    let tx = P.x, ty = P.y;
-    if (P.riding) { const v = P.riding.spd * (P.riding.back ? -0.45 : 0.45); tx += Math.cos(P.riding.ang) * v; ty += Math.sin(P.riding.ang) * v; }
+    // atlıyken (arabada, otomobilde) kamera gidilen yöne hızla orantılı önden bakar. Hız yumuşak değiştiği için bu pay
+    // da yumuşak değişir. Binek frende hızını 2 px/sn altına inince birden sıfırlar; o son adımdan önceki karede hızı
+    // 15 px/sn altındadır (fren en çok 260 px/sn², kare en çok 0,05 sn), pay da orada zaten sıfırdır: binek durduğu karede
+    // kamera da durur. Yönü dönüşe yumuşakça girsin diye kısa bir gecikmeyle izler
+    let lax = 0, lay = 0;
+    if (P.riding) {
+      const R0 = P.riding, dir = R0.ang + (R0.back ? Math.PI : 0), lv = Math.max(0, R0.spd - 15) * 0.2;
+      C.la = C.lr && C.la !== undefined ? C.la + angDiff(C.la, dir) * (1 - Math.exp(-dt * 6)) : dir;
+      lax = Math.cos(C.la) * lv; lay = Math.sin(C.la) * lv;
+    }
+    C.lr = !!P.riding;
+    let tx = P.x + lax, ty = P.y + lay;
     if (P.aiming || P.rsAim) { const d = Math.min(P.aimDist, 90) * 0.45; tx += Math.cos(P.aimAng) * d; ty += Math.sin(P.aimAng) * d; }
     if (this.binoc) { tx += this.binoc.x; ty += this.binoc.y; }
     // içeride kamera oyuncuyu izlemez: binanın ortasına oturur ve orada durur. Bina görünen alana sığmıyorsa (büyük
@@ -929,12 +939,26 @@ const G = {
       tx = lerp(tx, ix, Z.k); ty = lerp(ty, iy, Z.k);
       lx = Z.k >= 1 && ix === P.x; ly = Z.k >= 1 && iy === P.y;
     }
-    // yumuşak takip; üstel katsayı kare hızından bağımsız (60 Hz ile 144 Hz'de aynı). Duran hedefe varınca tam oturur.
-    const cf = this.binoc ? 7 : 4, k = 1 - Math.exp(-dt * cf), pcx = C.x, pcy = C.y;
-    C.x = lerp(C.x, tx, k);
-    C.y = lerp(C.y, ty, k);
+    // kamera oyuncuyla (ve atın önden bakış payıyla) birlikte taşınır: yürürken geride kalıp durunca yetişmeye çalışmaz,
+    // oyuncu durduğu karede durur. Yalnızca hedefin geri kalanı (nişan, dürbün, iç mekân, at şahlanınca ya da inince
+    // önden bakışın sıçraması) yumuşakça izlenir. Kamerayı başka kod yerleştirdiyse (ışınlanma, uyku, kat değişimi) o
+    // kare taşınmaz; ışınlanma boyu bir yer değişimi de taşınmaz
+    const pcx = C.x, pcy = C.y;
+    if (C.qx !== undefined) {
+      const dpx = P.x - C.qpx, dpy = P.y - C.qpy, dlx = lax - C.qlx, dly = lay - C.qly;
+      const mp = Math.hypot(dpx, dpy) <= Math.max(24, 900 * dt) ? 1 : 0, ml = Math.hypot(dlx, dly) <= Math.max(1, 150 * dt) ? 1 : 0;
+      if (lx && C.x === C.qx) C.x += dpx * mp + dlx * ml;
+      if (ly && C.y === C.qy) C.y += dpy * mp + dly * ml;
+    }
+    // kalan fark: üstel yaklaşım (katsayı kare hızından bağımsız; 60 Hz ile 144 Hz'de aynı), son piksellerde en az
+    // 16 px/sn hızla gelip tam oturur. Salt üstel yaklaşım, sahne durmuş gibiyken seyrekleşen tek piksellik kaymalar bırakır
+    const cf = this.binoc ? 7 : 4, k = 1 - Math.exp(-dt * cf), m = 16 * dt;
+    const ease = (c, t) => { const d = t - c; if (Math.abs(d) <= m) return t; const s = d * k; return Math.abs(s) < m ? c + Math.sign(d) * m : c + s; };
+    C.x = ease(C.x, tx);
+    C.y = ease(C.y, ty);
     if (Z.k >= 1 && !lx && Math.abs(C.x - tx) < 0.5) C.x = tx;
     if (Z.k >= 1 && !ly && Math.abs(C.y - ty) < 0.5) C.y = ty;
+    C.qx = C.x; C.qy = C.y; C.qpx = P.x; C.qpy = P.y; C.qlx = lax; C.qly = lay;
     let sx = 0, sy = 0;
     if (this.fx.shake > 0 && this.settings.shake) { sx = rnd(-1, 1) * this.fx.shake; sy = rnd(-1, 1) * this.fx.shake; }
     this.fx.shake = Math.max(0, this.fx.shake - dt * 18);
@@ -945,11 +969,16 @@ const G = {
     // Melez çizimde (iki kat yoğun tuval) ızgara yarım pikseldir.
     const q = this.ds === 2 ? 2 : 1, R = (v) => Math.round(v * q) / q;
     const ex = C.x - this.vw / 2 + sx, ey = C.y - this.vh / 2 + sy;
-    // oyuncu hızlanıp yavaşlarken (kamera gecikmesi değişirken) kilitli yuvarlama sahneyi bir kare geri oynatabilir:
-    // sarsıntı yokken sahne, kameranın gittiği yönün tersine tek ızgara adımı kaymaz (kameradan sapma bir pikseli aşmaz)
-    const hold = (o, prev, move) => (move && prev !== undefined && (o - prev) * move < 0 && Math.abs(o - prev) <= 1 / q + 1e-6 ? prev : o);
-    C.ox = lx ? (sx ? R(P.x) - R(P.x - ex) : hold(R(P.x) - R(P.x - ex), C.ox, C.x - pcx)) : R(ex);
-    C.oy = ly ? (sy ? R(P.y) - R(P.y - ey) : hold(R(P.y) - R(P.y - ey), C.oy, C.y - pcy)) : R(ey);
+    // atın önden bakış payı değişirken (hızlanıp yavaşlarken) kilitli yuvarlama sahneyi bir kare geri oynatabilir:
+    // sarsıntı yokken sahne, kameranın gittiği yönün tersine tek ızgara adımı kaymaz. Kamera bu karede hiç kıpırdamadıysa
+    // sahne de tek adım kaymaz: frende geri tutulan adım, binek durduğu karede bırakılıp her şey durduktan sonra sahneyi
+    // bir kez oynatmasın. Kameradan sapma bir ızgara adımını aşmaz; daha büyük fark (ışınlanma) hemen işler. Sarsıntının
+    // bittiği karede ve pencere boyu ya da ızgara değişince tutulmaz: sahne yerine tam oturur
+    const hk = this.vw + ',' + this.vh + ',' + q, fresh = C.hk !== hk;
+    const hold = (o, prev, move, shook) => (!fresh && !shook && prev !== undefined && o !== prev && Math.abs(o - prev) <= 1 / q + 1e-6 && (!move || (o - prev) * move < 0) ? prev : o);
+    C.ox = lx ? (sx ? R(P.x) - R(P.x - ex) : hold(R(P.x) - R(P.x - ex), C.ox, C.x - pcx, C.shx)) : R(ex);
+    C.oy = ly ? (sy ? R(P.y) - R(P.y - ey) : hold(R(P.y) - R(P.y - ey), C.oy, C.y - pcy, C.shy)) : R(ey);
+    C.hk = hk; C.shx = !!sx; C.shy = !!sy;
   },
   /* Tuvalin ekrandaki dikdörtgeni (CSS pikseli). getBoundingClientRect, arayüz o karede değiştiyse bütün sayfa
      düzenini hesaplatır; bu yüzden yalnızca tuvalin boyu ve yeri (resize) ya da CSS dönüşümü (iç mekân yakınlaşması,
