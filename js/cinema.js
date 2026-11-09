@@ -821,9 +821,9 @@ const Cinema = (() => {
       stat.flames = flames ? flames.length : 0;
       stat.cam = Object.assign(cst, { solids: solids.length, pull: camPlan ? Math.min(...camPlan.map(P => Math.min(...P.f))) : 1, lift: camPlan ? Math.max(...camPlan.map(P => Math.max(...P.h))) : 0 });
       const GR = Object.assign({ lift: [0, 0, 0], gain: [1, 1, 1], sat: 1, con: 1 }, S.grade || {});
-      // gölge: düşük grafik ayarında küçük harita; sahne kapatabilir (S.shadow === false)
-      const lowQ = !!(typeof G !== 'undefined' && G.settings && G.settings.fxq);
-      const shadowOn = !!(DP && S.shadow !== false && shadowTargets(lowQ ? 1024 : 2048));
+      // gölge: Ayarlar → Grafik → Güneş Gölgeleri Düşük'te küçük harita, Kapalı'da gölge yok; sahne de kapatabilir (S.shadow === false)
+      const shL = typeof G !== 'undefined' && G.settings && typeof G.settings.shadows === 'number' ? G.settings.shadows : 2, lowQ = shL <= 1;
+      const shadowOn = !!(DP && S.shadow !== false && shL > 0 && shadowTargets(lowQ ? 1024 : 2048));
       const nearH = S.shadowN || 26, farH = S.shadowR || 240, LD = V.norm(S.L.dir);
       let farM = null;
       // ışığın bakışından dik izdüşüm; merkez doku hücresine oturtulur (kamera kayarken gölge titremesin)

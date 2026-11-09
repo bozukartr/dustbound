@@ -2387,7 +2387,7 @@ class World {
     const cx = Math.floor(px / CPX), cy = Math.floor(py / CPX);
     this.chunks.delete(cy * CN + cx);
     this.jobs.delete(cy * CN + cx);
-    if (typeof G !== 'undefined' && G.ds === 2) (this.hyDirty || (this.hyDirty = [])).push([px, py, keepCover ? 1 : 0]);   // melez çizimin parçası da yenilenir (keepCover: bina örtüsü değişmedi)
+    if (typeof G !== 'undefined' && G.hy) (this.hyDirty || (this.hyDirty = [])).push([px, py, keepCover ? 1 : 0]);   // melez çizimin parçası da yenilenir (keepCover: bina örtüsü değişmedi)
   }
   /* Dikdörtgene değen statik ışıklar: her ışık bir kez, etki alanının (yarıçapın 1,5 katı, en az 90, artı 30 px)
      değdiği 128 px'lik hücrelere yazılır; her karede yalnızca dikdörtgenin hücrelerine bakılır. Sıra ana listedekiyle

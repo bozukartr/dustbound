@@ -9,6 +9,35 @@
    Ayarlar > Efektler: 0 = Tam, 1 = Sade (salınım/bulut/yaprak kapalı)
    ========================================================== */
 
+/* ---------------- Grafik ayarları (Ayarlar → Grafik) ----------------
+   Hazır seviyeler: Düşük, Orta, Yüksek, Ultra. Seçili değerler hiçbirine uymuyorsa seviye Özel'dir (GFX.CUSTOM). Yüksek,
+   eski varsayılan görünümdür; eski "Görsel Efektler: Sade" seçimi Orta seviyeye taşınır. Değerler: 0 kapalı ya da en
+   düşük kademe, büyüdükçe daha çok ayrıntı. hyRes: 0 tam (dünya pikseline 2x2), 1 yarım (dünya pikseline 1). */
+const GFX_KEYS = ['hyRes', 'shadows', 'ao', 'lightN', 'lightOcc', 'bloom', 'clouds', 'weather', 'parts', 'tracks', 'smoke', 'sway', 'ambient', 'grade', 'vignette'];
+const GFX_PRESETS = [
+  { hyRes: 1, shadows: 0, ao: 0, lightN: 0, lightOcc: 0, bloom: 0, clouds: 0, weather: 0, parts: 0, tracks: 0, smoke: 0, sway: 0, ambient: 0, grade: 0, vignette: 0 },
+  { hyRes: 1, shadows: 1, ao: 0, lightN: 1, lightOcc: 1, bloom: 0, clouds: 0, weather: 0, parts: 1, tracks: 1, smoke: 0, sway: 0, ambient: 1, grade: 1, vignette: 1 },
+  { hyRes: 0, shadows: 2, ao: 1, lightN: 2, lightOcc: 1, bloom: 1, clouds: 1, weather: 1, parts: 1, tracks: 1, smoke: 1, sway: 1, ambient: 1, grade: 1, vignette: 1 },
+  { hyRes: 0, shadows: 3, ao: 1, lightN: 2, lightOcc: 1, bloom: 1, clouds: 1, weather: 1, parts: 2, tracks: 1, smoke: 1, sway: 1, ambient: 1, grade: 1, vignette: 1 },
+];
+const GFX = {
+  CUSTOM: 4,
+  LIGHTS: [6, 10, 16],                        // ışık sayısı (Melez: ışık geçişi, Klasik: ışık lekeleri)
+  PARTS: [[0.4, 320], [1, 700], [1, 1400]],   // parçacık: doğma oranı ve aynı anda en çok
+  BRIGHT: [0.8, 0.9, 1, 1.1, 1.2],            // parlaklık çarpanı
+  FPS: [0, 144, 120, 60, 30],                 // kare hızı sınırı (0: sınırsız)
+  /* seçili değerlerin uyduğu hazır seviye; uymuyorsa Özel */
+  presetOf(S) { const i = GFX_PRESETS.findIndex(P => GFX_KEYS.every(k => S[k] === P[k])); return i < 0 ? this.CUSTOM : i; },
+  apply(S, i) { if (GFX_PRESETS[i]) Object.assign(S, GFX_PRESETS[i]); S.gfxPreset = this.presetOf(S); },
+  /* kayıtlı ayarlar yüklenince: eski "Görsel Efektler: Sade" (fxq 1) Orta seviyeye taşınır, eksik değerler varsayılan kalır */
+  migrate(S, saved) {
+    if (saved && saved.gfxPreset === undefined && saved.fxq === 1) this.apply(S, 1);
+    delete S.fxq;
+    for (const k of GFX_KEYS) if (typeof S[k] !== 'number') S[k] = GFX_PRESETS[2][k];
+    S.gfxPreset = this.presetOf(S);
+  },
+};
+
 /* Rüzgârda salınan, dinamik çizilen küçük bitkiler: tür → [salınım genliği, taban ofseti] */
 const SWAY_O = { [O.TUFT]: [1, 2], [O.REED]: [1, 3], [O.FLOWERS]: [0.6, 1], [O.CROP]: [0.75, 5], [O.BUSH]: [0.32, 3] };
 /* İz tutan yumuşak zeminler: tile → iz rengi (rgb) */
@@ -39,9 +68,8 @@ const FX = {
   g: { gold: 0, blue: 0, desert: 0, rain: 0, cold: 0, swamp: 0, hurt: 0, drunk: 0, frost: 0, poison: 0, de: 0 },
   temp: 20, tempT: 0, hb: 0, dub: false, grainT: 0, grainI: 0, drunkCss: false,
 
-  get full() { return !G.settings.fxq; },
-  /* Chunk'a gömülmeyip her karede salınarak çizilen nesne mi? */
-  dyn(o) { return !G.settings.fxq && SWAY_O[o] !== undefined; },
+  /* Chunk'a gömülmeyip her karede salınarak çizilen nesne mi? (Ayarlar → Grafik → Salınan Bitkiler) */
+  dyn(o) { return !!G.settings.sway && SWAY_O[o] !== undefined; },
 
   init() {
     // yumuşak bulut gölgesi dokusu: gauss lekelerinin toplamı, kenarlara doğru sıfıra iner
@@ -127,7 +155,7 @@ const FX = {
     for (let i = this.snowTracks.length - 1; i >= 0; i--) { const t = this.snowTracks[i]; t.life -= fill; if (t.life <= 0) this.snowTracks.splice(i, 1); }
     // yağmur damlası halkaları (su yüzeyinde)
     if (env.rain > 0.1 && !G.insideB) {
-      let n = env.rain * dt * (this.full ? 150 : 60);
+      let n = env.rain * dt * (G.settings.weather ? 150 : 60);
       while (n > 0) {
         if (n >= 1 || Math.random() < n) {
           const x = x0 + Math.random() * (x1 - x0), y = y0 + Math.random() * (y1 - y0);
@@ -183,7 +211,7 @@ const FX = {
         this.ripple(e.x + rnd(-1, 1), e.y + (big ? 2 : 1), 2, moved ? (big ? 13 : 9) : 7, moved ? 1 : 1.5);
         if (moved && spd > 50 && Math.random() < 0.6) G.parts.add('splash', e.x + rnd(-3, 3), e.y + rnd(-2, 2), 0, 0, 0.35, 2);
       }
-    } else if (this.full) this.trackStep(e, k, kind);
+    } else if (G.settings.tracks) this.trackStep(e, k, kind);
     // nefes buharı
     if (cold > 0 && !W.indoorPx(e.x, e.y) && !(e === G.player && G.insideB)) {
       k.br -= dt * (spd > 70 ? 2 : 1);
@@ -267,7 +295,7 @@ const FX = {
   /* Kamp ateşi duman sütunu (render/Prop tarafından her karede kaydedilir) */
   fireSource(x, y) { if (this.srcs.length < 48) this.srcs.push(x, y); },
   fireSmoke(x, y, dt) {
-    const rate = this.full ? 6 : 3;
+    const rate = G.settings.smoke ? 6 : 3;
     if (Math.random() < rate * dt) this.puff(x + rnd(-1.5, 1.5), y - 5, rnd(-2, 2), rnd(-13, -10), 1.2, rnd(2.6, 3.4), rnd(3.2, 4.4), 0.32, '176,170,164');
   },
   puff(x, y, vx, vy, s, g, life, a, col) {
@@ -279,7 +307,7 @@ const FX = {
     const W = G.world, h = G.hour, IB = G.insideB;
     const morning = h >= 5.5 && h < 10, evening = h >= 17 && h < 23;
     const coldK = this.temp < 8;
-    const rate = this.full ? 2.6 : 1.3, BS = W.buildings;
+    const rate = G.settings.smoke ? 2.6 : 1.3, BS = W.buildings;
     for (let bi = 0; bi < BS.length; bi++) {
       const b = BS[bi], X = b.x * TS, Y = b.y * TS;
       if (X > x1 || X + b.w * TS < x0 || Y > y1 || Y < y0) continue;
@@ -331,7 +359,7 @@ const FX = {
   },
   /* Namlu dumanı: birkaç puf, rüzgârla sürüklenir */
   gunSmoke(x, y, a, long) {
-    const n = long ? 4 : 3;
+    const n = (long ? 4 : 3) - (G.settings.smoke ? 0 : 1);   // Ayarlar → Grafik → Duman: Az
     for (let i = 0; i < n; i++) {
       const d = 1 + i * 2.5, s = rnd(6, 16) * (1 - i * 0.15);
       G.parts.add('smoke', x + Math.cos(a) * d, y + Math.sin(a) * d, Math.cos(a) * s + rnd(-3, 3), Math.sin(a) * s + rnd(-3, 3), rnd(1.3, 2.1), 1.3 + i * 0.3, '222,218,210');
@@ -371,7 +399,7 @@ const FX = {
     // kardaki izler: tuvalin piksel ızgarasına oturan küçük şekiller (melez çizimde iki kat ince)
     if (this.snowTracks.length) {
       // melezde ışık geçişi parlak karı sıkıştırır: aynı silikliğe biraz daha koyu iz gerekir
-      const ds = G.ds || 1, sm = ctx.imageSmoothingEnabled, ak = ds === 2 ? 1.35 : 1;
+      const ds = G.ds || 1, sm = ctx.imageSmoothingEnabled, ak = G.hy ? 1.35 : 1;
       ctx.imageSmoothingEnabled = false; ctx.globalCompositeOperation = 'multiply';
       for (const t of this.snowTracks) {
         if (t.x < x0 || t.x > x1 || t.y < y0 || t.y > y1) continue;
@@ -448,7 +476,7 @@ const FX = {
   },
   /* Rüzgârla kayan bulut gölgeleri (açık/parçalı havada gündüz) */
   drawClouds(ctx) {
-    if (!this.full || G.insideB || PERF_OFF.clouds) return;
+    if (!G.settings.clouds || G.insideB || PERF_OFF.clouds) return;
     const dl = G.daylight;
     if (dl < 0.3) return;
     const cover = (G.weather && G.weather.cloud) || 0, env = G.envCache || {};
@@ -513,14 +541,18 @@ const FX = {
   tints() {
     const g = this.g, q = [], T = (st, op, col, a) => { if (a >= 0.01) q.push([st, op, col, Math.min(1, a)]); };
     if (PERF_OFF.tints) return q;
-    T(0, 'soft-light', '#ff8a3a', g.gold * 0.5);
-    T(0, 'source-over', 'rgb(255,128,48)', g.gold * 0.06);
-    T(0, 'soft-light', '#3450a8', g.blue * 0.5);
-    T(0, 'soft-light', '#ffb060', g.desert * (G.settings.tone === 1 ? 0.34 : 0.17));   // doğal tonda çöl turuncuya boğulmaz
-    T(0, 'saturation', '#808080', g.rain * 0.4);
-    T(0, 'soft-light', '#5a78a4', g.rain * 0.32);
-    T(0, 'soft-light', '#a8ccff', g.cold * 0.36);
-    T(0, 'soft-light', '#6e8a50', g.swamp * 0.34);
+    // saate, havaya ve yöreye göre renk derecelendirmesi (Ayarlar → Grafik); durum efektleri (sarhoşluk, ayaz, zehir,
+    // düşük sağlık) oyun bilgisi olduğu için her zaman uygulanır
+    if (G.settings.grade) {
+      T(0, 'soft-light', '#ff8a3a', g.gold * 0.5);
+      T(0, 'source-over', 'rgb(255,128,48)', g.gold * 0.06);
+      T(0, 'soft-light', '#3450a8', g.blue * 0.5);
+      T(0, 'soft-light', '#ffb060', g.desert * (G.settings.tone === 1 ? 0.34 : 0.17));   // doğal tonda çöl turuncuya boğulmaz
+      T(0, 'saturation', '#808080', g.rain * 0.4);
+      T(0, 'soft-light', '#5a78a4', g.rain * 0.32);
+      T(0, 'soft-light', '#a8ccff', g.cold * 0.36);
+      T(0, 'soft-light', '#6e8a50', g.swamp * 0.34);
+    }
     if (g.drunk > 0.02) T(1, 'soft-light', '#ffc070', g.drunk * 0.3);
     if (g.frost > 0.02) T(2, 'soft-light', '#b8d4ff', g.frost * 0.25);
     if (g.poison > 0.02) { T(3, 'soft-light', '#8fae3a', g.poison * 0.34); T(3, 'saturation', '#808080', g.poison * 0.16); }
@@ -555,7 +587,7 @@ const FX = {
       tintAt(3);
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = Math.min(1, k * (0.42 + wave * 0.3 + rk * 0.4));
       ctx.drawImage(this.vigGreen, 0, 0, vw, vh);
-      if (this.full) { ctx.globalAlpha = k * (0.1 + rk * 0.14); ctx.drawImage(G.canvas, Math.sin(t * 1.1) * 1.6 * k, Math.cos(t * 0.8) * 1.1 * k, G.vw, G.vh); }   // düşük kalitede tam ekran kopya yok
+      if (G.settings.grade) { ctx.globalAlpha = k * (0.1 + rk * 0.14); ctx.drawImage(G.canvas, Math.sin(t * 1.1) * 1.6 * k, Math.cos(t * 0.8) * 1.1 * k, G.vw, G.vh); }   // düşük kalitede tam ekran kopya yok
     }
     // --- düşük sağlık: renk çekilir, kalp atışıyla nabız gibi atan kırmızı kenar
     if (g.hurt > 0.02) {

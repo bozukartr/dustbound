@@ -418,7 +418,7 @@ const Debug = {
       case 'perf': {
         const sg = this.segs();
         this.SEGS().forEach(([k], i) => this.set('sg' + i, sg ? sg[k].toFixed(2) + ' ms' : '—'));
-        this.set('sgfg', typeof HY !== 'undefined' && G.ds === 2 ? `${HY.stat.fg} / ${HY.stat.fgp}` : '—');
+        this.set('sgfg', typeof HY !== 'undefined' && G.hy ? `${HY.stat.fg} / ${HY.stat.fgp}` : '—');
         break;
       }
       case 'town': this.refreshTown(force); break;
@@ -612,7 +612,7 @@ const Debug = {
     ];
   },
   segs() {
-    if (typeof HY === 'undefined' || G.ds !== 2) return null;
+    if (typeof HY === 'undefined' || !G.hy) return null;
     const r = {}; for (const [k] of this.SEGS()) r[k] = HY.stat.seg[k] || 0;
     return r;
   },
@@ -666,7 +666,7 @@ const Debug = {
     const wn = { clear: Tr('Açık hava'), cloudy: Tr('Bulutlu'), rain: Tr('Yağmurlu'), storm: Tr('Fırtınalı'), fog: Tr('Sisli') }[G.weather.type] || G.weather.type;
     const head = [
       `${Tr('Ekran kartı')}: ${gpu}`,
-      `${Tr('Pencere')} ${innerWidth}×${innerHeight} · DPR ${window.devicePixelRatio || 1} · ${Tr('Ölçek')} ${G.scale}x · ${G.ds === 2 ? Tr('Melez') : Tr('Klasik')} ${G.canvas.width}×${G.canvas.height}`,
+      `${Tr('Pencere')} ${innerWidth}×${innerHeight} · DPR ${window.devicePixelRatio || 1} · ${Tr('Ölçek')} ${G.scale}x · ${G.hy ? (G.ds === 2 ? Tr('Melez') : Tr('Melez (yarım)')) : Tr('Klasik')} ${G.canvas.width}×${G.canvas.height}`,
       `${Tr('Sahne')}: ${t ? t.n : Tr('kasaba dışı')}${G.insideB ? ' / ' + G.insideB.name : ''} · ${G.timeStr()} · ${wn}`,
     ];
     const txt = [

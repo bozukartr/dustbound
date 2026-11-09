@@ -32,9 +32,9 @@ module.exports = {
       t.ok(await p.evaluate(() => G.hybridOn()), 'zorlanınca melez açılır');
     });
 
-    await t.step('ayarlarda Grafik satırı var; varsayılan Melez', async () => {
-      const r = await p.evaluate(() => { UI.openSettings(2); const has = /Grafik|Graphics/.test(document.querySelector('.panel.settings').textContent); UI.closeAll(); return { has, gfx: G.settings.gfx }; });
-      t.ok(r.has, 'Görüntü sekmesinde');
+    await t.step('ayarlarda Grafik sekmesinde Çizim Yöntemi satırı var; varsayılan Melez', async () => {
+      const r = await p.evaluate(() => { UI.openSettings(3); const has = !!document.querySelector('.st-row[data-k="gfx"]') && /Grafik|Graphics/.test(document.querySelector('.st-tabs .tab.on').textContent); UI.closeAll(); return { has, gfx: G.settings.gfx }; });
+      t.ok(r.has, 'Grafik sekmesinde');
       t.eq(r.gfx, 0, 'varsayılan Melez');
     });
 
@@ -119,9 +119,9 @@ module.exports = {
     await t.step('Ekran Kartı: tasarruflu kart seçilince WebGL bağlamı düşük güçle yeniden kurulur, melez sürer', async () => {
       const pow = () => p.evaluate(() => HY.canvas ? HY.canvas.getContext('webgl').getContextAttributes().powerPreference : null);
       t.eq(await pow(), 'high-performance', 'Otomatik: güçlü kart istenir');
-      await p.evaluate(() => UI.openSettings(2)); await t.sleep(700);
+      await p.evaluate(() => UI.openSettings(3)); await t.sleep(700);
       const r = await p.evaluate(() => ({ opts: [...document.querySelectorAll('.st-row[data-k="gpu"] .st-seg span')].map(n => n.textContent), active: UI.gpuDet && UI.gpuDet.active }));
-      t.eq(r.opts.length, 3, 'Görüntü sekmesinde üç seçenekli Ekran Kartı satırı', r);
+      t.eq(r.opts.length, 3, 'Grafik sekmesinde üç seçenekli Ekran Kartı satırı', r);
       t.ok(!!r.active, 'kullanılan kart algılandı', r);
       await p.evaluate(() => document.querySelector('.st-row[data-k="gpu"] [data-v="2"]').click()); await t.sleep(600);
       t.eq(await pow(), 'low-power', 'yeni bağlam tasarruflu kart için');
