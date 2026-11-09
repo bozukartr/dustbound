@@ -1,6 +1,7 @@
 'use strict';
 /* Kamera: binaya girince yumuşak yakınlaşma, çıkınca uzaklaşma; içeride kamera sabit (sahne titremez); yakınken fareyle
-   nişan; piksel kamerası oyuncuya kilitli, hızlanıp yavaşlarken sahne geri sekmez; sığmayan binada oyuncuyu bina içinde izler */
+   nişan; piksel kamerası oyuncuya kilitli, hızlanıp yavaşlarken sahne geri sekmez; oyuncu ya da binek durunca kamera aynı
+   karede durur (sonradan kaymaz); sığmayan binada oyuncuyu bina içinde izler */
 module.exports = {
   name: 'Kamera yakınlaşması',
   async run(t) {
@@ -157,6 +158,90 @@ module.exports = {
         return out;
       });
       for (const k in r) t.eq(r[k], 0, k + ': sahne geri sekmez');
+    });
+    await t.step('yaya durunca kamera oyuncuyla aynı karede durur, kuyruk bırakmaz; oyuncu ekranda yerinde kalır (klasik ve melez, 60 ve 144 Hz)', async () => {
+      const r = await p.evaluate(() => {
+        const P = G.player, C = G.cam, x0 = P.x, y0 = P.y, ds0 = G.ds, R0 = P.riding, out = {};
+        P.riding = null;
+        for (const ds of [1, 2]) {
+          G.ds = ds; const q = ds === 2 ? 2 : 1, Rn = (v) => Math.round(v * q) / q;
+          for (const fps of [60, 144]) {
+            for (const v0 of [58, 88]) {   // yürüyüş ve koşu; bırakınca oyuncu gibi yavaşlar (Player: üstel, 9/sn)
+              C.x = P.x = x0; C.y = P.y = y0;
+              let v = v0, lastP = -1, lastO = -1, prevP = null, prevO = null, scr = new Set();
+              for (let i = 0; i < fps * 5; i++) {
+                const dt = 1 / fps;
+                if (i >= fps * 2) { v *= Math.exp(-dt * 9); if (v < 1.5) v = 0; }
+                P.x += v * dt; G.updateCamera(dt);
+                const rp = Rn(P.x);
+                if (prevP !== null && rp !== prevP) lastP = i;
+                if (prevO !== null && C.ox !== prevO) lastO = i;
+                if (i > fps * 0.5) scr.add(rp - C.ox);   // ilk karelerde kamera, başta konduğu yerden oyuncuya oturur
+                prevP = rp; prevO = C.ox;
+              }
+              out[`${ds === 2 ? 'melez' : 'klasik'} ${fps} Hz ${v0}`] = { tail: lastO - lastP, scr: scr.size };
+            }
+          }
+        }
+        G.ds = ds0; P.riding = R0; C.x = P.x = x0; C.y = P.y = y0; G.updateCamera(1 / 60);
+        return out;
+      });
+      for (const k in r) {
+        t.ok(r[k].tail <= 0, k + ': oyuncu durduktan sonra sahne kaymaz', r[k]);
+        t.eq(r[k].scr, 1, k + ': oyuncu ekranda hep aynı pikselde');
+      }
+    });
+    await t.step('atlıyken: dörtnaldan durunca kamera atla birlikte durur; şahlanınca önden bakış sıçramadan döner (60 ve 144 Hz)', async () => {
+      const r = await p.evaluate(() => {
+        const P = G.player, C = G.cam, x0 = P.x, y0 = P.y, R0 = P.riding, out = {};
+        for (const fps of [60, 144]) {
+          const dt = 1 / fps, H = { spd: 0, ang: 0, back: false };
+          P.riding = H; C.x = P.x = x0; C.y = P.y = y0; G.updateCamera(dt);
+          // kalkış (hız 100'e kadar: dörtnal uzaklaşması devreye girmesin), seyir, frenle duruş
+          let lastP = -1, lastO = -1, prevO = null, lead = 0;
+          for (let i = 0; i < fps * 7; i++) {
+            const tt = i / fps;
+            if (tt < 2) H.spd = Math.min(100, H.spd + 80 * dt);
+            else if (tt >= 3.5) { H.spd = Math.max(0, H.spd - 200 * dt); if (H.spd < 2) H.spd = 0; }
+            P.x += H.spd * dt; G.updateCamera(dt);
+            if (tt > 3 && tt < 3.5) lead = C.x - P.x;
+            if (H.spd > 0) lastP = i;   // at bu karede hâlâ ilerliyor (önden bakış payı da hızla birlikte kapanır)
+            if (prevO !== null && C.ox !== prevO) lastO = i;
+            prevO = C.ox;
+          }
+          // şahlanma: hız birden sıfırlanır; önden bakış yumuşakça geri gelir
+          H.spd = 100; for (let i = 0; i < fps; i++) { P.x += H.spd * dt; G.updateCamera(dt); }
+          H.spd = 0; let maxStep = 0, settle = -1, prev = C.ox;
+          for (let i = 0; i < fps * 3; i++) { G.updateCamera(dt); const d = Math.abs(C.ox - prev); maxStep = Math.max(maxStep, d); if (d) settle = i; prev = C.ox; }
+          out[fps] = { tail: lastO - lastP, lead: +lead.toFixed(1), maxStep, settle: +(settle / fps).toFixed(2), rest: +(C.x - P.x).toFixed(2) };
+        }
+        P.riding = R0; C.x = P.x = x0; C.y = P.y = y0; G.updateCamera(1 / 60);
+        return out;
+      });
+      for (const fps of [60, 144]) {
+        const o = r[fps];
+        t.ok(o.tail <= 0, fps + ' Hz: at durduktan sonra sahne kaymaz', o);
+        t.near(o.lead, 17, 0.3, fps + ' Hz: seyirde kamera gidilen yöne önden bakar (15 px/sn üstü hızın 0,2 katı)');
+        t.ok(o.maxStep <= 3, fps + ' Hz: şahlanınca kamera sıçramaz', o);
+        t.ok(o.settle >= 0 && o.settle < 2 && o.rest === 0, fps + ' Hz: şahlanınca kamera iki saniyede ata oturur', o);
+      }
+    });
+    await t.step('gerçek tuşla: yürüyüp bırakınca sahne oyuncunun son adımında durur', async () => {
+      await p.evaluate(() => {
+        TH.goto(GB.door.x - 60, GB.door.y + 30); TH.clearNpcs(); G.player.ang = 0;
+        window.__cl = [];
+        if (!G.__camLog) { G.__camLog = true; const u = G.updateCamera; G.updateCamera = function (dt) { u.call(this, dt); if (window.__cl) window.__cl.push([this.player.x, this.cam.ox, Input.keys.has('KeyD') ? 1 : 0]); }; }
+      });
+      await t.sleep(600);
+      await p.evaluate(() => { window.__cl = []; });
+      await p.keyboard.down('KeyD'); await t.sleep(900); await p.keyboard.up('KeyD'); await t.sleep(1500);
+      const L = await p.evaluate(() => { const l = window.__cl; window.__cl = null; return l; });
+      const q = await p.evaluate(() => (G.ds === 2 ? 2 : 1)), Rn = (v) => Math.round(v * q) / q;
+      let lastP = -1, lastO = -1;
+      for (let i = 1; i < L.length; i++) { if (Rn(L[i][0]) !== Rn(L[i - 1][0])) lastP = i; if (L[i][1] !== L[i - 1][1]) lastO = i; }
+      const up = L.findIndex((e, i) => i > 0 && L[i - 1][2] && !e[2]);
+      t.ok(up > 0 && lastP > up, 'tuş bırakıldı, oyuncu yavaşlayarak durdu', { up, lastP, n: L.length });
+      t.ok(lastO <= lastP, 'oyuncu durduktan sonra sahne kaymaz', { lastP, lastO });
     });
     await t.step('bina görünen alana sığmıyorsa (büyük piksel ölçeği) kamera oyuncuyu bina içinde izler, oyuncu ekranda kalır', async () => {
       await p.setViewportSize({ width: 1920, height: 600 });
