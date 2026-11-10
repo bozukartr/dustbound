@@ -37,6 +37,7 @@ module.exports = {
       t.eq(r.rootBack, 'Kapat', 'ilk pencerenin düğmesi'); t.eq(r.back, 'Geri', 'üstüne açılan pencerenin düğmesi');
       t.ok(r.dx > 4 && r.dx < 20 && r.dy > 4 && r.dy < 20 && r.w >= 26, 'düğme panelin sağ üst köşesinin üstünde', r);
       t.eq(r.title, 'Kapat', 'ipucu');
+      await frames();   // yeni açılan pencere ilk iki karede girdiyi yok sayar (onu açan tuş tetiklemesin)
       await click(r.xy);
       const a = await p.evaluate(() => ({ ...ST(), xy: XY(':scope > .p-close') }));
       t.eq(a.depth, 1, '✕ yalnızca en üstteki pencereyi kapatır'); t.ok(/building/.test(a.cls), 'bina menüsüne dönülür', a.cls);
@@ -54,6 +55,7 @@ module.exports = {
         return { ok: TXT(m.el.querySelector('.p-foot .pf-btn[data-act="confirm"] > span:last-child')), btns: [...m.el.querySelectorAll('.p-foot .pf-btn')].map(b => b.dataset.act), key: !!m.el.querySelector('.p-foot .pf-btn[data-act="confirm"] .btn'), xy: XY('.p-foot .pf-btn[data-act="confirm"]'), m0: P.money, box: AMMO.pistol.box };
       });
       t.eq(r.ok, 'Satın Al', 'onay düğmesi seçili satırın eylemini yazar'); t.eq(r.btns, ['confirm', 'back'], 'alt düğmeler'); t.ok(r.key, 'düğmede tuş simgesi durur');
+      await frames();
       await click(r.xy);
       const a = await p.evaluate(() => ({ ammo: G.player.ammo.pistol, money: G.player.money, tab: XY('.p-foot .pf-hint [data-act="tabR"]'), head: XY('.p-tabs [data-act="tabL"]') }));
       t.eq(a.ammo, r.box, 'onay düğmesi seçili satırı satın alır'); t.ok(a.money < r.m0, 'para düşer', a);
@@ -103,14 +105,15 @@ module.exports = {
       t.eq((await st()).depth, 1, 'sağ tık masadan kaldırmaz');
       await click(r.deal);
       const a = await p.evaluate(() => ({ cards: UI.top().el.querySelectorAll('.bj-c .card').length, money: G.player.money, x: XY(':scope > .p-close') }));
-      t.ok(a.cards >= 4 && a.money < 5, 'onay tuşuna tıklayınca kâğıt dağıtılır', a);
+      // dağıtınca bahis düşer; ilk iki kâğıt 21 ise (blackjack) el hemen biter ve para artar: her iki durumda da para değişir
+      t.ok(a.cards >= 4 && a.money !== 5, 'onay tuşuna tıklayınca kâğıt dağıtılır', a);
       const stand = await p.evaluate(() => XY('.p-foot [data-act="alt"]'));   // ilk el 21 değilse
       if (stand) await click(stand);   // Dur: el biter, yeniden bahis aşaması
       const c = await p.evaluate(() => ({ bet: !UI.top().el.querySelector('.p-foot [data-act="alt"]'), money: G.player.money, table: XY('.bj-table') }));
       t.ok(c.bet, 'Dur tuşuna tıklayınca el biter', c);
       await click(c.table);
-      const d = await p.evaluate(() => ({ cards: UI.top().el.querySelectorAll('.bj-c .card').length, play: !!UI.top().el.querySelector('.p-foot [data-act="alt"]'), x: XY(':scope > .p-close') }));
-      t.ok(d.play && d.cards >= 4, 'bahis aşamasında masaya tıklamak da dağıtır', d);
+      const d = await p.evaluate(() => ({ cards: UI.top().el.querySelectorAll('.bj-c .card').length, money: G.player.money, x: XY(':scope > .p-close') }));
+      t.ok(d.cards >= 4 && d.money !== c.money, 'bahis aşamasında masaya tıklamak da dağıtır', { c, d });
       await click(d.x);
       t.eq((await st()).depth, 0, '✕ masadan kaldırır');
     });
