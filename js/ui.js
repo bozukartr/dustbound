@@ -3351,6 +3351,7 @@ const UI = {
         <div class="p-foot">${Tr`${Input.glyph('confirm')} Tekrar tekrar bas &nbsp; ${st.done ? Input.glyph('back') + Tr(' Kapat') : ''}`}</div>`;
     };
     const m = this.makeModal(el, { customInput: true, noClose: true });   // maç bitene dek kalkılmaz: ✕ sonuçla birlikte gelir
+    m.arm = st;
     m.update = (dt) => {
       const I = Input;
       if (m.born >= this.frame - 1) return;

@@ -15,14 +15,16 @@ module.exports = {
       window.ROW = (re) => [...UI.top().el.querySelectorAll('.p-item')].find(n => re.test(n.querySelector('.pi-l').textContent));
       window.TXT = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
     });
-    const frames = () => t.sleep(150);   // tıklama bir sonraki karede tuş basışı olarak işlenir
+    /* oyun döngüsünün en az n kare ilerlemesini bekle: tıklama bir sonraki karede tuş basışı olarak işlenir; makine
+       yüklüyken kareler yavaşlasa da sabit bir süre beklemek yerine karelerin gerçekten geçmesi beklenir */
+    const frames = (n = 3) => p.evaluate((n) => new Promise((res) => { const f0 = UI.frame, t0 = performance.now(); const chk = () => (UI.frame >= f0 + n || performance.now() - t0 > 8000 ? res() : requestAnimationFrame(chk)); chk(); }), n);
     const click = async (xy, o) => { await p.mouse.click(xy[0], xy[1], o); await frames(); };
     const st = () => p.evaluate(() => ST());
 
     /* ---------------- çıkış yolları ---------------- */
     await t.step('panelin köşesinde ✕ durur: tıklanınca bir düzey geri, son pencerede oyuna dönülür', async () => {
       const r = await p.evaluate(async () => {
-        const b = BT('general'); TH.inside(b); UI.openBuilding(b);
+        UI.closeAll(); const b = BT('general'); TH.inside(b); UI.openBuilding(b);
         const root = UI.top(), rootBack = TXT(root.el.querySelector('.p-foot .pf-back > span:last-child')), rootX = !!root.el.querySelector(':scope > .p-close');
         TH.clickItem(/Alışveriş/);
         const m = UI.top();
@@ -46,7 +48,7 @@ module.exports = {
     await t.step('alttaki tuş ipuçları düğmedir: onay seçili satırı çalıştırır, sekme tuşu sekme değiştirir, Kapat kapatır', async () => {
       await p.mouse.move(4, 4);
       const r = await p.evaluate(() => {
-        const P = G.player; P.money = 20; P.ammo.pistol = 0;
+        UI.closeAll(); const P = G.player; P.money = 20; P.ammo.pistol = 0;
         UI.openShop('general');
         const m = UI.top(); m.setFocus(ROW(new RegExp(AMMO.pistol.n)), true);
         return { ok: TXT(m.el.querySelector('.p-foot .pf-btn[data-act="confirm"] > span:last-child')), btns: [...m.el.querySelectorAll('.p-foot .pf-btn')].map(b => b.dataset.act), key: !!m.el.querySelector('.p-foot .pf-btn[data-act="confirm"] .btn'), xy: XY('.p-foot .pf-btn[data-act="confirm"]'), m0: P.money, box: AMMO.pistol.box };
@@ -64,12 +66,12 @@ module.exports = {
     });
 
     await t.step('sağ tık geri döner; basılı kalsa da pencere kapanınca nişana sızmaz', async () => {
-      await p.evaluate(() => { const b = BT('general'); TH.inside(b); UI.openBuilding(b); TH.clickItem(/Alışveriş/); });
+      await p.evaluate(() => { UI.closeAll(); const b = BT('general'); TH.inside(b); UI.openBuilding(b); TH.clickItem(/Alışveriş/); });
       await frames();
       await click([640, 360], { button: 'right' });
       const a = await st();
       t.eq(a.depth, 1, 'sağ tık bir düzey geri döner'); t.ok(/building/.test(a.cls), 'bina menüsü', a.cls);
-      await p.mouse.move(640, 300); await p.mouse.down({ button: 'right' }); await t.sleep(300);
+      await p.mouse.move(640, 300); await p.mouse.down({ button: 'right' }); await frames(5);
       const z = await p.evaluate(() => ({ ...ST(), aimKey: Input.binds.kb.aim, aim: Input.down('aim'), held: Input.mouse.b[2] }));
       await p.mouse.up({ button: 'right' });
       t.eq(z.depth, 0, 'son pencere de kapanır'); t.ok(z.aimKey.includes('Mouse2'), 'sağ tık nişan tuşu', z.aimKey); t.ok(!z.aim && !z.held, 'düğme basılı kalsa da nişan alınmaz', z);
@@ -77,7 +79,7 @@ module.exports = {
 
     await t.step('seçim yapmadan çıkılamayan pencerede ✕ ve Kapat yok, sağ tık çıkarmaz; duraklat menüsünde köşe düğmesi yok', async () => {
       const r = await p.evaluate(() => {
-        UI.menu({ title: 'Seç', cls: 'small', noClose: true, onBack: () => {}, items: [{ label: 'Bir', fn: () => UI.pop() }, { label: 'İki', fn: () => UI.pop() }] });
+        UI.closeAll(); UI.menu({ title: 'Seç', cls: 'small', noClose: true, onBack: () => {}, items: [{ label: 'Bir', fn: () => UI.pop() }, { label: 'İki', fn: () => UI.pop() }] });
         const m = UI.top();
         return { x: !!m.el.querySelector('.p-close'), back: !!m.el.querySelector('.pf-back'), ok: !!m.el.querySelector('.pf-btn[data-act="confirm"]') };
       });
@@ -127,7 +129,8 @@ module.exports = {
       t.ok(!w.x, 'maç sürerken ✕ yok');
       await frames(); await p.keyboard.press('Escape'); await frames();
       t.eq((await st()).depth, 1, 'maç sürerken Esc kaldırmaz');
-      await p.waitForFunction(() => UI.top() && !!UI.top().el.querySelector(':scope > .p-close'), null, { timeout: 15000 });   // rakip masaya yatırır
+      await p.evaluate(() => { const s = UI.top().arm; s.start = 0; s.pos = Math.max(s.pos, 0.93); });   // maçı hızlandır: rakip masaya yatırmak üzere
+      await p.waitForFunction(() => UI.top() && !!UI.top().el.querySelector(':scope > .p-close'), null, { timeout: 15000 });
       await click(await p.evaluate(() => XY(':scope > .p-close')));
       t.eq((await st()).depth, 0, 'maç bitince ✕ gelir ve kapatır');
     });
@@ -180,7 +183,11 @@ module.exports = {
     });
 
     await t.step('dükkân: satıra tıklamak satın alır; sayı, cüzdan ve ayrıntı güncellenir; sınırda ve parasızken nedeni yazar', async () => {
-      const xy = await p.evaluate(() => { const r = ROW(new RegExp('^' + ITEMS.bread.n + '$')).getBoundingClientRect(); return [r.left + 80, r.top + r.height / 2]; });
+      await p.mouse.move(4, 4);
+      const xy = await p.evaluate(() => {
+        UI.closeAll(); const P = G.player; P.money = 1; P.inv = {}; P.addItem('bread', 2, true); UI.openShop('general');
+        const r = ROW(new RegExp('^' + ITEMS.bread.n + '$')).getBoundingClientRect(); return [r.left + 80, r.top + r.height / 2];
+      });
       const m0 = await p.evaluate(() => G.player.money);
       await click(xy);
       const a = await p.evaluate(() => {
