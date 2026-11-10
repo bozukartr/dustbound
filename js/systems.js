@@ -922,7 +922,7 @@ const GameSystems = {
     const bt = this.infTown(), bwhy = this.bribeWhy(bt), bp = this.bribePrice(bt), deal = this.infLv(this.influence(bt)) >= 1 && !(cop && cop.bribeTried);
     UI.menu({
       title: Tr('Tutuklandın'), cls: 'small', sub: Tr`${sheriff ? sheriff.n + Tr(' şerifi') : Tr('Kanun')} seni bekliyor`,
-      onBack: () => {}, footer: () => Tr`${Input.glyph('confirm')} Seç`,
+      onBack: () => {}, noClose: true, footer: () => Tr`${Input.glyph('confirm')} Seç`,
       items: [
         { html: `<p>${Tr`Başındaki ödül: <b>${fmtMoney(fine)}</b>. Cezanı ödersen serbest kalırsın. Ödeyemezsen ya da ödemek istemezsen <b>${days} gün</b> hapis yatarsın.`}</p>` },
         { label: Tr`Cezayı Öde (${fmtMoney(fine)})`, disabled: P.money < fine, why: Tr('Yeterli paran yok.'), fn: () => {

@@ -516,8 +516,16 @@ Object.assign(UI, {
     const d = o.k === 'coat' ? ITEMS[o.id].d
       : o.k === 'bag' ? Tr`Yığılan eşyaların (yiyecek, ilaç, bitki, av ürünü, değerli ve koleksiyon eşyası) taşıma sınırı ×${SATCHEL[o.tier].mul}.`
         : Tr`Atının eyeri ${SADDLE[o.tier].cap} birim yük taşır (büyük leş 2, küçük leş ve post 1).`;
-    const need = Object.entries(s.need).map(([id, n]) => { const h = G.matHave(id); return `<div class="${h >= n ? 'ok' : 'no'}">${Icons.item(id, 'ic inl')} ${ITEMS[id].n} ${Math.min(h, n)}/${n}</div>`; }).join('');
-    return `<div class="ps-big">${ic}</div><div class="ps-t">${s.n}</div><div class="ps-d">${d}</div><div class="ps-e ps-need">${Tr('Gerekenler')}${need}</div><div class="ps-p">${Tr`Ücret: ${fmtMoney(s.fee)} · ${G.orderHours(s)} saatte hazır`}</div>`;
+    // ayrıntı paneli dükkânla aynı düzende (UI.shopSide): altta gereken postlar (elindeki / gereken), ücret ve süre
+    const need = Object.entries(s.need).map(([id, n]) => { const h = G.matHave(id); return [`${Icons.item(id, 'ic inl')} ${ITEMS[id].n}`, `${Math.min(h, n)} / ${n}`, h >= n ? 'ok' : 'no']; });
+    // verilmiş sipariş (ready alanı var): postlar ve ücret alınmıştır; yalnızca kalan süre yazar
+    const placed = o.ready !== undefined, poor = G.player.money < s.fee, why = placed ? '' : G.orderWhy(o);
+    return this.shopSide({
+      pic: ic, name: s.n, tag: o.k === 'coat' ? this.itemCat(ITEMS[o.id]) : o.k === 'bag' ? Tr('Heybe') : Tr('Eyer'), desc: d,
+      rows: placed ? [[Tr('Süre'), G.orderReady(o) ? Tr('Hazır') : Tr`${Math.max(1, Math.ceil((o.ready - G.clock) / 60))} sa`]]
+        : [...need, [Tr('Ücret'), fmtMoney(s.fee), poor ? 'no' : ''], [Tr('Süre'), Tr`${G.orderHours(s)} saat`]],
+      note: why || '', bad: !!why,
+    });
   },
   /* Bu binadaki siparişlerin: hazırsa teslim al */
   orderRows(b, items) {
@@ -526,14 +534,14 @@ Object.assign(UI, {
     items.push({ header: Tr('Siparişlerin') });
     for (const o of mine) {
       const s = G.orderSpec(o), rd = G.orderReady(o);
-      items.push({ icon: o.k === 'coat' ? Icons.item(o.id) : Icons.glyph(o.k === 'bag' ? 'satchel' : 'horseshoe', '#efe6d2'), label: rd ? Tr`Teslim Al: ${s.n}` : s.n, cls: rd ? 'pref' : '',
-        right: rd ? Tr('Hazır') : Tr`${Math.max(1, Math.ceil((o.ready - G.clock) / 60))} sa`, disabled: !rd, why: Tr('Henüz hazır değil.'), side: this.orderSide(o), fn: () => G.collectOrder(o) });
+      items.push({ icon: o.k === 'coat' ? Icons.item(o.id) : Icons.glyph(o.k === 'bag' ? 'satchel' : 'horseshoe', '#efe6d2'), label: rd ? Tr`Teslim Al: ${s.n}` : s.n, cls: rd ? 'pref' : '', ok: Tr('Teslim Al'),
+        right: this.shopRight(null, rd ? Tr('Hazır') : Tr`${Math.max(1, Math.ceil((o.ready - G.clock) / 60))} sa`), disabled: !rd, why: Tr('Henüz hazır değil.'), side: this.orderSide(o), fn: () => G.collectOrder(o) });
     }
   },
   /* Terzi: kendi postundan giysi ve heybe */
   openTailor(b) {
     this.menu({
-      title: Tr('Postundan Diktir'), cls: 'shop', wallet: true, side: (it) => it.side || '',
+      title: Tr('Postundan Diktir'), cls: 'shop trade', wallet: true, side: (it) => it.side || '', okLabel: (it) => (it && it.ok) || Tr('Seç'),
       sub: () => Tr('Postlar çantandan, omzundan ya da kapıdaki atının eyerinden alınır.'),
       build: () => {
         const it = [];
@@ -541,13 +549,13 @@ Object.assign(UI, {
         it.push({ header: Tr('Giysiler') });
         for (const R of TAILOR) {
           const o = { k: 'coat', id: R.id }, why = G.orderWhy(o);
-          it.push({ icon: Icons.item(R.id), label: ITEMS[R.id].n, right: `${fmtMoney(R.fee)} <small>${G.orderHours(R)} sa</small>`, disabled: !!why, why, side: this.orderSide(o), fn: () => G.placeOrder(o, b) });
+          it.push({ icon: Icons.item(R.id), label: ITEMS[R.id].n, ok: Tr('Sipariş Ver'), right: this.shopRight(Tr`${G.orderHours(R)} sa`, fmtMoney(R.fee), G.player.money < R.fee), disabled: !!why, why, side: this.orderSide(o), fn: () => G.placeOrder(o, b) });
         }
         it.push({ header: Tr('Heybe') });
         SATCHEL.forEach((S, tier) => {
           if (!tier) return;
           const o = { k: 'bag', tier }, why = G.orderWhy(o), done = G.gear.bag >= tier;
-          it.push({ icon: Icons.glyph('satchel', '#efe6d2'), label: S.n, right: done ? Tr('Sende') : `${fmtMoney(S.fee)} <small>${G.orderHours(S)} sa</small>`, disabled: !!why, why, side: this.orderSide(o), fn: () => G.placeOrder(o, b) });
+          it.push({ icon: Icons.glyph('satchel', '#efe6d2'), label: S.n, ok: Tr('Sipariş Ver'), right: done ? this.shopRight('✓', Tr('Sende')) : this.shopRight(Tr`${G.orderHours(S)} sa`, fmtMoney(S.fee), G.player.money < S.fee), disabled: !!why, why, side: this.orderSide(o), fn: () => G.placeOrder(o, b) });
         });
         return it;
       },
@@ -556,7 +564,7 @@ Object.assign(UI, {
   /* Ahırdaki saraç: eyerin taşıdığı yük */
   openSaddler(b) {
     this.menu({
-      title: Tr('Saraç'), cls: 'shop', wallet: true, side: (it) => it.side || '',
+      title: Tr('Saraç'), cls: 'shop trade', wallet: true, side: (it) => it.side || '', okLabel: (it) => (it && it.ok) || Tr('Seç'),
       sub: () => Tr`Eyerin şimdi ${G.horseCap()} birim taşıyor. Derileri çantandan, omzundan ya da kapıdaki atının eyerinden alır.`,
       build: () => {
         const it = [];
@@ -565,7 +573,7 @@ Object.assign(UI, {
         SADDLE.forEach((S, tier) => {
           if (!tier) return;
           const o = { k: 'saddle', tier }, why = G.orderWhy(o), done = G.gear.saddle >= tier;
-          it.push({ icon: Icons.glyph('horseshoe', '#efe6d2'), label: S.n, right: done ? Tr('Sende') : `${fmtMoney(S.fee)} <small>${G.orderHours(S)} sa</small>`, disabled: !!why, why, side: this.orderSide(o), fn: () => G.placeOrder(o, b) });
+          it.push({ icon: Icons.glyph('horseshoe', '#efe6d2'), label: S.n, ok: Tr('Sipariş Ver'), right: done ? this.shopRight('✓', Tr('Sende')) : this.shopRight(Tr`${G.orderHours(S)} sa`, fmtMoney(S.fee), G.player.money < S.fee), disabled: !!why, why, side: this.orderSide(o), fn: () => G.placeOrder(o, b) });
         });
         return it;
       },
