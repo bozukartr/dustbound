@@ -181,7 +181,7 @@ const Story = {
     if (UI.isModal()) { setTimeout(() => this.storyChoice(st), 400); return; }
     const opts = st.choice.call(this, S);
     UI.menu({
-      title: st.t.call(this, S), cls: 'small story-choice', sub: st.choiceSub ? st.choiceSub.call(this, S) : '', onBack: () => {},
+      title: st.t.call(this, S), cls: 'small story-choice', sub: st.choiceSub ? st.choiceSub.call(this, S) : '', onBack: () => {}, noClose: true,
       footer: () => Tr`${Input.glyph('confirm')} Seç`,
       items: (opts.some(o => o.d) ? [{ html: opts.map(o => `<p><b>${o.n}</b> — ${o.d}</p>`).join('') }] : []).concat(opts.map(o => ({ label: o.n, fn: () => { UI.closeAll(); S.choice = o.k; this.qDone(); } }))),
     });

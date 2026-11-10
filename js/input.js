@@ -41,6 +41,9 @@ const BINDS = {
   right:    { k: ['ArrowRight', 'KeyD'], p: PS.RIGHT, ax: [0, 1] },
 };
 
+/* Fareyle tıklanmayan menü tuşları (yön) */
+const MENU_NAV = { up: 1, down: 1, left: 1, right: 1 };
+
 const GLYPH_PS = {
   [PS.X]: ['✕', 'x'], [PS.O]: ['○', 'o'], [PS.SQ]: ['□', 'sq'], [PS.TRI]: ['△', 'tri'], [PS.L1]: ['L1', 'sh'], [PS.R1]: ['R1', 'sh'], [PS.L2]: ['L2', 'sh'], [PS.R2]: ['R2', 'sh'],
   [PS.SHARE]: ['SHARE', 'sh sm'], [PS.OPT]: ['OPTIONS', 'sh sm'], [PS.L3]: ['L3', 'sh'], [PS.R3]: ['R3', 'sh'], [PS.UP]: ['⯅', 'dp'], [PS.DOWN]: ['⯆', 'dp'], [PS.LEFT]: ['⯇', 'dp'], [PS.RIGHT]: ['⯈', 'dp'], [PS.TP]: ['▭', 'tp'],
@@ -98,8 +101,11 @@ const Input = {
       if (this.device !== 'kb') { this._mm = (this._mm || 0) + Math.abs(e.movementX) + Math.abs(e.movementY); if (this._mm > 60) { this.device = 'kb'; this._mm = 0; } }
     });
     window.addEventListener('mousedown', e => {
+      // tuş atama sırasında basılan fare düğmesi yalnız atamaya gider (sağ tık atanırken pencere "geri" görmesin).
+      // Ardından gelen tıklama olayı yutulur; yalnız sol düğme "click" üretir (sağ ve orta düğmede bayrak asılı kalıp
+      // oyuncunun bir sonraki sol tıklamasını yutmasın)
+      if (this.capture && this.capture.device === 'kb') { e.preventDefault(); this.finishCapture('Mouse' + e.button); if (e.button === 0) this.suppressClick = true; return; }
       this.justMouse[e.button] = true;
-      if (this.capture && this.capture.device === 'kb') { e.preventDefault(); this.finishCapture('Mouse' + e.button); this.suppressClick = true; return; }
       this.mouse.b[e.button] = true; this.mtapped[e.button] = true; this.device = 'kb'; if (typeof Audio_ !== 'undefined') Audio_.unlock();
     });
     window.addEventListener('click', e => { if (this.suppressClick) { this.suppressClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
@@ -269,12 +275,17 @@ const Input = {
     const isGame = this.binds && this.binds.kb[action] !== undefined;
     if (this.device === 'pad') {
       if (isGame) { if (this.binds.pad[action] !== null && this.binds.pad[action] !== undefined) return this.padGlyph(this.binds.pad[action]); }
-      else if (BINDS[action] && BINDS[action].p !== undefined) return this.padGlyph(BINDS[action].p);
+      else if (BINDS[action] && BINDS[action].p !== undefined) return this.actGlyph(action, this.padGlyph(BINDS[action].p));
     }
     if (isGame) return this.kbGlyph(this.binds.kb[action][0]);
     const b = BINDS[action];
-    return b && b.k ? this.kbGlyph(b.k[0]) : '';
+    return b && b.k ? this.actGlyph(action, this.kbGlyph(b.k[0])) : '';
   },
+  /* Menü tuşunun simgesi tıklanabilir: pencerelerde simgeye (ya da onu saran düğmeye) tıklamak o tuşa basmak demektir
+     (UI.push dinler, tapAction ile bir karelik basış üretir). Yön tuşları tıklanmaz. */
+  actGlyph(action, html) { return MENU_NAV[action] ? html : html.replace(/^<span /, `<span data-act="${action}" `); },
+  /* Menü tuşuna bir karelik sanal basış (fareyle tıklanan düğmeler): sonraki yoklamada pressed(action) doğru olur */
+  tapAction(action) { const b = BINDS[action]; if (!b || !b.k || MENU_NAV[action]) return false; this.tapped.add(b.k[0]); return true; },
   /* ---- Tuş atama ---- */
   setBinds(saved) {
     const kb = {}, pad = {};

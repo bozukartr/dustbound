@@ -383,8 +383,12 @@ body.modal-open #modals { background: radial-gradient(ellipse at 50% 45%, rgba(1
 .panel.small.bizmarket { width: min(660px, 96vw); }   /* dört sekme ve yan panel: satılık işletmeler, arsalar, rakipler, petrol */
 .panel.small.guardmenu { width: min(640px, 96vw); }   /* korumalar: ad, nitelik ve ücret tek satırda, yanda ayrıntı */
 .panel.shop, .panel.satchel { width: min(900px, 96vw); height: min(640px, 90vh); }
+/* trade: yeni dükkân düzeni (al/sat, at, terzi, saraç): sütunlu liste, dolu ayrıntı paneli */
+.panel.trade { width: min(980px, 96vw); height: min(660px, 90vh); }
 .panel.journal { width: min(980px, 96vw); height: min(700px, 92vh); }
-.panel.building { width: min(520px, 94vw); }
+.panel.building { width: min(600px, 94vw); }
+.panel.building .p-title { font-size: 27px; letter-spacing: 2.5px; }
+.panel.building .p-list { padding-bottom: 12px; }
 .panel.context { top: auto; bottom: 90px; transform: translateX(-50%); width: min(380px, 90vw); }
 .p-head { position: relative; padding: 20px 28px 16px; }
 /* başlık altı süs çizgisi: ortada pirinç baklava */
@@ -404,6 +408,16 @@ body.modal-open #modals { background: radial-gradient(ellipse at 50% 45%, rgba(1
 @keyframes wal-spent { 0% { color: #ff8a70; transform: scale(1.12); } 100% { color: #f0d890; transform: scale(1); } }
 @keyframes wal-gain { 0% { color: #a8f090; transform: scale(1.12); } 100% { color: #f0d890; transform: scale(1); } }
 .panel.small .p-head.has-wallet { padding-right: 160px; }
+/* Başlıkta birden çok kutu (bankada hesap ve cüzdan) */
+.p-purse { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); display: flex; gap: 10px; }
+.p-purse .p-wallet { position: static; transform: none; }
+.p-wallet.acct b { color: #e8dcc0; }
+/* Banka: yatırma ve çekme yan yana iki sütun */
+.panel.small.bank { width: min(620px, 94vw); }
+.panel.small.bank .p-head.has-purse { padding-right: 300px; }
+.panel.bank .p-list { display: grid; grid-template-columns: 1fr 1fr; align-content: start; padding-bottom: 12px; background: linear-gradient(var(--brass-faint), var(--brass-faint)) 50% 0 / 1px 100% no-repeat; }
+.panel.bank .p-list .p-quest { grid-column: 1 / -1; }
+.panel.bank .p-item { padding-right: 18px; }
 .panel.small .p-wallet b { font-size: 24px; }
 @media (max-width: 560px) { .p-head.has-wallet { padding-right: 24px; padding-top: 70px; } .p-wallet { top: 12px; transform: none; } }
 .p-tabs { display: flex; align-items: center; gap: 2px; margin-top: 6px; padding: 8px 18px 0; border-bottom: 1px solid var(--brass-faint); flex-wrap: wrap; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.22)); }
@@ -439,6 +453,25 @@ body.modal-open #modals { background: radial-gradient(ellipse at 50% 45%, rgba(1
 .p-html p { margin: 6px 0; }
 .p-empty { padding: 20px 24px; color: var(--dim); font-style: italic; }
 .p-foot { padding: 10px 22px 11px; border-top: 1px solid var(--brass-faint); font-size: 14px; color: #a0947f; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; background: linear-gradient(0deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.08)); }
+/* Fareyle çıkış: panelin sağ üst köşesine oturan kapat düğmesi (Geri tuşuyla aynı iş); alt bilgideki tuş ipuçları da
+   tıklanabilir düğmelerdir (solda eylemler, sağda Geri / Kapat). Pencerelerdeki her tuş simgesi tıklanabilir. */
+.p-close { position: absolute; right: -13px; top: -13px; z-index: 3; width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: linear-gradient(180deg, #2a2017, #140e09); border: 1px solid var(--brass); border-radius: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.9), 0 3px 8px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 236, 200, 0.12);
+  transition: background 0.12s, border-color 0.12s; }
+.p-close svg { width: 14px; height: 14px; fill: none; stroke: var(--brass-hi); stroke-width: 2; stroke-linecap: round; pointer-events: none; transition: stroke 0.12s; }
+.p-close:hover { background: linear-gradient(180deg, var(--oxblood-hi), var(--oxblood)); border-color: #f3d6a0; }
+.p-close:hover svg { stroke: #fff; }
+.p-close:active { transform: translateY(1px); }
+@media (max-width: 700px) { .p-close { right: 6px; top: 6px; } }
+.modal [data-act], #map-hint [data-act] { cursor: pointer; }
+.modal .btn[data-act]:hover, #map-hint .btn[data-act]:hover { filter: brightness(1.12); }
+.pf-btn { font: inherit; font-size: 14px; color: #cdbfa6; background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 3px 9px 3px 4px; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; }
+.pf-btn:hover { color: #fff3cf; border-color: rgba(201, 164, 92, 0.5); background: rgba(201, 164, 92, 0.12); }
+.pf-btn:active { transform: translateY(1px); }
+.pf-btn.pf-back { margin-left: auto; color: #e8dcc0; border-color: rgba(201, 164, 92, 0.38); background: rgba(0, 0, 0, 0.3); padding: 4px 12px 4px 6px; }
+.pf-btn.pf-back:hover { border-color: #e0b040; background: rgba(224, 176, 64, 0.18); color: #fff3cf; }
+.pf-hint { display: inline-flex; align-items: center; gap: 3px; padding: 3px 9px 3px 4px; }
+.pf-hint > span, .pf-btn > span:last-child { margin-left: 2px; }
 .ps-t { font-family: var(--sc); font-size: 22px; margin-bottom: 8px; color: #f8f0dc; letter-spacing: 1px; }
 .ps-d { font-size: 16px; line-height: 1.45; color: #d8cdb8; }
 .ps-e { margin-top: 12px; font-family: var(--type); font-size: 14px; color: #bfe0a0; line-height: 1.5; }
@@ -450,6 +483,52 @@ body.modal-open #modals { background: radial-gradient(ellipse at 50% 45%, rgba(1
 .ps-need .ok { color: #bfe0a0; }
 .ps-need .no { color: #ff9a8a; }
 .ps-p { margin-top: 12px; font-family: var(--type); font-size: 14px; color: var(--dim); }
+/* ---- Dükkân ekranı: sütunlu liste (ad, sende, fiyat) ve dolu ayrıntı paneli ---- */
+.p-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.p-cap { display: flex; align-items: center; gap: 12px; padding: 7px 112px 6px 27px; font-family: var(--sc); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #8f8370; border-bottom: 1px solid var(--brass-faint); background: rgba(0, 0, 0, 0.18); }
+.p-cap .sh-n { flex: 1; padding-left: 42px; }
+.p-cap .sh-own, .p-cap .sh-pr { font-family: var(--sc); font-size: 12px; color: #8f8370; }
+.sh-own, .sh-pr { display: inline-block; text-align: right; font-family: var(--type); font-size: 15px; }
+.sh-own { width: 52px; color: #b9ad97; }
+.sh-own.zero { color: #6f6557; }
+.sh-pr { width: 78px; color: #f0e2bc; }
+.sh-pr.no, .sd-row.no b { color: #ff8f7e; }
+.panel.trade .p-item { padding-right: 112px; }
+.panel.trade .p-item .pi-r { display: flex; align-items: center; gap: 12px; }
+.panel.trade .p-item.focus .sh-own { color: #f3e6c8; }
+.panel.trade .p-item.focus .sh-pr.no { color: #ffc2b6; }
+/* odaktaki satırın eylemi: satıra tıklamak (ya da onay tuşu) alır / satar */
+.panel.trade .p-item[data-ok].focus:not(.dis)::after { content: attr(data-ok); position: absolute; right: 12px; top: 50%; transform: translateY(-50%); padding: 3px 9px 4px; font-family: var(--sc); font-size: 13px; letter-spacing: 0.5px; white-space: nowrap;
+  color: #1a120c; background: linear-gradient(180deg, #f0d487, #b8903e); border: 1px solid #f6e3ab; border-radius: 3px; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }
+.panel.trade .p-item.sh-all { margin: 2px 0 4px; }
+.panel.trade .p-item.sh-all .pi-l { font-family: var(--sc); letter-spacing: 0.5px; color: #f0d890; }
+.panel.trade .p-item.sh-all.focus .pi-l { color: #fff; }
+.panel.trade .p-side { width: 39%; padding: 0; display: flex; }
+.sd { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.sd-top { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px 12px; }
+.sd-pic { position: relative; height: 112px; margin-bottom: 14px; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 42%, rgba(201, 164, 92, 0.16), rgba(0, 0, 0, 0.28) 72%); border: 1px solid var(--brass-faint); box-shadow: inset 0 0 26px rgba(0, 0, 0, 0.55); }
+.sd-pic::after { content: ''; position: absolute; inset: -1px; background: var(--corners); background-size: 10px 1px, 1px 10px, 10px 1px, 1px 10px, 10px 1px, 1px 10px, 10px 1px, 1px 10px; pointer-events: none; opacity: 0.75; }
+.sd-pic .ic { filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.75)); }
+.sd-pic .ic.g.big { width: 54px; height: 54px; }
+.sd .ps-t { margin-bottom: 3px; }
+.sd-tag { font-family: var(--sc); font-size: 12px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); margin-bottom: 9px; }
+.sd-stats { margin-top: 12px; }
+.sd-st { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; font-size: 15px; color: #d8cdb8; }
+.sd-st b { font-family: var(--type); font-weight: normal; font-size: 14px; color: #f0e2bc; }
+.sd-st .statbar { grid-column: 1 / -1; margin: 3px 0 9px; }
+.sd-box { margin: 0 14px 14px; padding: 9px 13px 10px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--brass-faint); box-shadow: inset 0 1px 0 rgba(255, 236, 200, 0.04); }
+.sd-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: 15px; color: #b9ad97; }
+.sd-row b { font-family: var(--type); font-weight: normal; font-size: 15px; color: #f0e2bc; text-align: right; }
+.sd-row.ok b { color: #bfe0a0; }
+.sd-row .ic.inl { margin-right: 4px; }
+.sd-row small { font-family: var(--type); font-size: 13px; color: var(--dim); margin-left: 3px; }
+.sd-row.sum { margin-top: 4px; padding-top: 7px; border-top: 1px solid var(--brass-faint); color: #e8dcc0; }
+.sd-row.sum b { font-size: 17px; color: #f0d890; }
+.sd-note { margin-top: 6px; padding-top: 7px; border-top: 1px solid var(--brass-faint); font-size: 14px; font-style: italic; color: #b9ad97; }
+.sd-note.bad { color: #ff9a8a; font-style: normal; }
+.sd-note:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+/* dar pencerede eylem etiketi gizlenir, adlara yer açılır */
+@media (max-width: 900px) { .panel.trade .p-item { padding-right: 24px; } .panel.trade .p-item[data-ok].focus:not(.dis)::after { display: none; } .p-cap { padding-right: 24px; } .panel.trade .p-side { width: 36%; } }
 /* inşa menüleri (yapı türü): fiyat aralığı tek satırda kalsın */
 .panel.buildpick { width: min(700px, 94vw); }
 .panel.buildpick .pi-r { white-space: nowrap; }
