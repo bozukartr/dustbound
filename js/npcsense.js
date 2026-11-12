@@ -116,6 +116,7 @@ const NpcSense = {
     }
   },
   senseSuspect(e) {
+    if (e.asleep || e.state === 'sit' || e.state === 'sleep') this.campWake(e);
     e.awState = 'suspect'; e.susT = 0; e.nav = null;
     e.say(pick([Tr('Kim var orada?'), Tr('Bir ses duydum...'), Tr('Hm?'), Tr('Orada biri mi var?')]), 1.8);
   },
@@ -137,6 +138,7 @@ const NpcSense = {
   /* Fark etti: çatışma. pt: bildiği yer (gördüyse tam, duyduysa ya da haber aldıysa sapmalı) */
   senseAlert(e, pt, how) {
     if (e.dead || e.bound) return;
+    if (e.asleep || e.state === 'sit' || e.state === 'sleep') this.campWake(e);   // uyanır, ayağa kalkar (js/npccamp.js)
     const first = e.awState !== 'alert';
     e.aw = 1; e.awState = 'alert'; e.alertT = this.t; e.awPend = null;
     if (pt) e.lkp = { x: pt.x, y: pt.y };
@@ -157,7 +159,7 @@ const NpcSense = {
       if (e.isLaw ? !(o.isLaw && !o.hostile && this.law.level > 0) : !(o.role === 'bandit' || o.role === 'target')) continue;
       const same = !!(e.camp && o.camp === e.camp);
       if (!same && dist2(o.x, o.y, e.x, e.y) > SENSE.CALL * SENSE.CALL) continue;
-      o.awPend = { t: this.t + rnd(0.4, 0.8), pt: pt && { x: pt.x, y: pt.y }, body };
+      o.awPend = { t: this.t + rnd(0.4, 0.8) + (o.asleep ? rnd(0.8, 1.6) : 0), pt: pt && { x: pt.x, y: pt.y }, body };   // uyuyan sersem kalkar
     }
   },
   /* Arkadaşının cesedini görmek: katili görmeden alarm; cesedin yeri bilinen tek yerdir, oradan aranır */

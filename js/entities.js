@@ -1334,14 +1334,15 @@ class NPC extends Ent {
     if (this.role === 'hunter') { G.hunterUpdate(this, dt, pd); return; }
     if (this.hostile && P.hp > 0) {
       // uzaktaki haydut boşta gezer; arkadaşından haber bekliyor ya da şüphelenmişse algısı sürer
-      if (this.role === 'bandit' && pd > 520 && !this.aggro && !this.awPend && this.awState !== 'suspect') { this.idleUpdate(dt, pd); return; }
+      if (this.role === 'bandit' && pd > 520 && !this.aggro && !this.awPend && this.awState !== 'suspect') { if (!G.campLife(this, dt)) this.idleUpdate(dt, pd); return; }
       if (this.role === 'bandit' || this.role === 'target') {
         // fark etme (js/npcsense.js): görünce, duyunca ya da vurulunca; uzaktan ya da duvarın ardından yerini bilmez
         if (!this.aggro) {
           if (this.hitAt !== undefined && G.t - this.hitAt < 0.6) G.senseAlert(this, G.senseGuess(this, P.x, P.y), 'hurt');
           else G.senseTick(this, dt);
         }
-        if (!this.aggro) { if (this.awState === 'suspect') G.suspectStep(this, dt); else this.idleUpdate(dt, pd); return; }
+        // sakin: kampında gece ateş başı, uyku ve nöbet (js/npccamp.js); gündüz çevrede dolaşır
+        if (!this.aggro) { if (this.awState === 'suspect') G.suspectStep(this, dt); else if (!G.campLife(this, dt)) this.idleUpdate(dt, pd); return; }
       }
       if (this.isLaw && G.canArrest()) { this.arrest(dt, pd); return; }
       this.fight(dt, pd);
