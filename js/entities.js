@@ -1521,6 +1521,9 @@ class NPC extends Ent {
       return;
     }
     const reloading = this.reloadT > 0;
+    // siper (js/npccombat.js): yaya NPC görürken (ya da siperdeyken yerini bilirken) bir engelin ardına geçer, yana çıkıp
+    // ateş eder. Koruma hedefinde ve atlıyken yok
+    if (!this.mounted && !this.foe && (this.sees || this.cov) && G.coverStep(this, dt, T, P, W)) return;
     if (!this.sees) {
       // görmüyor: son bilinen yere yol bularak gider (kapının önü, kayanın ya da uçurumun ardı); yüzü yürüdüğü yöne,
       // başı o yere döner. Varınca birkaç saniye gözetler, sonra çevresini arar, bulamazsa vazgeçer (js/npcsense.js).
@@ -1549,21 +1552,27 @@ class NPC extends Ent {
     if (this.stuck > 0.25) { this.strafe *= -1; this.stuck = 0; }
     this.ang = turnTo(this.ang, a, dt * 8);
     if (!this.mounted) { this.mv = 1; this.phase += dt * 10; }
-    if (!reloading && this.mag > 0 && this.cool <= 0 && pd < W.range * 0.85) {
-      // tetiği çekmeden önce bir kez daha bakar: hedef az önce duvarın ardına geçtiyse ateş etmez
-      if (!G.los(this.x, this.y, P.x, P.y)) { this.sees = false; this.seeT = 0.2; this.cool = 0.3; return; }
-      this.cool = W.rate * rnd(3, 5.5) + (this.isLaw ? 0 : 0.3);
-      this.mag--;
-      const acc = (this.isLaw ? 0.08 : 0.11) + (P.sprinting || (P.riding && P.riding.spd > 80) ? 0.07 : 0) + (P.crouch ? 0.03 : 0);
-      const n = W.pellets ? 4 : 1;
-      const dmg = this.weapon === 'shotgun' ? 7 : this.weapon === 'repeater' ? 13 : this.weapon === 'rifle' ? 22 : 11;
-      for (let i = 0; i < n; i++) G.fireRay(this.x + Math.cos(this.ang) * 7, this.y + Math.sin(this.ang) * 7, this.ang + rnd(-acc, acc), W.range, dmg * (G.difficulty === 'hard' ? 1.25 : 1), this, { npc: true, gd: pd + rnd(4, 50) });
-      G.parts.add('flash', this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, 0, 0, 0.06, 3.5);
-      Juice.muzzle(this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8);
-      if (pd < 500) FX.gunSmoke(this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, this.ang, W.kind === 'long');
-      Audio_.shot(Audio_.gunKind(this.weapon), 0.85, this.x, this.y);
-      if (chance(0.15)) this.say(pick(this.isLaw ? LINES.law : LINES.bandit), 2);
-    }
+    this.npcFire(P, W, true);
+  }
+  /* Atış (yanlayarak çatışma ve siper ortak): yüzü hedefe dönmüş, şarjörde mermi varken. Sapma açısı G.npcSpread
+     (js/npccombat.js): rol, mesafe, yürüme, nişan oturtma, hedefin hareketi, ışık, baskı */
+  npcFire(P, W, moving) {
+    const pd = dist(this.x, this.y, P.x, P.y);
+    if (this.reloadT > 0 || this.mag <= 0 || this.cool > 0 || pd >= W.range * 0.85) return false;
+    if (Math.abs(angDiff(this.ang, Math.atan2(P.y - this.y, P.x - this.x))) > 0.35) return false;
+    // tetiği çekmeden önce bir kez daha bakar: hedef az önce duvarın ardına geçtiyse ateş etmez
+    if (!G.los(this.x, this.y, P.x, P.y)) { this.sees = false; this.seeT = 0.2; this.cool = 0.3; return false; }
+    this.cool = W.rate * rnd(3, 5.5) + (this.isLaw ? 0 : 0.3);
+    this.mag--;
+    const acc = G.npcSpread(this, P, pd, moving), n = W.pellets ? 4 : 1;
+    const dmg = this.weapon === 'shotgun' ? 7 : this.weapon === 'repeater' ? 13 : this.weapon === 'rifle' ? 22 : 11;
+    for (let i = 0; i < n; i++) G.fireRay(this.x + Math.cos(this.ang) * 7, this.y + Math.sin(this.ang) * 7, this.ang + rnd(-acc, acc), W.range, dmg * (G.difficulty === 'hard' ? 1.25 : 1), this, { npc: true, gd: pd + rnd(4, 50) });
+    G.parts.add('flash', this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, 0, 0, 0.06, 3.5);
+    Juice.muzzle(this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8);
+    if (pd < 500) FX.gunSmoke(this.x + Math.cos(this.ang) * 8, this.y + Math.sin(this.ang) * 8, this.ang, W.kind === 'long');
+    Audio_.shot(Audio_.gunKind(this.weapon), 0.85, this.x, this.y);
+    if (chance(0.15)) this.say(pick(this.isLaw ? LINES.law : LINES.bandit), 2);
+    return true;
   }
   fistFight(dt, pd) {
     const P = G.player;
@@ -1599,7 +1608,7 @@ class NPC extends Ent {
       return;
     }
     Spr.human(ctx, this.x, this.y, this.ang, this.look, {
-      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held || (this.anim && this.anim.k === 'tie'),
+      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held || (this.anim && this.anim.k === 'tie') || (this.cov && this.cov.st === 'hide' && !this.dead),
       anim: this.anim && !this.dead ? this.anim.k : null, animT: this.anim ? this.anim.t : 0, gait: this.walkStyle || (this.gt && this.gt.style),
       hatK: this.anim && this.anim.k === 'tiphat' ? Math.sin(Math.min(1, this.anim.t / this.anim.dur) * Math.PI) : 0,
       aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing' || !!this.gAim, wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),

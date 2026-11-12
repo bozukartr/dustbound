@@ -1198,6 +1198,7 @@ const GameSystems = {
     }
     // ıskalayan mermi nişan noktasının biraz ötesinde yere saplanır (opts.gd): toz görünür yerde kalkar
     if (!hit && opts.gd && opts.gd < hd) hd = opts.gd;
+    if (owner === this.player) this.suppress(ox, oy, dx, dy, hd, hit);   // yakınından mermi geçen düşman titrer (js/npccombat.js)
     const ex = ox + dx * hd, ey = oy + dy * hd;
     this.parts.tracer(ox, oy, ex, ey);
     if (hit) {

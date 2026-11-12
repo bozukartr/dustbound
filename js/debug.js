@@ -765,6 +765,8 @@ const Debug = {
           }
           if (e.awPt && e.awState === 'suspect') { const qx = sx(e.awPt.x), qy = sy(e.awPt.y); c.strokeStyle = '#ffb02e'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(qx, qy - 6); c.lineTo(qx + 6, qy); c.lineTo(qx, qy + 6); c.lineTo(qx - 6, qy); c.closePath(); c.stroke(); }
         }
+        // siper (js/npccombat.js): siper noktası yeşil kare, yana çıkış (atış) noktası küçük halka
+        if (e.cov) { const C = e.cov; c.strokeStyle = 'rgba(105,219,124,0.95)'; c.lineWidth = 1.5; c.strokeRect(sx(C.x) - 4, sy(C.y) - 4, 8, 8); c.beginPath(); c.moveTo(sx(C.x), sy(C.y)); c.lineTo(sx(C.peek.x), sy(C.peek.y)); c.stroke(); c.beginPath(); c.arc(sx(C.peek.x), sy(C.peek.y), 3, 0, TAU); c.stroke(); }
         // arama noktaları: sıradaki parlak
         if (e.search) e.search.pts.forEach((q, i) => { c.strokeStyle = i === e.search.i ? 'rgba(116,192,252,1)' : 'rgba(116,192,252,0.5)'; c.lineWidth = 1.5; c.beginPath(); c.arc(sx(q.x), sy(q.y), 6, 0, TAU); c.stroke(); });
         const R = e.nav && e.nav.route;
@@ -786,7 +788,7 @@ const Debug = {
         }
         if (e.sees) { c.strokeStyle = 'rgba(255,90,90,0.5)'; c.lineWidth = 1; c.beginPath(); c.moveTo(sx(e.x), sy(e.y)); c.lineTo(sx(P.x), sy(P.y)); c.stroke(); }
         const st = !inFight ? (e.awState === 'suspect' ? 'suspect' : 'calm') + ((e.aw || 0) > 0.01 ? ' ' + e.aw.toFixed(2) : '')
-          : e.dry ? 'dry' : e.reloadT > 0 ? 'reload' : e.sees ? 'sees' : e.search ? `search ${e.search.i}/${e.search.pts.length} · ${Math.round(e.lostT || 0)}/${Math.round(e.search.dur)}s` : e.lkp ? 'seeks' : 'alert';
+          : e.dry ? 'dry' : e.reloadT > 0 ? 'reload' + (e.cov ? ' · cover' : '') : e.cov ? 'cover ' + e.cov.st : e.sees ? 'sees' : e.search ? `search ${e.search.i}/${e.search.pts.length} · ${Math.round(e.lostT || 0)}/${Math.round(e.search.dur)}s` : e.lkp ? 'seeks' : 'alert';
         this.tag(c, sx(e.x), sy(e.y) + 18, `${e.role}${e.mounted ? ' (rider)' : ''} · ${st}${inFight && e.mag !== undefined ? ' · ' + e.mag + '/' + e.spare : ''}${e.nav && e.nav.partial ? ' · unreachable' : ''}`, inFight ? '#ff8787' : '#74c0fc');
       }
     }

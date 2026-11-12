@@ -194,11 +194,12 @@ const NpcSense = {
   npcEyes(e, dt, T) {
     if ((e.seeT = (e.seeT || 0) - dt) <= 0) {
       e.seeT = 0.2;
-      const far = SENSE.SEEN * this.litK() * this.weatherK(), d2 = dist2(e.x, e.y, T.x, T.y);
+      const far = SENSE.SEEN * this.litK() * this.weatherK(), d2 = dist2(e.x, e.y, T.x, T.y), was = e.sees;
       // ilk bakış (çatışmaya doğrudan sokulan NPC) ve izleme: görüş hattı; kaybettikten sonra: bakış yönü de gerekir
       if (e.sees === undefined || e.sees) e.sees = d2 < far * far && this.los(e.x, e.y, T.x, T.y);
       else e.sees = this.senseSight(e, T.x, T.y, far, true) > 0.2;
       if (e.sees) {
+        if (!was) e.aimT0 = this.t;   // yeni gördü: nişanı 0,6 sn'de oturur (js/npccombat.js)
         e.lkp = { x: T.x, y: T.y };
         if (T === this.player) e.lkpDir = this.playerDir();
         e.search = null; e.watchT = 0; e.atLkp = false;
@@ -274,7 +275,7 @@ const NpcSense = {
   },
   /* Vazgeçti: haydut kampına döner ve bir süre tetikte kalır; kanun adamı aranma sürüyorsa son bildirilen yerin çevresini tarar */
   searchEnd(e) {
-    e.search = null; e.watchT = 0; e.atLkp = false; e.lookAt = null; e.nav = null;
+    e.search = null; e.watchT = 0; e.atLkp = false; e.lookAt = null; e.nav = null; e.cov = null;
     if (e.isLaw) {
       const L = this.law;
       e.lkp = L.level > 0 ? this.senseGuess(e, L.lastX, L.lastY, 0.5) : null;
@@ -288,7 +289,7 @@ const NpcSense = {
   /* Algıyı sıfırla: kanun adamı aranma bitince ya da düşmanlıktan vazgeçince */
   senseReset(e) {
     e.awState = null; e.aw = 0; e.awPt = null; e.awPend = null; e.lookAt = null; e.lkp = null; e.lkpDir = undefined;
-    e.search = null; e.sees = undefined; e.atLkp = false; e.watchT = 0; e.watchFor = undefined; e.seekFail = 0; e.lostT = 0;
+    e.search = null; e.sees = undefined; e.atLkp = false; e.watchT = 0; e.watchFor = undefined; e.seekFail = 0; e.lostT = 0; e.cov = null;
   },
   /* Tanık suçu görür mü: 120 px'ten yakında olan duyar ve görür; ötesinde bakış yönü gerekir (yakın silah sesi
      başı çevirir). Gece menzil kısalır. */
@@ -325,7 +326,7 @@ const AwareMarks = {
       if (dist2(e.x, e.y, P.x, P.y) > 420 * 420) continue;
       let k = null;
       if (e.awState === 'alert' || (e.isLaw ? e.hostile : e.aggro)) {
-        if (e.search || (e.lkp && !e.sees && e.lostT > 1.5)) k = { s: 'seek', v: 1 };
+        if (e.search || (e.lkp && !e.sees && e.lostT > 1.5 && !e.cov)) k = { s: 'seek', v: 1 };   // siperde saklanan aramıyor
         else if (G.t - (e.alertT || -9) < 2) k = { s: 'alert', v: 1 };
       } else if ((e.aw || 0) > 0.05) k = { s: 'sus', v: Math.min(1, e.aw / SENSE.SUSPECT * 0.6 + (e.aw >= SENSE.SUSPECT ? 0.4 : 0)) };
       if (k) want.set(e, k);
