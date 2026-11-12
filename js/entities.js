@@ -1202,6 +1202,7 @@ class NPC extends Ent {
     if (this.dead) return;
     if (this.quest === 'mentor' || this.quest === 'kin' || this.quest === 'ward') return;   // hikâyenin akıl hocası, yakını ve taşınan yaralısı: vurulamaz, suç da yazılmaz
     this.hp -= dmg;
+    if (how !== 'drown') this.hitAt = G.t;   // vuruldu: fark etmemişse atışın geldiği yöne alarm (js/npcsense.js)
     if (how !== 'drown') G.parts.burst('blood', this.x, this.y, 3 + Math.min(dmg, 200) / 12, 35, 0.6, 1.4);
     if (by === 'player' && this.guard) G.guardHit(this);   // kendi korumanı vurdun (js/guards.js)
     else if (by === 'player') {
@@ -1323,15 +1324,22 @@ class NPC extends Ent {
     this.t -= dt; this.cool -= dt;
     const P = G.player;
     const pd = dist(this.x, this.y, P.x, P.y);
-    if (this.isLaw && !this.hostile && G.law.level > 0 && G.suspect() && this.canSee(P.x, P.y, 260)) { this.hostile = true; this.say(pick(LINES.law)); }
-    if (this.isLaw && this.hostile && (G.law.level === 0 || !G.suspect()) && !this.personal) { if (G.law.level > 0 && pd < 300) this.say(pick([Tr('Nereye kayboldu bu maskeli?'), Tr('Onu gördün mü? Maskeli biri!'), Tr('İzini kaybettik!')]), 2); this.hostile = false; this.state = 'idle'; }
+    // aranırken kanun adamı seni ancak görür ya da duyarsa düşman olur: ışık, bakış yönü, duruş ve örtü (js/npcsense.js)
+    if (this.isLaw && !this.hostile) { if (G.law.level > 0 && G.suspect()) G.senseTick(this, dt); else if (this.awState || this.lkp) G.senseReset(this); }
+    if (this.isLaw && this.hostile && (G.law.level === 0 || !G.suspect()) && !this.personal) { if (G.law.level > 0 && pd < 300) this.say(pick([Tr('Nereye kayboldu bu maskeli?'), Tr('Onu gördün mü? Maskeli biri!'), Tr('İzini kaybettik!')]), 2); this.hostile = false; this.state = 'idle'; G.senseReset(this); }
+    if (this.isLaw && !this.hostile && this.awState === 'suspect') { G.suspectStep(this, dt); return; }
     if (this.state === 'report') { this.reportUpdate(dt, pd); return; }
     if (this.role === 'hunter') { G.hunterUpdate(this, dt, pd); return; }
     if (this.hostile && P.hp > 0) {
-      if (this.role === 'bandit' && pd > 520 && !this.aggro) { this.idleUpdate(dt, pd); return; }
+      // uzaktaki haydut boşta gezer; arkadaşından haber bekliyor ya da şüphelenmişse algısı sürer
+      if (this.role === 'bandit' && pd > 520 && !this.aggro && !this.awPend && this.awState !== 'suspect') { this.idleUpdate(dt, pd); return; }
       if (this.role === 'bandit' || this.role === 'target') {
-        if (!this.aggro && (pd < 240 || this.hp < this.maxHp)) { this.aggro = true; this.say(pick(LINES.bandit)); }
-        if (!this.aggro) { this.idleUpdate(dt, pd); return; }
+        // fark etme (js/npcsense.js): görünce, duyunca ya da vurulunca; uzaktan ya da duvarın ardından yerini bilmez
+        if (!this.aggro) {
+          if (this.hitAt !== undefined && G.t - this.hitAt < 0.6) G.senseAlert(this, G.senseGuess(this, P.x, P.y), 'hurt');
+          else G.senseTick(this, dt);
+        }
+        if (!this.aggro) { if (this.awState === 'suspect') G.suspectStep(this, dt); else this.idleUpdate(dt, pd); return; }
       }
       if (this.isLaw && G.canArrest()) { this.arrest(dt, pd); return; }
       this.fight(dt, pd);
@@ -1458,6 +1466,9 @@ class NPC extends Ent {
   /* Tutuklama: silah doğrultup yaklaşır, ateş etmez */
   arrest(dt, pd) {
     const P = G.player;
+    // gözler (js/npcsense.js): görmüyorsa son bilinen yere gider, gözetler, arar; şerif masasındaysa yerinden kalkmaz
+    G.npcEyes(this, dt, P);
+    if (!this.sees && !(this.work !== undefined && G.insideB && G.insideB.id === this.work)) { G.npcSeek(this, dt, this.mounted ? 110 : 60); return; }
     const a = Math.atan2(P.y - this.y, P.x - this.x);
     // ofisine giren oyuncuyu masasındaki şerif yerinden kalkmadan silah zoruyla tutar
     const post = this.work !== undefined && G.insideB && G.insideB.id === this.work && this.home && dist2(this.x, this.y, this.home.x, this.home.y) < 12 * 12;
@@ -1488,15 +1499,16 @@ class NPC extends Ent {
     const P = this.foe || G.player, W = WEAPONS[this.weapon] || WEAPONS.cattleman;
     if (this.foe) pd = dist(this.x, this.y, P.x, P.y);
     if (this.mag === undefined) this.ammoInit();
-    // görüş: oyuncunun yerini ancak onu görürken bilir; göremeyince son gördüğü yere yönelir ve orayı gözetler
-    // (bina içindeki oyuncuyu duvarın ardından görüp nişan almaz)
-    if ((this.seeT = (this.seeT || 0) - dt) <= 0) {
-      this.seeT = 0.2;
-      this.sees = pd < 900 && G.los(this.x, this.y, P.x, P.y);
-      if (this.sees || !this.lkp) this.lkp = { x: P.x, y: P.y };
-    }
-    this.lostT = this.sees ? 0 : (this.lostT || 0) + dt;
-    const tx = this.sees ? P.x : this.lkp.x, ty = this.sees ? P.y : this.lkp.y, td = dist(this.x, this.y, tx, ty);
+    // gözler (js/npcsense.js): oyuncuyu gördüğü sürece izler (görüş hattı yeter); kaybedince yeniden görmek için o yöne
+    // bakması gerekir, gece daha kısa mesafeden görür. Bina içindeki oyuncuyu duvarın ardından görüp nişan almaz.
+    // Koruma hedefinde (foe) görüş hattı yeter.
+    let T;
+    if (this.foe) {
+      if ((this.seeT = (this.seeT || 0) - dt) <= 0) { this.seeT = 0.2; this.sees = pd < 900 && G.los(this.x, this.y, P.x, P.y); if (this.sees || !this.lkp) this.lkp = { x: P.x, y: P.y }; }
+      this.lostT = this.sees ? 0 : (this.lostT || 0) + dt;
+      T = this.sees ? P : this.lkp;
+    } else T = G.npcEyes(this, dt, P);
+    const tx = T.x, ty = T.y, td = dist(this.x, this.y, tx, ty);
     const a = Math.atan2(ty - this.y, tx - this.x);
     // şarjör değiştirme: boşalınca (ya da hedefi göremezken yarıdan azsa) doldurur; yedeği bitince kaçar
     const clip = W.clip || 6;
@@ -1510,12 +1522,15 @@ class NPC extends Ent {
     }
     const reloading = this.reloadT > 0;
     if (!this.sees) {
-      // son görüldüğü yere yol bularak gider (kapının önü, kayanın ya da uçurumun ardı); yüzü yürüdüğü yöne, başı o yere
-      // döner (yüzü hedefe çevirmek rotayı bozar, kayaya doğru yürütürdü). Varınca orayı gözetler, ateş etmez
-      if (td > 36) {
-        if (G.navStep(this, tx, ty, dt, this.mounted ? 90 : 46, { near: 30, enter: !this.mounted }) === 'fail') { this.ang = turnTo(this.ang, a, dt * 4); this.walk(dt, this.mounted ? 90 : 40); }
-        this.lookAt = a;
-      } else { this.mv = 0; this.ang = turnTo(this.ang, a, dt * 4); this.lookAt = null; }
+      // görmüyor: son bilinen yere yol bularak gider (kapının önü, kayanın ya da uçurumun ardı); yüzü yürüdüğü yöne,
+      // başı o yere döner. Varınca birkaç saniye gözetler, sonra çevresini arar, bulamazsa vazgeçer (js/npcsense.js).
+      // Koruma hedefini aramaz: son gördüğü yerde bekler
+      if (this.foe) {
+        if (td > 36) { if (G.navStep(this, tx, ty, dt, this.mounted ? 90 : 46, { near: 30, enter: !this.mounted }) === 'fail') { this.ang = turnTo(this.ang, a, dt * 4); this.walk(dt, this.mounted ? 90 : 40); } this.lookAt = a; }
+        else { this.mv = 0; this.ang = turnTo(this.ang, a, dt * 4); this.lookAt = null; }
+        return;
+      }
+      G.npcSeek(this, dt, this.mounted ? 90 : 46);
       return;
     }
     this.ang = turnTo(this.ang, a, dt * 6);
@@ -1570,7 +1585,7 @@ class NPC extends Ent {
     if (this.hide) return;
     if (this.mounted && !this.dead) {
       Spr.horse(ctx, this.x, this.y, this.hAng === undefined ? this.ang : this.hAng, this.mounted, { phase: this.phase, mv: this.mv, saddle: true });
-      Spr.human(ctx, this.x, this.y, this.ang, this.look, { riding: true, aim: this.hostile && this.aggro !== false, wk: this.weapon ? WEAPONS[this.weapon].kind : null });
+      Spr.human(ctx, this.x, this.y, this.ang, this.look, { riding: true, aim: this.hostile && (this.isLaw || !!this.aggro), wk: this.weapon ? WEAPONS[this.weapon].kind : null });
       return;
     }
     if (this.state === 'hurt' && !this.dead) {

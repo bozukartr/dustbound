@@ -338,7 +338,7 @@ const Debug = {
         break;
       case 'layers':
         h += this.sec(Tr('Dünya katmanları'), this.tog('ovHit', Tr('Çarpışma çemberleri'), Tr('Varlık türüne göre renkli')) + this.tog('ovSolid', Tr('Engel karoları'), Tr('Duvar, kapı, iç duvar')) + this.tog('ovChunks', Tr('Chunk ve karo ızgarası')));
-        h += this.sec(Tr('Yapay zekâ'), this.tog('ovLabels', Tr('NPC etiketleri'), Tr('Ad, durum, plan, can')) + this.tog('ovRoutes', Tr('Sakin rotaları'), Tr('A* yolu ve hedef')) + this.tog('ovCombat', Tr('Çatışma ve yol bulma'), Tr('Rota, son görülen yer, görüş, mermi')) + this.tog('ovWagons', Tr('Araba rotaları'), Tr('Yol noktası ve çeki')) + this.tog('ovLaw', Tr('Kanun ve tanıklar'), Tr('Arama alanı, tanık hedefleri')));
+        h += this.sec(Tr('Yapay zekâ'), this.tog('ovLabels', Tr('NPC etiketleri'), Tr('Ad, durum, plan, can')) + this.tog('ovRoutes', Tr('Sakin rotaları'), Tr('A* yolu ve hedef')) + this.tog('ovCombat', Tr('Çatışma ve yol bulma'), Tr('Rota, son görülen yer, görüş konisi, şüphe, arama noktaları, mermi')) + this.tog('ovWagons', Tr('Araba rotaları'), Tr('Yol noktası ve çeki')) + this.tog('ovLaw', Tr('Kanun ve tanıklar'), Tr('Arama alanı, tanık hedefleri')));
         h += this.sec(Tr('Oyuncu'), this.tog('ovAim', Tr('Nişan ve etkileşim'), Tr('Nişan konisi, kilit, etkileşim hedefi')) + this.tog('hideHud', Tr('Arayüzü gizle'), Tr('Ekran görüntüsü için')));
         break;
       case 'town': {
@@ -746,8 +746,27 @@ const Debug = {
     // görmüyorsa oraya kesikli çizgi, görüyorsa oyuncuya ince çizgi; etiket: rol, durum, şarjör / yedek
     if (o.ovCombat) {
       for (const e of G.ents) {
-        if (e.kind !== 'npc' || e.dead || e.res || !vis(e.x, e.y, 500)) continue;
+        if (e.kind !== 'npc' || e.dead || (e.res && !e.isLaw) || !vis(e.x, e.y, 500)) continue;
         const fight = e.hostile || e.isLaw || !!e.guard || e.role === 'hunter';
+        // çatışmada mı: haydut fark edince (aggro), kanun adamı düşmanken
+        const inFight = e.isLaw ? e.hostile : e.role === 'bandit' || e.role === 'target' ? !!e.aggro : e.hostile;
+        // algı (js/npcsense.js): görüş konisi (önde tam, yanda zayıf), şüphe çubuğu, şüphelendiği yer
+        if (!inFight && G.senses(e) && (!e.isLaw || G.law.level > 0)) {
+          const Rv = (SENSE.RANGE[e.isLaw ? 'law' : e.role] || 250) * G.litK() * G.stanceK() * G.weatherK() * (e.alertUntil > G.t ? 1.25 : 1) * k;
+          const look = e.lookAt != null ? e.lookAt : e.ang, ex = sx(e.x), ey = sy(e.y);
+          const cone = (a0, a1, col) => { c.fillStyle = col; c.beginPath(); c.moveTo(ex, ey); c.arc(ex, ey, Rv, a0, a1); c.closePath(); c.fill(); };
+          cone(look - SENSE.FOV, look + SENSE.FOV, 'rgba(255,212,59,0.13)');
+          cone(look + SENSE.FOV, look + SENSE.SIDE, 'rgba(255,212,59,0.05)'); cone(look - SENSE.SIDE, look - SENSE.FOV, 'rgba(255,212,59,0.05)');
+          if ((e.aw || 0) > 0.01) {
+            const bx = ex - 12, by = ey - 30;
+            c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(bx, by, 24, 4);
+            c.fillStyle = e.aw >= SENSE.SUSPECT ? '#ffb02e' : '#ffe08a'; c.fillRect(bx, by, 24 * Math.min(1, e.aw), 4);
+            c.fillStyle = '#fff'; c.fillRect(bx + 24 * SENSE.SUSPECT, by - 1, 1, 6);
+          }
+          if (e.awPt && e.awState === 'suspect') { const qx = sx(e.awPt.x), qy = sy(e.awPt.y); c.strokeStyle = '#ffb02e'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(qx, qy - 6); c.lineTo(qx + 6, qy); c.lineTo(qx, qy + 6); c.lineTo(qx - 6, qy); c.closePath(); c.stroke(); }
+        }
+        // arama noktaları: sıradaki parlak
+        if (e.search) e.search.pts.forEach((q, i) => { c.strokeStyle = i === e.search.i ? 'rgba(116,192,252,1)' : 'rgba(116,192,252,0.5)'; c.lineWidth = 1.5; c.beginPath(); c.arc(sx(q.x), sy(q.y), 6, 0, TAU); c.stroke(); });
         const R = e.nav && e.nav.route;
         if (!fight && !R) continue;
         if (R) {
@@ -766,8 +785,9 @@ const Debug = {
           if (!e.sees) { c.lineWidth = 1; c.setLineDash([2, 4]); c.beginPath(); c.moveTo(sx(e.x), sy(e.y)); c.lineTo(lx, ly); c.stroke(); c.setLineDash([]); }
         }
         if (e.sees) { c.strokeStyle = 'rgba(255,90,90,0.5)'; c.lineWidth = 1; c.beginPath(); c.moveTo(sx(e.x), sy(e.y)); c.lineTo(sx(P.x), sy(P.y)); c.stroke(); }
-        const st = e.dry ? 'dry' : e.reloadT > 0 ? 'reload' : e.sees ? 'sees' : e.lkp ? 'seeks' : e.aggro === false ? 'calm' : 'alert';
-        this.tag(c, sx(e.x), sy(e.y) + 18, `${e.role}${e.mounted ? ' (rider)' : ''} · ${st}${e.mag !== undefined ? ' · ' + e.mag + '/' + e.spare : ''}${e.nav && e.nav.partial ? ' · unreachable' : ''}`, e.hostile ? '#ff8787' : '#74c0fc');
+        const st = !inFight ? (e.awState === 'suspect' ? 'suspect' : 'calm') + ((e.aw || 0) > 0.01 ? ' ' + e.aw.toFixed(2) : '')
+          : e.dry ? 'dry' : e.reloadT > 0 ? 'reload' : e.sees ? 'sees' : e.search ? `search ${e.search.i}/${e.search.pts.length} · ${Math.round(e.lostT || 0)}/${Math.round(e.search.dur)}s` : e.lkp ? 'seeks' : 'alert';
+        this.tag(c, sx(e.x), sy(e.y) + 18, `${e.role}${e.mounted ? ' (rider)' : ''} · ${st}${inFight && e.mag !== undefined ? ' · ' + e.mag + '/' + e.spare : ''}${e.nav && e.nav.partial ? ' · unreachable' : ''}`, inFight ? '#ff8787' : '#74c0fc');
       }
     }
     if (o.ovWagons) {

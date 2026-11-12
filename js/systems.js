@@ -513,7 +513,8 @@ const GameSystems = {
       if (e.kind !== 'npc' || e.dead || e.remove || e.hostile || e.role === 'bandit' || e.role === 'gang' || e.role === 'hunter' || e.role === 'spouse' || e.role === 'child' || e.guard || e.silenced) continue;
       if (e.state === 'hurt' || e.bound || this.floorHid(e)) continue;   // oyuncu otelin üst katındayken alt kattakiler bir şey görmez
       if (e.res && e !== victim && this.opOf(e.res) >= 50 && chance(0.5)) continue;   // oyuncuyu seven sakin bazen görmezden gelir
-      const see = e === victim ? dist2(e.x, e.y, x, y) < 60 * 60 : dist2(e.x, e.y, x, y) < 340 * 340 && this.los(e.x, e.y, x, y);
+      // tanık: kurban hep görür; ötekiler gece daha kısa mesafeden ve 120 px'in ötesinde ancak o yöne bakıyorsa (js/npcsense.js)
+      const see = e === victim ? dist2(e.x, e.y, x, y) < 60 * 60 : this.witnessSees(e, x, y);
       if (!see) continue;
       if (hush && !e.isLaw && e !== victim && chance(hush)) { if (chance(0.5)) e.say(pick(LINES.infSilent), 2); continue; }
       if (e.isLaw) instant = true;
@@ -769,7 +770,11 @@ const GameSystems = {
     this.arrestUpdate(dt);
     const lawmen = this.ents.filter(e => e.kind === 'npc' && e.isLaw && !e.dead && !e.bound);
     let seen = false;
-    if (this.suspect()) for (const e of lawmen) if (e.hostile && e.canSee(P.x, P.y, 280)) { seen = true; break; }
+    // görüldü: düşman kanun adamının kendi gözü (bakış yönü, ışık; js/npcsense.js); henüz hiç bakmamışsa görüş hattı
+    if (this.suspect()) {
+      const k = this.litK(), R = 450 * k;
+      for (const e of lawmen) if (e.hostile && (e.sees === undefined ? e.canSee(P.x, P.y, 280 * k) : e.sees && dist2(e.x, e.y, P.x, P.y) < R * R)) { seen = true; break; }
+    }
     if (seen) { L.lastX = P.x; L.lastY = P.y; L.unseen = 0; } else L.unseen += dt;
     L.radius = 360 + L.level * 110;
     const out = dist(P.x, P.y, L.lastX, L.lastY) > L.radius;
@@ -794,6 +799,8 @@ const GameSystems = {
           if (!pos) continue;
           const n = new NPC(pos[0], pos[1], 'law', { hostile: true, mounted: P.riding ? true : chance(0.3), weapon: L.level >= 3 ? 'repeater' : pick(['cattleman', 'repeater']) });
           n.personal = false;
+          // ekip son bildirilen yere gelir (oyuncunun şimdiki yerini bilmez), görünce izler (js/npcsense.js)
+          n.lkp = { x: L.lastX + rnd(-40, 40), y: L.lastY + rnd(-40, 40) }; n.sees = false; n.aw = 1; n.awState = 'alert'; n.alertT = -9;
           this.addEnt(n);
         }
       }
@@ -1104,9 +1111,13 @@ const GameSystems = {
   /* ================= SAVAŞ YARDIMCILARI ================= */
   /* Görüş hattı: çizginin geçtiği her karo sırayla denetlenir (DDA). Bina duvarları karonun kenarındaki ince
      bantlardır; çizginin bantla kesişip kesişmediği tam hesaplanır, böylece duvarın ardı hiçbir açıdan görünmez. */
-  los(x1, y1, x2, y2) {
+  los(x1, y1, x2, y2) { return this.losTrace(x1, y1, x2, y2, false) > 0; },
+  /* Görüş hattı izi: 0 kesik .. 1 açık. Duvar, kapalı kapı, kaya, harabe duvarı ve uçurum keser. Küçük nesneler (ağaç,
+     çalı): soft (NPC algısı, js/npcsense.js) her biri görüşü 0,55 ile çarpar, belirleyicidir (fark etme titremez);
+     değilse (çatışma, tanık) her biri %50 olasılıkla keser. */
+  losTrace(x1, y1, x2, y2, soft) {
     // oyuncu otelin üst katındayken üst kat ile dışarısı (ve alt kat) arasında görüş yok: kapıdan bakan onu görmez
-    if (this.upB && this.upAt(x1, y1) !== this.upAt(x2, y2)) return false;
+    if (this.upB && this.upAt(x1, y1) !== this.upAt(x2, y2)) return 0;
     const W = this.world;
     const dx = x2 - x1, dy = y2 - y1;
     let tx = Math.floor(x1 / 16), ty = Math.floor(y1 / 16);
@@ -1126,25 +1137,29 @@ const GameSystems = {
       return t0 < t1;
     };
     const first = tx, firstY = ty;
+    let v = 1;
     for (let guard = 0; guard < 4000; guard++) {
       if (tx >= 0 && ty >= 0 && tx < WW && ty < WH) {
         const idx = ty * WW + tx, sv = W.solid[idx];
         if (sv && !isWaterT(W.tile[idx])) {
-          if (sv === 3) { if (!W.doorOpen(idx)) return false; }
+          if (sv === 3) { if (!W.doorOpen(idx)) return 0; }
           else if (sv >= 16) {
             const X = tx * 16, Y = ty * 16;
-            if (((sv & 1) && hit(X, Y, X + 16, Y + 6)) || ((sv & 2) && hit(X, Y + 12, X + 16, Y + 16)) || ((sv & 4) && hit(X, Y, X + 5, Y + 16)) || ((sv & 8) && hit(X + 11, Y, X + 16, Y + 16))) return false;
+            if (((sv & 1) && hit(X, Y, X + 16, Y + 6)) || ((sv & 2) && hit(X, Y + 12, X + 16, Y + 16)) || ((sv & 4) && hit(X, Y, X + 5, Y + 16)) || ((sv & 8) && hit(X + 11, Y, X + 16, Y + 16))) return 0;
           } else if (!(tx === first && ty === firstY) && !(tx === ex && ty === ey)) {
-            // bütün karo: bina, kaya, harabe duvarı, uçurum; küçük nesneler (ağaç, çalı) bazen görüşü keser
+            // bütün karo: bina, kaya, harabe duvarı, uçurum; küçük nesneler (ağaç, çalı) görüşü azaltır ya da bazen keser
             const o = W.obj[idx];
-            if (!isFurnO(o) && ((W.flags[idx] & 8) || o === O.BOULDER || o === O.RUINWALL || isCliffT(W.tile[idx]) || (o && o < 20 && SOLID_O[o] && Math.random() < 0.5))) return false;
+            if (!isFurnO(o)) {
+              if ((W.flags[idx] & 8) || o === O.BOULDER || o === O.RUINWALL || isCliffT(W.tile[idx])) return 0;
+              if (o && o < 20 && SOLID_O[o]) { if (soft) { v *= 0.55; if (v < 0.1) return 0; } else if (Math.random() < 0.5) return 0; }
+            }
           }
         }
       }
       if (tx === ex && ty === ey) break;
       if (tmx < tmy) { tmx += tdx; tx += sx; } else { tmy += tdy; ty += sy; }
     }
-    return true;
+    return v;
   },
   fireRay(ox, oy, ang, range, dmg, owner, opts = {}) {
     const dx = Math.cos(ang), dy = Math.sin(ang);
@@ -1235,6 +1250,8 @@ const GameSystems = {
   },
   noise(x, y, r, type) {
     if (type === 'gun') this.townNote(x, y, 'gunfire');
+    this.lastNoise = { x, y, t: this.t, type };   // tanıklar: yakın silah sesi başı çevirir (js/npcsense.js)
+    const wanted = this.law.level > 0 && this.suspect();
     for (const e of this.ents) {
       if (e.dead) continue;
       const d2 = dist2(e.x, e.y, x, y);
@@ -1242,11 +1259,13 @@ const GameSystems = {
       if (e.kind === 'animal') {
         if (e.def.beh === 'hostile' && d2 < 200 * 200) { e.state = 'attack'; e.t = 15; }
         else if (e.def.beh !== 'hostile') { e.state = 'flee'; e.t = rnd(6, 10); e.fleeFrom({ x, y }); }
-      } else if (e.kind === 'npc' && !e.hostile && e.role !== 'bandit' && !e.guard && type === 'gun') {
+      } else if (wanted && e.kind === 'npc' && e.isLaw && !e.bound) this.senseNoise(e, x, y, r, type, d2);   // aranırken kanun adamı sesi araştırır
+      else if (e.kind === 'npc' && !e.hostile && e.role !== 'bandit' && !e.guard && type === 'gun') {
         if (e.talk) e.talk = null;
         if (e.state !== 'hurt' && e.state !== 'static' && e.state !== 'report' && !e.bound) { e.state = e.role === 'town' && chance(0.4) ? 'cower' : 'flee'; e.t = rnd(5, 10); if (chance(0.2)) e.say(pick(LINES.flee), 2); if (e.state === 'cower') setTimeout(() => { if (e.state === 'cower') e.state = 'idle'; }, 8000); }
       } else if (e.kind === 'horse' && e.owner !== 'player' && !e.rider && type === 'gun' && !e.hitch) { e.state = 'flee'; e.t = 5; e.ang = Math.atan2(e.y - y, e.x - x); }
-      else if (e.kind === 'npc' && e.role === 'bandit' && type === 'gun' && d2 < 500 * 500) e.aggro = true;
+      // haydut ve ödül hedefi: yakın silah sesi alarm, uzak ses şüphe; ses tam yeri vermez (js/npcsense.js)
+      else if (e.kind === 'npc' && (e.role === 'bandit' || e.role === 'target') && !e.bound) this.senseNoise(e, x, y, r, type, d2);
     }
     if (type === 'gun' && this.horse && !this.horse.dead && !this.horse.rider && this.horse.bondLv < 2 && Math.random() < 0.3) { this.horse.state = 'flee'; this.horse.t = 3; this.horse.ang = Math.random() * TAU; }
   },
@@ -1788,7 +1807,9 @@ const GameSystems = {
       setTimeout(() => v.say(Tr('Yardım edin! Soyuluyorum!')), 300);
     } else if (type === 'ambush') {
       const n = rndi(2, 4);
-      for (let k = 0; k < n; k++) { const p = this.findSpawnPos(x, y, 10, 90); if (p) { const b = new NPC(p[0], p[1], 'bandit', { hostile: true, home: { x, y, r: 50 } }); b.aggro = false; this.addEnt(b); } }
+      // pusu: yolu gözetlerler (yüzleri gelen oyuncuya dönük) ve tetiktedirler (js/npcsense.js); yine de gece ya da
+      // çömelerek yandan dolaşan fark edilmeden geçebilir
+      for (let k = 0; k < n; k++) { const p = this.findSpawnPos(x, y, 10, 90); if (p) { const b = new NPC(p[0], p[1], 'bandit', { hostile: true, home: { x, y, r: 50 } }); b.aggro = false; b.ang = Math.atan2(P.y - p[1], P.x - p[0]) + rnd(-0.6, 0.6); b.alertUntil = this.t + 600; this.addEnt(b); } }
     } else if (type === 'wagon') {
       const n = new NPC(x, y, 'stranger', { state: 'static', event: ev });
       n.eventType = 'wagon'; this.addEnt(n);

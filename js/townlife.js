@@ -267,6 +267,7 @@ const Bubbles = {
         y = hit.y - hit.h - 4;
       }
       placed.push({ x: b.x, y, w, h });
+      b.py = y;
       b.el.style.transform = `translate(${b.x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
     }
   },

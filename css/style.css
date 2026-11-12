@@ -1126,6 +1126,15 @@ body.dying #game { filter: var(--tone) grayscale(0.9) brightness(0.5) contrast(1
 
 /* Kasaba sakinlerinin konuşma baloncukları (dünyadaki konuma bağlı) */
 #bubbles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+/* Fark edilme göstergesi (js/npcsense.js): şüphe dolan amber "?", fark etti kırmızı "!", arıyor yanıp sönen "?" */
+#awaremarks { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.awm { position: fixed; left: 0; top: 0; --k: 0; pointer-events: none; }
+.awm i { display: block; font: normal 700 calc(21px * var(--hs, 1))/1 var(--serif); color: #f2b134; opacity: calc(0.35 + var(--k) * 0.65); transform: scale(calc(0.78 + var(--k) * 0.32));
+  text-shadow: 0 1px 0 #1a0f06, 1px 0 0 #1a0f06, -1px 0 0 #1a0f06, 0 -1px 0 #1a0f06, 0 0 4px rgba(0, 0, 0, 0.8); transition: opacity 0.15s, transform 0.15s; }
+.awm.alert i { color: #ff5340; opacity: 1; transform: scale(1.18); animation: awPop 0.35s ease-out; }
+.awm.seek i { opacity: 0.95; transform: scale(1); animation: awPulse 1.1s ease-in-out infinite; }
+@keyframes awPop { 0% { transform: scale(0.4); } 60% { transform: scale(1.45); } 100% { transform: scale(1.18); } }
+@keyframes awPulse { 50% { opacity: 0.45; } }
 .bubble { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); max-width: 220px; padding: 4px 9px 5px; background: rgba(246, 238, 220, 0.92); color: #2a1c10; font-family: var(--serif); font-size: 14px; line-height: 1.25; text-align: center; border-radius: 9px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45); white-space: normal; }
 .bubble::after { content: ''; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: rgba(246, 238, 220, 0.92); }
 .bubble.me { background: rgba(252, 232, 170, 0.95); box-shadow: 0 0 0 1px #b08840, 0 2px 6px rgba(0, 0, 0, 0.45); }

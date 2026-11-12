@@ -2025,7 +2025,7 @@ const UI = {
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0,
+    const DEF = { awareMarks: true, master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0,
       gfxPreset: 2, fpsCap: 0, bright: 2, ...GFX_PRESETS[2] };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
@@ -2055,6 +2055,7 @@ const UI = {
         ...(Platform.canFullscreen === false ? [] : [['fullscreen', Tr('Tam Ekran'), 'fs', Tr('Oyunu tam ekranda ya da pencerede çalıştırır. Tercih kaydedilir; tarayıcıda tam ekrandan çıkmak için Esc tuşunu basılı tut.')]]),
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
         ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
+        ['awareMarks', Tr('Fark Edilme Göstergesi'), 'bool', Tr('Haydutların ve aranırken kanun adamlarının başının üstünde, seni sezince dolan amber "?" ve fark edince kırmızı "!" işareti; seni ararken yeniden "?". Kapatınca yalnızca davranışlarından anlarsın.')],
         ['meters', Tr('Göstergeler'), 'opt', Tr('Gerektiğinde: radarın yayındaki halkalar (sağlık, dayanıklılık, odak ve ihtiyaçlar) doluyken söner; azalınca, değişince, çatışmada, nişan alırken ve genişletilmiş HUD\'da görünür. Her Zaman: hepsi hep ekranda.')],
       ] },
       { n: Tr('Grafik'), g: 'sun', rows: [
