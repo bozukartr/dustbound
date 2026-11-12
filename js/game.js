@@ -1419,6 +1419,7 @@ Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcNav));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcMind));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcSense));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcCombat));
+Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcMorale));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(NpcActs));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(WorldSave));
 Object.defineProperties(G, Object.getOwnPropertyDescriptors(BizSystems));

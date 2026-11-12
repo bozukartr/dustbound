@@ -497,7 +497,7 @@ class Player extends Ent {
      sağ analogu savurarak hedef değiştirme, hedef üzerinde sürtünme ---- */
   angTo(e) { return Math.atan2(e.y - this.y, e.x - this.x); }
   targetClass(e) {
-    if (e.kind === 'npc') { if (e.hostile && (e.aggro !== false || e.isLaw)) return 3; return e.role === 'bandit' || e.role === 'target' ? 3 : 0; }
+    if (e.kind === 'npc') { if (e.state === 'surrender') return 0; if (e.hostile && (e.aggro !== false || e.isLaw)) return 3; return e.role === 'bandit' || e.role === 'target' ? 3 : 0; }
     if (e.kind === 'animal') { if (e.def.owned) return 0; return e.state === 'attack' ? 2.5 : 1.5; }
     return -1;
   }
@@ -1201,6 +1201,7 @@ class NPC extends Ent {
   hurt(dmg, by, how) {
     if (this.dead) return;
     if (this.quest === 'mentor' || this.quest === 'kin' || this.quest === 'ward') return;   // hikâyenin akıl hocası, yakını ve taşınan yaralısı: vurulamaz, suç da yazılmaz
+    if (by === 'player' && this.state === 'surrender') G.shotSurrendered(this);   // teslim olanı vurmak onurdan götürür (js/npcmorale.js)
     this.hp -= dmg;
     if (how !== 'drown') this.hitAt = G.t;   // vuruldu: fark etmemişse atışın geldiği yöne alarm (js/npcsense.js)
     if (how !== 'drown') G.parts.burst('blood', this.x, this.y, 3 + Math.min(dmg, 200) / 12, 35, 0.6, 1.4);
@@ -1328,6 +1329,7 @@ class NPC extends Ent {
     if (this.isLaw && !this.hostile) { if (G.law.level > 0 && G.suspect()) G.senseTick(this, dt); else if (this.awState || this.lkp) G.senseReset(this); }
     if (this.isLaw && this.hostile && (G.law.level === 0 || !G.suspect()) && !this.personal) { if (G.law.level > 0 && pd < 300) this.say(pick([Tr('Nereye kayboldu bu maskeli?'), Tr('Onu gördün mü? Maskeli biri!'), Tr('İzini kaybettik!')]), 2); this.hostile = false; this.state = 'idle'; G.senseReset(this); }
     if (this.isLaw && !this.hostile && this.awState === 'suspect') { G.suspectStep(this, dt); return; }
+    if (this.state === 'surrender') { G.surrenderStep(this, dt, pd); return; }   // ellerini kaldırmış (js/npcmorale.js)
     if (this.state === 'report') { this.reportUpdate(dt, pd); return; }
     if (this.role === 'hunter') { G.hunterUpdate(this, dt, pd); return; }
     if (this.hostile && P.hp > 0) {
@@ -1508,6 +1510,8 @@ class NPC extends Ent {
       this.lostT = this.sees ? 0 : (this.lostT || 0) + dt;
       T = this.sees ? P : this.lkp;
     } else T = G.npcEyes(this, dt, P);
+    // moral (js/npcmorale.js): düşükse geri çekilir; kırılınca haydut kaçar ya da teslim olur, kanun adamı destek çağırır
+    if (!this.foe && G.moraleStep(this, dt, P)) return;
     const tx = T.x, ty = T.y, td = dist(this.x, this.y, tx, ty);
     const a = Math.atan2(ty - this.y, tx - this.x);
     // şarjör değiştirme: boşalınca (ya da hedefi göremezken yarıdan azsa) doldurur; yedeği bitince kaçar

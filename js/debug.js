@@ -789,7 +789,7 @@ const Debug = {
         if (e.sees) { c.strokeStyle = 'rgba(255,90,90,0.5)'; c.lineWidth = 1; c.beginPath(); c.moveTo(sx(e.x), sy(e.y)); c.lineTo(sx(P.x), sy(P.y)); c.stroke(); }
         const st = !inFight ? (e.awState === 'suspect' ? 'suspect' : 'calm') + ((e.aw || 0) > 0.01 ? ' ' + e.aw.toFixed(2) : '')
           : e.dry ? 'dry' : e.reloadT > 0 ? 'reload' + (e.cov ? ' · cover' : '') : e.cov ? 'cover ' + e.cov.st : e.sees ? 'sees' : e.search ? `search ${e.search.i}/${e.search.pts.length} · ${Math.round(e.lostT || 0)}/${Math.round(e.search.dur)}s` : e.lkp ? 'seeks' : 'alert';
-        this.tag(c, sx(e.x), sy(e.y) + 18, `${e.role}${e.mounted ? ' (rider)' : ''} · ${st}${inFight && e.mag !== undefined ? ' · ' + e.mag + '/' + e.spare : ''}${e.nav && e.nav.partial ? ' · unreachable' : ''}`, inFight ? '#ff8787' : '#74c0fc');
+        this.tag(c, sx(e.x), sy(e.y) + 18, `${e.role}${e.mounted ? ' (rider)' : ''} · ${st}${inFight && e.mag !== undefined ? ' · ' + e.mag + '/' + e.spare : ''}${e.mor !== undefined && inFight ? ' · mor ' + e.mor.toFixed(2) : ''}${e.flank ? ' · flank' : ''}${e.retreat ? ' · retreat' : ''}${e.fleeing ? ' · flee' : ''}${e.state === 'surrender' ? ' · surrender' : ''}${e.nav && e.nav.partial ? ' · unreachable' : ''}`, inFight ? '#ff8787' : '#74c0fc');
       }
     }
     if (o.ovWagons) {

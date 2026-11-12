@@ -321,7 +321,7 @@ const AwareMarks = {
     const on = G.settings.awareMarks !== false, P = G.player;
     const want = new Map();
     if (on && P) for (const e of G.ents) {
-      if (e.kind !== 'npc' || e.dead || e.remove || e.bound || G.floorHid(e)) continue;
+      if (e.kind !== 'npc' || e.dead || e.remove || e.bound || e.state === 'surrender' || G.floorHid(e)) continue;
       if (!(e.role === 'bandit' || e.role === 'target' || e.isLaw)) continue;
       if (dist2(e.x, e.y, P.x, P.y) > 420 * 420) continue;
       let k = null;

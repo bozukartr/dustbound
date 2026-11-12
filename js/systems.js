@@ -1266,7 +1266,7 @@ const GameSystems = {
         if (e.state !== 'hurt' && e.state !== 'static' && e.state !== 'report' && !e.bound) { e.state = e.role === 'town' && chance(0.4) ? 'cower' : 'flee'; e.t = rnd(5, 10); if (chance(0.2)) e.say(pick(LINES.flee), 2); if (e.state === 'cower') setTimeout(() => { if (e.state === 'cower') e.state = 'idle'; }, 8000); }
       } else if (e.kind === 'horse' && e.owner !== 'player' && !e.rider && type === 'gun' && !e.hitch) { e.state = 'flee'; e.t = 5; e.ang = Math.atan2(e.y - y, e.x - x); }
       // haydut ve ödül hedefi: yakın silah sesi alarm, uzak ses şüphe; ses tam yeri vermez (js/npcsense.js)
-      else if (e.kind === 'npc' && (e.role === 'bandit' || e.role === 'target') && !e.bound) this.senseNoise(e, x, y, r, type, d2);
+      else if (e.kind === 'npc' && (e.role === 'bandit' || e.role === 'target') && !e.bound && e.state !== 'surrender') this.senseNoise(e, x, y, r, type, d2);
     }
     if (type === 'gun' && this.horse && !this.horse.dead && !this.horse.rider && this.horse.bondLv < 2 && Math.random() < 0.3) { this.horse.state = 'flee'; this.horse.t = 3; this.horse.ang = Math.random() * TAU; }
   },
@@ -1509,11 +1509,11 @@ const GameSystems = {
     if (B && !B.done && !B.spawned && dist(P.x, P.y, bx, by) < 650) {
       B.spawned = true;
       const t = new NPC(bx, by, 'target', { hostile: true, name: B.name, hp: 170, weapon: 'repeater', home: { x: B.x, y: B.y, r: 40 }, money: rnd(3, 10) });
-      t.bountyId = B.id; t.keep = true; this.addEnt(t);
+      t.bountyId = B.id; t.keep = true; t.camp = 'b' + B.id; this.addEnt(t);
       // kayıttan dönüş: hedef önceden öldürülmüş ya da bağlanmışsa öyle belirir
       if (B.status === 'dead') { t.dead = true; t.hp = 0; t.state = 'dead'; t.deadT = 0; }
       else if (B.status === 'tied') { t.state = 'tied'; t.tieT = rnd(80, 140); t.hp = 60; }
-      if (!B.status) for (let k = 0; k < B.hench; k++) { const pos = this.findSpawnPos(B.x, B.y, 20, 60); if (pos) { const h = new NPC(pos[0], pos[1], 'bandit', { hostile: true, home: { x: B.x, y: B.y, r: 60 } }); h.keep = true; this.addEnt(h); } }
+      if (!B.status) for (let k = 0; k < B.hench; k++) { const pos = this.findSpawnPos(B.x, B.y, 20, 60); if (pos) { const h = new NPC(pos[0], pos[1], 'bandit', { hostile: true, home: { x: B.x, y: B.y, r: 60 } }); h.keep = true; h.camp = 'b' + B.id; this.addEnt(h); } }
     }
     // rastgele olaylar
     this.eventT -= 1;

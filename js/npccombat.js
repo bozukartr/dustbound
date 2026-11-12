@@ -33,8 +33,11 @@ const NpcCombat = {
      açıldığı (atış için) bir nokta. Puan: NPC'ye yakınlık, silahına uygun mesafe, arkadaşların siperinden uzaklık,
      tehdide doğru koşmanın cezası. Döner: { x, y, peek: {x, y}, t } ya da null */
   coverFind(e, tx, ty) {
-    const W = this.world, R = COVER.R;
-    const Wp = WEAPONS[e.weapon] || {}, pref = e.weapon === 'shotgun' ? 80 : Wp.kind === 'long' ? 200 : 140;
+    // yan dolaşan (js/npcmorale.js) daha geniş arar ve öbürlerinin durduğu yönden en az 60° açık siper seçer; geri çekilen
+    // tehditten uzak siper seçer
+    const flank = this.flankRole(e), gb = flank ? this.groupBearing(e, tx, ty) : undefined;
+    const W = this.world, R = flank ? 240 : COVER.R;
+    const Wp = WEAPONS[e.weapon] || {}, pref = (e.weapon === 'shotgun' ? 80 : Wp.kind === 'long' ? 200 : 140) + (e.retreat ? 160 : 0);
     const taken = [];
     for (const o of this.ents) if (o !== e && o.kind === 'npc' && o.cov && !o.dead) taken.push(o.cov);
     const dE0 = dist(e.x, e.y, tx, ty);
@@ -63,7 +66,8 @@ const NpcCombat = {
       }
       if (!peek) continue;
       const dE = dist(e.x, e.y, px, py);
-      let sc = dE + Math.abs(dT - pref) * 0.5 + Math.max(0, dE0 - dT - 40) * 0.8;
+      let sc = dE + Math.abs(dT - pref) * 0.5 + Math.max(0, dE0 - dT - 40) * (e.retreat ? 2 : 0.8);
+      if (gb !== undefined) { const da = Math.abs(angDiff(Math.atan2(py - ty, px - tx), gb)); if (da < 1.05) sc += (1.05 - da) * 260; }
       for (const c of taken) if (dist2(c.x, c.y, px, py) < 34 * 34) sc += 90;
       if (sc < bestS) { bestS = sc; best = { x: px, y: py, peek, t: this.t }; }
     }
@@ -78,11 +82,11 @@ const NpcCombat = {
     if ((e.covT = (e.covT || 0) - dt) <= 0 && (!C || C.st !== 'out')) {
       e.covT = rnd(0.45, 0.7);
       const exposed = !!C && C.st !== 'go' && this.losTrace(T.x, T.y, C.x, C.y, true) > 0.25;
-      if (!C || exposed || this.t - C.t > 8) {
+      if (!C || exposed || this.t - C.t > 8 || (e.retreat && !C.ret)) {
         const N = this.coverFind(e, T.x, T.y);
         if (N && (!C || exposed || dist2(N.x, N.y, C.x, C.y) > 24 * 24)) {
           if (!C && chance(0.25)) e.say(pick([Tr('Siper alın!'), Tr('Kayaların arkasına!'), Tr('Başını eğ!')]), 1.6);
-          N.st = 'go'; N.seenT = C ? C.seenT : this.t; e.cov = C = N; e.nav = null;
+          N.st = 'go'; N.seenT = C ? C.seenT : this.t; N.ret = !!e.retreat; e.cov = C = N; e.nav = null;
         }
         else if (C && !exposed) C.t = this.t;
         else if (!N) { e.cov = C = null; }

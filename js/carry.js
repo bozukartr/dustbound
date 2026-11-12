@@ -169,7 +169,7 @@ const CarrySystems = {
     const P = this.player;
     if (P.rope === e) P.rope = null;
     const outlaw = e.role === 'bandit' || e.role === 'target';
-    e.state = 'tied'; e.tieT = rnd(110, 170) + this.skill('survival') * 8; e.wrig = 0; e.aggro = false;
+    e.state = 'tied'; e.tieT = rnd(110, 170) + this.skill('survival') * 8; e.wrig = 0; e.aggro = false; e.anim = null;
     Audio_.play('rope', { x: e.x, y: e.y });
     e.say(pick([Tr('Bunu ödeyeceksin!'), Tr('Çöz beni!'), Tr('Hmmf!')]), 2);
     Audio_.tone(260, 0.1, 'triangle', 0.05);
@@ -323,6 +323,7 @@ const CarrySystems = {
       return true;
     }
     if (e.state === 'lassoed') { add(e.x, e.y, e.name, [{ n: Tr('Bağla'), hold: 1, fn: () => this.hogtie(e) }], 2); return true; }
+    if (e.state === 'surrender') { add(e.x, e.y, Tr`${e.name} (teslim oldu)`, [{ n: Tr('Bağla'), hold: 1, fn: () => this.hogtie(e) }], 2); return true; }
     if (e.state === 'downed') { add(e.x, e.y, Tr`${e.name} (yaralı)`, [{ n: Tr('Bağla'), hold: 1, fn: () => this.hogtie(e) }], 2, take); return true; }
     if (e.state === 'tied') {
       const acts = [take, { n: Tr('Serbest Bırak'), hold: 0.8, fn: () => this.untie(e) }];
