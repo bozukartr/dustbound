@@ -1635,6 +1635,7 @@ const GameSystems = {
     add(new Prop(c.x - 16, c.y + 12, 'log')); add(new Prop(c.x + 16, c.y - 12, 'log'));
     if (c.kind === 'trappers') add(new Prop(c.x - 40, c.y + 20, 'rack'));
     if (c.kind === 'prospectors') add(new Prop(c.x + 44, c.y - 20, 'sluice'));
+    W.pathVer++;   // çadırlar ve araba kasaba dışı yol bulmada engel (WildPath)
     // insanlar
     c.seats = []; for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + 0.3; c.seats.push({ x: c.x + Math.cos(a) * 17, y: c.y + Math.sin(a) * 12 }); }
     const n = 3 + R.int(0, 2);
@@ -1655,6 +1656,7 @@ const GameSystems = {
     for (const e of c.ents) if (!(e === this.horse)) e.remove = true;
     const W = this.world;
     W.dyn = W.dyn.filter(d => !c.dyn.includes(d));
+    W.pathVer++;
     c.ents = []; c.dyn = [];
   },
   /* Göçebe gündelik hayatı: gündüz iş, akşam ateş başı, gece uyku */

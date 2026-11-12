@@ -13,7 +13,7 @@ const Debug = {
   opt: {
     god: false, ammo: false, stamina: false, noclip: false, nolaw: false, speed: 1,
     timeScale: 1, freeze: false, clickTp: false,
-    ovHit: false, ovSolid: false, ovLabels: false, ovRoutes: false, ovWagons: false, ovAim: false, ovLaw: false, ovChunks: false, hideHud: false,
+    ovHit: false, ovSolid: false, ovLabels: false, ovRoutes: false, ovCombat: false, ovWagons: false, ovAim: false, ovLaw: false, ovChunks: false, hideHud: false,
   },
   perf: { frames: new Float32Array(180), fi: 0, upd: 0, ren: 0, ovl: 0, last: 0 },
   log: [],
@@ -338,7 +338,7 @@ const Debug = {
         break;
       case 'layers':
         h += this.sec(Tr('Dünya katmanları'), this.tog('ovHit', Tr('Çarpışma çemberleri'), Tr('Varlık türüne göre renkli')) + this.tog('ovSolid', Tr('Engel karoları'), Tr('Duvar, kapı, iç duvar')) + this.tog('ovChunks', Tr('Chunk ve karo ızgarası')));
-        h += this.sec(Tr('Yapay zekâ'), this.tog('ovLabels', Tr('NPC etiketleri'), Tr('Ad, durum, plan, can')) + this.tog('ovRoutes', Tr('Sakin rotaları'), Tr('A* yolu ve hedef')) + this.tog('ovWagons', Tr('Araba rotaları'), Tr('Yol noktası ve çeki')) + this.tog('ovLaw', Tr('Kanun ve tanıklar'), Tr('Arama alanı, tanık hedefleri')));
+        h += this.sec(Tr('Yapay zekâ'), this.tog('ovLabels', Tr('NPC etiketleri'), Tr('Ad, durum, plan, can')) + this.tog('ovRoutes', Tr('Sakin rotaları'), Tr('A* yolu ve hedef')) + this.tog('ovCombat', Tr('Çatışma ve yol bulma'), Tr('Rota, son görülen yer, görüş, mermi')) + this.tog('ovWagons', Tr('Araba rotaları'), Tr('Yol noktası ve çeki')) + this.tog('ovLaw', Tr('Kanun ve tanıklar'), Tr('Arama alanı, tanık hedefleri')));
         h += this.sec(Tr('Oyuncu'), this.tog('ovAim', Tr('Nişan ve etkileşim'), Tr('Nişan konisi, kilit, etkileşim hedefi')) + this.tog('hideHud', Tr('Arayüzü gizle'), Tr('Ekran görüntüsü için')));
         break;
       case 'town': {
@@ -686,7 +686,7 @@ const Debug = {
   },
 
   /* ---------------- dünya katmanları (tam çözünürlük) ---------------- */
-  anyOverlay() { const o = this.opt; return o.ovHit || o.ovSolid || o.ovLabels || o.ovRoutes || o.ovWagons || o.ovAim || o.ovLaw || o.ovChunks; },
+  anyOverlay() { const o = this.opt; return o.ovHit || o.ovSolid || o.ovLabels || o.ovRoutes || o.ovCombat || o.ovWagons || o.ovAim || o.ovLaw || o.ovChunks; },
   drawOverlay() {
     const cv = this.ov;
     if (!this.anyOverlay() || G.state !== 'play') { if (cv._on) { cv._on = false; cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); } return; }
@@ -740,6 +740,34 @@ const Debug = {
         for (let i = e.nav.ri || 0; i < R.length; i++) c.lineTo(sx(R[i][0]), sy(R[i][1]));
         c.stroke(); c.setLineDash([]);
         if (e.goal) { c.fillStyle = 'rgba(99,230,190,0.9)'; c.beginPath(); c.arc(sx(e.goal.x), sy(e.goal.y), 4, 0, TAU); c.fill(); }
+      }
+    }
+    // çatışmadaki NPC'ler (haydut, kanun, ödül avcısı, koruma): rota (ulaşılamayan hedefte turuncu), son görülen yer (✕),
+    // görmüyorsa oraya kesikli çizgi, görüyorsa oyuncuya ince çizgi; etiket: rol, durum, şarjör / yedek
+    if (o.ovCombat) {
+      for (const e of G.ents) {
+        if (e.kind !== 'npc' || e.dead || e.res || !vis(e.x, e.y, 500)) continue;
+        const fight = e.hostile || e.isLaw || !!e.guard || e.role === 'hunter';
+        const R = e.nav && e.nav.route;
+        if (!fight && !R) continue;
+        if (R) {
+          c.strokeStyle = e.nav.partial ? 'rgba(255,146,43,0.95)' : 'rgba(255,212,59,0.9)'; c.setLineDash([6, 4]); c.lineWidth = 1.5;
+          c.beginPath(); c.moveTo(sx(e.x), sy(e.y));
+          for (let i = e.nav.ri || 0; i < R.length; i++) c.lineTo(sx(R[i][0]), sy(R[i][1]));
+          c.stroke(); c.setLineDash([]);
+          c.fillStyle = c.strokeStyle;
+          for (let i = e.nav.ri || 0; i < R.length; i++) c.fillRect(sx(R[i][0]) - 2, sy(R[i][1]) - 2, 4, 4);
+        }
+        if (!fight) continue;
+        if (e.lkp) {
+          const lx = sx(e.lkp.x), ly = sy(e.lkp.y);
+          c.strokeStyle = 'rgba(255,90,90,0.95)'; c.lineWidth = 2;
+          c.beginPath(); c.moveTo(lx - 5, ly - 5); c.lineTo(lx + 5, ly + 5); c.moveTo(lx + 5, ly - 5); c.lineTo(lx - 5, ly + 5); c.stroke();
+          if (!e.sees) { c.lineWidth = 1; c.setLineDash([2, 4]); c.beginPath(); c.moveTo(sx(e.x), sy(e.y)); c.lineTo(lx, ly); c.stroke(); c.setLineDash([]); }
+        }
+        if (e.sees) { c.strokeStyle = 'rgba(255,90,90,0.5)'; c.lineWidth = 1; c.beginPath(); c.moveTo(sx(e.x), sy(e.y)); c.lineTo(sx(P.x), sy(P.y)); c.stroke(); }
+        const st = e.dry ? 'dry' : e.reloadT > 0 ? 'reload' : e.sees ? 'sees' : e.lkp ? 'seeks' : e.aggro === false ? 'calm' : 'alert';
+        this.tag(c, sx(e.x), sy(e.y) + 18, `${e.role}${e.mounted ? ' (rider)' : ''} · ${st}${e.mag !== undefined ? ' · ' + e.mag + '/' + e.spare : ''}${e.nav && e.nav.partial ? ' · unreachable' : ''}`, e.hostile ? '#ff8787' : '#74c0fc');
       }
     }
     if (o.ovWagons) {

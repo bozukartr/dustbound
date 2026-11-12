@@ -1459,13 +1459,15 @@ class NPC extends Ent {
   arrest(dt, pd) {
     const P = G.player;
     const a = Math.atan2(P.y - this.y, P.x - this.x);
-    this.ang = turnTo(this.ang, a, dt * 6);
     // ofisine giren oyuncuyu masasındaki şerif yerinden kalkmadan silah zoruyla tutar
     const post = this.work !== undefined && G.insideB && G.insideB.id === this.work && this.home && dist2(this.x, this.y, this.home.x, this.home.y) < 12 * 12;
-    if (pd > 30 && !post) {
-      if (!this.mounted && pd > 45 && G.world.townAt(this.x, this.y, 10)) { G.navStep(this, P.x, P.y, dt, pd > 80 ? 66 : 46, { ignore: P, near: 28, enter: true }); this.ang = turnTo(this.ang, a, dt * 3); }
-      else { this.walk(dt, this.mounted ? 110 : pd > 80 ? 66 : 46); if (this.stuck > 1) { this.ang += rnd(-1.5, 1.5); this.stuck = 0; } }
-    } else { this.mv = 0; }
+    if (pd > 45 && !post) {
+      // yol bularak yaklaşır: kasabada sokaklardan, dışarıda kayaların ve uçurumların etrafından. Yüzü yürüdüğü yöne
+      // (silahı da), başı sana döner; açık arazide rota zaten sana doğru düz bir çizgidir
+      const r = G.navStep(this, P.x, P.y, dt, this.mounted ? 110 : pd > 80 ? 66 : 46, { ignore: P, near: 28, enter: !this.mounted });
+      if (r === 'fail') { this.ang = turnTo(this.ang, a, dt * 6); this.walk(dt, this.mounted ? 110 : 46); if (this.stuck > 1) { this.ang += rnd(-1.5, 1.5); this.stuck = 0; } }
+      this.lookAt = a;
+    } else { this.mv = 0; this.ang = turnTo(this.ang, a, dt * 6); this.lookAt = null; }
     this.arrT = (this.arrT || 0) - dt;
     if (this.arrT <= 0 && pd < 220) { this.arrT = rnd(4, 7); this.say(pick(LINES.arrest), 2.5); }
   }
@@ -1507,17 +1509,17 @@ class NPC extends Ent {
       return;
     }
     const reloading = this.reloadT > 0;
-    this.ang = turnTo(this.ang, a, dt * 6);
     if (!this.sees) {
-      // son görüldüğü yere gider (kapının önü gibi); varınca orayı gözetler, ateş etmez
+      // son görüldüğü yere yol bularak gider (kapının önü, kayanın ya da uçurumun ardı); yüzü yürüdüğü yöne, başı o yere
+      // döner (yüzü hedefe çevirmek rotayı bozar, kayaya doğru yürütürdü). Varınca orayı gözetler, ateş etmez
       if (td > 36) {
-        if (this.mounted) this.walk(dt, 90, a);
-        else if (G.navStep(this, tx, ty, dt, 46, { near: 30, enter: true }) === 'fail') this.walk(dt, 40, a);
-      } else this.mv = 0;
-      this.ang = turnTo(this.ang, a, dt * 4);
+        if (G.navStep(this, tx, ty, dt, this.mounted ? 90 : 46, { near: 30, enter: !this.mounted }) === 'fail') { this.ang = turnTo(this.ang, a, dt * 4); this.walk(dt, this.mounted ? 90 : 40); }
+        this.lookAt = a;
+      } else { this.mv = 0; this.ang = turnTo(this.ang, a, dt * 4); this.lookAt = null; }
       return;
     }
-    this.nav = null;
+    this.ang = turnTo(this.ang, a, dt * 6);
+    this.nav = null; this.lookAt = null;
     const pref = this.weapon === 'shotgun' ? 60 : this.mounted ? 110 : 120;
     let mx = 0, my = 0;
     if (reloading) { mx = -Math.cos(a); my = -Math.sin(a); }   // doldururken geri çekilir

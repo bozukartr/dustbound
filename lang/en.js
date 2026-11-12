@@ -974,6 +974,8 @@ I18N.add('en', {
     "Sekme": "Tab",
     "@menü|Geri": "Back",
     "Kanunsuz": "Outlaw Work",
+    "Çatışma ve yol bulma": "Combat and pathfinding",
+    "Rota, son görülen yer, görüş, mermi": "Route, last known position, sight, ammo",
     "Eşya": "Item",
     "Bu silah sende var.": "You already own this weapon.",
     "Şarjör": "Clip",
