@@ -99,41 +99,51 @@ class Ent {
     this.dead = false; this.remove = false; this.phase = Math.random() * 6; this.mv = 0; this.kind = 'ent';
     this.id = Ent.nextId++;
   }
+  /* move için: gövde (x, y)'de durabilir mi. Kapanış yaratmamak için yöntem (her varlık her adımda çağırır).
+     inSolid: içinde kalınan katı; araba ise pen0'dan derine gidilmez. c, s: uzun gövdenin (at) yön kosinüs ve sinüsü */
+  moveOk(x, y, inSolid, pen0, c, s) {
+    const W = G.world, r = this.r;
+    if (W.blocked(x, y, r)) return false;
+    if (inSolid) { if (inSolid.kind === 'wagon' && inSolid.penAt(x, y, r) > pen0 + 1e-6) return false; }
+    else if (G.solidAt && G.solidAt(x, y, r, this)) return false;
+    if (this.noIndoor) {
+      if (W.indoorPx(x - r, y) || W.indoorPx(x + r, y) || W.indoorPx(x, y - r) || W.indoorPx(x, y + r)) return false;
+      if (this.len && (W.indoorPx(x + c * this.len, y + s * this.len) || W.indoorPx(x - c * this.len * 0.8, y - s * this.len * 0.8))) return false;
+    }
+    return true;
+  }
   move(dx, dy) {
-    const W = G.world;
     // noIndoor: bina içine giremez; uzun gövdeliler (at) için burun ve sağrı da denetlenir, baş kapıdan içeri uzanmasın
     const ba = this.mounted && this.hAng !== undefined ? this.hAng : this.ang;   // atlı NPC'de gövde atın baktığı yöndedir
     const c = this.len ? Math.cos(ba) : 0, s = this.len ? Math.sin(ba) : 0;
     // trenin vagonları ve arabalar katıdır; içinde kalmış biri (çarpışma anı, üstüne gelen araba) dışarı çıkabilir. Arabanın
     // içine düşen hayvan ya da at yalnız dışarı doğru gidebilir: daha derine (gövdenin altından karşıya) geçemez
     const inSolid = G.solidAt ? G.solidAt(this.x, this.y, this.r, this) : null;
-    const pen = inSolid && inSolid.kind === 'wagon' ? (x, y) => inSolid.penAt(x, y, this.r) : null;
-    const pen0 = pen ? pen(this.x, this.y) : 0;
-    const ok = (x, y) => !W.blocked(x, y, this.r) && (inSolid ? !pen || pen(x, y) <= pen0 + 1e-6 : !G.solidAt || !G.solidAt(x, y, this.r, this)) && !(this.noIndoor && (W.indoorPx(x - this.r, y) || W.indoorPx(x + this.r, y) || W.indoorPx(x, y - this.r) || W.indoorPx(x, y + this.r)
-      || (this.len && (W.indoorPx(x + c * this.len, y + s * this.len) || W.indoorPx(x - c * this.len * 0.8, y - s * this.len * 0.8)))));
-    if (ok(this.x + dx, this.y + dy)) { this.x += dx; this.y += dy; this._slide = 0; return true; }
+    const pen0 = inSolid && inSolid.kind === 'wagon' ? inSolid.penAt(this.x, this.y, this.r) : 0;
+    if (this.moveOk(this.x + dx, this.y + dy, inSolid, pen0, c, s)) { this.x += dx; this.y += dy; this._slide = 0; return true; }
     const len = Math.hypot(dx, dy);
     if (len < 1e-6) return false;
     // Engelin etrafından akıcı kay: yönü giderek artan açılarla saptır. Bir kez seçilen taraf
     // kısa süre korunur (_slide), böylece gövdelerin çevresinde titremeden dönülür.
     const a = Math.atan2(dy, dx);
     const px = -Math.sin(a), py = Math.cos(a), f = this.r + 6;
-    const l = ok(this.x + Math.cos(a) * f * 0.5 - px * f, this.y + Math.sin(a) * f * 0.5 - py * f);
-    const r = ok(this.x + Math.cos(a) * f * 0.5 + px * f, this.y + Math.sin(a) * f * 0.5 + py * f);
-    let side = this._slide || (l && !r ? -1 : r && !l ? 1 : (this.id & 1 ? 1 : -1));
+    const l = this.moveOk(this.x + Math.cos(a) * f * 0.5 - px * f, this.y + Math.sin(a) * f * 0.5 - py * f, inSolid, pen0, c, s);
+    const r = this.moveOk(this.x + Math.cos(a) * f * 0.5 + px * f, this.y + Math.sin(a) * f * 0.5 + py * f, inSolid, pen0, c, s);
+    const side = this._slide || (l && !r ? -1 : r && !l ? 1 : (this.id & 1 ? 1 : -1));
     // iki yan da kapalıysa düz bir duvar: dik itişte yana sürüklenme olmasın (en fazla 80°)
-    const offs = l || r ? [0.35, 0.7, 1.05, 1.4, 1.57] : [0.35, 0.7, 1.05, 1.4];
-    for (const off of offs) {
-      for (const s of [side, -side]) {
-        const k = Math.cos(off) * 0.25 + 0.75;           // sapınca hız hafifçe düşer
-        const nx = Math.cos(a + s * off) * len * k, ny = Math.sin(a + s * off) * len * k;
-        if (ok(this.x + nx, this.y + ny)) { this.x += nx; this.y += ny; this._slide = s; return true; }
+    const nOff = l || r ? 5 : 4;
+    for (let i = 0; i < nOff; i++) {
+      const off = MOVE_OFFS[i], k = Math.cos(off) * 0.25 + 0.75;           // sapınca hız hafifçe düşer
+      for (let q = 0; q < 2; q++) {
+        const sd = q ? -side : side;
+        const nx = Math.cos(a + sd * off) * len * k, ny = Math.sin(a + sd * off) * len * k;
+        if (this.moveOk(this.x + nx, this.y + ny, inSolid, pen0, c, s)) { this.x += nx; this.y += ny; this._slide = sd; return true; }
       }
     }
     // son çare: eksen boyunca kay (duvar kenarı)
     let moved = false;
-    if (ok(this.x + dx, this.y)) { this.x += dx; moved = true; }
-    else if (ok(this.x, this.y + dy)) { this.y += dy; moved = true; }
+    if (this.moveOk(this.x + dx, this.y, inSolid, pen0, c, s)) { this.x += dx; moved = true; }
+    else if (this.moveOk(this.x, this.y + dy, inSolid, pen0, c, s)) { this.y += dy; moved = true; }
     this._slide = 0;
     return moved;
   }
@@ -141,6 +151,7 @@ class Ent {
   dTo(e) { return dist(this.x, this.y, e.x, e.y); }
 }
 Ent.nextId = 1;
+const MOVE_OFFS = [0.35, 0.7, 1.05, 1.4, 1.57];   // engelin çevresinden kayarken denenen sapma açıları (Ent.move)
 
 /* ---------------- At ---------------- */
 class Horse extends Ent {
@@ -1659,6 +1670,17 @@ class Train {
   update(dt) {
     const L = this.line;
     const maxS = 95;
+    // Yakında mı: varlıklar yalnız oyuncunun çevresinde yaşar. Uzaktaki trenin önündeki arabaya, çarpacağı canlıya ve
+    // tehlike koridoruna (js/rails.js) bakılmaz; kare başına tren × vagon × bütün varlıklar döngüsü yalnız yakındaki
+    // tren için döner. Uzakta bırakılmış araba ya da at da treni "yakın" yapar (davranış değişmez).
+    const h0 = this.pos[0];
+    let near = !h0 || (Math.abs(h0[0] - G.player.x) < RAIL_NEAR && Math.abs(h0[1] - G.player.y) < RAIL_NEAR);
+    if (!near) {
+      const WN = G.wagonsNow, H = G.horse;
+      if (H && !H.dead && Math.abs(H.x - h0[0]) < RAIL_FAR_ENT && Math.abs(H.y - h0[1]) < RAIL_FAR_ENT) near = true;
+      else if (WN) for (let i = 0; i < WN.length; i++) if (Math.abs(WN[i].x - h0[0]) < RAIL_FAR_ENT && Math.abs(WN[i].y - h0[1]) < RAIL_FAR_ENT) { near = true; break; }
+    }
+    this.near = near;
     if (this.wait > 0) {
       this.wait -= dt; this.spd = 0;
       if (this.wait <= 0) {
@@ -1677,7 +1699,7 @@ class Train {
       const target = toStop < 160 ? Math.max(8, toStop * 0.6) : maxS;
       this.spd = lerp(this.spd, target, dt * 0.6);
       // rayda duran araba: düdük çalar, önünde duracak biçimde fren yapar; yol açılınca yeniden hızlanır
-      const ob = G.trainObstacle(this);
+      const ob = near ? G.trainObstacle(this) : null;
       if (ob) {
         this.spd = Math.min(this.spd, Math.sqrt(Math.max(0, 2 * 70 * (ob.d - 24))));
         this.blockT = (this.blockT || 0) + dt;
@@ -1709,13 +1731,20 @@ class Train {
       const P = G.player;
       if (Math.abs(x - P.x) < 700 && Math.abs(y - P.y) < 500) G.parts.add('smoke', x + Math.cos(a) * 9, y + Math.sin(a) * 9 - 6, rnd(-6, 6) - Math.cos(a) * this.spd * 0.3, -12 - Math.sin(a) * this.spd * 0.3, 2.2, 3, '60,58,56');
     }
-    // çarpışma
-    if (this.spd > 15) {
-      const P = G.player;
-      for (let i = 0; i < this.pos.length; i++) {
+    // çarpışma (yalnız yakındaki tren; önce trenin sınır kutusuna bakılır, vagon vagon yalnız kutunun içindeki için)
+    if (this.spd > 15 && near) {
+      const P = G.player, E = G.ents, np = this.pos.length;
+      let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
+      for (let i = 0; i < np; i++) { const q = this.pos[i]; if (q[0] < bx0) bx0 = q[0]; if (q[0] > bx1) bx1 = q[0]; if (q[1] < by0) by0 = q[1]; if (q[1] > by1) by1 = q[1]; }
+      bx0 -= 13; by0 -= 13; bx1 += 13; by1 += 13;
+      if (P.x > bx0 && P.x < bx1 && P.y > by0 && P.y < by1) for (let i = 0; i < np; i++) {
         const x = this.pos[i][0], y = this.pos[i][1];
         if (dist2(x, y, P.x, P.y) < 13 * 13) { P.hurt(60, 'train'); const a = Math.atan2(P.y - y, P.x - x); P.x += Math.cos(a) * 20; P.y += Math.sin(a) * 20; if (P.riding) { P.riding.x = P.x; P.riding.y = P.y; } }
-        for (let k = 0; k < G.ents.length; k++) { const e = G.ents[k]; if (!e.dead && dist2(x, y, e.x, e.y) < 12 * 12 && e.hurt) e.hurt(200, null); }
+      }
+      for (let k = 0; k < E.length; k++) {
+        const e = E[k];
+        if (e.dead || !e.hurt || e.x < bx0 || e.x > bx1 || e.y < by0 || e.y > by1) continue;
+        for (let i = 0; i < np && !e.dead; i++) if (dist2(this.pos[i][0], this.pos[i][1], e.x, e.y) < 12 * 12) e.hurt(200, null);
       }
     }
   }

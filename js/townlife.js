@@ -67,28 +67,57 @@ const RES_LINES = {
 
 /* ---------------- Yazar kasa: A* yol bulma (kasaba ızgarası) ---------------- */
 const TownPath = {
+  /* Kasabanın yürünebilirlik ızgarası. Kurulumu adım adımdır (gridJob): yaklaşılan kasabanınki önceden ve azar azar
+     hazırlanır (warmNear); hemen gerekirse yarım kalan iş burada bitirilir. Kurulurken t._grid = { job } tutulur:
+     dünya değişip ızgara geçersiz kılınınca (t._grid = null) yarım iş de atılmış olur. */
   grid(t) {
-    if (t._grid) return t._grid;
+    const g = t._grid;
+    if (g && !g.job) return g;
+    const job = g ? g.job : this.gridJob(t);
+    let r; do { r = job.next(); } while (!r.done);
+    return (t._grid = r.value);
+  },
+  *gridJob(t) {
     const W = G.world, x0 = t.x - 8, y0 = t.y - 8, w = t.w + 16, h = t.h + 16;
     const pass = new Uint8Array(w * h);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const px = (x0 + x) * TS + 8, py = (y0 + y) * TS + 8;
-      pass[y * w + x] = W.inb(x0 + x, y0 + y) && !W.blocked(px, py, 4.5) && !W.indoorPx(px, py) && !W.isWaterPx(px, py) ? 1 : 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const px = (x0 + x) * TS + 8, py = (y0 + y) * TS + 8;
+        pass[y * w + x] = W.inb(x0 + x, y0 + y) && !W.blocked(px, py, 4.5) && !W.indoorPx(px, py) && !W.isWaterPx(px, py) ? 1 : 0;
+      }
+      if ((y & 3) === 3) yield 0;
     }
     // planlı şehir: yaya kaldırımdan gider (taşıt yolunu karşıdan karşıya geçer, avlu ve bahçeden kestirmez),
     // araba taşıt yolundan gider (kaldırıma yalnız park yerinde çıkar)
     let cf = null, cc = null;
     if (t.plan === 'grid') {
       cf = new Uint8Array(w * h); cc = new Uint8Array(w * h);
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        if (!W.inb(x0 + x, y0 + y)) continue;
-        const tt = W.tile[(y0 + y) * WW + x0 + x], i = y * w + x;
-        cf[i] = tt === T.PAVE || tt === T.PLANK ? 0 : tt === T.COBBLE || tt === T.ASPHALT ? 4 : 2;
-        cc[i] = tt === T.COBBLE || tt === T.ASPHALT || tt === T.ROAD || tt === T.GRAVEL ? 0 : 8;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (!W.inb(x0 + x, y0 + y)) continue;
+          const tt = W.tile[(y0 + y) * WW + x0 + x], i = y * w + x;
+          cf[i] = tt === T.PAVE || tt === T.PLANK ? 0 : tt === T.COBBLE || tt === T.ASPHALT ? 4 : 2;
+          cc[i] = tt === T.COBBLE || tt === T.ASPHALT || tt === T.ROAD || tt === T.GRAVEL ? 0 : 8;
+        }
+        if ((y & 15) === 15) yield 0;
       }
     }
-    t._grid = { x0, y0, w, h, pass, cache: new Map(), cf, cc };
-    return t._grid;
+    return { x0, y0, w, h, pass, cache: new Map(), cf, cc };
+  },
+  /* Oyuncunun yaklaştığı kasabaların ızgarasını önceden kurar: kare başına en çok WARM ms. Büyük şehrin ızgarası tek
+     seferde 5-7 ms sürer; kasabaya girildiği karede (herkes aynı anda rota isterken) kurulunca kare atlatıyordu. */
+  WARM: 0.4,
+  warmNear(px, py) {
+    const TW = G.world.towns;
+    for (let i = 0; i < TW.length; i++) {
+      const t = TW[i];
+      let g = t._grid;
+      if ((g && !g.job) || Math.abs(t.cx - px) > 1800 || Math.abs(t.cy - py) > 1800) continue;
+      if (!g) g = t._grid = { job: this.gridJob(t) };
+      const t0 = performance.now();
+      do { const r = g.job.next(); if (r.done) { t._grid = r.value; break; } } while (performance.now() - t0 < this.WARM);
+      return;   // karede bir kasaba
+    }
   },
   near(g, x, y) {
     if (x >= 0 && y >= 0 && x < g.w && y < g.h && g.pass[y * g.w + x]) return [x, y];
@@ -377,49 +406,55 @@ class Wagon extends Ent {
     return true;
   }
   /* Çarpışma çemberleri: önde atlar, arkada gövde */
-  circles() { return [[this.x, this.y, 5.5], [this.bx, this.by, 7]]; }
+  circles() {   // her çağrıda aynı diziler yerinde güncellenir (çağıran hemen okur): kare başına çöp yok
+    const C = this._cc || (this._cc = [[0, 0, 5.5], [0, 0, 7]]);
+    C[0][0] = this.x; C[0][1] = this.y; C[1][0] = this.bx; C[1][1] = this.by;
+    return C;
+  }
   /* (x, y, r) arabaya ne kadar giriyor (> 0 içeride): iki çember ve aralarındaki oklar. Atlarla araba (otomobilde gövdenin
      ortası) arasındaki boşluk 4 px yarıçaplı bir kapsül sayılır: hayvan ya da at aradan geçemez (hayvan ve at çarpışması) */
   penAt(x, y, r) {
-    const C = this.circles();
-    let m = -Infinity;
-    for (const [cx, cy, cr] of C) m = Math.max(m, cr + r - Math.hypot(x - cx, y - cy));
-    const [ax, ay] = C[0], [bx, by] = C[1], vx = bx - ax, vy = by - ay, t = clamp(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1), 0, 1);
+    const ax = this.x, ay = this.y, bx = this.bx, by = this.by;
+    const m = Math.max(5.5 + r - Math.hypot(x - ax, y - ay), 7 + r - Math.hypot(x - bx, y - by));
+    const vx = bx - ax, vy = by - ay, t = clamp(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1), 0, 1);
     return Math.max(m, 4 + r - Math.hypot(x - ax - vx * t, y - ay - vy * t));
   }
   overlapWith(o) {
+    const A = this.circles(), B = o.circles();
     let m = 0;
-    for (const [x1, y1, r1] of this.circles()) for (const [x2, y2, r2] of o.circles()) { const v = r1 + r2 - Math.hypot(x1 - x2, y1 - y2); if (v > m) m = v; }
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { const v = A[i][2] + B[j][2] - Math.hypot(A[i][0] - B[j][0], A[i][1] - B[j][1]); if (v > m) m = v; }
     return m;
   }
   maxOverlap() {
+    const E = G.ents;
     let m = 0;
-    for (const o of G.ents) if (o !== this && o.kind === 'wagon' && !o.remove && Math.abs(o.x - this.x) < 60 && Math.abs(o.y - this.y) < 60) m = Math.max(m, this.overlapWith(o));
+    for (let i = 0; i < E.length; i++) { const o = E[i]; if (o !== this && o.kind === 'wagon' && !o.remove && Math.abs(o.x - this.x) < 60 && Math.abs(o.y - this.y) < 60) m = Math.max(m, this.overlapWith(o)); }
     return m;
   }
-  /* Önündeki en yakın engel (araba, at, insan, oyuncu): mesafe ve kendisi */
+  /* Önündeki en yakın engel (araba, at, insan, oyuncu): mesafe ve kendisi. Her araba her karede çağırır: kapanış ve sonuç
+     nesnesi yaratılmaz; sonuç arabanın kendi nesnesine (this._ah) yazılır, çağıran hemen okur. */
+  aheadChk(A, x, y, r, o, reach) {
+    if (A.outside && G.world.indoorPx(x, y)) return;   // dışarıdaki araba duvarın ardındakini (bina içindekini) engel saymaz
+    const dx = x - A.fx, dy = y - A.fy, fwd = dx * A.c + dy * A.s;
+    if (fwd < -4 || fwd > reach) return;
+    const lat = -dx * A.s + dy * A.c;
+    if (Math.abs(lat) > r + 6) return;
+    if (fwd < A.d) { A.d = fwd; A.o = o; }
+  }
   scanAhead() {
-    const c = Math.cos(this.ang), s = Math.sin(this.ang), fx = this.x + c * 5, fy = this.y + s * 5, P = G.player, W = G.world;
-    let near = null, nd = 99;
-    // dışarıdaki araba duvarın ardındakini (bina içindekini) engel saymaz
-    const outside = !W.indoorPx(this.x, this.y);
-    const chk = (x, y, r, o, reach) => {
-      if (outside && W.indoorPx(x, y)) return;
-      const dx = x - fx, dy = y - fy, fwd = dx * c + dy * s;
-      if (fwd < -4 || fwd > reach) return;
-      const lat = -dx * s + dy * c;
-      if (Math.abs(lat) > r + 6) return;
-      if (fwd < nd) { nd = fwd; near = o; }
-    };
-    for (const o of G.ents) {
+    const A = this._ah || (this._ah = { o: null, d: 99, c: 0, s: 0, fx: 0, fy: 0, outside: true }), P = G.player, E = G.ents;
+    A.c = Math.cos(this.ang); A.s = Math.sin(this.ang); A.fx = this.x + A.c * 5; A.fy = this.y + A.s * 5; A.o = null; A.d = 99;
+    A.outside = !G.world.indoorPx(this.x, this.y);
+    for (let i = 0; i < E.length; i++) {
+      const o = E[i];
       if (o === this || o.remove || o.hide || (o === this.ignoreO && this.ignoreT > 0) || Math.abs(o.x - this.x) > 70 || Math.abs(o.y - this.y) > 70) continue;
-      if (o.kind === 'wagon') { chk(o.x, o.y, 5.5, o, 46); chk(o.bx, o.by, 7, o, 46); }
-      else if (o.kind === 'horse' && !o.dead) chk(o.x, o.y, 5, o, 26);
-      else if (o.kind === 'npc' && !o.dead) chk(o.x, o.y, 3, o, 26);
-      else if (o.kind === 'animal' && !o.dead) chk(o.x, o.y, o.r || 3, o, 26);
+      if (o.kind === 'wagon') { this.aheadChk(A, o.x, o.y, 5.5, o, 46); this.aheadChk(A, o.bx, o.by, 7, o, 46); }
+      else if (o.kind === 'horse' && !o.dead) this.aheadChk(A, o.x, o.y, 5, o, 26);
+      else if (o.kind === 'npc' && !o.dead) this.aheadChk(A, o.x, o.y, 3, o, 26);
+      else if (o.kind === 'animal' && !o.dead) this.aheadChk(A, o.x, o.y, o.r || 3, o, 26);
     }
-    if (!P.riding || P.riding !== this) chk(P.x, P.y, P.riding ? 6 : 3, P, 26);
-    return { o: near, d: nd };
+    if (!P.riding || P.riding !== this) this.aheadChk(A, P.x, P.y, P.riding ? 6 : 3, P, 26);
+    return A;
   }
   /* Yoldaki yaya kenara çekilir (sürücü seslenir) */
   clearWay(o) {

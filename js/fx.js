@@ -426,19 +426,21 @@ const FX = {
     ctx.globalAlpha = 1;
   },
   /* Kıyı köpüğü: karaya komşu su karolarında kenara vuran ince dalgalar */
+  shoreLand(W, x, y) { const v = W.t(x, y); return !isWaterT(v) && v !== T.BRIDGE; },
+  /* Görünen her su karosu için her karede çağrılır: kapanış ve renk metni yaratılmaz (saydamlık globalAlpha ile) */
   foam(ctx, tx, ty, t) {
-    const W = G.world, tl = W.tile;
-    const land = (x, y) => { const v = W.t(x, y); return !isWaterT(v) && v !== T.BRIDGE; };
-    const n = land(tx, ty - 1), s = land(tx, ty + 1), w = land(tx - 1, ty), e = land(tx + 1, ty);
+    const W = G.world;
+    const n = this.shoreLand(W, tx, ty - 1), s = this.shoreLand(W, tx, ty + 1), w = this.shoreLand(W, tx - 1, ty), e = this.shoreLand(W, tx + 1, ty);
     if (!(n || s || w || e)) return;
     const X = tx * TS, Y = ty * TS, ph = hash2(tx, ty, 13) * TAU;
     const wave = Math.sin(t * 1.3 + ph), d = 1.6 + wave * 1.1, a = 0.2 + (wave * 0.5 + 0.5) * 0.18;
-    ctx.fillStyle = `rgba(236,244,248,${a})`;
+    ctx.globalAlpha = a; ctx.fillStyle = '#ecf4f8';
     const o1 = (hash2(tx, ty, 14) * 5) | 0, len = 5 + (hash2(tx, ty, 15) * 4 | 0);
     if (n) { ctx.fillRect(X + o1, Y + d, len, 1); ctx.fillRect(X + o1 + len + 2, Y + d + 1, 4, 1); }
     if (s) { ctx.fillRect(X + o1 + 1, Y + TS - 1 - d, len, 1); }
     if (w) { ctx.fillRect(X + d, Y + o1, 1, len); ctx.fillRect(X + d + 1, Y + o1 + len + 2, 1, 3); }
     if (e) { ctx.fillRect(X + TS - 1 - d, Y + o1 + 2, 1, len); }
+    ctx.globalAlpha = 1;
   },
   /* Rüzgârda salınan, yanından geçilince eğilen bitki */
   sway(ctx, o, x, y, h) {

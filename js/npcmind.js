@@ -308,6 +308,7 @@ const WildPath = {
   },
 };
 
+const AVOID = { steer: 0, slow: 1, wait: false };   // avoidSteer'in sonucu (her çağrıda aynı nesne)
 const NpcNav = {
   /* e'yi (x, y) hedefine yürüt. 'arrived' | 'moving' | 'fail' döner. */
   navStep(e, x, y, dt, sp, opt) {
@@ -370,21 +371,21 @@ const NpcNav = {
       const wa = gt.wa * (e.walkStyle === 'drunk' ? 3.2 : 1), wob = Math.sin(this.t * gt.wf + gt.seed) * wa + Math.sin(this.t * gt.wf * 2.7 + gt.seed * 3) * wa * 0.35;
       if (!this.world.blocked(e.x + Math.cos(a + wob * 2) * 9, e.y + Math.sin(a + wob * 2) * 9, e.r)) a += wob;
     }
-    const av = this.avoidSteer(e, a, opt && opt.ignore);
-    a += av.steer;
+    const av = this.avoidSteer(e, a, opt && opt.ignore), avSteer = av.steer, avSlow = av.slow, avWait = av.wait;   // ortak nesne: hemen kopyala
+    a += avSteer;
     // dönüş hızı sınırlı: köşeler kavisle alınır; ters yöne dönerken olduğu yerde yavaşlar
     const turn = Math.abs(angDiff(e.ang, a));
-    e.ang = turnTo(e.ang, a, dt * (Math.abs(av.steer) > 0.3 ? 8 : 4.6));
-    if (av.wait) { e.mv = 0; N.waitT = (N.waitT || 0) + dt; if (N.waitT < 1.6) return 'moving'; }
+    e.ang = turnTo(e.ang, a, dt * (Math.abs(avSteer) > 0.3 ? 8 : 4.6));
+    if (avWait) { e.mv = 0; N.waitT = (N.waitT || 0) + dt; if (N.waitT < 1.6) return 'moving'; }
     else N.waitT = 0;
     // kişisel hız, zamanla hafif değişen tempo, kalkışta hızlanma, varışta yavaşlama
     N.acc = Math.min(1, (N.acc || 0.25) + dt * 2.2);
     let k = gt.k * (1 + 0.09 * Math.sin(this.t * 0.37 + gt.seed)) * N.acc * (turn > 1.5 ? 0.35 : turn > 0.8 ? 0.7 : 1);
     if (last && d < 22) k *= 0.45 + 0.55 * d / 22;
     const ox = e.x, oy = e.y;
-    e.walk(dt, sp * av.slow * k);
+    e.walk(dt, sp * avSlow * k);
     // duvara sürtünerek yavaş kayma da takılmadır (ilerliyor görünse bile)
-    const want = sp * av.slow * k * e.slow() * dt;
+    const want = sp * avSlow * k * e.slow() * dt;
     if (Math.hypot(e.x - ox, e.y - oy) < want * 0.45) N.slowT = (N.slowT || 0) + dt; else N.slowT = Math.max(0, (N.slowT || 0) - dt * 0.5);
     if (N.slowT > 0.7) { N.slowT = 0; e.stuck = 1; }
     // takılma: yeniden rota, sonra en yakın boş yer, sonra vazgeç
@@ -432,32 +433,44 @@ const NpcNav = {
     }
     return null;
   },
-  /* Kalabalıkta kaçınma: önündeki kişiye göre yön sapması, yavaşlama ya da bekleme */
+  /* Kalabalıkta kaçınma: önündeki kişiye göre yön sapması, yavaşlama ya da bekleme. Yürüyen her NPC her karede bütün
+     varlıklar için çalıştırır: kapanış ve sonuç nesnesi yaratılmaz, sınama satır içindedir (ondalık sayılar başka bir
+     fonksiyona geçerken kutulanıp çöp olur). Sonuç hep aynı nesneye (AVOID) yazılır; çağıran değerleri hemen okur. */
   avoidSteer(e, a, ignore) {
-    const fx = Math.cos(a), fy = Math.sin(a), P = this.player;
+    const fx = Math.cos(a), fy = Math.sin(a), P = this.player, E = this.ents, ex = e.x, ey = e.y, er = e.r + 2.5;
     let steer = 0, slow = 1, wait = false;
-    const test = (o, rr) => {
-      const dx = o.x - e.x, dy = o.y - e.y;
-      if (dx > 28 || dx < -28 || dy > 28 || dy < -28) return;
-      const fwd = dx * fx + dy * fy;
-      if (fwd < 0) return;
-      const lat = -dx * fy + dy * fx, R = rr + e.r + 2.5;
-      if (Math.abs(lat) > R || fwd > 26) return;
-      const w = 1 - fwd / 26;
-      // karşıdan gelen ya da duran: sağdan geç (ortadaysa sağ, yandaysa uzak taraf)
-      steer += (Math.abs(lat) < 1.2 ? 1 : -Math.sign(lat)) * w * 0.9;
-      if (fwd < R + 2) { slow = Math.min(slow, 0.35); if (fwd < R && Math.abs(lat) < R * 0.6) wait = true; }
-    };
-    if (P && !P.riding && P !== ignore) test(P, P.r || 4);
-    for (const o of this.ents) {
-      if (o === e || o === ignore || o.remove || o.hide) continue;
-      if (o.kind === 'npc') { if (!o.dead && o.state !== 'sit') test(o, o.r); else if (o.dead) test(o, 5); }
-      else if (o.kind === 'horse') test(o, 7);
-      else if (o.kind === 'wagon') { test(o, 9); test({ x: o.bx, y: o.by }, 10); }
+    for (let i = -1; i < E.length; i++) {
+      let o, rr, n = 1;   // n: çember sayısı (arabada iki: atlar ve gövde)
+      if (i < 0) {
+        // oyuncu: yayayken (yok sayılmıyorsa) ya da atlıyken
+        if (!P) continue;
+        if (P.riding) rr = 8; else if (P === ignore) continue; else rr = P.r || 4;
+        o = P;
+      } else {
+        o = E[i];
+        if (o === e || o === ignore || o.remove || o.hide) continue;
+        const k = o.kind;
+        if (k === 'npc') { if (o.dead) rr = 5; else if (o.state !== 'sit') rr = o.r; else continue; }
+        else if (k === 'horse') rr = 7;
+        else if (k === 'wagon') { rr = 9; n = 2; }
+        else continue;
+      }
+      for (let q = 0; q < n; q++) {
+        const dx = (q ? o.bx : o.x) - ex, dy = (q ? o.by : o.y) - ey;
+        if (q) rr = 10;
+        if (dx > 28 || dx < -28 || dy > 28 || dy < -28) continue;
+        const fwd = dx * fx + dy * fy;
+        if (fwd < 0) continue;
+        const lat = -dx * fy + dy * fx, R = rr + er;
+        if (Math.abs(lat) > R || fwd > 26) continue;
+        // karşıdan gelen ya da duran: sağdan geç (ortadaysa sağ, yandaysa uzak taraf)
+        steer += (Math.abs(lat) < 1.2 ? 1 : -Math.sign(lat)) * (1 - fwd / 26) * 0.9;
+        if (fwd < R + 2) { if (slow > 0.35) slow = 0.35; if (fwd < R && Math.abs(lat) < R * 0.6) wait = true; }
+      }
     }
-    if (P && P.riding) test(P, 8);
     // bekleyen biri sonsuza dek beklemesin: iki kişi karşı karşıya kalırsa sağa kayar
-    return { steer: clamp(steer, -1.3, 1.3), slow, wait };
+    AVOID.steer = clamp(steer, -1.3, 1.3); AVOID.slow = slow; AVOID.wait = wait;
+    return AVOID;
   },
   /* Kasabada ulaşılabilir rastgele bir nokta (A* ızgarasından) */
   reachSpot(cx, cy, r, from) {

@@ -5,6 +5,7 @@
    etkileşim, rastgele olaylar, başarımlar, yetenekler
    ========================================================== */
 
+const ALWAYS_OPEN = new Set(['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn', 'cantina', 'gambling', 'warehouse', 'club']);   // gece de açık binalar
 const MIN_PER_SEC = 2.2; // gerçek saniye başına oyun dakikası
 const TRUCE_SEC = 30;    // aranan oyuncu şerif ofisine girince kanunun ateş etmeden teslim olmasını beklediği süre (sn)
 /* Hayatta kalma ayarları (Rehber ve tehlike kartı da bunları okur). Süreler oyun dakikası, can oranları en yüksek cana göre. */
@@ -1088,7 +1089,7 @@ const GameSystems = {
   },
   isOpen(b) {
     if (b.shut) return false;   // kasaba gerilerken tahta perdeyle kapanan bina (js/devworld.js)
-    if (['saloon', 'hotel', 'sheriff', 'station', 'church', 'mine', 'lumber', 'docks', 'ranch', 'stable', 'barn', 'cantina', 'gambling', 'warehouse', 'club'].includes(b.type)) return true;
+    if (ALWAYS_OPEN.has(b.type)) return true;
     return !(this.hour < 6 || this.hour > 22);
   },
   doorOpen(b) {

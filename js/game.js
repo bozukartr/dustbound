@@ -212,7 +212,7 @@ const G = {
   /* ---------------- Yeni oyun ---------------- */
   async newGame(profile) {
     this.resetState();
-    const seed = (Math.random() * 1e9) | 0;
+    const seed = window.__testSeed !== undefined ? window.__testSeed : (Math.random() * 1e9) | 0;   // ölçüm ve testte sabit dünya
     this.seed = seed;
     this.pace = profile.pace; this.difficulty = profile.difficulty; this.background = profile.bg;
     this.slot = profile.slot || this.freeSlot() || 1;
@@ -638,14 +638,22 @@ const G = {
       }
     }
     this.saloonAudio();
+    TownPath.warmNear(this.player.x, this.player.y);   // yaklaşılan kasabanın yol ızgarası önceden, azar azar
     this.updateCamera(dt);
   },
   /* Saloon piyanosu: içeride tam, dışarıda kapıya yaklaştıkça yükselir; duvar arkasından boğuk */
   saloonAudio() {
     const P = this.player, W = this.world;
     let lvl = 0, muf = 1;
-    for (const b of W.buildings) {
-      if ((b.type !== 'saloon' && b.type !== 'gambling') || !this.isOpen(b)) continue;
+    // müzikli binalar bir kez toplanır (her karede bütün binalar taranmaz); bina eklenince, dünya değişince yenilenir
+    if (this._salW !== W || this._salN !== W.buildings.length) {
+      this._salW = W; this._salN = W.buildings.length;
+      this._salB = W.buildings.filter(b => b.type === 'saloon' || b.type === 'gambling');
+    }
+    const SB = this._salB;
+    for (let i = 0; i < SB.length; i++) {
+      const b = SB[i];
+      if (!this.isOpen(b)) continue;
       if (Math.abs(b.door.x - P.x) > 420 || Math.abs(b.door.y - P.y) > 420) continue;
       if (this.insideB === b) { lvl = 1; muf = 0; break; }
       const dd = dist(P.x, P.y, b.door.x, b.door.y);

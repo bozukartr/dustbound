@@ -2269,7 +2269,9 @@ class World {
           d[k4] = r * 0.94 + 18; d[k4 + 1] = g * 0.92 + 12; d[k4 + 2] = b * 0.86 + 4; d[k4 + 3] = 255;
         }
       }
-      if (((y - y0) & 15) === 15) yield;
+      // yakın parça (S > 1, radar için oyun sırasında pişer) 4 satırda bir, bütün dünyanın resmi 16 satırda bir ara verir:
+      // tek adım radarın karesini uzatmaz
+      if (((y - y0) & (S > 1 ? 3 : 15)) === (S > 1 ? 3 : 15)) yield;
     }
     return img;
   }
@@ -2459,7 +2461,11 @@ class World {
     for (const b of this.buildings) {
       const bx = b.x * TS, by = b.y * TS;
       if (bx + b.w * TS + 40 < ox || bx - 40 > ox + CPX || by + b.h * TS + 40 < oy || by - 60 > oy + CPX) continue;
+      // iç mekân kaplaması (piksel piksel desen) önce adım adım hazırlanır; bina çizimi onu önbellekte bulur.
+      // Her binadan sonra süreye bakılır: şehirde bir parçaya birkaç bina değer
+      if (b.enter && b.type !== 'hotel') yield* IntDeco.bake(b);
       Spr.buildingGround(gc, b, this);
+      if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
     }
     gc.restore(); oc.restore();
     return { g, o };
