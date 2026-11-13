@@ -12,6 +12,8 @@
 const RAIL_WARN = 6;      // sn: bu sürede gelecek trene karşı davranılır
 const RAIL_HALF = 9;      // ray ekseninden vagon kenarına (yarı genişlik)
 const RAIL_STEP = 6;      // koridor örnek aralığı (px)
+const RAIL_NEAR = 3000;   // tren oyuncuya bundan yakınsa (eksen başına px) koridoru, çemberleri ve çarpışması hesaplanır
+const RAIL_FAR_ENT = 900; // uzakta bırakılmış araba ya da at trene bu kadar yakınsa da hesaplanır
 
 const RailSystems = {
   /* Her kare: trenlerin tehlike koridorları ve vagon çarpışma çemberleri.
@@ -21,6 +23,8 @@ const RailSystems = {
     zones.length = 0;
     for (const tr of this.trains) {
       if (!tr.pos[0]) continue;
+      // uzaktaki tren (Train.update): koridor ve çember yok, sınır kutusu boş (kimse ona çarpamaz, ondan kaçmaz)
+      if (tr.near === false) { if (tr.box) { tr.box[0] = 1e9; tr.box[1] = 1e9; tr.box[2] = -1e9; tr.box[3] = -1e9; } if (tr.circles) tr.circles.length = 0; continue; }
       const L = tr.line, dir = tr.dir;
       // kalkmak üzere olan tren de tehlikelidir; uzun süre duran trenin yalnızca gövdesi
       const moving = tr.wait <= 0, leaving = !moving && tr.wait < 2.5;
@@ -172,21 +176,27 @@ const RailSystems = {
   },
   /* Tren: önündeki rayda duran (ya da raya girmiş) araba var mı; varsa ona kalan yol */
   trainObstacle(tr) {
-    const ahead = Math.max(60, tr.spd * tr.spd / (2 * 60) + 40), [hx, hy] = tr.pos[0] || tr.at(tr.s);
-    const wag = this.ents.filter(o => o.kind === 'wagon' && !o.remove && Math.abs(o.x - hx) < ahead + 40 && Math.abs(o.y - hy) < ahead + 40);
-    if (!wag.length) return null;
+    // her kare çağrılır: dizi ve kapanış yaratmadan. Önünde araba yoksa (hemen her zaman) tek döngüde biter
+    const ahead = Math.max(60, tr.spd * tr.spd / (2 * 60) + 40), h = tr.pos[0] || tr.at(tr.s), hx = h[0], hy = h[1], lim = ahead + 40, E = this.ents;
+    let any = false;
+    for (let i = 0; i < E.length; i++) { const o = E[i]; if (o.kind === 'wagon' && !o.remove && Math.abs(o.x - hx) < lim && Math.abs(o.y - hy) < lim) { any = true; break; } }
+    if (!any) return null;
+    const q = this._obQ || (this._obQ = [0, 0, 0]);
     for (let d = 16; d <= ahead; d += 8) {
-      const [x, y] = tr.at(tr.s + tr.dir * d);
-      for (const o of wag) {
-        if (Math.abs(o.x - x) > 40 || Math.abs(o.y - y) > 40) continue;
-        for (const [cx, cy, cr] of o.circles()) if (dist2(cx, cy, x, y) < (cr + RAIL_HALF) * (cr + RAIL_HALF)) return { d, o };
+      tr.at(tr.s + tr.dir * d, q);
+      const x = q[0], y = q[1];
+      for (let i = 0; i < E.length; i++) {
+        const o = E[i];
+        if (o.kind !== 'wagon' || o.remove || Math.abs(o.x - hx) >= lim || Math.abs(o.y - hy) >= lim || Math.abs(o.x - x) > 40 || Math.abs(o.y - y) > 40) continue;
+        const C = o.circles();
+        for (let k = 0; k < C.length; k++) if (dist2(C[k][0], C[k][1], x, y) < (C[k][2] + RAIL_HALF) * (C[k][2] + RAIL_HALF)) return { d, o };
       }
     }
     return null;
   },
   /* Hızla giden trenin önüne yine de girmiş araba: gövde vagonla çakışmasın, kenara itilir */
   trainShove(tr) {
-    if (tr.spd < 15) return;
+    if (tr.spd < 15 || tr.near === false) return;
     for (const o of this.ents) {
       if (o.kind !== 'wagon' || o.remove) continue;
       const B = tr.box;

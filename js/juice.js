@@ -279,8 +279,9 @@ const Juice = {
     const h = hash2(tx, ty, 57);
     const s = Math.sin(t * (1.6 + h) + h * 60);
     if (s < 0.965) return;
-    ctx.fillStyle = `rgba(255,252,236,${(s - 0.965) * 22})`;
+    ctx.globalAlpha = (s - 0.965) * 22; ctx.fillStyle = '#fffcec';
     ctx.fillRect(tx * TS + 2 + h * 11, ty * TS + 3 + hash2(tx, ty, 58) * 10, 2, 1);
+    ctx.globalAlpha = 1;
   },
   /* Varlıkların üstünde, cephelerden sonra: salınan saloon kapıları ve sıçrayan balık */
   drawAfterCovers(ctx, x0, y0, x1, y1, dt) {

@@ -322,8 +322,16 @@ const IntDeco = (() => {
     for (const r of st.rugs) { const c = rugAt(st, r, u, v); if (c) out = c; }
     return out;
   }
-  /* Klasik çizim: döşeme + halılar + arka duvar bandı 1x tuvale (son birkaç bina önbellekte) */
+  /* Klasik çizim: döşeme + halılar + arka duvar bandı 1x tuvale (son binalar önbellekte: bir bina dört parçaya kadar
+     değebilir, şehirde komşu parçalar art arda pişerken aynı kaplama yeniden üretilmesin) */
   const LRU = new Map();
+  function row(st, d, w, y) {
+    for (let x = 0; x < w; x++) {
+      const u = x + 0.5, v = y + 0.5, c = v < 16 ? wall(st, u, v) : (rug(st, u, v) || floor(st, u, v)), k = (y * w + x) * 4;
+      d[k] = c[0] * 255; d[k + 1] = c[1] * 255; d[k + 2] = c[2] * 255; d[k + 3] = 255;
+    }
+  }
+  function keep(st, cv) { LRU.set(st, cv); if (LRU.size > 16) LRU.delete(LRU.keys().next().value); return cv; }
   function canvas(b) {
     const st = style(b), key = st;   // binanın her katının kaplaması ayrı
     let cv = LRU.get(key);
@@ -331,14 +339,24 @@ const IntDeco = (() => {
     const w = st.w, h = st.h;
     cv = makeCanvas(w, h);
     const g = cv.getContext('2d'), img = g.createImageData(w, h), d = img.data;
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const u = x + 0.5, v = y + 0.5, c = v < 16 ? wall(st, u, v) : (rug(st, u, v) || floor(st, u, v)), k = (y * w + x) * 4;
-      d[k] = c[0] * 255; d[k + 1] = c[1] * 255; d[k + 2] = c[2] * 255; d[k + 3] = 255;
+    for (let y = 0; y < h; y++) row(st, d, w, y);
+    g.putImageData(img, 0, 0);
+    return keep(st, cv);
+  }
+  /* Aynı tuvali adım adım hazırlar (arka planda parça pişirirken): piksel başına desen hesabı büyük bir binada tek
+     seferde 10-25 ms sürer, şehre girerken kare atlatır. Süre dolunca (World.STEP) sıra kareye döner; bitince tuval
+     önbelleğe girer, ardından gelen canvas(b) onu hazır bulur. */
+  function* bake(b) {
+    const st = style(b);
+    if (LRU.has(st)) return;
+    const w = st.w, h = st.h, cv = makeCanvas(w, h), g = cv.getContext('2d'), img = g.createImageData(w, h), d = img.data;
+    let t0 = performance.now();
+    for (let y = 0; y < h; y++) {
+      row(st, d, w, y);
+      if (performance.now() - t0 > World.STEP) { yield 0; t0 = performance.now(); }
     }
     g.putImageData(img, 0, 0);
-    LRU.set(key, cv);
-    if (LRU.size > 6) LRU.delete(LRU.keys().next().value);
-    return cv;
+    keep(st, cv);
   }
   /* Duvar lambası (aplik) sayısı: zengin binalarda ve saloonlarda arka duvarda iki ya da üç; yerleri duvar süsleri
      çizilirken boş kalan aralıklardan seçilir (b._sc), melez çizimde camları gece yanar */
@@ -348,7 +366,7 @@ const IntDeco = (() => {
     if (!richB(b) && b.tier !== 'adv' && t !== 'saloon' && t !== 'gambling' && t !== 'cantina') return 0;   // gelişmiş kademede de aplik
     return b.w >= 10 ? 3 : 2;
   }
-  return { style, floor, wall, rug, rugAt, canvas, sconces, rgb };
+  return { style, floor, wall, rug, rugAt, canvas, bake, sconces, rgb };
 })();
 
 /* Toplanabilir bitkilerin renkleri (sap, çiçek/meyve): bir kez kurulur, her karede yeniden yaratılmaz */

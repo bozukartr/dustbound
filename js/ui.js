@@ -170,6 +170,8 @@ const UI = {
       if (this.timers.hud <= 0) { this.timers.hud = 0.1; this.hudUpdate(); }
       this.moneyTick(dt);
       if (this.timers.radar <= 0 && !this.mapShown()) { this.timers.radar = 1 / 20; this.drawRadar(); }   // harita açıkken radar görünmez
+      // radarın yakın harita parçaları her karede küçük bir payla pişer (eskiden radar çizilirken 3 ms'lik tek hamle: o kare uzuyordu)
+      else if (!this.mapShown() && G.world) G.world.mapWork(0.7);
       this.feedUpdate(dt);
     }
   },
@@ -773,7 +775,6 @@ const UI = {
     const span = 2 * R / z;
     // yürürken ve at sırtında yakın harita parçaları (karo başına 2x2 piksel), genişletilmiş radarda bütün dünyanın resmi
     W.drawMapRect(c, tx - span / 2, ty - span / 2, tx + span / 2, ty + span / 2, C - R, C - R, z, z >= 1.2);
-    W.mapWork(3);
     c.imageSmoothingEnabled = true;
     // dünya → radar: sonuç her çağrıda aynı diziye yazılır, çağıran değerleri hemen okur
     const RP = [0, 0], toR = (wx, wy) => { RP[0] = C + (wx / TS - tx) * z; RP[1] = C + (wy / TS - ty) * z; return RP; };
@@ -885,10 +886,8 @@ const UI = {
       }
       c.globalAlpha = 1;
     }
-    // kubbe gölgesi: kenarlara doğru koyulaşan kâğıt
-    let vg = this._rVig;
-    if (!vg) { vg = this._rVig = c.createRadialGradient(C, C, R * 0.58, C, C, R); vg.addColorStop(0, 'rgba(40,24,10,0)'); vg.addColorStop(1, 'rgba(40,24,10,0.42)'); }
-    c.fillStyle = vg; c.fillRect(C - R, C - R, 2 * R, 2 * R);
+    // kubbe gölgesi (kenarlara doğru koyulaşan kâğıt) kadranla birlikte çizilir (bezelArt): halkası merkezden 58 px
+    // öteden başlar, oyuncu okuna ve koniye (46 px) değmez
     // oyuncu: önündeki bakış konisi ve ok
     c.translate(C, C); c.rotate(P.riding ? P.riding.ang : P.ang);
     let cone = this._rCone;
@@ -899,10 +898,20 @@ const UI = {
     c.restore();
     this.drawBezel(c, C, R, edges);
   },
-  /* Radarın deri ve pirinç kadranı: çentikler, yön harfleri, bant üzerindeki uzak hedefler */
-  drawBezel(c, C, R, edges) {
-    const R2 = 111;
-    c.save();
+  /* Radarın deri ve pirinç kadranı: çentikler, yön harfleri, bant üzerindeki uzak hedefler. Kadranın değişmeyen kısmı
+     (halka, çentikler, pirinç kenarlar, harfler) bir kez çizilip saklanır; radar saniyede 20 kez çizilirken yalnızca
+     kopyalanır (dil ya da yazı tipi yüklenince yeniden çizilir). */
+  bezelArt(C, R) {
+    const lt = [Tr('@pusula|K'), Tr('@pusula|D'), Tr('@pusula|G'), Tr('@pusula|B')], font = 'bold 9px "IM Fell English SC", serif';
+    const key = lt.join('') + (document.fonts && document.fonts.check ? document.fonts.check(font) : 1);
+    if (this._bezel && this._bezel.key === key) return this._bezel.cv;
+    const R2 = 111, cv = makeCanvas(448, 448), c = cv.getContext('2d');
+    c.setTransform(2, 0, 0, 2, 0, 0);
+    // kubbe gölgesi: radar dairesinin içinde, kenarlara doğru koyulaşır
+    c.save(); c.beginPath(); c.arc(C, C, R, 0, TAU); c.clip();
+    const vg = c.createRadialGradient(C, C, R * 0.58, C, C, R); vg.addColorStop(0, 'rgba(40,24,10,0)'); vg.addColorStop(1, 'rgba(40,24,10,0.42)');
+    c.fillStyle = vg; c.fillRect(C - R, C - R, 2 * R, 2 * R);
+    c.restore();
     const bg = c.createLinearGradient(0, C - R2, 0, C + R2);
     bg.addColorStop(0, '#33251a'); bg.addColorStop(0.5, '#1d150e'); bg.addColorStop(1, '#100b07');
     c.fillStyle = bg; c.beginPath(); c.arc(C, C, R2, 0, TAU); c.arc(C, C, R + 0.5, 0, TAU, true); c.fill();
@@ -921,13 +930,18 @@ const UI = {
     c.lineWidth = 1.5; c.beginPath(); c.arc(C, C, R + 0.6, 0, TAU); c.stroke();
     c.strokeStyle = 'rgba(0,0,0,0.8)'; c.lineWidth = 1; c.beginPath(); c.arc(C, C, R2 + 0.4, 0, TAU); c.stroke();
     // yön harfleri
-    const lt = [Tr('@pusula|K'), Tr('@pusula|D'), Tr('@pusula|G'), Tr('@pusula|B')];
-    c.font = 'bold 9px "IM Fell English SC", serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle';
     lt.forEach((t, i) => {
       const a = i * Math.PI / 2 - Math.PI / 2, x = C + Math.cos(a) * (R + 5.6), y = C + Math.sin(a) * (R + 5.6);
       if (i === 0) { c.fillStyle = '#8e1b12'; c.beginPath(); c.arc(x, y, 5.6, 0, TAU); c.fill(); c.strokeStyle = 'rgba(240,212,135,0.9)'; c.lineWidth = 0.8; c.stroke(); }
       c.fillStyle = i === 0 ? '#fff3d6' : 'rgba(236,216,172,0.92)'; c.fillText(t, x, y + 0.4);
     });
+    this._bezel = { cv, key };
+    return cv;
+  },
+  drawBezel(c, C, R, edges) {
+    c.save();
+    c.drawImage(this.bezelArt(C, R), 0, 0, 224, 224);
     // uzaktaki hedefler bandın üzerinde
     for (const e of edges) {
       const x = C + Math.cos(e.a) * (R + 5.6), y = C + Math.sin(e.a) * (R + 5.6), r = e.q ? 7 + Math.sin(G.t * 5) * 0.8 : 6.2;
