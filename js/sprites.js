@@ -2364,6 +2364,7 @@ const Spr = {
         arm(1, -0.4 + Math.sin(t * 18) * 0.6, 3.2);
         return true;
       case 'stretch': { if (layer === 1) return true; const q = 0.85 + 0.15 * Math.sin(t * 2.2); arm(-1, 1.4, -9.8 * q); arm(1, 1.4, 9.8 * q); return true; }
+      case 'handsup': if (layer === 0) { const q = Math.sin(t * 9) * 0.25; arm(-1, 2.2 + q, -4.4, 0.6, -7.2); arm(1, 2.2 - q, 4.4, 0.6, 7.2); } return true;   // teslim (js/npcmorale.js)
       case 'shrug': if (layer === 0) { arm(-1, 3.6, -7.6, 0.8, -6.8); arm(1, 3.6, 7.6, 0.8, 6.8); } return true;
       case 'point': if (layer === 0) { down(-1); arm(1, 10.5, 2.6); } return true;
       case 'gesture':

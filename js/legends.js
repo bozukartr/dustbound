@@ -276,10 +276,17 @@ const LegendSystems = {
       }
       return;
     }
-    // inin yakınında, oyuncudan biraz uzakta belirir
-    let pos = null;
-    for (let k = 0; k < 6 && !pos; k++) { const q = this.findSpawnPos(sp.x, sp.y, 0, 150); if (q && dist(q[0], q[1], P.x, P.y) > 220) pos = q; }
-    if (!pos) pos = this.findSpawnPos(sp.x, sp.y, 0, 150) || [sp.x, sp.y];
+    // inin yakınında, oyuncudan biraz uzakta belirir: 220 px'ten uzak bir yer bulunamazsa denenenlerin en uzağı
+    // (rastgele bir yer oyuncunun dibine düşebiliyordu)
+    let pos = null, best = -1;
+    for (let k = 0; k < 16; k++) {
+      const q = this.findSpawnPos(sp.x, sp.y, 0, 150);
+      if (!q) continue;
+      const d = dist(q[0], q[1], P.x, P.y);
+      if (d > best) { best = d; pos = q; }
+      if (d > 220) break;
+    }
+    if (!pos) pos = [sp.x, sp.y];
     const b = this.addEnt(this.legendMake(id, pos[0], pos[1]));
     for (let k = 0; k < (L.pack || 0); k++) {
       const q = this.findSpawnPos(b.x, b.y, 14, 60);

@@ -224,6 +224,7 @@ const HomeSystems = {
       if (W.solid[i] && TRUNK_O[W.obj[i]] && !TINFO[W.tile[i]].solid && !(W.flags[i] & 8)) W.solid[i] = 5;
     }
     if (b && b.enter) W.buildingSolid(b);
+    W.pathVer++;
     W.refreshChunks();
     if (built || remap) W.buildMapImage(true);
   },

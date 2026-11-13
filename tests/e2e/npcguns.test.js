@@ -120,7 +120,8 @@ module.exports = {
         const inside = W.indoorPx(P.x, P.y), los = G.los(n.x, n.y, P.x, P.y);
         await wait(300);
         const shots0 = SHOTS.get(n) || 0;
-        await wait(3000);
+        // önce sipere geçmiş olabilir (js/npccombat.js): siperde görmeden en çok 4 sn bekler, sonra son gördüğü yere gider
+        for (let k = 0; k < 45 && dist(n.x, n.y, b.door.x, b.door.y) >= 70; k++) await wait(200);
         const out = { inside, los, lkp: n.lkp && { x: n.lkp.x, y: n.lkp.y }, sees: n.sees, shots: (SHOTS.get(n) || 0) - shots0,
           toDoor: dist(n.x, n.y, b.door.x, b.door.y), player: { x: P.x, y: P.y } };
         W.doorFn = fn;
@@ -131,7 +132,7 @@ module.exports = {
       t.ok(!r.sees, 'NPC oyuncuyu görmüyor', r);
       t.eq(r.shots, 0, 'içerideki oyuncuya ateş etmedi');
       t.ok(r.lkp && Math.hypot(r.lkp.x - r.player.x, r.lkp.y - r.player.y) > 30, 'oyuncunun içerideki yerini bilmiyor (son gördüğü yer kapının önü)', r);
-      t.ok(r.toDoor < 70, 'kapının önüne gelip bekliyor', r.toDoor);
+      t.ok(r.toDoor < 70, 'en geç 9 saniyede kapının önüne gelip bekliyor', r.toDoor);
     });
 
     await t.step('kapı açıkken de NPC yalnızca görebildiğine ateş eder (bütün çatışmalarda görmeden atış yok)', async () => {
@@ -143,8 +144,8 @@ module.exports = {
         const n = new NPC(b.door.x - 60, b.door.y + 50, 'bandit', { hostile: true, weapon: 'repeater' }); n.aggro = true; G.addEnt(n);
         const fast = setInterval(() => { n.cool = Math.min(n.cool, 0.05); }, 40);
         await wait(600);
-        // içeri gir, odada gezin: kapı çizgisine girip çıkar
-        for (let k = 0; k < 16; k++) { P.x = (b.x + 1.5 + (k % 4) * (b.w - 3) / 3) * TS; P.y = (b.y + 1.6 + ((k >> 2) % 3) * (b.h - 3) / 2) * TS; await wait(180); }
+        // içeri gir, odada gezin: kapı çizgisine girip çıkar (haydut siperden ara ara çıkar: js/npccombat.js)
+        for (let k = 0; k < 40; k++) { P.x = (b.x + 1.5 + (k % 4) * (b.w - 3) / 3) * TS; P.y = (b.y + 1.6 + ((k >> 2) % 3) * (b.h - 3) / 2) * TS; await wait(180); }
         clearInterval(fast);
         n.remove = true;
         return { total: SHOTS.get(n) || 0, blind: BLIND_SHOTS };

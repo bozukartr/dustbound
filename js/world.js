@@ -519,6 +519,7 @@ class World {
     this.flags = new Uint8Array(N);   // 1: nesne yok, 2: ray, 4: kasaba, 8: bina, 16: iç mekân
     this.bid = new Int16Array(N).fill(-1); // karo -> bina
     this.dyn = [];   // hareketli engeller (göçebe çadırları) {x0,y0,x1,y1}
+    this.pathVer = 0;   // çarpışma her değiştiğinde artar: kasaba dışı yol bulmanın (WildPath) sakladığı karolar atılır
     this.heat = new Uint8Array(N);
     this.elev = new Uint8Array(N);
     this.buildings = [];
@@ -943,6 +944,7 @@ class World {
     return b;
   }
   lotRefresh(lot) {
+    this.pathVer++;
     const x0 = lot.x - 2, y0 = lot.y - 2, x1 = lot.x + lot.w + 2, y1 = lot.y + lot.h + 3;
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
       if (!this.inb(x, y)) continue;
@@ -959,6 +961,7 @@ class World {
      kasabaların yol ızgarası, iki çizicinin parçaları, harita resmi ve ışık kovaları. Bütün dünyayı yeniden çizmez:
      kasabaların gelişimi (js/devworld.js) görünmeyen bir kasabayı değiştirirken oyuncunun bulunduğu yer takılmaz. */
   refreshArea(tx0, ty0, tx1, ty1) {
+    this.pathVer++;
     tx0 = Math.max(0, tx0); ty0 = Math.max(0, ty0); tx1 = Math.min(WW - 1, tx1); ty1 = Math.min(WH - 1, ty1);
     for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
       const i = y * WW + x;
@@ -2090,6 +2093,7 @@ class World {
     }
   }
   computeSolid() {
+    this.pathVer++;
     const N = WW * WH;
     for (let i = 0; i < N; i++) {
       this.solid[i] = (TINFO[this.tile[i]].solid || SOLID_O[this.obj[i]] || (this.flags[i] & 8)) ? 1 : 0;

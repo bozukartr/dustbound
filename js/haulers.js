@@ -191,7 +191,7 @@ const HaulSystems = {
           const p = this.findSpawnPos(R.x, R.y, 20, 70);
           if (!p) continue;
           const b = new NPC(p[0], p[1], 'bandit', { hostile: true, home: { x: R.x, y: R.y, r: 60 }, money: rnd(1, 5) });
-          b.keep = true; b.raid = R.id;
+          b.keep = true; b.raid = R.id; b.alertUntil = this.t + 600;   // baskından yeni çıkmışlar: tetikte (js/npcsense.js)
           this.addEnt(b); R.bandits.push(b);
         }
         if (R.coward) { for (const g of R.g) this.addEnt(new Crate(R.x + rnd(-14, 14), R.y + rnd(-10, 10), g)); R.g = []; }

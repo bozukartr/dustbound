@@ -175,6 +175,139 @@ const REACT = {
 };
 
 /* ================== gezinme ================== */
+/* ---------------- Kasaba dışında yol bulma ----------------
+   Kasaba ızgarasının dışında (ova, kanyon, orman, kamp çevresi) karo ölçeğinde A*. Karoların yürünebilirliği 32×32
+   karoluk parçalar hâlinde bir kez hesaplanıp saklanır; dünya değişince (bina, arsa, ev, petrol kuyusu, göçebe çadırı)
+   World.pathVer artar ve saklananlar atılır. Arama penceresi başlangıç ile hedefin çevresiyle sınırlıdır. Hedef
+   pencereden uzaksa ya da ulaşılamıyorsa (nehrin öbür yakası, uçurumun tepesi, kapalı bina) hedefe en yakın noktaya
+   giden rota döner (route.partial). Kare başına süre bütçesi kasabadaki yol bulmayla ortaktır (TownPath.busy). */
+const WildPath = {
+  CH: 32,                 // parça kenarı (karo)
+  R: [4.6, 7.5],          // gövde yarıçapı: 0 yaya, 1 atlı (at geniş döner, dar geçitten geçmez)
+  MAX: 96, PAD: 14,       // arama penceresi en çok MAX×MAX karo; başlangıç ve hedefin çevresinde PAD karo pay
+  CAP: 9000,              // arama adımı sınırı
+  chunks: [new Map(), new Map()], cache: new Map(), ver: -1, w: null,
+  cls(r) { return r > 5.5 ? 1 : 0; },
+  fresh() {
+    const W = G.world;
+    if (this.w !== W || this.ver !== W.pathVer) { this.w = W; this.ver = W.pathVer; this.chunks[0].clear(); this.chunks[1].clear(); this.cache.clear(); }
+  },
+  /* karo (tx, ty) c sınıfı gövdeyle yürünebilir mi: 1 evet, 0 hayır */
+  passAt(tx, ty, c) {
+    if (tx < 0 || ty < 0 || tx >= WW || ty >= WH) return 0;
+    const M = this.chunks[c], key = (ty >> 5) * 4096 + (tx >> 5);
+    let ch = M.get(key);
+    if (!ch) { ch = this.fill(tx >> 5, ty >> 5, c); M.set(key, ch); if (M.size > 900) M.delete(M.keys().next().value); }
+    return ch[(ty & 31) * 32 + (tx & 31)];
+  },
+  fill(cx, cy, c) {
+    const W = G.world, r = this.R[c], out = new Uint8Array(1024);
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+      const tx = cx * 32 + x, ty = cy * 32 + y;
+      if (tx >= WW || ty >= WH) continue;
+      const px = tx * TS + 8, py = ty * TS + 8;
+      out[y * 32 + x] = !W.blocked(px, py, r) && !W.indoorPx(px, py) && !W.isWaterPx(px, py) ? 1 : 0;
+    }
+    return out;
+  },
+  /* px koordinatlarında nokta listesi (son nokta hedef ya da ona en yakın yer) ya da null. */
+  find(ax, ay, bx, by, r = 4.2) {
+    const t0 = performance.now(), res = this.route(ax, ay, bx, by, r);
+    if (TownPath.spentF !== G.fno) { TownPath.spentF = G.fno; TownPath.spent = 0; }
+    TownPath.spent += performance.now() - t0;
+    return res;
+  },
+  route(ax, ay, bx, by, r) {
+    this.fresh();
+    const c = this.cls(r), rr = this.R[c];
+    if (TownPath.walkable([ax, ay], [bx, by], rr)) return [[bx, by]];   // düz yol açık: arama yok
+    const sx = ax >> 4, sy = ay >> 4;
+    let ex = bx >> 4, ey = by >> 4, far = false;
+    const span = Math.max(Math.abs(ex - sx), Math.abs(ey - sy)), lim = this.MAX - 2 * this.PAD;
+    if (span > lim) { const k = lim / span; ex = sx + Math.round((ex - sx) * k); ey = sy + Math.round((ey - sy) * k); far = true; }
+    const key = c + ':' + sx + ',' + sy + '>' + ex + ',' + ey, hit = this.cache.get(key);
+    let raw, partial;
+    if (hit && G.t - hit.t < 3) { raw = hit.raw; partial = hit.partial; }
+    else {
+      const x0 = Math.max(0, Math.min(sx, ex) - this.PAD), y0 = Math.max(0, Math.min(sy, ey) - this.PAD);
+      const x1 = Math.min(WW - 1, Math.max(sx, ex) + this.PAD), y1 = Math.min(WH - 1, Math.max(sy, ey) + this.PAD);
+      const w = x1 - x0 + 1, h = y1 - y0 + 1, g = this.grid(w, h);
+      g.x0 = x0; g.y0 = y0; g.w = w; g.h = h;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) g.pass[y * w + x] = this.passAt(x0 + x, y0 + y, c);
+      const s = TownPath.near(g, sx - x0, sy - y0), e = TownPath.near(g, ex - x0, ey - y0) || TownPath.near(g, ex - x0, ey - y0);
+      if (!s) { raw = null; partial = false; }
+      else {
+        const res = this.astar(g, s, e || [clamp(ex - x0, 0, w - 1), clamp(ey - y0, 0, h - 1)], !e);
+        raw = res ? res.pts : null; partial = !!(res && res.partial);
+      }
+      this.cache.set(key, { t: G.t, raw, partial });
+      if (this.cache.size > 300) this.cache.delete(this.cache.keys().next().value);
+    }
+    if (!raw || !raw.length) return null;
+    partial = partial || far;
+    const out = TownPath.simplify([[ax, ay], ...raw, ...(partial ? [] : [[bx, by]])], rr);
+    out.partial = partial;
+    return out;
+  },
+  /* Arama dizileri bir kez en büyük pencere boyunda ayrılır (her aramada yeniden ayrılmaz) */
+  grid(w, h) {
+    const N = this.MAX * this.MAX;
+    if (!this._g) this._g = { pass: new Uint8Array(N), gs: new Float32Array(N), came: new Int32Array(N), seen: new Uint32Array(N), shut: new Uint32Array(N), id: 0, hn: new Int32Array(4096), hk: new Float64Array(4096) };
+    return this._g;
+  },
+  /* A* (sekiz yön, köşeden kesmez). Hedefe varılamazsa (noGoal ya da yol yok) hedefe en yakın keşfedilen karoya giden
+     yol döner (partial). Pencere boyutları g.w × g.h; diziler MAX×MAX ayrılmıştır. */
+  astar(g, s, e, noGoal) {
+    const W = g.w, H = g.h, si = s[1] * W + s[0], ei = noGoal ? -1 : e[1] * W + e[0], pass = g.pass;
+    if (++g.id > 4e9) { g.id = 1; g.seen.fill(0); g.shut.fill(0); }
+    const id = g.id, gs = g.gs, came = g.came, seen = g.seen, shut = g.shut;
+    let hn = g.hn, hk = g.hk, hl = 0;
+    const push = (n, k) => {
+      if (hl === hn.length) { const a = new Int32Array(hl * 2), b = new Float64Array(hl * 2); a.set(hn); b.set(hk); hn = g.hn = a; hk = g.hk = b; }
+      let i = hl++;
+      while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hn[i] = hn[p]; hk[i] = hk[p]; i = p; }
+      hn[i] = n; hk[i] = k;
+    };
+    const pop = () => {
+      const top = hn[0];
+      if (--hl > 0) {
+        const n = hn[hl], k = hk[hl]; let i = 0;
+        for (;;) { let c = 2 * i + 1; if (c >= hl) break; if (c + 1 < hl && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hn[i] = hn[c]; hk[i] = hk[c]; i = c; }
+        hn[i] = n; hk[i] = k;
+      }
+      return top;
+    };
+    const hf = (i) => { const dx = Math.abs(i % W - e[0]), dy = Math.abs(((i / W) | 0) - e[1]); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
+    seen[si] = id; gs[si] = 0; came[si] = -1; push(si, hf(si));
+    let found = false, iter = 0, best = si, bestH = hf(si);
+    while (hl && iter++ < this.CAP) {
+      const cur = pop();
+      if (cur === ei) { found = true; break; }
+      if (shut[cur] === id) continue; shut[cur] = id;
+      const hc = hf(cur); if (hc < bestH) { bestH = hc; best = cur; }
+      const cx = cur % W, cy = (cur / W) | 0, gc = gs[cur];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = cx + dx, ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const ni = ny * W + nx;
+        if (!pass[ni] || shut[ni] === id) continue;
+        if (dx && dy && (!pass[cy * W + nx] || !pass[ny * W + cx])) continue;   // köşeden kesme
+        // kaya ve ağaç dibinden geçmek biraz pahalı: rota açık zeminden gider
+        const wall = (nx > 0 && !pass[ni - 1]) || (nx < W - 1 && !pass[ni + 1]) || (ny > 0 && !pass[ni - W]) || (ny < H - 1 && !pass[ni + W]);
+        const ng = gc + (dx && dy ? 1.41 : 1) + (wall ? 0.3 : 0);
+        if (seen[ni] !== id || ng < gs[ni]) { seen[ni] = id; gs[ni] = ng; came[ni] = cur; push(ni, ng + hf(ni)); }
+      }
+    }
+    const end = found ? ei : best;
+    if (end === si) return found ? { pts: [], partial: false } : null;
+    const pts = [];
+    for (let i = end; i !== -1; i = came[i]) pts.push([(g.x0 + i % W) * TS + 8, (g.y0 + ((i / W) | 0)) * TS + 8]);
+    pts.reverse();
+    return { pts, partial: !found };
+  },
+};
+
 const NpcNav = {
   /* e'yi (x, y) hedefine yürüt. 'arrived' | 'moving' | 'fail' döner. */
   navStep(e, x, y, dt, sp, opt) {
@@ -190,7 +323,11 @@ const NpcNav = {
       // sonra kapıdan girer (yoksa dış rota duvarın dibinde biter)
       const B = W.buildingAtPx(e.x, e.y), TB = opt && opt.enter ? W.buildingAtPx(x, y) : null, into = !!(TB && TB.door && TB !== B);
       const gx = into ? TB.door.x : x, gy = into ? TB.door.y + 8 : y;
-      N.route = this.bendRoute(e, (t && TownPath.find(t, e.x, e.y, gx, gy)) || [[gx, gy]]); N.ri = 0;
+      // kasabada kasaba ızgarası; dışarıda (ya da ızgara yol bulamazsa) kaya, ağaç ve uçurumların etrafından karo yolu
+      let R = t ? TownPath.find(t, e.x, e.y, gx, gy) : null;
+      if (!R) R = WildPath.find(e.x, e.y, gx, gy, e.mounted ? WildPath.R[1] : 4.2);
+      N.partial = !!(R && R.partial);
+      N.route = this.bendRoute(e, R || [[gx, gy]]); N.ri = 0;
       if (into) N.route.push([TB.door.x, TB.door.y - 10], [x, y]);
       // bina içindeyse önce kapıdan çıkar (dış rota duvarın öbür yanından başlar)
       if (B && B.door && !W.buildingAtPx(x, y)) N.route.unshift([B.door.x, B.door.y - 10], [B.door.x, B.door.y + 8]);
@@ -199,7 +336,8 @@ const NpcNav = {
     const d2 = dist2(e.x, e.y, wp[0], wp[1]), d = Math.sqrt(d2);
     // köşeyi yuvarla: ara noktaya yaklaşınca, bir sonrakine düz yol varsa erkenden ona dön
     const nx = N.route[N.ri + 1];
-    const early = !last && d < 15 && nx && (N.peek === N.ri || (N.peek = N.ri, N.peekOk = TownPath.walkable([e.x, e.y], nx, e.r + 0.5))) && N.peekOk;
+    const cr = e.mounted ? 7 : e.r + 0.5;   // gövde payı: atlı geniş
+    const early = !last && d < 15 && nx && (N.peek === N.ri || (N.peek = N.ri, N.peekOk = TownPath.walkable([e.x, e.y], nx, cr))) && N.peekOk;
     if (d2 < (last ? (opt && opt.near ? opt.near * opt.near : 25) : 64) || early) {
       N.ri++; N.best = Infinity; N.noProg = 0;
       if (N.ri >= N.route.length) { e.nav = null; e.mv = 0; return 'arrived'; }
@@ -208,7 +346,7 @@ const NpcNav = {
     // kalabalıktan kaçarken rotadan saptıysa ve önündeki ara noktaya düz yol kalmadıysa yeniden rota
     if ((N.losT = (N.losT || 0) - dt) <= 0) {
       N.losT = 0.6;
-      if (N.route.length > 1 && !TownPath.walkable([e.x, e.y], wp, e.r + 0.5)) { N.route = null; N.best = Infinity; return 'moving'; }
+      if (N.route.length > 1 && !TownPath.walkable([e.x, e.y], wp, cr)) { N.route = null; N.best = Infinity; return 'moving'; }
     }
     // ilerleme takibi: duvar boyunca kayıyor, dönüp duruyor ya da itişiyorsa takılmış say
     if (d < (N.best === undefined ? Infinity : N.best) - 1.5) { N.best = d; N.noProg = 0; } else N.noProg = (N.noProg || 0) + dt;
@@ -222,7 +360,7 @@ const NpcNav = {
       if (!last && gt.lane) {
         const pv = N.route[N.ri - 1] || [e.x, e.y], sa = Math.atan2(wp[1] - pv[1], wp[0] - pv[0]);
         const lx = wp[0] - Math.sin(sa) * gt.lane, ly = wp[1] + Math.cos(sa) * gt.lane;
-        if (!this.world.blocked(lx, ly, e.r + 1.5) && !this.world.indoorPx(lx, ly) && TownPath.walkable([e.x, e.y], [lx, ly], e.r + 0.5)) N.lt = [lx, ly];
+        if (!this.world.blocked(lx, ly, cr + 1) && !this.world.indoorPx(lx, ly) && TownPath.walkable([e.x, e.y], [lx, ly], cr)) N.lt = [lx, ly];
       }
     }
     const tx = N.lt ? N.lt[0] : wp[0], ty = N.lt ? N.lt[1] : wp[1];
@@ -254,7 +392,7 @@ const NpcNav = {
       e.stuck = 0; N.fails++;
       if (last && d2 < 20 * 20) { e.nav = null; return 'arrived'; }
       if (N.fails <= 2) N.route = null;
-      else if (N.fails <= 3) { const f = this.freeNear(e.x, e.y, e.r + 1.5); if (f) { N.route = [f, ...N.route.slice(N.ri)]; N.ri = 0; } else N.route = null; }
+      else if (N.fails <= 3) { const f = this.freeNear(e.x, e.y, cr + 1); if (f) { N.route = [f, ...N.route.slice(N.ri)]; N.ri = 0; } else N.route = null; }
       else { e.nav = null; return 'fail'; }
     }
     return 'moving';
@@ -266,9 +404,9 @@ const NpcNav = {
     for (const p of R) {
       const len = Math.hypot(p[0] - prev[0], p[1] - prev[1]);
       if (len > 60 && out.length < 14) {
-        const a = Math.atan2(p[1] - prev[1], p[0] - prev[0]), off = (Math.random() * 2 - 1) * Math.min(16, len * 0.13);
+        const a = Math.atan2(p[1] - prev[1], p[0] - prev[0]), off = (Math.random() * 2 - 1) * Math.min(16, len * 0.13), cr = e.mounted ? 7.3 : e.r + 0.8;
         const m = [(prev[0] + p[0]) / 2 - Math.sin(a) * off, (prev[1] + p[1]) / 2 + Math.cos(a) * off];
-        if (TownPath.walkable(prev, m, e.r + 0.8) && TownPath.walkable(m, p, e.r + 0.8)) out.push(m);
+        if (TownPath.walkable(prev, m, cr) && TownPath.walkable(m, p, cr)) out.push(m);
       }
       out.push(p); prev = p;
     }
