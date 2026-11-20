@@ -147,8 +147,8 @@ const Story = {
     const pend = this._qPend; this._qPend = null;
     if (pend && st.ev) for (const [type, d] of pend) { if (this.qStep() !== st || S.wait) break; this.qEvent(type, d); }
     if (this.qStep() !== st || S.wait) { this.questHud(); return; }
-    const m = this.questMark();
-    if (st.wp && m && dist(m.x, m.y, this.player.x, this.player.y) > 500) { this.setWaypoint(m.x, m.y); S.wpSet = true; }
+    // görevin rotası kişisel hedeften ayrıdır, her adımda kendiliğinden çizilir (js/nav.js); hemen kurulsun
+    Nav.tT = 0;
     if (st.hint) setTimeout(() => {
       if (this.qStep() !== st || this.state !== 'play') return;
       const h = st.hint.call(this, S);

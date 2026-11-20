@@ -172,6 +172,8 @@ const UI = {
       if (this.timers.radar <= 0 && !this.mapShown()) { this.timers.radar = 1 / 20; this.drawRadar(); }   // harita açıkken radar görünmez
       // radarın yakın harita parçaları her karede küçük bir payla pişer (eskiden radar çizilirken 3 ms'lik tek hamle: o kare uzuyordu)
       else if (!this.mapShown() && G.world) G.world.mapWork(0.7);
+      InteractMarks.update(dt);   // etkileşim belirteçleri: kamera bu karede yerine oturduktan sonra (js/imarks.js)
+      Nav.edge();                 // hedef ekranın dışındaysa kenarda yön oku (js/nav.js)
       this.feedUpdate(dt);
     }
   },
@@ -764,8 +766,16 @@ const UI = {
     if (!W || !P) return;
     const L = 224, C = 112, R = 100;
     const xk = this.hudXk || 0;                                   // genişletilmiş radar (D-pad ↓): daha geniş alan
-    const z = (P.riding ? 1.35 : 1.8) * lerp(1, 0.42, xk); // px / karo
-    const tx = P.x / TS, ty = P.y / TS;
+    // hıza göre yumuşak yakınlaşma (yürürken yakın, dörtnala uzak); hızlı giderken radar gidiş yönünde biraz ileriyi
+    // gösterir: oyuncunun oku merkezden geriye kayar
+    const rh = P.riding, spd = rh ? rh.spd || 0 : Math.hypot(P.vx || 0, P.vy || 0);
+    const zt = spd > 150 ? 1.22 : spd > 105 ? 1.32 : spd > 60 ? 1.46 : spd > 20 ? 1.66 : 1.82;
+    this._rz = this._rz ? this._rz + (zt - this._rz) * 0.08 : zt;
+    const z = this._rz * lerp(1, 0.42, xk); // px / karo
+    const la = clamp((spd - 70) / 90, 0, 1) * (R / z) * 0.32 * (1 - xk), ha = rh ? (rh.hAng !== undefined ? rh.hAng : rh.ang) : P.ang;
+    const LA = this._rla || (this._rla = [0, 0]);
+    LA[0] += (Math.cos(ha) * la - LA[0]) * 0.08; LA[1] += (Math.sin(ha) * la - LA[1]) * 0.08;
+    const tx = P.x / TS + LA[0], ty = P.y / TS + LA[1];
     c.setTransform(2, 0, 0, 2, 0, 0);
     c.clearRect(0, 0, L, L);
     c.save();
@@ -778,6 +788,7 @@ const UI = {
     c.imageSmoothingEnabled = true;
     // dünya → radar: sonuç her çağrıda aynı diziye yazılır, çağıran değerleri hemen okur
     const RP = [0, 0], toR = (wx, wy) => { RP[0] = C + (wx / TS - tx) * z; RP[1] = C + (wy / TS - ty) * z; return RP; };
+    const pp = toR(P.x, P.y).slice();   // oyuncunun radardaki yeri (ileriyi gösterirken merkezde değil)
     // yollar ve demiryolu (vektörel); çizgiler 64 noktalık parçalara bölünür, radarın dışında kalan parça hiç dolaşılmaz
     const lim = span * TS * 0.75, bx0 = P.x - lim, bx1 = P.x + lim, by0 = P.y - lim, by1 = P.y + lim;
     // nokta başına dizi yaratmamak için dönüşüm (toR ile aynı) satır içinde; yol yolu bir kez kurulur, iki kez (koyu kenar,
@@ -801,42 +812,50 @@ const UI = {
     }
     c.strokeStyle = 'rgba(30,24,20,0.8)'; c.lineWidth = 1.2;
     for (let li = 0; li < W.lines.length; li++) if (poly(W.lines[li].pts, 2)) c.stroke();
-    c.drawImage(G.fogCanvas, (tx - span / 2) / 4, (ty - span / 2) / 4, span / 4, span / 4, C - R, C - R, 2 * R, 2 * R);
-    // gece: kâğıt mürekkep mavisine kararır (göz yormaz)
+    this.radarFog(c, tx, ty, span, z, C, R);
+    // gece: kâğıt hafifçe mürekkep mavisine döner (yollar ve simgeler okunur kalır)
     const night = 1 - G.daylight;
-    if (night > 0.02) { c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.62 * night; c.fillStyle = '#48527a'; c.fillRect(C - R, C - R, 2 * R, 2 * R); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
+    if (night > 0.02) { c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.5 * night; c.fillStyle = '#5a6492'; c.fillRect(C - R, C - R, 2 * R, 2 * R); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
     // aranma alanı
     if (G.law.level > 0) {
       const lp = toR(G.law.lastX, G.law.lastY), lx = lp[0], ly = lp[1];
       c.fillStyle = 'rgba(180,20,20,0.22)'; c.strokeStyle = 'rgba(200,30,30,0.7)'; c.lineWidth = 1.5;
       c.beginPath(); c.arc(lx, ly, G.law.radius / TS * z, 0, TAU); c.fill(); c.stroke();
     }
-    // GPS
-    if (G.gps && G.gps.length > 1) {
-      c.strokeStyle = 'rgba(160,40,160,0.85)'; c.lineWidth = 3; c.lineJoin = 'round';
-      c.beginPath();
-      let started = false;
-      let bestI = 0, bd = 1e18;
-      for (let i = 0; i < G.gps.length; i++) { const d = dist2(G.gps[i][0], G.gps[i][1], P.x, P.y); if (d < bd) { bd = d; bestI = i; } }
-      c.moveTo(C, C);
-      for (let i = bestI; i < G.gps.length; i++) { const q = toR(G.gps[i][0], G.gps[i][1]); c.lineTo(q[0], q[1]); started = true; }
-      if (started) c.stroke();
-    }
+    // rotalar: kişisel hedef (mor) ve görev (altın); gidiş yönünde kayan oklar, sıradaki dönüş (js/nav.js)
+    Nav.radar(c, toR, C, R, G.t);
     // simgeler; edge: daire dışındaysa kadran bandında gösterilir
     const edges = [];
     const icon = (wx, wy, g, col, bg, sz = 13, edge) => {
       const q = toR(wx, wy), x = q[0], y = q[1];
       const dx = x - C, dy = y - C, d = Math.hypot(dx, dy);
-      if (d > R - 8) { if (edge) edges.push({ a: Math.atan2(dy, dx), g, col: col || '#fff', bg: bg || 'rgba(26,18,12,0.95)', q: edge === 'quest' }); return; }
+      // dairenin dışındaki hedefin kadrandaki yönü oyuncudan (ileriyi gösterirken oyuncu merkezde değil)
+      if (d > R - 8) { if (edge) edges.push({ a: Math.atan2(y - pp[1], x - pp[0]), g, col: col || '#fff', bg: bg || 'rgba(26,18,12,0.95)', q: edge === 'quest' }); return; }
       c.fillStyle = bg || 'rgba(26,18,12,0.85)'; c.beginPath(); c.arc(x, y, sz * 0.62, 0, TAU); c.fill();
       const im = Icons.img(g, col || '#efe6d2', 32);
       if (im && im.complete) c.drawImage(im, x - sz * 0.42, y - sz * 0.42, sz * 0.84, sz * 0.84);
     };
+    // binalar: oyuncuya yakın olan simge tam; kalabalıkta (üst üste binen) ya da radarın kıyısındaki küçük nokta. Yaklaştıkça açılır
+    const bl = this._rBl || (this._rBl = []);
+    bl.length = 0;
     for (let bi = 0; bi < W.buildings.length; bi++) {
       const b = W.buildings[bi];
       if (Math.abs(b.door.x - P.x) > 900 || Math.abs(b.door.y - P.y) > 900 || (xk > 0.5 && b.town)) continue;   // genişken kasaba adı yeterli
       const ic = BICON[b.type];
-      if (ic && !b.shut && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) icon(b.door.x, b.door.y, ic, '#efe6d2', G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null, 15);
+      if (ic && !b.shut && (RADAR_B.has(b.type) || b.lot) && (b.town ? G.visited.has(b.town) : true)) bl.push(b);
+    }
+    bl.sort((a, b) => dist2(a.door.x, a.door.y, P.x, P.y) - dist2(b.door.x, b.door.y, P.x, P.y));
+    const full = this._rFull || (this._rFull = []);
+    full.length = 0;
+    for (const b of bl) {
+      const q = toR(b.door.x, b.door.y), x = q[0], y = q[1], d = Math.hypot(x - C, y - C);
+      if (d > R - 8) continue;
+      const bg = G.bizOf(b) ? 'rgba(150,110,20,0.95)' : null;
+      let crowd = d > R * 0.8;
+      for (let k = 0; k < full.length && !crowd; k += 2) if (Math.abs(full[k] - x) < 13 && Math.abs(full[k + 1] - y) < 13) crowd = true;
+      if (!crowd) { icon(b.door.x, b.door.y, BICON[b.type], '#efe6d2', bg, 15); full.push(x, y); continue; }
+      c.fillStyle = bg || 'rgba(26,18,12,0.82)'; c.beginPath(); c.arc(x, y, 2.3, 0, TAU); c.fill();
+      c.strokeStyle = 'rgba(239,230,210,0.75)'; c.lineWidth = 0.7; c.stroke();
     }
     for (let pi = 0; pi < W.pois.length; pi++) {
       const p = W.pois[pi];
@@ -888,8 +907,10 @@ const UI = {
     }
     // kubbe gölgesi (kenarlara doğru koyulaşan kâğıt) kadranla birlikte çizilir (bezelArt): halkası merkezden 58 px
     // öteden başlar, oyuncu okuna ve koniye (46 px) değmez
-    // oyuncu: önündeki bakış konisi ve ok
-    c.translate(C, C); c.rotate(P.riding ? P.riding.ang : P.ang);
+    // rota bilgisi: sıradaki dönüş, kalan yol ve süre (js/nav.js)
+    Nav.radarInfo(c, C, R);
+    // oyuncu: önündeki bakış konisi ve ok (ileriyi gösterirken merkezin gerisinde)
+    c.translate(pp[0], pp[1]); c.rotate(P.riding ? P.riding.ang : P.ang);
     let cone = this._rCone;
     if (!cone) { cone = this._rCone = c.createRadialGradient(0, 0, 3, 0, 0, 46); cone.addColorStop(0, 'rgba(255,248,226,0.5)'); cone.addColorStop(1, 'rgba(255,248,226,0)'); }
     c.fillStyle = cone; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 46, -0.5, 0.5); c.closePath(); c.fill();
@@ -938,6 +959,35 @@ const UI = {
     });
     this._bezel = { cv, key };
     return cv;
+  },
+  /* Radarın keşfedilmemiş kısmı: büyük haritadaki gibi taranmış eski kâğıt (desen dünyaya sabit, radar kayınca
+     taramalar da kayar); açılan yerin kıyısına yumuşak mürekkep gölgesi düşer */
+  radarFog(c, tx, ty, span, z, C, R) {
+    // görünen alanın tamamı keşfedildiyse (kasabalar, gezilmiş yerler) hiçbir şey çizilmez
+    const M = G.reveal, cx0 = Math.max(0, Math.floor((tx - span / 2) / 4)), cy0 = Math.max(0, Math.floor((ty - span / 2) / 4));
+    const cx1 = Math.min(FW - 1, Math.ceil((tx + span / 2) / 4)), cy1 = Math.min(FW - 1, Math.ceil((ty + span / 2) / 4));
+    let any = false;
+    for (let y = cy0; y <= cy1 && !any; y++) for (let x = cx0, i = y * FW + cx0; x <= cx1; x++, i++) if (!M[i]) { any = true; break; }
+    if (!any) return;
+    // katman radarın yarı çözünürlüğünde (224 px): taramalar ince kalır, iş dörtte bire iner
+    const F = this._rFog || (this._rFog = makeCanvas(224, 224)), f = F.getContext('2d');
+    const S = this._rFogS || (this._rFogS = makeCanvas(56, 56)), s = S.getContext('2d');
+    const sx = (tx - span / 2) / 4, sy = (ty - span / 2) / 4, sw = span / 4;
+    // kıyı gölgesi: sisin küçük ve bulanık koyu kopyası
+    s.globalCompositeOperation = 'source-over'; s.clearRect(0, 0, 56, 56); s.imageSmoothingEnabled = true;
+    s.drawImage(G.fogCanvas, sx, sy, sw, sw, 3, 3, 50, 50);
+    s.globalCompositeOperation = 'source-in'; s.fillStyle = 'rgba(70,40,16,0.7)'; s.fillRect(0, 0, 56, 56);
+    // taranmış kâğıt: sis maskesi desenle dolar (desen dünyaya sabit: radar kayınca taramalar da kayar)
+    f.setTransform(1, 0, 0, 1, 0, 0); f.globalCompositeOperation = 'source-over'; f.clearRect(0, 0, 224, 224); f.imageSmoothingEnabled = true;
+    f.drawImage(G.fogCanvas, sx, sy, sw, sw, C - R, C - R, 2 * R, 2 * R);
+    f.globalCompositeOperation = 'source-in';
+    const pat = this._rFogP || (this._rFogP = f.createPattern(this.fogTex(), 'repeat')), k = 0.42, T = 192 * k;
+    if (pat.setTransform) pat.setTransform(new DOMMatrix([k, 0, 0, k, -((tx * z) % T), -((ty * z) % T)]));
+    f.fillStyle = pat; f.fillRect(0, 0, 224, 224);
+    f.globalCompositeOperation = 'source-over';
+    const sc = 2 * R / 50;
+    c.drawImage(S, C - R - 3 * sc - 3, C - R - 3 * sc - 3, 56 * sc + 6, 56 * sc + 6);
+    c.drawImage(F, 0, 0, 224, 224);
   },
   drawBezel(c, C, R, edges) {
     c.save();
@@ -1042,9 +1092,10 @@ const UI = {
   /* Hedefe yol: hedef işaretinde rota boyunca uzunluk, yoksa kuş uçuşunun yol payıyla; yaya, atla ve (varsa)
      faytonla tahmini oyun süresi */
   mapEta(tx, ty) {
-    const P = G.player, R = G.gps, wp = G.waypoint;
+    const P = G.player, wp = G.waypoint, same = (r) => r && Math.abs(r.tx - tx) < 1 && Math.abs(r.ty - ty) < 1;
     let d = 0;
-    if (R && R.length && wp && wp.x === tx && wp.y === ty) { let x = P.x, y = P.y; for (const p of R) { d += dist(x, y, p[0], p[1]); x = p[0]; y = p[1]; } d += dist(x, y, tx, ty); }
+    if (wp && wp.x === tx && wp.y === ty && same(Nav.wp)) d = Nav.left(Nav.wp);
+    else if (same(Nav.q)) d = Nav.left(Nav.q);
     else d = dist(P.x, P.y, tx, ty) * 1.3;
     const f = (spd) => { const m = d / spd * MIN_PER_SEC; return m >= 60 ? Tr`~${Math.round(m / 6) / 10} sa` : Tr`~${Math.max(1, Math.round(m))} dk`; };
     const g = (k) => Icons.glyph(k, '#d8ccb4');
@@ -1186,8 +1237,8 @@ const UI = {
     const wp = G.waypoint, key = [M.cx, M.cy, M.zoom, w, h, d, G.fogVer || 0, wp ? wp.x + ',' + wp.y : '-'].join('|');
     const S = this.mapStatic || (this.mapStatic = document.createElement('canvas'));
     if (W.mapWork(8)) this.mapDirty = true;   // yakın harita parçası hazır
-    if (this.mapDirty || S._k !== key || S._gps !== G.gps || (this._mapPend && now - (this._mapPendT || 0) > 200)) {
-      this.mapDirty = false; S._k = key; S._gps = G.gps; this._mapPend = false; this._mapPendT = now;
+    if (this.mapDirty || S._k !== key || S._gps !== Nav.wp || S._qr !== Nav.q || (this._mapPend && now - (this._mapPendT || 0) > 200)) {
+      this.mapDirty = false; S._k = key; S._gps = Nav.wp; S._qr = Nav.q; this._mapPend = false; this._mapPendT = now;
       if (S.width !== c.canvas.width || S.height !== c.canvas.height) { S.width = c.canvas.width; S.height = c.canvas.height; }
       this.drawMapStatic(S.getContext('2d'), w, h);
     }
@@ -1250,11 +1301,8 @@ const UI = {
       c.lineWidth = 3; c.strokeStyle = 'rgba(232,218,184,0.45)'; c.strokeText(txt, x, y);
       c.fillStyle = 'rgba(60,40,20,0.5)'; c.fillText(txt, x, y);
     }
-    // GPS
-    if (G.gps) {
-      c.strokeStyle = 'rgba(150,40,150,0.8)'; c.lineWidth = 3; c.setLineDash([6, 4]);
-      c.beginPath(); G.gps.forEach((p, i) => { const [x, y] = toS(p[0], p[1]); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke(); c.setLineDash([]);
-    }
+    // rotalar: kişisel hedef (mor) ve görev (altın), yolları izler (js/nav.js)
+    Nav.map(c, toS);
     // aranma
     if (G.law.level > 0) { const [x, y] = toS(G.law.lastX, G.law.lastY); c.fillStyle = 'rgba(180,20,20,0.2)'; c.beginPath(); c.arc(x, y, G.law.radius / TS * M.zoom, 0, TAU); c.fill(); }
     // açıklamada gizlenen türler (bina simgeleri, satılık arsalar, yerler)
@@ -2039,7 +2087,7 @@ const UI = {
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { awareMarks: true, master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0,
+    const DEF = { awareMarks: true, imarks: true, master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0,
       gfxPreset: 2, fpsCap: 0, bright: 2, ...GFX_PRESETS[2] };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
@@ -2070,6 +2118,7 @@ const UI = {
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
         ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
         ['awareMarks', Tr('Fark Edilme Göstergesi'), 'bool', Tr('Haydutların ve aranırken kanun adamlarının başının üstünde, seni sezince dolan amber "?" ve fark edince kırmızı "!" işareti; seni ararken yeniden "?". Kapatınca yalnızca davranışlarından anlarsın.')],
+        ['imarks', Tr('Etkileşim Belirteçleri'), 'bool', Tr('Yaklaştığın kişilerin, kapıların, kuyuların, sandıkların ve öbür etkileşimli şeylerin üstünde birkaç saniyeliğine küçük bir tuş simgesi; önündeki şeyin simgesi genişleyip eylemin adını gösterir. Görevi ilerleten şeyin simgesi altın halkalıdır. Kapatınca yalnızca sağ alttaki istem kalır.')],
         ['meters', Tr('Göstergeler'), 'opt', Tr('Gerektiğinde: radarın yayındaki halkalar (sağlık, dayanıklılık, odak ve ihtiyaçlar) doluyken söner; azalınca, değişince, çatışmada, nişan alırken ve genişletilmiş HUD\'da görünür. Her Zaman: hepsi hep ekranda.')],
       ] },
       { n: Tr('Grafik'), g: 'sun', rows: [

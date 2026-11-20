@@ -1915,46 +1915,35 @@ const GameSystems = {
     return true;
   },
   setWaypoint(x, y, n) {
-    if (x === null) { this.waypoint = null; this.gps = null; return; }
+    if (x === null) { this.waypoint = null; this.gps = null; Nav.wp = null; return; }
     this.waypoint = n ? { x, y, n } : { x, y };   // n: yerin adı (haritadaki kartta yazar)
     this.computeGps();
     Audio_.ui('ok');
   },
+  /* Kişisel hedefin rotası hemen kurulur (yolları izler; js/nav.js); sonra Nav.tick izler */
   computeGps() {
-    const P = this.player, W = this.world, wp = this.waypoint;
-    if (!wp) return;
-    const C = W.cost;
-    const s = [clamp((P.x / TS / CG) | 0, 0, CW - 1), clamp((P.y / TS / CG) | 0, 0, CHH - 1)];
-    const g = [clamp((wp.x / TS / CG) | 0, 0, CW - 1), clamp((wp.y / TS / CG) | 0, 0, CHH - 1)];
-    const path = W.astar(s[0], s[1], g[0], g[1], (ni) => { const c = C[ni]; return c >= 1e5 ? 4 : c > 20 ? 40 : c; });
-    this.gps = path ? path.map(p => [p[0] * TS + 8, p[1] * TS + 8]) : null;
-    this.gpsT = 4;
-  },
-  /* Oyuncu rotanın üstünde mi (en yakın rota noktasına 10 karodan yakın): öyleyse rota yeniden hesaplanmaz, geride
-     kalan kısmı kesilir. Rotadan sapınca (ya da rota bulunamamışsa) yeniden hesaplanır. */
-  onGps() {
-    const P = this.player, R = this.gps;
-    if (!R) return false;
-    let bi = -1, bd = 160 * 160;
-    for (let i = 0; i < R.length; i++) { const d = dist2(R[i][0], R[i][1], P.x, P.y); if (d < bd) { bd = d; bi = i; } }
-    if (bi < 0) return false;
-    if (bi > 0) this.gps = R.slice(bi);
-    return true;
+    Nav.wp = null; Nav.tT = 0;
+    Nav.tick(0);
   },
 
   /* ================= ETKİLEŞİM ================= */
-  findInteraction() {
+  /* scan (px) verilirse etkileşim belirteçleri için tarama kipi (js/imarks.js): menzil scan olur, yalnız yaya hâlde
+     çalışır ve bütün adaylar (her biri kalıcı anahtarıyla: varlık, karo sırası, bina...) dizi olarak döner. Su kenarı ve
+     rafinerinin adayları anahtarsızdır (belirteç çıkmaz). */
+  findInteraction(scan) {
     const P = this.player, W = this.world;
+    if (scan && (P.passenger || P.carry || P.riding)) return null;
     // faytonda yolcuyken: yalnızca inmek
     if (P.passenger) return this.ride ? { x: P.x, y: P.y, riding: true, label: Tr`Özel Faytonun · ${this.ride.d.n}`, actions: [{ n: Tr('Faytondan İn'), fn: () => this.rideEnd(false) }] } : null;
-    const cands = [];
-    const add = (x, y, label, actions, pri = 0, alt = null) => { const d = dist(P.x, P.y, x, y) - pri; cands.push({ x, y, label, actions, d, alt }); };
+    const cands = [], R = scan || 0;
+    let ck = null;   // adayın anahtarı (tarama kipinde belirteç aynı şeye bağlı kalır)
+    const add = (x, y, label, actions, pri = 0, alt = null) => { const d = dist(P.x, P.y, x, y) - pri; cands.push({ x, y, label, actions, d, alt, key: ck }); };
     // kanun adamı tutuklamaya geliyorsa: teslim ol (uzaktan, at üstünden de; atlı kanun adamı geniş daireler çizer)
     const cop = this.arrestingCop(130);
-    if (cop) return { x: cop.x, y: cop.y, far: true, label: cop.name + Tr(' (Kanun)'), actions: [{ n: Tr('Teslim Ol'), hold: 0.7, fn: () => this.surrender(cop) }, ...this.bribeActs(cop)] };
+    if (cop) return scan ? null : { x: cop.x, y: cop.y, far: true, label: cop.name + Tr(' (Kanun)'), actions: [{ n: Tr('Teslim Ol'), hold: 0.7, fn: () => this.surrender(cop) }, ...this.bribeActs(cop)] };
     // ödül avcıları sıkıştırdıysa en yakınına seslenilir (at üstünden de): basılı tutunca teslim ol, kısa basınca seçenekler
     const hn = this.posseNear(240);
-    if (hn) return { x: hn.x, y: hn.y, far: true, label: `${hn.name} · ${Tr('Ödül Avcısı')}`, actions: this.hunterActions(hn) };
+    if (hn) return scan ? null : { x: hn.x, y: hn.y, far: true, label: `${hn.name} · ${Tr('Ödül Avcısı')}`, actions: this.hunterActions(hn) };
     // omuzda yük varken etkileşim yalnızca yükle ilgilidir
     if (P.carry && !P.riding) return this.carryInteraction();
     if (P.riding) {
@@ -1979,7 +1968,8 @@ const GameSystems = {
       if (e.hide || this.floorHid(e)) continue;
       if (e.remove) continue;
       const d = e.kind === 'wagon' ? Math.min(dist(P.x, P.y, e.x, e.y), dist(P.x, P.y, e.bx, e.by)) : dist(P.x, P.y, e.x, e.y);   // arabanın gövdesi atların arkasında
-      if (d > (e.held ? 50 : e.mounted ? 40 : 30)) continue;   // atlının atı uzun: yanındaki yayaya biraz daha uzaktan yetişir
+      if (d > (R || (e.held ? 50 : e.mounted ? 40 : 30))) continue;   // atlının atı uzun: yanındaki yayaya biraz daha uzaktan yetişir
+      ck = e;
       if (e.kind === 'horse') {
         if (e === this.horse) {
           if (e.dead) { add(e.x, e.y, e.name, [{ n: Tr('At Diriltici Kullan'), fn: () => this.consume('horse_reviver') }]); continue; }
@@ -2022,18 +2012,20 @@ const GameSystems = {
     // kayıp eşyalar
     for (let i = 0; i < this.lostItems.length; i++) {
       const L = this.lostItems[i];
-      if (dist2(P.x, P.y, L.x, L.y) < 26 * 26) add(L.x, L.y, Tr('Yerde bir şey parlıyor'), [{ n: Tr('Al'), fn: () => { P.addItem(L.item); this.lostItems.splice(i, 1); } }]);
+      ck = L;
+      if (dist2(P.x, P.y, L.x, L.y) < (R || 26) * (R || 26)) add(L.x, L.y, Tr('Yerde bir şey parlıyor'), [{ n: Tr('Al'), fn: () => { P.addItem(L.item); this.lostItems.splice(i, 1); } }]);
     }
     // olay arabası
-    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < 30 * 30) add(ev.wagon.x, ev.wagon.y, Tr('Kırık Araba'), [{ n: Tr('Tekerleği Tamir Et'), hold: 3, fn: () => { ev.done = true; this.earn(rnd(0.25, 1), Tr('Tamir')); this.addHonor(4); this.stat('helped', 1); UI.subtitle(Tr('Yolcu'), Tr('Allah razı olsun dostum!'), 3); this.skillXp('strength', 5); } }]);
+    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < (R || 30) * (R || 30) && (ck = ev)) add(ev.wagon.x, ev.wagon.y, Tr('Kırık Araba'), [{ n: Tr('Tekerleği Tamir Et'), hold: 3, fn: () => { ev.done = true; this.earn(rnd(0.25, 1), Tr('Tamir')); this.addHonor(4); this.stat('helped', 1); UI.subtitle(Tr('Yolcu'), Tr('Allah razı olsun dostum!'), 3); this.skillXp('strength', 5); } }]);
     // nesneler
-    const tx0 = (P.x >> 4) - 1, ty0 = (P.y >> 4) - 1;
-    for (let ty = ty0; ty <= ty0 + 2; ty++) for (let tx = tx0; tx <= tx0 + 2; tx++) {
+    const tRad = R ? Math.ceil(R / TS) : 1, tx0 = (P.x >> 4) - tRad, ty0 = (P.y >> 4) - tRad;
+    for (let ty = ty0; ty <= ty0 + tRad * 2; ty++) for (let tx = tx0; tx <= tx0 + tRad * 2; tx++) {
       if (!W.inb(tx, ty)) continue;
       const i = ty * WW + tx, o = W.obj[i];
       if (!o) continue;
       const ox = tx * TS + 8, oy = ty * TS + 8;
-      if (dist2(P.x, P.y, ox, oy) > 22 * 22) continue;
+      if (dist2(P.x, P.y, ox, oy) > (R || 22) * (R || 22)) continue;
+      ck = i;
       const H = HARVEST[o];
       if (H && W.season === 3 && (isHerbO(o) || o === O.APPLE || o === O.CROP) && (W.snowyTile(tx, ty) || o !== O.ORE && W.bareTree(tx, ty) && o === O.APPLE)) continue;
       if (H) {
@@ -2084,6 +2076,7 @@ const GameSystems = {
       }
     }
     // rafineri (3×3: merkezine yaklaşılamaz)
+    ck = null;
     { const r = this.refActs(P.x, P.y); if (r) add(r.x, r.y, r.label, r.acts, 4); }
     // su
     const onT = W.tileAtPx(P.x, P.y);
@@ -2097,8 +2090,9 @@ const GameSystems = {
     }
     // binalar: kapılar
     for (const b of W.buildings) {
-      if (Math.abs(b.door.x - P.x) > 40 || Math.abs(b.door.y - P.y) > 30) continue;
-      if (dist2(P.x, P.y, b.door.x, b.door.y) > 20 * 20) continue;
+      if (Math.abs(b.door.x - P.x) > (R || 40) || Math.abs(b.door.y - P.y) > (R || 30)) continue;
+      if (dist2(P.x, P.y, b.door.x, b.door.y) > (R || 20) * (R || 20)) continue;
+      ck = b;
       if (b.type === 'property' && !this.props.includes(b.prop)) { add(b.door.x, b.door.y, b.name, [{ n: Tr('Mülkü İncele'), fn: () => UI.openProperty(b) }], 5); continue; }
       if (this.bizOf(b) && this.deliverables(b).some(it => it.from !== 'p')) add(b.door.x, b.door.y, b.name, [{ n: Tr`Malı Boşalt (${this.deliverables(b).length})`, fn: () => this.deliverGoods(b) }], 6);
       if (!b.enter) {
@@ -2122,9 +2116,11 @@ const GameSystems = {
     // hazine
     if (P.has('treasure_map') && this.treasure) {
       const tr = this.treasure;
-      if (dist2(P.x, P.y, tr.x, tr.y) < 28 * 28) add(tr.x, tr.y, Tr('Taze Toprak'), [{ n: P.has('shovel') ? Tr('Kaz') : Tr('Kürek gerekli'), hold: P.has('shovel') ? 3 : 0, fn: () => this.digTreasure() }], 6);
+      ck = tr;
+      if (dist2(P.x, P.y, tr.x, tr.y) < (R || 28) * (R || 28)) add(tr.x, tr.y, Tr('Taze Toprak'), [{ n: P.has('shovel') ? Tr('Kaz') : Tr('Kürek gerekli'), hold: P.has('shovel') ? 3 : 0, fn: () => this.digTreasure() }], 6);
     }
     if (!cands.length) return null;
+    if (R) return cands;
     // yön tercihi
     const face = P.ang;
     for (const c of cands) { const da = Math.abs(angDiff(face, Math.atan2(c.y - P.y, c.x - P.x))); c.d += da * 4; }

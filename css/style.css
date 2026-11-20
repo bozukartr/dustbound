@@ -1128,7 +1128,28 @@ body.dying #game { filter: var(--tone) grayscale(0.9) brightness(0.5) contrast(1
 #bubbles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 /* Fark edilme göstergesi (js/npcsense.js): şüphe dolan amber "?", fark etti kırmızı "!", arıyor yanıp sönen "?" */
 #awaremarks { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+/* Etkileşim belirteçleri (js/imarks.js): sade, süzülen tuş simgesi; odaktaki (istemdeki) şeyin simgesi genişler ve
+   eylemin adını gösterir (üstüne gelinmiş gibi) */
+.imk { position: fixed; left: 0; top: 0; pointer-events: none; display: flex; align-items: center; padding: 1px; border-radius: 13px;
+  background: rgba(14, 9, 6, 0); opacity: 0; transition: opacity 0.3s ease-out, background 0.22s ease-out, padding 0.22s ease-out; white-space: nowrap; }
+.imk.on { opacity: 0.92; }
+.imk .btn { margin: 0; transform: scale(0.74); box-shadow: 0 2px 0 #5c5244, 0 2px 6px rgba(0, 0, 0, 0.55); animation: imkBob 1.9s ease-in-out infinite; }
+.imk i { font-style: normal; max-width: 0; opacity: 0; overflow: hidden; font-size: calc(13px * var(--hs, 1)); color: #f3ead6; text-shadow: 0 1px 2px #000;
+  transition: max-width 0.25s ease-out, opacity 0.2s ease-out, margin 0.25s ease-out; }
+.imk.f { opacity: 1; padding: 1px 9px 1px 1px; background: rgba(14, 9, 6, 0.74); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.imk.f .btn { animation: none; transform: scale(0.8); }
+.imk.f i { max-width: 220px; opacity: 1; margin-left: 1px; }
+.imk.q .btn { box-shadow: 0 0 0 1.5px #f0c040, 0 0 9px rgba(240, 192, 64, 0.75), 0 2px 0 #5c5244; }
+.imk.q.f i { color: #ffe3a0; }
+@keyframes imkBob { 0%, 100% { transform: translateY(0) scale(0.74); } 50% { transform: translateY(-2px) scale(0.74); } }
 .awm { position: fixed; left: 0; top: 0; --k: 0; pointer-events: none; }
+/* Ekran kenarı yön oku (js/nav.js): hedef ekranın dışındayken; görev altın, kişisel hedef mor */
+.nava { position: fixed; left: 0; top: 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: opacity 0.3s; --c: #e8b84a; }
+.nava.wp { --c: #c068d8; }
+.nava.off { opacity: 0; }
+.nava svg { display: block; width: calc(20px * var(--hs, 1)); height: calc(20px * var(--hs, 1)); overflow: visible; filter: drop-shadow(0 0 1.5px #000) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7)); }
+.nava path { fill: var(--c); stroke: rgba(30, 18, 8, 0.6); stroke-width: 0.8; stroke-linejoin: round; }
+.nava span { font-family: var(--sc); font-size: calc(11px * var(--hs, 1)); letter-spacing: 0.6px; color: #f3ead6; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
 .awm i { display: block; font: normal 700 calc(21px * var(--hs, 1))/1 var(--serif); color: #f2b134; opacity: calc(0.35 + var(--k) * 0.65); transform: scale(calc(0.78 + var(--k) * 0.32));
   text-shadow: 0 1px 0 #1a0f06, 1px 0 0 #1a0f06, -1px 0 0 #1a0f06, 0 -1px 0 #1a0f06, 0 0 4px rgba(0, 0, 0, 0.8); transition: opacity 0.15s, transform 0.15s; }
 .awm.alert i { color: #ff5340; opacity: 1; transform: scale(1.18); animation: awPop 0.35s ease-out; }
