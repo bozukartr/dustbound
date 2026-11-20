@@ -2071,7 +2071,7 @@ const UI = {
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
         ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
         ['awareMarks', Tr('Fark Edilme Göstergesi'), 'bool', Tr('Haydutların ve aranırken kanun adamlarının başının üstünde, seni sezince dolan amber "?" ve fark edince kırmızı "!" işareti; seni ararken yeniden "?". Kapatınca yalnızca davranışlarından anlarsın.')],
-        ['imarks', Tr('Etkileşim Belirteçleri'), 'bool', Tr('Yaklaştığın kişilerin, kapıların, kuyuların, sandıkların ve öbür etkileşimli şeylerin üstünde birkaç saniyeliğine adını, tuşunu ve eylemini gösteren küçük etiket; sonra solar. Görevi ilerleten eylemin etiketi altın renklidir. Kapatınca yalnızca sağ alttaki istem kalır.')],
+        ['imarks', Tr('Etkileşim Belirteçleri'), 'bool', Tr('Yaklaştığın kişilerin, kapıların, kuyuların, sandıkların ve öbür etkileşimli şeylerin üstünde birkaç saniyeliğine küçük bir tuş simgesi; önündeki şeyin simgesi genişleyip eylemin adını gösterir. Görevi ilerleten şeyin simgesi altın halkalıdır. Kapatınca yalnızca sağ alttaki istem kalır.')],
         ['meters', Tr('Göstergeler'), 'opt', Tr('Gerektiğinde: radarın yayındaki halkalar (sağlık, dayanıklılık, odak ve ihtiyaçlar) doluyken söner; azalınca, değişince, çatışmada, nişan alırken ve genişletilmiş HUD\'da görünür. Her Zaman: hepsi hep ekranda.')],
       ] },
       { n: Tr('Grafik'), g: 'sun', rows: [
