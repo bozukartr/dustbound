@@ -172,6 +172,7 @@ const UI = {
       if (this.timers.radar <= 0 && !this.mapShown()) { this.timers.radar = 1 / 20; this.drawRadar(); }   // harita açıkken radar görünmez
       // radarın yakın harita parçaları her karede küçük bir payla pişer (eskiden radar çizilirken 3 ms'lik tek hamle: o kare uzuyordu)
       else if (!this.mapShown() && G.world) G.world.mapWork(0.7);
+      InteractMarks.update(dt);   // etkileşim belirteçleri: kamera bu karede yerine oturduktan sonra (js/imarks.js)
       this.feedUpdate(dt);
     }
   },
@@ -2039,7 +2040,7 @@ const UI = {
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { awareMarks: true, master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0,
+    const DEF = { awareMarks: true, imarks: true, master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0,
       gfxPreset: 2, fpsCap: 0, bright: 2, ...GFX_PRESETS[2] };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
@@ -2070,6 +2071,7 @@ const UI = {
         ['zoom', Tr('Piksel Ölçeği'), 'opt', Tr('Dünyanın kaç kat büyütülerek çizileceği. Otomatik, ekran çözünürlüğüne göre seçer; küçük değer daha geniş bir alan gösterir.')],
         ['hudScale', Tr('Arayüz Boyutu'), 'opt', Tr('Ekrandaki göstergelerin (sağlık halkaları, radar, para ve saat, hedef, silah, bildirimler, altyazı) boyutu. Büyük ekranda büyüt, küçük ekranda küçült.')],
         ['awareMarks', Tr('Fark Edilme Göstergesi'), 'bool', Tr('Haydutların ve aranırken kanun adamlarının başının üstünde, seni sezince dolan amber "?" ve fark edince kırmızı "!" işareti; seni ararken yeniden "?". Kapatınca yalnızca davranışlarından anlarsın.')],
+        ['imarks', Tr('Etkileşim Belirteçleri'), 'bool', Tr('Yaklaştığın kişilerin, kapıların, kuyuların, sandıkların ve öbür etkileşimli şeylerin üstünde birkaç saniyeliğine adını, tuşunu ve eylemini gösteren küçük etiket; sonra solar. Görevi ilerleten eylemin etiketi altın renklidir. Kapatınca yalnızca sağ alttaki istem kalır.')],
         ['meters', Tr('Göstergeler'), 'opt', Tr('Gerektiğinde: radarın yayındaki halkalar (sağlık, dayanıklılık, odak ve ihtiyaçlar) doluyken söner; azalınca, değişince, çatışmada, nişan alırken ve genişletilmiş HUD\'da görünür. Her Zaman: hepsi hep ekranda.')],
       ] },
       { n: Tr('Grafik'), g: 'sun', rows: [

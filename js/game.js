@@ -28,7 +28,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { awareMarks: true, master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, mapHide: [], gfx: 0, gpu: 0,
+  settings: { awareMarks: true, imarks: true, master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, mapHide: [], gfx: 0, gpu: 0,
     // grafik (Ayarlar → Grafik): hazır seviye Yüksek, kare hızı sınırsız, parlaklık normal (js/fx.js GFX)
     gfxPreset: 2, fpsCap: 0, bright: 2, ...GFX_PRESETS[2] },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0, dev: 0, leg: 0 },
@@ -51,6 +51,7 @@ const G = {
     this.treasure = null; this.activeBounty = null; this.bounties = null; this.stash = {}; this.resMem = {}; this._feltOk = false; this.fireHeat = 0; this.heatLoad = 0; this.coldLoad = 0; this.debugUsed = false;
     if (typeof Bubbles !== 'undefined') Bubbles.clear();
     if (typeof AwareMarks !== 'undefined') AwareMarks.clear();
+    if (typeof InteractMarks !== 'undefined') InteractMarks.clear();
     this.waypoint = null; this.gps = null; this.camp = null; this.horse = null; this.hideout = null; this.pins = [];
     this.biz = []; this.lotsOwned = []; this.myWagon = null; this.myCar = null; this.haulers = []; this.raids = [];
     this.playtime = 0; this.autoT = 0; this.posse = null; this.pokerTables = {}; this.homes = []; this.homeSeq = 0; this.homePreview = null; this.hitStopT = 0; Juice.reset();

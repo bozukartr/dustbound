@@ -5630,5 +5630,7 @@ I18N.add('en', {
     "Avcı Heybesi": "Hunter's Saddlebags",
     "Yük Eyeri": "Pack Saddle",
     "Avcı Eyeri": "Hunter's Saddle",
+    "Etkileşim Belirteçleri": "Interaction Markers",
+    "Yaklaştığın kişilerin, kapıların, kuyuların, sandıkların ve öbür etkileşimli şeylerin üstünde birkaç saniyeliğine adını, tuşunu ve eylemini gösteren küçük etiket; sonra solar. Görevi ilerleten eylemin etiketi altın renklidir. Kapatınca yalnızca sağ alttaki istem kalır.": "A small tag that briefly appears above people, doors, wells, chests and other things you can interact with as you approach, showing their name, key and action, then fades. The action that advances your quest is shown in gold. Turn it off to keep only the prompt at the bottom right.",
   },
 });

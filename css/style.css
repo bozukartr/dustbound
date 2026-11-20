@@ -1128,6 +1128,21 @@ body.dying #game { filter: var(--tone) grayscale(0.9) brightness(0.5) contrast(1
 #bubbles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 /* Fark edilme göstergesi (js/npcsense.js): şüphe dolan amber "?", fark etti kırmızı "!", arıyor yanıp sönen "?" */
 #awaremarks { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+/* Etkileşim belirteçleri (js/imarks.js): yaklaşılan şeyin üstünde birkaç saniyelik etiket */
+.imk { position: fixed; left: 0; top: 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 8px 4px 5px;
+  background: linear-gradient(180deg, rgba(22, 15, 9, 0.92), rgba(14, 9, 6, 0.86)); border: 1px solid rgba(201, 164, 92, 0.5); border-radius: 3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45); opacity: 0; transition: opacity 0.25s ease-out; white-space: nowrap; font-size: calc(13px * var(--hs, 1)); line-height: 1.15; }
+.imk.on { opacity: 1; }
+.imk::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 8px; height: 8px; margin-left: -4px; background: rgba(14, 9, 6, 0.9); border-right: 1px solid rgba(201, 164, 92, 0.5); border-bottom: 1px solid rgba(201, 164, 92, 0.5); transform: rotate(45deg); }
+.imk b { font-family: var(--sc); font-weight: normal; font-size: calc(11px * var(--hs, 1)); letter-spacing: 1px; color: #cbb98f; padding-left: 3px; }
+.imk span { display: flex; align-items: center; color: #efe6d2; text-shadow: 0 1px 2px #000; }
+.imk i { font-style: normal; }
+.imk .btn { transform: scale(0.8); margin: 0 1px 0 -3px; }
+.imk.hold .btn { box-shadow: 0 0 0 1.5px rgba(240, 200, 110, 0.95), 0 2px 0 #5c5244; }
+.imk em { display: none; }
+.imk.q { border-color: #e8b84a; box-shadow: 0 0 9px rgba(240, 192, 64, 0.45), 0 2px 6px rgba(0, 0, 0, 0.45); }
+.imk.q::after { border-color: #e8b84a; }
+.imk.q b { color: #f2cf73; }
 .awm { position: fixed; left: 0; top: 0; --k: 0; pointer-events: none; }
 .awm i { display: block; font: normal 700 calc(21px * var(--hs, 1))/1 var(--serif); color: #f2b134; opacity: calc(0.35 + var(--k) * 0.65); transform: scale(calc(0.78 + var(--k) * 0.32));
   text-shadow: 0 1px 0 #1a0f06, 1px 0 0 #1a0f06, -1px 0 0 #1a0f06, 0 -1px 0 #1a0f06, 0 0 4px rgba(0, 0, 0, 0.8); transition: opacity 0.15s, transform 0.15s; }
