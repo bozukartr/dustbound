@@ -213,6 +213,8 @@ const G = {
   /* ---------------- Yeni oyun ---------------- */
   async newGame(profile) {
     this.resetState();
+    // dünya kurulurken (await) eski oyunun döngüsü sıfırlanmış durumla işlemesin: güncelleme, arayüz ve belirteç taraması bekler
+    if (this.state !== 'menu') this.state = 'loading';
     const seed = window.__testSeed !== undefined ? window.__testSeed : (Math.random() * 1e9) | 0;   // ölçüm ve testte sabit dünya
     this.seed = seed;
     this.pace = profile.pace; this.difficulty = profile.difficulty; this.background = profile.bg;
@@ -407,6 +409,7 @@ const G = {
     if (!d || typeof d !== 'object') { this.loadErr = 'bad'; return false; }
     if (!(d.v >= SAVE_V)) { this.loadErr = 'old'; UI.feed(Tr('Bu kayıt oyunun eski bir sürümüne ait ve açılamıyor. Yeni bir hayata başla.'), 'warn'); return false; }
     this.resetState();
+    if (this.state !== 'menu') this.state = 'loading';   // oyun içinden yüklerken dünya kurulana dek döngü bekler (bkz. newGame)
     this.slot = L.n;
     this.seed = d.seed;
     Object.assign(this, { clock: d.clock, pace: d.pace });   // mevsim dünya kurulmadan bilinsin
