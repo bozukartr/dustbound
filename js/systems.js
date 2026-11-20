@@ -1915,31 +1915,15 @@ const GameSystems = {
     return true;
   },
   setWaypoint(x, y, n) {
-    if (x === null) { this.waypoint = null; this.gps = null; return; }
+    if (x === null) { this.waypoint = null; this.gps = null; Nav.wp = null; return; }
     this.waypoint = n ? { x, y, n } : { x, y };   // n: yerin adı (haritadaki kartta yazar)
     this.computeGps();
     Audio_.ui('ok');
   },
+  /* Kişisel hedefin rotası hemen kurulur (yolları izler; js/nav.js); sonra Nav.tick izler */
   computeGps() {
-    const P = this.player, W = this.world, wp = this.waypoint;
-    if (!wp) return;
-    const C = W.cost;
-    const s = [clamp((P.x / TS / CG) | 0, 0, CW - 1), clamp((P.y / TS / CG) | 0, 0, CHH - 1)];
-    const g = [clamp((wp.x / TS / CG) | 0, 0, CW - 1), clamp((wp.y / TS / CG) | 0, 0, CHH - 1)];
-    const path = W.astar(s[0], s[1], g[0], g[1], (ni) => { const c = C[ni]; return c >= 1e5 ? 4 : c > 20 ? 40 : c; });
-    this.gps = path ? path.map(p => [p[0] * TS + 8, p[1] * TS + 8]) : null;
-    this.gpsT = 4;
-  },
-  /* Oyuncu rotanın üstünde mi (en yakın rota noktasına 10 karodan yakın): öyleyse rota yeniden hesaplanmaz, geride
-     kalan kısmı kesilir. Rotadan sapınca (ya da rota bulunamamışsa) yeniden hesaplanır. */
-  onGps() {
-    const P = this.player, R = this.gps;
-    if (!R) return false;
-    let bi = -1, bd = 160 * 160;
-    for (let i = 0; i < R.length; i++) { const d = dist2(R[i][0], R[i][1], P.x, P.y); if (d < bd) { bd = d; bi = i; } }
-    if (bi < 0) return false;
-    if (bi > 0) this.gps = R.slice(bi);
-    return true;
+    Nav.wp = null; Nav.tT = 0;
+    Nav.tick(0);
   },
 
   /* ================= ETKİLEŞİM ================= */

@@ -71,8 +71,10 @@ module.exports = {
       await waitStep(2, 1);
       await p.evaluate(() => { const P = G.player, h = G.horse; h.x = P.x + 6; h.y = P.y; P.mount(h, true); P.mountAnim = null; });
       await waitStep(2, 2);
-      const wp = await p.evaluate(() => !!G.waypoint);
-      t.ok(wp, 'çiftliğe rota çizildi');
+      // görevin rotası kişisel hedeften ayrı (js/nav.js): kişisel hedef konmaz
+      const wp = await p.waitForFunction(() => Nav.q && Nav.q.pts.length > 1, null, { timeout: 5000 }).then(() => true, () => false);
+      t.ok(wp, 'çiftliğe görev rotası çizildi');
+      t.ok(!(await p.evaluate(() => !!G.waypoint)), 'kişisel hedef boş kalır');
       await t.sleep(600);
       const ride = await p.evaluate(() => { const e = G.sullyEnt(); return { m: !!(e && e.mounted), e: e && { x: e.x | 0, y: e.y | 0, st: e.state, hide: e.hide, dead: e.dead, n: G.ents.filter(x => x.quest === 'sully').length }, g: G.story.sully, err: G._errShown, cine: G.cine, modal: UI.isModal(), state: G.state, talk: G.story.talkQ && G.story.talkQ.length, p: [G.player.x | 0, G.player.y | 0], ch: G.story.ch, st: G.story.st, errs: window.__errs }; });
       t.ok(ride.m, 'Sully atla önden gider ' + JSON.stringify(ride));

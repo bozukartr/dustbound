@@ -50,8 +50,8 @@ module.exports = {
       await waitStep(1, 2);
       await p.evaluate(() => { const P = G.player, h = G.horse; h.x = P.x + 6; h.y = P.y; P.mount(h, true); P.mountAnim = null; });
       await waitStep(1, 3);
-      const wp = await p.evaluate(() => !!G.waypoint);
-      t.ok(wp, 'tepeye rota');
+      const wp = await p.waitForFunction(() => Nav.q && Nav.q.pts.length > 1, null, { timeout: 5000 }).then(() => true, () => false);
+      t.ok(wp, 'tepeye görev rotası');
       await p.evaluate(() => { const R = G.story.ridePt, h = G.player.riding; h.x = R.x; h.y = R.y; G.player.x = h.x; G.player.y = h.y; });
       await waitStep(1, 4);
       await home();
