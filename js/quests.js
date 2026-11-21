@@ -28,6 +28,10 @@ const STORY_ENV = { DESERT: 'desert', REDROCK: 'desert', FOREST: 'forest', SNOW:
    14 sn, 24 sn'ye dek, sonra at yorulur; oyuncu bu kadar geride kalıp göremezse saklandığı yere varır; saklanacağı
    yerin kamptan uzaklığı); akıl hocasının destek ateşi (menzil, atış aralığı, hasar, sapma, kamptan uzaklığı);
    dönüş pususu (kamptan ve kasabadan en az bu kadar uzakta) */
+/* Bölüm 8 (Sully): saloondaki sarhoş haydut. Kalkıp gitme süresi (sn; ısmarlanan her kadeh uzatır), kadeh fiyatı, kaç
+   kadehte konuşur, barmenin bilgi fiyatı; takipte atının hızı, arkasına bakma aralığı ve süresi, görme menzili, kampa bu
+   kadar yaklaşınca kamp bulunur, oyuncu bu kadar geride kalırsa izi kaybolur */
+const BARFLY = { LEAVE: 70, PER: 35, DRINK: 0.15, TALK: 3, ASK: 1, SPD: 55, LOOK: [6, 10], LOOKT: 1.8, SEE: 240, FOUND: 650, LOST: 1100, NEAR: 800 };
 const RAID = {
   WAKE: 4.5, HORSE_R: 70, FLEE_HP: 0.45, RIDE: [128, 104, 80], SLOW: 420, LOSE: 1300, HIDE: [1700, 2200],
   SUP: { R: 320, RATE: [2.4, 3.4], DMG: 24, ACC: 0.06, DIST: 190 },
@@ -359,6 +363,7 @@ const Story = {
   },
   /* NPC.update'ten çağrılır: true dönerse olağan davranış atlanır */
   questNpc(e, dt) {
+    if (e.quest === 'drunk') return this.drunkNpc(e, dt);   // Sully, Bölüm 8: saloondaki sarhoş haydut
     if (e.quest !== 'mentor' && e.quest !== 'kin') return false;
     const S = this.story, g = S && (e.quest === 'kin' ? S.kin : S.sully), P = this.player, MH = this.storyDef().mentor.horse;
     e.hp = e.maxHp = 9999; e.hostile = false; e.witness = null;
@@ -1035,7 +1040,7 @@ const STORY_SULLY = [
         ['S', Tr('Barmene bir içki ısmarla. Sonra sus.')],
         ['P', Tr('Susmak mı?')],
         ['S', Tr('İnsanlar sessizliğe dayanamaz. Doldurmak için ağızlarından ne çıktığını bilmezler.')],
-      ], after() { this.sSkipTo(20, 19); const p = this.sDoor(this.sBld(['saloon', 'cantina']), 22); if (p) { const s = this.sSpot(p.x - 30, p.y + 10, 0, 30); this.sTeleport(s[0], s[1]); this.sullyGo(p.x + 16, p.y); } } };
+      ], after() { this.sSkipTo(20, 19); const b = this.sBld(['saloon', 'cantina']), p = this.sDoor(b, 22); if (b) this.story.sal = b.id; if (p) { const s = this.sSpot(p.x - 30, p.y + 10, 0, 30); this.sTeleport(s[0], s[1]); this.sullyGo(p.x + 16, p.y); } } };
     },
     steps: [
       { t: () => Tr('Saloona gir'), ev: 'enter', ok: (b) => b && (b.type === 'saloon' || b.type === 'cantina'), at() { return this.sDoor(this.sBld(['saloon', 'cantina']), 4); } },
@@ -1043,13 +1048,23 @@ const STORY_SULLY = [
         hint: () => Tr`Barmenle konuş: <b>Bir Viski İç</b> ya da <b>Alışveriş</b>'ten bir bira al. Fazla içersen sarhoş olursun.` },
       { t: () => Tr('Söylenti dinle'), ev: 'rumor', at() { return this.sDoor(this.sBld(['saloon', 'cantina']), -20); },
         hint: () => Tr`Barmenle konuş ve <b>Söylenti Dinle</b>. Birkaç kuruşa bildiklerini anlatır.`,
+        after: () => [
+          ['S', Tr('Köşedeki adam, ha? Jack\'in adamlarından biri demek.')],
+          ['S', Tr('Barmen bildiğini pahalıya satar. Ya da adamın dilini kendin çözersin: bir iki kadeh, bir el kâğıt...')],
+          ['S', Tr('Ya da sus, bekle. Sarhoş eninde sonunda evine döner.')],
+        ] },
+      // dört yol: barmene sor, sarhoşa içki ısmarla, onunla kâğıt oyna ya da çıkınca gizlice peşine takıl
+      { t: () => Tr('Kızıl Jack\'in kampının yerini öğren'), ev: 'campInfo',
+        at() { const e = this.drunkEnt(); return e && !e.remove ? e : this.sDoor(this.storySaloon(), -20); },
+        how() { return this.drunkEnt() ? Tr`Barmene <b>Kampın Yerini Sor</b> · sarhoşa <b>İçki Ismarla</b> · onunla <b>Kâğıt Oyna</b> · ya da kalkınca gizlice peşine takıl` : Tr`Barmene ${QK('interact')} → <b>Kampın Yerini Sor</b>`; },
+        hint: () => Tr`Dört yolun var: barmene <b>Kampın Yerini Sor</b> (pahalı); sarhoşa <b>İçki Ismarla</b> (üç kadehte çözülür); onunla <b>Kâğıt Oyna</b> ve bir el kazan; ya da bekle, saloondan çıkınca gizlice peşine takıl. Takip ederken arada mesafe bırak, arkasına baktığında görünme.`,
         after() {
-          const P = this.player;
+          const P = this.player, S = this.story;
           if (!P.has('binoculars')) P.addItem('binoculars', 1, true);
           if (!P.has('bedroll')) P.addItem('bedroll', 1, true);
           P.addItem('raw_game', 2, true);
           return [
-            ['S', Tr('{kamp}... Biliyordum. Eski avcıların kamp yeri.')],
+            S.campHow === 'follow' ? ['S', Tr('{kamp}, demek. Ardından gelmeseydin bunu öğrenemezdim; iyi iş çıkardın.')] : ['S', Tr('{kamp}... Biliyordum. Eski avcıların kamp yeri.')],
             ['S', Tr('Gece adamların üstüne gidilmez. Yolun yarısında kamp kurar, şafakta yaklaşırız.')],
             ['S', Tr('Al bunları. Babamın dürbünü, benim eski tulumum, bir de akşam yemeği. Tulum senden yaşlı, ona göre davran.')],
           ];
@@ -1180,6 +1195,8 @@ const STORIES = {
     onEvent(type, d, S) {
       if (type === 'fled' && d && !d.fledN && S.camp && S.camp.pid >= 0 && d.camp === S.camp.pid) { d.fledN = 1; S.fled = (S.fled || 0) + 1; }
       if (type === 'rivalFlee' && !S.jFleeSaid) { S.jFleeSaid = 1; this.qSay([['S', Tr('Jack kaçıyor! Atına bin, peşine düş! Buradakileri ben tutarım!')]]); }
+      // sarhoşla kâğıt oynayıp bir el kazandın: konuşur (js/poker.js)
+      if (type === 'pokerWin' && d === 'drunk') this.drunkTalks(S, 'poker');
     },
     setup(S, town) {
       // Sully'nin çiftliği: kasabaya en yakın çiftlik
@@ -1201,9 +1218,14 @@ const STORIES = {
       if (rp) { rp.n = Tr('Sully Çiftliği'); rp.sully = true; this.discovered.add(rp.id); }
     },
     poster(S) { return this.sullyPoster(S); },
+    // söylenti kampı vermez: köşedeki sarhoş haydudu gösterir; kampın yeri sonraki adımda dört yoldan öğrenilir
+    rumorCamp: false,
     rumor(S) {
-      UI.info(Tr('Barmen Fısıldıyor'), `<p class="quote">${this.sFmt(Tr('"Kızıl Jack mi? Sesini alçalt... Geçen hafta adamlarından biri burada sızdı kaldı. Sabaha kadar {kamp} diye sayıkladı, bir de kızıl sakallının payından. Ben bir şey söylemedim, tamam mı?"'))}</p><p>${this.sFmt(Tr('<b>{kamp}</b> haritanda işaretlendi.'))}</p>`);
+      UI.info(Tr('Barmen Fısıldıyor'), `<p class="quote">${this.sFmt(Tr('"Kızıl Jack mi? Sesini alçalt... Köşede kafayı çeken adamı görüyor musun? Jack\'in adamlarından. Her akşam burada içer, sonra atına binip kampına döner."'))}</p><p class="quote">${Tr('"Kampın yeri mi? Benim hafızam paraya göre çalışır. Bir dolara hatırlarım. Ya da onun dilini kendin çöz."')}</p>`);
     },
+    npcActions(e, S) { return e.storyNpc === 'drunk' ? this.drunkActions(e, S) : null; },
+    buildingActions(b, S) { return this.drunkBarActions(b, S); },
+    tick(S, dt) { this.drunkTick(S, dt); },
     finish(S) {
       const P = this.player;
       this.earn(S.alive ? 10 : 6, Tr('Sully\'nin teşekkürü'));
@@ -1543,5 +1565,200 @@ Object.assign(Story, {
     S.ambush = 1;
     UI.toast(Tr('Pusu!'), Tr('Kamptan kaçan haydutlar Jack\'i kurtarmaya geldi.'), 'wanted');
     setTimeout(() => { if (!first.dead) first.say(pick([Tr('Jack\'i bırak, yabancı!'), Tr('O bizim adamımız! Bırak onu!')]), 2.5); }, 400);
+  },
+});
+
+/* ==========================================================
+   Bölüm 8 (Sully) — saloondaki sarhoş haydut. Bölüm başlarken saloonun bir masasında oturur (kâğıt masası varsa onun
+   başında). Barmen söylentide onu gösterir; kampın yeri dört yoldan öğrenilir:
+   - barmene "Kampın Yerini Sor" (pahalı),
+   - sarhoşa "İçki Ismarla": üç kadehte çözülür (her kadeh gidişini geciktirir),
+   - onunla "Kâğıt Oyna": oturduğu masada bir el kazanırsan konuşur (js/poker.js),
+   - bekle: bir süre sonra kalkar, atına biner ve kampına döner; gizlice peşine takılırsan seni kampa götürür. Ara ara
+     omzunun üstünden bakar: o sırada onun gördüğü yerdeysen (ışık, duruş, atlı olman görünürlüğü artırır) şüphesi dolar
+     (başının üstünde "?"), dolarsa dörtnala kaçar ve iz kaybolur. Çok geride kalırsan da izi kaybolur.
+   Yolların kapandığında barmen kalır. Sarhoşa vurulursa korkup kaçar.
+   ========================================================== */
+const BARFLY_MUMBLE = () => [Tr('Hık... Bir tane daha...'), Tr('Bu viski su gibi... Hık.'), Tr('Kimse bana ne yapacağımı söyleyemez...'), Tr('Kızıl... hık... kızıl kimse...')];
+Object.assign(Story, {
+  storySaloon() { const S = this.story; return (S.sal !== undefined && this.world.buildings.find(b => b.id === S.sal)) || this.sBld(['saloon', 'cantina']); },
+  drunkEnt() { return this.ents.find(e => e.storyNpc === 'drunk' && !e.remove) || null; },
+  /* kampın yeri öğrenilebilir mi (adım: campInfo) */
+  drunkStep() { const S = this.story, st = S && S.on && !S.done && !S.wait && this.qStep(); return !!(st && st.ev === 'campInfo'); },
+  /* her kare (D.tick): sarhoşun yerinde olması, kalkma zamanı */
+  drunkTick(S, dt) {
+    const e = this.drunkEnt(), P = this.player;
+    const want = S.ch === 7 && !S.flags.campInfo && !S.drunkGone;
+    if (!want) { if (e && !this.onScreen(e.x, e.y, 30) && e.dk !== 'home') { e.remove = true; this.drunkUnseat(e); } return; }
+    if (e && e.dead) { S.drunkGone = 'dead'; return; }
+    const b = this.storySaloon();
+    if (!b) return;
+    if (!e) {
+      if (dist2(P.x, P.y, b.door.x, b.door.y) > 700 * 700) return;
+      this.drunkSpawn(S, b);
+      return;
+    }
+    // kampın yerini öğrenme adımında oyuncu yakındaysa saat işler: sonunda kalkıp gider
+    if (e.dk === 'sit' && this.drunkStep() && dist2(P.x, P.y, b.door.x, b.door.y) < 500 * 500) {
+      S.dkT = (S.dkT || 0) + dt;
+      if (S.dkT > BARFLY.LEAVE + (S.drunkN || 0) * BARFLY.PER) this.drunkLeave(e, S);
+    }
+  },
+  drunkSpawn(S, b) {
+    const seat = this.drunkSeat(b);
+    if (!S.dkLook) { const R = new RNG((this.seed || 1) + 811); S.dkLook = Object.assign(randomLook('m', R), { hat: 'cowboy', hatCol: '#2a221a', coat: '#3a2e26' }); S.dkName = R.pick(NAMES.m) + ' ' + R.pick(NAMES.last); }
+    const e = new NPC(seat.x, seat.y, 'gang', { name: S.dkName, look: Object.assign({}, S.dkLook), state: 'sit', money: 0.4 });
+    e.storyNpc = 'drunk'; e.quest = 'drunk'; e.keep = true; e.weapon = null; e.awMark = true; e.dk = 'sit'; e.aw = 0;
+    e.seat = seat; e.seatB = b; e.ang = seat.ang !== undefined ? seat.ang : 0;
+    b.patrons = (b.patrons || []).filter(p => !p.dead && !p.remove); b.patrons.push(e);
+    this.addEnt(e);
+    return e;
+  },
+  drunkUnseat(e) { const b = e.seatB; if (b && b.patrons) b.patrons = b.patrons.filter(p => p !== e); e.seat = null; },
+  /* oturacağı yer: kâğıt masasının başı, yoksa kapıdan en uzak masa; boşta olan */
+  drunkSeat(b) {
+    const W = this.world, seats = (b.seats || []).filter(s => !(b.patrons || []).some(p => p.seat === s && !p.remove));
+    const card = seats.filter(s => [-12, 12].some(dx => W.obj[(s.y >> 4) * WW + ((s.x + dx) >> 4)] === O.CARDTABLE));
+    const pool = card.length ? card : seats;
+    if (pool.length) return pool.slice().sort((a, c) => dist2(c.x, c.y, b.door.x, b.door.y) - dist2(a.x, a.y, b.door.x, b.door.y))[0];
+    let iy = b.door.y; for (let k = 0; k < 40 && !W.buildingAtPx(b.door.x, iy); k++) iy -= 2;
+    return { x: b.door.x + 8, y: iy - 24, ang: -Math.PI / 2 };
+  },
+  /* kalkar: kapıya yürür, dışarıda atına biner, kampına sürer */
+  drunkLeave(e, S) {
+    e.dk = 'out'; e.state = 'walk'; e.nav = null; this.drunkUnseat(e);
+    e.say(pick([Tr('Hık... Yeter bu gecelik.'), Tr('Ben... ben gidiyorum. Hık.')]), 2.5);
+    if (this.insideB || dist2(this.player.x, this.player.y, e.x, e.y) < 400 * 400) {
+      UI.feed(Tr`${e.name} sendeleyerek kalktı, kapıya gidiyor.`);
+      UI.help(Tr`Sarhoş gidiyor. Peşine takılırsan seni kampa götürebilir: arada mesafe bırak, arkasına baktığında onun görebileceği yerde olma. Atlıysan daha kolay görülürsün.`, 10);
+    }
+  },
+  /* questNpc'den: sarhoşun davranışı (true: olağan davranış atlanır) */
+  drunkNpc(e, dt) {
+    const S = this.story, P = this.player;
+    if (!S || !S.on || S.done) { e.quest = null; e.storyNpc = null; e.awMark = false; return false; }
+    e.hostile = false; e.witness = null;
+    // vuruldu ya da itildi: korkup kaçar (bu yol kapanır)
+    if (e.dk !== 'flee' && e.dk !== 'home' && e.hitAt !== undefined && this.t - e.hitAt < 0.6) this.drunkSpook(e, S, Tr`${e.name} korkup kaçtı.`);
+    const C = S.camp;
+    if (e.dk === 'sit') {
+      e.state = 'sit'; e.mv = 0; e.spd = 0;
+      if (e.seat) { e.x = e.seat.x; e.y = e.seat.y; if (e.seat.ang !== undefined) e.ang = e.seat.ang; }
+      this.sitTick(e, dt);
+      if (Math.random() < dt * 0.04 && dist2(e.x, e.y, P.x, P.y) < 150 * 150 && !this.storyTalking()) e.say(pick(BARFLY_MUMBLE()), 2);
+      return true;
+    }
+    if (e.dk === 'out') {
+      const b = e.seatB || this.storySaloon(), D = { x: b.door.x + 8, y: b.door.y + 24 };
+      e.state = 'walk';
+      if (dist2(e.x, e.y, D.x, D.y) > 10 * 10) {
+        if (this.navStep(e, D.x, D.y, dt, 24, { near: 8, enter: true }) === 'fail' && !this.onScreen(e.x, e.y, 20)) { e.x = D.x; e.y = D.y; }
+        return true;
+      }
+      e.mounted = { col: '#5a3a22', mane: '#1a1410', blanket: '#3a4a2a' }; e.dk = 'ride'; e.lookT = rnd(BARFLY.LOOK[0], BARFLY.LOOK[1]); e.rr = null; e.state = 'idle';
+      return true;
+    }
+    if (e.dk === 'ride') {
+      this.mentorFollow(e, { x: C.x, y: C.y, ride: true }, dt, e.mounted ? BARFLY.SPD : 36);
+      // arada bir omzunun üstünden bakar: o sırada gördüğü yerdeysen şüphesi dolar
+      const d = dist(e.x, e.y, P.x, P.y);
+      e.lookT -= dt;
+      const look = e.lookT <= 0;
+      if (e.lookT < -BARFLY.LOOKT) e.lookT = rnd(BARFLY.LOOK[0], BARFLY.LOOK[1]);
+      let gain = 0;
+      if (look) {
+        e.lookAt = e.ang + Math.PI;
+        const R = BARFLY.SEE * this.litK() * this.stanceK() * this.weatherK();
+        if (d < R && Math.abs(angDiff(e.lookAt, Math.atan2(P.y - e.y, P.x - e.x))) < 1.05 && this.los(e.x, e.y, P.x, P.y)) gain = Math.pow(1 - d / R, 0.6) * 2.4;
+      } else e.lookAt = null;
+      if (d < 50) gain = Math.max(gain, 1.6);   // dibinde: at sesini, ayak sesini duyar
+      e.aw = gain ? Math.min(1, (e.aw || 0) + gain * dt) : Math.max(0, (e.aw || 0) - dt * 0.08);
+      if (look && e.aw > 0.35 && !e.awSaid) { e.awSaid = true; e.say(pick([Tr('Hık... Biri mi var orada?'), Tr('Kim o? Hık...')]), 2); }
+      if (e.aw >= 1) { this.drunkSpook(e, S, Tr`Fark edildin! ${e.name} dörtnala kaçtı.`); return true; }
+      // kampa yaklaştı: oyuncu yakından izliyorsa kampın yeri bulunur
+      if (dist2(e.x, e.y, C.x, C.y) < BARFLY.FOUND * BARFLY.FOUND) {
+        if (d < BARFLY.NEAR && this.drunkStep()) this.sullyCampInfo(S, 'follow');
+        else this.drunkLost(e, S);
+        e.dk = 'home'; e.awMark = false; e.aw = 0; e.lookAt = null;
+        return true;
+      }
+      if (d > BARFLY.LOST) this.drunkLost(e, S);
+      return true;
+    }
+    // korkup kaçıyor ya da kampına varıyor: gözden çıkınca kaybolur
+    const fast = e.dk === 'flee';
+    if (!e.mounted && fast) e.mounted = { col: '#5a3a22', mane: '#1a1410', blanket: '#3a4a2a' };
+    this.mentorFollow(e, { x: C.x, y: C.y, ride: !!e.mounted }, dt, fast ? 150 : BARFLY.SPD);
+    if (!this.onScreen(e.x, e.y, 40) && (dist2(e.x, e.y, P.x, P.y) > 600 * 600 || dist2(e.x, e.y, C.x, C.y) < 160 * 160)) e.remove = true;
+    return true;
+  },
+  drunkSpook(e, S, msg) {
+    e.dk = 'flee'; e.aw = 1; e.awMark = false; e.lookAt = null; this.drunkUnseat(e);
+    if (this.drunkStep() && !S.drunkGone) {
+      S.drunkGone = 'spotted';
+      e.say(pick([Tr('Peşimde biri var!'), Tr('Bırakın beni! Ben bir şey bilmiyorum!')]), 2.5);
+      UI.feed(msg, 'warn');
+      UI.help(Tr`Sarhoş kaçtı. Kampın yerini hâlâ barmenden öğrenebilirsin: <b>Kampın Yerini Sor</b>.`, 9);
+    }
+  },
+  drunkLost(e, S) {
+    if (S.drunkGone || S.flags.campInfo) return;
+    S.drunkGone = 'lost'; e.dk = 'home'; e.awMark = false;
+    if (this.drunkStep()) { UI.feed(Tr`${e.name} gözden kayboldu.`, 'warn'); UI.help(Tr`Sarhoşun izini kaybettin. Kampın yerini barmenden öğrenebilirsin: <b>Kampın Yerini Sor</b>.`, 9); }
+  },
+  /* Sarhoşla etkileşim: adımda içki ısmarla ve kâğıt oyna; yoksa sohbet */
+  drunkActions(e, S) {
+    if (e.dk !== 'sit') return [];
+    const chat = { n: Tr('Sohbet Et'), mt: 1, fn: () => { e.say(pick(BARFLY_MUMBLE()), 2.5); } };
+    if (!this.drunkStep()) return [chat];
+    const b = e.seatB || this.storySaloon(), acts = [];
+    acts.push({ n: Tr`İçki Ismarla (${fmtMoney(BARFLY.DRINK)})`, qe: ['campInfo'], fn: () => this.drunkDrink(e, S) });
+    if (b && b.def.svc.includes('poker')) acts.push({ n: Tr('Kâğıt Oyna'), qe: ['campInfo'], fn: () => UI.openPoker(b) });
+    acts.push(chat);
+    return acts;
+  },
+  drunkDrink(e, S) {
+    if (!this.spend(BARFLY.DRINK)) return;
+    S.drunkN = (S.drunkN || 0) + 1;
+    this.setAnim(e, 'drink');
+    Audio_.ui('pick');
+    const n = S.drunkN;
+    if (n >= BARFLY.TALK) { this.drunkTalks(S, 'drinks'); return; }
+    UI.subtitle(e.name, this.sFmt(n === 1 ? Tr('Hık... Sağ ol, ahbap. Ama ben kimseye bir şey söylemem.') : Tr('Kızıl... Kızıl Jack kimseye güvenmez. Bana bile... Hık. Bir tane daha?')), 3.5);
+    Bubbles.add(e, '', 3.5, true);
+  },
+  /* sarhoş konuşur (içki ya da kâğıt): kampın yeri */
+  drunkTalks(S, how) {
+    if (!this.drunkStep() || S.flags.campInfo) return;
+    const e = this.drunkEnt();
+    if (e) { e.ang = Math.atan2(this.player.y - e.y, this.player.x - e.x); Bubbles.add(e, '', 3.5, true); }
+    this.sullyCampInfo(S, how);
+  },
+  /* barmen: kampın yeri pahalıya */
+  drunkBarActions(b, S) {
+    if (!this.drunkStep() || !(b.type === 'saloon' || b.type === 'cantina') || b.town !== S.town) return [];
+    return [{ icon: '💰', label: Tr('Kampın Yerini Sor'), right: fmtMoney(BARFLY.ASK), qe: ['campInfo'], fn: () => { if (!this.spend(BARFLY.ASK)) return; UI.closeAll(); this.sullyCampInfo(S, 'bartender'); } }];
+  },
+  /* kampın yeri öğrenildi: haritada işaretlenir, nasıl öğrenildiği yazar */
+  sullyCampInfo(S, how) {
+    if (S.flags.campInfo) return;
+    S.flags.campInfo = 1; S.campHow = how; S.campKnown = true;
+    this.storyApplyWorld();
+    const cp = S.camp && this.world.pois.find(p => p.pid === S.camp.pid);
+    if (cp) this.rumored.add(cp.id);
+    const q = how === 'bartender' ? Tr('"Bir dolar... Peki. {kamp}. Eski avcıların kamp yeri. Benden duymadın, tamam mı?"')
+      : how === 'drinks' ? Tr('"Hık... Kızıl\'ın yeri mi? {kamp}... eski avcıların yeri. Ama ben söylemedim, ha!"')
+      : how === 'poker' ? Tr('"Lanet kartlar... Peki, peki! Jack {kamp}\'ta. Şimdi rahat bırak beni."')
+      : Tr('Sarhoşun peşinden {kamp}\'a kadar geldin. Kızıl Jack burada saklanıyor.');
+    UI.info(Tr('Kızıl Jack\'in Kampı'), `<p class="${how === 'follow' ? '' : 'quote'}">${this.sFmt(q)}</p><p>${this.sFmt(Tr('<b>{kamp}</b> haritanda işaretlendi.'))}</p>`);
+    this.qEvent('campInfo', how);
+  },
+  /* poker masası (js/poker.js): sarhoş oturduğu saloonun masasında rakiplerden biridir */
+  storyPokerOpp(b, t) {
+    const S = this.story, e = S && S.on && !S.done && this.drunkEnt();
+    const want = !!(e && e.dk === 'sit' && e.seatB === b && this.drunkStep());
+    const i = t.opps.findIndex(o => o.story === 'drunk');
+    if (!want) { if (i >= 0) t.opps.splice(i, 1); return; }
+    if (i < 0) { const o = { name: e.name, stack: 600, style: 1, story: 'drunk' }; if (t.opps.length >= POKER_SEATS) t.opps[t.opps.length - 1] = o; else t.opps.push(o); }
   },
 });

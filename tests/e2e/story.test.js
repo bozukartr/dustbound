@@ -153,6 +153,10 @@ module.exports = {
       await p.evaluate(() => { G.player.money += 1; const b = G.sBld(['saloon', 'cantina']); UI.svcItems(b, 'meal')[1].fn(); });
       await waitStep(7, 2);
       await p.evaluate(() => { UI.rumor(); UI.closeAll(); });
+      await waitStep(7, 3);
+      // söylenti kampı vermez, köşedeki sarhoşu gösterir; kampın yeri barmene sorulur (öbür yollar: tests/e2e/drunk.test.js)
+      t.ok(await p.evaluate(() => !G.story.campKnown), 'söylenti kampı vermez');
+      await p.evaluate(() => { G.player.money += 2; const b = G.sBld(['saloon', 'cantina']); G.storyBuildingActions(b)[0].fn(); UI.closeAll(); });
       await waitStep(8, 0);
       const r = await p.evaluate(() => { const cp = G.world.pois.find(q => q.pid === G.story.camp.pid); return { known: G.story.campKnown, rum: cp ? G.rumored.has(cp.id) : true, bin: G.player.has('binoculars'), bed: G.player.has('bedroll'), meat: G.player.has('raw_game') }; });
       t.ok(r.known && r.rum, 'kamp haritada', r); t.ok(r.bin && r.bed && r.meat, 'dürbün, tulum, et verildi', r);

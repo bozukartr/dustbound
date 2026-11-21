@@ -328,7 +328,7 @@ const AwareMarks = {
     const want = new Map();
     if (on && P) for (const e of G.ents) {
       if (e.kind !== 'npc' || e.dead || e.remove || e.bound || e.state === 'surrender' || G.floorHid(e)) continue;
-      if (!(e.role === 'bandit' || e.role === 'target' || e.isLaw)) continue;
+      if (!(e.role === 'bandit' || e.role === 'target' || e.isLaw || e.awMark)) continue;   // awMark: kendi şüphesi olan (ör. takip edilen sarhoş)
       if (dist2(e.x, e.y, P.x, P.y) > 420 * 420) continue;
       let k = null;
       if (e.awState === 'alert' || (e.isLaw ? e.hostile : e.aggro)) {

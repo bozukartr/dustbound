@@ -10,24 +10,32 @@ module.exports = {
     const wellMark = (w) => p.evaluate((w) => { const s = InteractMarks.st.get((w.y >> 4) * WW + (w.x >> 4)); return !!(s && s.el && s.el.classList.contains('on')); }, w);
     const waitWell = (w) => p.waitForFunction((w) => { const s = InteractMarks.st.get((w.y >> 4) * WW + (w.x >> 4)); return !!(s && s.el && s.el.classList.contains('on')); }, w, { timeout: 4000 });
     const shown = () => p.evaluate(() => [...document.querySelectorAll('#imarks .imk.on')].length);
-    const focusTxt = () => p.evaluate(() => { const e = document.querySelector('#imarks .imk.on.f'); return e ? e.textContent : null; });
-    // kasabanın kuyusu ya da yalağı, çevresi boş bir yer
+    // kuyunun simgesi odakta mı (genişlemiş): yazısı, değilse null. Yoldan geçen birinin ya da atın odağı sayılmaz
+    const focusTxt = () => p.evaluate((w) => { const s = InteractMarks.st.get((w.y >> 4) * WW + (w.x >> 4)), e = s && s.el; return e && e.classList.contains('on') && e.classList.contains('f') ? e.textContent : null; }, well);
+    // kasabanın kuyusu ya da yalağı; yanında (70 px) açık, bina dışı ve başka su kaynağı olmayan bir bekleme yeri olan.
+    // Dünya her koşuda başka: yer haritaya göre seçilir
     const well = await p.evaluate(() => {
       G.godMode = true; G.eventT = 1e9; G.hunterTick = () => {};
-      const t = TH.town('harlow'), W = G.world;
+      if (G.horse) { G.horse.x += 2400; G.horse.y += 2400; }   // at uzakta: istemi çalmasın
+      const t = TH.town('harlow'), W = G.world, WATER = [O.WELL, O.PUMP, O.TROUGH, O.FOUNTAIN];
+      const waterNear = (x, y, r) => { for (let ty = (y - r) >> 4; ty <= (y + r) >> 4; ty++) for (let tx = (x - r) >> 4; tx <= (x + r) >> 4; tx++) if (WATER.includes(W.obj[ty * WW + tx])) return true; return false; };
       let best = null;
       for (let ty = (t.cy - 700) >> 4; ty < (t.cy + 700) >> 4; ty++) for (let tx = (t.cx - 700) >> 4; tx < (t.cx + 700) >> 4; tx++) {
         const o = W.obj[ty * WW + tx];
         if (o !== O.WELL && o !== O.PUMP && o !== O.TROUGH) continue;
         const x = tx * TS + 8, y = ty * TS + 8;
-        if (W.indoorPx(x, y) || W.blocked(x + 70, y, 6)) continue;
-        if (!best || dist(x, y, t.cx, t.cy) < dist(best.x, best.y, t.cx, t.cy)) best = { x, y };
+        if (W.indoorPx(x, y)) continue;
+        let side = null;
+        for (const [dx, dy] of [[70, 2], [-70, 2], [2, 70], [2, -70]]) { const sx = x + dx, sy = y + dy; if (!W.blocked(sx, sy, 6) && !W.indoorPx(sx, sy) && !waterNear(sx, sy, 48)) { side = [dx, dy]; break; } }
+        if (!side) continue;
+        if (!best || dist(x, y, t.cx, t.cy) < dist(best.x, best.y, t.cx, t.cy)) best = { x, y, side };
       }
       return best;
     });
     t.ok(well, 'kasabada kuyu ya da yalak var');
-    const away = () => p.evaluate((w) => { TH.goto(w.x + 900, w.y + 900); }, well);
-    const near = () => p.evaluate((w) => { TH.goto(w.x + 70, w.y + 2); G.player.ang = Math.PI / 2; }, well);
+    // uzaklaş: kasabanın dışında açık bir yer (orada kuyu ya da başka bir şey yok)
+    const away = () => p.evaluate(() => { const t = TH.town('harlow'), s = TH.openSpot(t.cx + 1500, t.cy + 1300, 40); TH.goto(s[0], s[1]); });
+    const near = () => p.evaluate((w) => { TH.goto(w.x + w.side[0], w.y + w.side[1]); G.player.ang = Math.atan2(w.side[1], w.side[0]); }, well);
     // kuyunun hemen yanı (etkileşim menzili 22 px), yüzü kuyuya dönük: odak
     const atWell = () => p.evaluate((w) => {
       const h = G.horse; if (h && dist(h.x, h.y, w.x, w.y) < 120) { h.x += 600; h.y += 600; }
@@ -78,10 +86,11 @@ module.exports = {
       await p.evaluate(() => { G.settings.imarks = true; });
       await away(); await t.sleep(400);
       // atlı: atı yanına getirip bin
-      await p.evaluate((w) => { InteractMarks.clear(); const P = G.player, h = G.horse; TH.goto(w.x + 70, w.y + 2); h.dead = false; h.x = P.x; h.y = P.y; P.mount(h, true); P.mountAnim = null; }, well);
+      await p.evaluate((w) => { InteractMarks.clear(); const P = G.player, h = G.horse; TH.goto(w.x + w.side[0], w.y + w.side[1]); h.dead = false; h.x = P.x; h.y = P.y; P.mount(h, true); P.mountAnim = null; }, well);
       await t.sleep(1200);
       t.eq(await shown(), 0, 'atlıyken simge yok');
-      await p.evaluate(() => { G.player.dismount(); });
+      // inince at uzağa (yoksa istem atı gösterir); kuyunun yanında yeniden simge
+      await p.evaluate((w) => { const P = G.player, h = G.horse; P.dismount(); TH.goto(w.x + w.side[0], w.y + w.side[1]); h.x += 2400; h.y += 2400; }, well);
       await waitWell(well);
       // nişan alınca görünen simge hemen solar (nişan tuşu basılı, elde tabanca)
       await p.evaluate(() => { const P = G.player; P.giveWeapon('cattleman'); P.weapon = 'cattleman'; window.__d0 = Input.down; Input.down = function (a) { return a === 'aim' ? true : window.__d0.call(this, a); }; });
