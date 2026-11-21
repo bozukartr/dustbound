@@ -122,7 +122,8 @@ const CarrySystems = {
       e.mounted = null;
     }
     const outlaw = e.role === 'bandit' || e.role === 'target';
-    e.state = 'lassoed'; e.lasT = outlaw ? rnd(4, 6) : rnd(6, 9); e.wrig = 0; e.aggro = false; e.path = null;
+    // hikâyenin hedef kişisine (ör. atından düşürülen Kızıl Jack) inip bağlamak için biraz daha zaman
+    e.state = 'lassoed'; e.lasT = (outlaw ? rnd(4, 6) : rnd(6, 9)) + (e.quest === 'rival' ? 5 : 0); e.wrig = 0; e.aggro = false; e.path = null;
     P.rope = e;
     Audio_.thud(0.3);
     e.say(pick([Tr('Hey! Bırak beni!'), Tr('Ne yapıyorsun?!'), Tr('Lanet olsun!')]), 2);

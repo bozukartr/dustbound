@@ -24,6 +24,15 @@ const SULLY_HORSE = { col: '#3a2a20', mane: '#1a1410', blanket: '#6a2a20' };
 /* Bölüm 5'te satılabilecek çiğ etler (postlar 'animal' türündedir) */
 const STORY_MEAT = ['raw_game', 'raw_big', 'raw_bird'];
 const STORY_ENV = { DESERT: 'desert', REDROCK: 'desert', FOREST: 'forest', SNOW: 'forest', DRY: 'dry', GRASS: 'plains', SWAMP: 'coast' };
+/* Baskın (Sully, Bölüm 10): baskın saati; hedef kişinin kaçışı (atı kamp merkezinden uzaklık, kırılma canı, hız: ilk
+   14 sn, 24 sn'ye dek, sonra at yorulur; oyuncu bu kadar geride kalıp göremezse saklandığı yere varır; saklanacağı
+   yerin kamptan uzaklığı); akıl hocasının destek ateşi (menzil, atış aralığı, hasar, sapma, kamptan uzaklığı);
+   dönüş pususu (kamptan ve kasabadan en az bu kadar uzakta) */
+const RAID = {
+  WAKE: 4.5, HORSE_R: 70, FLEE_HP: 0.45, RIDE: [128, 104, 80], SLOW: 420, LOSE: 1300, HIDE: [1700, 2200],
+  SUP: { R: 320, RATE: [2.4, 3.4], DMG: 24, ACC: 0.06, DIST: 190 },
+  AMBUSH: { FROM: 700, TOWN: 900 },
+};
 
 const Story = {
   /* ---------------- yardımcılar ---------------- */
@@ -353,6 +362,8 @@ const Story = {
     if (e.quest !== 'mentor' && e.quest !== 'kin') return false;
     const S = this.story, g = S && (e.quest === 'kin' ? S.kin : S.sully), P = this.player, MH = this.storyDef().mentor.horse;
     e.hp = e.maxHp = 9999; e.hostile = false; e.witness = null;
+    // baskında silah sesini duyan akıl hocası destek ateşi açar (Sully, Bölüm 10)
+    if (e.quest === 'mentor' && this.mentorSupport(e, dt)) return true;
     if (!g) { e.mv = 0; return true; }
     if (g.tied) { e.state = 'tied'; e.mv = 0; e.spd = 0; e.mounted = null; if (dist(e.x, e.y, g.x, g.y) > 4) { e.x = g.x; e.y = g.y; } return true; }
     if (e.state === 'tied') e.state = 'idle';
@@ -444,10 +455,17 @@ const Story = {
     let j = this.rivalEnt();
     if (!j) {
       if (S.jack === 'carried') { S.jack = 'bound'; }   // taşınırken kaybolduysa bıraktığın yerde
-      const jx = S.jx || S.camp.x + 10, jy = S.jy || S.camp.y - 12;
+      // kaçarken kaydedildiyse saklanacağı yerde belirir
+      if (S.jFlee && !S.jHide && S.jack === 'free') S.jHide = S.jHideTo || this.rivalHideSpot(S);
+      const hide = S.jack === 'free' && S.jHide;
+      const jx = hide ? S.jHide.x : S.jx || S.camp.x + 10, jy = hide ? S.jHide.y : S.jy || S.camp.y - 12;
       if (dist(P.x, P.y, jx, jy) > 900) return;
-      j = new NPC(jx, jy, 'bandit', { hostile: S.jack === 'free', name: R.name(), look: Object.assign({}, R.look), hp: R.hp || 150, weapon: R.weapon || 'repeater', home: { x: S.camp.x, y: S.camp.y, r: 40 }, money: R.money || 2.5 });
+      const H = hide || S.camp;
+      j = new NPC(jx, jy, 'bandit', { hostile: S.jack === 'free', name: R.name(), look: Object.assign({}, R.look), hp: R.hp || 150, weapon: R.weapon || 'repeater', home: { x: H.x, y: H.y, r: 40 }, money: R.money || 2.5 });
       j.quest = 'rival'; j.keep = true;
+      // kampın bir üyesi: gece ateş başı ve uyku (js/npccamp.js), kendi saatleriyle; nöbet tutmaz. Saklandığı yerde yalnız
+      if (hide) j.cornered = true;
+      else if (S.camp.pid >= 0) { j.camp = S.camp.pid; if (R.camp) j.campSched = R.camp; }
       if (S.jack === 'dead') { j.dead = true; j.hp = 0; j.state = 'dead'; j.deadT = 0; }
       else if (S.jack === 'bound') { j.state = 'tied'; j.tieT = 9999; j.hp = 40; j.hostile = true; }
       this.addEnt(j);
@@ -457,9 +475,12 @@ const Story = {
     if (j.dead) S.jack = 'dead';
     else if (carried) S.jack = 'carried';
     else if (j.state === 'tied') { S.jack = 'bound'; j.tieT = Math.max(j.tieT, 600); }
-    else if (j.bound) S.jack = j.state === 'downed' ? 'downed' : 'lassoed';
+    else if (j.state === 'downed') { S.jack = 'downed'; j.downT = Math.max(j.downT, 60); }   // baygın ya da yaralı: hikâye sürerken kendine gelmez
+    else if (j.bound) S.jack = 'lassoed';
     else S.jack = 'free';
     if (!carried) { S.jx = Math.round(j.x); S.jy = Math.round(j.y); }
+    // kaçışı olan hedef kişinin atı kampın kenarında bağlı bekler
+    if (R.flee) this.storyRivalHorse(S, R, j);
   },
   /* İşaretçi: adımın hedefi (dünyada, radarda, haritada) */
   questMark() {
@@ -557,6 +578,12 @@ const Story = {
     if (D.rumor) D.rumor.call(this, S);
     this.qEvent('rumor');
     return true;
+  },
+
+  /* uykunun bitiş saati: adım erken kalkmayı istiyorsa (ör. Sully baskın için şafaktan önce uyandırır), yoksa 07:00 */
+  storyWakeHour() {
+    const S = this.story, st = S && S.on && !S.done && !S.wait && this.qStep();
+    return st && st.wake ? st.wake : 7;
   },
 
   /* ---------------- bitiş ve bırakma ---------------- */
@@ -1047,11 +1074,13 @@ const STORY_SULLY = [
         ], after() { this.sSkipTo(21.5, 20); const c = this.camp; if (c) { this.sullyGo(c.x - 26, c.y + 4, false); const e = this.sullyEnt(); if (e) { e.x = c.x - 26; e.y = c.y + 4; e.mounted = null; } } if (c && !UI.isModal()) UI.openCamp(); } }) },
       { t: () => Tr('Ateşte et pişir'), ev: 'cook', ok: (r) => /^cook_/.test(r), skip() { return !this.player.has('raw_game') && !this.player.has('raw_big') && !this.player.has('raw_bird'); },
         hint: () => Tr`Kamp ateşinin yanında ${Input.glyph('interact')} ile <b>Kamp Menüsü</b>'nü aç → <b>Pişir ve Üret</b> → parlayan tarifi seç. Çiğ et pişince hem daha çok doyurur hem hasta etmez.` },
-      { t: () => Tr('Sabaha kadar uyu'), ev: 'sleep', ok: (d) => d === 'camp',
-        hint: () => Tr`Kamp ateşinin yanında ${Input.glyph('interact')} ile <b>Kamp Menüsü</b>'nü aç → <b>Uyu</b> → <b>Sabaha Kadar</b>. Uyurken oyun kaydedilir.` },
+      { t: () => Tr('Sabaha kadar uyu'), ev: 'sleep', ok: (d) => d === 'camp', wake: RAID.WAKE,
+        hint: () => Tr`Kamp ateşinin yanında ${Input.glyph('interact')} ile <b>Kamp Menüsü</b>'nü aç → <b>Uyu</b> → <b>Sabaha Kadar</b>. Sully seni şafak sökmeden uyandıracak. Uyurken oyun kaydedilir.` },
     ],
   },
-  /* 10 — Kızıl Jack: gözetle, yaklaş, yakala, teslim et, tapuyu ver */
+  /* 10 — Kızıl Jack: şafaktan önce baskın. Gözetle, sessizce yaklaş (uyuyanları ve sırtı dönükleri gizlice etkisiz
+     hâle getir), Jack'i yakala (arkadaşları dağılınca atına atlayıp kaçar: kovala, kementle düşür), tapuyu al, teslim
+     et (kaçan haydut kaldıysa yolda pusu), tapuyu ver. Silah sesi duyan Sully gelip siperden destek atışı yapar */
   {
     t: () => Tr('Kızıl Jack'),
     cine() {
@@ -1061,27 +1090,32 @@ const STORY_SULLY = [
         ['S', Tr('Onu canlı istiyorum, {ad}. Ölüsü bana tapuyu geri verir ama hesap vermez.')],
         ['P', Tr('Ya diğerleri?')],
         ['S', Tr('Diğerleri senin bileceğin iş. Ben atların yanındayım; silah sesi duyarsam gelirim.')],
-      ], after() { const S = this.story; if (this.hour > 9 || this.hour < 5) this.sSkipTo(6); const a = Math.atan2(S.site.y - S.camp.y, S.site.x - S.camp.x), s = this.sSpot(S.camp.x + Math.cos(a) * 470, S.camp.y + Math.sin(a) * 470, 0, 80); this.sTeleport(s[0], s[1]); this.sullyGo(S.site.x + 20, S.site.y); } };
+      ], after() { const S = this.story, h = this.hour; if (!(h >= 3.5 && h < 5.2)) this.sSkipTo(RAID.WAKE); const a = Math.atan2(S.site.y - S.camp.y, S.site.x - S.camp.x), s = this.sSpot(S.camp.x + Math.cos(a) * 470, S.camp.y + Math.sin(a) * 470, 0, 80); this.sTeleport(s[0], s[1]); this.sullyGo(S.site.x + 20, S.site.y); } };
     },
     talk(S) { return S.flags.lasso ? [['S', Tr('Şu kementi de al. Bağlamayı bilirsin, değil mi? Bilmiyorsan öğrenirsin.')]] : []; },
-    start(S) { const P = this.player; if (!P.weapons.has('lasso')) { P.giveWeapon('lasso', true); S.flags.lasso = 1; } if (!P.has('binoculars')) P.addItem('binoculars', 1, true); },
+    start(S) { const P = this.player; S.raid = 1; if (!P.weapons.has('lasso')) { P.giveWeapon('lasso', true); S.flags.lasso = 1; } if (!P.has('binoculars')) P.addItem('binoculars', 1, true); },
     steps: [
       { t: () => Tr('Kampı dürbünle gözetle'), how: 'binoc', chk() { const S = this.story, C = this.cam; return !!this.binoc && S.camp.x > C.ox && S.camp.x < C.ox + this.vw && S.camp.y > C.oy && S.camp.y < C.oy + this.vh; }, at() { return this.story.camp; },
         hint: () => Tr`${Input.glyph('satchel')} <b>Çanta</b> → <b>Alet & Giysi</b> sekmesi → <b>Dürbün</b> → ${Input.glyph('confirm')} ile kullan ve kampa doğru bak. Gördüğün kişiler etiketlenir.`,
-        after: () => [['P', Tr('Dört kişi... Jack ateşin başında.')]] },
+        after: () => [['P', Tr('İkisi ateşin başında uyuyor, biri nöbette dolaşıyor. Jack ayakta, ateşe bakıyor.')], ['P', Tr('Arkasından yaklaşabilirsem...')]] },
       { t: () => Tr('Kampa sessizce yaklaş'), how: 'crouch', chk() { const S = this.story, P = this.player; return dist(P.x, P.y, S.camp.x, S.camp.y) < 300; }, at() { return this.story.camp; },
-        hint: () => Tr`${Input.glyph('crouch')} ile çömel: daha az ses çıkarır, daha geç fark edilirsin. Atını geride bırakmak iyi fikir.` },
-      { t: () => Tr('Kızıl Jack\'i etkisiz hâle getir'), how: 'subdue', chk() { const j = this.jackEnt(); return !!(j && (j.dead || j.bound)); }, at() { return this.jackEnt() || this.story.camp; },
-        hint: () => Tr`Nişan alırken ${Input.glyph('deadeye')} ile <b>Odak</b>'ı aç: zaman yavaşlar. Jack'i canlı istiyorsan <b>kementi</b> seç (${Input.glyph('wheel')}), ${Input.glyph('fire')} ile at, sonra yaklaşıp ${Input.glyph('interact')} basılı tutarak bağla.`,
-        done() { const j = this.jackEnt(); this.story.alive = !!(j && !j.dead); } },
+        hint: () => Tr`${Input.glyph('crouch')} ile çömel: daha az ses çıkarır, daha geç fark edilirsin. Atını geride bırak. Uyuyanın ya da sırtı dönük birinin yanına çömelerek sokulursan ${Input.glyph('interact')} basılı tutarak <b>Bayılt</b> ya da <b>Sessizce Bağla</b>.` },
+      { t() { const j = this.jackEnt(); return j && j.fleeing ? Tr('Kaçan Jack\'i yakala') : j && j.cornered ? Tr('Jack\'i saklandığı yerde yakala') : Tr('Kızıl Jack\'i etkisiz hâle getir'); },
+        how() { const j = this.jackEnt(); return j && j.fleeing && j.mounted ? QUEST_HOW.lasso.call(this) : Tr`${QK('crouch')} çömel, arkasından sokul → ${QK('interact')} basılı tut: <b>Bayılt</b> · ya da ${QK('wheel')} <b>Kement</b>`; },
+        chk() { const j = this.jackEnt(); return !!(j && (j.dead || j.state === 'tied' || j.state === 'downed')); }, at() { return this.jackEnt() || this.story.camp; },
+        hint: () => Tr`Jack'i canlı istiyorsan arkasından çömelerek sokulup <b>Bayılt</b>, ya da <b>kementi</b> seç (${Input.glyph('wheel')}), ${Input.glyph('fire')} ile at, yaklaşıp ${Input.glyph('interact')} basılı tutarak bağla. Arkadaşları dağılınca atına atlayıp kaçar. Nişan alırken ${Input.glyph('deadeye')} <b>Odak</b> zamanı yavaşlatır.`,
+        done() { const j = this.jackEnt(), S = this.story; S.alive = !!(j && !j.dead); if (j) { j.fleeing = false; j.cornered = false; } } },
       { t: () => Tr('Tapuyu Jack\'in üstünden al'), ev: 'deed', at() { return this.jackEnt(); }, skip() { return this.story.deed; }, chk() { return this.story.deed; },
         hint: () => Tr`Jack'in yanında ${Input.glyph('interact')} basılı tut: <b>Tapuyu Al</b>.` },
       { t() { return this.story.alive ? Tr('Jack\'i şerife canlı teslim et') : Tr('Jack\'in cesedini şerife götür'); }, ev: 'deliver', ok: (e) => e && e.quest === 'rival', at() { const j = this.jackEnt(), P = this.player; if (j && j !== P.carry && !(this.horse && this.horse.load && this.horse.load.includes(j))) return j; return this.sDoor(this.sBld('sheriff'), 4); }, wp: true,
         on(S) {
+          this.storyRaidEnd(S);
           const p = this.sDoor(this.sBld('sheriff'), 22); if (p) this.sullyGo(p.x - 14, p.y);
           // tapu alınmadan teslim edildiyse bu adım zaten olmuştur
           if (S.jack === 'delivered') { const st = this.qStep(); setTimeout(() => { if (this.qStep() === st && !S.wait) this.qDone(); }, 60); }
         },
+        // kaçan haydut kaldıysa Jack'i kurtarmak için dönüş yolunda pusu
+        tick(S) { this.storyAmbushTick(S); },
         hint: () => Tr`Jack'in yanında ${Input.glyph('interact')} ile <b>Omzuna Al</b>, atının yanında <b>Atına Yükle</b>. Şerif ofisinde şerifin masasına ${Input.glyph('interact')} → <b>Teslim Et</b>.`,
         done() { this.story.jack = 'delivered'; },
         after() { return this.story.alive ? [['W', Tr('Kızıl Jack. Hem de canlı! On yıldır bu masada bunu bekliyordum.')], ['W', Tr('Sully\'ye söyle... Neyse, ben söylerim. Borcum var ona.')]] : [['W', Tr('Kızıl Jack... Keşke canlı olsaydı. Ama bu da bir şey.')]]; } },
@@ -1131,10 +1165,21 @@ const STORIES = {
         Tr('Yorgun görünüyorsun, {ad}. Otur biraz, toprak kaçmaz.'), Tr('Ne zaman istersen gel. Ahırda yer var, sofrada da.'),
       ],
       chatBusy: () => [Tr('Şimdi değil, evlat. Önce işimizi bitirelim.'), Tr('Bir şey mi unuttun? Ben de çok unuturum, yaştan.'), Tr('Konuşacak çok vaktimiz olacak. Hadi.')],
+      // baskında silah sesini duyunca gelip siperden destek atışı yapar (Jack'e asla)
+      support: true,
     },
     rival: {
       name: () => Tr('Kızıl Jack'), look: JACK_LOOK, hp: 150, weapon: 'repeater', money: 2.5, fromCh: 9, reward: [25, 12],
       take: { n: () => Tr('Tapuyu Al'), k: () => Tr('Tapu'), msg: () => Tr('Sully\'nin tapusu artık sende.') },
+      // teslim olmaz: arkadaşları dağılınca ya da canı azalınca kampın kenarındaki atına atlayıp kaçar
+      flee: true, horse: { col: '#7a3a1e', mane: '#1a1410', blanket: '#8a2a1a' },
+      // geç yatar (01:00), şafaktan önce kalkar (04:00) ve ateşin başında ayakta bekler
+      camp: { sleep: 1, wake: 4, stand: true },
+    },
+    // kaçan haydutları say (dönüş pususu için); Jack kaçınca Sully seslenir
+    onEvent(type, d, S) {
+      if (type === 'fled' && d && !d.fledN && S.camp && S.camp.pid >= 0 && d.camp === S.camp.pid) { d.fledN = 1; S.fled = (S.fled || 0) + 1; }
+      if (type === 'rivalFlee' && !S.jFleeSaid) { S.jFleeSaid = 1; this.qSay([['S', Tr('Jack kaçıyor! Atına bin, peşine düş! Buradakileri ben tutarım!')]]); }
     },
     setup(S, town) {
       // Sully'nin çiftliği: kasabaya en yakın çiftlik
@@ -1275,5 +1320,228 @@ Object.assign(Story, {
     a.mv = a.spd / 30; a.phase += dt * (2 + a.spd * 0.18);
     if (d < 7) { hen.hurt(99, 'coyote'); a.prey = null; if (dist(a.x, a.y, this.player.x, this.player.y) < 400) UI.feed(Tr('Çakal bir tavuğu kaptı!'), 'warn'); }
     return true;
+  },
+});
+
+/* ==========================================================
+   Baskın (Sully, Bölüm 10). Hedef kişi (rival.flee) teslim olmaz: arkadaşları dağılınca (ölen, bağlanan, teslim
+   olan, kaçan) ya da canı azalınca kampın kenarında bağlı atına koşar, atlayıp kamptan uzağa, saklanacağı yere yolları
+   izleyerek kaçar. İlk saniyeler hızlıdır, at yoruldukça yavaşlar; oyuncu çok gerideyse ağırdan alır. Kementle (ya da
+   vurularak) attan düşer. Atı yoksa yaya kaçar. Oyuncu iyice geride kalıp onu göremezse ya da saklanacağı yere
+   varırsa attan iner ve orada bekler: köşeye sıkışmıştır, bir daha kaçmaz. Hiçbir durumda silinmez.
+   Akıl hocası (mentor.support) kampta çatışma başlayınca kampın kasaba yanındaki açık bir yere gelir, attan iner ve
+   kamptakilere ateş eder; hedef kişiye asla, arada sen ya da atın varken de etmez. Vurduğu haydut ona döner.
+   Dönüş pususu: kaçan haydut kaldıysa, hedef kişiyi canlı götürürken kamptan ve kasabadan uzakta atlı haydutlar arkadan
+   yetişir (bir kez).
+   ========================================================== */
+Object.assign(Story, {
+  /* Hedef kişinin atı: kampın kasabaya bakmayan yanında bağlı. Öldüyse ya da çalındıysa bir daha kurulmaz */
+  storyRivalHorse(S, R, j) {
+    let h = this.ents.find(e => e.jackHorse && !e.remove);
+    if (h && (h.dead || h.rider || h.owner === 'player')) { S.jHorse = 'gone'; h.jackHorse = false; h.hitch = false; return null; }
+    // Jack yakalandıysa, kaçtıysa ya da öldüyse at artık kamp atı değildir (uzaklaşınca temizlenir)
+    if (S.jack !== 'free' || S.jHide || j.mounted || j.fleeing) { if (h && !j.fleeing) { h.jackHorse = false; h.hitch = false; } return null; }
+    const P = this.player, C = S.camp;
+    if (h) { if (dist2(h.x, h.y, P.x, P.y) > 1300 * 1300) h.remove = true; return h; }
+    if (S.jHorse === 'gone' || dist(P.x, P.y, C.x, C.y) > 900) return null;
+    const a = Math.atan2(C.y - S.site.y, C.x - S.site.x);
+    const s = this.findSpawnPos(C.x + Math.cos(a) * RAID.HORSE_R, C.y + Math.sin(a) * RAID.HORSE_R, 0, 40) || this.sSpot(C.x + 60, C.y + 30, 0, 50);
+    h = new Horse(s[0], s[1], 'mustang', { owner: 'npc', name: Tr('Jack\'in Atı'), look: Object.assign({}, R.horse) });
+    h.hitch = true; h.jackHorse = true; h.ang = a + Math.PI / 2;
+    this.addEnt(h);
+    return h;
+  },
+  /* NpcMorale'den: hedef kişinin kırılma anı. true: bu karenin işi yapıldı */
+  rivalBreak(e, dt, P) {
+    const S = this.story, R = S && S.on && !S.done && this.storyDef().rival;
+    if (!R || !R.flee || e.cornered) return false;   // kaçışı olmayan ya da köşeye sıkışan sonuna dek çatışır
+    if (e.fleeing) return this.rivalFlee(e, dt, S);
+    let mates = 0;
+    for (const o of this.ents) if (o !== e && o.kind === 'npc' && e.camp && o.camp === e.camp && !o.dead && !o.remove && !o.bound && o.state !== 'surrender' && !o.fleeing) mates++;
+    if (mates > 0 && e.hp > e.maxHp * RAID.FLEE_HP) return false;
+    e.fleeing = 'horse'; e.cov = null; e.nav = null; e.rr = null; e.lookAt = null; e.horseT = 0; e.rideT = 0;
+    S.jFlee = 1;
+    e.say(pick([Tr('Hepiniz işe yaramazsınız! Bu iş burada bitmez!'), Tr('Beni canlı alamazsın!'), Tr('Kızıl Jack kimseye teslim olmaz!')]), 2.5);
+    this.qEvent('rivalFlee', e);
+    return this.rivalFlee(e, dt, S);
+  },
+  rivalFlee(e, dt, S) {
+    const P = this.player;
+    e.cov = null; e.lookAt = null; e.aggro = true; e.retreat = false;
+    if (!e.mounted) {
+      // binecek at: kendi atı ya da yakında binicisiz bir haydut atı (kementle düşürülünce at olduğu yerde kalır)
+      let h = e.fleeHorse;
+      if (!h || h.dead || h.remove || h.rider || h.owner !== 'npc' || dist2(h.x, h.y, e.x, e.y) > 260 * 260) {
+        h = null; let bd = 220 * 220;
+        for (const o of this.ents) if (o.kind === 'horse' && !o.dead && !o.remove && !o.rider && o.owner === 'npc') { const d2 = dist2(o.x, o.y, e.x, e.y); if (d2 < bd) { bd = d2; h = o; } }
+        e.fleeHorse = h;
+      }
+      if (h && (e.horseT = (e.horseT || 0) + dt) < 12) {
+        // atın gövdesi uzun: yanına (eyerin hizasına) gelince biner
+        if (dist2(e.x, e.y, h.x, h.y) > 20 * 20) {
+          if (this.navStep(e, h.x, h.y, dt, 84, { near: 16 }) === 'fail') { e.ang = turnTo(e.ang, Math.atan2(h.y - e.y, h.x - e.x), dt * 6); e.walk(dt, 84); }
+          return true;
+        }
+        // atına atladı
+        e.mounted = { col: h.look.col, mane: h.look.mane, blanket: h.look.blanket || '#5a4a3a' };
+        e.ang = h.ang; h.remove = true; e.fleeHorse = null; e.horseT = 0; e.rideT = 0; e.rr = null; e.fleeing = 'ride';
+        if (!S.jHideTo) S.jHideTo = this.rivalHideSpot(S);
+        Audio_.neigh();
+        if (dist2(e.x, e.y, P.x, P.y) < 700 * 700) {
+          UI.feed(Tr`${e.name} atına atladı, kaçıyor!`, 'warn');
+          this.hintOnce('rivalRide', Tr`Atına bin (uzaktaysa ${Input.glyph('whistle')} ıslık çal) ve peşine düş. ${Input.glyph('wheel')} <b>Kement</b>'i seç, yaklaşınca ${Input.glyph('fire')} ile at: attan düşer. Vurursan da düşer ama ölebilir.`, 10);
+        }
+        return true;
+      }
+      // binecek at yok: yaya kaçar (silinmez)
+      e.fleeing = 'foot';
+      this.fleeStep(e, P.x, P.y, dt, 84);
+      this.rivalLost(e, S);
+      return true;
+    }
+    // atlı: saklanacağı yere yolları izleyerek
+    const g = S.jHideTo || (S.jHideTo = this.rivalHideSpot(S));
+    e.rideT = (e.rideT || 0) + dt;
+    let sp = e.rideT < 14 ? RAID.RIDE[0] : e.rideT < 24 ? RAID.RIDE[1] : RAID.RIDE[2];
+    if (dist2(e.x, e.y, P.x, P.y) > RAID.SLOW * RAID.SLOW) sp *= 0.8;   // oyuncu çok gerideyse ağırdan alır
+    this.mentorFollow(e, { x: g.x, y: g.y, ride: true }, dt, sp);
+    if (dist2(e.x, e.y, g.x, g.y) < 30 * 30) this.rivalHide(e, S, false);
+    else this.rivalLost(e, S);
+    return true;
+  },
+  /* oyuncu iyice geride kalıp onu göremiyorsa saklanacağı yere varır */
+  rivalLost(e, S) {
+    const P = this.player;
+    if (dist2(e.x, e.y, P.x, P.y) < RAID.LOSE * RAID.LOSE || this.onScreen(e.x, e.y, 60)) return false;
+    this.rivalHide(e, S, true);
+    return true;
+  },
+  /* Saklandığı yer: attan iner, orada bekler; köşeye sıkışmıştır (bir daha kaçmaz), kampla ilgisi kalmaz */
+  rivalHide(e, S, jump) {
+    const g = S.jHideTo || (S.jHideTo = this.rivalHideSpot(S));
+    if (jump) { e.x = g.x; e.y = g.y; }
+    if (e.mounted) e.alight();
+    e.fleeing = false; e.cornered = true; e.camp = null; e.campSched = null; e.home = { x: g.x, y: g.y, r: 40 };
+    e.aggro = false; e.awState = null; e.aw = 0; e.lkp = null; e.search = null; e.sees = false; e.nav = null; e.rr = null; e.alertUntil = this.t + 600;
+    S.jHide = { x: Math.round(g.x), y: Math.round(g.y) };
+    if (jump) UI.toast(Tr('Jack İzini Kaybettirdi'), Tr('Ama nereye gittiği belli: saklandığı yer haritanda işaretli.'), 'quest');
+  },
+  /* saklanacağı yer: kamptan kasabanın ters yönünde, kasabalardan uzak açık bir yer */
+  rivalHideSpot(S) {
+    const C = S.camp, T = this.sTown(), W = this.world;
+    const away = T ? Math.atan2(C.y - T.cy, C.x - T.cx) : Math.random() * TAU;
+    for (const da of [0, 0.6, -0.6, 1.2, -1.2, 2, -2]) for (const r of [RAID.HIDE[0], RAID.HIDE[1], 1300]) {
+      const x = C.x + Math.cos(away + da) * r, y = C.y + Math.sin(away + da) * r;
+      if (x < 200 || y < 200 || x > WW * TS - 200 || y > WH * TS - 200) continue;
+      const s = this.findSpawnPos(x, y, 0, 120);
+      if (s && !W.townAt(s[0], s[1], 80)) return { x: Math.round(s[0]), y: Math.round(s[1]) };
+    }
+    const s = this.sSpot(C.x + Math.cos(away) * 1300, C.y + Math.sin(away) * 1300, 0, 300);
+    return { x: Math.round(s[0]), y: Math.round(s[1]) };
+  },
+
+  /* ---------------- akıl hocasının destek ateşi ---------------- */
+  /* questNpc'den: true dönerse olağan davranış atlanır. Destek yerine giderken false (questNpc yürütür) */
+  mentorSupport(e, dt) {
+    const S = this.story, M = S && this.storyDef().mentor;
+    if (!S || !S.raid || !S.on || S.done || !M.support || !S.camp || !S.site) return false;
+    if ((e.supScan = (e.supScan || 0) - dt) <= 0) { e.supScan = 0.35; this.mentorSupportScan(e, S); }
+    if (!S.supOn) return false;
+    const g = S.sully;
+    if (!g || dist2(e.x, e.y, g.x, g.y) > 20 * 20) return false;
+    if (g.ride) { g.ride = false; e.mounted = null; }
+    e.mv = 0; e.spd = 0; e.weapon = 'repeater';
+    const tg = e.supFoe;
+    if (!tg || tg.dead || tg.remove || tg.bound || tg.state === 'surrender') { e.gAim = false; if (g.ang !== undefined) e.ang = turnTo(e.ang, g.ang, dt * 2); return true; }
+    const a = Math.atan2(tg.y - e.y, tg.x - e.x);
+    e.ang = turnTo(e.ang, a, dt * 6); e.gAim = true;
+    if ((e.supCd = (e.supCd || 0) - dt) > 0 || Math.abs(angDiff(e.ang, a)) > 0.2) return true;
+    const d = dist(e.x, e.y, tg.x, tg.y);
+    if (!this.mentorClear(e, tg, d)) { e.supCd = 0.4; return true; }
+    e.supCd = rnd(RAID.SUP.RATE[0], RAID.SUP.RATE[1]);
+    const ox = e.x + Math.cos(e.ang) * 7, oy = e.y + Math.sin(e.ang) * 7, acc = RAID.SUP.ACC + (tg.mounted ? 0.03 : 0);
+    const hit = this.fireRay(ox, oy, e.ang + rnd(-acc, acc), RAID.SUP.R + 40, RAID.SUP.DMG, e, { guard: true, gd: d + rnd(4, 40), weapon: 'repeater' });
+    this.parts.add('flash', ox + Math.cos(e.ang), oy + Math.sin(e.ang), 0, 0, 0.06, 3.5);
+    Juice.muzzle(ox + Math.cos(e.ang), oy + Math.sin(e.ang));
+    if (dist2(e.x, e.y, this.player.x, this.player.y) < 500 * 500) FX.gunSmoke(ox, oy, e.ang, true);
+    Audio_.shot('repeater', 0.85, e.x, e.y);
+    if (hit && hit.kind === 'npc' && !hit.dead) { hit.foe = e; hit.foeT = 6; }
+    return true;
+  },
+  /* kampta çatışma var mı (kamptan biri seni fark edip saldırıyor ya da Jack kaçıyor); varsa en yakın hedef */
+  mentorSupportScan(e, S) {
+    const C = S.camp;
+    let foe = null, bd = Infinity, fight = false;
+    for (const o of this.ents) {
+      if (o.kind !== 'npc' || o.dead || o.remove || o.bound || !o.hostile || o.state === 'surrender') continue;
+      if (!((C.pid >= 0 && o.camp === C.pid) || o.quest === 'rival' || dist2(o.x, o.y, C.x, C.y) < 450 * 450)) continue;
+      if (!o.aggro && !o.fleeing) continue;
+      fight = true;
+      if (o.quest === 'rival') continue;   // "Onu canlı istiyorum"
+      const d = dist(o.x, o.y, e.x, e.y);
+      if (d < RAID.SUP.R && d < bd && this.los(e.x, e.y, o.x, o.y)) { bd = d; foe = o; }
+    }
+    e.supFoe = foe;
+    if (!fight || S.supOn) return;
+    S.supOn = 1;
+    const p = S.supPt || (S.supPt = this.mentorSupportSpot(S));
+    S.sully = { x: p.x, y: p.y, ride: true, ang: Math.atan2(C.y - p.y, C.x - p.x) };
+    e.weapon = 'repeater';
+    this.qSay([['S', pick([Tr('Silah sesi! Geliyorum, {ad}!'), Tr('Dayan, {ad}! Geliyorum!')])]]);
+  },
+  /* destek yeri: kampın kasaba (kamp yeri) yanında, kampı gören açık bir yer */
+  mentorSupportSpot(S) {
+    const C = S.camp, a = Math.atan2(S.site.y - C.y, S.site.x - C.x);
+    for (const da of [0, 0.35, -0.35, 0.7, -0.7, 1.1, -1.1]) for (const r of [RAID.SUP.DIST, 160, 230]) {
+      const s = this.findSpawnPos(C.x + Math.cos(a + da) * r, C.y + Math.sin(a + da) * r, 0, 24);
+      if (s && this.los(s[0], s[1], C.x, C.y)) return { x: Math.round(s[0]), y: Math.round(s[1]) };
+    }
+    const s = this.sSpot(C.x + Math.cos(a) * RAID.SUP.DIST, C.y + Math.sin(a) * RAID.SUP.DIST, 0, 60);
+    return { x: Math.round(s[0]), y: Math.round(s[1]) };
+  },
+  /* atış yolunda sen, atın, Jack ya da düşman olmayan biri var mı */
+  mentorClear(e, tg, d) {
+    const dx = Math.cos(e.ang), dy = Math.sin(e.ang), P = this.player;
+    const chk = (o) => {
+      if (Math.abs(o.x - e.x) > d + 20 || Math.abs(o.y - e.y) > d + 20) return false;
+      const t = rayCircle(e.x, e.y, dx, dy, o.x, o.y, (o.r || 4) + 4);
+      return t >= 0 && t < d;
+    };
+    if (chk(P) || (this.horse && !this.horse.dead && chk(this.horse))) return false;
+    for (const o of this.ents) if (o !== e && o !== tg && o.kind === 'npc' && !o.dead && !o.remove && (o.quest === 'rival' || !o.hostile) && chk(o)) return false;
+    return true;
+  },
+  /* baskın bitti (teslim adımı): akıl hocası silahını bırakır */
+  storyRaidEnd(S) {
+    S.raid = 0; S.supOn = 0;
+    const e = this.mentorEnt();
+    if (e) { e.weapon = null; e.gAim = false; e.supFoe = null; }
+  },
+
+  /* ---------------- dönüş pususu ---------------- */
+  storyAmbushTick(S) {
+    if (S.ambush || !S.fled || !S.alive || S.jack === 'delivered') return;
+    const P = this.player, T = this.sTown();
+    if (!T) return;
+    const own = (P.carry ? [P.carry] : []).concat(this.horse && this.horse.load ? this.horse.load : []);
+    if (!own.some(e => e.quest === 'rival')) return;
+    if (dist2(P.x, P.y, S.camp.x, S.camp.y) < RAID.AMBUSH.FROM * RAID.AMBUSH.FROM || dist2(P.x, P.y, T.cx, T.cy) < RAID.AMBUSH.TOWN * RAID.AMBUSH.TOWN || this.world.townAt(P.x, P.y, 40)) return;
+    const n = Math.min(3, 1 + S.fled), back = Math.atan2(S.camp.y - P.y, S.camp.x - P.x);
+    let first = null, made = 0;
+    for (let k = 0; k < 12 && made < n; k++) {
+      // arkadan (kamp yönünden) yetişirler; orası su ya da kayalıksa yanlardan
+      const a = back + (made - (n - 1) / 2) * 0.45 + (k >= n ? (k % 2 ? 1 : -1) * (0.5 + k * 0.15) : 0), s = this.findSpawnPos(P.x + Math.cos(a) * 430, P.y + Math.sin(a) * 430, 0, 90);
+      if (!s) continue;
+      made++;
+      const b = new NPC(s[0], s[1], 'bandit', { hostile: true, mounted: true, home: { x: s[0], y: s[1], r: 80 }, money: rnd(3, 12) });
+      b.ambush = true;
+      this.addEnt(b);
+      this.senseAlert(b, { x: P.x, y: P.y }, 'see');
+      if (!first) first = b;
+    }
+    if (!first) return;   // yer bulunamadı: sonra yeniden denenir
+    S.ambush = 1;
+    UI.toast(Tr('Pusu!'), Tr('Kamptan kaçan haydutlar Jack\'i kurtarmaya geldi.'), 'wanted');
+    setTimeout(() => { if (!first.dead) first.say(pick([Tr('Jack\'i bırak, yabancı!'), Tr('O bizim adamımız! Bırak onu!')]), 2.5); }, 400);
   },
 });

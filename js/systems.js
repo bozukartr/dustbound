@@ -2154,6 +2154,9 @@ const GameSystems = {
     if (e.quest === 'mentor') return this.mentorActions(e);
     if (e.quest === 'kin') return this.kinActions(e);
     if (e.storyNpc) { const a = this.storyNpcActions(e); if (a) return a; }
+    // fark etmemiş haydudun arkasına çömelerek sokuldun: bayılt ya da (uyuyorsa) sessizce bağla (js/npccamp.js)
+    const td = this.takedownActs(e);
+    if (td) return td;
     const P = this.player;
     const acts = [];
     // mt: at ya da araba üstünden de yapılabilen (sözlü) eylem
@@ -2635,7 +2638,7 @@ const GameSystems = {
       // uyurken saldırı
       if (!why && where === 'camp' && this.isNight && chance(0.1) && !this.storyOn) { this.eventT = 0; UI.help(Tr('Bir ses seni uyandırdı...'), 4); }
       this.qEvent('sleep', where);
-    }, Tr`${hours} saat uyudun...`);
+    }, Tr`${Math.round(hours)} saat uyudun...`);
   },
   passTime(hours) {
     const P = this.player;

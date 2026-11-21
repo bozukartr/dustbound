@@ -10,6 +10,9 @@
            (Bağla), şerife canlı teslim edilir; teslim olanı vurmak onurdan götürür. Oyuncu uzaklaşırsa bir süre sonra
            sıvışır.
    Kanun: kanun adamı teslim olmaz; morali düşünce bir kez destek çağırır (yeni ekip çabuk gelir) ve geri çekilir.
+   Hikâyenin hedef kişisi (ör. Kızıl Jack) teslim olmaz, kaçıp kaybolmaz: geri çekilir, kaçışını hikâye yürütür
+           (G.rivalBreak, js/quests.js); kaçışı olmayan hedef kişi sonuna dek çatışır.
+   Kaçıp giden ya da teslim olduktan sonra sıvışan haydut hikâyeye bildirilir (qEvent 'fled').
    Takım: çatışmadaki 3 ve daha kalabalık bir grupta biri yan dolaşır: siperini öbürlerinin oyuncuya göre durduğu yönden
            en az 60° açıkta seçer, oyuncuyu çapraz ateşe alır.
    ========================================================== */
@@ -58,13 +61,15 @@ const NpcMorale = {
       }
       return false;
     }
+    // hikâyenin hedef kişisi: teslim olmaz, ekrandan çıkınca silinmez; kaçışı hikâyede (js/quests.js)
+    if (e.quest === 'rival') { e.retreat = m < MORALE.RETREAT; return this.rivalBreak(e, dt, P); }
     const pd = dist(e.x, e.y, P.x, P.y), sees = e.sees && pd < MORALE.GIVE;
     if (e.fleeing) {
       if (sees) { this.npcSurrender(e); return true; }   // kaçarken yakalandı
       e.cov = null; e.lookAt = null;
       if (e.mounted) { e.ang = turnTo(e.ang, Math.atan2(e.y - P.y, e.x - P.x), dt * 4); e.walk(dt, 140); }
       else this.fleeStep(e, P.x, P.y, dt, 84);
-      if (pd > 700 && !this.onScreen(e.x, e.y, 40)) e.remove = true;   // kaçıp gitti
+      if (pd > 700 && !this.onScreen(e.x, e.y, 40)) { e.remove = true; this.qEvent('fled', e); }   // kaçıp gitti
       return true;
     }
     e.retreat = m < MORALE.RETREAT;
@@ -91,7 +96,7 @@ const NpcMorale = {
     if (!e.anim || e.anim.k !== 'handsup') e.anim = { k: 'handsup', t: 0, dur: 1e9 };
     if (Math.random() < dt * 0.08) e.say(pick([Tr('Ateş etme...'), Tr('Silahsızım, bak!'), Tr('Beni şerife götür, vurma yeter.')]), 2);
     e.awayT = pd > MORALE.LEAVE ? e.awayT + dt : 0;
-    if (e.awayT > 20 && !this.onScreen(e.x, e.y, 40)) e.remove = true;
+    if (e.awayT > 20 && !this.onScreen(e.x, e.y, 40)) { e.remove = true; this.qEvent('fled', e); }
   },
   /* Teslim olanı vurmak: onur kaybı (bir kez) */
   shotSurrendered(e) {
