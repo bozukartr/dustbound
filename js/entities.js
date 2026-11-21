@@ -203,15 +203,22 @@ class Horse extends Ent {
     const rail = G.railShy(this);
     if (rail === 'wait') { this.spd = lerp(this.spd, 0, 1 - Math.exp(-dt * 4)); this.mv = this.spd / 60; this.phase += dt * 4; Juice.idle(this, dt, false); return; }
     if (this.state === 'come') {
-      const d = this.dTo(P);
-      if (d < 26) { this.state = 'idle'; this.spd = 0; this.mv = 0; return; }
-      const a = Math.atan2(P.y - this.y, P.x - this.x);
-      this.ang = turnTo(this.ang, a, 3.5 * dt);
-      const target = d > 200 ? 150 * this.def.spd : d > 80 ? 90 : 45;
+      // oyuncu bir binanın içindeyse at kapının yanındaki boş yere gelip bekler (duvara yürümez)
+      const B = G.world.buildingAtPx(P.x, P.y);
+      let T = P;
+      if (B && B.door) { if (this._doorB !== B) { this._doorB = B; this._doorT = G.horseSpot(B, this); } T = this._doorT; }
+      const d = dist(this.x, this.y, T.x, T.y);
+      if (d < (T === P ? 26 : 12)) { this.state = 'idle'; this.spd = 0; this.mv = 0; this.cnav = null; return; }
+      // rotayla gelir: engelin (bina, çit, kaya, ağaç, su) etrafından dolaşır; dümdüz üstüne yürümez
+      const a = this.comeAim(dt, T, d);
+      if (a === null) { this.spd = lerp(this.spd, 0, 1 - Math.exp(-dt * 4)); this.mv = this.spd / 60; this.phase += dt * 4; Juice.idle(this, dt, false); return; }
+      const turn = Math.abs(angDiff(this.ang, a));
+      this.ang = turnTo(this.ang, a, (turn > 1 ? 5 : 3.5) * dt);
+      // keskin dönüşte yavaşlar; rotanın son ayağında oyuncuya yaklaşırken de
+      const N = this.cnav, near = N && N.route && N.ri >= N.route.length - 1 ? d : Infinity;
+      const target = (d > 200 ? 150 * this.def.spd : d > 80 ? 90 : 45) * (turn > 1.2 ? 0.3 : turn > 0.6 ? 0.65 : 1) * (near < 60 ? 0.6 : 1);
       this.spd = lerp(this.spd, target, 1 - Math.exp(-dt * (target > this.spd ? 1.2 : 2.5)));
-      if (!this.move(Math.cos(this.ang) * this.spd * dt * this.slow(), Math.sin(this.ang) * this.spd * dt * this.slow())) {
-        this.ang += (Math.random() - 0.5) * 2;
-      }
+      this.move(Math.cos(this.ang) * this.spd * dt * this.slow(), Math.sin(this.ang) * this.spd * dt * this.slow());
     } else if (this.state === 'flee') {
       this.spd = lerp(this.spd, 130, 1 - Math.exp(-dt * 1.5));
       this.move(Math.cos(this.ang) * this.spd * dt, Math.sin(this.ang) * this.spd * dt);
@@ -231,6 +238,49 @@ class Horse extends Ent {
     this.phase += dt * (4 + this.spd * 0.09);
     this.sta = Math.min(this.maxSta, this.sta + dt * 6);
     Juice.idle(this, dt, this.spd > 3 || this.state !== 'idle');
+  }
+  /* Çağrılan atın gideceği yön (rota izleme). Kasabada sokaklardan (TownPath), dışarıda kaya, ağaç, çit ve suyun
+     etrafından (WildPath); oyuncu yer değiştirince ya da 3 sn'de bir yenilenir. İlerleme yoksa rota yeniden kurulur; üç
+     denemede de olmazsa (oyuncu kapalı bir yerde, nehrin öbür yakasında) at görünmüyorsa oyuncunun yakınına gelir,
+     görünüyorsa olduğu yerde bekler. null: bu kare durulur (karenin yol bulma bütçesi dolu ya da at bekliyor). */
+  comeAim(dt, P, d) {
+    let N = this.cnav;
+    // yakın ve arası açık: rota gerekmez
+    if (d < 90 && TownPath.walkable([this.x, this.y], [P.x, P.y], this.r)) { if (N) N.route = null; return Math.atan2(P.y - this.y, P.x - this.x); }
+    if (!N) N = this.cnav = { route: null, ri: 0, tx: 0, ty: 0, t: 0, ax: this.x, ay: this.y, noProg: 0, fails: 0, wait: 0, partial: false };
+    if (N.route && (dist2(N.tx, N.ty, P.x, P.y) > 48 * 48 || (N.t -= dt) <= 0)) N.route = null;
+    if (!N.route) {
+      if (TownPath.busy() && ++N.wait <= 8) return null;
+      N.wait = 0;
+      const W = G.world, t = W.townAt(this.x, this.y, 10) || W.townAt(P.x, P.y, 10);
+      let R = t ? TownPath.find(t, this.x, this.y, P.x, P.y, 5) : null;
+      if (!R) R = WildPath.find(this.x, this.y, P.x, P.y, 4.6);
+      N.route = R && R.length ? R : [[P.x, P.y]]; N.partial = !R || !!R.partial;
+      N.ri = 0; N.tx = P.x; N.ty = P.y; N.t = 3;
+    }
+    const L = N.route;
+    // ara noktaya varınca ya da bir sonrakine düz yol açılınca ilerle (köşe yuvarlanır)
+    while (N.ri < L.length - 1) {
+      const p = L[N.ri], d2 = dist2(this.x, this.y, p[0], p[1]);
+      if (d2 < 14 * 14 || (d2 < 40 * 40 && TownPath.walkable([this.x, this.y], L[N.ri + 1], this.r))) { N.ri++; N.fails = 0; }
+      else break;
+    }
+    const last = N.ri >= L.length - 1, wp = last && !N.partial ? [P.x, P.y] : L[N.ri];
+    const wd = Math.hypot(wp[0] - this.x, wp[1] - this.y);
+    // takılma: atın kendisi yerinden kıpırdamıyorsa (engele dayanmış). Oyuncuya uzaklığa bakılmaz: oyuncu koşup
+    // uzaklaşırken at ilerliyordur, vazgeçmez
+    if (dist2(N.ax, N.ay, this.x, this.y) > 6 * 6) { N.ax = this.x; N.ay = this.y; N.noProg = 0; } else N.noProg += dt;
+    // takıldı ya da ulaşılamayan oyuncunun en yakınına vardı: yeniden rota; üçüncüsünde yakına gel ya da bekle
+    if (N.noProg > 1.2 || (last && N.partial && wd < 18)) {
+      N.noProg = 0; N.ax = this.x; N.ay = this.y; N.route = null;
+      if (++N.fails >= 3) {
+        N.fails = 0;
+        const f = !G.onScreen(this.x, this.y, 40) ? G.horseNear(P, this) : null;
+        if (f) { this.x = f[0]; this.y = f[1]; this.ang = f[2]; this.spd = 0; return null; }
+        this.state = 'idle'; this.spd = 0; this.cnav = null; return null;
+      }
+    }
+    return Math.atan2(wp[1] - this.y, wp[0] - this.x);
   }
   hurt(dmg) {
     if (this.dead) return;
@@ -1236,7 +1286,8 @@ class NPC extends Ent {
       if (!this.hostile && this.hp > 0 && !this.bound && !fair) { this.state = this.witness ? 'report' : 'flee'; this.t = 10; this.say(pick(LINES.flee)); }
     }
     if (this.mounted && (dmg > 25 || this.hp <= 0)) {
-      const h = new Horse(this.x + 6, this.y, 'mustang', { look: this.mounted, owner: 'npc' }); h.ang = this.hAng === undefined ? this.ang : this.hAng;
+      const hp = G.horseDrop(this.x, this.y, this.hAng === undefined ? this.ang : this.hAng);
+      const h = new Horse(hp[0], hp[1], 'mustang', { look: this.mounted, owner: 'npc' }); h.ang = this.hAng === undefined ? this.ang : this.hAng;
       h.state = 'flee'; h.t = 6; h.ang = Math.random() * TAU;
       G.addEnt(h);
       this.mounted = null;

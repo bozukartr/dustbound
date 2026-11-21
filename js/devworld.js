@@ -154,6 +154,7 @@ const DevWorldSystems = {
       this.devTownYear(t, y, s);
       n++;
     }
+    if (n) this.unstickOwned();   // yeni direk, lamba, bağlama direği ya da bina park etmiş aracın ya da atın üstüne geldiyse
     return n;
   },
   /* Oyun sırasında yarım saniyede bir: görüş alanından çıkan kasabanın bekleyen yılı (bir seferde bir kasaba-yılı) */
@@ -288,8 +289,14 @@ const DevWorldSystems = {
     for (const e of this.ents) {
       if (e.remove || e === this.player || e.x < x0 || e.x > x1 || e.y < y0 || e.y > y1) continue;
       if (e.kind === 'npc' && e.res && !e.dead) { e.remove = true; continue; }
-      e.x = b.door.x + rnd(-6, 6); e.y = b.door.y + 14 + rnd(0, 6);
-      if (e.bx !== undefined) { e.bx = e.x; e.by = e.y; }
+      // kapının önünde boş bir yer: araç ve at gövdesiyle, öbürleri kendi yarıçapıyla (lamba, bağlama direği, fıçı üstüne değil)
+      const W = this.world, dx = b.door.x, dy = b.door.y + 16;
+      const f = e.kind === 'wagon' ? this.spiralFree(dx, dy + 14, 200, (x, y) => this.vehFree(x, y, 0, !!e.motor, e) ? [x, y, 0] : this.vehFree(x, y, Math.PI, !!e.motor, e) ? [x, y, Math.PI] : null)
+        : e.kind === 'horse' ? this.spiralFree(dx, dy, 160, (x, y) => this.horseFree(x, y, Math.PI / 2, e) ? [x, y, Math.PI / 2] : null)
+        : this.spiralFree(dx, dy, 120, (x, y) => !W.blocked(x, y, (e.r || 4) + 1) && !W.indoorPx(x, y) && !W.isWaterPx(x, y) ? [x, y] : null);
+      if (f) { e.x = f[0]; e.y = f[1]; if (f[2] !== undefined) e.ang = f[2]; } else { e.x = dx + rnd(-6, 6); e.y = dy + rnd(0, 6); }
+      if (e.kind === 'wagon' && e.trail) { e.bx = undefined; e.trail(true); }
+      else if (e.bx !== undefined) { e.bx = e.x; e.by = e.y; }
     }
   },
   /* Kasabada type türünde bir bina için yer: kapısı sokağa (en çok 14 karoluk) patikayla bağlanan, kimsenin kapısını ve

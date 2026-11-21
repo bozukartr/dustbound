@@ -268,7 +268,8 @@ const BizSystems = {
     if (this.myWagon) { UI.feed(Tr('Zaten bir yük araban var.')); return; }
     const pr = WAGON_PRICE * this.priceMul(true);
     if (!this.spend(pr)) return;
-    this.spawnMyWagon(b.door.x + 30, b.door.y + 26, 0, []);
+    const p = this.vehSpot(b, false, 1);   // kapının sağ önünde; lamba, direk, çit ya da başka bir araç varsa boş bir yerde
+    this.spawnMyWagon(p.x, p.y, p.ang, []);
     UI.toast(Tr('Yük Arabası'), Tr`Ahırın önünde seni bekliyor. ${WAGON_CAP} sandık taşır.`, 'horse');
     this.hintOnce('mywagon', Tr`Yük arabana binip at gibi sürersin. Sandığı omzundayken arabanın yanında <b>Arabaya Yükle</b>; işletmenin kapısına arabayla gelince <b>Malı Boşalt</b>. Arabanı herhangi bir ahıra getirtebilirsin.`, 10);
   },
@@ -283,7 +284,8 @@ const BizSystems = {
   buyCar(b) {
     if (this.myCar) { UI.feed(Tr('Zaten bir otomobilin var.')); return; }
     if (!this.spend(CAR_PRICE * this.priceMul(true))) return;
-    this.spawnMyCar(b.door.x - 30, b.door.y + 26, 0);
+    const p = this.vehSpot(b, true, -1);   // kapının sol önünde; lamba, direk, çit ya da başka bir araç varsa boş bir yerde
+    this.spawnMyCar(p.x, p.y, p.ang);
     UI.toast(Tr('Otomobil'), Tr('Ahırın önünde seni bekliyor.'), 'horse');
     this.driveHint(this.myCar);
   },
@@ -298,7 +300,8 @@ const BizSystems = {
     if (!w) return;
     if (this.player.riding === w) { UI.feed(Tr('Zaten direksiyondasın.')); return; }
     if (!this.spend(SVC.fetchWagon)) return;
-    w.x = b.door.x - 30; w.y = b.door.y + 26; w.ang = 0; w.spd = 0; w.trail(true);
+    const p = this.vehSpot(b, true, -1, w);
+    w.x = p.x; w.y = p.y; w.ang = p.ang; w.spd = 0; w.acc = 0; w.bx = undefined; w.trail(true);
     if (!this.ents.includes(w)) { w.remove = false; this.addEnt(w); }
     UI.feed(Tr('Seyis otomobilini ahırın önüne getirdi.'));
   },
@@ -307,7 +310,8 @@ const BizSystems = {
     if (!w) return;
     if (this.player.riding === w) { UI.feed(Tr('Zaten arabadasın.')); return; }
     if (!this.spend(SVC.fetchWagon)) return;
-    w.x = b.door.x + 30; w.y = b.door.y + 26; w.ang = 0; w.spd = 0; w.bx = undefined; w.trail(true);
+    const p = this.vehSpot(b, false, 1, w);
+    w.x = p.x; w.y = p.y; w.ang = p.ang; w.spd = 0; w.acc = 0; w.bx = undefined; w.trail(true);
     if (!this.ents.includes(w)) { w.remove = false; this.addEnt(w); }
     UI.feed(Tr('Seyis arabanı ahırın önüne getirdi.'));
   },

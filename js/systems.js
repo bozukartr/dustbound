@@ -946,7 +946,7 @@ const GameSystems = {
           UI.closeAll();
           UI.fade(() => {
             finish(false);
-            if (office) { P.x = office.door.x; P.y = office.door.y + 10; if (G.horse && !G.horse.dead) { G.horse.x = P.x + 24; G.horse.y = P.y + 14; } }
+            if (office) { P.x = office.door.x; P.y = office.door.y + 10; if (G.horse && !G.horse.dead) this.horseBeside(G.horse, P.x, P.y + 6); }
             this.advanceClock(days * 1440);
             P.hunger = Math.max(P.hunger, 45); P.thirst = Math.max(P.thirst, 45); P.energy = 80; P.clean = Math.max(0, P.clean - 25);
             this.addHonor(2);
@@ -1390,9 +1390,11 @@ const GameSystems = {
     if (!h) { UI.feed(Tr('Bir atın yok. Ahırdan satın alabilir ya da yabani bir atı evcilleştirebilirsin.'), 'warn'); return; }
     if (h.dead) { UI.feed(Tr`${h.name} yaralı yatıyor. At Diriltici gerekli.`, 'warn'); return; }
     const d = dist(P.x, P.y, h.x, h.y);
+    h.cnav = null; h._doorB = null;   // yeni çağrı: rota (ve oyuncu içerideyse kapıdaki bekleme yeri) baştan
     if (d > 1100) {
-      const pos = this.findSpawnPos(P.x, P.y, 200, 280, true);
-      if (pos) { h.x = pos[0]; h.y = pos[1]; }
+      // çok uzaktaysa oyuncunun yakınında, ekranın hemen dışında belirir (gövdesi boş bir yerde, tercihen oyuncuya yolu açık)
+      const pos = this.horseNear(P, h);
+      if (pos) { h.x = pos[0]; h.y = pos[1]; h.ang = pos[2]; h.spd = 0; }
     }
     // at çağrıya kişneyerek karşılık verir; ama 10 sn içinde bir kez (ıslık tekrarında kişneme yığılmaz)
     if (d > 26) { h.state = 'come'; h.t = 30; if (this.t - (h._neighT === undefined ? -99 : h._neighT) > 10) { h._neighT = this.t; setTimeout(() => Audio_.neigh(h.x, h.y), 500); } }
@@ -1423,6 +1425,155 @@ const GameSystems = {
       return [x, y];
     }
     return null;
+  },
+
+  /* ================= BOŞ YER: atın ve araçların duracağı, sıkışmayacağı yer =================
+     Satın alınan, getirilen ya da çağrılan at ve araçlar sabit bir noktaya konmaz: gövdenin tamamı (atın burnu ve sağrısı,
+     aracın önü, ortası ve arkası) duvara, nesneye (lamba, elektrik direği, çit, bağlama direği, ağaç, fıçı), suya, bina
+     içine ve başka bir araca değmeyen bir yer aranır. Yıllar içinde kasabaya dikilen direk ve lambalar sabit noktayı
+     kapatabiliyor, araç ya da at içinde doğup kıpırdayamıyordu. */
+  /* (x, y, r) bir aracın (oyuncununki, yoldaki, park etmiş) gövdesine giriyor mu (self hariç) */
+  vehAt(x, y, r, self) {
+    const E = this.ents;
+    for (let i = 0; i < E.length; i++) {
+      const o = E[i];
+      if (o.kind !== 'wagon' || o === self || o.remove || o.hide || o.bx === undefined || Math.abs(o.x - x) > 44 || Math.abs(o.y - y) > 44) continue;
+      if (o.penAt(x, y, r) > 0) return o;
+    }
+    return null;
+  },
+  /* At (x, y)'de ang yönüne bakarak durabilir mi: gövde, burun ve sağrı */
+  horseFree(x, y, ang, self) {
+    const W = this.world, c = Math.cos(ang), s = Math.sin(ang);
+    if (x < 40 || y < 40 || x > WW * TS - 40 || y > WH * TS - 40) return false;
+    if (W.blocked(x, y, 6) || W.indoorPx(x, y) || W.isWaterPx(x, y) || this.vehAt(x, y, 6, self) || this.trainBlock(x, y, 6)) return false;
+    for (let k = 0; k < 2; k++) { const d = k ? -9 : 11, px = x + c * d, py = y + s * d; if (W.blocked(px, py, 3) || W.indoorPx(px, py)) return false; }
+    return true;
+  },
+  /* Araç (otomobil ya da atlı araba) ön noktası (x, y), ang yönüne bakarak durabilir mi: boyunca sıralı noktalar (ön
+     uç, ön nokta, orta, arka) payla boşta; önü ya da arkası açık (sürülüp çıkılabilir) */
+  VEH_PTS: { car: [[3, 6], [-5, 7], [-14, 7], [-22, 7]], wagon: [[9, 5], [0, 7], [-10, 6], [-19, 7], [-26, 6]] },
+  vehFree(x, y, ang, car, self) {
+    const W = this.world, c = Math.cos(ang), s = Math.sin(ang), L = this.VEH_PTS[car ? 'car' : 'wagon'];
+    if (x < 60 || y < 60 || x > WW * TS - 60 || y > WH * TS - 60) return false;
+    for (let k = 0; k < L.length; k++) {
+      const px = x + c * L[k][0], py = y + s * L[k][0], r = L[k][1];
+      if (W.blocked(px, py, r) || W.indoorPx(px, py) || W.isWaterPx(px, py) || this.vehAt(px, py, r - 1, self) || this.trainBlock(px, py, r)) return false;
+    }
+    const open = (d) => { const px = x + c * d, py = y + s * d; return !W.blocked(px, py, 6) && !W.indoorPx(px, py) && !W.isWaterPx(px, py); };
+    return open(18) || open(L[L.length - 1][0] - 16);
+  },
+  /* (x, y) çevresinde test(x, y) sağlanan en yakın yer: içten dışa halkalar (6 px adım, en çok R). test bir sonuç
+     (ör. [x, y, ang]) ya da null döner. */
+  spiralFree(x, y, R, test) {
+    for (let d = 0; d <= R; d += 6) {
+      const n = d ? Math.max(8, Math.round(d * TAU / 9)) : 1, a0 = (d * 0.37) % TAU;
+      for (let k = 0; k < n; k++) {
+        const a = a0 + k / n * TAU, r = test(x + Math.cos(a) * d, y + Math.sin(a) * d);
+        if (r) return r;
+      }
+    }
+    return null;
+  },
+  /* Ahırın (ya da başka bir binanın) önünde aracın bekleyeceği yer. side: tercih edilen yan (otomobil kapının solunda
+     -1, yük arabası sağında 1). Arama tercih edilen noktadan başlar ve sokak boyunca genişler; kapının önü boş kalır.
+     Döner: { x, y, ang } (ön nokta ve yön) */
+  vehSpot(b, car, side, self) {
+    const y0 = b.curbY || b.door.y + 26, dx0 = side * 30, dX = b.door.x, dY = b.door.y + 6;
+    const half = car ? 9 : 11;   // ön noktanın gövde ortasına uzaklığı (yaklaşık)
+    const C = this._vsc || (this._vsc = []);
+    C.length = 0;
+    for (const dy of [0, 8, -6, 16, 26, 38, 52]) for (let k = 0; k <= 14; k++) for (let sg = 1; sg >= -1; sg -= 2) {
+      if (!k && sg < 0) continue;
+      for (let q = 0; q < 2; q++) C.push([dX + dx0 + sg * k * 9, y0 + dy, q * Math.PI, Math.abs(dy) * 1.7 + k * 9 + q * 7]);
+    }
+    C.sort((p, q) => p[3] - q[3]);
+    for (const [cx, cy, ang] of C) {
+      const c = Math.cos(ang), s = Math.sin(ang), x = cx + c * half, y = cy + s * half;
+      // kapının önü boş kalsın: aracın ekseni kapı noktasına 16 px'ten yaklaşmaz
+      const ex = x - c * 2 * half, ey = y - s * 2 * half, vx = ex - x, vy = ey - y;
+      const t = clamp(((dX - x) * vx + (dY - y) * vy) / (vx * vx + vy * vy || 1), 0, 1);
+      if (Math.hypot(dX - x - vx * t, dY - y - vy * t) < 16) continue;
+      if (this.vehFree(x, y, ang, car, self)) return { x, y, ang };
+    }
+    // sokakta yer yok: kapının çevresinde daha geniş arama
+    const f = this.spiralFree(dX, dY + 40, 260, (x, y) => this.vehFree(x, y, 0, car, self) ? [x, y, 0] : this.vehFree(x, y, Math.PI, car, self) ? [x, y, Math.PI] : null);
+    return f ? { x: f[0], y: f[1], ang: f[2] } : { x: dX + dx0, y: y0, ang: 0 };
+  },
+  /* Çağrılan atın oyuncunun yakınında belireceği yer (uzaktaysa ya da yolu yoksa): tercihen ekranın hemen dışında,
+     oyuncuya düz yolu açık bir yer; olmazsa ekran dışında herhangi bir boş yer, o da olmazsa yakında boş bir yer.
+     Döner: [x, y, oyuncuya bakan yön] ya da null */
+  horseNear(P, h) {
+    const vw = (this.vw || 900) / 2, vh = (this.vh || 600) / 2;
+    for (let pass = 0; pass < 3; pass++) {
+      for (let k = 0; k < 36; k++) {
+        const a = Math.random() * TAU, c = Math.cos(a), s = Math.sin(a);
+        const r = pass < 2 ? clamp(Math.min(vw / Math.max(0.05, Math.abs(c)), vh / Math.max(0.05, Math.abs(s))) + rnd(30, 90), 140, 460) : rnd(50, 180);
+        const x = P.x + c * r, y = P.y + s * r, ang = a + Math.PI;
+        if (!this.horseFree(x, y, ang, h)) continue;
+        if (pass === 0 && !TownPath.walkable([x, y], [P.x, P.y], 5)) continue;
+        return [x, y, ang];
+      }
+    }
+    return null;
+  },
+  /* Binicisinden ayrılan (kementle, zorla indirilen, ölen binicinin) atın yeri: binicinin yanında boş bir yer (duvara, çite,
+     ağaca gömülmesin; oyuncu atı alıp binerse sıkışmasın), yoksa binicinin yeri */
+  horseDrop(x, y, ang) {
+    return this.spiralFree(x + 6, y, 60, (px, py) => this.horseFree(px, py, ang) ? [px, py] : null) || [x, y];
+  },
+  /* Yolculuktan (tren, posta arabası), hapisten sonra at oyuncunun yanında boş bir yerde bekler (lamba, direk, bağlama
+     direği, fıçı üstünde değil) */
+  horseBeside(h, x, y) {
+    const f = this.spiralFree(x + 24, y + 8, 120, (px, py) => this.horseFree(px, py, Math.PI / 2, h) ? [px, py] : null);
+    h.x = f ? f[0] : x + 24; h.y = f ? f[1] : y + 8; h.ang = Math.PI / 2; h.spd = 0; h.cnav = null;
+  },
+  /* Ahırdan alınan ya da çıkarılan atın duracağı yer: kapının sağ önü, olmazsa yakında boş bir yer (kapının önü boş kalır) */
+  horseSpot(b, self) {
+    const dX = b.door.x, dY = b.door.y + 6;
+    const ok = (x, y, a) => dist2(x, y, dX, dY) >= 14 * 14 && this.horseFree(x, y, a, self);
+    for (const dy of [14, 22, 30, 8, 40, 52]) for (let k = 0; k <= 10; k++) for (let sg = 1; sg >= -1; sg -= 2) {
+      if (!k && sg < 0) continue;
+      const x = dX + 20 + sg * k * 8, y = dY + dy;
+      for (const a of [Math.PI / 2, 0, Math.PI]) if (ok(x, y, a)) return { x, y, ang: a };
+    }
+    const f = this.spiralFree(dX + 20, dY + 20, 220, (x, y) => ok(x, y, Math.PI / 2) ? [x, y, Math.PI / 2] : ok(x, y, 0) ? [x, y, 0] : null);
+    return f ? { x: f[0], y: f[1], ang: f[2] } : { x: dX + 20, y: dY + 14, ang: Math.PI / 2 };
+  },
+  /* Katının içinde kalmış oyuncu atını, araçlarını ve oyuncuyu en yakın boş yere alır. Hareket katıya girmeye izin
+     vermediği için bu yalnız dışarıdan gelen değişiklikte olur: yıllar içinde kasabaya dikilen direk, lamba, bağlama
+     direği ya da yeni bina, eski kayıt. Oyuncu ancak iki denetim üst üste gömülü kalırsa taşınır (kapı kapanırken
+     eşikte duruyorsa bir an gömülü görünebilir). */
+  unstickOwned() {
+    const W = this.world, P = this.player;
+    if (!W || !P || this.state !== 'play') return 0;
+    let n = 0;
+    const m = P.riding;
+    for (const h of [this.horse, m && m.kind === 'horse' && m !== this.horse ? m : null]) {
+      if (!h || h.dead || h.remove || (h.rider && h.rider !== P) || (!W.blocked(h.x, h.y, h.r) && !W.indoorPx(h.x, h.y))) continue;
+      const a0 = h.ang, f = this.spiralFree(h.x, h.y, 200, (x, y) => this.horseFree(x, y, a0, h) ? [x, y, a0] : this.horseFree(x, y, a0 + Math.PI, h) ? [x, y, a0 + Math.PI] : null);
+      if (!f) continue;
+      h.x = f[0]; h.y = f[1]; h.ang = f[2]; h.spd = 0; h.cnav = null; n++;
+      if (h.rider === P) { P.x = h.x; P.y = h.y; }
+    }
+    for (const w of [this.myCar, this.myWagon, m && m.kind === 'wagon' && m !== this.myCar && m !== this.myWagon ? m : null]) {
+      if (!w || w.remove || (w.rider && w.rider !== P) || (!W.blocked(w.x, w.y, w.r) && !W.indoorPx(w.x, w.y)) || !this.ents.includes(w)) continue;
+      const car = !!w.motor, a0 = w.ang;
+      const f = this.spiralFree(w.x, w.y, 240, (x, y) => this.vehFree(x, y, a0, car, w) ? [x, y, a0] : this.vehFree(x, y, a0 + Math.PI, car, w) ? [x, y, a0 + Math.PI] : null);
+      if (!f) continue;
+      w.x = f[0]; w.y = f[1]; w.ang = f[2]; w.spd = 0; w.acc = 0; w.bx = undefined; w.trail(true);
+      if (w.rider === P) { P.x = w.x; P.y = w.y; }
+      n++;
+    }
+    if (!P.riding && !P.mountAnim && W.blocked(P.x, P.y, P.r)) {
+      if (this._pStuck) {
+        const ind = W.indoorPx(P.x, P.y);
+        const f = this.spiralFree(P.x, P.y, 120, (x, y) => !W.blocked(x, y, P.r + 1) && W.indoorPx(x, y) === ind && !W.isWaterPx(x, y) ? [x, y] : null);
+        if (f) { P.x = f[0]; P.y = f[1]; n++; }
+        this._pStuck = false;
+      } else this._pStuck = true;
+    } else this._pStuck = false;
+    return n;
   },
   spawnTick() {
     const P = this.player, W = this.world;

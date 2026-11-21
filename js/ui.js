@@ -2826,7 +2826,7 @@ const UI = {
             stats: [[Tr('Hız'), Math.round(B.spd * 100), B.spd / 1.3], [Tr('Dayanıklılık'), B.sta, B.sta / 170], [Tr('Sağlık'), B.hp, B.hp / 190]],
             rows: [[Tr('Fiyat'), fmtMoney(pr), poor ? 'no' : '']], note: poor ? Tr('Yeterli paran yok.') : '', bad: poor,
           }),
-          fn: () => { if (G.spend(pr)) { const h = new Horse(b.door.x + 20, b.door.y + 20, k, { owner: 'player' }); h.ang = Math.PI / 2; G.setHorse(h); this.toast(Tr('Yeni At'), Tr`${h.name} (${B.n}) artık senin.`, 'horse'); Audio_.neigh(); G.qEvent('horse', h); } },
+          fn: () => { if (G.spend(pr)) { const sp = G.horseSpot(b), h = new Horse(sp.x, sp.y, k, { owner: 'player' }); h.ang = sp.ang; G.setHorse(h); this.toast(Tr('Yeni At'), Tr`${h.name} (${B.n}) artık senin.`, 'horse'); Audio_.neigh(); G.qEvent('horse', h); } },
         };
       }),
     });
@@ -2834,7 +2834,7 @@ const UI = {
   openStable(b) {
     this.menu({
       title: Tr('Ahırdaki Atların'), cls: 'small',
-      build: () => G.stable.map((s, i) => ({ icon: '🐴', label: `${s.name} (${HORSE_BREEDS[s.breed].n})`, fn: () => { G.stable.splice(i, 1); const h = new Horse(b.door.x + 20, b.door.y + 20, s.breed, { owner: 'player', name: s.name, look: s.look, bond: s.bond }); G.setHorse(h); this.feed(Tr`🐴 ${h.name} ahırdan çıkarıldı.`); this.pop(); } })),
+      build: () => G.stable.map((s, i) => ({ icon: '🐴', label: `${s.name} (${HORSE_BREEDS[s.breed].n})`, fn: () => { G.stable.splice(i, 1); const sp = G.horseSpot(b, G.horse), h = new Horse(sp.x, sp.y, s.breed, { owner: 'player', name: s.name, look: s.look, bond: s.bond }); h.ang = sp.ang; G.setHorse(h); this.feed(Tr`🐴 ${h.name} ahırdan çıkarıldı.`); this.pop(); } })),
     });
   },
   /* Banka: solda yatırma, sağda çekme sütunu; başlıkta hesap ve cüzdan yan yana */
@@ -2876,7 +2876,7 @@ const UI = {
             const st = t.station;
             if (P.riding) P.dismount();
             P.x = st.door.x; P.y = st.door.y + 12;
-            if (G.horse && !G.horse.dead) { G.horse.x = P.x + 24; G.horse.y = P.y + 8; G.horse.state = 'idle'; }
+            if (G.horse && !G.horse.dead) { G.horseBeside(G.horse, P.x, P.y); G.horse.state = 'idle'; }
             G.cam.x = P.x; G.cam.y = P.y;
             G.stat('trainRides', 1);
             G.prefetch(true);
@@ -2910,7 +2910,7 @@ const UI = {
             if (P.riding) P.dismount();
             const st = t.buildings.find(x => x.type === 'post') || t.buildings.find(x => x.type === 'stable');
             if (st) { P.x = st.door.x; P.y = st.door.y + 14; } else { P.x = t.spawn.x; P.y = t.spawn.y; }
-            if (G.horse && !G.horse.dead) { G.horse.x = P.x + 24; G.horse.y = P.y + 8; G.horse.state = 'idle'; }
+            if (G.horse && !G.horse.dead) { G.horseBeside(G.horse, P.x, P.y); G.horse.state = 'idle'; }
             G.cam.x = P.x; G.cam.y = P.y;
             G.stat('stageRides', 1);
             G.prefetch(true);

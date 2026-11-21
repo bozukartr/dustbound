@@ -116,8 +116,9 @@ const CarrySystems = {
     const P = this.player;
     if (e.mounted) {
       // at binicisiz kalır ve olduğu yerde durur: çalınabilir
-      const h = new Horse(e.x + 6, e.y, 'mustang', { look: e.mounted, owner: 'npc' });
-      h.ang = e.hAng === undefined ? e.ang : e.hAng; h.spd = 30;
+      const ha = e.hAng === undefined ? e.ang : e.hAng, hp = this.horseDrop(e.x, e.y, ha);
+      const h = new Horse(hp[0], hp[1], 'mustang', { look: e.mounted, owner: 'npc' });
+      h.ang = ha; h.spd = 30;
       this.addEnt(h);
       e.mounted = null;
     }
@@ -155,8 +156,9 @@ const CarrySystems = {
   /* Atlı birini eyerden çek: yere düşer, atı olduğu yerde kalır */
   pullOffHorse(e) {
     if (!e.mounted) return;
-    const h = new Horse(e.x + 7, e.y, 'mustang', { look: e.mounted, owner: 'npc' });
-    h.ang = e.hAng === undefined ? e.ang : e.hAng;
+    const ha = e.hAng === undefined ? e.ang : e.hAng, hp = this.horseDrop(e.x, e.y, ha);
+    const h = new Horse(hp[0], hp[1], 'mustang', { look: e.mounted, owner: 'npc' });
+    h.ang = ha;
     this.addEnt(h);
     e.mounted = null; e.path = null;
     Audio_.thud(0.4);

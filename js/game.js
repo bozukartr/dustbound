@@ -243,7 +243,9 @@ const G = {
     const hat = profile.look.hat;
     if (hat !== 'none') P.inv['hat_' + hat] = 1;
     if (BG.horse) {
-      const h = new Horse(sx + 20, sy + 10, BG.horse, { owner: 'player', name: pick(HORSE_NAMES) });
+      // başlangıç atı oyuncunun yanında boş bir yerde (lamba, çit, fıçı, kaya, ağaç üstünde değil)
+      const f = this.spiralFree(sx + 20, sy + 10, 160, (x, y) => this.horseFree(x, y, 0) ? [x, y] : null) || [sx + 20, sy + 10];
+      const h = new Horse(f[0], f[1], BG.horse, { owner: 'player', name: pick(HORSE_NAMES) });
       this.setHorse(h, true);
     }
     this.initRomances();
@@ -315,6 +317,7 @@ const G = {
     this.prefetch(true);
     Audio_.playMusic('explore');
     this.curTown = null;
+    this.unstickOwned();   // kayıttaki yerinde sonradan dikilen bir direk, lamba ya da bina varsa at ve araçlar boş bir yere
   },
 
   /* ---------------- Kayıt ---------------- */
@@ -622,6 +625,7 @@ const G = {
     const T_ = this.timers;
     T_.spawn -= dt; if (T_.spawn <= 0) { T_.spawn = 1; this.spawnTick(); }
     T_.dev -= dt; if (T_.dev <= 0) { T_.dev = 0.5; this.devTick(); }
+    if ((T_.stk = (T_.stk || 0) - dt) <= 0) { T_.stk = 1; this.unstickOwned(); }   // katının içinde kalan at, araç ya da oyuncu (js/systems.js)
     T_.leg -= dt; if (T_.leg <= 0) { T_.leg = 0.5; this.legendTick(); }   // efsaneler ve siparişler (js/legends.js)   // görüş alanından çıkan kasabanın bekleyen gelişimi
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
     T_.ach -= dt; if (T_.ach <= 0) { T_.ach = 1; this.checkAchievements(); }
