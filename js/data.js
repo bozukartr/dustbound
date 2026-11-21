@@ -689,6 +689,8 @@ const GOODS = {
   meds:  { n: 'İlaç Sandığı', p: 5.75, look: 'crate', src: [['warehouse', 1], ['doctor', 1.5]] },
   // satılmaz: Demiryolu hikâyesinde kesim yerinden ray kampına taşınan traversler
   ties:  { n: 'Travers Demeti', p: 0.8, look: 'ties', src: [] },
+  // satılmaz: Sully'nin çiftliğinde samanlıktan ambara taşınan balyalar (Bölüm 6)
+  hay:   { n: 'Saman Balyası', p: 0.4, look: 'hay', src: [] },
 };
 const BIZ = {
   barber:   { tier: 1, p: 140, inc: 1.5 },

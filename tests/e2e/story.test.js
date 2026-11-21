@@ -121,15 +121,24 @@ module.exports = {
       t.ok(h >= 6.9 && h < 8, 'itiraftan sonra sabah olur', h);
     });
 
-    await t.step('bölüm 6: Sully için çalış', async () => {
+    await t.step('bölüm 6: Sully için çiftlik işleri; dört iş, günü bitir (ayrıntılar: tests/e2e/chores.test.js)', async () => {
       await p.waitForFunction(() => G.sullyEnt(), null, { timeout: 5000 });
       await p.evaluate(() => { const e = G.sullyEnt(); TH.goto(e.x + 14, e.y); });
       t.ok(await talk(), 'konuş');
       await waitStep(5, 1);
-      const acts = await p.evaluate(() => G.sullyActions(G.sullyEnt()).map(a => a.n).includes(JOBS.ranch.n));
-      t.ok(acts, 'çalışma seçeneği');
-      await p.evaluate(() => G.work('ranch', 'Sully'));
+      await p.waitForFunction(() => G.ents.filter(e => e.chKey && !e.remove).length >= 4, null, { timeout: 8000 });
+      const r = await p.evaluate(() => {
+        const S = G.story, before = G.sullyActions(G.sullyEnt()).some(a => /Günü Bitir/.test(a.n));
+        for (const e of G.ents.filter(e => e.chKey && !e.remove)) G.storyPropActions(e)[0].fn();
+        return { n: S.n, before, after: G.sullyActions(G.sullyEnt()).some(a => /Günü Bitir/.test(a.n)) };
+      });
+      t.eq(r.n, 4, 'dört iş (iki çatı, iki çit)');
+      t.ok(!r.before && r.after, 'en az üç işten sonra günü bitirme seçeneği', r);
+      const m0 = await p.evaluate(() => G.player.money);
+      await p.evaluate(() => G.sullyActions(G.sullyEnt()).find(a => /Günü Bitir/.test(a.n)).fn());
       await p.waitForFunction(() => G.story.ch === 6 && !G.story.wait, null, { timeout: 20000 });   // banka yoksa yatırma adımı atlanır
+      const m1 = await p.evaluate(() => G.player.money);
+      t.ok(Math.abs(m1 - m0 - 4 * 0.25) < 0.011, 'bitirilen iş kadar para (iş başına çeyrek dolar)', m1 - m0);
     });
 
     await t.step('bölüm 7: şerif ofisi ve ilan panosu', async () => {

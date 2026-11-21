@@ -31,6 +31,11 @@ const STORY_ENV = { DESERT: 'desert', REDROCK: 'desert', FOREST: 'forest', SNOW:
 /* Bölüm 8 (Sully): saloondaki sarhoş haydut. Kalkıp gitme süresi (sn; ısmarlanan her kadeh uzatır), kadeh fiyatı, kaç
    kadehte konuşur, barmenin bilgi fiyatı; takipte atının hızı, arkasına bakma aralığı ve süresi, görme menzili, kampa bu
    kadar yaklaşınca kamp bulunur, oyuncu bu kadar geride kalırsa izi kaybolur */
+/* Bölüm 6 (Sully): çiftlik işleri. İş başına para; çatı ve çitte basılı tutma süresi (sn) ve geçen oyun süresi (dk);
+   balya sayısı, çatı deliği, kırık direk; balyanın ambarın kapısına bu kadar yakın bırakılması; günü erken bitirmek için
+   en az iş; iş başına yorgunluk (uyku, açlık, susuzluk) */
+const CHORE = { PAY: 0.25, ROOF: 2.4, FENCE: 2, MIN: 25, HAY: 3, NROOF: 2, NFENCE: 2, DROP: 46, EARLY: 3, ENERGY: 2.6, HUNGER: 2, THIRST: 2.3 };
+CHORE.N = CHORE.HAY + CHORE.NROOF + CHORE.NFENCE;
 const BARFLY = { LEAVE: 70, PER: 35, DRINK: 0.15, TALK: 3, ASK: 1, SPD: 55, LOOK: [6, 10], LOOKT: 1.8, SEE: 240, FOUND: 650, LOST: 1100, NEAR: 800 };
 const RAID = {
   WAKE: 4.5, HORSE_R: 70, FLEE_HP: 0.45, RIDE: [128, 104, 80], SLOW: 420, LOSE: 1300, HIDE: [1700, 2200],
@@ -997,11 +1002,20 @@ const STORY_SULLY = [
       { t: () => Tr('Sully ile konuş'), ev: 'talk', at() { return this.sullyEnt() || this.story.ranch; },
         say: () => [
           ['S', Tr('Günaydın. Kahve yok, bitti. Çatı da akıyor.')],
-          ['S', Tr('Dört saatini bana ver. Karşılığında ne bulursam vereyim; az ama dürüst para.')],
+          ['S', Tr('Ambarın çatısında iki delik var, samanlar hâlâ dışarıda, güney çitinin iki direği de kırık. Ne kadar iş, o kadar para; az ama dürüst.')],
         ] },
-      { t: () => Tr('Sully\'nin çiftliğinde çalış'), ev: 'work', at() { return this.sullyEnt() || this.story.ranch; },
-        hint: () => Tr`Sully'ye yaklaş ve <b>Çiftlikte Çalış</b>'ı seç. İş saatleri 06:00 – 18:00; çalışınca yorulur, acıkır ve susarsın.`,
-        after: () => [['S', Tr('Eline sağlık. Çatı on yıl daha dayanır... ya da bir kış.')], ['S', Tr('Kasabaya inelim. Şerifle bir kez daha konuşacağım; bu sefer yanımda biri olacak.')]] },
+      // gerçek işler: çatı (merdivende basılı tut), saman (balyaları ambara taşı), çit (kırık direği yenile)
+      { t: () => Tr('Sully\'nin çiftliğinde iş gör'), ev: 'chore', n: CHORE.N, reOn: true,
+        on(S) { this.choreInit(S); },
+        at() { return this.choreNext(this.story) || this.sullyEnt() || this.story.ranch; },
+        how: () => Tr`Merdivende ${QK('interact')} basılı tut: <b>Çatıyı Onar</b> · balyayı <b>Omzuna Al</b>, ambarın kapısına bırak · kırık direkte <b>Direği Çak</b>`,
+        hint: () => Tr`Ambarın önündeki merdivenlerden çatıyı onar (${Input.glyph('interact')} basılı tut: <b>Çatıyı Onar</b>), samanlığın yanındaki balyaları <b>Omzuna Al</b> ve ambarın kapısına bırak, güney çitindeki kırık direkleri yenile (<b>Direği Çak</b>). Her iş zaman alır ve yorar; bitirdiğin iş kadar para alırsın. Yeterince çalışınca Sully ile konuşup günü bitirebilirsin.`,
+        done(S) { const n = S.n, pay = n * CHORE.PAY; if (pay > 0) this.earn(pay, 'Sully'); S.choresPaid = n; this.choreClear(S); },
+        after(S) {
+          const n = S.choresPaid || 0;
+          return [n >= CHORE.N ? ['S', Tr('Hepsini bitirmişsin. Eline sağlık. Çatı on yıl daha dayanır... ya da bir kış.')] : ['S', Tr('Bu kadarı da iyi. Kalanını yarın ben hallederim, yaşlı da olsam.')],
+            ['S', Tr('Kasabaya inelim. Şerifle bir kez daha konuşacağım; bu sefer yanımda biri olacak.')]];
+        } },
     ],
   },
   /* 7 — Kanunun Kapısı: banka, şerif, pano */
@@ -1225,7 +1239,10 @@ const STORIES = {
     },
     npcActions(e, S) { return e.storyNpc === 'drunk' ? this.drunkActions(e, S) : null; },
     buildingActions(b, S) { return this.drunkBarActions(b, S); },
-    tick(S, dt) { this.drunkTick(S, dt); },
+    propActions(e, S) { return this.choreActs(e, S); },
+    // çiftlik işlerinde yeterince çalışınca günü bitirmek
+    mentorActions(e, S, acts) { return this.choreMentorActs(e, S, acts); },
+    tick(S, dt) { this.drunkTick(S, dt); this.choreTick(S, dt); },
     finish(S) {
       const P = this.player;
       this.earn(S.alive ? 10 : 6, Tr('Sully\'nin teşekkürü'));
@@ -1760,5 +1777,131 @@ Object.assign(Story, {
     const i = t.opps.findIndex(o => o.story === 'drunk');
     if (!want) { if (i >= 0) t.opps.splice(i, 1); return; }
     if (i < 0) { const o = { name: e.name, stack: 600, style: 1, story: 'drunk' }; if (t.opps.length >= POKER_SEATS) t.opps[t.opps.length - 1] = o; else t.opps.push(o); }
+  },
+});
+
+/* ==========================================================
+   Bölüm 6 (Sully) — çiftlik işleri. Saat atlatan menü yerine üç iş, yedi parça:
+   - çatı: ambarın önündeki iki merdivende basılı tut, "Çatıyı Onar" (zaman alır, yorar),
+   - saman: samanlığın yanındaki üç balyayı omzuna al (ya da atına yükle), ambarın kapısına bırak,
+   - çit: güney çitindeki iki kırık direkte basılı tut, "Direği Çak".
+   Her iş sayılır; hepsi bitince ya da en az üç işten sonra Sully ile konuşup günü bitirince bitirdiğin iş kadar ödenir.
+   Kaybolan balyalar (satılan, uzakta bırakılan) oyuncu uzaktayken samanlıkta yeniden belirir.
+   ========================================================== */
+Object.assign(Story, {
+  /* işlerin yerleri: ambarın ön duvarındaki merdivenler, samanlığın yanındaki balyalar, güney çitindeki kırık direkler,
+     balyaların bırakılacağı ambar kapısı (dünya tohumundan; kayda girmez) */
+  choreSpots(S) {
+    const c = this._chSp;
+    if (c && c.pid === S.ranch.pid) return c;
+    const W = this.world, p = W.pois.find(q => q.pid === S.ranch.pid);
+    if (!p) return null;
+    let barn = null, bd = 1e9;
+    for (const b of W.buildings) if (b.type === 'barn' && !b.town) { const d = dist2(b.door.x, b.door.y, S.ranch.cx, S.ranch.cy); if (d < bd) { bd = d; barn = b; } }
+    if (!barn || bd > 400 * 400) return null;
+    const free = (x, y) => { if (!W.blocked(x, y, 5) && !W.indoorPx(x, y)) return [x, y]; return this.findSpawnPos(x, y, 0, 24) || [x, y]; };
+    const by = (barn.y + barn.h) * TS + 5;
+    const out = {
+      pid: S.ranch.pid, barn,
+      roof: [free(barn.x * TS + 20, by), free((barn.x + barn.w) * TS - 20, by)].slice(0, CHORE.NROOF),
+      fence: [free((p.tx - 5) * TS + 8, (p.ty + 9) * TS + 15), free((p.tx + 7) * TS + 8, (p.ty + 9) * TS + 15)].slice(0, CHORE.NFENCE),
+      hay: [free((p.tx + 7) * TS + 8, p.ty * TS + 8), free((p.tx + 9) * TS + 6, p.ty * TS + 10), free((p.tx + 10) * TS + 9, (p.ty - 1) * TS + 10)].slice(0, CHORE.HAY),
+      drop: { x: barn.door.x + 8, y: barn.door.y + 20 },
+    };
+    return (this._chSp = out);
+  },
+  /* adım başlarken (ve yüklemede): işlerin durumu, eksik balyalar hemen samanlıkta */
+  choreInit(S) {
+    S.chores = S.chores || { roof: [], fence: [], hay: 0 };
+    const C = this.choreSpots(S);
+    if (!C) return;
+    const need = CHORE.HAY - (S.chores.hay || 0) - this.choreHayHave();
+    for (let k = 0; k < need; k++) { const q = C.hay[k % C.hay.length]; this.addEnt(new Crate(q[0] + Math.floor(k / C.hay.length) * 4, q[1], 'hay')); }
+  },
+  /* ambara henüz girmemiş balyalar: yerde, omuzda ya da eyerde */
+  choreHayHave() {
+    const P = this.player;
+    return this.ents.filter(e => e.kind === 'crate' && e.g === 'hay' && !e.remove && !e.counted).length
+      + (P.carry && P.carry.g === 'hay' ? 1 : 0) + (this.horse && this.horse.load ? this.horse.load.filter(e => e.g === 'hay').length : 0);
+  },
+  choreStep() { const S = this.story, st = S && S.on && !S.done && !S.wait && this.qStep(); return !!(st && st.ev === 'chore'); },
+  /* sıradaki iş (işaret için): oyuncu balya taşıyorsa ambar kapısı, yoksa en yakın bitmemiş iş */
+  choreNext(S) {
+    const C = this.choreSpots(S), P = this.player;
+    if (!C || !S.chores) return null;
+    if ((P.carry && P.carry.g === 'hay') || (this.horse && this.horse.load && this.horse.load.some(e => e.g === 'hay'))) return C.drop;
+    let best = null, bd = Infinity;
+    const cand = (x, y) => { const d = dist2(x, y, P.x, P.y); if (d < bd) { bd = d; best = { x, y }; } };
+    C.roof.forEach((q, k) => { if (!S.chores.roof[k]) cand(q[0], q[1]); });
+    C.fence.forEach((q, k) => { if (!S.chores.fence[k]) cand(q[0], q[1]); });
+    for (const e of this.ents) if (e.kind === 'crate' && e.g === 'hay' && !e.remove && !e.counted) cand(e.x, e.y);
+    return best;
+  },
+  /* her kare (D.tick): iş adımında nesneler yerinde; balyalar ambar kapısına bırakılınca sayılır */
+  choreTick(S, dt) {
+    const C = S.ch === 5 && S.chores && this.choreSpots(S), on = !!C && this.choreStep();
+    const want = new Map();
+    if (on) {
+      C.roof.forEach((q, k) => { if (!S.chores.roof[k]) want.set('roof' + k, { x: q[0], y: q[1], t: 'ladder', label: Tr('Ambar Çatısı'), k }); });
+      C.fence.forEach((q, k) => { if (!S.chores.fence[k]) want.set('fence' + k, { x: q[0], y: q[1], t: 'fencebroken', label: Tr('Kırık Çit Direği'), k }); });
+    }
+    for (const e of this.ents) if (e.chKey && !e.remove && !want.has(e.chKey)) e.remove = true;
+    for (const [k, w] of want) {
+      if (this.ents.some(e => e.chKey === k && !e.remove)) continue;
+      const e = new Prop(w.x, w.y, w.t); e.chKey = k; e.chK = w.k; e.storyAct = true; e.label = w.label; e.keep = true;
+      this.addEnt(e);
+    }
+    const P = this.player;
+    if (!on) {
+      // bölüm bitti: sayılmamış balyalar gözden uzaktayken kalkar
+      if (S.ch !== 5) for (const e of this.ents) if (e.kind === 'crate' && e.g === 'hay' && !e.remove && !this.onScreen(e.x, e.y, 30)) e.remove = true;
+      return;
+    }
+    if ((S.chT = (S.chT || 0) - dt) > 0) return;
+    S.chT = 0.3;
+    // ambar kapısına bırakılan balya
+    for (const e of this.ents) {
+      if (e.kind !== 'crate' || e.g !== 'hay' || e.remove || e.counted) continue;
+      if (dist2(e.x, e.y, C.drop.x, C.drop.y) > CHORE.DROP * CHORE.DROP) continue;
+      e.counted = true; S.chores.hay = Math.min(CHORE.HAY, (S.chores.hay || 0) + 1);
+      this.choreFatigue();
+      UI.feed(Tr`Saman balyası ambarda (${S.chores.hay}/${CHORE.HAY}).`);
+      this.qEvent('chore', 'hay');
+      if (!this.choreStep()) return;
+    }
+    // eksik balyalar (satılan, uzakta kalan): oyuncu samanlıktan uzaktayken yeniden belirir
+    const have = this.choreHayHave(), need = CHORE.HAY - (S.chores.hay || 0) - have;
+    if (need > 0 && C.hay.every(q => dist2(q[0], q[1], P.x, P.y) > 260 * 260)) {
+      for (let k = 0; k < need; k++) { const q = C.hay[(have + k) % C.hay.length]; this.addEnt(new Crate(q[0] + k * 3, q[1], 'hay')); }
+    }
+  },
+  /* merdivende ve kırık direkte basılı tutma eylemi */
+  choreActs(e, S) {
+    if (!e.chKey || !this.choreStep()) return [];
+    if (e.type === 'ladder') return [{ n: Tr('Çatıyı Onar'), hold: CHORE.ROOF, fn: () => this.choreDone(S, 'roof', e) }];
+    if (e.type === 'fencebroken') return [{ n: Tr('Direği Çak'), hold: CHORE.FENCE, fn: () => this.choreDone(S, 'fence', e) }];
+    return [];
+  },
+  choreDone(S, kind, e) {
+    if (!this.choreStep() || S.chores[kind][e.chK]) return;
+    S.chores[kind][e.chK] = 1; e.remove = true;
+    this.advanceClock(CHORE.MIN);
+    this.choreFatigue();
+    for (let k = 0; k < 4; k++) Audio_.tone(kind === 'roof' ? 240 : 180, 0.05, 'square', 0.04, null, k * 0.14);   // çekiç
+    UI.feed(kind === 'roof' ? Tr('Çatıdaki delik kapandı.') : Tr('Yeni direk sağlam çakıldı.'));
+    this.skillXp('strength', 2);
+    this.qEvent('chore', kind);
+  },
+  choreFatigue() {
+    const P = this.player;
+    P.energy = Math.max(0, P.energy - CHORE.ENERGY); P.hunger = Math.max(0, P.hunger - CHORE.HUNGER); P.thirst = Math.max(0, P.thirst - CHORE.THIRST);
+    P.clean = Math.max(0, P.clean - 3);
+  },
+  /* adım bitti: merdivenler ve kırık direkler kalkar, sayılmamış balyalar kalır (tick gözden uzakta kaldırır) */
+  choreClear(S) { for (const e of this.ents) if (e.chKey) e.remove = true; },
+  /* Sully: en az üç işten sonra günü bitir */
+  choreMentorActs(e, S, acts) {
+    if (!this.choreStep() || S.n < CHORE.EARLY) return acts;
+    return [{ n: Tr`Günü Bitir (${S.n}/${CHORE.N} iş)`, fn: () => { e.ang = Math.atan2(this.player.y - e.y, this.player.x - e.x); this.qDone(); } }].concat(acts);
   },
 });

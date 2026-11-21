@@ -1896,6 +1896,20 @@ class Prop extends Ent {
       ctx.beginPath(); ctx.moveTo(x - c * 12, y - s * 12); ctx.lineTo(x + c * 12, y + s * 12); ctx.stroke(); ctx.lineCap = 'butt';
       ctx.fillStyle = 'rgba(40,30,18,0.6)';
       for (let k = -1; k <= 1; k++) for (const o of [-4.6, 4.6]) { const px = x + c * (k * 8 + (o > 0 ? 3 : 0)) - s * o, py = y + s * (k * 8 + (o > 0 ? 3 : 0)) + c * o; for (let t = -1; t <= 1; t++) ctx.fillRect(px + c * 1.6 - s * t, py + s * 1.6 + c * t, 0.9, 0.9); }
+    } else if (this.type === 'ladder') {
+      // ambar duvarına dayalı merdiven; dibinde kırık kiremit tahtaları (Sully, Bölüm 6)
+      Spr.shadow(ctx, x + 1, y + 2, 6, 2, 0.25);
+      ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x - 4.5, y - 26, 1.4, 28); ctx.fillRect(x + 3.1, y - 26, 1.4, 28);
+      ctx.fillStyle = '#9a7650'; for (let r = y - 23; r < y + 1; r += 4) ctx.fillRect(x - 3.4, r, 6.8, 1);
+      ctx.fillStyle = '#4a3424'; ctx.fillRect(x + 6, y, 4, 1.4); ctx.fillRect(x + 7.5, y - 1.6, 3.5, 1.2); ctx.fillStyle = '#6a4a30'; ctx.fillRect(x - 10, y + 0.6, 3.6, 1.2);
+    } else if (this.type === 'fencebroken') {
+      // kırık çit direği: yere düşmüş direk, yanında kırık kütük ve kıymıklar
+      Spr.shadow(ctx, x, y + 1.5, 7, 2, 0.22);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(-0.35);
+      ctx.fillStyle = '#6a4a2c'; ctx.fillRect(-7, -1.2, 13, 2.6); ctx.fillStyle = '#8a6a44'; ctx.fillRect(-7, -1.2, 13, 0.8);
+      ctx.restore();
+      ctx.fillStyle = '#5a3e26'; ctx.fillRect(x + 5, y - 4, 2.2, 5); ctx.fillStyle = '#c8a878'; ctx.fillRect(x + 5, y - 4.6, 2.2, 0.8);
+      ctx.fillStyle = '#b89868'; ctx.fillRect(x - 3, y + 2.2, 1.6, 0.7); ctx.fillRect(x + 1, y + 2.8, 1.2, 0.6);
     }
   }
 }
