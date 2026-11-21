@@ -56,9 +56,12 @@ module.exports = {
       await p.waitForFunction(() => { const M = __M(), j = G.jackEnt(); return M.filter(e => e.asleep).length >= 2 && M.some(e => e.isSentry && !e.asleep) && j.asleep; }, null, { timeout: 20000 });
       const r = await p.evaluate(() => {
         const M = __M(), P = G.player, sen = M.find(e => e.isSentry), sl = M.find(e => e.asleep);
-        // nöbetçinin arkası: bakış yönünün tersinde 18 px
-        const look = sen.lookAt != null ? sen.lookAt : sen.ang;
-        TH.goto(sen.x - Math.cos(look) * 18, sen.y - Math.sin(look) * 18);
+        // nöbetçinin arkası: bakış yönünün tersinde 18 px. İstem en yakındakini gösterir: nöbetçi o an uyuyanların
+        // yanından geçiyorsa onu kampın dışına, nöbet halkasına al
+        const look = sen.lookAt != null ? sen.lookAt : sen.ang, C = sen.home, all = M.concat([G.jackEnt()]);
+        const crowd = () => all.some(o => o !== sen && o.asleep && dist(o.x, o.y, sen.x - Math.cos(look) * 18, sen.y - Math.sin(look) * 18) < 34);
+        for (let r = 95; r <= 160 && crowd(); r += 13) { const a = Math.atan2(sen.y - C.y, sen.x - C.x); if (!G.world.blocked(C.x + Math.cos(a) * r, C.y + Math.sin(a) * r, 6)) { sen.x = C.x + Math.cos(a) * r; sen.y = C.y + Math.sin(a) * r; } }
+        TH.goto(sen.x - Math.cos(look) * 18, sen.y - Math.sin(look) * 18); P.ang = look;
         P.crouch = false;
         const stand = !!G.takedownActs(sen);
         P.crouch = true;

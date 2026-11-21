@@ -108,13 +108,17 @@ module.exports = {
     await t.step('arkasına baktığında onun gördüğü yerdeysen şüphesi dolar, kaçar; yol kapanır, barmen kalır', async () => {
       const r = await p.evaluate(() => {
         const e = G.drunkEnt(), P = G.player;
-        // arkasında, yakın ve görünür (ayakta, lambalı)
-        TH.goto(e.x - Math.cos(e.ang) * 70, e.y - Math.sin(e.ang) * 70); P.crouch = false; P.lantern = true; if (!P.has('lantern')) P.addItem('lantern', 1, true);
+        // açık hava (sis, yağmur ve toz görüşü kısaltır); arkasında, yakın ve görünür (ayakta, lambalı), peşinden gider
+        Object.assign(G.weather, { type: 'clear', i: 0, fogI: 0, cloud: 0, t: 1e6 }); G.envCache = G.localWeather(P.x, P.y);
+        const behind = () => { const d = G.drunkEnt(); if (d && d.dk === 'ride') TH.goto(d.x - Math.cos(d.ang) * 70, d.y - Math.sin(d.ang) * 70); };
+        behind(); P.crouch = false; P.lantern = true; if (!P.has('lantern')) P.addItem('lantern', 1, true);
+        window.__follow = setInterval(behind, 100);
         e.lookT = 0;
         return true;
       });
       t.ok(r, 'arkasında');
-      await p.waitForFunction(() => { const e = G.drunkEnt(); return !e || e.dk === 'flee'; }, null, { timeout: 8000 });
+      try { await p.waitForFunction(() => { const e = G.drunkEnt(); return !e || e.dk === 'flee'; }, null, { timeout: 8000 }); }
+      finally { await p.evaluate(() => clearInterval(window.__follow)); }
       const q = await p.evaluate(() => ({ gone: G.story.drunkGone, bar: G.storyBuildingActions(G.storySaloon()).length, st: G.story.st, k: G.story.campKnown }));
       t.ok(q.gone === 'spotted' && !q.k && q.st === 3, 'fark edildi, kaçtı; kamp bilinmiyor, adım sürüyor', q);
       t.eq(q.bar, 1, 'barmene sormak hâlâ mümkün');

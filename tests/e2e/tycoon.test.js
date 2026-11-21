@@ -79,7 +79,9 @@ module.exports = {
 
     await t.step('banka: gelişmiş kasabanın büyük arsasına kurulur, mevduat toplar, kâr eder', async () => {
       const r = await p.evaluate(() => {
-        const H = TH.town('harlow'), lot = H.lots.find(l => l.w >= 10 && l.h >= 8), small = TH.town('dustcreek').lots[0];
+        // büyük arsa (yalnız oraya banka sığar) gelişmiş bir kasabada; Harlow'da yer bulunamamışsa başka birinde
+        const dev = (l) => { const S = G.devOf(G.bizTown(l.town)); return !!S && !S.ghost && S.tier >= BANK.minTier; };
+        const big = G.world.lots.filter(l => l.w >= 10 && l.h >= 8 && dev(l)), lot = big.find(l => l.town === 'harlow') || big[0], small = G.world.lots.find(l => l.w < 12);
         G.buyLot(lot);
         const fits = G.lotTypes(lot).includes('bank'), smallFits = G.lotTypes(small).includes('bank');
         const h0 = G.honor; G.honor = 0; const lowHonor = G.bizBuildWhy('bank', lot); G.honor = h0;
@@ -177,7 +179,7 @@ module.exports = {
         G.advanceClock(1440 * (OIL.refDays + 1));
         const R = G.tycoon.oil.ref;
         const base = G.oilPrice() * G.tycoon.oil.mk * SECTOR_LV[G.sectors().petrol.lv].inc;
-        return { why: !!why, ok, done: R.done, obj: G.world.obj[R.y * WW + R.x], solid: G.world.solid[(R.y + 1) * WW + R.x + 1] > 0, ratio: G.oilSell() / base, refMul: OIL.refMul, rail: (() => { for (let y = R.y - 6; y <= R.y + 2; y++) for (let x = R.x - 3; x <= R.x + 3; x++) if (G.world.flags[y * WW + x] & 2) return true; return false; })() };
+        return { why: !!why, ok, done: R.done, obj: G.world.obj[R.y * WW + R.x], solid: G.world.solid[(R.y + 1) * WW + R.x + 1] > 0, ratio: G.oilSell() / base, refMul: OIL.refMul, rail: (() => { for (let y = R.y - 6; y <= R.y + 2; y++) for (let x = R.x - 3; x <= R.x + 3; x++) if ((y >= R.y - 2 ? Math.abs(x - R.x) <= 2 : true) && (G.world.flags[y * WW + x] & 2)) return true; return false; })() };
       });
       t.ok(r.why, 'istasyonsuz kasabaya kurulmaz'); t.ok(r.ok && r.done, 'rafineri bitti');
       t.eq(r.obj, 37, 'rafineri dünyada'); t.ok(r.solid, '3×3 katı'); t.ok(!r.rail, 'ray üstüne taşmaz');

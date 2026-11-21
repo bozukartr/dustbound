@@ -1265,7 +1265,7 @@ const STORIES = {
     propActions(e, S) { return this.choreActs(e, S); },
     // çiftlik işlerinde yeterince çalışınca günü bitirmek
     mentorActions(e, S, acts) { return this.choreMentorActs(e, S, acts); },
-    tick(S, dt) { this.drunkTick(S, dt); this.choreTick(S, dt); this.storyTrailTick(S); },
+    tick(S, dt) { this.drunkTick(S, dt); this.choreTick(S, dt); this.storyTrailTick(S, dt); },
     finish(S) {
       const P = this.player;
       this.earn(S.alive ? 10 : 6, Tr('Sully\'nin teşekkürü'));
@@ -1359,8 +1359,9 @@ Object.assign(Story, {
     const m = this.mentorEnt(); if (m) m.lantern = true;
     this.qSay([['S', D.call()]]);
   },
-  /* bütün dalgalar geldi ve dağıldı */
-  storyCoyDone() { const S = this.story; return (S.coyWave || 0) >= COY.WAVES.length && S.coyGone >= COY.WAVES.reduce((a, b) => a + b, 0); },
+  /* bütün dalgalar geldi ve sahada çakal kalmadı (sayılmadan dünyadan kalkan çakal, ör. öldüğü an omza alınan leş, adımı
+     kilitlemez) */
+  storyCoyDone() { const S = this.story; return (S.coyWave || 0) >= COY.WAVES.length && !this.ents.some(e => e.storyCoy && !e.dead && !e.remove && !e.counted); },
   /* vurulan, kaçan ya da kaybolan çakallar */
   storyCoyCount() {
     const S = this.story, R = S.ranch;
@@ -1411,9 +1412,11 @@ Object.assign(Story, {
     const a = FX.wind.a + Math.PI, k = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8;
     return [Tr('doğudan'), Tr('güneydoğudan'), Tr('güneyden'), Tr('güneybatıdan'), Tr('batıdan'), Tr('kuzeybatıdan'), Tr('kuzeyden'), Tr('kuzeydoğudan')][k];
   },
-  /* iz yerlerindeki nesneler (D.tick): sıradaki iz ve ötesi, yakındaysa */
-  storyTrailTick(S) {
+  /* iz yerlerindeki nesneler (D.tick; iz adımında 0,25 sn'de bir, dışında saniyede bir): sıradaki iz ve ötesi, yakındaysa */
+  storyTrailTick(S, dt) {
     const on = S.ch === 3 && S.st === 1 && S.gtrail, want = new Map(), P = this.player;
+    if ((this._gtT = (this._gtT || 0) - dt) > 0) return;
+    this._gtT = on ? 0.25 : 1;
     if (on) S.gtrail.forEach((q, i) => {
       if (i < (S.gti || 0) - 1 || dist2(q.x, q.y, P.x, P.y) > 700 * 700) return;
       const nx = S.gtrail[i + 1] || S.herd;
@@ -1698,9 +1701,16 @@ Object.assign(Story, {
   drunkStep() { const S = this.story, st = S && S.on && !S.done && !S.wait && this.qStep(); return !!(st && st.ev === 'campInfo'); },
   /* her kare (D.tick): sarhoşun yerinde olması, kalkma zamanı */
   drunkTick(S, dt) {
-    const e = this.drunkEnt(), P = this.player;
     const want = S.ch === 7 && !S.flags.campInfo && !S.drunkGone;
-    if (!want) { if (e && !this.onScreen(e.x, e.y, 30) && e.dk !== 'home') { e.remove = true; this.drunkUnseat(e); } return; }
+    if (!want) {
+      // bölüm dışında saniyede bir: kalan sarhoş gözden uzaktayken kalkar
+      if ((this._dkIdleT = (this._dkIdleT || 0) - dt) > 0) return;
+      this._dkIdleT = 1;
+      const e = this.drunkEnt();
+      if (e && !this.onScreen(e.x, e.y, 30) && e.dk !== 'home') { e.remove = true; this.drunkUnseat(e); }
+      return;
+    }
+    const e = this.drunkEnt(), P = this.player;
     if (e && e.dead) { S.drunkGone = 'dead'; return; }
     const b = this.storySaloon();
     if (!b) return;
@@ -1934,6 +1944,9 @@ Object.assign(Story, {
   /* her kare (D.tick): iş adımında nesneler yerinde; balyalar ambar kapısına bırakılınca sayılır */
   choreTick(S, dt) {
     const C = S.ch === 5 && S.chores && this.choreSpots(S), on = !!C && this.choreStep();
+    // iş adımı dışında yalnız temizlik: saniyede bir
+    if (!on && (this._chIdleT = (this._chIdleT || 0) - dt) > 0) return;
+    this._chIdleT = on ? 0 : 1;
     const want = new Map();
     if (on) {
       C.roof.forEach((q, k) => { if (!S.chores.roof[k]) want.set('roof' + k, { x: q[0], y: q[1], t: 'ladder', label: Tr('Ambar Çatısı'), k }); });

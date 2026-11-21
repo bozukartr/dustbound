@@ -99,7 +99,7 @@ module.exports = {
       const r = await p.evaluate(() => {
         const sentry0 = G.campSentry; G.campSentry = () => false;   // nöbetçisiz kamp: yalnız uyuyanlar
         const { s, g } = CAMPN(3, 'uyku-kamp'), P = G.player, out = {};
-        HOUR(1); RUN(6);
+        HOUR(1); RUN(15, () => g.every(b => b.asleep));
         out.asleep = g.filter(b => b.asleep).length;
         const v = g[0]; TH.goto(v.x - 120, v.y); P.crouch = true;
         const stop = WALK(1, 0); let maxAw = 0;

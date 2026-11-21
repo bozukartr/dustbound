@@ -41,26 +41,29 @@ module.exports = {
         return true;
       });
       t.ok(r, 'çakal tavuğun dibinde');
-      await p.waitForFunction(() => G.story.hensLost === 1, null, { timeout: 4000 });
-      await p.waitForFunction(() => /tavuk 5\/6/.test(document.getElementById('hud-quest').textContent), null, { timeout: 3000 });
-      // ilk dalgayı dağıt, ikinci dalga beklemeden gelsin
-      const d = await p.evaluate(() => { const S = G.story; for (const e of G.ents) if (e.storyCoy && !e.dead) e.hurt(999, 'player'); S.coyT = 0; return S.coyDirs[0]; });
+      await p.waitForFunction(() => G.story.hensLost >= 1, null, { timeout: 4000 });
+      // ilk dalgayı hemen dağıt (çakal yandaki tavuğa da saldırabilir), ikinci dalga beklemeden gelsin; sayaç kaybı gösterir
+      const d = await p.evaluate(() => { const S = G.story; for (const e of G.ents) if (e.storyCoy && !e.dead) e.hurt(999, 'player'); window.__lost = S.hensLost; S.coyT = 0; return S.coyDirs[0]; });
+      const lost = await p.evaluate(() => window.__lost);
+      t.ok(lost >= 1 && lost <= 2, 'kapılan tavuk sayıldı', lost);
+      await p.waitForFunction((n) => new RegExp('tavuk ' + (6 - n) + '/6').test(document.getElementById('hud-quest').textContent), lost, { timeout: 3000 });
       await p.waitForFunction(() => G.story.coyWave === 2, null, { timeout: 5000 });
       const q = await p.evaluate(() => G.story.coyDirs[1]);
       t.ok(q !== d, 'ikinci dalga başka yönden', { d, q });
     });
 
-    await t.step('bütün dalgalar dağılınca adım biter; kurtarılan tavuk başına ödül, fener söner', async () => {
-      const m0 = await p.evaluate(() => G.player.money);
+    await t.step('bütün dalgalar dağılınca adım biter (ölmeden dünyadan kalkan çakal da kilitlemez); kurtarılan tavuk başına ödül, fener söner', async () => {
+      const m0 = await p.evaluate(() => G.player.money), lost = await p.evaluate(() => window.__lost);
       for (let k = 0; k < 40; k++) {
-        const done = await p.evaluate(() => { for (const e of G.ents) if (e.storyCoy && !e.dead) e.hurt(999, 'player'); G.story.coyT = 0; return G.story.st >= 1; });
+        // bir dalga vurulur, öteki sayılmadan kalkar (ör. öldüğü an omza alınan leş)
+        const done = await p.evaluate((k) => { for (const e of G.ents) if (e.storyCoy && !e.dead) { if (k % 2) e.remove = true; else e.hurt(999, 'player'); } G.story.coyT = 0; return G.story.st >= 1; }, k);
         if (done) break;
         await t.sleep(300);
       }
       await waitStep(3, 1);
       const r = await p.evaluate(() => ({ saved: G.story.hensSaved, lantern: G.story.flags.lantern, m: G.player.money }));
-      t.eq(r.saved, 5, 'beş tavuk kurtarıldı');
-      t.ok(Math.abs(r.m - m0 - 5 * 0.05) < 0.011 && !r.lantern, 'tavuk başına ödül, fener söndü', { paid: r.m - m0, lantern: r.lantern });
+      t.eq(r.saved, 6 - lost, 'kapılanlar dışındaki tavuklar kurtarıldı');
+      t.ok(Math.abs(r.m - m0 - r.saved * 0.05) < 0.011 && !r.lantern, 'tavuk başına ödül, fener söndü', { paid: r.m - m0, lantern: r.lantern });
     });
 
     await t.step('iz: sürü çiftlikten uzakta; toynak izleri ve dışkı sürüye götürür', async () => {
@@ -68,10 +71,12 @@ module.exports = {
       const r = await p.evaluate(() => {
         const S = G.story, R = S.ranch, H = S.herd, T = S.gtrail, m = G.questMark();
         const props = G.ents.filter(e => e.gtKey && !e.remove).map(e => e.type);
-        return { far: Math.round(dist(H.x, H.y, R.cx, R.cy)), n: T.length, toward: dist(T[T.length - 1].x, T[T.length - 1].y, H.x, H.y) < dist(T[0].x, T[0].y, H.x, H.y), mark: m && Math.round(dist(m.x, m.y, T[0].x, T[0].y)), props };
+        // işaret sıradaki izde (ilk iz oyuncunun dibine düştüyse o çoktan sayılmıştır)
+        const q = T[Math.min(S.gti || 0, T.length - 1)];
+        return { far: Math.round(dist(H.x, H.y, R.cx, R.cy)), n: T.length, toward: dist(T[T.length - 1].x, T[T.length - 1].y, H.x, H.y) < dist(T[0].x, T[0].y, H.x, H.y), gti: S.gti || 0, mark: m && Math.round(dist(m.x, m.y, q.x, q.y)), props };
       });
       t.ok(r.far > 380 && r.n === 6 && r.toward, 'sürü uzakta, iz ona doğru', r);
-      t.ok(r.mark === 0 && r.props.includes('paw'), 'işaret ilk izde; toynak izi görünür', r);
+      t.ok(r.mark === 0 && r.gti <= 1 && r.props.includes('paw'), 'işaret sıradaki izde; toynak izi görünür', r);
       for (let k = 0; k < 20; k++) {
         const done = await p.evaluate(() => { const S = G.story, q = S.gtrail[S.gti || 0]; if (!q || S.st !== 1) return true; TH.goto(q.x, q.y); return false; });
         if (done) break;
