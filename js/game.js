@@ -1377,6 +1377,7 @@ const G = {
     // motorlu taşıtların farları (motoru çalışırken)
     if (night) for (const e of this.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt && inView(e.x, e.y, 90)) lights.push([e.x + Math.cos(e.ang) * 24, e.y + Math.sin(e.ang) * 24, 48, 0.85]);
     if (night) for (const e of this.ents) if (e.legend === 'ghost' && !e.dead && !e.remove && inView(e.x, e.y, 50)) lights.push([e.x, e.y, 42, 0.55]);   // Ak Hayalet: soluk ay ışığı
+    if (night) for (const e of this.ents) if (e.lantern && !e.dead && !e.remove && inView(e.x, e.y, 90)) lights.push([e.x + Math.cos(e.ang + 0.9) * 4, e.y + Math.sin(e.ang + 0.9) * 4, 90 * Juice.flicker(e.x, this.t, 0.04), 1]);   // elinde fenerli NPC
     // Ayarlar → Grafik → Işık Sayısı: ekranın ortasına en yakın ışıklar kalır
     const nL = GFX.LIGHTS[this.settings.lightN] || GFX.LIGHTS[2];
     if (lights.length > nL) { const cx = x0 + vw / 2, cy = y0 + vh / 2; lights.sort((a, b) => dist2(a[0], a[1], cx, cy) - dist2(b[0], b[1], cx, cy)); lights.length = nL; }

@@ -82,17 +82,29 @@ module.exports = {
       await waitStep(3, 0, 20000);
     });
 
-    await t.step('bölüm 4: çakallar, av, deri yüzme', async () => {
-      const r = await p.evaluate(() => ({ coy: G.ents.filter(e => e.storyCoy && !e.dead).length, all: G.ents.filter(e => e.storyCoy).map(e => [e.dead, e.remove, Math.round(dist(e.x, e.y, G.story.ranch.cx, G.story.ranch.cy))]), gone: G.story.coyGone, hens: G.ents.filter(e => e.storyHen).length, gun: G.hasGun(), h: G.hour, st: G.story.st, ch: G.story.ch, state: G.state, hp: G.player.hp, feeds: TH.feeds.slice(-6) }));
-      t.eq(r.coy, 3, 'üç çakal ' + JSON.stringify(r)); t.ok(r.hens >= 3, 'tavuklar'); t.ok(r.gun, 'silah var');
-      await p.evaluate(() => { const P = G.player; if (P.riding) { P.dismount(); P.mountAnim = null; } for (const e of G.ents) if (e.storyCoy) e.hurt(999, 'player'); });
+    await t.step('bölüm 4: çakal dalgaları, iz, av, deri yüzme (ayrıntılar: tests/e2e/hunt.test.js)', async () => {
+      const r = await p.evaluate(() => ({ hens: G.ents.filter(e => e.storyHen && !e.dead).length, gun: G.hasGun() }));
+      t.eq(r.hens, 6, 'altı tavuk'); t.ok(r.gun, 'silah var');
+      // dalgalar: gelen çakalları vur, sıradaki dalgayı beklemeden çağır
+      for (let k = 0; k < 60; k++) {
+        const done = await p.evaluate(() => { const P = G.player; if (P.riding) { P.dismount(); P.mountAnim = null; } for (const e of G.ents) if (e.storyCoy && !e.dead) e.hurt(999, 'player'); G.story.coyT = 0; return G.story.st >= 1 || G.story.ch > 3; });
+        if (done) break;
+        await t.sleep(300);
+      }
       await waitStep(3, 1);
+      // izler: her izin üstünden geç
+      for (let k = 0; k < 20; k++) {
+        const done = await p.evaluate(() => { const S = G.story, q = S.gtrail && S.gtrail[S.gti || 0]; if (!q || S.st !== 1) return true; TH.goto(q.x, q.y); return false; });
+        if (done) break;
+        await t.sleep(350);
+      }
+      await waitStep(3, 2);
       const g = await p.evaluate(() => { const L = G.ents.filter(e => e.storyGame && !e.dead); return { n: L.length, type: G.story.game }; });
       t.ok(g.n >= 1, 'av sürüsü', g);
       await p.evaluate(() => { const a = G.ents.find(e => e.storyGame && !e.dead); TH.goto(a.x + 12, a.y); a.hurt(999, 'player'); window.QA = a; });
-      await waitStep(3, 2);
-      await p.evaluate(() => G.skin(QA));
       await waitStep(3, 3);
+      await p.evaluate(() => G.skin(QA));
+      await waitStep(3, 4);
       await p.evaluate(() => { const e = G.sullyEnt() || G.story.ranch; TH.goto(G.story.ranch.x, G.story.ranch.y + 20); });
       await p.waitForFunction(() => G.sullyEnt(), null, { timeout: 5000 });
       t.ok(await talk(), 'Sully ile konuş');

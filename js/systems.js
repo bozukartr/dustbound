@@ -2325,8 +2325,9 @@ const GameSystems = {
       let n = d.pelt[1];
       if (lvl >= 5 && chance(0.3)) n++;
       if (ITEMS[d.pelt[0]].big) {
-        // büyük postlar çantaya sığmaz: omuza alınır ya da eyere yüklenir
-        const pe = new Pelt(a.x, a.y, d.pelt[0], n > 1 ? 1.5 : 1);
+        // büyük postlar çantaya sığmaz: omuza alınır ya da eyere yüklenir. Temiz vuruşla (tek atış) düşen hayvanın postu kusursuz
+        const pe = new Pelt(a.x, a.y, d.pelt[0], n > 1 || a.clean ? 1.5 : 1);
+        if (a.clean) UI.feed(Tr('Temiz vuruş: post kusursuz çıktı.'));
         if (!P.carry && !P.riding) { P.carry = pe; UI.feed(Tr`${pe.name} omzunda.`); this.hintOnce('carry', Tr`Yük taşırken koşamaz ve silah kullanamazsın. ${Input.glyph('interact')} ile yere bırakabilir, atının yanındayken <b>eyere yükleyebilirsin</b>. Aranan suçluları şerif ofisine, postları ve leşleri kasap ya da tuzakçıya götür.`, 10); }
         else this.placeDown(pe, a.x + rnd(-6, 6), a.y + rnd(-6, 6));
       } else P.addItem(d.pelt[0], n);
@@ -2342,6 +2343,19 @@ const GameSystems = {
     Audio_.tone(200, 0.2, 'sawtooth', 0.03);
     this.parts.burst('blood', a.x, a.y, 6, 20, 0.6, 1.2);
     this.qEvent('skin', a);
+  },
+  /* Rüzgâr kokuyu taşır: oyuncudan hayvana doğru esiyorsa hayvanın sezme yarıçapı büyür (rüzgârın gücüyle, en çok 2,5
+     kat). Rüzgârı karşına alarak (hayvan rüzgârın üstünde kalacak biçimde) yaklaşanın kokusu ona ulaşmaz */
+  scentK(a) {
+    const P = this.player, w = FX.wind, down = Math.cos(angDiff(w.a, Math.atan2(a.y - P.y, a.x - P.x)));
+    return down <= 0.3 ? 1 : 1 + (down - 0.3) / 0.7 * Math.min(1.5, 0.6 + w.s * 2.5);
+  },
+  /* koku yüzünden ürken av (hikâyenin sürüsü): bir kez bildirilir */
+  scentFled(a) {
+    if (!a.storyGame || this._scentT > this.t) return;
+    this._scentT = this.t + 20;
+    UI.feed(Tr('Rüzgâr kokunu taşıdı, sürü ürktü!'), 'warn');
+    this.hintOnce('scent', Tr('Rüzgâr kokunu hayvanlara taşıdı. Görev satırında rüzgârın nereden estiği yazar: rüzgârı karşına alarak yaklaş.'), 8);
   },
   tameHorse(a, lassoed) {
     const P = this.player;

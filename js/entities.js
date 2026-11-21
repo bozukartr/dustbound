@@ -1028,10 +1028,13 @@ class Animal extends Ent {
     if (this.dead) return;
     if (this.quest === 'mentor' || this.quest === 'kin') return;   // hikâyenin akıl hocası (ve yakını): vurulamaz, suç da yazılmaz
     this.hp -= dmg;
+    if (by === 'player') this.hits = (this.hits || 0) + 1;
     G.parts.burst('blood', this.x, this.y, 3 + dmg / 15, 35, 0.5, 1.4);
     if (this.def.shape === 'bird') G.parts.burst('feather', this.x, this.y, 5, 30, 1, 1, this.def.col);
     if (this.hp <= 0) {
       this.hp = 0; this.dead = true; this.state = 'dead'; this.deadT = 0; this.mv = 0;
+      // temiz vuruş: tek kurşunla ya da okla, ilk isabette düştü (post kusursuz çıkar)
+      this.clean = by === 'player' && this.hits === 1 && (how === 'gun' || how === 'arrow');
       if (G.player.rope === this) G.player.rope = null;
       if (this.legend) G.legendKilled(this);   // efsane kim vurursa vursun bir daha gelmez (js/legends.js)
       if (by === 'player') G.onAnimalKill(this, how);
@@ -1087,11 +1090,14 @@ class Animal extends Ent {
     G.railShy(this);   // yaklaşan tren: raydan kaçar, raya doğru gidiyorsa yön değiştirir
     let sense = d.sense * (P.crouch ? 0.5 : 1) * (P.sprinting ? 1.3 : 1) * (P.riding ? 1.2 : 1) * (G.hasPerk('hunt100') ? 0.7 : 1) * (1 - G.skill('hunting') * 0.03) * G.coatFx('scent');
     if (G.isNight) sense *= 0.8;
+    // rüzgâr kokunu taşır: oyuncudan hayvana doğru esiyorsa (rüzgârın üstündeysen) çok daha uzaktan sezer
+    const sc = d.beh === 'flee' || d.beh === 'skittish' ? G.scentK(this) : 1;
+    sense *= sc;
     if (d.tame && P.crouch && !P.riding) sense = 16;
     if (this.state === 'idle' || this.state === 'wander') {
       if (d.beh === 'hostile' && pd < d.aggro * (G.isNight && d.night ? 1.3 : 1) * G.coatFx('aggro')) { this.state = 'attack'; this.t = 25; if (this.type === 'bear' || this.type === 'wolf' || this.type === 'cougar') Audio_.growl(this.type, this.x, this.y); }
       else if (d.beh === 'skittish' && pd < d.aggro && (P.hp < P.maxHp * 0.35 || G.isNight)) { this.state = 'attack'; this.t = 12; }
-      else if ((d.beh === 'flee' || d.beh === 'skittish') && pd < sense) { this.state = 'flee'; this.t = rnd(5, 9); this.fleeFrom(P); }
+      else if ((d.beh === 'flee' || d.beh === 'skittish') && pd < sense) { this.state = 'flee'; this.t = rnd(5, 9); this.fleeFrom(P); if (sc > 1.2 && pd > sense / sc) G.scentFled(this); }
       else if (d.beh === 'passive' && pd < 20) { this.state = 'flee'; this.t = 2; this.fleeFrom(P); }
       else if (this.t <= 0) {
         if (this.state === 'idle') { this.state = 'wander'; this.t = rnd(2, 5); this.ang += rnd(-1.5, 1.5); if (this.leader && !this.leader.dead) this.ang = Math.atan2(this.leader.y - this.y, this.leader.x - this.x) + rnd(-0.6, 0.6); if (this.home && dist(this.x, this.y, this.home.x, this.home.y) > this.home.r) this.ang = Math.atan2(this.home.y - this.y, this.home.x - this.x); }
@@ -1631,6 +1637,12 @@ class NPC extends Ent {
       swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon, hold: this.state === 'flee' || this.state === 'report' ? null : this.carry2,
       head: this.lookAt != null && !this.dead ? clamp(angDiff(this.ang, this.lookAt), -1.2, 1.2) : 0,
     });
+    if (this.lantern && !this.dead) {
+      // elinde fener (ör. Sully çakal gecesinde): sapı ve sıcak camı
+      const hx = this.x + Math.cos(this.ang + 0.9) * 4.2, hy = this.y + Math.sin(this.ang + 0.9) * 4.2 - 3;
+      ctx.fillStyle = '#3a2a1a'; ctx.fillRect(hx - 1.3, hy - 2.4, 2.6, 0.7); ctx.fillRect(hx - 1.3, hy + 1.2, 2.6, 0.7);
+      ctx.fillStyle = '#ffd890'; ctx.fillRect(hx - 1, hy - 1.7, 2, 2.9);
+    }
     if (this.witness && !this.dead) {
       // tanık işareti
       const bob = Math.sin(G.t * 6) * 0.8;
@@ -1902,6 +1914,11 @@ class Prop extends Ent {
       ctx.fillStyle = '#7a5a3a'; ctx.fillRect(x - 4.5, y - 26, 1.4, 28); ctx.fillRect(x + 3.1, y - 26, 1.4, 28);
       ctx.fillStyle = '#9a7650'; for (let r = y - 23; r < y + 1; r += 4) ctx.fillRect(x - 3.4, r, 6.8, 1);
       ctx.fillStyle = '#4a3424'; ctx.fillRect(x + 6, y, 4, 1.4); ctx.fillRect(x + 7.5, y - 1.6, 3.5, 1.2); ctx.fillStyle = '#6a4a30'; ctx.fillRect(x - 10, y + 0.6, 3.6, 1.2);
+    } else if (this.type === 'dung') {
+      // hayvan dışkısı: koyu kahve topaklar (iz sürerken)
+      ctx.fillStyle = 'rgba(52,36,22,0.85)';
+      for (const [dx, dy] of [[-1.6, 0.4], [0.4, -0.8], [1.8, 0.6], [-0.2, 1.4], [1, 1.9]]) { ctx.beginPath(); ctx.ellipse(x + dx, y + dy, 1.1, 0.85, 0, 0, TAU); ctx.fill(); }
+      ctx.fillStyle = 'rgba(120,96,64,0.5)'; ctx.fillRect(x - 0.4, y - 1.4, 0.8, 0.6);
     } else if (this.type === 'fencebroken') {
       // kırık çit direği: yere düşmüş direk, yanında kırık kütük ve kıymıklar
       Spr.shadow(ctx, x, y + 1.5, 7, 2, 0.22);

@@ -34,6 +34,10 @@ const STORY_ENV = { DESERT: 'desert', REDROCK: 'desert', FOREST: 'forest', SNOW:
 /* Bölüm 6 (Sully): çiftlik işleri. İş başına para; çatı ve çitte basılı tutma süresi (sn) ve geçen oyun süresi (dk);
    balya sayısı, çatı deliği, kırık direk; balyanın ambarın kapısına bu kadar yakın bırakılması; günü erken bitirmek için
    en az iş; iş başına yorgunluk (uyku, açlık, susuzluk) */
+/* Bölüm 4 (Sully): tavuk sayısı, çakal dalgaları (her dalganın çakalı), dalgalar arası bekleme (sn), çakalın kümesten
+   doğduğu uzaklık, Sully'nin kümesle dalga arasında durduğu uzaklık, kurtarılan tavuk başına para; sürünün izi (iz sayısı,
+   sürünün çiftliğe uzaklığı) */
+const COY = { HENS: 6, WAVES: [2, 2, 3], GAP: 5, FIRST: 2.5, FROM: 280, SULLY: 80, PAY: 0.05, TRAIL: 6, HERD: 900 };
 const CHORE = { PAY: 0.25, ROOF: 2.4, FENCE: 2, MIN: 25, HAY: 3, NROOF: 2, NFENCE: 2, DROP: 46, EARLY: 3, ENERGY: 2.6, HUNGER: 2, THIRST: 2.3 };
 CHORE.N = CHORE.HAY + CHORE.NROOF + CHORE.NFENCE;
 const BARFLY = { LEAVE: 70, PER: 35, DRINK: 0.15, TALK: 3, ASK: 1, SPD: 55, LOOK: [6, 10], LOOKT: 1.8, SEE: 240, FOUND: 650, LOST: 1100, NEAR: 800 };
@@ -372,6 +376,8 @@ const Story = {
     if (e.quest !== 'mentor' && e.quest !== 'kin') return false;
     const S = this.story, g = S && (e.quest === 'kin' ? S.kin : S.sully), P = this.player, MH = this.storyDef().mentor.horse;
     e.hp = e.maxHp = 9999; e.hostile = false; e.witness = null;
+    // akıl hocasının feneri (Sully, Bölüm 4: çakal gecesi)
+    e.lantern = e.quest === 'mentor' && !!(S && S.flags && S.flags.lantern) && this.isNight;
     // baskında silah sesini duyan akıl hocası destek ateşi açar (Sully, Bölüm 10)
     if (e.quest === 'mentor' && this.mentorSupport(e, dt)) return true;
     if (!g) { e.mv = 0; return true; }
@@ -932,7 +938,8 @@ const STORY_SULLY = [
         ], after() { const R = this.story.ranch; this.sullyGo(R.x + 6, R.y - 4); const e = this.sullyEnt(); if (e) { e.x = R.x + 6; e.y = R.y - 4; e.mounted = null; } } }) },
     ],
   },
-  /* 4 — Kümesteki Çakallar: ateş et, avlan, deri yüz */
+  /* 4 — Kümesteki Çakallar: çakallar dalga dalga farklı yönlerden gelir (Sully fenerle yönü gösterir, tavuk sayacı);
+     sabah sürünün izini sür (toynak izi, dışkı), rüzgârı karşına alarak yaklaş, tek atışla temiz vur, deri yüz */
   {
     t: () => Tr('Kümesteki Çakallar'),
     cine() {
@@ -950,21 +957,37 @@ const STORY_SULLY = [
       if (!this.hasGun()) { P.giveWeapon('cattleman'); P.ammo.pistol = Math.max(P.ammo.pistol || 0, 24); S.flags.gun = 1; }
       this.storyCoyotes(S);
     },
-    resume(S) { if (S.st === 0) this.storyCoyotes(S); if (S.st === 1) this.storyGame(S); },
+    resume(S) { if (S.st === 0) this.storyCoyotes(S); if (S.st === 1 || S.st === 2) this.storyGame(S, { far: COY.HERD, trail: true }); },
     steps: [
-      { t: () => Tr('Çakalları kümesten uzaklaştır'), how: 'shoot', n: 3, chk() { return this.storyCoyCount() >= 3; },
-        tick(S) { const n = this.storyCoyCount(); if (n !== S.n) { S.n = n; if (n === 1) this.qSay([['S', Tr('Biri gitti! Devam et!')]], null, 0, this.qStep()); } },
-        at() { const R = this.story.ranch; let best = null, bd = 1e9; for (const e of this.ents) if (e.storyCoy && !e.dead && !e.remove) { const d = dist(e.x, e.y, R.cx, R.cy); if (d < bd) { bd = d; best = e; } } return best; },
-        hint: () => Tr`${Input.glyph('aim')} ile nişan al, ${Input.glyph('fire')} ile ateş et. Tavukları vurma, Sully'nin siniri bozulur.`,
-        after: () => [['S', Tr('Fena değil. Ben senin yaşında iki atışta bir tavuk vururdum.')], ['S', Tr('Kiler de bomboş, onu da söyleyeyim. Tepenin ardında av olur. Akşam karanlığında yaklaşmak daha kolay.')]] },
+      { t() { const S = this.story; return Tr`Çakalları kümesten uzaklaştır · dalga ${Math.max(1, Math.min(S.coyWave || 0, COY.WAVES.length))}/${COY.WAVES.length} · tavuk ${this.storyHens()}/${COY.HENS}`; },
+        how: 'shoot', chk() { return this.storyCoyDone(); },
+        tick(S, dt) { this.storyCoyCount(); this.storyCoyWave(S, dt); },
+        at() { const R = this.story.ranch, C = { x: R.cx, y: R.cy + 70 }; let best = null, bd = 1e9; for (const e of this.ents) if (e.storyCoy && !e.dead && !e.remove && !e.counted) { const d = dist(e.x, e.y, C.x, C.y); if (d < bd) { bd = d; best = e; } } return best || C; },
+        hint: () => Tr`Çakallar dalga dalga, farklı yönlerden gelir; Sully fenerle gösterip seslenir. ${Input.glyph('aim')} ile nişan al, ${Input.glyph('fire')} ile ateş et. Tavukları vurma; kaç tavuk kurtarırsan Sully o kadar sevinir.`,
+        done(S) { const n = this.storyHens(); S.hensSaved = n; if (n > 0) this.earn(n * COY.PAY, Tr('Kurtarılan tavuklar')); const m = this.mentorEnt(); if (m) m.lantern = false; S.flags.lantern = 0; },
+        after(S) {
+          const n = S.hensSaved || 0;
+          return [n >= COY.HENS ? ['S', Tr('Bir tane bile kaptırmadık! Ben senin yaşında iki atışta bir tavuk vururdum.')]
+            : n >= COY.HENS - 2 ? ['S', this.sFmt(Tr`${n} tavuk sağ. Fena değil; çakal da bir şey yemeli, derler.`)]
+            : ['S', Tr('Kümes yarı yarıya boşaldı... Olsun, sen elinden geleni yaptın.')],
+            ['S', Tr('Kiler de bomboş. Bu akşam çayırda geyik izi gördüm; izi takip edersen sürüyü bulursun.')],
+            ['S', Tr('Rüzgâra dikkat et: kokunu alırlarsa kaçarlar. Rüzgârı karşına al, çömel, sabırlı ol.')]];
+        } },
+      { t: () => Tr('Sürünün izini sür'), how: 'tracks', n: COY.TRAIL,
+        on(S) { this.storyGame(S, { far: COY.HERD, trail: true }); },
+        chk() { const S = this.story, P = this.player, T = S.gtrail || []; const q = T[S.gti || 0]; if (q && dist(P.x, P.y, q.x, q.y) < 70) { S.gti = (S.gti || 0) + 1; Audio_.tone(520, 0.06, 'triangle', 0.04); } if (S.n !== (S.gti || 0)) { S.n = S.gti || 0; this.questHud(); } return (S.gti || 0) >= T.length; },
+        at() { const S = this.story, T = S.gtrail || []; return T[Math.min(S.gti || 0, T.length - 1)] || S.ranch; },
+        hint: () => Tr`Yerdeki toynak izlerini ve dışkıyı takip et; her iz bir sonrakini gösterir. ${Input.glyph('crouch')} ile çömelirsen daha az ses çıkarırsın.` },
       { t() { return this.story.game === 'pronghorn' ? Tr('Bir antilop avla') : this.story.game === 'turkey' ? Tr('Bir yaban hindisi avla') : Tr('Bir geyik avla'); }, ev: 'kill', ok(a, S) { return a.kind === 'animal' && a.type === S.game; },
-        on(S) { this.storyGame(S); },
+        on(S) { this.storyGame(S, { far: COY.HERD, trail: true }); },
         at() { const P = this.player; let best = null, bd = 1e9; for (const e of this.ents) if (e.storyGame && !e.dead && !e.remove) { const d = dist(e.x, e.y, P.x, P.y); if (d < bd) { bd = d; best = e; } } return best; },
-        hint: () => Tr`${Input.glyph('crouch')} ile çömelip sessizce yaklaş; ürkek hayvanlar ayak sesini duyar. Nişan alırken biraz beklersen elin titremez.` },
-      { t: () => Tr('Hayvanın derisini yüz'), ev: 'skin', ok(a, S) { return a.type === S.game; },
+        how() { return Tr`Rüzgâr ${this.windFrom()} esiyor: rüzgârı karşına alarak yaklaş · ${QK('crouch')} çömel · tek atış = kusursuz post`; },
+        hint: () => Tr`Rüzgâr kokunu hayvanlara taşırsa seni uzaktan fark edip kaçarlar: rüzgârı karşına alarak yaklaş. ${Input.glyph('crouch')} ile çömel; nişan alırken biraz beklersen elin titremez. Tek atışta temiz vurursan post kusursuz olur.` },
+      { t: () => Tr('Hayvanın derisini yüz'), ev: 'skin', ok(a, S) { if (a.type !== S.game) return false; S.cleanShot = !!a.clean; return true; },
         hint: () => Tr`Avın yanında ${Input.glyph('interact')} basılı tut: <b>Derisini Yüz</b>. Büyük postlar omzuna alınır; atının yanında <b>eyere yükleyebilirsin</b>.` },
       { t: () => Tr('Çiftliğe dön, Sully ile konuş'), ev: 'talk', at() { return this.sullyEnt() || this.story.ranch; }, wp: true,
-        say: () => [
+        say: (S) => [
+          S && S.cleanShot ? ['S', Tr('Tek atışta, ha? Post da kusursuz. Kasap bunu görünce yüzü güler.')] : ['S', Tr('Post biraz delik deşik olmuş ama olsun; et de et.')],
           ['S', Tr('Bu et bize bir hafta yeter. Postu kasaba götür, kasap iyi para verir.')],
           ['P', Tr('Sen gelmiyor musun?')],
           ['S', Tr('Kasabada... şu an yüzüne bakamayacağım insanlar var. Sonra anlatırım. Sen git.')],
@@ -1242,7 +1265,7 @@ const STORIES = {
     propActions(e, S) { return this.choreActs(e, S); },
     // çiftlik işlerinde yeterince çalışınca günü bitirmek
     mentorActions(e, S, acts) { return this.choreMentorActs(e, S, acts); },
-    tick(S, dt) { this.drunkTick(S, dt); this.choreTick(S, dt); },
+    tick(S, dt) { this.drunkTick(S, dt); this.choreTick(S, dt); this.storyTrailTick(S); },
     finish(S) {
       const P = this.player;
       this.earn(S.alive ? 10 : 6, Tr('Sully\'nin teşekkürü'));
@@ -1289,47 +1312,118 @@ Object.assign(Story, {
     for (let k = 0; k < 24; k++) { const a = k / 24 * TAU, r = 260 + (k % 3) * 120, b = this.world.biomeAt(x + Math.cos(a) * r, y + Math.sin(a) * r); if (STORY_ENV[b]) n[b] = (n[b] || 0) + 1; }
     return Object.keys(n).sort((a, c) => n[c] - n[a])[0] || 'GRASS';
   },
-  /* çakallar: kümesteki tavuklara saldırır */
+  /* çakallar: kümesteki tavuklar (ölenler geri gelmez) ve dalgalar. Yüklemede sürmekte olan dalga baştan gelir */
   storyCoyotes(S) {
-    const R = S.ranch;
+    const R = S.ranch, C = { x: R.cx, y: R.cy + 70 };
     for (const e of this.ents) if (e.storyCoy || e.storyHen) e.remove = true;
-    S.coyGone = S.coyGone || 0;
-    for (let k = 0; k < 3; k++) {
-      const s = this.sSpot(R.cx + rnd(-60, 60), R.cy + rnd(40, 100), 0, 40);
-      const h = new Animal(s[0], s[1], 'chicken'); h.home = { x: R.cx, y: R.cy + 70, r: 60 }; h.storyHen = true; h.keep = true; this.addEnt(h);
-    }
-    for (let k = S.coyGone; k < 3; k++) {
-      const a = rnd(0, TAU), s = this.sSpot(R.cx + Math.cos(a) * 240, R.cy + 70 + Math.sin(a) * 240, 0, 60);
-      const c = new Animal(s[0], s[1], 'coyote'); c.storyCoy = true; c.keep = true; c.home = { x: R.cx, y: R.cy + 70, r: 120 }; this.addEnt(c);
+    if (S.coyWave === undefined) S.coyGone = 0;   // dalgasız eski kayıt: sayaç baştan
+    S.coyGone = S.coyGone || 0; S.hensLost = S.hensLost || 0;
+    // yarıda kalmış dalga: o dalganın çakalları yeniden gelir (sayaç dalga başına döner)
+    const done = COY.WAVES.slice(0, S.coyWave || 0).reduce((a, b) => a + b, 0);
+    if ((S.coyWave || 0) > 0 && S.coyGone < done) { S.coyWave--; S.coyGone = COY.WAVES.slice(0, S.coyWave).reduce((a, b) => a + b, 0); }
+    S.coyWave = S.coyWave || 0; S.coyT = COY.FIRST;
+    if (!S.coyDirs) { const d = [0, 1, 2, 3]; for (let k = d.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [d[k], d[j]] = [d[j], d[k]]; } S.coyDirs = d; }
+    for (let k = 0; k < COY.HENS - S.hensLost; k++) {
+      const s = this.sSpot(C.x + rnd(-60, 60), C.y + rnd(-30, 30), 0, 40);
+      const h = new Animal(s[0], s[1], 'chicken'); h.home = { x: C.x, y: C.y, r: 60 }; h.storyHen = true; h.keep = true; this.addEnt(h);
     }
   },
+  /* ölen tavuk (çakal ya da yanlışlıkla sen) bir kez sayılır */
+  storyHenLost(h) { const S = this.story; if (!S || h.lostN) return; h.lostN = true; S.hensLost = Math.min(COY.HENS, (S.hensLost || 0) + 1); },
+  /* sağ kalan tavuklar */
+  storyHens() { const S = this.story; return Math.max(0, COY.HENS - ((S && S.hensLost) || 0)); },
+  /* dalganın yönü: kümesin kuzeyi (ambarın arkası), doğusu (tarlanın ucu), güneyi (yol), batısı (evin arkası) */
+  storyCoyDir(k) {
+    return [
+      { v: [0, -1], call: () => Tr('Ambarın arkasından geliyorlar!') },
+      { v: [1, 0], call: () => Tr('Tarlanın ucundan, doğudan!') },
+      { v: [0, 1], call: () => Tr('Yol tarafından, güneyden!') },
+      { v: [-1, 0], call: () => Tr('Evin arkasından! Batıdan!') },
+    ][k];
+  },
+  /* her 0,25 sn: önceki dalga dağılınca kısa bir aradan sonra sıradaki dalga gelir; Sully fenerle o yöne geçip seslenir */
+  storyCoyWave(S, dt) {
+    if ((S.coyWave || 0) >= COY.WAVES.length) return;
+    if (this.ents.some(e => e.storyCoy && !e.dead && !e.remove && !e.counted)) return;
+    if ((S.coyT = (S.coyT === undefined ? COY.GAP : S.coyT) - dt) > 0) return;
+    const R = S.ranch, C = { x: R.cx, y: R.cy + 70 }, D = this.storyCoyDir(S.coyDirs[S.coyWave % S.coyDirs.length]), n = COY.WAVES[S.coyWave];
+    for (let k = 0; k < n; k++) {
+      const a = Math.atan2(D.v[1], D.v[0]) + (k - (n - 1) / 2) * 0.35, s = this.sSpot(C.x + Math.cos(a) * COY.FROM, C.y + Math.sin(a) * COY.FROM, 0, 60);
+      const c = new Animal(s[0], s[1], 'coyote'); c.storyCoy = true; c.keep = true; c.home = { x: C.x, y: C.y, r: 120 }; this.addEnt(c);
+    }
+    S.coyWave++; S.coyT = COY.GAP;
+    // Sully kümesle dalganın arasına geçer, fenerini kaldırır ve seslenir
+    const sp = this.sSpot(C.x + D.v[0] * COY.SULLY, C.y + D.v[1] * COY.SULLY, 0, 30);
+    S.sully = { x: sp[0], y: sp[1], ang: Math.atan2(D.v[1], D.v[0]) };
+    S.flags.lantern = 1;
+    const m = this.mentorEnt(); if (m) m.lantern = true;
+    this.qSay([['S', D.call()]]);
+  },
+  /* bütün dalgalar geldi ve dağıldı */
+  storyCoyDone() { const S = this.story; return (S.coyWave || 0) >= COY.WAVES.length && S.coyGone >= COY.WAVES.reduce((a, b) => a + b, 0); },
   /* vurulan, kaçan ya da kaybolan çakallar */
   storyCoyCount() {
     const S = this.story, R = S.ranch;
+    for (const e of this.ents) if (e.storyHen && e.dead) this.storyHenLost(e);
     let gone = S.coyGone || 0;
     for (const e of this.ents) if (e.storyCoy && !e.counted && (e.dead || e.remove || dist(e.x, e.y, R.cx, R.cy) > 650)) { e.counted = true; e.keep = false; gone++; }
-    S.coyGone = Math.min(3, gone);
+    S.coyGone = Math.min(COY.WAVES.reduce((a, b) => a + b, 0), gone);
     return S.coyGone;
   },
-  /* av: çiftliğin doğasına uygun bir sürü */
-  storyGame(S) {
-    const R = S.ranch, b = S.biome || this.storyBiome(R.cx, R.cy);
+  /* av: çiftliğin (kampın) doğasına uygun bir sürü. far: çiftliğe uzaklığı; trail: çiftlikten sürüye giden iz (toynak izi
+     ve dışkı; Sully, Bölüm 4) */
+  storyGame(S, opt = {}) {
+    const R = S.ranch, b = S.biome || this.storyBiome(R.cx, R.cy), far = opt.far || 520;
     S.game = S.game || (b === 'DESERT' || b === 'REDROCK' || b === 'DRY' ? 'pronghorn' : 'deer');
-    if (this.ents.some(e => e.storyGame && !e.dead && !e.remove)) return;
-    // sürünün yeri: çiftlikten (kamptan) düz yürünerek varılabilen açık bir düzlük; kayalık yükseltinin üstü ya da arkası olmaz
-    let cx = 0, cy = 0, ok = false;
-    for (let k = 0; k < 24 && !ok; k++) {
-      const a = rnd(0, TAU), r = k < 16 ? 520 : 380, s = this.findSpawnPos(R.cx + Math.cos(a) * r, R.cy + Math.sin(a) * r, 0, 60);
-      if (s && !this.world.townAt(s[0], s[1], 20) && !this.world.blocked(s[0], s[1], 26) && this.storyReach([R.x, R.y], s)) { cx = s[0]; cy = s[1]; ok = true; }
+    if (!S.herd) {
+      // sürünün yeri: çiftlikten düz yürünerek varılabilen açık bir düzlük; kayalık yükseltinin üstü ya da arkası olmaz
+      let cx = 0, cy = 0, ok = false;
+      for (let k = 0; k < 32 && !ok; k++) {
+        const a = rnd(0, TAU), r = k < 20 ? far : k < 26 ? Math.min(far, 700) : Math.min(far, 380), s = this.findSpawnPos(R.cx + Math.cos(a) * r, R.cy + Math.sin(a) * r, 0, 60);
+        if (s && !this.world.townAt(s[0], s[1], 20) && !this.world.blocked(s[0], s[1], 26) && this.storyReach([R.x, R.y], s)) { cx = s[0]; cy = s[1]; ok = true; }
+      }
+      if (!ok) { const a = rnd(0, TAU); cx = R.cx + Math.cos(a) * 520; cy = R.cy + Math.sin(a) * 520; }
+      S.herd = { x: Math.round(cx), y: Math.round(cy) };
     }
-    if (!ok) { const a = rnd(0, TAU); cx = R.cx + Math.cos(a) * 520; cy = R.cy + Math.sin(a) * 520; }
+    if (opt.trail && !S.gtrail) {
+      // iz: çiftliğin kapısından sürünün 110 px önüne, yolda biraz sapmalı
+      const H = S.herd, T = [], n = COY.TRAIL, a0 = Math.atan2(H.y - R.y, H.x - R.x), L = Math.max(200, dist(R.x, R.y, H.x, H.y) - 110);
+      for (let k = 1; k <= n; k++) {
+        const f = k / n, wob = k < n ? Math.sin(k * 1.9) * 40 : 0, x = R.x + Math.cos(a0) * L * f - Math.sin(a0) * wob, y = R.y + Math.sin(a0) * L * f + Math.cos(a0) * wob;
+        const s = this.findSpawnPos(x, y, 0, 40) || [x, y];
+        T.push({ x: Math.round(s[0]), y: Math.round(s[1]) });
+      }
+      S.gtrail = T; S.gti = 0;
+    }
+    if (this.ents.some(e => e.storyGame && !e.dead && !e.remove)) return;
+    const H = S.herd;
     let lead = null;
     for (let k = 0; k < 3; k++) {
-      let s = this.sSpot(cx + rnd(-30, 30), cy + rnd(-30, 30), 0, 60);
-      if (ok && !TownPath.walkable([cx, cy], s, 5)) s = [cx + k * 8, cy];
-      const g = new Animal(s[0], s[1], S.game); g.storyGame = true; g.keep = true; g.home = { x: cx, y: cy, r: 90 };
+      let s = this.sSpot(H.x + rnd(-30, 30), H.y + rnd(-30, 30), 0, 60);
+      if (!TownPath.walkable([H.x, H.y], s, 5)) s = [H.x + k * 8, H.y];
+      const g = new Animal(s[0], s[1], S.game); g.storyGame = true; g.keep = true; g.home = { x: H.x, y: H.y, r: 90 };
       if (lead) g.leader = lead; else lead = g;
       this.addEnt(g);
+    }
+  },
+  /* rüzgârın estiği yön (nereden): sekiz yön */
+  windFrom() {
+    const a = FX.wind.a + Math.PI, k = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8;
+    return [Tr('doğudan'), Tr('güneydoğudan'), Tr('güneyden'), Tr('güneybatıdan'), Tr('batıdan'), Tr('kuzeybatıdan'), Tr('kuzeyden'), Tr('kuzeydoğudan')][k];
+  },
+  /* iz yerlerindeki nesneler (D.tick): sıradaki iz ve ötesi, yakındaysa */
+  storyTrailTick(S) {
+    const on = S.ch === 3 && S.st === 1 && S.gtrail, want = new Map(), P = this.player;
+    if (on) S.gtrail.forEach((q, i) => {
+      if (i < (S.gti || 0) - 1 || dist2(q.x, q.y, P.x, P.y) > 700 * 700) return;
+      const nx = S.gtrail[i + 1] || S.herd;
+      want.set('gtrk' + i, { x: q.x, y: q.y, t: i % 3 === 2 ? 'dung' : 'paw', ang: Math.atan2(nx.y - q.y, nx.x - q.x) });
+    });
+    for (const e of this.ents) if (e.gtKey && !e.remove && !want.has(e.gtKey)) e.remove = true;
+    for (const [k, w] of want) {
+      if (this.ents.some(e => e.gtKey === k && !e.remove)) continue;
+      const e = new Prop(w.x, w.y, w.t, { ang: w.ang }); e.gtKey = k; e.keep = true;
+      this.addEnt(e);
     }
   },
   /* a'dan b'ye yürünerek varılabilir mi: önce düz çizgi, olmazsa iki noktayı kapsayan küçük bir ızgarada A* */
@@ -1357,7 +1451,7 @@ Object.assign(Story, {
     a.spd = lerp(a.spd, d < 60 ? a.def.spd * 0.9 : a.def.spd * 0.35, dt * 3);
     a.move(Math.cos(a.ang) * a.spd * dt, Math.sin(a.ang) * a.spd * dt);
     a.mv = a.spd / 30; a.phase += dt * (2 + a.spd * 0.18);
-    if (d < 7) { hen.hurt(99, 'coyote'); a.prey = null; if (dist(a.x, a.y, this.player.x, this.player.y) < 400) UI.feed(Tr('Çakal bir tavuğu kaptı!'), 'warn'); }
+    if (d < 7) { hen.hurt(99, 'coyote'); a.prey = null; this.storyHenLost(hen); if (dist(a.x, a.y, this.player.x, this.player.y) < 400) UI.feed(Tr`Çakal bir tavuğu kaptı! (${this.storyHens()}/${COY.HENS} tavuk kaldı)`, 'warn'); }
     return true;
   },
 });
