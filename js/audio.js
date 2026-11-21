@@ -21,11 +21,22 @@ const Audio_ = {
   loops: {},
   seq: null,
 
+  /* Ses bağlamını açılışta önceden kur: ilk bağlam ses aygıtını başlattığı için 40-60 ms sürer; ilk tuşta kurulursa menü o
+     an takılır. Tarayıcı sesi kullanıcı etkileşimine dek açmazsa bağlam askıda bekler, ilk tuşta (unlock) sürdürülür.
+     this.ctx yalnızca unlock'ta atanır: ondan önce hiçbir ses kurulmaz (askıdaki bağlamda birikip birden çalmasın). */
+  prewarm() {
+    if (this.ctx || this._pre) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { this._pre = new AC(); } catch (e) { this._pre = null; }
+  },
   unlock() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    try { this.ctx = new AC(); } catch (e) { return; }
+    const pre = this._pre; this._pre = null;
+    try { this.ctx = pre && pre.state !== 'closed' ? pre : new AC(); } catch (e) { return; }
+    if (this.ctx === pre && pre.state === 'suspended') { try { const r = pre.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) {} }   // askıda bekleyen önceden kurulmuş bağlam
     const c = this.ctx;
     // son katman: tepe sınırlayıcı (bozulmayı önler) → ana ses
     this.master = c.createGain();
@@ -591,30 +602,40 @@ const REVERBS = {
 Object.assign(Audio_, {
   bank: {}, sloops: {}, man: null, canOgg: true, voices: [], revName: null, envT: 0,
   /* Yankı: her mekânın kendi evrişim düğümü, aralarında yumuşak geçiş. IR üretimi ve düğüme atanması (FFT hazırlığı)
-     ana iş parçacığında 5-20 ms sürer; mekân değiştikçe yeniden yapılsaydı yürürken takılırdı. Düğümler ses açılınca
-     (menüde) boş zamanda birer birer hazırlanır, oyunda yalnızca kazançlar değişir. */
+     ana iş parçacığında 5-25 ms sürer; mekân değiştikçe yeniden yapılsaydı yürürken takılırdı. Menüde yankı duyulmaz ve
+     orada hazırlanırsa ilk tuştan sonraki yarım saniyede kareler düşer: düğümler dünya kurulurken (yükleme ekranında, ana
+     iş parçacığı zaten meşgulken) topluca hazırlanır (revWarm); ses oyunda açılırsa boş zamanda birer birer. Oyunda
+     yalnızca kazançlar değişir. */
   buildReverb() {
     const c = this.ctx;
     this.revIn = c.createGain();
     this.revOut = c.createGain(); this.revOut.connect(this.glue);
     this.irs = {}; this.revs = {};
-    this.setReverb('open', true);
-    this.revQ = Object.keys(REVERBS).filter(n => n !== 'open');
+    this.revQ = Object.keys(REVERBS);
+    this.revName = 'open';   // açık ova: düğümü hazırlanınca devreye girer
     this.revPrep();
   },
-  /* Sıradaki mekânı boş zamanda hazırla: önce IR, sonraki boşlukta düğüm (iki iş ayrı karelere düşer) */
+  /* Sıradaki mekânı boş zamanda hazırla: önce IR, sonraki boşlukta düğüm (iki iş ayrı karelere düşer). Oyun dışında
+     (menü, karakter ekranı) bekler: oyuna girilince sürer. */
   revPrep() {
     if (this._revPrep || !this.revQ.length) return;
     this._revPrep = true;
     const idle = window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 1500 }) : (f) => setTimeout(f, 200);
     idle(() => {
       this._revPrep = false;
+      if (typeof G !== 'undefined' && G.state !== 'play') { clearTimeout(this._revWait); this._revWait = setTimeout(() => this.revPrep(), 600); return; }
       const n = this.revQ[0];
       if (!n) return;
       if (!this.irs[n]) this.makeIR(n);
       else { this.revQ.shift(); this.revNode(n); if (this.revName === n && this.revOn !== n) this.revSwitch(n); }
       this.revPrep();
     });
+  },
+  /* Yükleme ekranında: kalan bütün yankıları hemen hazırla (dünya kurulurken takılma görünmez, oyunda iş kalmaz) */
+  revWarm() {
+    if (!this.ctx || !this.revQ) return;
+    while (this.revQ.length) this.revNode(this.revQ.shift());
+    if (this.revName && this.revOn !== this.revName) this.revSwitch(this.revName, true);
   },
   /* Mekânın evrişim düğümü (IR bir kez atanır). Girişi yalnızca duyulurken bağlıdır: susunca ses iş parçacığı onu atlar.
      Düğümler yankı çıkışının bağlamında kurulur (ses bağlamı sonradan değişse de boş zamanda hazırlanan düğüm ona bağlanır). */
