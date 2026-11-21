@@ -2495,6 +2495,11 @@ const Spr = {
       // travers demeti: üst üste iki kalın kalas
       for (let k = 0; k < 2; k++) { ctx.fillStyle = k ? '#7a5634' : '#6a4a2c'; ctx.fillRect(-6, 1 - k * 3.2, 12, 3); ctx.fillStyle = '#9a7448'; ctx.fillRect(-6, 1 - k * 3.2, 12, 0.9); }
       ctx.fillStyle = '#3a2a1a'; ctx.fillRect(-3, -2.4, 0.8, 6.4); ctx.fillRect(2.4, -2.4, 0.8, 6.4);
+    } else if (look === 'hay') {
+      // saman balyası: sarı, iki iple bağlı
+      ctx.fillStyle = '#c8a850'; ctx.fillRect(-5, -3.5, 10, 7); ctx.fillStyle = '#e0c068'; ctx.fillRect(-5, -3.5, 10, 2.2);
+      ctx.fillStyle = '#8a6a30'; ctx.fillRect(-2.2, -3.5, 0.8, 7); ctx.fillRect(1.6, -3.5, 0.8, 7);
+      ctx.fillStyle = '#d8b858'; ctx.fillRect(-5.6, -1, 0.8, 1.4); ctx.fillRect(4.8, 0.4, 0.9, 1.2);
     } else if (look === 'bale') {
       ctx.fillStyle = '#8a6a8a'; ctx.fillRect(-4.5, -3, 9, 6); ctx.fillStyle = '#a888a8'; ctx.fillRect(-4.5, -3, 9, 1.6);
       ctx.fillStyle = '#4a3a2a'; ctx.fillRect(-2, -3, 0.8, 6); ctx.fillRect(1.6, -3, 0.8, 6);

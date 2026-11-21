@@ -35,8 +35,16 @@ module.exports = {
       const b = await p.evaluate(() => ({ same: Nav.wp === window.__R, i: Nav.wp.i, left: Nav.left(Nav.wp), left0: window.__left0, done: Nav.wp.done }));
       t.ok(b.same, 'rotanın üstünde: yeniden hesaplanmadı');
       t.ok(b.i >= a.k - 2 && b.left < b.left0 * 0.75, 'ilerleme işlendi, kalan yol azaldı', { a, b });
-      // rotadan 500 px uzağa sap: süre dolunca yeni rota oyuncudan başlar
-      await p.evaluate(() => { const R = Nav.wp, q = R.pts[R.i]; let s = TH.openSpot(q[0] + 520, q[1] - 520, 20); TH.goto(s[0], s[1]); R.t = G.t - 10; });
+      // rotadan uzağa sap (rotanın hiçbir yerine 400 px'ten yakın olmayan açık bir yer; rota kıvrılıp oraya yaklaşmasın):
+      // süre dolunca yeni rota oyuncudan başlar
+      const dv = await p.evaluate(() => {
+        const R = Nav.wp, q = R.pts[R.i], far = (o) => o && R.pts.every(w => dist(w[0], w[1], o[0], o[1]) > 400);
+        let s = null;
+        for (const [dx, dy] of [[520, -520], [-520, 520], [520, 520], [-520, -520], [760, 0], [-760, 0], [0, 760], [0, -760], [1000, 0], [0, 1000]]) { const o = TH.openSpot(q[0] + dx, q[1] + dy, 20); if (far(o)) { s = o; break; } }
+        if (s) { TH.goto(s[0], s[1]); R.t = G.t - 10; }
+        return !!s;
+      });
+      t.ok(dv, 'rotadan uzak bir yer bulundu');
       await tick();
       const c = await p.evaluate(() => ({ same: Nav.wp === window.__R, start: dist(Nav.wp.pts[0][0], Nav.wp.pts[0][1], G.player.x, G.player.y) }));
       t.ok(!c.same && c.start < 2, 'saptı: yeni rota oyuncudan başlar', c);

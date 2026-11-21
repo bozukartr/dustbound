@@ -261,7 +261,12 @@ const Poker = {
     st.msg = win.length > 1 ? Tr`Pot bölündü: ${who} (${name})`
       : win[0].me ? (st.reveal ? Tr`Kazandın! ${fmtMoney(st.pot / 100)} · ${name}` : Tr`Herkes çekildi. ${fmtMoney(st.pot / 100)} senin.`)
       : (st.reveal ? Tr`${who} kazandı · ${name}` : Tr`${who} potu aldı.`);
-    if (win.some(s => s.me)) { G.stat('pokerWins', 1); Audio_.ui('cash'); }
+    if (win.some(s => s.me)) {
+      G.stat('pokerWins', 1); Audio_.ui('cash');
+      // hikâyenin kişisinin oynadığı bir eli kazandın (ör. sarhoş haydut konuşur)
+      const so = st.seats.find(s => !s.me && s.o && s.o.story && !s.out);
+      if (so) G.qEvent('pokerWin', so.o.story);
+    }
     else { const w = win.find(s => !s.me); if (w && chance(0.5)) Poker.say(w, 'win'); }
     st.lastPot = st.pot; st.pot = 0;
     st.phase = 'idle'; st.pending = [];
@@ -289,6 +294,7 @@ const PokerSystems = {
     let t = T[key];
     if (!t || t.day !== day) t = T[key] = { day, opps: Array.from({ length: POKER_SEATS }, () => Poker.newOpp(b.type === 'club')) };
     t.opps = t.opps.filter(o => o.stack >= Poker.minStack(AN[0]));
+    if (this.storyPokerOpp) this.storyPokerOpp(b, t);   // hikâyenin masadaki kişisi (ör. Sully, Bölüm 8: sarhoş haydut)
     return t;
   },
 };

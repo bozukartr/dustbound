@@ -213,6 +213,8 @@ const G = {
   /* ---------------- Yeni oyun ---------------- */
   async newGame(profile) {
     this.resetState();
+    // dünya kurulurken (await) eski oyunun döngüsü sıfırlanmış durumla işlemesin: güncelleme, arayüz ve belirteç taraması bekler
+    if (this.state !== 'menu') this.state = 'loading';
     const seed = window.__testSeed !== undefined ? window.__testSeed : (Math.random() * 1e9) | 0;   // ölçüm ve testte sabit dünya
     this.seed = seed;
     this.pace = profile.pace; this.difficulty = profile.difficulty; this.background = profile.bg;
@@ -407,6 +409,7 @@ const G = {
     if (!d || typeof d !== 'object') { this.loadErr = 'bad'; return false; }
     if (!(d.v >= SAVE_V)) { this.loadErr = 'old'; UI.feed(Tr('Bu kayıt oyunun eski bir sürümüne ait ve açılamıyor. Yeni bir hayata başla.'), 'warn'); return false; }
     this.resetState();
+    if (this.state !== 'menu') this.state = 'loading';   // oyun içinden yüklerken dünya kurulana dek döngü bekler (bkz. newGame)
     this.slot = L.n;
     this.seed = d.seed;
     Object.assign(this, { clock: d.clock, pace: d.pace });   // mevsim dünya kurulmadan bilinsin
@@ -1374,6 +1377,7 @@ const G = {
     // motorlu taşıtların farları (motoru çalışırken)
     if (night) for (const e of this.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt && inView(e.x, e.y, 90)) lights.push([e.x + Math.cos(e.ang) * 24, e.y + Math.sin(e.ang) * 24, 48, 0.85]);
     if (night) for (const e of this.ents) if (e.legend === 'ghost' && !e.dead && !e.remove && inView(e.x, e.y, 50)) lights.push([e.x, e.y, 42, 0.55]);   // Ak Hayalet: soluk ay ışığı
+    if (night) for (const e of this.ents) if (e.lantern && !e.dead && !e.remove && inView(e.x, e.y, 90)) lights.push([e.x + Math.cos(e.ang + 0.9) * 4, e.y + Math.sin(e.ang + 0.9) * 4, 90 * Juice.flicker(e.x, this.t, 0.04), 1]);   // elinde fenerli NPC
     // Ayarlar → Grafik → Işık Sayısı: ekranın ortasına en yakın ışıklar kalır
     const nL = GFX.LIGHTS[this.settings.lightN] || GFX.LIGHTS[2];
     if (lights.length > nL) { const cx = x0 + vw / 2, cy = y0 + vh / 2; lights.sort((a, b) => dist2(a[0], a[1], cx, cy) - dist2(b[0], b[1], cx, cy)); lights.length = nL; }

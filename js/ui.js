@@ -701,7 +701,9 @@ const UI = {
         this.holdT += dt;
         if (a0.hold) {
           holdPct = Math.min(1, this.holdT / a0.hold);
-          if (this.holdT >= a0.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a0.check || a0.check()) a0.fn(); else this.feed(Tr`Önce çömelerek (${I.glyph('crouch')}) sakince yaklaş.`, 'warn'); }
+          // live: koşul basılı tutarken de sürmeli (ör. gizlice bayıltırken haydut dönüp seni görürse yarıda kalır)
+          if (a0.live && a0.check && !a0.check()) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; holdPct = 0; if (a0.fail) a0.fail(); }
+          else if (this.holdT >= a0.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a0.check || a0.check()) a0.fn(); else if (a0.fail) a0.fail(); else this.feed(Tr`Önce çömelerek (${I.glyph('crouch')}) sakince yaklaş.`, 'warn'); }
         } else if (hasMenu && this.holdT > 0.35 && !this.menuOpened) {
           this.menuOpened = true; this.holdTarget = null;
           this.contextMenu(tgt);
@@ -2686,8 +2688,9 @@ const UI = {
   },
   openSleep(where, cost) {
     const P = G.player;
-    const untilMorning = ((7 - G.hour) + 24) % 24 || 24;
-    const opts = [[2, Tr('2 Saat Kestir')], [4, Tr('4 Saat Uyu')], [8, Tr('8 Saat Uyu')], [Math.round(untilMorning), Tr`Sabaha Kadar (${Math.round(untilMorning)} saat)`]];
+    // sabah 07:00; hikâye adımı erken kalkmayı istiyorsa (ör. Sully baskın için şafaktan önce uyandırır) o saat
+    const untilMorning = ((G.storyWakeHour() - G.hour) + 24) % 24 || 24;
+    const opts = [[2, Tr('2 Saat Kestir')], [4, Tr('4 Saat Uyu')], [8, Tr('8 Saat Uyu')], [Math.round(untilMorning * 6) / 6, Tr`Sabaha Kadar (${Math.round(untilMorning)} saat)`]];
     this.menu({
       title: where === 'hotel' ? Tr('Otel Odası') : where === 'home' ? Tr('Evin') : Tr('Kamp'), cls: 'small', sub: Tr`Uyku: ${Math.round(P.energy)}/100 • ${G.timeStr()}`,
       // uyku görevi "sabaha kadar" ister: o seçenek parlar

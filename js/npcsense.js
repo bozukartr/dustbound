@@ -11,7 +11,7 @@
    İşitme:  ayak sesi (çömelme 15, yürüme 45, koşma 110 px), at (tırıs 120, dörtnala 200), silah, patlama, kapı
             kırma, maymuncuk. Ses tam yeri değil, mesafenin %20'si kadar sapmalı bir yer verir.
    Haber:   fark eden bağırır; aynı kamptaki ya da 260 px içindeki arkadaşları 0,4–0,8 sn sonra öğrenir (bağıranın
-            bildiği yeri). Arkadaşının cesedini gören, katili görmeden aramaya geçer.
+            bildiği yeri). Arkadaşının cesedini ya da bağlı, baygın yatan arkadaşını gören, katili görmeden aramaya geçer.
    Çatışma: oyuncuyu gören onu izler (görüş hattı yeter); kaybedince yeniden görmek için bakış yönü gerekir. Son
             görülen yere gider, orada birkaç saniye gözetler, sonra çevresinde 3–5 noktayı arar (grup aralarında
             farklı yönlere bakar); 25–45 sn sonra vazgeçip kampına döner, 3 dakika tetikte kalır.
@@ -93,7 +93,8 @@ const NpcSense = {
     if (P.hp <= 0 || this.state !== 'play' || this.floorHid(e)) return;
     const dx = P.x - e.x, dy = P.y - e.y, d = Math.hypot(dx, dy);
     let gain = 0, pt = null, seen = false;
-    const R = (SENSE.RANGE[e.isLaw ? 'law' : e.role] || 250) * this.litK() * this.stanceK() * this.weatherK() * (e.alertUntil > this.t ? 1.25 : 1);
+    // şafağa doğru nöbetçi uyuklar: görüşü daralır (js/npccamp.js)
+    const R = (SENSE.RANGE[e.isLaw ? 'law' : e.role] || 250) * this.litK() * this.stanceK() * this.weatherK() * (e.alertUntil > this.t ? 1.25 : 1) * (e.isSentry && this.hour >= 3 && this.hour < CAMP.WAKE ? 0.7 : 1);
     if (d < R && !e.asleep) {
       const v = this.senseSight(e, P.x, P.y, R, false);
       if (v > 0) { gain = Math.pow(1 - d / R, 0.6) * v * SENSE.RATE; seen = true; pt = { x: P.x, y: P.y }; }
@@ -148,9 +149,10 @@ const NpcSense = {
     else {
       e.aggro = true;
       if (first) e.say(how === 'body' ? pick([Tr('Vurulmuş! Etrafa bakın!'), Tr('Biri onu öldürmüş! Dağılın, arayın!'), Tr('Pusu var! Gözünüzü açın!')])
+        : how === 'bound' ? pick([Tr('Biri onu bağlamış! Uyanın!'), Tr('Baskın var! Kalkın!'), Tr('Aramızda biri var! Silahlanın!')])
         : how === 'call' ? pick([Tr('Geliyorum!'), Tr('Nerede?!'), Tr('Silahlanın!')]) : pick(LINES.bandit), 2);
     }
-    if (first && how !== 'call') this.senseCall(e, e.lkp, how === 'body');
+    if (first && how !== 'call') this.senseCall(e, e.lkp, how === 'body' || how === 'bound');
   },
   /* Bağırış: aynı kamptaki ya da 260 px içindeki arkadaşları kısa süre sonra öğrenir */
   senseCall(e, pt, body) {
@@ -162,16 +164,18 @@ const NpcSense = {
       o.awPend = { t: this.t + rnd(0.4, 0.8) + (o.asleep ? rnd(0.8, 1.6) : 0), pt: pt && { x: pt.x, y: pt.y }, body };   // uyuyan sersem kalkar
     }
   },
-  /* Arkadaşının cesedini görmek: katili görmeden alarm; cesedin yeri bilinen tek yerdir, oradan aranır */
+  /* Arkadaşının cesedini ya da bağlı, baygın yatan arkadaşını görmek: katili görmeden alarm; onun yeri bilinen tek
+     yerdir, oradan aranır. Uyuyan görmez */
   senseBodies(e) {
+    if (e.asleep) return false;
     const R = 230 * this.litK();
     for (const o of this.ents) {
-      if (o.kind !== 'npc' || !o.dead || o.remove || o.bodySeen || o === e) continue;
+      if (o.kind !== 'npc' || !(o.dead || o.state === 'tied' || o.state === 'downed') || o.remove || o.bodySeen || o === e) continue;
       if (!(o.role === e.role || (e.camp && o.camp === e.camp))) continue;
       if (dist2(o.x, o.y, e.x, e.y) > R * R) continue;
       if (this.senseSight(e, o.x, o.y, R, false) < 0.2) continue;
       o.bodySeen = true;
-      this.senseAlert(e, { x: o.x, y: o.y }, 'body');
+      this.senseAlert(e, { x: o.x, y: o.y }, o.dead ? 'body' : 'bound');
       e.watchFor = 0.8;   // cesedin başında oyalanmaz, hemen aramaya başlar
       return true;
     }
@@ -324,7 +328,7 @@ const AwareMarks = {
     const want = new Map();
     if (on && P) for (const e of G.ents) {
       if (e.kind !== 'npc' || e.dead || e.remove || e.bound || e.state === 'surrender' || G.floorHid(e)) continue;
-      if (!(e.role === 'bandit' || e.role === 'target' || e.isLaw)) continue;
+      if (!(e.role === 'bandit' || e.role === 'target' || e.isLaw || e.awMark)) continue;   // awMark: kendi şüphesi olan (ör. takip edilen sarhoş)
       if (dist2(e.x, e.y, P.x, P.y) > 420 * 420) continue;
       let k = null;
       if (e.awState === 'alert' || (e.isLaw ? e.hostile : e.aggro)) {

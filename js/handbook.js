@@ -111,6 +111,7 @@ const Handbook = {
         return li([
           Tr`Vahşi hayvan kasabalarda görülmez. Kasaba dışında çevrende hep 14 kadar hayvan dolaşır; yenileri ${mi(420)}–${mi(640)} ötede, oranın arazisine göre doğar (tablo). Gece kurt ve çakal daha sık görülür; ayı ve puma her yerde seyrektir.`,
           Tr`Ürkek hayvan seni tablodaki uzaklıktan fark eder. Çömelirsen bu uzaklık yarıya iner, gece %20 kısalır; koşarken %30, at sırtında %20 uzar. Avcılık yeteneğinin her seviyesi %3, <b>${A('hunt100').n}</b> başarımı %30 kısaltır.`,
+          Tr('Rüzgâr kokunu taşır: rüzgâr senden hayvana doğru esiyorsa ürkek hayvan seni rüzgârın gücüne göre 2,5 katına kadar uzaktan sezer. Rüzgârı karşına alarak yaklaş; yaprakların, tozun ve bulutların gidişi rüzgârın yönünü gösterir.'),
           Tr`Silah sesi ${mi(620)} içindeki ürkek hayvanları kaçırır, ${mi(200)} içindeki saldırganları üstüne çeker. Av yayının sesi yalnızca ${mi(50)} duyulur; tam gerilmiş ok ${WEAPONS.bow.dmg} hasar verir. Ok satan dükkânlar: ${arrowShops}; ${R('arrows').need.feather} tüyden ${R('arrows').outAmmo.arrow} ok da yapabilirsin.`,
           Tr`Yaralanan ürkek hayvan kaçar, saldırgan olan üstüne gelir. Hayvanlar derin suya girmez; sığ suya yalnızca timsah ve sana saldıran hayvan girer. Çıngıraklı yılanın sokması seni ${dec(poisonH)} oyun saati zehirler (at sırtındayken zehirlemez). Vahşi hayvanla yakın dövüşe girme: uzaktan vur ya da atla uzaklaş.`,
         ]) + `<table class="hb-tab hb-wild"><tr><th>${Tr('Hayvan')}</th><th>${Tr('Post')}</th><th>${Tr('Nerede')}</th><th>${Tr('Davranış')}</th><th>${Tr('Verdikleri')}</th></tr>${rows}</table>` + li([
@@ -122,6 +123,7 @@ const Handbook = {
           Tr`<b>Kement</b> hayvanı yakalar; kementteki hayvan çırpınıp bir süre sonra kurtulur (ayı bir iki saniyede, yabani at 7–10 saniyede). ${names(wild.filter(d => G.canTieAnimal({ def: d })))} yanına gidip ${g('interact')} basılı tutarak bağlanır. Bağlı hayvan 2,5–3,7 dakika sonra kurtulur (Avcılık her seviyede 10 saniye uzatır) ve suda boğulur; <b>Kes</b> ile öldürür ya da serbest bırakırsın.`,
           Tr`<b>Yabani at</b> evcilleştirilir: yaya ve çömelerek yaklaşırsan seni ancak ${mi(16)} kala fark eder. Yanındayken ${g('interact')} basılı tutup <b>Sakinleştir ve Evcilleştir</b>: %65 ihtimal, Binicilik yeteneğinin her seviyesi %4, kementteyse %25 ekler. Başarırsan yeni atın olur, eskisi ahıra gider.`,
           Tr('Avcılık yeteneği avladıkça (iri av daha çok), deri yüzdükçe ve hayvan bağladıkça gelişir; 5. seviyeden sonra deri yüzerken %30 ihtimalle bir post fazla çıkar.'),
+          Tr('Temiz vuruş: tek kurşunla ya da tek okla, ilk isabette düşen hayvanın büyük postu kusursuz çıkar ve daha pahalıya satılır.'),
           Tr`Av başarımları: ${ach.join('; ')}.`,
           Tr('Dürbünle uzaktaki hayvanların adını görürsün; saldırganların adı kırmızı yazılır.'),
           Tr`İnek ve tavuk çiftlik hayvanıdır: vurmak onurunu 1, öldürmek 3 düşürür (tavukta 1); biri görürse suç olur (ödül ${fmtMoney(3)}, tavukta ${fmtMoney(0.5)}).`,
