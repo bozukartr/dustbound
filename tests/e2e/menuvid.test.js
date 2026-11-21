@@ -38,6 +38,16 @@ module.exports = {
       t.ok(card.bottom < card.h * 0.3 && card.left > card.titleR, 'son hayat kartı sağ üst köşede, başlığa değmiyor', card);
     });
 
+    await t.step('menüde ve yükleme ekranında karışım kipi yok: film greni normal karışımla (bindirme videoyu her karede yeniden okutup kare düşürüyordu)', async () => {
+      const r = await p.evaluate(() => {
+        const bad = [...document.querySelectorAll('#mainmenu, #mainmenu *, #loading, #loading *')].filter(n => { const m = getComputedStyle(n).mixBlendMode; return !!m && m !== 'normal'; }).map(n => n.id || String(n.className));
+        const cs = getComputedStyle(document.querySelector('#mainmenu .mm-grain'));
+        return { bad, tex: cs.backgroundImage.includes('feTurbulence'), op: +cs.opacity, anim: cs.animationName };
+      });
+      t.eq(r.bad, [], 'karışım kipi kullanan katman yok');
+      t.ok(r.tex && r.op > 0 && r.anim === 'grain', 'film greni duruyor ve titriyor', r);
+    });
+
     await t.step('döngü dikişsiz: başa dönüşte görüntü sıçramaz, siyah kapanış kartı yok', async () => {
       // oynayan videonun her sunulan karesi okunur; başa dönüş anındaki fark sıradan kare geçişleriyle karşılaştırılır
       const r = await p.evaluate(() => new Promise((done) => {

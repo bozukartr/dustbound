@@ -25,6 +25,8 @@
   --oxblood: #8e1b12;
   --oxblood-hi: #b3261e;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.66 0 0 0 0 0.54 0 0 0 0 0.38 0.55 0 0 0 -0.2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* film greni: açık ve koyu benekler (işaretli gürültü); normal karışımla koyuları ağartmadan doku verir */
+  --film: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch' result='t'/%3E%3CfeColorMatrix in='t' result='l' values='0 0 0 0 1 0 0 0 0 0.9 0 0 0 0 0.72 0.25 0 0 0 -0.125'/%3E%3CfeColorMatrix in='t' result='d' values='0 0 0 0 0.06 0 0 0 0 0.04 0 0 0 0 0.02 -0.25 0 0 0 0.125'/%3E%3CfeMerge%3E%3CfeMergeNode in='d'/%3E%3CfeMergeNode in='l'/%3E%3C/feMerge%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --rule: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='12'%3E%3Cpath d='M32 1.5 L36.5 6 L32 10.5 L27.5 6Z' fill='%23c9a45c'/%3E%3Cpath d='M32 4 L34 6 L32 8 L30 6Z' fill='%23140e09'/%3E%3Ccircle cx='21' cy='6' r='1.6' fill='%23c9a45c'/%3E%3Ccircle cx='43' cy='6' r='1.6' fill='%23c9a45c'/%3E%3Ccircle cx='14' cy='6' r='1' fill='%23c9a45c' opacity='0.7'/%3E%3Ccircle cx='50' cy='6' r='1' fill='%23c9a45c' opacity='0.7'/%3E%3C/svg%3E");
   --corners: linear-gradient(var(--brass), var(--brass)) left top / 16px 2px no-repeat, linear-gradient(var(--brass), var(--brass)) left top / 2px 16px no-repeat,
     linear-gradient(var(--brass), var(--brass)) right top / 16px 2px no-repeat, linear-gradient(var(--brass), var(--brass)) right top / 2px 16px no-repeat,
@@ -728,8 +730,9 @@ table.ctrl td.c-ps { color: #a8c0ff; }
 #mainmenu.vid .mm-card img, #mainmenu.vid .mm-card .mmc-noimg { display: none; }
 #mainmenu.vid .mmc-k { margin-top: 0; }
 .mm-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(6, 3, 2, 0.82) 0%, rgba(6, 3, 2, 0.55) 30%, rgba(6, 3, 2, 0.08) 58%, transparent 75%), radial-gradient(ellipse at 50% 55%, transparent 55%, rgba(0, 0, 0, 0.55) 100%); }
-/* film greni: hafifçe titreyen doku */
-.mm-grain { position: absolute; inset: -40px; pointer-events: none; background: var(--grain); background-size: 220px 220px; opacity: 0.55; mix-blend-mode: overlay; animation: grain 0.9s steps(4) infinite; }
+/* film greni: hafifçe titreyen doku. Karışım kipi (mix-blend-mode) yok: bindirme, altındaki videoyu her karede yeniden
+   okutup bileştiriciyi doyuruyordu (menüde kare düşmesi). Açık ve koyu benekli doku normal karışımla aynı görünümü verir. */
+.mm-grain { position: absolute; inset: -40px; pointer-events: none; background: var(--film); background-size: 220px 220px; opacity: 0.3; animation: grain 0.9s steps(4) infinite; }
 @keyframes grain { 0% { transform: translate(0, 0); } 25% { transform: translate(-14px, 9px); } 50% { transform: translate(11px, -12px); } 75% { transform: translate(-7px, -5px); } 100% { transform: translate(0, 0); } }
 .mm-inner { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 7vh 7vw 5vh; }
 .mm-title { animation: mmTitle 1.1s cubic-bezier(0.2, 0.8, 0.3, 1) both; }

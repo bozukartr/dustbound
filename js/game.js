@@ -301,6 +301,7 @@ const G = {
     this._lgSp = null; this.legendSpots();   // efsanelerin inleri ve suları: oyuncunun evleri dünyaya eklenmeden (js/legends.js)
     this.insideB = null; this.exitB = null;
     this.trains = w.lines.map((l, i) => new Train(l, i));
+    Audio_.revWarm();   // mekân yankıları yükleme ekranında hazırlanır (menüde ve oyunda takılma olmasın)
     UI.loading(Tr('Hazır.'), 1);
   },
   startPlay() {

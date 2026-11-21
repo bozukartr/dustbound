@@ -8,6 +8,7 @@ window.addEventListener('load', () => {
   UI.init();
   G.resetState();
   G.init();
+  Audio_.prewarm();   // ses bağlamı şimdi kurulur: ilk tuşta menü takılmasın
   // her açılışta önce açılış videosu (video/intro.mp4), sonra ana menü
   Intro.play(() => UI.showMainMenu());
   // F11: tam ekran (tarayıcıda ve masaüstünde)

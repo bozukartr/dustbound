@@ -17,7 +17,23 @@ module.exports = {
       t.eq(unknown, ['foo_bar.ogg'], 'bilinmeyen dosya bildirilir');
     });
     // dosya yokken davranışı: gerçek manifest gizlenir (depoda artık CC0 ses dosyaları var)
-    const p = await t.newGame({ sfx: true, init: () => { const real = window.fetch; window.fetch = (u, o) => String(u).endsWith('audio/sfx/manifest.json') ? Promise.resolve(new Response('', { status: 404 })) : real(u, o); } });
+    const p = await t.newGame({ sfx: true, init: () => {
+      const real = window.fetch; window.fetch = (u, o) => String(u).endsWith('audio/sfx/manifest.json') ? Promise.resolve(new Response('', { status: 404 })) : real(u, o);
+      // menü takılması: ses bağlamı açılışta mı kuruldu, menüde (ilk tuştan dünya kurulana dek) yankı hazırlandı mı, oyun başlarken yankılar hazır mı
+      window.addEventListener('load', () => {
+        setTimeout(() => { window.__pre = Audio_._pre || null; window.__ctxAtLoad = !!Audio_.ctx; }, 0);
+        const bw = G.buildWorld; G.buildWorld = function () { window.__irsAtBuild = Audio_.irs ? Object.keys(Audio_.irs).length : -1; window.__ctxAtBuild = !!Audio_.ctx; return bw.apply(this, arguments); };
+        const sp = G.startPlay; G.startPlay = function () { window.__revsAtPlay = Audio_.revs ? Object.keys(Audio_.revs).sort().join(',') : ''; window.__revOnAtPlay = Audio_.revOn; return sp.apply(this, arguments); };
+      });
+    } });
+    await t.step('ses bağlamı açılışta kurulur, menüde yankı hazırlanmaz (ilk tuşta ve ardından menü takılmasın); oyun başlarken yankılar hazır', async () => {
+      const r = await p.evaluate(() => ({ pre: !!window.__pre, ctxAtLoad: window.__ctxAtLoad, same: !!window.__pre && Audio_.ctx === window.__pre, irsAtBuild: window.__irsAtBuild, ctxAtBuild: window.__ctxAtBuild, revs: window.__revsAtPlay, on: window.__revOnAtPlay }));
+      t.ok(r.pre && !r.ctxAtLoad, 'bağlam açılışta önceden kuruldu, oyunun sesi ilk tuşa dek kurulmadı', r);
+      t.ok(r.same, 'ilk tuşta önceden kurulan bağlam kullanıldı', r);
+      t.ok(r.ctxAtBuild && r.irsAtBuild === 0, 'ses menüde açıldı ama menüde yankı hazırlanmadı', r);
+      t.eq(r.revs, 'canyon,cave,forest,hall,open,room,street', 'oyun başlarken yedi mekânın yankısı hazır (yükleme ekranında kuruldu)');
+      t.eq(r.on, 'open', 'açık ova yankısı çalıyor');
+    });
     await t.step('dosya yokken eski sesler çalar, hata vermez', async () => {
       const r = await p.evaluate(async () => {
         await new Promise(res => setTimeout(res, 800));
