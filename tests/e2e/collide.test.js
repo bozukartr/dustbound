@@ -66,7 +66,7 @@ module.exports = {
 
     await t.step('çağrılan at araya konan duvarın etrafından dolaşıp gelir (kır)', async () => {
       const r = await p.evaluate(async () => {
-        const W = G.world, P = G.player, sp = TH.openSpot(P.x, P.y, 150);
+        const W = G.world, P = G.player, sp = TH.openSpot(P.x, P.y, 150) || TH.openSpot(P.x, P.y, 120) || TH.openSpot();   // dağlık dünyada daha dar açıklık
         TH.goto(sp[0], sp[1] + 80);
         const h = G.horse; h.x = sp[0]; h.y = sp[1] - 90; h.ang = Math.PI / 2; h.state = 'idle'; h.spd = 0;
         // 15 karoluk yatay duvar oyuncuyla atın arasında: dümdüz yürüyen at duvara dayanıp kalırdı
