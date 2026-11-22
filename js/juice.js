@@ -153,6 +153,29 @@ const Juice = {
     else this.rise(e, 0.9, 0, { a0: a, k0: 1, k1: 0 });                                    // yatar
   },
   near(e) { const P = G.player; return Math.abs(e.x - P.x) < 700 && Math.abs(e.y - P.y) < 500; },
+
+  /* ================= ölürken yığılma =================
+     Ayakta vurulan sendeler (savrulma kayması sürer), dizlerinin üstüne çöker (eller karnında), sırtüstü yığılır; oturan
+     oturduğu yerden geriye yığılır. Kalkmanın tersi; yalnız görünüş (ceset ilk andan ceset sayılır). Patlamada savrulur,
+     eyerden vurulan düşer, yerde yatan zaten yatıyor: bunlarda oynamaz. */
+  DIE_T: 0.8,
+  die(e, how, ps) {
+    if (how === 'explosion' || e.fall || e.hop || e.mounted || e.bound || !this.near(e)) return;
+    if (ps === 'hurt' || ps === 'sleep' || ps === 'downed' || ps === 'lassoed' || ps === 'tied') return;
+    const sit = ps === 'sit';
+    e.die = { t: 0, dur: sit ? 0.5 : this.DIE_T, k0: sit ? 0.5 : 1 };
+    e.ang += Math.PI;   // sırtüstü düşer (baş geriye); kurşun savurursa yönü knock belirler
+    e.rise = null;
+  },
+  diePose(e) {
+    const D = e.die, k = D.k0 * (1 - Math.min(1, D.t / D.dur)), p = this._dp || (this._dp = { stage: '', ang: 0, q: 0 }), face = e.ang + Math.PI;
+    if (k < 0.14) { p.stage = 'lie'; p.ang = e.ang; p.q = 0; }
+    else if (k < 0.5) { p.stage = 'sit'; p.ang = face; p.q = (k - 0.14) / 0.36; }
+    else if (k < 0.76) { p.stage = 'kneel'; p.ang = face; p.q = 0; }
+    else { p.stage = 'stagger'; p.q = (k - 0.76) / 0.24; p.ang = face + (1 - p.q) * 0.35 * (e.id % 2 ? 1 : -1); }   // sendelerken gövde döner
+    return p;
+  },
+  dieSt(p) { return p.stage === 'sit' ? { sit: p.q } : p.stage === 'kneel' ? { kneel: 'clutch' } : p.q > 0.55 ? {} : { crouch: true }; },
   // uyuyanın başından yükselen "z"ler (iki çizici ortak; dünya koordinatında)
   sleepZ(ctx, e) {
     const a = e.ang + Math.PI, hx = e.x + Math.cos(a) * 6, hy = e.y + Math.sin(a) * 6 - 3;
@@ -414,6 +437,7 @@ const Juice = {
     // savrulan cesetler
     for (const e of G.ents) {
       if (e.flinch) this.flinchTick(e, dt);
+      if (e.die && (e.die.t += dt) >= e.die.dur) e.die = null;
       const k = e.kb; if (!k || e.fall) continue;   // düşen kişiyi düşüş taşır
       e.move(k.vx * dt, k.vy * dt);
       const f = Math.exp(-dt * 7); k.vx *= f; k.vy *= f;

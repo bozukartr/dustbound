@@ -33,7 +33,7 @@ const CarrySystems = {
     if (P.rope === e) P.rope = null;
     const i = this.ents.indexOf(e);
     if (i >= 0) this.ents.splice(i, 1);
-    P.carry = e; P.crouch = false;
+    P.carry = e; P.crouch = false; e.die = null;
     Audio_.thud(0.25);
     this.hintOnce('carry', Tr`Yük taşırken koşamaz ve silah kullanamazsın. ${Input.glyph('interact')} ile yere bırakabilir, atının yanındayken <b>eyere yükleyebilirsin</b>. Aranan suçluları şerif ofisine, postları ve leşleri kasap ya da tuzakçıya götür.`, 10);
   },

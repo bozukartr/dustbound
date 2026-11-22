@@ -1251,7 +1251,7 @@ const HY = (() => {
       else headParts(P, L, hx, { head: st.head });
       return P;
     }
-    const K = st.kneel, lean = K === 'work' || K === 'mouth' ? 1 : K === 'pray' ? 0.6 : 0.3;
+    const K = st.kneel, lean = K === 'work' || K === 'mouth' ? 1 : K === 'clutch' ? 0.8 : K === 'pray' ? 0.6 : 0.3;
     for (const sd of [-1, 1]) {
       P.push({ e: [-5.2, sd * 2.25, 1.2, 0.95], col: boot, h: 3, dome: 1 });
       P.push({ c: [-4.4, sd * 2.2, 2.8, sd * 2.2, 1.1], col: pants, h: 6, dome: 1.5 });
@@ -1264,6 +1264,7 @@ const HY = (() => {
     else if (K === 'look') { armPart(P, coat, skin, -1, 3.2, -2.7, 14); armPart(P, coat, skin, 1, 7.3, 1.3, 14, 3.6, 4.2); }
     else if (K === 'mouth') { const q = clamp01(st.kneelQ || 0), hx = 7 + (4.4 - 7) * q; armPart(P, coat, skin, -1, hx, -0.9, q > 0.5 ? 27.5 : 14, 3, -4.3); armPart(P, coat, skin, 1, hx, 0.9, q > 0.5 ? 27.5 : 14, 3, 4.3); }
     else if (K === 'pray') { armPart(P, coat, skin, -1, 4.4, -0.7, 17, 2.4, -3.6); armPart(P, coat, skin, 1, 4.4, 0.7, 17, 2.4, 3.6); }
+    else if (K === 'clutch') { armPart(P, coat, skin, -1, 3.4, -1.3, 17, 1.8, -4); armPart(P, coat, skin, 1, 3.6, 0.7, 17, 1.8, 4); }   // ölürken eller karnında
     else { armPart(P, coat, skin, -1, 1.4, -6.2, 14); armPart(P, coat, skin, 1, 3.3, 2.5, 14); }
     headParts(P, L, 0.6 + lean * 1.1);
     return P;
@@ -1807,7 +1808,7 @@ const HY = (() => {
     if (P.riding) vis2.push(P.riding);
     vis2.push(P);
     for (const g of Juice.ghosts) if (g.x > x0 - 40 && g.x < x1 + 40 && g.y > y0 - 40 && g.y < y1 + 40) vis2.push(g);   // binerken gelen, inince giden at
-    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : e.hop || e.fall ? 24 : 0;   // eyerden sıçrayan atın üstünde
+    const flat = (e) => (e.dead && !e.die) || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : e.hop || e.fall ? 24 : 0;   // eyerden sıçrayan atın üstünde
     vis2.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     const shk = (S0.day ? 1 : 0.35) * (G.insideB ? 0.4 : 1);
     const blit = (s, x, y) => fc.drawImage(s.c, x - s.h / S, y - s.h / S, s.c.width / S, s.c.height / S);
@@ -1906,6 +1907,8 @@ const HY = (() => {
           human(p.x, p.y, p.ang, e.look, p.seated ? { riding: true } : { walk: e.phase || 0, mv: 0.5 }, e, p.z);
           continue;
         }
+        // ölürken sendeler, dizlerine çöker, yığılır (js/juice.js die); yatınca olağan ceset çizimi
+        if (e.die && e.dead) { const p = Juice.diePose(e); if (p.stage !== 'lie') { creatureShadow(fc, e.x, e.y, 2.8, 2.4, p.stage === 'stagger' ? 22 : 14, sd, shk); human(e.x, e.y, p.ang, e.look, Juice.dieSt(p), e, 0, e.child ? 0.7 : 1); continue; } }
         const fo = Juice.flinchOff(e), fx = fo ? fo[0] : 0, fy = fo ? fo[1] : 0, fa = fo ? fo[2] : 0;
         const rl = e.weapon && e.reloadT > 0 && !e.dead ? Juice.reloadSt(e, e.weapon, e.reloadDur) : null;
         if (e.mounted && !e.dead) { creatureShadow(fc, e.x, e.y, 6, 4, 26, sd, shk); horse(e.x, e.y, e.hAng === undefined ? e.ang : e.hAng, e.mounted, { phase: e.phase, mv: e.mv, saddle: true }); human(e.x + fx, e.y + fy, e.ang + fa, e.look, { riding: true, aim: !rl && e.hostile && e.aggro !== false, wk: e.weapon ? WEAPONS[e.weapon].kind : null, reload: rl }, e); continue; }

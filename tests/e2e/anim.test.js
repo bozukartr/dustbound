@@ -257,5 +257,27 @@ module.exports = {
       t.eq(r.cState, 'sleep', 'geçişten sonra durumu korunur');
       t.ok(!r.downRise || r.downRise[0] === 0, 'otururken yere düşen oturuştan kalkmaz', r.downRise);
     });
+
+    await t.step('vurulan NPC sendeler, dizlerine çöker, yığılır (savrulma sürer); patlamada ve eyerden vurulunca oynamaz', async () => {
+      await setup();
+      const r = await p.evaluate(async () => {
+        const P = G.player, n = mk(40, 0); n.ang = Math.PI;
+        const x0 = n.x;
+        G.fireRay(P.x, P.y, 0, 200, 9999, P, { weapon: 'rifle' });
+        const s0 = { dead: n.dead, die: !!n.die };
+        const stages = new Set();
+        await until(() => { if (n.die) stages.add(Juice.diePose(n).stage); return !n.die; }, 3000);
+        const slid = n.x - x0;
+        const b = mk(-40, 0); G.explode(b.x + 4, b.y, P);   // patlama: savrulur, yığılmaz
+        const bdie = !!b.die && b.dead;
+        const c = mk(0, 50); c.mounted = { col: '#6a4a2e', mane: '#2a1a10' }; c.hurt(9999, 'player', 'gun');
+        return { s0, stages: [...stages], done: !n.die, slid, bdie, bdead: b.dead, cfall: !!c.fall, cdie: !!c.die };
+      });
+      t.ok(r.s0.dead && r.s0.die, 'ilk andan ceset sayılır, yığılma başlar', r.s0);
+      t.ok(['stagger', 'kneel', 'sit', 'lie'].every(s => r.stages.includes(s)), 'sendeleme, diz, geriye oturuş, yatış', r.stages);
+      t.ok(r.done && r.slid > 3, 'biter; savrulma kayması sürer', r);
+      t.ok(r.bdead && !r.bdie, 'patlamada yığılma yok (savrulur)', r);
+      t.ok(r.cfall && !r.cdie, 'eyerden vurulan düşer, yığılmaz', r);
+    });
   },
 };

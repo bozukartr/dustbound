@@ -1359,7 +1359,9 @@ class NPC extends Ent {
     }
     if (this.hp <= 0) {
       if (G.player.rope === this) G.player.rope = null;
+      const ps = this.state;
       this.hp = 0; this.dead = true; this.state = 'dead'; this.deadT = 0;
+      Juice.die(this, how, ps);   // sendeleyip dizlerine çöker, yığılır (js/juice.js)
       G.dropNpcWeapon(this);
       if (by === 'player') G.onNpcKill(this, how);
       else if (this.event && this.event.onDeath) this.event.onDeath(this);
@@ -1728,6 +1730,7 @@ class NPC extends Ent {
     if (this.fall) { Juice.fallDraw(ctx, this); return; }
     if (this.rise && !this.dead) { const p = Juice.risePose(this); Spr.human(ctx, this.x, this.y, p.ang, this.look, Juice.riseSt(p)); return; }
     if (this.hop && !this.dead) { Juice.hopDraw(ctx, this); return; }
+    if (this.die && this.dead) { const p = Juice.diePose(this); if (p.stage !== 'lie') { Spr.human(ctx, this.x, this.y, p.ang, this.look, Juice.dieSt(p)); return; } }   // yığılıyor
     const fo = Juice.flinchOff(this), fx = fo ? fo[0] : 0, fy = fo ? fo[1] : 0, fa = fo ? fo[2] : 0;
     const rl = this.weapon && this.reloadT > 0 && !this.dead ? Juice.reloadSt(this, this.weapon, this.reloadDur) : null;
     if (this.mounted && !this.dead) {

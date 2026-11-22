@@ -1112,7 +1112,7 @@ const G = {
     vis.push(P);
     for (const g of Juice.ghosts) if (g.x > x0 - 40 && g.x < x1 + 40 && g.y > y0 - 40 && g.y < y1 + 40) vis.push(g);   // binerken gelen, inince giden at
     // yerde yatanlar altta; eyerden sıçrayan ya da düşen atın üstünde çizilir
-    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : e.hop || e.fall ? 24 : 0;
+    const flat = (e) => (e.dead && !e.die) || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : e.hop || e.fall ? 24 : 0;
     vis.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     // her varlık kamerayla aynı piksel ızgarasına oturur: kayarken kenarları titremez
     let sdx = 0, sdy = 0;
