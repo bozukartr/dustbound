@@ -1068,6 +1068,14 @@ const HY = (() => {
       P.push({ e: [0, 0, 5.5, 3.2], col: coat, h: 4, dome: 2 }); P.push({ c: [-4, -1.4, -9, -1.4, 0.9], col: pants, h: 3 }); P.push({ c: [-4, 1.4, -9, 1.4, 0.9], col: pants, h: 3 });
       P.push({ e: [5.5, 0, 2.6, 2.6], col: L.hat === 'none' ? hair : skin, h: 5, dome: 1.5 });
       if (st.tied) { P.push({ e: [-7.6, 0, 0.6, 2.8], col: rgb('#c8a870'), h: 3.5 }); P.push({ e: [-0.6, 0, 0.6, 3.5], col: rgb('#c8a870'), h: 4.5 }); }
+      if (st.sleep !== undefined) {
+        // uyku: başı eyerde, battaniye ayaklardan göğse (göğüs nefesle kabarır), şapka yüzünde
+        const bc = rgb(st.blanket || '#6a3a2a'), bd = sh(bc, -0.22), b = st.sleep;
+        P.push({ e: [8.2, 0, 1.9, 3.4], col: (x) => x > 7.8 ? rgb('#7a5430') : rgb('#5a3a20'), h: 3.5, dome: 1.5 });
+        P.push({ e: [-4, 0, 6.6, 4.1], col: (x) => (Math.abs(x + 7) < 0.45 || Math.abs(x + 3) < 0.45) ? bd : bc, h: 6, dome: 2.5 });
+        P.push({ e: [0.6, 0, 2.6 + b * 0.25, 3.7 + b * 0.3], col: sh(bc, 0.08), h: 6.4 + b * 0.6, dome: 2 });
+        if (L.hat && L.hat !== 'none') { const hc = rgb(hatColor(L.hat, L.hatCol)); P.push({ e: [6, 0, 2.3, 3.2], col: (x, y) => Math.hypot((x - 6.2) / 1.3, y / 1.9) < 1 ? sh(hc, -0.15) : hc, h: 6.8, dome: 1.2 }); }
+      }
       return P;
     }
     if (!st.riding) { P.push({ e: [0.5 + sw, -2.2, 2.2, 1.3], col: (x) => x > 1.6 + sw ? boot : pants, h: 6, dome: 2 }); P.push({ e: [0.5 - sw, 2.2, 2.2, 1.3], col: (x) => x > 1.6 - sw ? boot : pants, h: 6, dome: 2 }); }
@@ -1158,6 +1166,14 @@ const HY = (() => {
     else P.push({ c: [0, sd * 4.2, hx, hy, 1.15], col: coat, h, dome: 1 });
     P.push({ e: [hx, hy, 1.1, 1.1], col: skin, h: h + 0.4, dome: 0.5 });
   }
+  /* Eklenen parçaları x'te kaydırır (oturan gövdenin omzu biraz önde); renk işlevleri de kayar */
+  function shiftParts(P, from, dx) {
+    for (let i = from; i < P.length; i++) {
+      const p = P[i];
+      if (p.e) p.e[0] += dx; else { p.c[0] += dx; p.c[2] += dx; }
+      if (typeof p.col === 'function') { const f = p.col; p.col = (x, y) => f(x - dx, y); }
+    }
+  }
   /* NPC jestlerinin karesi: zamanla değişen el hareketleri birkaç kareye nicemlenir (önbellek anahtarı) */
   const GEST = new Set(['smoke', 'drink', 'watch', 'wave', 'cross', 'hips', 'scratch', 'stretch', 'handsup', 'shrug', 'point', 'gesture', 'laugh', 'fan', 'rub', 'read', 'tie', 'hurry', 'pat']);
   const cycQ = (t, per, up) => { const u = t % per; return u < up ? Math.sin(u / up * Math.PI) : 0; };
@@ -1218,15 +1234,21 @@ const HY = (() => {
   function lowParts(L, st) {
     const coat = rgb(L.coat), pants = rgb(L.pants), skin = rgb(L.skin), shirt = rgb(L.shirt), hair = rgb(L.hairNow || L.hair), boot = rgb('#231710'), P = [];
     if (st.sit !== undefined) {
-      const q = clamp01(st.sit), lr = (a, b) => a + (b - a) * q;
-      for (const sd of [-1, 1]) { P.push({ c: [3.4, sd * 1.5, 8.6, sd * 1.5, 0.95], col: pants, h: 3, dome: 1 }); P.push({ e: [9.1, sd * 1.5, 0.95, 1], col: boot, h: 3.5, dome: 1 }); }
+      const q = clamp01(st.sit), lr = (a, b) => a + (b - a) * q, ch = st.chair && q > 0.8, gs = q > 0.8 && !!st.anim;
+      // bankta ya da sandalyede dizler kırık (uyluklar öne, baldırlar aşağıda): oturak yüksekliğinde
+      if (ch) for (const sd of [-1, 1]) { P.push({ c: [2.6, sd * 1.55, 6.4, sd * 1.55, 0.95], col: pants, h: 9, dome: 1 }); P.push({ e: [6.9, sd * 1.55, 0.8, 0.95], col: boot, h: 8, dome: 1 }); }
+      else for (const sd of [-1, 1]) { P.push({ c: [3.4, sd * 1.5, 8.6, sd * 1.5, 0.95], col: pants, h: 3, dome: 1 }); P.push({ e: [9.1, sd * 1.5, 0.95, 1], col: boot, h: 3.5, dome: 1 }); }
       if (L.coatLen) P.push({ e: [lr(-1, -0.6), 0, lr(5.4, 3.6) + L.coatLen, lr(3.3, 4.6)], col: sh(coat, -0.15), h: lr(3.5, 9), dome: 2 });
-      for (const sd of [-1, 1]) P.push({ e: [lr(-3.4, -1.6), sd * 4.7, 1.1, 1.1], col: skin, h: 4, dome: 0.5 });
+      if (!ch && !gs) for (const sd of [-1, 1]) P.push({ e: [lr(-3.4, -1.6), sd * 4.7, 1.1, 1.1], col: skin, h: 4, dome: 0.5 });
       P.push({ e: [lr(0, 1), 0, lr(5.5, 3.4), lr(3.2, 5)], col: coat, h: lr(4, 15), dome: lr(2, 4.5) });
       if (q > 0.55) P.push({ e: [2.6, 0, 1.2, 1.7], col: shirt, h: 15.5, dome: 1 });
+      let gd = false;
+      if (gs) { const n0 = P.length; gd = gestureParts(P, st, coat, skin, 0); if (gd) shiftParts(P, n0, 0.9); }
+      if (!gd && ch) { armPart(P, coat, skin, -1, 4.6, -2.3, 14); armPart(P, coat, skin, 1, 4.6, 2.3, 14); }   // eller dizlerde
+      else if (!gd && gs) for (const sd of [-1, 1]) P.push({ e: [lr(-3.4, -1.6), sd * 4.7, 1.1, 1.1], col: skin, h: 4, dome: 0.5 });
       const hx = lr(-5.5, 0.9);
       if (q < 0.45) P.push({ e: [hx, 0, 2.6, 2.6], col: L.hat === 'none' ? hair : skin, h: 5, dome: 1.5 });
-      else headParts(P, L, hx);
+      else headParts(P, L, hx, { head: st.head });
       return P;
     }
     const K = st.kneel, lean = K === 'work' || K === 'mouth' ? 1 : K === 'pray' ? 0.6 : 0.3;
@@ -1794,7 +1816,8 @@ const HY = (() => {
       let key = wk + (st.aim && st.wk ? 'a' + st.wk : '') + (st.riding ? 'r' : '') + (st.crouch ? 'c' : '') + (st.lying ? 'l' + (st.tied ? 't' : '') : '') + (st.hasGun ? 'g' : '') + (st.backGun ? 'b' : '') + (st.hold || '') + (st.swing > 0.2 ? 's' : '');
       // yeni duruşlar birkaç kareye nicemlenir (her kare ayrı önbellek sprite'ı)
       const ex = {};
-      if (st.sit !== undefined) { const qs = st.sit < 0.3 ? 0.15 : st.sit < 0.65 ? 0.5 : 0.9; ex.sit = qs; key += 'S' + qs; }
+      if (st.sit !== undefined) { const qs = st.sit < 0.3 ? 0.15 : st.sit < 0.65 ? 0.5 : 0.9; ex.sit = qs; key += 'S' + qs + (st.chair && qs > 0.8 ? 'h' : ''); }
+      if (st.sleep !== undefined) { const b = st.sleep > 0 ? 1 : 0; ex.sleep = b; key += 'z' + b + (st.blanket || ''); }
       if (st.kneel) {
         key += 'K' + st.kneel;
         if (st.kneel === 'work') { const j = Math.sin((st.kneelT || 0) * 9) > 0 ? 0.9 : -0.9; ex.kneelJ = j; key += j > 0 ? 1 : 0; }
@@ -1896,6 +1919,15 @@ const HY = (() => {
             if (e.state === 'lassoed') { fc.strokeStyle = '#c8a870'; fc.lineWidth = 0.9; fc.beginPath(); fc.ellipse(e.x, e.y, 4.2, 3, e.ang, 0, TAU); fc.stroke(); }
             if (e.state === 'downed' && e.downT > 0 && Math.sin(G.t * 3) > 0.6) { fc.fillStyle = 'rgba(240,230,200,0.7)'; fc.fillRect(e.x - 0.6, e.y - 9, 1.2, 1.2); fc.fillRect(e.x + 2, e.y - 10, 1, 1); }
           }
+          continue;
+        }
+        if ((e.state === 'sit' || e.state === 'sleep') && !e.held) {
+          if (e.state === 'sleep') { human(e.x, e.y, e.ang + Math.PI, e.look, { lying: true, sleep: Juice.breath(e), blanket: Juice.blanketCol(e) }, e, 0, sc); Juice.sleepZ(fc, e); }
+          else {
+            creatureShadow(fc, e.x, e.y, 2.8 * sc, 2.4 * sc, 14 * sc, sd, shk);
+            human(e.x + fx, e.y + fy, e.ang + fa, e.look, { sit: 1, chair: Juice.seatChair(e), anim: e.anim ? e.anim.k : null, animT: e.anim ? e.anim.t : 0, head: e.lookAt != null ? clamp(angDiff(e.ang, e.lookAt), -1.2, 1.2) : 0 }, e, 0, sc);
+          }
+          if (e.witness) { const bob = Math.sin(G.t * 6) * 0.8; fc.fillStyle = 'rgba(20,12,6,0.8)'; fc.fillRect(e.x - 1.6, e.y - 15 + bob, 3.2, 8.4); fc.fillStyle = '#f0a030'; fc.fillRect(e.x - 0.8, e.y - 14.2 + bob, 1.6, 4.2); fc.fillRect(e.x - 0.8, e.y - 9.2 + bob, 1.6, 1.6); }
           continue;
         }
         creatureShadow(fc, e.x, e.y, 2.8 * sc, 2.4 * sc, 22 * sc, sd, shk);

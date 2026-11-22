@@ -1431,6 +1431,7 @@ class NPC extends Ent {
     if (this.drownT > 7) this.hurt(9999, 'player', 'drown');
   }
   update(dt) {
+    Juice.seatTrack(this);   // oturdu, uzandı, kalkıyor: kısa geçiş (js/juice.js)
     if (this.fall) { Juice.fallTick(this, dt); return; }   // eyerden ya da koltuktan düşüyor (js/juice.js)
     if (this.rise) { if (this.dead || this.bound) this.rise = null; else { Juice.riseTick(this, dt); return; } }   // yerden kalkıyor
     if (this.hop) { if (this.dead || this.bound) this.hop = null; else { Juice.hopTick(this, dt); return; } }   // ata biniyor ya da iniyor
@@ -1744,7 +1745,17 @@ class NPC extends Ent {
       if (this.state === 'downed' && this.downT > 0 && Math.sin(G.t * 3) > 0.6) { ctx.fillStyle = 'rgba(240,230,200,0.7)'; ctx.fillRect(this.x - 0.6, this.y - 9, 1.2, 1.2); ctx.fillRect(this.x + 2, this.y - 10, 1, 1); }
       return;
     }
-    Spr.human(ctx, this.x + fx, this.y + fy, this.ang + fa, this.look, {
+    const seat = (this.state === 'sit' || this.state === 'sleep') && !this.held && !this.dead;
+    if (seat && this.state === 'sleep') {
+      // battaniyesinin altında uyur: ayakları ateşe, başı eyerde; "z"ler yükselir
+      Spr.human(ctx, this.x, this.y, this.ang + Math.PI, this.look, { lying: true, sleep: Juice.breath(this), blanket: Juice.blanketCol(this) });
+      Juice.sleepZ(ctx, this);
+    } else if (seat) {
+      Spr.human(ctx, this.x + fx, this.y + fy, this.ang + fa, this.look, {
+        sit: 1, chair: Juice.seatChair(this), anim: this.anim ? this.anim.k : null, animT: this.anim ? this.anim.t : 0,
+        head: this.lookAt != null ? clamp(angDiff(this.ang, this.lookAt), -1.2, 1.2) : 0,
+      });
+    } else Spr.human(ctx, this.x + fx, this.y + fy, this.ang + fa, this.look, {
       walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, reload: rl, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held || (this.anim && this.anim.k === 'tie') || (this.cov && this.cov.st === 'hide' && !this.dead),
       anim: this.anim && !this.dead ? this.anim.k : null, animT: this.anim ? this.anim.t : 0, gait: this.walkStyle || (this.gt && this.gt.style),
       hatK: this.anim && this.anim.k === 'tiphat' ? Math.sin(Math.min(1, this.anim.t / this.anim.dur) * Math.PI) : 0,
@@ -1752,7 +1763,7 @@ class NPC extends Ent {
       swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon, hold: this.state === 'flee' || this.state === 'report' ? null : this.carry2,
       head: this.lookAt != null && !this.dead ? clamp(angDiff(this.ang, this.lookAt), -1.2, 1.2) : 0,
     });
-    if (this.lantern && !this.dead) {
+    if (this.lantern && !this.dead && !seat) {
       // elinde fener (ör. Sully çakal gecesinde): sapı ve sıcak camı
       const hx = this.x + Math.cos(this.ang + 0.9) * 4.2, hy = this.y + Math.sin(this.ang + 0.9) * 4.2 - 3;
       ctx.fillStyle = '#3a2a1a'; ctx.fillRect(hx - 1.3, hy - 2.4, 2.6, 0.7); ctx.fillRect(hx - 1.3, hy + 1.2, 2.6, 0.7);

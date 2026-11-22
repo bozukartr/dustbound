@@ -201,8 +201,9 @@ module.exports = {
         G.godMode = false;
         const x0 = n.x, y0 = n.y;
         G.fireRay(P.x, P.y, 0, 200, 40, P, { weapon: 'cattleman' });
-        await new Promise(r => setTimeout(r, 60));
-        const o = Juice.flinchOff(n), s0 = { flinch: !!n.flinch, dx: o ? +o[0].toFixed(2) : 0 };
+        // sarsılma süresince en büyük sapma (yük altında kareler seyrekleşir: tek an yetmez)
+        const s0 = { flinch: !!n.flinch, dx: 0 };
+        await until(() => { const o = Juice.flinchOff(n); if (o) s0.dx = Math.max(s0.dx, +o[0].toFixed(2)); return !n.flinch; }, 2000);
         P.hurt(20, 'haydut', true, n);
         const p0 = { flinch: !!P.flinch, ang: P.flinch ? +Math.cos(P.flinch.ang).toFixed(2) : null };
         await until(() => !n.flinch && !P.flinch, 3000);
@@ -212,6 +213,49 @@ module.exports = {
       t.ok(r.s0.flinch && r.s0.dx > 0.3, 'NPC vuruş yönüne (doğuya) itilir', r.s0);
       t.ok(r.p0.flinch && r.p0.ang < -0.9, 'oyuncu ateş edenden uzağa (batıya) sarsılır', r.p0);
       t.ok(r.gone && r.moved < 0.5, 'sarsılma kısa sürer, konum değişmez', r);
+    });
+
+    await t.step('kement nişanda "kement" duruşu (ilmek döner), ipte biri varken değil; dinamit atınca kol savrulur', async () => {
+      await setup();
+      const r = await p.evaluate(async () => {
+        const P = G.player; P.weapons.add('lasso'); P.weapons.add('dynamite'); P.addItem('dynamite', 2);
+        P.weapon = 'lasso'; const lasso = P.aimKind();
+        P.rope = mk(20, 0); const roped = P.aimKind(); P.rope = null;
+        P.weapon = 'dynamite'; const dyn = P.aimKind();
+        P.aimDist = 60; P.aimAng = 0; P.throwDynamite(); const sw = P.swing;
+        G.projs.length = 0;
+        // iki çizicide de hatasız çizilir (nişan, savuruş)
+        const errs = []; const on = (e) => errs.push(e.message); window.addEventListener('error', on);
+        for (const g of [1, 0]) { if (!g) window.__hySoft = true; G.settings.gfx = g; G.applySettings(); for (const [w, a, s] of [['lasso', true, 0], ['lasso', false, 0.5], ['dynamite', true, 0], ['dynamite', false, 0.5]]) { P.weapon = w; P.aiming = a; P.swing = s; await new Promise(q => requestAnimationFrame(() => requestAnimationFrame(q))); } }
+        window.removeEventListener('error', on); P.aiming = false; P.swing = 0; P.weapon = 'fists'; G.settings.gfx = 1; G.applySettings();
+        return { lasso, roped, dyn, sw, errs };
+      });
+      t.eq([r.lasso, r.roped, r.dyn], ['lasso', null, 'throw'], 'kement kendi duruşunda; ipte biri varken ilmek yok; dinamit fırlatma');
+      t.ok(r.sw > 0.9, 'dinamit atınca kol savuruşu başlar', r.sw);
+      t.eq(r.errs, [], 'Klasik ve Melez çizimde hata yok');
+    });
+
+    await t.step('oturan kalkar, uyuyan uyanınca doğrulup kalkar, oturan oturur, uyuyacak olan uzanır', async () => {
+      await setup();
+      const r = await p.evaluate(async () => {
+        const rs = (e) => e.rise ? [e.rise.k0, e.rise.k1] : null;
+        const a = mk(30, 0); a.state = 'sit'; await until(() => a._seat === 'sit', 1500);
+        a.state = 'idle'; await until(() => !!a.rise, 1500); const chair = rs(a); await until(() => !a.rise, 3000);
+        const b = mk(-30, 0); b.camp = 1; b.state = 'sleep'; b.asleep = true; await until(() => b._seat === 'sleep', 1500);
+        G.campWake(b); await until(() => !!b.rise, 1500); const wake = rs(b); await until(() => !b.rise, 3000);
+        const c = mk(0, 30); c.camp = 1; await until(() => c._seat === null, 1500);
+        c.state = 'sit'; await until(() => !!c.rise, 1500); const down = rs(c); await until(() => !c.rise, 3000);
+        c.state = 'sleep'; await until(() => !!c.rise, 1500); const lie = rs(c); await until(() => !c.rise, 3000);
+        const d = mk(0, -30); d.state = 'sit'; await until(() => d._seat === 'sit', 1500);
+        d.down(0.01, true); await new Promise(q => setTimeout(q, 150));   // yerde yatan: oturuştan kalkma değil, yerden kalkma
+        return { chair, wake, down, lie, cState: c.state, aState: a.state, downRise: d.rise ? [d.rise.k0, d.rise.k1] : null };
+      });
+      t.eq(r.chair, [0.76, 1], 'banktan kalkan çömelip doğrulur');
+      t.eq(r.wake, [0, 1], 'uyanan yatıştan kalkar');
+      t.eq(r.down, [1, 0.5], 'kamp ateşinde yere oturur');
+      t.eq(r.lie, [0.5, 0], 'uyumak için uzanır');
+      t.eq(r.cState, 'sleep', 'geçişten sonra durumu korunur');
+      t.ok(!r.downRise || r.downRise[0] === 0, 'otururken yere düşen oturuştan kalkmaz', r.downRise);
     });
   },
 };

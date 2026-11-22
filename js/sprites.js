@@ -2169,6 +2169,18 @@ const Spr = {
       }
       else if (!st.noPool) this.shadow(ctx, 0, 1.5, 7, 3.4, 0.22);
       ctx.rotate(ang);
+      if (st.sleep !== undefined) {
+        // uyku: başı eyerde, battaniye ayaklardan göğse (göğüs nefesle kabarır), şapka yüzünde
+        const bc = st.blanket || '#6a3a2a', b = st.sleep;
+        this.ell(ctx, 8.2, 0, 1.9, 3.4, '#5a3a20'); this.ell(ctx, 8.6, 0, 0.9, 2.4, '#7a5430');
+        this.circ(ctx, 5.5, 0, 2.6, look.hat === 'none' ? look.hair : look.skin);
+        this.ell(ctx, -4, 0, 6.6, 4.1, bc);
+        ctx.fillStyle = shadeHex(bc, -0.22); ctx.fillRect(-7.45, -3.6, 0.9, 7.2); ctx.fillRect(-3.45, -4, 0.9, 8);
+        this.ell(ctx, 0.6, 0, 2.6 + b * 0.25, 3.7 + b * 0.3, shadeHex(bc, 0.08));
+        if (look.hat !== 'none') { const hc = hatColor(look.hat, look.hatCol); this.ell(ctx, 6, 0, 2.3, 3.2, hc); this.ell(ctx, 6.2, 0, 1.3, 1.9, shadeHex(hc, -0.15)); }
+        ctx.restore();
+        return;
+      }
       this.ell(ctx, 0, 0, 5.5, 3.2, look.coat);
       ctx.fillStyle = look.pants; ctx.fillRect(-9, -2.4, 5, 1.8); ctx.fillRect(-9, 0.6, 5, 1.8);
       this.circ(ctx, 5.5, 0, 2.6, look.hat === 'none' ? look.hair : look.skin);
@@ -2362,19 +2374,29 @@ const Spr = {
     const C = look.coat, S = look.skin, boot = '#231710';
     const [sdx, sl] = Juice.sun(6);
     if (st.sit !== undefined) {
-      const q = clamp(st.sit, 0, 1);
+      const q = clamp(st.sit, 0, 1), ch = st.chair && q > 0.9, gs = q > 0.9 && !!st.anim;
       this.shadow(ctx, 1 + sdx * 0.6, 2, 6.6 * sl, 3.6, 0.24);
       ctx.rotate(ang);
-      ctx.fillStyle = look.pants; ctx.fillRect(3.4, -2.4, 5.2, 1.8); ctx.fillRect(3.4, 0.6, 5.2, 1.8);
-      ctx.fillStyle = boot; ctx.fillRect(8.2, -2.5, 1.7, 2); ctx.fillRect(8.2, 0.5, 1.7, 2);
+      if (ch) {
+        // bankta ya da sandalyede: uyluklar öne, dizler kırık (baldırlar aşağıda), çizme burunları dizin önünde
+        ctx.fillStyle = boot; ctx.fillRect(6.2, -2.5, 1.4, 1.9); ctx.fillRect(6.2, 0.6, 1.4, 1.9);
+        ctx.fillStyle = look.pants; ctx.fillRect(2.6, -2.5, 4.2, 1.9); ctx.fillRect(2.6, 0.6, 4.2, 1.9);
+      } else {
+        ctx.fillStyle = look.pants; ctx.fillRect(3.4, -2.4, 5.2, 1.8); ctx.fillRect(3.4, 0.6, 5.2, 1.8);
+        ctx.fillStyle = boot; ctx.fillRect(8.2, -2.5, 1.7, 2); ctx.fillRect(8.2, 0.5, 1.7, 2);
+      }
       if (look.coatLen) this.ell(ctx, lerp(-1, -0.6, q), 0, lerp(5.4, 3.6, q) + look.coatLen, lerp(3.3, 4.6, q), shadeHex(C, -0.12));
-      // eller kalçanın gerisinde yere dayanır, gövde doğruldukça öne gelir
-      this.circ(ctx, lerp(-3.4, -1.6, q), -4.7, 1.1, S); this.circ(ctx, lerp(-3.4, -1.6, q), 4.7, 1.1, S);
+      // eller kalçanın gerisinde yere dayanır, gövde doğruldukça öne gelir (sandalyede ve jestte eller önde)
+      if (!ch && !gs) { this.circ(ctx, lerp(-3.4, -1.6, q), -4.7, 1.1, S); this.circ(ctx, lerp(-3.4, -1.6, q), 4.7, 1.1, S); }
       this.ell(ctx, lerp(0, 1, q), 0, lerp(5.5, 3.4, q), lerp(3.2, 5, q), C);
       if (q > 0.55) this.ell(ctx, 2.6, 0, 1.2, 1.7, look.shirt);
+      let gd = false;
+      if (gs) { ctx.save(); ctx.translate(0.9, 0); gd = this.gesture(ctx, look, st, 0, 0); ctx.restore(); }
+      if (!gd && ch) { this.armTo(ctx, look, -1, 4.6, -2.3); this.armTo(ctx, look, 1, 4.6, 2.3); }   // eller dizlerde
+      else if (!gd && gs) { this.circ(ctx, lerp(-3.4, -1.6, q), -4.7, 1.1, S); this.circ(ctx, lerp(-3.4, -1.6, q), 4.7, 1.1, S); }
       ctx.translate(lerp(-5.5, 0.9, q), 0);
       if (q < 0.45) this.circ(ctx, 0, 0, 2.6, look.hat === 'none' ? look.hair : S);
-      else this.headDraw(ctx, look, {}, 0);
+      else this.headDraw(ctx, look, gd ? st : { head: st.head }, 0);
       return;
     }
     const K = st.kneel, t = st.kneelT || 0;

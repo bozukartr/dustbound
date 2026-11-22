@@ -104,13 +104,15 @@ const Juice = {
      doğrulup oturur, dizine gelir (bir eli yerde, biri dizde), çömelip kalkar. Kalkınca yüzü ayaklarının yönüne döner.
      Bu sürede yapay zekâsı bekler (oyuncu da kıpırdamaz). */
   RISE_T: 0.95,
-  rise(e, dur, delay) {
-    e.rise = { t: -(delay || 0), dur: dur || this.RISE_T, a0: e.ang };   // delay: önce bir süre yatar (bayılıp ayılan oyuncu)
+  // o: { a0 (yatış açısı; kalkınca yüz a0+π), k0, k1 }: yalnız bir bölümü oynatır (0 yatış, 0.5 oturuş, 0.76 çömelme,
+  // 1 ayakta); k1 < k0 tersine: oturur ya da uzanır
+  rise(e, dur, delay, o) {
+    e.rise = { t: -(delay || 0), dur: dur || this.RISE_T, a0: o && o.a0 !== undefined ? o.a0 : e.ang, k0: o && o.k0 || 0, k1: o && o.k1 !== undefined ? o.k1 : 1 };   // delay: önce bir süre yatar (bayılıp ayılan oyuncu)
     e.mv = 0; e.kb = null; e.path = null;
   },
   /* o anki aşama (tek nesne): lie (yatış), sit (q: doğrulma), kneel, crouch (q: kalkış); ang çizim açısı */
   risePose(e) {
-    const R = e.rise, k = Math.min(1, R.t / R.dur), p = this._rp || (this._rp = { stage: '', ang: 0, q: 0 }), face = R.a0 + Math.PI;
+    const R = e.rise, u = Math.min(1, R.t / R.dur), k = R.k0 === undefined ? u : u < 0 ? R.k0 : R.k0 + (R.k1 - R.k0) * u, p = this._rp || (this._rp = { stage: '', ang: 0, q: 0 }), face = R.a0 + Math.PI;
     if (k < 0.14) { p.stage = 'lie'; p.ang = R.a0; p.q = 0; }
     else if (k < 0.5) { p.stage = 'sit'; p.ang = face; p.q = (k - 0.14) / 0.36; }
     else if (k < 0.76) { p.stage = 'kneel'; p.ang = face; p.q = 0; }
@@ -124,7 +126,43 @@ const Juice = {
   riseTick(e, dt) {
     const R = e.rise;
     e.mv = 0; e.kb = null;
-    if ((R.t += dt) >= R.dur) { e.ang = R.a0 + Math.PI; e.rise = null; }
+    if ((R.t += dt) >= R.dur) { if (!(R.k1 < 1)) e.ang = R.a0 + Math.PI; e.rise = null; }
+  },
+
+  /* ================= oturma ve uyku (NPC) =================
+     Oturan gerçekten oturur: kampta ateşe dönük yerde (bacaklar önde), kasabada bankta ya da sandalyede (dizler kırık);
+     otururken de jest yapar. Uyuyan battaniyesinin altında yatar (başı eyerde, şapkası yüzünde, ayakları ateşe), göğsü
+     nefesle iner kalkar, başından "z" yükselir. Duruş değişince kısa geçiş: oturur, uzanır, doğrulur ya da kalkar. */
+  seatChair(e) { return !e.camp; },
+  breath(e) { return Math.sin(G.t * 1.7 + e.id * 1.3); },
+  BLANKETS: ['#7a3424', '#4a5a72', '#6a5434', '#3c5a3a', '#6a3a5a', '#5a4a3a'],
+  blanketCol(e) { return this.BLANKETS[e.id % this.BLANKETS.length]; },
+  // NPC.update başında: oturma/uyku durumu değişti mi (kendi geçişi sürerken bakılmaz, bitince bakılır)
+  seatTrack(e) {
+    if (e.rise || e.fall || e.hop) return;
+    const s = e.state === 'sit' || e.state === 'sleep' ? e.state : null, p = e._seat;
+    e._seat = s;
+    if (p === s || p === undefined) return;
+    if (e.dead || e.bound || e.hide || e.mounted || e.held || e.remove || e.state === 'hurt' || !this.near(e)) return;
+    const a = e.ang + Math.PI, ch = this.seatChair(e);
+    if (p === 'sleep' && s === 'sit') this.rise(e, 0.6, 0, { a0: a, k1: 0.5 });            // uyanıp doğrulur, oturur
+    else if (p === 'sit' && s === 'sleep') this.rise(e, 0.7, 0, { a0: a, k0: 0.5, k1: 0 });   // uzanır
+    else if (p === 'sleep') this.rise(e, this.RISE_T, 0, { a0: a });                        // uyanıp kalkar
+    else if (p === 'sit') this.rise(e, ch ? 0.35 : 0.55, 0, { a0: a, k0: ch ? 0.76 : 0.5 });  // oturduğu yerden kalkar
+    else if (s === 'sit') this.rise(e, ch ? 0.35 : 0.6, 0, { a0: a, k0: 1, k1: ch ? 0.76 : 0.5 });   // oturur
+    else this.rise(e, 0.9, 0, { a0: a, k0: 1, k1: 0 });                                    // yatar
+  },
+  near(e) { const P = G.player; return Math.abs(e.x - P.x) < 700 && Math.abs(e.y - P.y) < 500; },
+  // uyuyanın başından yükselen "z"ler (iki çizici ortak; dünya koordinatında)
+  sleepZ(ctx, e) {
+    const a = e.ang + Math.PI, hx = e.x + Math.cos(a) * 6, hy = e.y + Math.sin(a) * 6 - 3;
+    ctx.strokeStyle = '#f8f0de'; ctx.lineWidth = 0.7;
+    for (let i = 0; i < 3; i++) {
+      const u = (G.t * 0.42 + i / 3 + (e.id % 7) * 0.13) % 1, s = 1.3 + u * 1.7, x = hx + u * 5 + Math.sin(u * 6 + i) * 0.8, y = hy - u * 11;
+      ctx.globalAlpha = Math.min(1, u * 5) * Math.min(1, (1 - u) * 2.5) * 0.95;
+      ctx.beginPath(); ctx.moveTo(x - s / 2, y - s / 2); ctx.lineTo(x + s / 2, y - s / 2); ctx.lineTo(x - s / 2, y + s / 2); ctx.lineTo(x + s / 2, y + s / 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   },
 
   /* ================= NPC'nin ata binip inmesi =================
