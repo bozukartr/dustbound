@@ -538,6 +538,7 @@ class Player extends Ent {
     if (this.mountAnim) { if (this.mountAnim.on && (!this.riding || this.riding.dead)) this.mountAnim = null; else { this.mountAnimUpdate(dt); return; } }
     if (this.yank) { if ((this.yank.t += dt) >= this.yank.dur || this.riding) this.yank = null; else { this.mv = 0; this.ang = this.yank.ang; return; } }
     if (this.rise) { Juice.riseTick(this, dt); this.vx = this.vy = 0; this.aiming = false; return; }   // bayıldıktan sonra yerden kalkıyor
+    if (this.lift || this.lower) { Juice.liftTick(this, dt); this.vx = this.vy = 0; this.mv = 0; this.aiming = false; return; }   // yükü omzuna alıyor ya da yere koyuyor
     if (this.act) Juice.actTick(this, dt);   // yiyor, içiyor (js/juice.js)
     // basılı tutulan yer işinde diz çöker (UI her karede tazeler); anlık yerden almada kısa bir eğilme
     if (this.kneel && ((this.kneel.hold -= dt) <= 0 || this.riding || this.carry)) this.kneel = null;
@@ -1061,6 +1062,14 @@ class Player extends Ent {
       const rx = this.x - Math.cos(this.riding.ang) * rb + (fo ? fo[0] : 0), ry = this.y - Math.sin(this.riding.ang) * rb + (fo ? fo[1] : 0), ra = this.ang + (fo ? fo[2] : 0), ra2 = !rl && (this.aiming || (thr && this.swing > 0));
       Spr.human(ctx, rx, ry, ra, this.lookNow(), { riding: true, aim: ra2, wk: ak, swing: thr ? this.swing : 0, draw: this.draw_, reload: rl, act: this.act });
       if (thr && ra2) Juice.throwOver(ctx, rx, ry, ra, ak, this.swing, this.lookNow().skin);
+      return;
+    }
+    if (this.lift || this.lower) {
+      // yükü omzuna alıyor ya da yere koyuyor: yerdeyken yük altta, omza yakınken üstte
+      const lo = Juice.liftH(this) < 0.5;
+      if (lo) Juice.liftDraw(ctx, this);
+      Spr.human(ctx, this.x, this.y, this.ang, this.lookNow(), Juice.liftSt(this));
+      if (!lo) Juice.liftDraw(ctx, this);
       return;
     }
     const kn = this.kneelPose();

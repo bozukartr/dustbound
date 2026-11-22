@@ -154,6 +154,47 @@ const Juice = {
   },
   near(e) { const P = G.player; return Math.abs(e.x - P.x) < 700 && Math.abs(e.y - P.y) < 500; },
 
+  /* ================= omuza alma ve bırakma =================
+     Yükü alırken yüke dönüp diz çöker, iki eliyle kavrar; doğrulurken yük yay çizerek yerden omzuna kalkar. Bırakırken
+     omuzdan indirip önüne koyar, doğrulur. Kısa sürer, bu sürede oyuncu kıpırdamaz. Yük bırakıldığı an yerdedir (yalnız
+     çizimi iner); kaldırırken bırakılırsa o yükseklikten iner. */
+  LIFT_T: 0.55, LOWER_T: 0.45,
+  lift(P, e) {
+    P.lift = { t: 0, dur: this.LIFT_T, x: e.x, y: e.y, a: e.ang || 0 }; P.lower = null;
+    if (dist2(e.x, e.y, P.x, P.y) > 9) P.ang = Math.atan2(e.y - P.y, e.x - P.x);
+  },
+  lower(P, e, h0) { P.lower = { t: 0, dur: this.LOWER_T, e, h0: h0 === undefined ? 1 : h0 }; P.lift = null; },
+  liftU(P) { const L = P.lift || P.lower; return clamp(L.t / L.dur, 0, 1); },
+  // yükün yüksekliği: 0 yerde, 1 omuzda
+  liftH(P) {
+    const u = this.liftU(P), ez = (x) => x * x * (3 - 2 * x);
+    if (P.lift) return u < 0.35 ? 0 : u < 0.8 ? ez((u - 0.35) / 0.45) : 1;
+    return u < 0.7 ? P.lower.h0 * (1 - ez(u / 0.7)) : 0;
+  },
+  // oyuncunun duruşu: kaldırırken diz, doğrulurken çömelik; indirirken tersi
+  liftSt(P) {
+    const u = this.liftU(P);
+    if (P.lift) return u < 0.35 ? { kneel: 'lift' } : u < 0.8 ? { crouch: true } : {};
+    return u < 0.2 ? { crouch: true } : u < 0.75 ? { kneel: 'lift' } : { crouch: true };
+  },
+  liftTick(P, dt) {
+    const L = P.lift || P.lower, h1 = this.liftH(P);
+    L.t += dt;
+    if (P.lower && h1 > 0 && this.liftH(P) <= 0) Audio_.thud(0.2);   // yere değdi
+    if (L.t >= L.dur) { P.lift = null; P.lower = null; }
+  },
+  // inen yük, yere değene dek dünyada çizilmez (oyuncuyla birlikte çizilir)
+  lowerHid(e) { const P = G.player, L = P.lower; return !!L && L.e === e && this.liftH(P) > 0; },
+  // kalkan ya da inen yük (iki çizici ortak; yerdeyken oyuncudan önce, omuza yakınken sonra çizilir)
+  liftDraw(ctx, P) {
+    const L = P.lift || P.lower, e = P.lift ? P.carry : L.e;
+    if (!e) return;
+    const h = this.liftH(P), sx = P.x - Math.cos(P.ang) * 0.8, sy = P.y - Math.sin(P.ang) * 0.8;
+    const gx = P.lift ? L.x : e.x, gy = P.lift ? L.y : e.y, ga = P.lift ? L.a : e.ang || 0, ta = P.ang + Math.PI / 2;
+    const x = gx + (sx - gx) * h, y = gy + (sy - gy) * h - Math.sin(h * Math.PI) * 3;
+    Spr.carried(ctx, e, x, y, ga + angDiff(ga, ta) * h, 1 + ((e.kind === 'pelt' ? 0.9 : 0.8) - 1) * h);
+  },
+
   /* ================= ölürken yığılma =================
      Ayakta vurulan sendeler (savrulma kayması sürer), dizlerinin üstüne çöker (eller karnında), sırtüstü yığılır; oturan
      oturduğu yerden geriye yığılır. Kalkmanın tersi; yalnız görünüş (ceset ilk andan ceset sayılır). Patlamada savrulur,

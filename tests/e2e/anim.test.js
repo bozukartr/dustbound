@@ -279,5 +279,33 @@ module.exports = {
       t.ok(r.bdead && !r.bdie, 'patlamada yığılma yok (savrulur)', r);
       t.ok(r.cfall && !r.cdie, 'eyerden vurulan düşer, yığılmaz', r);
     });
+
+    await t.step('yükü alırken eğilip omzuna kaldırır, bırakırken indirir; yük bırakıldığı an yerdedir', async () => {
+      await setup();
+      const r = await p.evaluate(async () => {
+        const P = G.player, n = mk(9, 2); n.dead = true; n.hp = 0; n.state = 'dead';
+        G.pickUp(n);
+        const s0 = { carry: P.carry === n, inWorld: G.ents.includes(n), lift: !!P.lift, st: Juice.liftSt(P).kneel, h: Juice.liftH(P), face: +Math.cos(P.ang).toFixed(2) };
+        const x0 = P.x; let hMax = 0;
+        await until(() => { if (P.lift) hMax = Math.max(hMax, Juice.liftH(P)); return !P.lift; }, 3000);
+        const moved = Math.abs(P.x - x0);
+        G.dropCarry();
+        const d0 = { inWorld: G.ents.includes(n), lower: !!P.lower, hid: Juice.lowerHid(n), carry: P.carry };
+        await until(() => !P.lower, 3000);
+        const d1 = { hid: Juice.lowerHid(n), lower: !!P.lower };
+        // kaldırırken bırakılırsa o yükseklikten iner; sessiz bırakma (bayılma) anında
+        G.pickUp(n); P.lift.t = P.lift.dur * 0.6; const hl = Juice.liftH(P); G.dropCarry(); const h0 = P.lower ? P.lower.h0 : null;
+        await until(() => !P.lower, 3000);
+        G.pickUp(n); G.dropCarry(true); const silent = !!P.lower || !!P.lift;
+        return { s0, hMax, moved, d0, d1, hl: +hl.toFixed(2), h0: h0 === null ? null : +h0.toFixed(2), silent };
+      });
+      t.ok(r.s0.carry && !r.s0.inWorld && r.s0.lift, 'yük hemen omuzda sayılır, kaldırma başlar', r.s0);
+      t.ok(r.s0.st === 'lift' && r.s0.h === 0 && r.s0.face > 0.9, 'önce yüke dönüp eğilir, yük yerde', r.s0);
+      t.ok(r.hMax === 1 && r.moved < 0.5, 'yük omza çıkar; bu sırada yürümez', r);
+      t.ok(r.d0.inWorld && r.d0.lower && r.d0.hid && !r.d0.carry, 'bırakınca yük hemen yerde sayılır, çizimi omuzdan iner', r.d0);
+      t.ok(!r.d1.hid && !r.d1.lower, 'yere değince dünyada görünür', r.d1);
+      t.ok(r.h0 === r.hl && r.hl > 0 && r.hl < 1, 'kaldırırken bırakılan o yükseklikten iner', r);
+      t.ok(!r.silent, 'sessiz bırakmada (bayılma) animasyon yok');
+    });
   },
 };

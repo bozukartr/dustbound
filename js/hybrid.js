@@ -1251,7 +1251,7 @@ const HY = (() => {
       else headParts(P, L, hx, { head: st.head });
       return P;
     }
-    const K = st.kneel, lean = K === 'work' || K === 'mouth' ? 1 : K === 'clutch' ? 0.8 : K === 'pray' ? 0.6 : 0.3;
+    const K = st.kneel, lean = K === 'work' || K === 'mouth' || K === 'lift' ? 1 : K === 'clutch' ? 0.8 : K === 'pray' ? 0.6 : 0.3;
     for (const sd of [-1, 1]) {
       P.push({ e: [-5.2, sd * 2.25, 1.2, 0.95], col: boot, h: 3, dome: 1 });
       P.push({ c: [-4.4, sd * 2.2, 2.8, sd * 2.2, 1.1], col: pants, h: 6, dome: 1.5 });
@@ -1264,6 +1264,7 @@ const HY = (() => {
     else if (K === 'look') { armPart(P, coat, skin, -1, 3.2, -2.7, 14); armPart(P, coat, skin, 1, 7.3, 1.3, 14, 3.6, 4.2); }
     else if (K === 'mouth') { const q = clamp01(st.kneelQ || 0), hx = 7 + (4.4 - 7) * q; armPart(P, coat, skin, -1, hx, -0.9, q > 0.5 ? 27.5 : 14, 3, -4.3); armPart(P, coat, skin, 1, hx, 0.9, q > 0.5 ? 27.5 : 14, 3, 4.3); }
     else if (K === 'pray') { armPart(P, coat, skin, -1, 4.4, -0.7, 17, 2.4, -3.6); armPart(P, coat, skin, 1, 4.4, 0.7, 17, 2.4, 3.6); }
+    else if (K === 'lift') { armPart(P, coat, skin, -1, 7.2, -2.4, 14, 3.4, -4.3); armPart(P, coat, skin, 1, 7.2, 2.4, 14, 3.4, 4.3); }   // yükü iki eliyle kavrar
     else if (K === 'clutch') { armPart(P, coat, skin, -1, 3.4, -1.3, 17, 1.8, -4); armPart(P, coat, skin, 1, 3.6, 0.7, 17, 1.8, 4); }   // ölürken eller karnında
     else { armPart(P, coat, skin, -1, 1.4, -6.2, 14); armPart(P, coat, skin, 1, 3.3, 2.5, 14); }
     headParts(P, L, 0.6 + lean * 1.1);
@@ -1804,7 +1805,7 @@ const HY = (() => {
     /* 3) canlılar: güneşe göre gölge, sonra sprite */
     const t15 = performance.now(); seg('zemin ayrıntıları', t15 - t1);
     const vis2 = [];
-    for (const e of G.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !G.floorHid(e)) vis2.push(e);
+    for (const e of G.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !G.floorHid(e) && !Juice.lowerHid(e)) vis2.push(e);
     if (P.riding) vis2.push(P.riding);
     vis2.push(P);
     for (const g of Juice.ghosts) if (g.x > x0 - 40 && g.x < x1 + 40 && g.y > y0 - 40 && g.y < y1 + 40) vis2.push(g);   // binerken gelen, inince giden at
@@ -1871,6 +1872,15 @@ const HY = (() => {
         if (P.passenger) continue;   // fayton yolcuyu kendisi çizer
         if (P.rise) { const p = Juice.risePose(P); if (p.stage !== 'lie') creatureShadow(fc, P.x, P.y, 2.8, 2.4, 14, sd, shk); human(P.x, P.y, p.ang, P.lookNow(), Juice.riseSt(p), P); continue; }
         if (P.mountAnim) { const A = P.mountAnim, k = Math.min(1, A.t / A.dur), hop = Math.sin(k * Math.PI) * (A.on ? 6 : 5), seated = A.on ? k > 0.7 : k < 0.3; human(P.x, P.y, P.ang, P.lookNow(), seated ? { riding: true } : { walk: P.phase, mv: 0.5 }, P, hop); continue; }
+        if (P.lift || P.lower) {
+          // yükü omzuna alıyor ya da yere koyuyor: yerdeyken yük altta, omza yakınken üstte
+          creatureShadow(fc, P.x, P.y, 2.8, 2.4, 16, sd, shk);
+          const lo = Juice.liftH(P) < 0.5;
+          if (lo) Juice.liftDraw(fc, P);
+          human(P.x, P.y, P.ang, P.lookNow(), Juice.liftSt(P), P);
+          if (!lo) Juice.liftDraw(fc, P);
+          continue;
+        }
         const kn = P.kneelPose();
         creatureShadow(fc, P.x, P.y, 2.8, 2.4, kn ? 14 : 22, sd, shk);
         if (kn) { human(P.x, P.y, kn.ang, P.lookNow(), kn.st, P); continue; }   // yer işinde diz çökmüş

@@ -2408,7 +2408,7 @@ const Spr = {
     ctx.fillStyle = look.pants; ctx.fillRect(-4.4, -3.3, 7.4, 2.3); ctx.fillRect(-4.4, 1, 7.4, 2.3);
     this.ell(ctx, 3.1, -2.15, 1.3, 1.25, shadeHex(look.pants, 0.1)); this.ell(ctx, 3.1, 2.15, 1.3, 1.25, shadeHex(look.pants, 0.1));
     if (look.coatLen) this.ell(ctx, -2.6, 0, 2.6 + look.coatLen * 1.2, 4.4, shadeHex(C, -0.12));
-    const lean = K === 'work' || K === 'mouth' ? 1 : K === 'clutch' ? 0.8 : K === 'pray' ? 0.6 : 0.3;
+    const lean = K === 'work' || K === 'mouth' || K === 'lift' ? 1 : K === 'clutch' ? 0.8 : K === 'pray' ? 0.6 : 0.3;
     this.ell(ctx, -0.4 + lean * 0.5, 0, 3.3, 5, C);
     this.ell(ctx, 1.4 + lean * 0.5, 0, 1.2, 1.8, look.shirt);
     let mouth = null;
@@ -2423,6 +2423,9 @@ const Spr = {
       else mouth = hx;
     } else if (K === 'pray') {
       this.armTo(ctx, look, -1, 4.4, -0.7, 2.4, -3.6); this.armTo(ctx, look, 1, 4.4, 0.7, 2.4, 3.6);
+    } else if (K === 'lift') {
+      // yükü iki eliyle kavrar
+      this.armTo(ctx, look, -1, 7.2, -2.4, 3.4, -4.3); this.armTo(ctx, look, 1, 7.2, 2.4, 3.4, 4.3);
     } else if (K === 'clutch') {
       // ölürken: eller karnında
       this.armTo(ctx, look, -1, 3.4, -1.3, 1.8, -4); this.armTo(ctx, look, 1, 3.6, 0.7, 1.8, 4);

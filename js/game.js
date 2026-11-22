@@ -1107,7 +1107,7 @@ const G = {
     // varlıklar
     Juice.sunOn = !this.insideB && this.settings.shadows > 0;   // varlık gölgeleri güneşe göre (Ayarlar → Grafik → Güneş Gölgeleri)
     const vis = [];
-    for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !this.floorHid(e)) vis.push(e);
+    for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !this.floorHid(e) && !Juice.lowerHid(e)) vis.push(e);
     if (P.riding) vis.push(P.riding);
     vis.push(P);
     for (const g of Juice.ghosts) if (g.x > x0 - 40 && g.x < x1 + 40 && g.y > y0 - 40 && g.y < y1 + 40) vis.push(g);   // binerken gelen, inince giden at

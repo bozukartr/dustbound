@@ -34,6 +34,7 @@ const CarrySystems = {
     const i = this.ents.indexOf(e);
     if (i >= 0) this.ents.splice(i, 1);
     P.carry = e; P.crouch = false; e.die = null;
+    Juice.lift(P, e);   // eğilip kaldırır, omzuna alır (js/juice.js)
     Audio_.thud(0.25);
     this.hintOnce('carry', Tr`Yük taşırken koşamaz ve silah kullanamazsın. ${Input.glyph('interact')} ile yere bırakabilir, atının yanındayken <b>eyere yükleyebilirsin</b>. Aranan suçluları şerif ofisine, postları ve leşleri kasap ya da tuzakçıya götür.`, 10);
   },
@@ -48,16 +49,18 @@ const CarrySystems = {
   dropCarry(silent) {
     const P = this.player, e = P.carry;
     if (!e) return;
-    P.carry = null;
+    const h0 = P.lift ? Juice.liftH(P) : 1;   // kaldırırken bırakılırsa o yükseklikten iner
+    P.carry = null; P.lift = null;
     this.placeDown(e);
-    if (!silent) Audio_.thud(0.2);
+    if (!silent && !P.riding) Juice.lower(P, e, h0);   // omuzdan indirip önüne koyar (yere değince tok ses)
+    else if (!silent) Audio_.thud(0.2);
   },
   stowOnHorse(h) {
     const P = this.player, e = P.carry;
     if (!e) return true;
     if (!h || h.dead || h !== this.horse) { UI.feed(Tr('Yükü yalnızca kendi atına yükleyebilirsin.'), 'warn'); return false; }
     if (this.loadWeight(h.load) + this.carryWeight(e) > this.horseCap()) { UI.feed(Tr`${h.name} daha fazla taşıyamaz. Önce bir yükü indir.`, 'warn'); return false; }
-    P.carry = null;
+    P.carry = null; P.lift = null;
     h.load.push(e);
     Audio_.thud(0.2);
     UI.feed(Tr`${this.carryName(e)} eyere yüklendi.`);
