@@ -176,7 +176,8 @@ module.exports = {
           if (!P.weapons.has(w)) P.giveWeapon(w, true);
           P.weapon = w; P.reloadT = 0; P.clip[w] = 0; P.ammo[WEAPONS[w].ammo] = 30;
           P.startReload();
-          await new Promise(r => setTimeout(r, 120));
+          // yükte kare seyrekleşir: doldurma bir kare ilerleyene dek beklenir (sabit 120 ms'de henüz ilerlememiş olabiliyordu)
+          await until(() => { const q = P.reloadPose(); return !!q && q.q > 0; }, 3000);
           const rp = P.reloadPose();
           out[w] = rp ? { wk: rp.wk, n: rp.n, q: rp.q > 0 && rp.q < 1, dur: P.reloadDur > 0 } : null;
           await until(() => !(P.reloadT > 0), 5000);

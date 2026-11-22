@@ -1054,6 +1054,7 @@ const G = {
       if (HY.render(this, dt)) { this.hyOk = true; if (this.binoc) this.binocDraw(); return; }
       this.resize();   // WebGL koptu: klasik çizime dön
     }
+    HY.beat();   // canlı sprite önbelleğinin yaşı (Klasik de Melez'in sprite'larını kullanır)
     const ctx = this.ctx, W = this.world, P = this.player, C = this.cam;
     const vw = this.vw, vh = this.vh;
     const x0 = C.ox, y0 = C.oy, x1 = x0 + vw, y1 = y0 + vh;
@@ -1077,10 +1078,10 @@ const G = {
     const obj = W.obj, tile = W.tile, flags = W.flags, day = this.day, t = this.t;
     const swayOn = !!this.settings.sway, amb = !!this.settings.ambient, autumn = W.season === 2;
     const fires = [];
+    for (const ch of chunks) if (ch[0].w) FX.water(ctx, ch[0].w, t, x0, y0, x1, y1, amb);   // kıyı köpüğü, ışık ağları, dalga
     for (let ty = ty0; ty <= ty1; ty++) {
       const row = ty * WW;
       for (let tx = tx0; tx <= tx1; tx++) {
-        if (tile[row + tx] === T.WATER) { FX.foam(ctx, tx, ty, t); if (amb) Juice.water(ctx, tx, ty, t); }
         const o = obj[row + tx];
         if (!o) continue;
         if (swayOn && SWAY_O[o] && !(flags[row + tx] & 16)) { FX.sway(ctx, o, tx * TS + 8, ty * TS + 8, hash2(tx, ty, 77)); continue; }

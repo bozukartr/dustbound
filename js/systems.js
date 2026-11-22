@@ -2310,9 +2310,10 @@ const GameSystems = {
     }
     if (!cands.length) return null;
     if (R) return cands;
-    // yön tercihi
+    // yön tercihi: baktığın yöndeki öne geçer. Ayağının dibindekinin yönü anlamsız (tam üstündeyken atan2 hep doğu der):
+    // ceza uzaklıkla artar, 8 pikselde tamdır (cesedin yanına düşen silahın üstünde durunca silah, nereye bakarsan bak)
     const face = P.ang;
-    for (const c of cands) { const da = Math.abs(angDiff(face, Math.atan2(c.y - P.y, c.x - P.x))); c.d += da * 4; }
+    for (const c of cands) { const dd = dist(P.x, P.y, c.x, c.y), da = Math.abs(angDiff(face, Math.atan2(c.y - P.y, c.x - P.x))); c.d += da * 4 * Math.min(1, dd / 8); }
     cands.sort((a, b) => a.d - b.d);
     return cands[0];
   },

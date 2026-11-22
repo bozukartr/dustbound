@@ -381,15 +381,66 @@ const Spr = {
   line(ctx, x1, y1, x2, y2, col, w = 1) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); },
 
   /* ---------- Ağaç taçları ---------- */
-  canopy(ctx, x, y, r, c1, c2, c3, h, lumps = 6) {
-    for (let k = 0; k < lumps; k++) {
-      const a = k / lumps * TAU + h * 6;
-      const rr = r * (0.55 + 0.2 * Math.sin(k * 2.1 + h * 9));
-      this.circ(ctx, x + Math.cos(a) * r * 0.45, y + Math.sin(a) * r * 0.4, rr, c1);
+  /* Yaprak taç, piksel piksel (iki çizici ortak): kümelenmiş tümsekler; ışık sol üstten 5 tonla (koyu, üç ana ton, ışık),
+     yaprak dokusu, yüksek tümseğin alttakine düşen gölgesi, koyu dış hat; karda tümseklerin tepesi beyaz. r yarıçap (dünya
+     pikseli), cols üç ton (koyu, orta, açık), h ağacın tohumu, lumps tümsek sayısı, dens dünya pikseli başına piksel.
+     Dönüş { n: kenar, half: merkez, c: RGBA (saydam pikselde a = 0), z: tümsek yüksekliği, nx, ny: normal } */
+  canopyPx(r, cols, h, lumps, dens, snowy) {
+    const blobs = [];
+    for (let k = 0; k < lumps; k++) { const a = k / lumps * TAU + h * 6, rr = r * (0.55 + 0.2 * Math.sin(k * 2.1 + h * 9)); blobs.push([Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.4, rr]); }
+    blobs.push([0, 0, r * 0.7]); blobs.push([-r * 0.22, -r * 0.3, r * 0.42]);
+    const half = Math.ceil((r * 1.25 + 1.5) * dens), n = half * 2, N = n * n;
+    const id = new Int16Array(N).fill(-1), z = new Float32Array(N), NX = new Float32Array(N), NY = new Float32Array(N), c = new Uint8ClampedArray(N * 4);
+    const c1 = hexToRgb(cols[0]), c2 = hexToRgb(cols[1]), c3 = hexToRgb(cols[2]), mx = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    const ramp = [mx(c1, [16, 26, 14], 0.35), c1, c2, c3, mx(c3, [230, 240, 170], 0.22)], rim = mx(c1, [8, 12, 8], 0.5), snow = [238, 242, 246], snowS = [210, 218, 226];
+    const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], seed = (h * 1000) | 0;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const lx = (x + 0.5 - half) / dens, ly = (y + 0.5 - half) / dens;
+      let best = -1, bz = -1, bnx = 0, bny = 0;
+      for (let q = 0; q < blobs.length; q++) {
+        const B = blobs[q], dx = (lx - B[0]) / B[2], dy = (ly - B[1]) / B[2], d = dx * dx + dy * dy;
+        if (d > 1) continue;
+        const zz = Math.sqrt(1 - d) * B[2] + (B[1] < 0 ? 1 : 0);   // üst kümeler biraz yüksek
+        if (zz > bz) { bz = zz; best = q; bnx = dx; bny = dy; }
+      }
+      if (best < 0) continue;
+      const i = y * n + x; id[i] = best; z[i] = bz; NX[i] = bnx; NY[i] = bny;
     }
-    this.circ(ctx, x, y, r * 0.7, c2);
-    for (let k = 0; k < 3; k++) this.circ(ctx, x - r * 0.25 + k * 1.5, y - r * 0.3 - k, r * (0.32 - k * 0.07), c3);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const i = y * n + x, o = i * 4, me = id[i];
+      if (me < 0) {
+        // dış hat: komşusu taçta olan boş piksel
+        const nb = x + 1 < n && id[i + 1] >= 0 ? i + 1 : x > 0 && id[i - 1] >= 0 ? i - 1 : y + 1 < n && id[i + n] >= 0 ? i + n : y > 0 && id[i - n] >= 0 ? i - n : -1;
+        if (nb >= 0) { c[o] = rim[0]; c[o + 1] = rim[1]; c[o + 2] = rim[2]; c[o + 3] = 255; z[i] = z[nb] - 0.5; NX[i] = NX[nb]; NY[i] = NY[nb]; }
+        continue;
+      }
+      const lx = (x + 0.5 - half) / dens, ly = (y + 0.5 - half) / dens, nx = NX[i], ny = NY[i], nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+      // yaprak dokusu: yarım piksellik yaprak lekeleri
+      const lf = hash2(Math.floor(lx * 1.4 + 64), Math.floor(ly * 1.6 + 64), seed);
+      let L = -nx * 0.45 - ny * 0.585 + nz * 0.675 + (lf - 0.5) * 0.5 + (BAY[((y & 3) << 2) | (x & 3)] / 16 - 0.5) * 0.12;
+      if (x > 0 && y > 0) { const u = i - n - 1; if (id[u] >= 0 && id[u] !== me && z[u] > z[i] + 0.8) L -= 0.3; }
+      let col = ramp[L < 0.05 ? 0 : L < 0.3 ? 1 : L < 0.6 ? 2 : L < 0.85 ? 3 : 4];
+      if (snowy && ny < -0.2 && lf > 0.3) col = L > 0.45 ? snow : snowS;
+      c[o] = col[0]; c[o + 1] = col[1]; c[o + 2] = col[2]; c[o + 3] = 255;
+    }
+    return { n, half, c, z, nx: NX, ny: NY };
   },
+  /* Klasik: piksel taç kendi küçük tuvalinde hesaplanır ve önbelleğe girer (biçim tohumu 16 kademeye, yarıçap yarım piksele
+     yuvarlanır: her ağaç için yeniden hesaplanıp basılsaydı ormanlık parçanın pişmesi on milisaniyelerce uzardı) */
+  canopy(ctx, x, y, r, c1, c2, c3, h, lumps = 6, snowy = false) {
+    const hq = Math.round(h * 16) / 16, rq = Math.round(r * 2) / 2, key = rq + '|' + c1 + c2 + c3 + '|' + lumps + (snowy ? 's' : '') + hq;
+    const M = this._canC || (this._canC = new Map());
+    let e = M.get(key);
+    if (!e) {
+      const C = this.canopyPx(rq, [c1, c2, c3], hq, lumps, 1, snowy), cv = makeCanvas(C.n, C.n);
+      cv.getContext('2d').putImageData(new ImageData(C.c, C.n, C.n), 0, 0);
+      e = { cv, half: C.half };
+      if (M.size > 600) M.clear();
+      M.set(key, e);
+    }
+    ctx.drawImage(e.cv, Math.round(x) - e.half, Math.round(y) - e.half);
+  },
+
   pine(ctx, x, y, r, c1, c2, c3, h, snow) {
     for (let layer = 0; layer < 3; layer++) {
       const rr = r * (1 - layer * 0.28);
@@ -594,8 +645,7 @@ const Spr = {
       case O.BUSH: {
         this.shadow(g, x + 2, y + 3, 6, 3, 0.2);
         const c = season === 2 ? (h > 0.5 ? ['#7a4a1e', '#9a6026', '#b87a30'] : ['#6a5a26', '#8a7230', '#a88a3a']) : season === 3 ? ['#4a4a36', '#5a5a42', '#6a6a50'] : h > 0.5 ? ['#3a5a26', '#4a6e30', '#5e8440'] : ['#40562a', '#506a34', '#688246'];
-        this.circ(g, x - 2.5, y, 3.8, c[0]); this.circ(g, x + 2.5, y + 0.5, 3.6, c[0]); this.circ(g, x, y - 2, 4, c[1]); this.circ(g, x - 1, y - 3, 2, c[2]);
-        if (snowy) { this.ell(g, x - 0.5, y - 3.5, 4, 2, '#eef2f6'); this.ell(g, x + 2.5, y - 1, 2, 1, '#e2e8ee'); }
+        this.canopy(g, x, y - 1, 5.2, c[0], c[1], c[2], h, 5, snowy);   // Melez'deki gibi küme taç
         break;
       }
       case O.DRYBUSH: {
@@ -2157,190 +2207,28 @@ const Spr = {
   },
 
   /* ---------- İnsan ---------- */
+  /* Parçalı, gölgelendirilmiş sprite (js/hybrid.js drawHuman): Melez'le aynı çizim, Klasik'te dünya pikseli başına 1 piksel.
+     Burada yalnızca yere düşen gölge, kan gölü ve kıvranma işareti çizilir. */
   human(ctx, x, y, ang, look, st) {
-    ctx.save();
-    ctx.translate(x, y);
+    const dens = G.hy ? 2 : 1;
     if (st.dead || st.lying) {
-      // yerde yatan beden: ölü (kan gölü), yaralı ya da bağlı
-      if (st.dead && !st.noPool) {
-        // kan gölü yavaşça yayılır ve koyulaşır; kumda zamanla toprağa emilir
-        const pk = st.pool === undefined ? 1 : st.pool, r = 3 + 6 * pk;
-        this.ell(ctx, 2, 2, r * 1.1, r * 0.66, `rgba(${130 - 62 * pk | 0},10,10,${(0.5 + 0.2 * pk) * (1 - 0.7 * (st.soak || 0))})`);
+      if (st.sleep === undefined) {
+        if (st.dead && !st.noPool) {
+          // kan gölü yavaşça yayılır ve koyulaşır; kumda zamanla toprağa emilir
+          const pk = st.pool === undefined ? 1 : st.pool, r = 3 + 6 * pk;
+          this.ell(ctx, x + 2, y + 2, r * 1.1, r * 0.66, `rgba(${130 - 62 * pk | 0},10,10,${(0.5 + 0.2 * pk) * (1 - 0.7 * (st.soak || 0))})`);
+        } else if (!st.noPool) this.shadow(ctx, x, y + 1.5, 7, 3.4, 0.22);
       }
-      else if (!st.noPool) this.shadow(ctx, 0, 1.5, 7, 3.4, 0.22);
-      ctx.rotate(ang);
-      if (st.sleep !== undefined) {
-        // uyku: başı eyerde, battaniye ayaklardan göğse (göğüs nefesle kabarır), şapka yüzünde
-        const bc = st.blanket || '#6a3a2a', b = st.sleep;
-        this.ell(ctx, 8.2, 0, 1.9, 3.4, '#5a3a20'); this.ell(ctx, 8.6, 0, 0.9, 2.4, '#7a5430');
-        this.circ(ctx, 5.5, 0, 2.6, look.hat === 'none' ? look.hair : look.skin);
-        this.ell(ctx, -4, 0, 6.6, 4.1, bc);
-        ctx.fillStyle = shadeHex(bc, -0.22); ctx.fillRect(-7.45, -3.6, 0.9, 7.2); ctx.fillRect(-3.45, -4, 0.9, 8);
-        this.ell(ctx, 0.6, 0, 2.6 + b * 0.25, 3.7 + b * 0.3, shadeHex(bc, 0.08));
-        if (look.hat !== 'none') { const hc = hatColor(look.hat, look.hatCol); this.ell(ctx, 6, 0, 2.3, 3.2, hc); this.ell(ctx, 6.2, 0, 1.3, 1.9, shadeHex(hc, -0.15)); }
-        ctx.restore();
-        return;
-      }
-      this.ell(ctx, 0, 0, 5.5, 3.2, look.coat);
-      ctx.fillStyle = look.pants; ctx.fillRect(-9, -2.4, 5, 1.8); ctx.fillRect(-9, 0.6, 5, 1.8);
-      this.circ(ctx, 5.5, 0, 2.6, look.hat === 'none' ? look.hair : look.skin);
-      if (st.tied) {
-        // el ve ayak bileklerinde ip
-        ctx.fillStyle = '#c8a870';
-        ctx.fillRect(-8.2, -2.8, 1.2, 5.6); ctx.fillRect(-1.2, -3.5, 1.2, 7);
-        ctx.fillStyle = '#8a6a3a'; ctx.fillRect(-8.2, -0.3, 1.2, 0.6); ctx.fillRect(-1.2, -0.3, 1.2, 0.6);
-      }
-      if (st.wriggle) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(6.5 + Math.sin(st.wriggle * 20), -0.4, 1.2, 0.8); }
-      ctx.restore();
+      HY.drawHuman(ctx, x, y, ang, look, { lying: true, tied: st.tied, sleep: st.sleep, blanket: st.blanket }, 0, 1, dens);
+      if (st.wriggle) { const o = 6.5 + Math.sin(st.wriggle * 20); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x + Math.cos(ang) * o - 0.6, y + Math.sin(ang) * o - 0.4, 1.2, 0.8); }   // ipte kıvranma
       return;
     }
-    if (st.sit !== undefined || st.kneel) { this.humanLow(ctx, ang, look, st); ctx.restore(); return; }
+    // güneşe göre gölge: oturan ve diz çöken daha kısa
     const [sdx, sl] = Juice.sun(6);
-    this.shadow(ctx, 1 + sdx, 2.5, 6 * sl, 3.8, 0.3);
-    ctx.rotate(ang);
-    const cr = st.crouch ? 0.88 : 1;
-    ctx.scale(cr, cr);
-    // yürürken omuzlar adımla salınır: çocuk sekerek, sarhoş sendeleyerek, bastonlu yaşlı ağır ağır
-    const mvk = st.riding ? 0 : Math.min(1, st.mv || 0), gs = st.gait;
-    if (mvk > 0.05) {
-      const ph = st.walk || 0;
-      ctx.rotate(Math.sin(ph) * 0.06 * mvk * (gs === 'drunk' ? 3.5 : gs === 'kid' ? 1.5 : gs === 'cane' ? 1.4 : 1));
-      if (gs === 'kid') { const b = 1 + Math.abs(Math.sin(ph)) * 0.06 * mvk; ctx.scale(b, b); }
-      else if (gs === 'drunk') ctx.translate(0, Math.sin(ph * 0.5) * 1.3 * mvk);
-    }
-    if (st.anim === 'laugh') { const q = 1 + Math.abs(Math.sin((st.animT || 0) * 16)) * 0.05; ctx.scale(q, q); }
-    const sw = Math.sin(st.walk || 0) * 2.8 * (st.mv || 0);
-    if (!st.riding) {
-      ctx.fillStyle = look.pants;
-      ctx.fillRect(-1.5 + sw, -3.4, 4, 2.3); ctx.fillRect(-1.5 - sw, 1.1, 4, 2.3);
-      ctx.fillStyle = '#231710';
-      ctx.fillRect(2 + sw, -3.4, 1.6, 2.3); ctx.fillRect(2 - sw, 1.1, 1.6, 2.3);
-    }
-    // palto eteği
-    if (look.coatLen) { ctx.fillStyle = shadeHex(look.coat, -0.12); ctx.beginPath(); ctx.ellipse(-2.2, 0, 2.6 + look.coatLen * 1.6, 4.6, 0, 0, TAU); ctx.fill(); }
-    if (st.backGun) { ctx.strokeStyle = '#3a2618'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-4, -4); ctx.lineTo(-1, 5); ctx.stroke(); }
-    // gövde
-    this.ell(ctx, 0, 0, 3.4, 5.3, look.coat);
-    ctx.fillStyle = look.shirt; ctx.beginPath(); ctx.ellipse(1.8, 0, 1.3, 1.9, 0, 0, TAU); ctx.fill();
-    const wk = st.wk;
-    if (st.reload) this.reloadArms(ctx, look, st, sw);
-    else if (st.act) this.actArms(ctx, look, st, sw, 0);
-    else if (st.aim && wk) {
-      ctx.strokeStyle = look.coat; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
-      if (wk === 'long') {
-        ctx.beginPath(); ctx.moveTo(0, -4.2); ctx.lineTo(7, -0.5); ctx.moveTo(0, 4.2); ctx.lineTo(3, 1.5); ctx.stroke();
-        ctx.fillStyle = '#3a2618'; ctx.fillRect(-1, -0.2, 8, 2.4);
-        ctx.fillStyle = '#2a2a2e'; ctx.fillRect(6, 0.2, 9, 1.4);
-        this.circ(ctx, 7.2, -0.3, 1.2, look.skin); this.circ(ctx, 3.2, 1.6, 1.2, look.skin);
-      } else if (wk === 'bow') {
-        ctx.beginPath(); ctx.moveTo(0, -4.2); ctx.lineTo(8, 0); ctx.moveTo(0, 4.2); ctx.lineTo(2, 0.5); ctx.stroke();
-        ctx.strokeStyle = '#6a4a28'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(6, 0, 6, -1.1, 1.1); ctx.stroke();
-        ctx.strokeStyle = '#d8d0c0'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(8.7, -5.3); ctx.lineTo(2 - (st.draw || 0) * 2, 0); ctx.lineTo(8.7, 5.3); ctx.stroke();
-        this.circ(ctx, 8, 0, 1.2, look.skin);
-      } else if ((wk === 'throw' || wk === 'lasso') && st.swing > 0) {
-        // fırlatış: kol arkadan (kementte baş üstünden) öne savrulur, öbür kol aşağıda
-        const [hx, hy] = Juice.throwHand(wk, 1 - clamp(st.swing, 0, 1));
-        ctx.beginPath(); ctx.moveTo(0, 4.2); ctx.lineTo(hx, hy); ctx.stroke();
-        this.circ(ctx, hx, hy, 1.2, look.skin);
-        this.circ(ctx, 0, -4.8, 1.6, look.coat);
-      } else if (wk === 'lasso') {
-        // ilmeği başın üstünde çevirir: kol başa doğru kalkık (el ve ilmek başın üstünde, Juice.throwOver)
-        ctx.beginPath(); ctx.moveTo(0, 4.2); ctx.lineTo(1, 3); ctx.stroke();
-        this.circ(ctx, 0, -4.8, 1.6, look.coat);
-      } else if (wk === 'throw') {
-        ctx.beginPath(); ctx.moveTo(0, 4.2); ctx.lineTo(-2, 7); ctx.stroke();
-        this.circ(ctx, -2, 7, 1.2, look.skin); ctx.fillStyle = '#c03020'; ctx.fillRect(-3, 7, 3, 1.4);
-      } else if (wk === 'knife' || wk === 'fists') {
-        ctx.beginPath(); ctx.moveTo(0, -4.2); ctx.lineTo(4 + (st.swing || 0) * 3, -2); ctx.moveTo(0, 4.2); ctx.lineTo(4, 2.5); ctx.stroke();
-        this.circ(ctx, 4.5 + (st.swing || 0) * 3, -2, 1.3, look.skin); this.circ(ctx, 4.5, 2.5, 1.3, look.skin);
-        if (wk === 'knife') { ctx.fillStyle = '#c8ccd0'; ctx.fillRect(5 + (st.swing || 0) * 3, -2.6, 4, 1); }
-      } else {
-        ctx.beginPath(); ctx.moveTo(0, -4.2); ctx.lineTo(6.5, 0); ctx.moveTo(0, 4.2); ctx.lineTo(6.5, 0.4); ctx.stroke();
-        this.circ(ctx, 6.8, 0.2, 1.4, look.skin);
-        ctx.fillStyle = '#2a2a2e'; ctx.fillRect(7, -0.5, 5, 1.5); ctx.fillStyle = '#5a3e26'; ctx.fillRect(6, 0.4, 2, 1.5);
-      }
-      ctx.lineCap = 'butt';
-    } else if (st.riding) {
-      this.circ(ctx, 3.5, -3.3, 1.5, look.coat); this.circ(ctx, 3.5, 3.3, 1.5, look.coat);
-      this.circ(ctx, 5, -2.5, 1.1, look.skin); this.circ(ctx, 5, 2.5, 1.1, look.skin);
-    } else if (st.swing) {
-      ctx.strokeStyle = look.coat; ctx.lineWidth = 2.2;
-      ctx.beginPath(); ctx.moveTo(0, 4.2); ctx.lineTo(5 + st.swing * 3, 1); ctx.stroke();
-      this.circ(ctx, 5.5 + st.swing * 3, 1, 1.4, look.skin);
-      if (wk === 'knife') { ctx.fillStyle = '#c8ccd0'; ctx.fillRect(6 + st.swing * 3, 0.5, 4, 1); }
-      this.circ(ctx, -sw * 0.7, -4.8, 1.6, look.coat);
-    } else if (st.hold === 'crate') {
-      // iki eliyle önünde sandık taşır
-      this.circ(ctx, 2, -4.2, 1.6, look.coat); this.circ(ctx, 2, 4.2, 1.6, look.coat);
-      ctx.fillStyle = '#6a4626'; ctx.fillRect(3.4, -3.6, 5.4, 7.2);
-      ctx.fillStyle = '#9a6e40'; ctx.fillRect(3.8, -3.2, 4.6, 6.4);
-      ctx.fillStyle = '#6a4626'; ctx.fillRect(3.8, -0.4, 4.6, 0.8); ctx.fillRect(5.8, -3.2, 0.7, 6.4);
-      this.circ(ctx, 3.6, -3.8, 1, look.skin); this.circ(ctx, 3.6, 3.8, 1, look.skin);
-    } else if (st.hold === 'rod') {
-      // olta: iki eli önde, sap sağ elde (kamış ve misina dünyada ayrı çizilir)
-      ctx.strokeStyle = look.coat; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(0, -4.2); ctx.lineTo(4.4, -0.6); ctx.moveTo(0, 4.2); ctx.lineTo(5.6, 1.4); ctx.stroke(); ctx.lineCap = 'butt';
-      this.circ(ctx, 4.6, -0.6, 1.1, look.skin); this.circ(ctx, 5.8, 1.4, 1.1, look.skin);
-    } else if (st.anim && this.gesture(ctx, look, st, sw, 0)) {
-      // jest çizildi
-    } else if (gs === 'cane' && !st.hold) {
-      // baston: sol kol sallanır, sağ el önde bastona dayanır
-      this.circ(ctx, -sw * 0.7, -4.8, 1.7, look.coat); this.circ(ctx, -sw * 0.7 + 0.8, -5.2, 1, look.skin);
-      const tip = 6.2 + Math.max(0, sw) * 0.6;
-      ctx.strokeStyle = '#4a3220'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(3, 5.2); ctx.lineTo(tip, 6.2); ctx.stroke();
-      this.circ(ctx, 1.6, 4.9, 1.6, look.coat); this.circ(ctx, 3, 5.2, 1, look.skin);
-    } else {
-      this.circ(ctx, -sw * 0.7, -4.8, 1.7, look.coat); this.circ(ctx, sw * 0.7, 4.8, 1.7, look.coat);
-      this.circ(ctx, -sw * 0.7 + 0.8, -5.2, 1, look.skin); this.circ(ctx, sw * 0.7 + 0.8, 5.2, 1, look.skin);
-      if (st.hasGun) { ctx.fillStyle = '#2a1c14'; ctx.fillRect(-1, 3.8, 3, 1.6); }
-      if (st.hold === 'broom') {
-        const k = Math.sin((st.walk || 0) * 0.5) * 1.5;
-        ctx.strokeStyle = '#8a6a44'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(sw * 0.7 + 0.8, 5.2); ctx.lineTo(9, 7 + k); ctx.stroke();
-        ctx.fillStyle = '#c8a860'; ctx.beginPath(); ctx.ellipse(9.6, 7.2 + k, 1.4, 2.4, 0.5, 0, TAU); ctx.fill();
-      } else if (st.hold === 'paper') {
-        ctx.fillStyle = '#d8d0bc'; ctx.fillRect(-2.2, 4.4, 4.6, 2.6);
-        ctx.fillStyle = '#8a8478'; ctx.fillRect(-1.8, 5.2, 3.8, 0.4); ctx.fillRect(-1.8, 6, 3.8, 0.4);
-      }
-    }
-    this.headDraw(ctx, look, st, sw);
-    if (st.act && !st.reload) this.actArms(ctx, look, st, sw, 1);   // ağza götürülen el başın üstünde
-    ctx.restore();
-  },
-  /* Baş: saç, maske, şapka (st.head: boşta etrafa bakarken gövdeden bağımsız döner) ve jestlerin başın üstündeki katmanı */
-  headDraw(ctx, look, st, sw) {
-    if (st.head) ctx.rotate(st.head);
-    const hc = look.hairNow || look.hair;
-    const mk = look.mask;
-    if (mk === 'bandana') {
-      ctx.fillStyle = '#a8281f'; ctx.beginPath(); ctx.moveTo(1, -2.7); ctx.lineTo(1, 2.7); ctx.lineTo(6.2, 0); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#e8d8c0'; ctx.fillRect(4.6, -0.4, 0.8, 0.8);
-    } else if (mk === 'sack') {
-      this.ell(ctx, -4.4, 0, 1.8, 1.1, '#b89860'); ctx.fillStyle = '#6a4a28'; ctx.fillRect(-3.6, -1.4, 0.7, 2.8);
-    }
-    if (mk !== 'sack') this.hairTop(ctx, look, hc);
-    if (mk === 'sack') { this.circ(ctx, 0, 0, 3.4, '#8a6a3a'); this.circ(ctx, 0, 0, 3, '#c8a870'); ctx.fillStyle = '#9a7a48'; ctx.fillRect(-2, -0.3, 1.2, 0.6); ctx.fillRect(-0.4, -2.2, 0.6, 1.2); ctx.fillStyle = '#1a1008'; ctx.fillRect(1.6, -1.7, 1.2, 1.1); ctx.fillRect(1.6, 0.6, 1.2, 1.1); }
-    if (look.hat && look.hat !== 'none') {
-      this.hatTop(ctx, look.hat, look.hatCol, st.hatK || 0);
-      if ((st.hatK || 0) > 0.15) this.circ(ctx, 2.4, -3.2, 1.1, look.skin);   // şapkayı düzelten el
-    } else if (mk !== 'sack') {
-      if (look.hairStyle === 7) for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; this.circ(ctx, Math.cos(a) * 2.6 - 0.3, Math.sin(a) * 2.6, 1.1, shadeHex(hc, i % 2 ? -0.2 : 0.05)); }   // kıvırcık
-      this.circ(ctx, 0, 0, look.hairStyle === 7 ? 3.1 : 2.9, hc);
-      if (look.hairStyle === 9 && look.sex !== 'f') this.ell(ctx, 1.2, 0, 1.3, 1.6, shadeHex(look.skin, -0.05));   // açık alın
-      if (look.sex === 'f' && (look.hairStyle === 2 || look.hairStyle === 6)) { this.circ(ctx, -0.3, 0, look.hairStyle === 6 ? 1.7 : 1.4, shadeHex(hc, -0.25)); this.circ(ctx, -0.6, -0.4, 0.6, shadeHex(hc, 0.2)); }   // topuz
-      this.ell(ctx, 1.9, 0, 1.2, 1.9, look.skin);
-      if (mk === 'bandana') { this.ell(ctx, 2.2, 0, 1, 2.1, '#a8281f'); ctx.fillStyle = '#e8d8c0'; ctx.fillRect(2.4, -1, 0.6, 0.6); ctx.fillRect(2.4, 0.6, 0.6, 0.6); }
-    }
-    if (st.anim && !st.hold) this.gesture(ctx, look, st, sw, 1);   // yüze götürülen el, şapkadaki el
-  },
-  /* Başın arkasında/omuzda kalan saç (üstten): uzun saç, at kuyruğu, ense topuzu, örgüler */
-  hairTop(ctx, look, hc) {
-    const hs = look.hairStyle | 0, f = look.sex === 'f';
-    const long = f ? [0, 1, 4, 5, 7].includes(hs) : [1, 4, 7].includes(hs);
-    if (long) this.ell(ctx, f ? -2.6 : -2.2, 0, f ? 2.3 : 1.9, f ? 2.6 : 2.4, hc);
-    if (!f && hs === 2) this.ell(ctx, -3.4, 0, 1.3, 0.8, shadeHex(hc, -0.15));                 // at kuyruğu
-    if (f && hs === 3) this.circ(ctx, -3, 0, 1.3, shadeHex(hc, -0.15));                        // ense topuzu
-    const br = hs === 8 ? [-1] : f && hs === 9 ? [-1, 1] : [];                                    // örgüler omuzdan öne
-    for (const k of br) for (let i = 0; i < 3; i++) this.circ(ctx, -1.6 + i * 1.3, k * (2.4 + i * 0.5), 0.75, shadeHex(hc, i % 2 ? -0.2 : 0));
+    if (st.sit !== undefined) this.shadow(ctx, x + 1 + sdx * 0.6, y + 2, 6.6 * sl, 3.6, 0.24);
+    else if (st.kneel) this.shadow(ctx, x + 1 + sdx * 0.7, y + 2.2, 5.6 * sl, 3.6, 0.27);
+    else this.shadow(ctx, x + 1 + sdx, y + 2.5, 6 * sl, 3.8, 0.3);
+    HY.drawHuman(ctx, x, y, ang, look, st, 0, 1, dens);
   },
   /* Şapka, üstten: kenar, tepe, kasket siperi, kovboy çatısı. k = şapkayı düzeltme jesti (0–1) */
   hatTop(ctx, hat, col, k = 0) {
@@ -2363,260 +2251,6 @@ const Spr = {
     if (hat === 'cowboy' || hat === 'wide' || hat === 'straw') { ctx.fillStyle = shadeHex(c, 0.25); ctx.fillRect(-0.8, -2.4, 1, 4.8); }
     if (hat === 'straw') { ctx.strokeStyle = shadeHex(c, -0.25); ctx.lineWidth = 0.3; ctx.beginPath(); ctx.ellipse(0, 0, br * 0.75, br * 0.72, 0, 0, TAU); ctx.stroke(); }
     if (hat === 'fedora') { ctx.fillStyle = shadeHex(c, -0.55); ctx.fillRect(-1.6, -0.35, 2.8, 0.7); }   // fötrün boyuna tepe çukuru
-  },
-  /* Omuzdan (sd: -1 sol, 1 sağ) ele kol; dirsek verilirse oradan kırılır */
-  armTo(ctx, look, sd, hx, hy, ex, ey) {
-    ctx.strokeStyle = look.coat; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); ctx.moveTo(0, sd * 4); if (ex !== undefined) ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
-    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
-    this.circ(ctx, hx, hy, 1.1, look.skin);
-  },
-  /* Yere yakın duruşlar (gövde çerçevesi: x yüzün baktığı yön).
-     sit (0-1): yerde oturuş; kalkarken sırtüstü yatıştan doğrulur (0 yatık, 1 dik), bacaklar önde, eller geride yere dayalı.
-     kneel: diz çökmüş; 'work' iki el önde yerde çalışır, 'look' bir el yerde (iz, toprak), 'mouth' avuçla su (kneelQ: elin
-     ağza yakınlığı), 'rise' bir el dizde bir el yerde (kalkarken), 'pray' eller göğüste, baş eğik. kneelT el hareketinin zamanı */
-  humanLow(ctx, ang, look, st) {
-    const C = look.coat, S = look.skin, boot = '#231710';
-    const [sdx, sl] = Juice.sun(6);
-    if (st.sit !== undefined) {
-      const q = clamp(st.sit, 0, 1), ch = st.chair && q > 0.9, gs = q > 0.9 && !!st.anim;
-      this.shadow(ctx, 1 + sdx * 0.6, 2, 6.6 * sl, 3.6, 0.24);
-      ctx.rotate(ang);
-      if (ch) {
-        // bankta ya da sandalyede: uyluklar öne, dizler kırık (baldırlar aşağıda), çizme burunları dizin önünde
-        ctx.fillStyle = boot; ctx.fillRect(6.2, -2.5, 1.4, 1.9); ctx.fillRect(6.2, 0.6, 1.4, 1.9);
-        ctx.fillStyle = look.pants; ctx.fillRect(2.6, -2.5, 4.2, 1.9); ctx.fillRect(2.6, 0.6, 4.2, 1.9);
-      } else {
-        ctx.fillStyle = look.pants; ctx.fillRect(3.4, -2.4, 5.2, 1.8); ctx.fillRect(3.4, 0.6, 5.2, 1.8);
-        ctx.fillStyle = boot; ctx.fillRect(8.2, -2.5, 1.7, 2); ctx.fillRect(8.2, 0.5, 1.7, 2);
-      }
-      if (look.coatLen) this.ell(ctx, lerp(-1, -0.6, q), 0, lerp(5.4, 3.6, q) + look.coatLen, lerp(3.3, 4.6, q), shadeHex(C, -0.12));
-      // eller kalçanın gerisinde yere dayanır, gövde doğruldukça öne gelir (sandalyede ve jestte eller önde)
-      if (!ch && !gs) { this.circ(ctx, lerp(-3.4, -1.6, q), -4.7, 1.1, S); this.circ(ctx, lerp(-3.4, -1.6, q), 4.7, 1.1, S); }
-      this.ell(ctx, lerp(0, 1, q), 0, lerp(5.5, 3.4, q), lerp(3.2, 5, q), C);
-      if (q > 0.55) this.ell(ctx, 2.6, 0, 1.2, 1.7, look.shirt);
-      let gd = false;
-      if (gs) { ctx.save(); ctx.translate(0.9, 0); gd = this.gesture(ctx, look, st, 0, 0); ctx.restore(); }
-      if (!gd && ch) { this.armTo(ctx, look, -1, 4.6, -2.3); this.armTo(ctx, look, 1, 4.6, 2.3); }   // eller dizlerde
-      else if (!gd && gs) { this.circ(ctx, lerp(-3.4, -1.6, q), -4.7, 1.1, S); this.circ(ctx, lerp(-3.4, -1.6, q), 4.7, 1.1, S); }
-      ctx.translate(lerp(-5.5, 0.9, q), 0);
-      if (q < 0.45) this.circ(ctx, 0, 0, 2.6, look.hat === 'none' ? look.hair : S);
-      else this.headDraw(ctx, look, gd ? st : { head: st.head }, 0);
-      return;
-    }
-    const K = st.kneel, t = st.kneelT || 0;
-    this.shadow(ctx, 1 + sdx * 0.7, 2.2, 5.6 * sl, 3.6, 0.27);
-    ctx.rotate(ang);
-    ctx.scale(0.94, 0.94);
-    // diz çökmüş: çizmeler arkada, uyluklar gövdenin altından öne, dizler önde
-    ctx.fillStyle = boot; ctx.fillRect(-6.4, -3.2, 2.4, 1.9); ctx.fillRect(-6.4, 1.3, 2.4, 1.9);
-    ctx.fillStyle = look.pants; ctx.fillRect(-4.4, -3.3, 7.4, 2.3); ctx.fillRect(-4.4, 1, 7.4, 2.3);
-    this.ell(ctx, 3.1, -2.15, 1.3, 1.25, shadeHex(look.pants, 0.1)); this.ell(ctx, 3.1, 2.15, 1.3, 1.25, shadeHex(look.pants, 0.1));
-    if (look.coatLen) this.ell(ctx, -2.6, 0, 2.6 + look.coatLen * 1.2, 4.4, shadeHex(C, -0.12));
-    const lean = K === 'work' || K === 'mouth' || K === 'lift' ? 1 : K === 'clutch' ? 0.8 : K === 'pray' ? 0.6 : 0.3;
-    this.ell(ctx, -0.4 + lean * 0.5, 0, 3.3, 5, C);
-    this.ell(ctx, 1.4 + lean * 0.5, 0, 1.2, 1.8, look.shirt);
-    let mouth = null;
-    if (K === 'work') {
-      const j = Math.sin(t * 9) * 0.9;
-      this.armTo(ctx, look, -1, 6.9 + j, -2, 3.4, -4.3); this.armTo(ctx, look, 1, 6.9 - j, 2, 3.4, 4.3);
-    } else if (K === 'look') {
-      this.armTo(ctx, look, -1, 3.2, -2.7); this.armTo(ctx, look, 1, 7.3 + Math.sin(t * 3) * 0.4, 1.3, 3.6, 4.2);
-    } else if (K === 'mouth') {
-      const q = clamp(st.kneelQ || 0, 0, 1), hx = lerp(7, 4.4, q);
-      if (q < 0.55) { this.armTo(ctx, look, -1, hx, -0.9, 3, -4.3); this.armTo(ctx, look, 1, hx, 0.9, 3, 4.3); }
-      else mouth = hx;
-    } else if (K === 'pray') {
-      this.armTo(ctx, look, -1, 4.4, -0.7, 2.4, -3.6); this.armTo(ctx, look, 1, 4.4, 0.7, 2.4, 3.6);
-    } else if (K === 'lift') {
-      // yükü iki eliyle kavrar
-      this.armTo(ctx, look, -1, 7.2, -2.4, 3.4, -4.3); this.armTo(ctx, look, 1, 7.2, 2.4, 3.4, 4.3);
-    } else if (K === 'clutch') {
-      // ölürken: eller karnında
-      this.armTo(ctx, look, -1, 3.4, -1.3, 1.8, -4); this.armTo(ctx, look, 1, 3.6, 0.7, 1.8, 4);
-    } else {
-      // kalkarken: bir el yerde iter, öbürü dizde
-      this.armTo(ctx, look, -1, 1.4, -6.2); this.armTo(ctx, look, 1, 3.3, 2.5);
-    }
-    ctx.translate(0.6 + lean * 1.1, 0);
-    this.headDraw(ctx, look, {}, 0);
-    if (mouth !== null) {
-      // avuçlar ağızda (başın üstünde kalır)
-      ctx.translate(-0.6 - lean * 1.1, 0);
-      this.armTo(ctx, look, -1, mouth, -0.8, 3, -4.3); this.armTo(ctx, look, 1, mouth, 0.8, 3, 4.3);
-      ctx.fillStyle = 'rgba(170,205,225,0.8)'; ctx.fillRect(mouth - 0.3, -0.6, 1, 1.2);
-    }
-  },
-  /* Yeme, içme, matara, sigara (st.act = { k, q, item, t }): sağ el aşağıdan ağza gelir (q: 0 aşağıda, 1 ağızda), sol el
-     yürürken sallanır (atlıyken dizgindedir). layer 0: kollar; layer 1: ağızdaki el ve elindeki (başın üstünde kalır). */
-  actArms(ctx, look, st, sw, layer) {
-    const A = st.act, q = clamp(A.q, 0, 1), S = look.skin, k = A.k;
-    if (k === 'bandage' || k === 'rub') {
-      if (layer === 1) return;
-      // iki el sol kolda: sargı sarar ya da merhemi omza sürer
-      const a = A.t * 11;
-      if (k === 'bandage') {
-        this.armTo(ctx, look, -1, 4.6, -2.9, 2.4, -4.6);
-        ctx.fillStyle = '#e8e4d8'; ctx.fillRect(2.6, -4.2, 2.2, 1.5);
-        this.armTo(ctx, look, 1, 3.6 + Math.cos(a) * 0.9, -2.5 + Math.sin(a) * 0.7, 2.4, 2.4);
-      } else {
-        this.circ(ctx, -sw * 0.7, -4.8, 1.7, look.coat); this.circ(ctx, -sw * 0.7 + 0.8, -5.2, 1, S);
-        this.armTo(ctx, look, 1, 0.9 + Math.cos(a) * 0.6, -3.4 + Math.sin(a) * 0.5, 3, 1.5);
-      }
-      return;
-    }
-    const hx = lerp(1.6, 4.3, q), hy = lerp(5, 0.9, q), up = q >= 0.4;
-    if (layer === 0) {
-      if (st.riding) { this.circ(ctx, 3.5, -3.3, 1.5, look.coat); this.circ(ctx, 5, -2.5, 1.1, S); }
-      else { this.circ(ctx, -sw * 0.7, -4.8, 1.7, look.coat); this.circ(ctx, -sw * 0.7 + 0.8, -5.2, 1, S); }
-      if (up) return;
-      this.armTo(ctx, look, 1, hx, hy);
-    } else {
-      if (!up) { this.actItem(ctx, A, hx, hy, false); return; }
-      this.armTo(ctx, look, 1, hx, hy);
-    }
-    this.actItem(ctx, A, hx, hy, up);
-  },
-  /* Eldeki: şişe, matara, tas, yiyecek, sigara, hap, koku şişesi. atMouth: ağza dayalı (şişe yüzden öne uzanır) */
-  actItem(ctx, A, hx, hy, atMouth) {
-    const k = A.k, col = A.col || '#4a5a3a';
-    if (k === 'drink') {
-      if (atMouth) { ctx.fillStyle = col; ctx.fillRect(hx - 0.2, hy - 0.8, 3.6, 1.6); ctx.fillStyle = shadeHex(col, 0.35); ctx.fillRect(hx + 0.4, hy - 0.6, 2.2, 0.5); ctx.fillStyle = '#c8a870'; ctx.fillRect(hx + 3.3, hy - 0.5, 0.7, 1); }
-      else { this.circ(ctx, hx + 0.4, hy + 0.3, 1.2, col); this.circ(ctx, hx + 0.4, hy + 0.3, 0.45, '#c8a870'); }
-    } else if (k === 'canteen') {
-      this.circ(ctx, hx + (atMouth ? 1.4 : 0.5), hy + 0.2, 1.7, '#7a6a4a'); this.circ(ctx, hx + (atMouth ? 1.4 : 0.5), hy + 0.2, 1.1, '#9a9aa0');
-      if (atMouth) { ctx.fillStyle = '#5a5a60'; ctx.fillRect(hx + 2.9, hy - 0.3, 0.8, 0.6); }
-    } else if (k === 'cup') {
-      this.circ(ctx, hx + (atMouth ? 1 : 0.4), hy + 0.2, 1.2, '#7a7a82'); this.circ(ctx, hx + (atMouth ? 1 : 0.4), hy + 0.2, 0.75, '#3a2010');
-    } else if (k === 'eat') {
-      if (!atMouth || A.q < 0.85) { ctx.fillStyle = col; ctx.fillRect(hx + 0.2, hy - 0.7, 2, 1.5); ctx.fillStyle = shadeHex(col, -0.25); ctx.fillRect(hx + 0.2, hy + 0.4, 2, 0.4); }
-    } else if (k === 'smoke') {
-      ctx.fillStyle = '#e8e0d0'; ctx.fillRect(hx + 0.6, hy - 0.3, 1.8, 0.6);
-      ctx.fillStyle = A.q > 0.8 ? '#ffb040' : '#d0602a'; ctx.fillRect(hx + 2.3, hy - 0.35, 0.7, 0.7);
-    } else if (k === 'pill') {
-      if (A.q < 0.9) { ctx.fillStyle = '#f0ece0'; ctx.fillRect(hx + 0.5, hy - 0.4, 0.8, 0.8); }
-    } else if (k === 'salts') {
-      ctx.fillStyle = '#d8e0e8'; ctx.fillRect(hx + 0.4, hy - 0.6, 1.4, 1.2); ctx.fillStyle = '#6a7a8a'; ctx.fillRect(hx + 1.7, hy - 0.4, 0.5, 0.8);
-    }
-  },
-  /* Silah doldurma (st.reload = { wk, q, n }): q ilerleme 0-1, n el gidiş-gelişi. pistol: tabanca sol elde göğüs
-     önünde, tambur açık; sağ el kemerden tambura fişek taşır. long: tüfek gövdenin önünden çaprazlama, sağ el kemerden
-     yan kapağa; single: tek atımlık, bir kez; shotgun: namlular kırık, iki fişek; bow: sağ el sırttaki ok kılıfından kirişe. */
-  reloadArms(ctx, look, st, sw) {
-    const R = st.reload, S = look.skin, n = R.n || 1, q = clamp(R.q, 0, 1);
-    const u = 0.5 - 0.5 * Math.cos(q * n * TAU);   // 0 kemerde, 1 silahta
-    const iron = '#2a2a2e', wood = '#5a3e26';
-    if (st.riding) { this.circ(ctx, 3.5, -3.3, 1.5, look.coat); }
-    if (R.wk === 'bow') {
-      ctx.strokeStyle = '#6a4a28'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(2.6, -2.4, 5.2, -1.6, 0.2); ctx.stroke();
-      this.armTo(ctx, look, -1, 6.2, -3.6, 3, -5);
-      const hx = lerp(-3.6, 4.4, u), hy = lerp(3.2, -1.6, u);
-      this.armTo(ctx, look, 1, hx, hy, lerp(-1.5, 2.4, u), lerp(5.4, 3, u));
-      ctx.strokeStyle = '#c8b080'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + 5.5 * u + 1, hy - 2.2 * u - 0.5); ctx.stroke();
-      return;
-    }
-    if (R.wk === 'pistol') {
-      // tabanca göğüs önünde, namlu sola yukarı; açık tambur
-      ctx.save(); ctx.translate(4.3, -1.3); ctx.rotate(-0.7);
-      ctx.fillStyle = iron; ctx.fillRect(-0.6, -0.55, 4.4, 1.1); ctx.fillStyle = wood; ctx.fillRect(-2.2, -0.4, 1.8, 1.4);
-      ctx.restore();
-      this.circ(ctx, 4.9, 0.1, 0.95, '#3a3a40'); this.circ(ctx, 4.9, 0.1, 0.4, '#8a8a90');
-      this.armTo(ctx, look, -1, 3.8, -1.5, 2, -4.4);
-    } else {
-      const broke = R.wk === 'shotgun';
-      // tüfek gövdenin önünden çaprazlama (dipçik sağ kalçada, namlu sol öne)
-      ctx.strokeStyle = wood; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-2.4, 3.8); ctx.lineTo(1.8, 1.2); ctx.stroke();
-      ctx.strokeStyle = R.wk === 'long' ? '#b0903e' : '#4a4a52'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(1.6, 1.3); ctx.lineTo(3, 0.4); ctx.stroke();
-      ctx.strokeStyle = iron; ctx.lineWidth = broke ? 1.5 : 1.1; ctx.beginPath(); ctx.moveTo(3, 0.4); ctx.lineTo(broke ? 6.6 : 9.4, broke ? -0.4 : -3.6); ctx.stroke();
-      this.armTo(ctx, look, -1, broke ? 5.6 : 6, broke ? -0.3 : -2.4, 3, -4.6);
-    }
-    // sağ el: kemerdeki fişeklikten silaha
-    const bx = 0.6, by = 5, gx = R.wk === 'pistol' ? 4.7 : 2.6, gy = R.wk === 'pistol' ? 0.6 : 1.3;
-    const hx = lerp(bx, gx, u), hy = lerp(by, gy, u);
-    this.armTo(ctx, look, 1, hx, hy, lerp(-0.6, 2, u), lerp(5.6, 4, u));
-    if (u > 0.25 && u < 0.97) { ctx.fillStyle = R.wk === 'shotgun' ? '#a83a2a' : '#c8a040'; ctx.fillRect(hx + 0.3, hy - 0.35, 1.1, 0.7); }
-  },
-  /* NPC jestleri, üstten görünüş (gövde çerçevesi: x ileri, y sağ).
-     layer 0: kollar ve eldekiler (true dönerse varsayılan kollar çizilmez); layer 1: başın üstünde kalanlar */
-  gesture(ctx, look, st, sw, layer) {
-    const k = st.anim, t = st.animT || 0, C = look.coat, S = look.skin;
-    if (st.hold || st.aim || st.riding) return false;
-    const arm = (sd, hx, hy, ex, ey) => {
-      ctx.strokeStyle = C; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath(); ctx.moveTo(0, sd * 4); if (ex !== undefined) ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
-      ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
-      this.circ(ctx, hx, hy, 1.1, S);
-    };
-    const down = (sd) => { this.circ(ctx, sd * sw * 0.7, sd * 4.8, 1.7, C); this.circ(ctx, sd * sw * 0.7 + 0.8, sd * 5.2, 1, S); };
-    const cyc = (per, up) => { const u = t % per; return u < up ? Math.sin(u / up * Math.PI) : 0; };
-    switch (k) {
-      case 'smoke': {
-        // önce kibritle yakar, sonra ara ara ağzına götürür; ucu kor gibi yanar
-        if (t < 1.3) {
-          if (layer === 1) { this.circ(ctx, 4.6, -0.8, 1.1, S); this.circ(ctx, 4.6, 0.8, 1.1, S); if (Math.sin(t * 40) > -0.3) { ctx.fillStyle = '#ffd060'; ctx.fillRect(5.3, -0.4, 0.9, 0.9); } }
-          else { arm(-1, 4.6, -0.8); arm(1, 4.6, 0.8); }
-          return true;
-        }
-        const r = cyc(6, 1.3), hx = 2.2 + r * 2.4, hy = 4.6 - r * 3.6;
-        if (layer === 0) { down(-1); if (r < 0.35) arm(1, hx, hy); return true; }
-        if (r >= 0.35) arm(1, hx, hy);
-        ctx.fillStyle = '#e8e0d0'; ctx.fillRect(hx + 0.6, hy - 0.3, 1.6, 0.6);
-        ctx.fillStyle = r > 0.8 ? '#ffb040' : '#d0602a'; ctx.fillRect(hx + 2.1, hy - 0.35, 0.7, 0.7);
-        return true;
-      }
-      case 'drink': {
-        const r = cyc(6.5, 1.5), hx = 1.4 + r * 3, hy = 5.4 - r * 4.6;
-        if (layer === 0) { down(-1); if (r < 0.35) { arm(1, hx, hy); ctx.fillStyle = '#6a4a2a'; ctx.fillRect(hx - 0.4, hy - 0.9, 2.4, 1.8); } return true; }
-        if (r >= 0.35) { arm(1, hx, hy); ctx.fillStyle = '#6a4a2a'; ctx.fillRect(hx + 0.3, hy - 0.8, 2.6, 1.6); ctx.fillStyle = '#c8a040'; ctx.fillRect(hx + 2.7, hy - 0.4, 0.6, 0.8); }
-        return true;
-      }
-      case 'watch':
-        if (layer === 1) return true;
-        arm(-1, 5.4, -1.2); arm(1, 5.4, 1.2);
-        this.circ(ctx, 6.3, 0, 1.3, '#d8b048'); this.circ(ctx, 6.3, 0, 0.8, '#f4ecd8');
-        ctx.strokeStyle = '#c8a040'; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.moveTo(6.3, 0); ctx.lineTo(2.5, 1.5); ctx.stroke();
-        return true;
-      case 'wave': if (layer === 0) { down(-1); arm(1, 4 + Math.sin(t * 13) * 1.1, 7.6, 1.5, 6.4); } return true;
-      case 'cross':
-        if (layer === 1) return true;
-        arm(-1, 5.2, 2.2, 2.5, -4.6); arm(1, 5.2, -2.2, 2.5, 4.6);
-        ctx.fillStyle = C; ctx.fillRect(4.4, -3, 1.8, 6);
-        return true;
-      case 'hips': if (layer === 0) { arm(-1, -1.4, -5.4, 0.8, -7.6); arm(1, -1.4, 5.4, 0.8, 7.6); } return true;
-      case 'scratch':
-        if (layer === 0) { down(-1); return true; }
-        arm(1, -0.4 + Math.sin(t * 18) * 0.6, 3.2);
-        return true;
-      case 'stretch': { if (layer === 1) return true; const q = 0.85 + 0.15 * Math.sin(t * 2.2); arm(-1, 1.4, -9.8 * q); arm(1, 1.4, 9.8 * q); return true; }
-      case 'handsup': if (layer === 0) { const q = Math.sin(t * 9) * 0.25; arm(-1, 2.2 + q, -4.4, 0.6, -7.2); arm(1, 2.2 - q, 4.4, 0.6, 7.2); } return true;   // teslim (js/npcmorale.js)
-      case 'shrug': if (layer === 0) { arm(-1, 3.6, -7.6, 0.8, -6.8); arm(1, 3.6, 7.6, 0.8, 6.8); } return true;
-      case 'point': if (layer === 0) { down(-1); arm(1, 10.5, 2.6); } return true;
-      case 'gesture':
-        if (layer === 1) return true;
-        arm(1, 5.4 + Math.sin(t * 6.3) * 1.3, 3.4 + Math.cos(t * 4.1) * 1.1);
-        arm(-1, 5 + Math.sin(t * 4.7 + 1.3) * 1.1, -3.3 + Math.sin(t * 3.1) * 0.8);
-        return true;
-      case 'laugh': if (layer === 0) { arm(-1, 4.8, -1.7); arm(1, 4.8, 1.7); } return true;
-      case 'fan':
-        if (layer === 0) { down(-1); return true; }
-        arm(1, 5.2, 1.4 + Math.sin(t * 14) * 1.6);
-        return true;
-      case 'rub': if (layer === 0) { const j = Math.sin(t * 18) * 0.5; arm(-1, 5.3, -0.9 + j); arm(1, 5.3, 0.9 + j); } return true;
-      case 'read':
-        if (layer === 1) return true;
-        arm(-1, 5.4, -2.9); arm(1, 5.4, 2.9);
-        ctx.fillStyle = '#d8d0bc'; ctx.fillRect(5.2, -3.6, 2.6, 7.2);
-        ctx.fillStyle = '#8a8478'; ctx.fillRect(5.6, -3, 1.8, 0.4); ctx.fillRect(5.6, -1.6, 1.8, 0.4); ctx.fillRect(5.6, 0.2, 1.8, 0.4); ctx.fillRect(5.6, 1.8, 1.8, 0.4);
-        return true;
-      case 'tie': if (layer === 0) { arm(-1, 6.2, -1.3 + Math.sin(t * 9) * 0.4); arm(1, 6.2, 1.3); } return true;
-      case 'hurry':
-        if (layer === 0) return true;
-        arm(-1, 0.6, -3.5); arm(1, 0.6, 3.5);
-        return true;
-      case 'pat': if (layer === 0) { down(-1); arm(1, 7.4 + Math.sin(t * 7) * 0.9, 1.8); } return true;
-      case 'nod': return false;
-    }
-    return false;
   },
 
   /* ---------- Taşınan yük: post, ceset, leş ---------- */
@@ -2736,45 +2370,14 @@ const Spr = {
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
   },
 
-  /* ---------- At ---------- */
+  /* At: parçalı, gölgelendirilmiş sprite (js/hybrid.js drawHorse); burada güneşe göre gölge ya da ölü atın kan gölü */
   horse(ctx, x, y, ang, look, st) {
-    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
-    if (st.dead) {
-      this.ell(ctx, 0, 3, 13, 7, 'rgba(110,10,10,0.5)');
-      this.ell(ctx, 0, 0, 10, 5, look.col); this.ell(ctx, 11, 2, 4, 2, look.col);
-      ctx.fillStyle = shadeHex(look.col, -0.3); for (let k = 0; k < 4; k++) ctx.fillRect(-6 + k * 4, 4, 1.6, 6);
-      ctx.restore(); return;
-    }
-    { const [sdx, sl] = Juice.sun(12); ctx.save(); ctx.rotate(-ang); ctx.translate(sdx, 0); ctx.rotate(ang); this.ell(ctx, 2, 2.5, 13 * (0.8 + 0.2 * sl), 6, 'rgba(0,0,0,0.28)'); ctx.restore(); }
-    // şahlanma: ön taraf yükselir (üstten bakınca kısalıp genişler), ön ayaklar havada
-    const rk = st.rear || 0;
-    if (rk) { ctx.translate(-9, 0); ctx.scale(1 + 0.08 * rk, 1 + 0.2 * rk); ctx.translate(9 + 2 * rk, 0); }
-    const p = st.phase || 0, m = Math.min(1, st.mv || 0);
-    const lc = shadeHex(look.col, -0.35);
-    const legs = [[6, -3.4, 0], [6, 3.4, Math.PI], [-6, -3.4, Math.PI * 0.6], [-6, 3.4, Math.PI * 1.6]];
-    for (const [lx, ly, ph] of legs) { const o = Math.sin(p + ph) * 3.2 * m + (lx > 0 ? rk * (2.5 + Math.sin(G.t * 18 + ly) * 1.2) : 0); this.ell(ctx, lx + o, ly, 2, 1.3, lc); ctx.fillStyle = '#1a1410'; ctx.fillRect(lx + o + 1.2, ly - 0.8, 1, 1.6); }
-    ctx.strokeStyle = look.mane; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(-9.5, 0); ctx.quadraticCurveTo(-13, Math.sin(p * 0.5) * 2 * m, -15, Math.sin(p) * 1.5 * m); ctx.stroke();
-    this.ell(ctx, 0, 0, 10.5, 4.6, look.col);
-    this.ell(ctx, -1, -1.2, 7, 1.8, shadeHex(look.col, 0.12));
-    const nk = st.graze ? 0.5 : 0, hy = st.nod || 0;   // hy: baş sallama (yana)
-    this.ell(ctx, 8.6, hy * 0.3, 4.2, 2.7, look.col);
-    this.ell(ctx, 12.8 + nk * 2, hy, 3.6, 2, look.col);
-    this.ell(ctx, 15.4 + nk * 2, hy * 1.2, 1.5, 1.6, shadeHex(look.col, -0.2));
-    if (look.blaze) { ctx.fillStyle = '#f0ece4'; ctx.fillRect(12 + nk * 2, -0.5 + hy, 4, 1); }
-    ctx.fillStyle = shadeHex(look.col, -0.2);
-    ctx.beginPath(); ctx.moveTo(10.5, -1.2); ctx.lineTo(9.8, -3); ctx.lineTo(11.4, -1.6); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(10.5, 1.2); ctx.lineTo(9.8, 3); ctx.lineTo(11.4, 1.6); ctx.fill();
-    ctx.strokeStyle = look.mane; ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.moveTo(4.5, 0); ctx.lineTo(11, 0); ctx.stroke();
-    ctx.lineCap = 'butt';
-    if (st.saddle) {
-      ctx.fillStyle = look.blanket || '#8a2a20'; ctx.fillRect(-4.5, -4.6, 8, 9.2);
-      ctx.fillStyle = '#5a3a20'; ctx.beginPath(); ctx.ellipse(-0.5, 0, 3.6, 3.8, 0, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#3a2412'; ctx.fillRect(2.4, -0.8, 1.6, 1.6);
-      if (st.bags) { ctx.fillStyle = '#6a4424'; ctx.fillRect(-7, -5.6, 3, 2); ctx.fillRect(-7, 3.6, 3, 2); }
-    }
+    const c = Math.cos(ang), s = Math.sin(ang);
+    ctx.save();
+    if (st.dead) { ctx.translate(x - s * 3, y + c * 3); ctx.rotate(ang); this.ell(ctx, 0, 0, 13, 7, 'rgba(110,10,10,0.5)'); }
+    else { const [sdx, sl] = Juice.sun(12); ctx.translate(x + sdx + c * 2 - s * 2.5, y + s * 2 + c * 2.5); ctx.rotate(ang); this.ell(ctx, 0, 0, 13 * (0.8 + 0.2 * sl), 6, 'rgba(0,0,0,0.28)'); }
     ctx.restore();
+    HY.drawHorse(ctx, x, y, ang, look, st, G.hy ? 2 : 1);
   },
 
   /* ---------- Hayvanlar ---------- */

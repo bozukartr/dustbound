@@ -40,7 +40,9 @@ module.exports = {
       await p.keyboard.press('KeyE');
       await p.waitForFunction(() => G.player.carry === TG, null, { timeout: 8000 }).catch(() => {});
       t.ok(await p.evaluate(() => G.player.carry === TG && !G.ents.includes(TG)), 'omuzda olmalı');
-      // hız oyun saatiyle ölçülür (px/sn): yükle koşulamaz (koşu 88, yükle yürüyüş en çok 46)
+      // hız oyun saatiyle ölçülür (px/sn): yükle koşulamaz (koşu 88, yükle yürüyüş en çok 46). Omuza alma animasyonu sürerken
+      // oyuncu kıpırdamaz: yükte bitmesi beklenir (yoksa ölçülen hız düşük çıkar)
+      await p.waitForFunction(() => !G.player.lift, null, { timeout: 8000 }).catch(() => {});
       const s0 = await p.evaluate(() => [G.player.x, G.player.y, G.t]);
       await p.keyboard.down('ShiftLeft'); await p.keyboard.down('KeyD'); await t.sleep(1000); await p.keyboard.up('KeyD'); await p.keyboard.up('ShiftLeft');
       const sp = await p.evaluate((s0) => dist(G.player.x, G.player.y, s0[0], s0[1]) / Math.max(0.05, G.t - s0[2]), s0);

@@ -425,21 +425,55 @@ const FX = {
     }
     ctx.globalAlpha = 1;
   },
-  /* Kıyı köpüğü: karaya komşu su karolarında kenara vuran ince dalgalar */
-  shoreLand(W, x, y) { const v = W.t(x, y); return !isWaterT(v) && v !== T.BRIDGE; },
-  /* Görünen her su karosu için her karede çağrılır: kapanış ve renk metni yaratılmaz (saydamlık globalAlpha ile) */
-  foam(ctx, tx, ty, t) {
-    const W = G.world;
-    const n = this.shoreLand(W, tx, ty - 1), s = this.shoreLand(W, tx, ty + 1), w = this.shoreLand(W, tx - 1, ty), e = this.shoreLand(W, tx + 1, ty);
-    if (!(n || s || w || e)) return;
-    const X = tx * TS, Y = ty * TS, ph = hash2(tx, ty, 13) * TAU;
-    const wave = Math.sin(t * 1.3 + ph), d = 1.6 + wave * 1.1, a = 0.2 + (wave * 0.5 + 0.5) * 0.18;
-    ctx.globalAlpha = a; ctx.fillStyle = '#ecf4f8';
-    const o1 = (hash2(tx, ty, 14) * 5) | 0, len = 5 + (hash2(tx, ty, 15) * 4 | 0);
-    if (n) { ctx.fillRect(X + o1, Y + d, len, 1); ctx.fillRect(X + o1 + len + 2, Y + d + 1, 4, 1); }
-    if (s) { ctx.fillRect(X + o1 + 1, Y + TS - 1 - d, len, 1); }
-    if (w) { ctx.fillRect(X + d, Y + o1, 1, len); ctx.fillRect(X + d + 1, Y + o1 + len + 2, 1, 3); }
-    if (e) { ctx.fillRect(X + TS - 1 - d, Y + o1 + 2, 1, len); }
+  /* Kıyı canlandırması (veri: World.waterAnimData; iki çizici de dünya koordinatında çizer): kıyıya gelip çekilen köpük
+     (evresi kıyı boyunca kayar; köpükte delikler), arkasında açık turkuaz yalama şeridi, ıslak kumda suyun ileri geri
+     gidişi, sığda oynayan ışık ağları; açık suda beliren dalga çizgileri ve gündüz güneş pırıltısı (amb: ortam efektleri).
+     Kıyı pikselleri satır sırasıyla gelir: aynı durumdaki komşular tek dikdörtgen, her durum tek dolgu */
+  water(ctx, A, t, x0, y0, x1, y1, amb) {
+    if (A.x0 > x1 || A.y0 > y1 || A.x1 < x0 || A.y1 < y0) return;
+    const ox = A.x0, oy = A.y0, LAP = this._lap || (this._lap = new Float32Array(6)), SW = this._sw || (this._sw = new Float32Array(6));
+    for (let g = 0; g < 6; g++) { const s = 0.5 + 0.5 * Math.sin(t * 1.15 + (g + 0.5) * 1.5); LAP[g] = (1.4 + 1.8 * s) * 16; SW[g] = (0.4 + 1.4 * s) * 16; }
+    const P = [null, new Path2D(), new Path2D(), new Path2D(), new Path2D()], X = A.X, Y = A.Y, Q = A.Q, G = A.G, n = A.n;
+    const cy0 = y0 - oy - 1, cy1 = y1 - oy + 1, t1 = t * 1.3, t2 = t * 0.9, t3 = t * 1.1, t4 = t * 0.7;
+    let rs = 0, ry = -1, rx0 = 0, rx1 = -2, any = 0;
+    for (let i = 0; i <= n; i++) {
+      let s = 0, x = 0, y = -9;
+      if (i < n) {
+        y = Y[i]; if (y < cy0 || y > cy1) continue;
+        x = X[i];
+        const q = Q[i], g = G[i], gr = g & 7;
+        if (g & 16) { if (q < SW[gr]) s = 3; }                // ıslak kum: su gelip çekilir
+        else if (q < LAP[gr]) s = g & 8 ? 2 : 1;             // köpük (deliğinde açık su)
+        else if (q < LAP[gr] + 26) s = 2;                     // köpüğün arkasında açık şerit
+        else if (q >= 77) {                                   // sığda ışık ağları
+          const wx = ox + x, wy = oy + y;
+          if (Math.sin(wx * 1.1 + t1 + 2 * Math.sin(wy * 0.7 + t2)) * Math.sin(wy * 1.05 - t3 + 2 * Math.sin(wx * 0.6 - t4)) > 0.55) s = 4;
+        }
+        if (s === rs && y === ry && x === rx1 + 1) { rx1 = x; continue; }
+      }
+      if (rs) { P[rs].rect(ox + rx0, oy + ry, rx1 - rx0 + 1, 1); any = 1; }
+      rs = s; ry = y; rx0 = rx1 = x;
+    }
+    if (any) {
+      ctx.fillStyle = '#a9dccd';
+      ctx.globalAlpha = 0.5; ctx.fill(P[2]); ctx.globalAlpha = 0.32; ctx.fill(P[3]); ctx.globalAlpha = 0.26; ctx.fill(P[4]);
+      ctx.globalAlpha = 0.92; ctx.fillStyle = '#eef6f0'; ctx.fill(P[1]);
+    }
+    // açık su: dalga çizgileri belirip söner; gündüz bazılarının ortasında güneş pırıltısı
+    const D = A.dash;
+    if (amb && D && D.length) {
+      const day = G.daylight > 0.55;
+      ctx.fillStyle = '#d6eee8';
+      for (let i = 0; i < D.length; i += 4) {
+        const wx = D[i], wy = D[i + 1];
+        if (wx < x0 - 8 || wx > x1 + 8 || wy < y0 || wy > y1) continue;
+        const s = Math.sin(t * 1.6 + D[i + 3]);
+        if (s < 0.86) continue;
+        const L = D[i + 2];
+        ctx.globalAlpha = (s - 0.86) * 3.2; ctx.fillRect(wx - L / 2, wy, L, 1);
+        if (day && s > 0.985 && (i & 12) === 0) { ctx.fillStyle = '#fafcf4'; ctx.globalAlpha = 1; ctx.fillRect(wx, wy - 1, 1, 1); ctx.fillStyle = '#d6eee8'; }
+      }
+    }
     ctx.globalAlpha = 1;
   },
   /* Rüzgârda salınan, yanından geçilince eğilen bitki */
