@@ -193,25 +193,16 @@ const HY = (() => {
   /* ---------------- ağaçlar ve nesneler ---------------- */
   const AUT = typeof AUTUMN_PAL !== 'undefined' ? AUTUMN_PAL : [['#7a3416', '#a84e1c', '#d07a2a']];
   const SNOW = rgb('#eef2f6');
-  // yaprak taç: kümelenmiş tümsekler, her yaprak lekesi farklı ton, tümsek normali; cy taç merkezi (ekran)
+  // yaprak taç: kümelenmiş tümsekler (Spr.canopyPx, Klasik'le ortak: 5 ton, tümsek gölgesi, dış hat, yaprak dokusu);
+  // cy taç merkezi (ekran), baseY ağacın dibi: yükseklik ve normal ışık geçişine
   function canopy(x, cy, baseY, r, cols, h, snowy, lumps = 6) {
-    const blobs = [];
-    for (let k = 0; k < lumps; k++) { const a = k / lumps * TAU + h * 6, rr = r * (0.55 + 0.2 * Math.sin(k * 2.1 + h * 9)); blobs.push([x + Math.cos(a) * r * 0.45, cy + Math.sin(a) * r * 0.4, rr]); }
-    blobs.push([x, cy, r * 0.7]); blobs.push([x - r * 0.22, cy - r * 0.3, r * 0.42]);
-    const c1 = rgb(cols[0]), c2 = rgb(cols[1]), c3 = rgb(cols[2]);
-    for (let yy = by(cy - r * 1.2); yy <= by(cy + r * 1.1); yy++) for (let xx = bx(x - r * 1.2); xx <= bx(x + r * 1.2); xx++) {
-      const wx = wxOf(xx), wy = wyOf(yy);
-      let best = -1, nx = 0, ny = 0, nz = 0;
-      for (let q = 0; q < blobs.length; q++) { const B = blobs[q], bx0 = B[0], by0 = B[1], br = B[2], dx = (wx - bx0) / br, dy = (wy - by0) / br, d = dx * dx + dy * dy; if (d > 1) continue; const z = Math.sqrt(1 - d) * br + (by0 < cy ? 1 : 0); if (z > best) { best = z; nx = dx; ny = dy; nz = Math.sqrt(1 - d); } }
-      if (best < 0) continue;
-      const lf = hs(Math.floor(wx * 1.4), Math.floor(wy * 1.6), 21 + (h * 100 | 0));
-      const lit = -nx * 0.5 - ny * 0.6 + nz * 0.4;
-      let c = lit > 0.55 ? c3 : lit > 0.05 ? c2 : c1;
-      if (lf > 0.86) c = shT(c, 0.14); else if (lf < 0.12) c = shT(c, -0.22);
-      if (snowy && ny < -0.2 && lf > 0.3) c = SNOW;
-      const l = Math.hypot(nx, ny, nz * 1.3);
+    const C = Spr.canopyPx(r, cols, h, lumps, S, snowy), n = C.n, x0 = bx(x) - C.half, y0 = by(cy) - C.half, col = [0, 0, 0];
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const k = j * n + i; if (!C.c[k * 4 + 3]) continue;
+      const nx = C.nx[k], ny = C.ny[k], nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny)), l = Math.hypot(nx, ny, nz * 1.3) || 1;
       NT[0] = nx / l; NT[1] = ny / l; NT[2] = nz * 1.3 / l;
-      put(xx, yy, c, Math.max(7, baseY - wy) + best * 0.4, NT, 0);
+      col[0] = C.c[k * 4] / 255; col[1] = C.c[k * 4 + 1] / 255; col[2] = C.c[k * 4 + 2] / 255;
+      put(x0 + i, y0 + j, col, Math.max(7, baseY - wyOf(y0 + j)) + C.z[k] * 0.4, NT, 0);
     }
   }
   function trunk(x, y0w, y1w, w, col) {
@@ -1398,7 +1389,7 @@ const HY = (() => {
     }
     return false;
   }
-  /* Yere yakın duruşlar (klasikteki Spr.humanLow'un eşi): sit (0-1) yerde oturuş, kneel diz çökmüş */
+  /* Yere yakın duruşlar (iki çizici): sit (0-1) yerde ya da sandalyede oturuş, kneel diz çökmüş */
   function lowParts(L, st) {
     const coat = rgb(L.coat), pants = rgb(L.pants), skin = rgb(L.skin), shirt = rgb(L.shirt), hair = rgb(L.hairNow || L.hair), boot = BOOT, P = [];
     if (st.sit !== undefined) {

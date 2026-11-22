@@ -381,15 +381,66 @@ const Spr = {
   line(ctx, x1, y1, x2, y2, col, w = 1) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); },
 
   /* ---------- Ağaç taçları ---------- */
-  canopy(ctx, x, y, r, c1, c2, c3, h, lumps = 6) {
-    for (let k = 0; k < lumps; k++) {
-      const a = k / lumps * TAU + h * 6;
-      const rr = r * (0.55 + 0.2 * Math.sin(k * 2.1 + h * 9));
-      this.circ(ctx, x + Math.cos(a) * r * 0.45, y + Math.sin(a) * r * 0.4, rr, c1);
+  /* Yaprak taç, piksel piksel (iki çizici ortak): kümelenmiş tümsekler; ışık sol üstten 5 tonla (koyu, üç ana ton, ışık),
+     yaprak dokusu, yüksek tümseğin alttakine düşen gölgesi, koyu dış hat; karda tümseklerin tepesi beyaz. r yarıçap (dünya
+     pikseli), cols üç ton (koyu, orta, açık), h ağacın tohumu, lumps tümsek sayısı, dens dünya pikseli başına piksel.
+     Dönüş { n: kenar, half: merkez, c: RGBA (saydam pikselde a = 0), z: tümsek yüksekliği, nx, ny: normal } */
+  canopyPx(r, cols, h, lumps, dens, snowy) {
+    const blobs = [];
+    for (let k = 0; k < lumps; k++) { const a = k / lumps * TAU + h * 6, rr = r * (0.55 + 0.2 * Math.sin(k * 2.1 + h * 9)); blobs.push([Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.4, rr]); }
+    blobs.push([0, 0, r * 0.7]); blobs.push([-r * 0.22, -r * 0.3, r * 0.42]);
+    const half = Math.ceil((r * 1.25 + 1.5) * dens), n = half * 2, N = n * n;
+    const id = new Int16Array(N).fill(-1), z = new Float32Array(N), NX = new Float32Array(N), NY = new Float32Array(N), c = new Uint8ClampedArray(N * 4);
+    const c1 = hexToRgb(cols[0]), c2 = hexToRgb(cols[1]), c3 = hexToRgb(cols[2]), mx = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    const ramp = [mx(c1, [16, 26, 14], 0.35), c1, c2, c3, mx(c3, [230, 240, 170], 0.22)], rim = mx(c1, [8, 12, 8], 0.5), snow = [238, 242, 246], snowS = [210, 218, 226];
+    const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], seed = (h * 1000) | 0;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const lx = (x + 0.5 - half) / dens, ly = (y + 0.5 - half) / dens;
+      let best = -1, bz = -1, bnx = 0, bny = 0;
+      for (let q = 0; q < blobs.length; q++) {
+        const B = blobs[q], dx = (lx - B[0]) / B[2], dy = (ly - B[1]) / B[2], d = dx * dx + dy * dy;
+        if (d > 1) continue;
+        const zz = Math.sqrt(1 - d) * B[2] + (B[1] < 0 ? 1 : 0);   // üst kümeler biraz yüksek
+        if (zz > bz) { bz = zz; best = q; bnx = dx; bny = dy; }
+      }
+      if (best < 0) continue;
+      const i = y * n + x; id[i] = best; z[i] = bz; NX[i] = bnx; NY[i] = bny;
     }
-    this.circ(ctx, x, y, r * 0.7, c2);
-    for (let k = 0; k < 3; k++) this.circ(ctx, x - r * 0.25 + k * 1.5, y - r * 0.3 - k, r * (0.32 - k * 0.07), c3);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const i = y * n + x, o = i * 4, me = id[i];
+      if (me < 0) {
+        // dış hat: komşusu taçta olan boş piksel
+        const nb = x + 1 < n && id[i + 1] >= 0 ? i + 1 : x > 0 && id[i - 1] >= 0 ? i - 1 : y + 1 < n && id[i + n] >= 0 ? i + n : y > 0 && id[i - n] >= 0 ? i - n : -1;
+        if (nb >= 0) { c[o] = rim[0]; c[o + 1] = rim[1]; c[o + 2] = rim[2]; c[o + 3] = 255; z[i] = z[nb] - 0.5; NX[i] = NX[nb]; NY[i] = NY[nb]; }
+        continue;
+      }
+      const lx = (x + 0.5 - half) / dens, ly = (y + 0.5 - half) / dens, nx = NX[i], ny = NY[i], nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+      // yaprak dokusu: yarım piksellik yaprak lekeleri
+      const lf = hash2(Math.floor(lx * 1.4 + 64), Math.floor(ly * 1.6 + 64), seed);
+      let L = -nx * 0.45 - ny * 0.585 + nz * 0.675 + (lf - 0.5) * 0.5 + (BAY[((y & 3) << 2) | (x & 3)] / 16 - 0.5) * 0.12;
+      if (x > 0 && y > 0) { const u = i - n - 1; if (id[u] >= 0 && id[u] !== me && z[u] > z[i] + 0.8) L -= 0.3; }
+      let col = ramp[L < 0.05 ? 0 : L < 0.3 ? 1 : L < 0.6 ? 2 : L < 0.85 ? 3 : 4];
+      if (snowy && ny < -0.2 && lf > 0.3) col = L > 0.45 ? snow : snowS;
+      c[o] = col[0]; c[o + 1] = col[1]; c[o + 2] = col[2]; c[o + 3] = 255;
+    }
+    return { n, half, c, z, nx: NX, ny: NY };
   },
+  /* Klasik: piksel taç kendi küçük tuvalinde hesaplanır ve önbelleğe girer (biçim tohumu 16 kademeye, yarıçap yarım piksele
+     yuvarlanır: her ağaç için yeniden hesaplanıp basılsaydı ormanlık parçanın pişmesi on milisaniyelerce uzardı) */
+  canopy(ctx, x, y, r, c1, c2, c3, h, lumps = 6, snowy = false) {
+    const hq = Math.round(h * 16) / 16, rq = Math.round(r * 2) / 2, key = rq + '|' + c1 + c2 + c3 + '|' + lumps + (snowy ? 's' : '') + hq;
+    const M = this._canC || (this._canC = new Map());
+    let e = M.get(key);
+    if (!e) {
+      const C = this.canopyPx(rq, [c1, c2, c3], hq, lumps, 1, snowy), cv = makeCanvas(C.n, C.n);
+      cv.getContext('2d').putImageData(new ImageData(C.c, C.n, C.n), 0, 0);
+      e = { cv, half: C.half };
+      if (M.size > 600) M.clear();
+      M.set(key, e);
+    }
+    ctx.drawImage(e.cv, Math.round(x) - e.half, Math.round(y) - e.half);
+  },
+
   pine(ctx, x, y, r, c1, c2, c3, h, snow) {
     for (let layer = 0; layer < 3; layer++) {
       const rr = r * (1 - layer * 0.28);
@@ -594,8 +645,7 @@ const Spr = {
       case O.BUSH: {
         this.shadow(g, x + 2, y + 3, 6, 3, 0.2);
         const c = season === 2 ? (h > 0.5 ? ['#7a4a1e', '#9a6026', '#b87a30'] : ['#6a5a26', '#8a7230', '#a88a3a']) : season === 3 ? ['#4a4a36', '#5a5a42', '#6a6a50'] : h > 0.5 ? ['#3a5a26', '#4a6e30', '#5e8440'] : ['#40562a', '#506a34', '#688246'];
-        this.circ(g, x - 2.5, y, 3.8, c[0]); this.circ(g, x + 2.5, y + 0.5, 3.6, c[0]); this.circ(g, x, y - 2, 4, c[1]); this.circ(g, x - 1, y - 3, 2, c[2]);
-        if (snowy) { this.ell(g, x - 0.5, y - 3.5, 4, 2, '#eef2f6'); this.ell(g, x + 2.5, y - 1, 2, 1, '#e2e8ee'); }
+        this.canopy(g, x, y - 1, 5.2, c[0], c[1], c[2], h, 5, snowy);   // Melez'deki gibi küme taç
         break;
       }
       case O.DRYBUSH: {

@@ -2535,44 +2535,33 @@ class World {
       }
       if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
     }
-    // kıyıya uzaklık (x3): karşı türe komşu pikseller tohum (3), pah ağırlıkları 3 (yan) ve 4 (çapraz), kendi türünde yayılır
-    if (!dry) D.fill(65535);
-    else {
+    // kıyıya uzaklık (x3): karşı türe komşu pikseller tohum (3), pah ağırlıkları 3 (yan) ve 4 (çapraz), kendi türünde yayılır.
+    // Kova kuyruğuyla (Dial) yalnız kıyı şeridinde (DMAX, ~30 piksel): bütün bölgeyi iki kez taramaktan hızlı; ötesi 65535
+    D.fill(65535);
+    if (dry) {
+      const DMAX = 90, B = []; for (let q = 0; q <= DMAX; q++) B.push([]);
       for (let y = 0, i = 0; y < RH; y++) for (let x = 0; x < RW; x++, i++) {
         const w = WT[i];
-        D[i] = (x > 0 && WT[i - 1] !== w) || (x < RW - 1 && WT[i + 1] !== w) || (y > 0 && WT[i - RW] !== w) || (y < RH - 1 && WT[i + RW] !== w) ? 3 : 65535;
+        if ((x > 0 && WT[i - 1] !== w) || (x < RW - 1 && WT[i + 1] !== w) || (y > 0 && WT[i - RW] !== w) || (y < RH - 1 && WT[i + RW] !== w)) { D[i] = 3; B[3].push(i); }
       }
-      for (let y = 0; y < RH; y++) {
-        for (let x = 0, i = y * RW; x < RW; x++, i++) {
-          let m = D[i]; if (m === 3) continue;
-          const w = WT[i];
-          if (x > 0 && WT[i - 1] === w && D[i - 1] + 3 < m) m = D[i - 1] + 3;
-          if (y > 0) {
-            const j = i - RW;
-            if (WT[j] === w && D[j] + 3 < m) m = D[j] + 3;
-            if (x > 0 && WT[j - 1] === w && D[j - 1] + 4 < m) m = D[j - 1] + 4;
-            if (x < RW - 1 && WT[j + 1] === w && D[j + 1] + 4 < m) m = D[j + 1] + 4;
+      if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
+      const OFF = [-1, 1, -RW, RW, -RW - 1, -RW + 1, RW - 1, RW + 1], WG = [3, 3, 3, 3, 4, 4, 4, 4];
+      for (let q = 3; q <= DMAX; q++) {
+        const L = B[q];
+        for (let k = 0; k < L.length; k++) {
+          const i = L[k]; if (D[i] !== q) continue;
+          const x = i % RW, w = WT[i];
+          for (let m = 0; m < 8; m++) {
+            const nd = q + WG[m]; if (nd > DMAX) continue;
+            if ((x === 0 && (m === 0 || m === 4 || m === 6)) || (x === RW - 1 && (m === 1 || m === 5 || m === 7))) continue;
+            const j = i + OFF[m]; if (j < 0 || j >= n || WT[j] !== w || D[j] <= nd) continue;
+            D[j] = nd; B[nd].push(j);
           }
-          D[i] = m;
         }
-        if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
-      }
-      for (let y = RH - 1; y >= 0; y--) {
-        for (let x = RW - 1, i = y * RW + RW - 1; x >= 0; x--, i--) {
-          let m = D[i]; if (m === 3) continue;
-          const w = WT[i];
-          if (x < RW - 1 && WT[i + 1] === w && D[i + 1] + 3 < m) m = D[i + 1] + 3;
-          if (y < RH - 1) {
-            const j = i + RW;
-            if (WT[j] === w && D[j] + 3 < m) m = D[j] + 3;
-            if (x < RW - 1 && WT[j + 1] === w && D[j + 1] + 4 < m) m = D[j + 1] + 4;
-            if (x > 0 && WT[j - 1] === w && D[j - 1] + 4 < m) m = D[j - 1] + 4;
-          }
-          D[i] = m;
-        }
-        if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
+        B[q] = null;
       }
     }
+    if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
     const OP = new Uint8Array(TW * TH);
     for (let j = 2; j < TH - 2; j++) for (let i = 2; i < TW - 2; i++) { let c = 0; for (let yy = -2; yy <= 2; yy++) for (let xx = -2; xx <= 2; xx++) c += TG[(j + yy) * TW + i + xx]; OP[j * TW + i] = c; }
     return { MG, RW, RH, x0, y0, tx0, ty0, TW, WT, D, LT, OP, TT };
@@ -2718,8 +2707,10 @@ class World {
     const WS = SH && wout ? new Uint8Array(PW * PH) : null;
     const deepAt = (wx, wy) => {
       const u = (wx + 0.5 - 8) / 16 - SH.tx0, q = (wy + 0.5 - 8) / 16 - SH.ty0, i0 = Math.floor(u), j0 = Math.floor(q), fu = u - i0, fq = q - j0;
-      const su = fu * fu * (3 - 2 * fu), sq = fq * fq * (3 - 2 * fq), kk = j0 * SH.TW + i0, TT = SH.TT, D0 = T.DEEP;
-      return ((TT[kk] === D0 ? 1 : 0) * (1 - su) + (TT[kk + 1] === D0 ? 1 : 0) * su) * (1 - sq) + ((TT[kk + SH.TW] === D0 ? 1 : 0) * (1 - su) + (TT[kk + SH.TW + 1] === D0 ? 1 : 0) * su) * sq;
+      const kk = j0 * SH.TW + i0, TT = SH.TT, D0 = T.DEEP, a = TT[kk] === D0 ? 1 : 0, b = TT[kk + 1] === D0 ? 1 : 0, c = TT[kk + SH.TW] === D0 ? 1 : 0, e = TT[kk + SH.TW + 1] === D0 ? 1 : 0;
+      if (a === b && b === c && c === e) return a;   // çoğu su pikseli: dört karo aynı
+      const su = fu * fu * (3 - 2 * fu), sq = fq * fq * (3 - 2 * fq);
+      return (a * (1 - su) + b * su) * (1 - sq) + (c * (1 - su) + e * su) * sq;
     };
     const dryCol = season === 2 ? AUT[T.DRY] : season === 1 ? SUM[T.DRY] : TPAL[T.DRY];
     let gC = null, gR = null;
@@ -2977,33 +2968,36 @@ class World {
       // adım süresi dolunca (World.STEP) sıra kareye döner: yüksek tazelemede de kare bütçesini aşmaz
       if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
     }
-    // ot öbekleri ve kır çiçekleri: 9 piksellik titreşimli ızgarada, dünya konumundan seçilir (iki parçanın kesiştiği öbek iki
-    // yanda aynı çizilir: ek yeri görünmez). Çimen ve orman karosunda; yol kenarında, kumsalda ve kuru lekede yok; kışın kar örter
-    if (season !== 3) {
-      const put = (x, y, c) => { x -= ox; y -= oy; if (x < 0 || y < 0 || x >= PW || y >= PH) return; const i = (y * PW + x) << 2; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; };
-      const gcol = (tt) => season === 2 ? AUT[tt] : season === 1 ? SUM[tt] : TPAL[tt];
-      const FC = World.FLC || (World.FLC = ['#f3efe2', '#ecc94b', '#a98ad0', '#e48a6a'].map(hexToRgb));
-      const gx0 = Math.floor((ox - 2) / 9), gy0 = Math.floor(oy / 9), gx1 = Math.floor((ox + PW + 2) / 9), gy1 = Math.floor((oy + PH + 5) / 9);
-      for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
-        const bx = gx * 9 + Math.floor(hash2(gx, gy, 81) * 9), bY = gy * 9 + Math.floor(hash2(gx, gy, 82) * 9);
-        if (bx < 0 || bY < 0 || bx > MAXP || bY > MAXP) continue;
-        const bt = tile[(bY >> 4) * WW + (bx >> 4)];
-        if (bt !== T.GRASS && bt !== T.FOREST) continue;
-        if (RS[(((bY >> 4) - ty0) + 2) * TW + ((bx >> 4) - tx0) + 2]) continue;
-        if (SH) { const sx = bx - SH.x0, sy = bY - SH.y0; if (sx >= 0 && sy >= 0 && sx < SH.RW && sy < SH.RH) { const si = sy * SH.RW + sx; if (SH.WT[si] || SH.D[si] < 42) continue; } }
-        if (bt === T.GRASS && WN[(((((bY * 0.7) | 0) + 113) & 255) << 8) | ((((bx * 0.7) | 0) + 59) & 255)] > 0.64) continue;
-        const r = hash2(gx, gy, 83), R = World.ramp('grass', gcol(bt));
-        if (r < (bt === T.FOREST ? 0.25 : 0.45)) {
-          // üç yaprak: dipte koyu, uçta açık; yanlardaki dışa eğik
-          const h = 2 + Math.floor(hash2(gx, gy, 84) * 3);
-          for (let b = -1; b <= 1; b++) for (let q = 0; q < h; q++) put(bx + b + (q === h - 1 ? b : 0), bY - q, q === 0 ? R[1] : q === h - 1 ? R[4] : q === 1 ? R[2] : R[3]);
-        } else if (r > 0.93 && bt === T.GRASS && season < 2) {
-          const c = FC[Math.floor(hash2(gx, gy, 86) * 4)];
-          put(bx, bY + 1, R[0]); put(bx, bY, c); put(bx + 1, bY, c); put(bx, bY - 1, [c[0] + (255 - c[0]) * 0.3, c[1] + (255 - c[1]) * 0.3, c[2] + (255 - c[2]) * 0.3]);
-        }
+    if (season !== 3) this.tufts(ox, oy, PW, PH, d, SH, RS, tx0, ty0, TW);
+    if (WS) this.waterAnimData(SH, WS, ox, oy, PW, PH, wout);
+  }
+  /* Ot öbekleri ve kır çiçekleri: 9 piksellik titreşimli ızgarada, dünya konumundan seçilir (iki parçanın kesiştiği öbek iki
+     yanda aynı çizilir: ek yeri görünmez). Çimen ve orman karosunda; yol kenarında, kumsalda ve kuru lekede yok. Zemin
+     üretecinden ayrı: üreteç büyüdükçe motorun en iyi derleme sınırını aşıp bütün piksel döngüsü yavaşlıyordu */
+  tufts(ox, oy, PW, PH, d, SH, RS, tx0, ty0, TW) {
+    const tile = this.tile, season = this.season, WN = World.WN, MAXP = WW * TS - 1;
+    const put = (x, y, c) => { x -= ox; y -= oy; if (x < 0 || y < 0 || x >= PW || y >= PH) return; const i = (y * PW + x) << 2; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; };
+    const gcol = (tt) => season === 2 ? AUT[tt] : season === 1 ? SUM[tt] : TPAL[tt];
+    const FC = World.FLC || (World.FLC = ['#f3efe2', '#ecc94b', '#a98ad0', '#e48a6a'].map(hexToRgb));
+    const gx0 = Math.floor((ox - 2) / 9), gy0 = Math.floor(oy / 9), gx1 = Math.floor((ox + PW + 2) / 9), gy1 = Math.floor((oy + PH + 5) / 9);
+    for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+      const bx = gx * 9 + Math.floor(hash2(gx, gy, 81) * 9), bY = gy * 9 + Math.floor(hash2(gx, gy, 82) * 9);
+      if (bx < 0 || bY < 0 || bx > MAXP || bY > MAXP) continue;
+      const bt = tile[(bY >> 4) * WW + (bx >> 4)];
+      if (bt !== T.GRASS && bt !== T.FOREST) continue;
+      if (RS[(((bY >> 4) - ty0) + 2) * TW + ((bx >> 4) - tx0) + 2]) continue;
+      if (SH) { const sx = bx - SH.x0, sy = bY - SH.y0; if (sx >= 0 && sy >= 0 && sx < SH.RW && sy < SH.RH) { const si = sy * SH.RW + sx; if (SH.WT[si] || SH.D[si] < 42) continue; } }
+      if (bt === T.GRASS && WN[(((((bY * 0.7) | 0) + 113) & 255) << 8) | ((((bx * 0.7) | 0) + 59) & 255)] > 0.64) continue;
+      const r = hash2(gx, gy, 83), R = World.ramp('grass', gcol(bt));
+      if (r < (bt === T.FOREST ? 0.25 : 0.45)) {
+        // üç yaprak: dipte koyu, uçta açık; yanlardaki dışa eğik
+        const h = 2 + Math.floor(hash2(gx, gy, 84) * 3);
+        for (let b = -1; b <= 1; b++) for (let q = 0; q < h; q++) put(bx + b + (q === h - 1 ? b : 0), bY - q, q === 0 ? R[1] : q === h - 1 ? R[4] : q === 1 ? R[2] : R[3]);
+      } else if (r > 0.93 && bt === T.GRASS && season < 2) {
+        const c = FC[Math.floor(hash2(gx, gy, 86) * 4)];
+        put(bx, bY + 1, R[0]); put(bx, bY, c); put(bx + 1, bY, c); put(bx, bY - 1, [c[0] + (255 - c[0]) * 0.3, c[1] + (255 - c[1]) * 0.3, c[2] + (255 - c[2]) * 0.3]);
       }
     }
-    if (WS) this.waterAnimData(SH, WS, ox, oy, PW, PH, wout);
   }
   /* Kıyı canlandırmasının verisi (js/fx.js water çizer): kıyıya yakın su (köpük, yalayan dalga, ışık ağları) ve ıslak kum
      (suyun çekilip geldiği şerit) pikselleri satır sırasıyla; açık suda dalga çizgisi ve pırıltı noktaları. Yalnız
