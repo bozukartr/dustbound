@@ -255,6 +255,37 @@ const Juice = {
   flinchTick(e, dt) { if (e.flinch && (e.flinch.t += dt) >= this.FLINCH_T) e.flinch = null; },
 
   /* Vurulan kişinin şapkası uçar ve yerde kalır */
+  /* ---- Kement ve dinamit (iki çizici ortak): nişanda başın üstünde dönen ilmek, elde yanan fitil; atınca kol
+     arkadan (kementte baş üstünden) öne savrulur. Yerel koordinat: x ileri, y sağ yan ---- */
+  throwHand(wk, k) {
+    const e = k * k * (3 - 2 * k);
+    if (wk === 'lasso') return [1.2 + 7.4 * e, 2.4 - e + Math.sin(e * Math.PI) * 1.6];
+    const u = 1 - e;   // dinamit: omuz arkasından yay çizerek öne
+    return [-3 * u * u + 5 * u * e + 8 * e * e, 7 * u * u + 17.2 * u * e + 2 * e * e];
+  },
+  locPt(x, y, ang, lx, ly) { const c = Math.cos(ang), s = Math.sin(ang); return [x + c * lx - s * ly, y + s * lx + c * ly]; },
+  throwOver(ctx, x, y, ang, wk, swing, skin) {
+    if (swing > 0) return;
+    if (wk === 'lasso') {
+      // ilmek eli çevresinde döner (el ilmeğin kenarında); kısa ip elden düğüme gider, düğüm dönüşü belli eder
+      const [hx, hy] = this.locPt(x, y, ang, 1.2, 2.4), a = G.t * 12, R = 4.4, cx = hx + Math.cos(a) * R, cy = hy + Math.sin(a) * R;
+      const na = a + Math.PI - 1.2, nx = cx + Math.cos(na) * R, ny = cy + Math.sin(na) * R;
+      ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(60,40,20,0.3)';
+      ctx.beginPath(); ctx.arc(cx + 0.5, cy + 0.7, R, 0, TAU); ctx.stroke();
+      ctx.lineWidth = 0.8; ctx.strokeStyle = '#c8a870';
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.moveTo(hx, hy); ctx.lineTo(nx, ny); ctx.stroke();
+      ctx.fillStyle = '#8a6a3a'; ctx.fillRect(nx - 0.6, ny - 0.6, 1.2, 1.2);
+      if (skin) { ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(hx, hy, 1.1, 0, TAU); ctx.fill(); }
+    } else if (wk === 'throw') {
+      // fitilin ucu titreşerek yanar, çevresine kıvılcım saçar
+      const [fx, fy] = this.locPt(x, y, ang, 0.5, 7.7), q = G.t * 37;
+      ctx.fillStyle = 'rgba(255,190,80,0.35)'; ctx.beginPath(); ctx.arc(fx, fy, 1.7 + Math.sin(q * 0.7) * 0.3, 0, TAU); ctx.fill();
+      ctx.fillStyle = Math.sin(q) > 0 ? '#fff0a0' : '#ffa040'; ctx.fillRect(fx - 0.6, fy - 0.6, 1.2, 1.2);
+      ctx.fillStyle = '#fff4c0';
+      ctx.fillRect(fx + Math.sin(q * 1.7) * 1.3 - 0.25, fy + Math.cos(q * 1.3) * 1.3 - 0.25, 0.5, 0.5);
+      ctx.fillRect(fx + Math.cos(q * 2.3) * 1.6 - 0.25, fy + Math.sin(q * 0.9) * 1.6 - 0.25, 0.5, 0.5);
+    }
+  },
   hatOff(e, ang, spd = 60) {
     if (!e || e.kind !== 'npc' || !e.look || !e.look.hat || e.look.hat === 'none') return;
     const L = e.look;
@@ -340,6 +371,8 @@ const Juice = {
     for (let i = this.decals.length - 1; i >= 0; i--) if ((this.decals[i].age += dt) > this.decals[i].life) this.decals.splice(i, 1);
     this.ghostTick(dt);
     this.flinchTick(P, dt);
+    // elde yanan dinamit fitili kıvılcım saçar
+    if (P.weapon === 'dynamite' && P.aiming && !(P.swing > 0) && Math.random() < dt * 16) { const f = this.locPt(P.x, P.y, P.ang, 0.5, 7.7); G.parts.add('spark', f[0], f[1], rnd(-8, 8), rnd(-14, 0), 0.25, 1); }
     // savrulan cesetler
     for (const e of G.ents) {
       if (e.flinch) this.flinchTick(e, dt);

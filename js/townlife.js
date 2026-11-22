@@ -605,7 +605,7 @@ class Wagon extends Ent {
       ctx.restore();
       // sürücü tentenin altındadır; oyuncu nişan alırken yandan uzanır
       const st = this.seat, P = G.player;
-      if (this.rider === P && !P.mountAnim && (P.aiming || P.rsAim)) Spr.human(ctx, st.x, st.y, P.ang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ });
+      if (this.rider === P && !P.mountAnim && (P.aiming || P.rsAim)) { Spr.human(ctx, st.x, st.y, P.ang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ }); if (P.aiming) Juice.throwOver(ctx, st.x, st.y, P.ang, P.aimKind(), P.swing, P.lookNow().skin); }
       return;
     }
     const c = Math.cos(this.ang), s = Math.sin(this.ang);
@@ -649,7 +649,7 @@ class Wagon extends Ent {
     // sürücü önde oturur (oyuncu sürüyorsa oyuncu)
     const st = this.seat, P = G.player;
     if (this.passenger === P) Spr.human(ctx, this.bx - Math.cos(this.bang) * 3, this.by - Math.sin(this.bang) * 3, this.bang, P.lookNow(), { riding: true });   // yolcu arka koltukta
-    if (this.rider === P && !P.mountAnim) Spr.human(ctx, st.x, st.y, P.aiming || P.rsAim ? P.ang : this.bang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ });
+    if (this.rider === P && !P.mountAnim) { Spr.human(ctx, st.x, st.y, P.aiming || P.rsAim ? P.ang : this.bang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ }); if (P.aiming) Juice.throwOver(ctx, st.x, st.y, P.ang, P.aimKind(), P.swing, P.lookNow().skin); }
     else if (this.driver) Spr.human(ctx, st.x, st.y, this.bang, this.driver.look, { riding: true });
   }
 }

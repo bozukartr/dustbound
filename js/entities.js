@@ -974,6 +974,7 @@ class Player extends Ent {
     this.fireCd = 1;
     const d = Math.min(this.aimDist, 140), a = this.aimAng;
     G.projs.push({ type: 'dynamite', x: this.x, y: this.y, sx: this.x, sy: this.y, tx: this.x + Math.cos(a) * d, ty: this.y + Math.sin(a) * d, t: 0, dur: 0.8, fuse: 2.4, owner: this });
+    this.swing = 1;   // kol arkadan öne savrulur
     Audio_.tone(200, 0.2, 'sine', 0.1);
     if (!this.has('dynamite')) { this.weapon = 'fists'; }
   }
@@ -1056,18 +1057,23 @@ class Player extends Ent {
       return;
     }
     if (this.riding) {
-      const rb = 1 + Juice.rearK(this.riding) * 3, fo = Juice.flinchOff(this), rl = this.reloadPose();   // şahlanınca binici geriye yaslanır
-      Spr.human(ctx, this.x - Math.cos(this.riding.ang) * rb + (fo ? fo[0] : 0), this.y - Math.sin(this.riding.ang) * rb + (fo ? fo[1] : 0), this.ang + (fo ? fo[2] : 0), this.lookNow(), { riding: true, aim: !rl && this.aiming, wk: this.aimKind(), draw: this.draw_, reload: rl, act: this.act });
+      const rb = 1 + Juice.rearK(this.riding) * 3, fo = Juice.flinchOff(this), rl = this.reloadPose(), ak = this.aimKind(), thr = ak === 'throw' || ak === 'lasso';   // şahlanınca binici geriye yaslanır
+      const rx = this.x - Math.cos(this.riding.ang) * rb + (fo ? fo[0] : 0), ry = this.y - Math.sin(this.riding.ang) * rb + (fo ? fo[1] : 0), ra = this.ang + (fo ? fo[2] : 0), ra2 = !rl && (this.aiming || (thr && this.swing > 0));
+      Spr.human(ctx, rx, ry, ra, this.lookNow(), { riding: true, aim: ra2, wk: ak, swing: thr ? this.swing : 0, draw: this.draw_, reload: rl, act: this.act });
+      if (thr && ra2) Juice.throwOver(ctx, rx, ry, ra, ak, this.swing, this.lookNow().skin);
       return;
     }
     const kn = this.kneelPose();
     if (kn) { Spr.human(ctx, this.x, this.y, kn.ang, this.lookNow(), kn.st); return; }
     const hv = this.heave, Y = this.yank, yk = Y ? Player.yankArm(Math.min(1, Y.t / Y.dur)) : 0, fo = Juice.flinchOff(this), rl = !Y && this.reloadPose();
-    Spr.human(ctx, this.x + Math.cos(this.ang) * hv + (fo ? fo[0] : 0), this.y + Math.sin(this.ang) * hv + (fo ? fo[1] : 0), this.ang + (fo ? fo[2] : 0), this.lookNow(), {
-      walk: this.phase, mv: Math.min(1, this.mv), aim: Y ? true : !rl && (this.aiming || this.swing > 0.2), wk: Y ? 'fists' : this.aimKind(), crouch: this.crouch || this.retchT > 0, swing: Y ? yk : this.swing, draw: this.draw_, head: this.idleA || 0, hatK: this.hatK || 0,
+    const ak = Y ? 'fists' : this.aimKind(), thr = ak === 'throw' || ak === 'lasso', aim = Y ? true : !rl && (this.aiming || this.swing > (thr ? 0 : 0.2));   // fırlatışta kol sonuna dek savrulur
+    const bx = this.x + Math.cos(this.ang) * hv + (fo ? fo[0] : 0), by = this.y + Math.sin(this.ang) * hv + (fo ? fo[1] : 0), ba = this.ang + (fo ? fo[2] : 0);
+    Spr.human(ctx, bx, by, ba, this.lookNow(), {
+      walk: this.phase, mv: Math.min(1, this.mv), aim, wk: ak, crouch: this.crouch || this.retchT > 0, swing: Y ? yk : this.swing, draw: this.draw_, head: this.idleA || 0, hatK: this.hatK || 0,
       reload: rl || null, act: !Y && !rl ? this.act : null,
       hasGun: this.weapons.has('cattleman') || this.weapons.has('schofield'), backGun: this.weapons.has('repeater') || this.weapons.has('winchester') || this.weapons.has('rifle') || this.weapons.has('shotgun'),
     });
+    if (thr && aim && !this.carry) Juice.throwOver(ctx, bx, by, ba, ak, this.swing, this.lookNow().skin);
     // omuzdaki yük omuz hattı boyunca yatar
     if (this.carry) Spr.carried(ctx, this.carry, this.x - Math.cos(this.ang) * 0.8, this.y - Math.sin(this.ang) * 0.8, this.ang + Math.PI / 2, this.carry.kind === 'pelt' ? 0.9 : 0.8);
   }
@@ -1076,7 +1082,7 @@ class Player extends Ent {
     if (!w) return null;
     if (w.melee) return this.weapon === 'knife' ? 'knife' : 'fists';
     if (w.throw) return 'throw';
-    if (w.lasso) return 'throw';
+    if (w.lasso) return this.rope ? null : 'lasso';   // ipte biri varken ilmek dönmez
     return w.kind;
   }
   get masked() { return !!this.mask && !!this.inv[this.mask]; }

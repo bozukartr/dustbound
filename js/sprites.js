@@ -2225,6 +2225,16 @@ const Spr = {
         ctx.strokeStyle = '#6a4a28'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(6, 0, 6, -1.1, 1.1); ctx.stroke();
         ctx.strokeStyle = '#d8d0c0'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(8.7, -5.3); ctx.lineTo(2 - (st.draw || 0) * 2, 0); ctx.lineTo(8.7, 5.3); ctx.stroke();
         this.circ(ctx, 8, 0, 1.2, look.skin);
+      } else if ((wk === 'throw' || wk === 'lasso') && st.swing > 0) {
+        // fırlatış: kol arkadan (kementte baş üstünden) öne savrulur, öbür kol aşağıda
+        const [hx, hy] = Juice.throwHand(wk, 1 - clamp(st.swing, 0, 1));
+        ctx.beginPath(); ctx.moveTo(0, 4.2); ctx.lineTo(hx, hy); ctx.stroke();
+        this.circ(ctx, hx, hy, 1.2, look.skin);
+        this.circ(ctx, 0, -4.8, 1.6, look.coat);
+      } else if (wk === 'lasso') {
+        // ilmeği başın üstünde çevirir: kol başa doğru kalkık (el ve ilmek başın üstünde, Juice.throwOver)
+        ctx.beginPath(); ctx.moveTo(0, 4.2); ctx.lineTo(1, 3); ctx.stroke();
+        this.circ(ctx, 0, -4.8, 1.6, look.coat);
       } else if (wk === 'throw') {
         ctx.beginPath(); ctx.moveTo(0, 4.2); ctx.lineTo(-2, 7); ctx.stroke();
         this.circ(ctx, -2, 7, 1.2, look.skin); ctx.fillStyle = '#c03020'; ctx.fillRect(-3, 7, 3, 1.4);

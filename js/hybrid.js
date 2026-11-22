@@ -1082,11 +1082,18 @@ const HY = (() => {
       const s3 = st.swing > 0.2 ? 3 : 0;
       armPart(P, coat, skin, -1, 4.5 + s3, -2, 19); armPart(P, coat, skin, 1, 4.5, 2.5, 19);
       if (st.wk === 'knife') P.push({ c: [5.4 + s3, -2.1, 9 + s3, -2.1, 0.5], col: rgb('#c8ccd0'), h: 19.8 });
+    } else if (st.aim && (st.wk === 'throw' || st.wk === 'lasso') && st.thr !== undefined) {
+      // fırlatış: kol arkadan (kementte baş üstünden) öne savrulur
+      const [hx, hy] = Juice.throwHand(st.wk, st.thr);
+      armPart(P, coat, skin, 1, hx, hy, st.wk === 'lasso' && st.thr < 0.3 ? 30 : 19); downArm(P, coat, skin, -1, 0);
+    } else if (st.aim && st.wk === 'lasso') {
+      // ilmeği başın üstünde çevirir: el başın üstünde (ilmek dünyada, Juice.throwOver)
+      armPart(P, coat, skin, 1, 1.2, 2.4, 30); downArm(P, coat, skin, -1, 0);
     } else if (st.aim && st.wk === 'throw') {
       // dinamit: kol geride, elde fitili yanan çubuk (kıvılcım çizimde ayrı)
       armPart(P, coat, skin, 1, -2, 7, 18);
       P.push({ c: [-3, 7.7, 0, 7.7, 0.7], col: rgb('#c03020'), h: 18.6 });
-    } else if (st.aim) {
+    } else if (st.aim && st.wk) {   // Klasik'teki gibi: silahsız doğrultma (soygun) kolları değiştirmez
       const lng = st.wk === 'long', bow = st.wk === 'bow';
       P.push({ c: [0, -4.2, lng ? 7 : 6.5, lng ? -0.5 : -0.2, 1.15], col: coat, h: 19, dome: 1 }); P.push({ c: [0, 4.2, lng ? 3 : 6.5, lng ? 1.5 : 0.3, 1.15], col: coat, h: 19, dome: 1 });
       P.push({ e: [lng ? 7.2 : 6.8, 0.1, 1.3, 1.3], col: skin, h: 19.5, dome: 0.5 });
@@ -1784,7 +1791,7 @@ const HY = (() => {
     const blit = (s, x, y) => fc.drawImage(s.c, x - s.h / S, y - s.h / S, s.c.width / S, s.c.height / S);
     const human = (x, y, ang, L, st, owner, z = 0, sc = 1) => {
       const wk = st.walkKey || walkKey(st.walk || 0, Math.min(1, st.mv || 0));
-      let key = wk + (st.aim ? 'a' + st.wk : '') + (st.riding ? 'r' : '') + (st.crouch ? 'c' : '') + (st.lying ? 'l' + (st.tied ? 't' : '') : '') + (st.hasGun ? 'g' : '') + (st.backGun ? 'b' : '') + (st.hold || '') + (st.swing > 0.2 ? 's' : '');
+      let key = wk + (st.aim && st.wk ? 'a' + st.wk : '') + (st.riding ? 'r' : '') + (st.crouch ? 'c' : '') + (st.lying ? 'l' + (st.tied ? 't' : '') : '') + (st.hasGun ? 'g' : '') + (st.backGun ? 'b' : '') + (st.hold || '') + (st.swing > 0.2 ? 's' : '');
       // yeni duruşlar birkaç kareye nicemlenir (her kare ayrı önbellek sprite'ı)
       const ex = {};
       if (st.sit !== undefined) { const qs = st.sit < 0.3 ? 0.15 : st.sit < 0.65 ? 0.5 : 0.9; ex.sit = qs; key += 'S' + qs; }
@@ -1802,6 +1809,7 @@ const HY = (() => {
       { const hr = st.head ? Math.round(clamp(st.head, -1.2, 1.2) / 0.3) * 0.3 : 0; ex.head = hr; if (hr) key += 'D' + hr.toFixed(1); }
       if (st.gait === 'cane') key += 'C';
       if (st.wk === 'knife' && (st.aim || st.swing > 0.2)) key += 'n';
+      if (st.aim && (st.wk === 'throw' || st.wk === 'lasso') && st.swing > 0) { const k = 1 - clamp01(st.swing), q = k < 0.33 ? 0.15 : k < 0.67 ? 0.5 : 0.9; ex.thr = q; key += 'Q' + q; }
       if (st.aim && st.wk === 'bow') { const dl = (st.draw || 0) < 0.33 ? 0 : st.draw < 0.67 ? 0.5 : 1; ex.draw = dl; key += 'W' + dl; }
       // yürürken omuz salınımı (sarhoş sendeler, çocuk seker), gülerken gövde sarsılır: çizimde
       const mvk = st.riding || st.lying || st.sit !== undefined || st.kneel ? 0 : Math.min(1, st.mv || 0);
@@ -1843,7 +1851,10 @@ const HY = (() => {
         creatureShadow(fc, P.x, P.y, 2.8, 2.4, kn ? 14 : 22, sd, shk);
         if (kn) { human(P.x, P.y, kn.ang, P.lookNow(), kn.st, P); continue; }   // yer işinde diz çökmüş
         const hv = P.heave, Y = P.yank, yk = Y ? Player.yankArm(Math.min(1, Y.t / Y.dur)) : 0, fo = Juice.flinchOff(P), rl = !Y && P.reloadPose();   // öğürürken gövde öne kasılır; atlıyı çekerken uzanıp asılır
-        human(P.x + Math.cos(P.ang) * hv + (fo ? fo[0] : 0), P.y + Math.sin(P.ang) * hv + (fo ? fo[1] : 0), P.ang + (fo ? fo[2] : 0), P.lookNow(), { reload: rl || null, act: !Y && !rl ? P.act : null, walk: P.phase, mv: Math.min(1, P.mv), aim: Y ? true : !rl && (P.aiming || P.swing > 0.2), wk: Y ? 'fists' : P.aimKind(), crouch: P.crouch || P.retchT > 0, swing: Y ? yk : P.swing, draw: P.draw_, head: P.idleA || 0, hatK: P.hatK || 0, hasGun: P.weapons.has('cattleman') || P.weapons.has('schofield'), backGun: P.weapons.has('repeater') || P.weapons.has('winchester') || P.weapons.has('rifle') || P.weapons.has('shotgun') }, P);
+        const ak = Y ? 'fists' : P.aimKind(), thr = ak === 'throw' || ak === 'lasso', aim = Y ? true : !rl && (P.aiming || P.swing > (thr ? 0 : 0.2));
+        const bx = P.x + Math.cos(P.ang) * hv + (fo ? fo[0] : 0), by = P.y + Math.sin(P.ang) * hv + (fo ? fo[1] : 0), ba = P.ang + (fo ? fo[2] : 0);
+        human(bx, by, ba, P.lookNow(), { reload: rl || null, act: !Y && !rl ? P.act : null, walk: P.phase, mv: Math.min(1, P.mv), aim, wk: ak, crouch: P.crouch || P.retchT > 0, swing: Y ? yk : P.swing, draw: P.draw_, head: P.idleA || 0, hatK: P.hatK || 0, hasGun: P.weapons.has('cattleman') || P.weapons.has('schofield'), backGun: P.weapons.has('repeater') || P.weapons.has('winchester') || P.weapons.has('rifle') || P.weapons.has('shotgun') }, P);
+        if (thr && aim && !P.carry) Juice.throwOver(fc, bx, by, ba, ak, P.swing);   // dönen ilmek, yanan fitil
         if (P.carry) Spr.carried(fc, P.carry, P.x - Math.cos(P.ang) * 0.8, P.y - Math.sin(P.ang) * 0.8, P.ang + Math.PI / 2, P.carry.kind === 'pelt' ? 0.9 : 0.8);
         continue;
       }
@@ -1852,8 +1863,10 @@ const HY = (() => {
         horse(e.x, e.y, e.ang, e.look, { phase: e.phase, mv: e.mv, saddle: true, bags: e.owner === 'player', rear: Juice.rearK(e), nod: e.nod || 0 });
         horseLoad(e);
         if (!P.mountAnim) {
-          const fo = Juice.flinchOff(P), rl = P.reloadPose(), rb = 1 + Juice.rearK(e) * 3, rc = P.rec;   // şahlanınca binici geriye yaslanır
-          human(P.x - Math.cos(e.ang) * rb + (fo ? fo[0] : 0) + (rc ? rc.x : 0), P.y - Math.sin(e.ang) * rb + (fo ? fo[1] : 0) + (rc ? rc.y : 0), P.ang + (fo ? fo[2] : 0), P.lookNow(), { riding: true, aim: !rl && P.aiming, wk: P.aimKind(), draw: P.draw_, reload: rl, act: P.act }, P, 0);
+          const fo = Juice.flinchOff(P), rl = P.reloadPose(), rb = 1 + Juice.rearK(e) * 3, rc = P.rec, ak = P.aimKind(), thr = ak === 'throw' || ak === 'lasso';   // şahlanınca binici geriye yaslanır
+          const rx = P.x - Math.cos(e.ang) * rb + (fo ? fo[0] : 0) + (rc ? rc.x : 0), ry = P.y - Math.sin(e.ang) * rb + (fo ? fo[1] : 0) + (rc ? rc.y : 0), ra = P.ang + (fo ? fo[2] : 0), ra2 = !rl && (P.aiming || (thr && P.swing > 0));
+          human(rx, ry, ra, P.lookNow(), { riding: true, aim: ra2, wk: ak, swing: thr ? P.swing : 0, draw: P.draw_, reload: rl, act: P.act }, P, 0);
+          if (thr && ra2) Juice.throwOver(fc, rx, ry, ra, ak, P.swing);
         }
         else { const A = P.mountAnim, k = Math.min(1, A.t / A.dur), hop = Math.sin(k * Math.PI) * (A.on ? 6 : 5), seated = A.on ? k > 0.7 : k < 0.3; human(P.x, P.y, P.ang, P.lookNow(), seated ? { riding: true } : { walk: P.phase, mv: 0.5 }, P, hop); }
         continue;
