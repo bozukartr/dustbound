@@ -377,14 +377,19 @@ class Wagon extends Ent {
     this.panicT = 14;
   }
   /* Sürücü arabadan iner (düşer); NPC olarak dünyaya eklenir */
-  throwDriver() {
-    const d = this.driver, st = this.seat, side = this.bang + Math.PI / 2;
+  /* toward: indiren (oyuncu) varsa sürücü onun olduğu yana çekilir. Sürücü bir anda yerde belirmez: koltuktan kalkıp yay
+     çizerek arabanın yanına düşer (js/juice.js fall) */
+  throwDriver(toward) {
+    const d = this.driver, st = this.seat;
+    let side = this.bang + Math.PI / 2;
+    if (toward && Math.cos(Math.atan2(toward.y - st.y, toward.x - st.x) - side) < 0) side += Math.PI;
     this.driver = null; this.route = null; this.parkT = 0;
-    let x = st.x + Math.cos(side) * 12, y = st.y + Math.sin(side) * 12;
-    if (G.world.blocked(x, y, 4)) { x = st.x - Math.cos(side) * 12; y = st.y - Math.sin(side) * 12; }
+    // o yan kapalıysa (çit, duvar, su) çaprazlara, en son öbür yana düşer
+    const [x, y] = G.fallSpot(st.x, st.y, side, 14);
     const n = new NPC(x, y, 'traveler', { look: d.look, name: d.name, money: this.stage ? rnd(1, 4) : rnd(0.3, 2) });
     n.ang = this.ang;
     G.addEnt(n);
+    Juice.fall(n, { x0: st.x, y0: st.y, x1: x, y1: y, dur: 0.5, peak: 7 });
     return n;
   }
   /* Yolun sonu bir kasabaysa içeri girer: dükkânın önünde durur, sonra geri döner */
@@ -1042,7 +1047,7 @@ const TownLifeSystems = {
     if (!P.greeted.has(w.id)) { P.greeted.add(w.id); this.addHonor(0.3); this.skillXp('charisma', 1.5); }
   },
   hijackWagon(w) {
-    const n = w.throwDriver();
+    const n = w.throwDriver(this.player);   // sürücü oyuncunun yanına çekilir, oyuncu koltuğa sıçrar
     n.assaulted = true; n.state = 'flee'; n.t = 10;
     n.say(pick([Tr('Al arabayı, yeter ki vurma!'), Tr('Haydut! Yardım edin!'), Tr('Bunu yanına bırakmam!')]), 2.5);
     this.crime(w.motor ? 'cartheft' : 'horsetheft', w.x, w.y, n);

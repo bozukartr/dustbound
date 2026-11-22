@@ -41,6 +41,64 @@ const Juice = {
     e.kb = { vx: Math.cos(ang) * pow, vy: Math.sin(ang) * pow, t: 0.4 };
     if (e.kind === 'npc') e.ang = ang + rnd(-0.35, 0.35);   // baş, vuruş yönüne düşer
   },
+  /* ================= eyerden ve koltuktan düşüş =================
+     Attan indirilen, kementle çekilen ya da vurulan binici ve arabadan atılan sürücü bir anda yerde belirmez: eyerden ya
+     da koltuktan kalkar (önce oturur duruşta yükselir), havada yay çizip dönerek yatar duruşla yere iner (toz, tok ses,
+     yakındaysa hafif sarsıntı) ve düştüğü yönde biraz yuvarlanır. Bu sürede yapay zekâsı bekler, etkileşim istemi
+     çıkmaz; yere inince then(e) çalışır (ör. sersemleyip yerde kalma). e.x, e.y her an zemindeki yerdir. */
+  ROLL_T: 0.24,
+  fall(e, o) {
+    const W = G.world, x0 = o.x0 !== undefined ? o.x0 : e.x, y0 = o.y0 !== undefined ? o.y0 : e.y;
+    const dir = Math.atan2(o.y1 - y0, o.x1 - x0);
+    // yuvarlanma payı: düştüğü yön kapalıysa (duvar, su) yuvarlanmaz
+    let roll = o.roll === undefined ? 6 : o.roll;
+    const rx = o.x1 + Math.cos(dir) * roll, ry = o.y1 + Math.sin(dir) * roll;
+    if (roll && (W.blocked(rx, ry, 4) || W.indoorPx(rx, ry) || W.isWaterPx(rx, ry) || (o.avoid && dist2(rx, ry, o.avoid.x, o.avoid.y) < 11 * 11))) roll = 0;
+    e.fall = { t: 0, dur: o.dur || 0.5, delay: o.delay || 0, x0, y0, x1: o.x1, y1: o.y1, dir, roll, a0: e.ang, a1: dir + rnd(-0.6, 0.6),
+      spin: (Math.random() < 0.5 ? -1 : 1) * rnd(0.8, 1.5), peak: o.peak || 6, then: o.then || null, landed: false };
+    e.x = x0; e.y = y0; e.mv = 0; e.kb = null; e.path = null;
+  },
+  /* Düşüşün o anki görünümü (tek nesne, kare başına çöp yok): zemindeki yer, yükseklik, açı ve duruş */
+  fallPose(e) {
+    const F = e.fall, p = this._fp || (this._fp = { gx: 0, gy: 0, z: 0, ang: 0, riding: false });
+    if (F.delay > 0) { p.gx = F.x0; p.gy = F.y0; p.z = 0; p.ang = F.a0; p.riding = true; return p; }
+    const k = Math.min(1, F.t / F.dur);
+    if (k < 1) {
+      const m = 1 - (1 - k) * (1 - k);   // yavaşlayarak
+      p.gx = F.x0 + (F.x1 - F.x0) * m; p.gy = F.y0 + (F.y1 - F.y0) * m;
+      if (k < 0.28) { const q = k / 0.28; p.z = F.peak * 0.85 * Math.sin(q * Math.PI / 2); p.ang = F.a0 + angDiff(F.a0, F.a1) * q * 0.3; p.riding = true; }
+      else { const q = (k - 0.28) / 0.72; p.z = F.peak * 0.85 * (1 - q * q); p.ang = F.a1 - F.spin * (1 - q); p.riding = false; }
+    } else {
+      const q = Math.min(1, (F.t - F.dur) / this.ROLL_T), r = 1 - (1 - q) * (1 - q);
+      p.gx = F.x1 + Math.cos(F.dir) * F.roll * r; p.gy = F.y1 + Math.sin(F.dir) * F.roll * r;
+      p.z = 0; p.ang = F.a1 + (F.roll ? F.spin * 0.25 * r : 0); p.riding = false;
+    }
+    return p;
+  },
+  fallTick(e, dt) {
+    const F = e.fall;
+    e.kb = null; e.mv = 0;
+    if (F.delay > 0) { F.delay -= dt; return; }
+    F.t += dt;
+    if (!F.landed && F.t >= F.dur) {
+      F.landed = true;
+      const col = DUST_C[G.world.tileAtPx(F.x1, F.y1)];
+      if (col) for (let i = 0; i < 7; i++) G.parts.add('dust', F.x1 + rnd(-5, 5), F.y1 + rnd(-3, 3), rnd(-18, 18), rnd(-12, 4), rnd(0.7, 1.2), rnd(2.5, 4), col);
+      Audio_.thud(0.32, F.x1, F.y1);
+      if (this.motion && dist2(F.x1, F.y1, G.player.x, G.player.y) < 200 * 200) G.fx.shake = Math.max(G.fx.shake || 0, 1.6);
+    }
+    const p = this.fallPose(e);
+    e.x = p.gx; e.y = p.gy;
+    if (F.t >= F.dur + this.ROLL_T) { e.ang = p.ang; e.fall = null; if (F.then) F.then(e); }
+  },
+  /* Klasik çizici: zemindeki gölge, yükseklik kadar yukarıda gövde */
+  fallDraw(ctx, e) {
+    const p = this.fallPose(e), z = p.z;
+    Spr.shadow(ctx, p.gx + 1, p.gy + 2.5, 4.6 - z * 0.12, 2.9 - z * 0.08, 0.28 - z * 0.012);
+    ctx.save(); ctx.translate(0, -z);
+    Spr.human(ctx, p.gx, p.gy, p.ang, e.look, p.riding ? { riding: true } : { lying: true, dead: e.dead, noPool: true });
+    ctx.restore();
+  },
   /* Vurulan kişinin şapkası uçar ve yerde kalır */
   hatOff(e, ang, spd = 60) {
     if (!e || e.kind !== 'npc' || !e.look || !e.look.hat || e.look.hat === 'none') return;
@@ -127,7 +185,7 @@ const Juice = {
     for (let i = this.decals.length - 1; i >= 0; i--) if ((this.decals[i].age += dt) > this.decals[i].life) this.decals.splice(i, 1);
     // savrulan cesetler
     for (const e of G.ents) {
-      const k = e.kb; if (!k) continue;
+      const k = e.kb; if (!k || e.fall) continue;   // düşen kişiyi düşüş taşır
       e.move(k.vx * dt, k.vy * dt);
       const f = Math.exp(-dt * 7); k.vx *= f; k.vy *= f;
       if (Math.random() < 0.5 && e.kind === 'npc') G.parts.add('blood', e.x + rnd(-2, 2), e.y + rnd(-2, 2), 0, 0, 1.2, 1.3);

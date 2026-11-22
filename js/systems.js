@@ -1517,6 +1517,18 @@ const GameSystems = {
     }
     return null;
   },
+  /* Eyerden ya da koltuktan düşen kişinin ineceği yer: (x, y)'den ang yönünde d uzaklıkta (olmazsa yanlara doğru açılarak)
+     boş, suya ve bina içine düşmeyen, oraya düz yolu açık bir yer; avoid (oyuncu) varsa onun üstüne düşmez */
+  fallSpot(x, y, ang, d, avoid) {
+    const W = this.world;
+    for (const da of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, Math.PI]) for (const k of [1, 0.7]) {
+      const px = x + Math.cos(ang + da) * d * k, py = y + Math.sin(ang + da) * d * k;
+      if (W.blocked(px, py, 4) || W.indoorPx(px, py) || W.isWaterPx(px, py) || !TownPath.walkable([x, y], [px, py], 2)) continue;
+      if (avoid && dist2(px, py, avoid.x, avoid.y) < 12 * 12) continue;
+      return [px, py];
+    }
+    return [x, y];
+  },
   /* Binicisinden ayrılan (kementle, zorla indirilen, ölen binicinin) atın yeri: binicinin yanında boş bir yer (duvara, çite,
      ağaca gömülmesin; oyuncu atı alıp binerse sıkışmasın), yoksa binicinin yeri */
   horseDrop(x, y, ang) {
@@ -2117,7 +2129,7 @@ const GameSystems = {
     // varlıklar
     for (const e of this.ents) {
       if (e.hide || this.floorHid(e)) continue;
-      if (e.remove) continue;
+      if (e.remove || e.fall) continue;   // eyerden düşen kişiyle o yarım saniyede etkileşim yok
       const d = e.kind === 'wagon' ? Math.min(dist(P.x, P.y, e.x, e.y), dist(P.x, P.y, e.bx, e.by)) : dist(P.x, P.y, e.x, e.y);   // arabanın gövdesi atların arkasında
       if (d > (R || (e.held ? 50 : e.mounted ? 40 : 30))) continue;   // atlının atı uzun: yanındaki yayaya biraz daha uzaktan yetişir
       ck = e;

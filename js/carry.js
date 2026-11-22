@@ -115,12 +115,15 @@ const CarrySystems = {
   lassoHit(e) {
     const P = this.player;
     if (e.mounted) {
-      // at binicisiz kalır ve olduğu yerde durur: çalınabilir
-      const ha = e.hAng === undefined ? e.ang : e.hAng, hp = this.horseDrop(e.x, e.y, ha);
+      // at binicisiz kalır ve olduğu yerde durur (ürküp şahlanır): çalınabilir
+      const ha = e.hAng === undefined ? e.ang : e.hAng, hp = this.horseFree(e.x, e.y, ha) ? [e.x, e.y] : this.horseDrop(e.x, e.y, ha);
       const h = new Horse(hp[0], hp[1], 'mustang', { look: e.mounted, owner: 'npc' });
       h.ang = ha; h.spd = 30;
-      this.addEnt(h);
+      this.addEnt(h); Juice.rear(h);
       e.mounted = null;
+      // ip binicisini eyerden çeker: oyuncuya doğru savrulup düşer, sonra yerde kementli kalır
+      const a = Math.atan2(P.y - hp[1], P.x - hp[0]), land = this.fallSpot(hp[0], hp[1], a, 14, P);
+      Juice.fall(e, { x0: hp[0], y0: hp[1], x1: land[0], y1: land[1], dur: 0.42, peak: 6 });
     }
     const outlaw = e.role === 'bandit' || e.role === 'target';
     // hikâyenin hedef kişisine (ör. atından düşürülen Kızıl Jack) inip bağlamak için biraz daha zaman
@@ -154,18 +157,25 @@ const CarrySystems = {
     this.skillXp('hunting', 2);
   },
   /* Atlı birini eyerden çek: yere düşer, atı olduğu yerde kalır */
+  /* Oyuncu uzanıp yakalar, eyerden çeker: binici kalkıp havada yay çizerek oyuncunun yanına düşer, toz kalkar, yere
+     inince sersemler (bağlanabilir). At ürküp şahlanır ve olduğu yerde kalır (çalınabilir). */
   pullOffHorse(e) {
     if (!e.mounted) return;
-    const ha = e.hAng === undefined ? e.ang : e.hAng, hp = this.horseDrop(e.x, e.y, ha);
+    const P = this.player, ha = e.hAng === undefined ? e.ang : e.hAng, hp = this.horseFree(e.x, e.y, ha) ? [e.x, e.y] : this.horseDrop(e.x, e.y, ha);
     const h = new Horse(hp[0], hp[1], 'mustang', { look: e.mounted, owner: 'npc' });
     h.ang = ha;
-    this.addEnt(h);
+    this.addEnt(h); Juice.rear(h);
     e.mounted = null; e.path = null;
-    Audio_.thud(0.4);
+    Audio_.thud(0.22);
     const outlaw = e.role === 'bandit' || e.role === 'target';
     if (e.isLaw) e.hostile = true;
     if (!e.hostile && !outlaw && !e.assaulted) { e.assaulted = true; this.crime(e.isLaw ? 'assaultLaw' : 'assault', e.x, e.y, e); }
-    e.down(rnd(3, 5), true);
+    // oyuncunun yan çaprazına düşer (üstüne değil): çekiş yönünden bir yana sapar
+    const a = Math.atan2(hp[1] - P.y, hp[0] - P.x), sd = chance(0.5) ? 1 : -1;
+    const land = this.fallSpot(hp[0], hp[1], a + Math.PI + sd * 0.95, 17, P);
+    P.startYank(a);
+    Juice.fall(e, { x0: hp[0], y0: hp[1], x1: land[0], y1: land[1], delay: 0.1, dur: 0.48, peak: 7, avoid: P, then: (n) => { if (!n.dead && !n.bound) n.down(rnd(3, 5), true); } });   // havadayken ölmüş ya da bağlanmışsa olduğu gibi kalır
+    if (chance(0.5)) Juice.hatOff(e, a + Math.PI, 45);
     this.skillXp('strength', 2);
   },
   hogtie(e) {

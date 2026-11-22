@@ -1613,8 +1613,8 @@ const HY = (() => {
         if (P.passenger) continue;   // fayton yolcuyu kendisi çizer
         if (P.mountAnim) { const A = P.mountAnim, k = Math.min(1, A.t / A.dur), hop = Math.sin(k * Math.PI) * (A.on ? 6 : 5), seated = A.on ? k > 0.7 : k < 0.3; human(P.x, P.y, P.ang, P.lookNow(), seated ? { riding: true } : { walk: P.phase, mv: 0.5 }, P, hop); continue; }
         creatureShadow(fc, P.x, P.y, 2.8, 2.4, 22, sd, shk);
-        const hv = P.heave;   // öğürürken gövde öne kasılır
-        human(P.x + Math.cos(P.ang) * hv, P.y + Math.sin(P.ang) * hv, P.ang, P.lookNow(), { walk: P.phase, mv: Math.min(1, P.mv), aim: P.aiming || P.swing > 0.2, wk: P.aimKind(), crouch: P.crouch || P.retchT > 0, swing: P.swing, hasGun: P.weapons.has('cattleman') || P.weapons.has('schofield'), backGun: P.weapons.has('repeater') || P.weapons.has('winchester') || P.weapons.has('rifle') || P.weapons.has('shotgun') }, P);
+        const hv = P.heave, Y = P.yank, yk = Y ? Player.yankArm(Math.min(1, Y.t / Y.dur)) : 0;   // öğürürken gövde öne kasılır; atlıyı çekerken uzanıp asılır
+        human(P.x + Math.cos(P.ang) * hv, P.y + Math.sin(P.ang) * hv, P.ang, P.lookNow(), { walk: P.phase, mv: Math.min(1, P.mv), aim: Y ? true : P.aiming || P.swing > 0.2, wk: Y ? 'fists' : P.aimKind(), crouch: P.crouch || P.retchT > 0, swing: Y ? yk : P.swing, hasGun: P.weapons.has('cattleman') || P.weapons.has('schofield'), backGun: P.weapons.has('repeater') || P.weapons.has('winchester') || P.weapons.has('rifle') || P.weapons.has('shotgun') }, P);
         if (P.carry) Spr.carried(fc, P.carry, P.x - Math.cos(P.ang) * 0.8, P.y - Math.sin(P.ang) * 0.8, P.ang + Math.PI / 2, P.carry.kind === 'pelt' ? 0.9 : 0.8);
         continue;
       }
@@ -1626,6 +1626,8 @@ const HY = (() => {
         continue;
       }
       if (e.kind === 'npc') {
+        // eyerden ya da koltuktan düşüyor: zeminde gölge, yükseklik kadar yukarıda gövde (js/juice.js fall)
+        if (e.fall) { const F = Juice.fallPose(e); creatureShadow(fc, F.gx, F.gy, 2.8, 2.4, 22, sd, shk); human(F.gx, F.gy, F.ang, e.look, F.riding ? { riding: true } : { lying: true }, e, F.z, e.child ? 0.7 : 1); continue; }
         if (e.mounted && !e.dead) { creatureShadow(fc, e.x, e.y, 6, 4, 26, sd, shk); horse(e.x, e.y, e.hAng === undefined ? e.ang : e.hAng, e.mounted, { phase: e.phase, mv: e.mv, saddle: true }); human(e.x, e.y, e.ang, e.look, { riding: true, aim: e.hostile && e.aggro !== false, wk: e.weapon ? WEAPONS[e.weapon].kind : null }, e); continue; }
         const sc = e.child ? 0.7 : 1;
         if (e.dead || e.state === 'hurt' || e.bound) {

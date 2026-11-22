@@ -1,6 +1,7 @@
 'use strict';
 /* His efektleri: isabet duraklaması, savrulma ve uçan şapka, dinamit izi, dörtnala uzaklaşma,
-   şahlanma, boşta animasyon, gece sönen pencereler, yuvarlanan para sayacı, kardaki silik ayak izleri */
+   şahlanma, boşta animasyon, gece sönen pencereler, yuvarlanan para sayacı, kardaki silik ayak izleri,
+   eyerden ve koltuktan düşüş (atlıyı çekip indirme, arabayı ele geçirince sürücü, kement, vurulan atlı) */
 module.exports = {
   name: 'His efektleri (juice)',
   async run(t) {
@@ -155,6 +156,81 @@ module.exports = {
       await t.sleep(700);
       const f = await p.evaluate(({ l0, t0 }) => ({ dl: l0 - window.__probe.life, dt: G.t - t0 }), r);
       t.ok(f.dt > 0.1 && f.dl > f.dt * 2.5, 'yağan kar izi birkaç kat hızlı doldurur', f);
+    });
+    // düşüş bitene kadar bekler, en yüksek noktayı döndürür (oyun saatiyle ~0,8 sn; yük altında gerçek zamanla uzayabilir)
+    await p.evaluate(() => {
+      window.__fallWait = async (n, on) => {
+        let z = 0; const t0 = performance.now();
+        while (n.fall && performance.now() - t0 < 8000) { z = Math.max(z, Juice.fallPose(n).z); if (on) on(); await new Promise(res => setTimeout(res, 16)); }
+        return z;
+      };
+    });
+    await t.step('atlıyı eyerden çekince oyuncu uzanıp çeker; binici havada yay çizip oyuncunun yanına düşer, yerde sersemler', async () => {
+      await setup();
+      const r = await p.evaluate(async () => {
+        const wait = __fallWait, P = G.player, n = new NPC(P.x + 20, P.y, 'traveler', { sex: 'm', mounted: true });
+        n.state = 'idle'; n.t = 99; n.ang = n.hAng = Math.PI / 2; G.addEnt(n);
+        G.pullOffHorse(n);
+        const inter = () => (G.findInteraction(80) || []).some(c => c.key === n);
+        const s0 = { fall: !!n.fall, mounted: !!n.mounted, state: n.state, seated: Juice.fallPose(n).riding, yank: !!P.yank, ang: +Math.abs(angDiff(P.ang, 0)).toFixed(2), inter: inter() };
+        let hv = 0;
+        const zmax = await wait(n, () => { hv = Math.max(hv, P.heave); });
+        return { s0, zmax, hv, done: !n.fall, state: n.state, d: dist(n.x, n.y, P.x, P.y), free: !G.world.blocked(n.x, n.y, 4), yank: !!P.yank, inter: inter(),
+          horse: G.ents.some(e => e.kind === 'horse' && e !== G.horse && !e.remove && dist(e.x, e.y, P.x + 20, P.y) < 16) };
+      });
+      t.ok(r.s0.fall && !r.s0.mounted && r.s0.state !== 'downed', 'binici bir anda yerde belirmez, eyerden düşer', r.s0);
+      t.ok(r.s0.seated, 'önce oturur duruşta eyerden kalkar');
+      t.ok(r.s0.yank && r.s0.ang < 0.2 && r.hv > 1, 'oyuncu ata doğru uzanıp çeker', r);
+      t.ok(!r.s0.inter, 'düşerken etkileşim istemi çıkmaz');
+      t.ok(r.zmax > 3, 'havada yay çizer', r.zmax);
+      t.ok(r.done && r.state === 'downed', 'yere inince sersemler', r);
+      t.ok(r.d >= 11 && r.free, 'oyuncunun üstüne değil, yanına boş bir yere düşer', r);
+      t.ok(!r.yank && r.inter, 'oyuncu toparlanır, yerdeki kişiyle etkileşim açılır', r);
+      t.ok(r.horse, 'at olduğu yerde kalır');
+    });
+    await t.step('arabayı ele geçirince sürücü koltuktan oyuncunun olduğu yana düşer; oyuncu hemen koltuğa geçer', async () => {
+      const r = await p.evaluate(async () => {
+        const wait = __fallWait, P = G.player, W = G.world;
+        UI.closeAll(); TH.clearNpcs(); P.yank = null;
+        const road = W.roads.find(x => !x.spur && x.pts.length > 60);
+        const w = new Wagon(road, 30, 1, false); G.addEnt(w); w.spd = 0; w.max = 0;
+        const st = w.seat, side = w.bang + Math.PI / 2, spot = (k) => [st.x + Math.cos(side) * 20 * k, st.y + Math.sin(side) * 20 * k];
+        const sd = W.blocked(...spot(1), 4) || W.isWaterPx(...spot(1)) ? -1 : 1;
+        TH.goto(...spot(sd));
+        G.hijackWagon(w);
+        const n = G.ents.filter(e => e.kind === 'npc' && !e.remove).pop(), f0 = Juice.fallPose(n);
+        const s0 = { riding: P.riding === w, fall: !!n.fall, seated: f0.riding, atSeat: +dist(f0.gx, f0.gy, st.x, st.y).toFixed(1) };
+        const zmax = await wait(n);
+        const out = { s0, zmax, done: !n.fall, d: dist(n.x, n.y, st.x, st.y), side: Math.cos(Math.atan2(n.y - st.y, n.x - st.x) - side) * sd, free: !W.blocked(n.x, n.y, 4) && !W.isWaterPx(n.x, n.y) };
+        P.dismount(); P.mountAnim = null; w.remove = true;
+        return out;
+      });
+      t.ok(r.s0.riding, 'oyuncu hemen koltukta');
+      t.ok(r.s0.fall && r.s0.seated && r.s0.atSeat < 2, 'sürücü bir anda yerde belirmez: koltuktan kalkar', r.s0);
+      t.ok(r.zmax > 3 && r.done, 'havada yay çizip yere iner', r);
+      t.ok(r.d >= 9 && r.side > 0.3 && r.free, 'arabanın oyuncu tarafında boş bir yere düşer', r);
+    });
+    await t.step('kementle çekilen ya da vurulan atlı da eyerden düşer', async () => {
+      await setup();
+      const r = await p.evaluate(async () => {
+        const wait = __fallWait, P = G.player;
+        const a = new NPC(P.x + 60, P.y, 'traveler', { sex: 'm', mounted: true }); a.state = 'idle'; a.t = 99; G.addEnt(a);
+        G.lassoHit(a);
+        const la = { fall: !!a.fall, mounted: !!a.mounted, rope: P.rope === a };
+        la.z = await wait(a); la.done = !a.fall; la.state = a.state; la.d = dist(a.x, a.y, P.x, P.y);
+        P.rope = null; a.remove = true;
+        const b = new NPC(P.x - 50, P.y, 'traveler', { sex: 'm', mounted: true }); b.state = 'idle'; b.t = 99; G.addEnt(b);
+        const bx = b.x;
+        b.hurt(30, 'player', 'gun');
+        const sh = { fall: !!b.fall, mounted: !!b.mounted };
+        sh.z = await wait(b); sh.done = !b.fall; sh.dx = b.x - bx;
+        return { la, sh };
+      });
+      t.ok(r.la.fall && !r.la.mounted && r.la.rope, 'kementlenen atlı eyerden çekilir', r.la);
+      t.ok(r.la.z > 3 && r.la.done && r.la.state === 'lassoed', 'havada yay çizip yere iner, kementli kalır', r.la);
+      t.ok(r.la.d < 55, 'oyuncuya doğru düşer', r.la.d);
+      t.ok(r.sh.fall && !r.sh.mounted, 'vurulan atlı eyerden düşer', r.sh);
+      t.ok(r.sh.z > 2 && r.sh.done && r.sh.dx < -4, 'vuruşun tersine (oyuncudan uzağa) savrulur', r.sh);
     });
   },
 };
