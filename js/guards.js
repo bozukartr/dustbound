@@ -67,7 +67,7 @@ const GuardSystems = {
       if (why !== 'hurt') e.say(pick(why === 'fired' ? GUARD_LINES.fired : GUARD_LINES.quit), 3);
       // uzaklaşıp gözden kaybolur
       const a = Math.atan2(e.y - this.player.y, e.x - this.player.x) + rnd(-0.6, 0.6);
-      e.mounted = null; e.state = 'walk'; e.goHome = true; e.t = 25; e.nav = null;
+      this.npcDismount(e); e.state = 'walk'; e.goHome = true; e.t = 25; e.nav = null;
       e.target = { x: e.x + Math.cos(a) * 700, y: e.y + Math.sin(a) * 700 };
     }
     if (why === 'fired') UI.feed(Tr`🛡 ${g.name} ile yollarını ayırdın.`);
@@ -283,8 +283,8 @@ const GuardSystems = {
     else if (this.insideB && this.insideB.door) { const D = this.insideB.door; gx = D.x + (k - (n - 1) / 2) * 16; gy = D.y + 18; stop = 8; }
     else { gx = P.x; gy = P.y; stop = far || (P.riding ? 52 : 32) + k * 14; }
     const ride = !g.wait && !!P.riding && !this.insideB;
-    if (ride && !e.mounted) e.mounted = this.guardHorse(g);
-    else if (!ride && e.mounted && (!this.onScreen(e.x, e.y, 20) || dist(e.x, e.y, gx, gy) < 120)) e.mounted = null;
+    if (ride && !e.mounted) this.npcMount(e, this.guardHorse(g));   // gözü önündeyse atı gelir, eyere sıçrar
+    else if (!ride && e.mounted && (!this.onScreen(e.x, e.y, 20) || dist(e.x, e.y, gx, gy) < 120)) this.npcDismount(e);
     const d = dist(e.x, e.y, gx, gy);
     // çok geride kaldıysa (yolculuk, tren) gözden uzakta yanına gelir
     if (!g.wait && d > 520 && !this.onScreen(e.x, e.y, 40)) {
@@ -319,7 +319,7 @@ const GuardSystems = {
     if (!g) return [];
     return [
       g.wait ? { n: Tr('Peşimden Gel'), mt: 1, fn: () => { g.wait = null; e.say(pick(GUARD_LINES.follow), 2); } }
-        : { n: Tr('Burada Bekle'), mt: 1, fn: () => { g.wait = { x: Math.round(e.x), y: Math.round(e.y) }; e.mounted = null; e.say(pick(GUARD_LINES.wait), 2); } },
+        : { n: Tr('Burada Bekle'), mt: 1, fn: () => { g.wait = { x: Math.round(e.x), y: Math.round(e.y) }; this.npcDismount(e); e.say(pick(GUARD_LINES.wait), 2); } },
       { n: Tr('İşine Son Ver'), mt: 1, fn: () => UI.confirm(Tr('İşine Son Ver'), Tr`${g.name} ile yollarını ayırmak istiyor musun? Peşin ödediğin bedel geri gelmez.`, () => this.guardLeave(g, 'fired')) },
     ];
   },

@@ -17,12 +17,12 @@
 const OVERSCAN = 1.08;
 
 const Juice = {
-  hats: [], decals: [], flashes: [], blasts: [], devils: [], fish: [], flies: [], hits: [],
+  hats: [], decals: [], flashes: [], blasts: [], devils: [], fish: [], flies: [], hits: [], ghosts: [],
   hawk: null, wet: 0, sunDx: 0, sunLen: 0, sunOn: false,
 
   reset() {
     this.hats.length = 0; this.decals.length = 0; this.flashes.length = 0; this.blasts.length = 0;
-    this.devils.length = 0; this.fish.length = 0; this.flies.length = 0; this.hits.length = 0;
+    this.devils.length = 0; this.fish.length = 0; this.flies.length = 0; this.hits.length = 0; this.ghosts.length = 0;
     this.hawk = null; this.wet = 0;
   },
   get motion() { return G.settings.shake !== false; },
@@ -56,7 +56,7 @@ const Juice = {
     if (roll && (W.blocked(rx, ry, 4) || W.indoorPx(rx, ry) || W.isWaterPx(rx, ry) || (o.avoid && dist2(rx, ry, o.avoid.x, o.avoid.y) < 11 * 11))) roll = 0;
     e.fall = { t: 0, dur: o.dur || 0.5, delay: o.delay || 0, x0, y0, x1: o.x1, y1: o.y1, dir, roll, a0: e.ang, a1: dir + rnd(-0.6, 0.6),
       spin: (Math.random() < 0.5 ? -1 : 1) * rnd(0.8, 1.5), peak: o.peak || 6, then: o.then || null, landed: false };
-    e.x = x0; e.y = y0; e.mv = 0; e.kb = null; e.path = null;
+    e.x = x0; e.y = y0; e.mv = 0; e.kb = null; e.path = null; e.rise = null; e.hop = null;
   },
   /* Düşüşün o anki görünümü (tek nesne, kare başına çöp yok): zemindeki yer, yükseklik, açı ve duruş */
   fallPose(e) {
@@ -99,6 +99,161 @@ const Juice = {
     Spr.human(ctx, p.gx, p.gy, p.ang, e.look, p.riding ? { riding: true } : { lying: true, dead: e.dead, noPool: true });
     ctx.restore();
   },
+  /* ================= yerden kalkma =================
+     Yatan kişi (baygın, kementten ya da iplerden kurtulan, düşüp yerde kalan) bir anda ayağa dikilmez: sırtüstü yatıştan
+     doğrulup oturur, dizine gelir (bir eli yerde, biri dizde), çömelip kalkar. Kalkınca yüzü ayaklarının yönüne döner.
+     Bu sürede yapay zekâsı bekler (oyuncu da kıpırdamaz). */
+  RISE_T: 0.95,
+  rise(e, dur, delay) {
+    e.rise = { t: -(delay || 0), dur: dur || this.RISE_T, a0: e.ang };   // delay: önce bir süre yatar (bayılıp ayılan oyuncu)
+    e.mv = 0; e.kb = null; e.path = null;
+  },
+  /* o anki aşama (tek nesne): lie (yatış), sit (q: doğrulma), kneel, crouch (q: kalkış); ang çizim açısı */
+  risePose(e) {
+    const R = e.rise, k = Math.min(1, R.t / R.dur), p = this._rp || (this._rp = { stage: '', ang: 0, q: 0 }), face = R.a0 + Math.PI;
+    if (k < 0.14) { p.stage = 'lie'; p.ang = R.a0; p.q = 0; }
+    else if (k < 0.5) { p.stage = 'sit'; p.ang = face; p.q = (k - 0.14) / 0.36; }
+    else if (k < 0.76) { p.stage = 'kneel'; p.ang = face; p.q = 0; }
+    else { p.stage = 'crouch'; p.ang = face; p.q = (k - 0.76) / 0.24; }
+    return p;
+  },
+  /* Spr.human / melez human duruş seçenekleri */
+  riseSt(p) {
+    return p.stage === 'lie' ? { lying: true, noPool: true } : p.stage === 'sit' ? { sit: p.q } : p.stage === 'kneel' ? { kneel: 'rise' } : p.q < 0.6 ? { crouch: true } : {};
+  },
+  riseTick(e, dt) {
+    const R = e.rise;
+    e.mv = 0; e.kb = null;
+    if ((R.t += dt) >= R.dur) { e.ang = R.a0 + Math.PI; e.rise = null; }
+  },
+
+  /* ================= NPC'nin ata binip inmesi =================
+     Oyuncunun binişindeki gibi yay çizen kısa bir sıçrama. on: yerden (sx, sy) eyere (hx, hy; e.x, e.y orası olur),
+     değilse eyerden (hx, hy) yere (e.x, e.y). Binerken at eyeriyle beklediği yerde çizilir. ghost: at bir varlık değilse
+     (koruma, Sully) binerken arkadan tırısla gelir, inince öne doğru uzaklaşıp gözden kaybolur. Bu sürede yapay zekâ bekler. */
+  HOP_T: 0.42,
+  hop(e, on, o) {
+    e.hop = { on, t: 0, dur: o.dur || this.HOP_T, sx: o.sx, sy: o.sy, hx: o.hx, hy: o.hy, ha: o.ha === undefined ? e.ang : o.ha, fa: e.ang, ghost: !!o.ghost };
+    e.mv = 0; e.path = null; e.kb = null;
+    if (o.ghost && o.look) this.ghostHorse(o.look, o.hx, o.hy, e.hop.ha, on, e.hop.dur);
+    if (dist2(o.hx, o.hy, G.player.x, G.player.y) < 300 * 300) Audio_.step(0.2, true);
+  },
+  hopPose(e) {
+    const H = e.hop, k = Math.min(1, H.t / H.dur), m = k * k * (3 - 2 * k), p = this._hp || (this._hp = { x: 0, y: 0, z: 0, ang: 0, seated: false });
+    const fx = H.on ? H.sx : H.hx, fy = H.on ? H.sy : H.hy, tx = H.on ? H.hx : e.x, ty = H.on ? H.hy : e.y;
+    p.x = fx + (tx - fx) * m; p.y = fy + (ty - fy) * m;
+    p.z = Math.sin(k * Math.PI) * (H.on ? 6 : 5);
+    p.seated = H.on ? k > 0.7 : k < 0.3;
+    p.ang = H.on ? (k > 0.6 ? H.ha : Math.atan2(H.hy - H.sy, H.hx - H.sx)) : H.fa;
+    return p;
+  },
+  hopTick(e, dt) {
+    const H = e.hop;
+    e.mv = 0; e.kb = null; e.phase = (e.phase || 0) + dt * 10;
+    if ((H.t += dt) >= H.dur) { e.hop = null; if (H.on) { e.ang = H.ha; e.hAng = H.ha; } }
+  },
+  /* Klasik çizici: binerken bekleyen at (ghost değilse), gölge ve sıçrayan kişi */
+  hopDraw(ctx, e) {
+    const H = e.hop, p = this.hopPose(e);
+    if (H.on && !H.ghost && e.mounted) Spr.horse(ctx, H.hx, H.hy, H.ha, e.mounted, { phase: 0, mv: 0, saddle: true });
+    Spr.shadow(ctx, p.x + 1, p.y + 2.5, 5, 3, 0.25);
+    ctx.save(); ctx.translate(0, -p.z);
+    Spr.human(ctx, p.x, p.y, p.ang, e.look, p.seated ? { riding: true } : { walk: e.phase || 0, mv: 0.5 });
+    ctx.restore();
+  },
+  /* Varlık olmayan at: binerken arkadan gelir (dur), inince öne uzaklaşıp solar. Klasikte vis dizisine girer (draw),
+     melezde HY bu listeyi atlarla birlikte çizer. */
+  ghostHorse(look, x, y, ang, on, dur) {
+    const g = { kind: 'ghostH', look, ang, on, t: 0, dur: on ? dur : 1.15, x0: x, y0: y, x1: x, y1: y, x, y, a: on ? 0 : 1, phase: 0, mv: 0.7,
+      draw(ctx) { ctx.save(); ctx.globalAlpha = this.a; Spr.horse(ctx, this.x, this.y, this.ang, this.look, { phase: this.phase, mv: this.mv, saddle: true }); ctx.restore(); } };
+    if (on) { g.x0 = x - Math.cos(ang) * 26; g.y0 = y - Math.sin(ang) * 26; } else { g.x1 = x + Math.cos(ang) * 34; g.y1 = y + Math.sin(ang) * 34; }
+    g.x = g.x0; g.y = g.y0;
+    this.ghosts.push(g);
+  },
+  ghostTick(dt) {
+    for (let i = this.ghosts.length - 1; i >= 0; i--) {
+      const g = this.ghosts[i], k = Math.min(1, (g.t += dt) / g.dur), m = g.on ? 1 - (1 - k) * (1 - k) : k * k;
+      g.x = g.x0 + (g.x1 - g.x0) * m; g.y = g.y0 + (g.y1 - g.y0) * m; g.phase += dt * 9;
+      g.a = g.on ? Math.min(1, k / 0.45) : k < 0.4 ? 1 : 1 - (k - 0.4) / 0.6;
+      if (k >= 1) this.ghosts.splice(i, 1);
+    }
+  },
+
+  /* ================= yeme, içme, sigara (oyuncu) =================
+     Sağ el aşağıdan ağza gelir, elinde ne varsa görünür: ekmek, şişe, matara, tas, sigara, hap. Yürürken de olur (sol kol
+     sallanır, atlıyken dizginde kalır); nişan alınca, ateş edince ya da doldururken yarıda kalır. Avuçla su (scoop) ve
+     sargı (bandage) gibi elleri meşgul edenlerde durulur. */
+  ACT_T: { eat: 1.15, drink: 1, canteen: 1, cup: 1, smoke: 1.5, pill: 0.6, salts: 0.8, bandage: 1.3, rub: 1.2, scoop: 1.3 },
+  act(P, k, col) {
+    P.act = { k, t: 0, dur: this.ACT_T[k] || 1, col: col || null, q: 0, puff: false };
+  },
+  /* elin ağza yakınlığı (0 aşağıda, 1 ağızda) */
+  actQ(A) {
+    const k = Math.min(1, A.t / A.dur);
+    switch (A.k) {
+      case 'eat': case 'scoop': return Math.abs(Math.sin(k * Math.PI * 2));   // iki lokma, iki avuç
+      case 'pill': return Math.sin(k * Math.PI);
+      case 'smoke': return k < 0.2 ? k / 0.2 : k < 0.62 ? 1 : k < 0.85 ? 1 - (k - 0.62) / 0.23 : 0;
+      default: return k < 0.25 ? k / 0.25 : k < 0.75 ? 1 : 1 - (k - 0.75) / 0.25;   // kaldır, iç, indir
+    }
+  },
+  /* eşyadan hareket: yiyecek, içecek (şişe, tas), sigara, hap, sargı, merhem, koku tuzu */
+  actOf(id, it) {
+    const e = it.e || {}, liquid = (e.thirst > 0 && !e.hunger) || e.drunk;
+    if (id === 'cigar' || id === 'cigarette') return ['smoke'];
+    if (id === 'bandage') return ['bandage'];
+    if (id === 'liniment') return ['rub'];
+    if (id === 'smelling_salts') return ['salts'];
+    if (id === 'antidote' || id === 'quinine') return ['pill'];
+    if (/coffee|tea|soup|stew/.test(id)) return ['cup'];
+    if (liquid || (it.c === 'med' && id !== 'tobacco')) return ['drink', /whisk|cognac/.test(id) ? '#6a4a2a' : id === 'beer' ? '#7a5a1a' : id === 'health_cure' ? '#9a2a2a' : /tonic|oil|laudanum/.test(id) ? '#3a5a6a' : '#4a5a3a'];
+    const col = /bean|peach/.test(id) ? '#8a8a90' : /apple|berr/.test(id) ? '#a83a2a' : /jerky|game|big|bird/.test(id) ? '#7a3a22' : /fish/.test(id) ? '#9a9a8a'
+      : /cheese|corn/.test(id) ? '#d8b850' : id === 'chocolate' ? '#4a2a1a' : it.c === 'herb' || id === 'tobacco' ? '#5a7a3a' : '#b07a40';
+    return ['eat', col];
+  },
+  actTick(P, dt) {
+    const A = P.act;
+    if (P.aiming || P.swing > 0 || P.reloadT > 0 || P.carry || P.rise || P.mountAnim) { P.act = null; return; }
+    A.t += dt; A.q = this.actQ(A);
+    if (A.k === 'smoke' && !A.puff && A.t / A.dur > 0.66) {
+      // nefesi verir: ağızdan bir tutam duman
+      A.puff = true;
+      const a = P.ang, x = P.x + Math.cos(a) * 5, y = P.y + Math.sin(a) * 5 - 6;
+      for (let i = 0; i < 3; i++) G.parts.add('smoke', x, y, Math.cos(a) * 8 + rnd(-3, 3), Math.sin(a) * 8 - rnd(4, 8), rnd(0.9, 1.4), 1 + i * 0.4, '222,218,210');
+    }
+    if (A.t >= A.dur) P.act = null;
+  },
+
+  /* ================= silah doldurma (oyuncu ve NPC) =================
+     reloadT sürerken: tabancada tambur açık, sağ el kemerden fişek taşır (üç gidiş-geliş); karabinada tüfek çaprazlama,
+     fişekler yan kapaktan; tek atımlıkta bir kez; çift namlulu av tüfeğinde namlular kırık, iki fişek; yayda sağ el sırttaki
+     ok kılıfından kirişe. Doldururken nişan duruşu yerine bu çizilir. */
+  reloadSt(e, wid, dur) {
+    const W = WEAPONS[wid];
+    if (!W || !(e.reloadT > 0)) return null;
+    const wk = W.kind === 'pistol' ? 'pistol' : W.kind === 'bow' ? 'bow' : wid === 'shotgun' ? 'shotgun' : W.clip === 1 ? 'single' : 'long';
+    return { wk, n: wk === 'pistol' || wk === 'long' ? 3 : wk === 'shotgun' ? 2 : 1, q: dur > 0 ? clamp(1 - e.reloadT / dur, 0, 1) : 0 };
+  },
+
+  /* ================= isabet tepkisi =================
+     Vurulan ya da yumruk yiyen (ölmeyen) kişi vuruş yönünde kısa bir sarsılır: gövde geriye itilir ve yana döner, hemen
+     toparlanır. Yalnızca görünüş; konumu ve yapay zekâsı değişmez. Ekran sarsıntısı kapalıysa da olur (kamera oynamaz). */
+  FLINCH_T: 0.3,
+  flinch(e, ang, pow = 1) {
+    if (!e || e.dead) return;
+    e.flinch = { t: 0, ang, pow: clamp(pow, 0.4, 1.4), sd: Math.random() < 0.5 ? -1 : 1 };
+  },
+  /* [dx, dy, dönüş] (tek dizi); sarsılma yoksa null */
+  flinchOff(e) {
+    const F = e.flinch;
+    if (!F) return null;
+    const k = F.t / this.FLINCH_T, env = k < 0.22 ? k / 0.22 : Math.max(0, 1 - (k - 0.22) / 0.78), o = this._fo || (this._fo = [0, 0, 0]);
+    const d = 2.4 * F.pow * env * env * (3 - 2 * env);
+    o[0] = Math.cos(F.ang) * d; o[1] = Math.sin(F.ang) * d; o[2] = F.sd * 0.32 * F.pow * env;
+    return o;
+  },
+  flinchTick(e, dt) { if (e.flinch && (e.flinch.t += dt) >= this.FLINCH_T) e.flinch = null; },
+
   /* Vurulan kişinin şapkası uçar ve yerde kalır */
   hatOff(e, ang, spd = 60) {
     if (!e || e.kind !== 'npc' || !e.look || !e.look.hat || e.look.hat === 'none') return;
@@ -183,8 +338,11 @@ const Juice = {
     for (let i = this.blasts.length - 1; i >= 0; i--) if ((this.blasts[i].t += dt) > 1.4) this.blasts.splice(i, 1);
     for (let i = this.hits.length - 1; i >= 0; i--) if ((this.hits[i].t -= dt) <= 0) this.hits.splice(i, 1);
     for (let i = this.decals.length - 1; i >= 0; i--) if ((this.decals[i].age += dt) > this.decals[i].life) this.decals.splice(i, 1);
+    this.ghostTick(dt);
+    this.flinchTick(P, dt);
     // savrulan cesetler
     for (const e of G.ents) {
+      if (e.flinch) this.flinchTick(e, dt);
       const k = e.kb; if (!k || e.fall) continue;   // düşen kişiyi düşüş taşır
       e.move(k.vx * dt, k.vy * dt);
       const f = Math.exp(-dt * 7); k.vx *= f; k.vy *= f;

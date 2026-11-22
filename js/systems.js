@@ -313,6 +313,7 @@ const GameSystems = {
     if (id === 'treasure_map') { UI.showTreasureMap(); return true; }
     if (!it.e) { UI.feed(Tr('Bu eşya kullanılamaz.'), 'warn'); return false; }
     P.removeItem(id, 1);
+    { const [k, col] = Juice.actOf(id, it); Juice.act(P, k, col); }   // eli ağzına götürür (js/juice.js)
     const mult = it.c === 'food' && this.hasPerk('eater') ? 1.2 : 1;
     if (e.hunger) P.hunger = clamp(P.hunger + e.hunger * mult, 0, 100);
     if (e.thirst) P.thirst = clamp(P.thirst + e.thirst * mult, 0, 100);
@@ -354,6 +355,7 @@ const GameSystems = {
     if (!P.has('canteen')) { UI.feed(Tr('Mataran yok.'), 'warn'); return; }
     if (P.canteen <= 0) { UI.feed(Tr('Matara boş. Bir kuyu ya da nehirde doldur.'), 'warn'); return; }
     P.canteen--; P.thirst = Math.min(100, P.thirst + 32);
+    Juice.act(P, 'canteen');
     this.coolDown();
     if (!Audio_.play('drink')) Audio_.tone(500, 0.1, 'sine', 0.05, null, 0, 300);
     UI.feed(Tr`🫗 Matara: ${P.canteen}/5`);
@@ -1208,6 +1210,7 @@ const GameSystems = {
       // korumanın (js/guards.js) vurduğu kanun adamı senin suçun; ödül hedefi ve hikâye kişileri de senin vurduğun gibi
       // yere yığılabilir (canlı yakalanabilsin, hikâye bozulmasın)
       else hit.hurt(dmg, owner === this.player || (opts.guard && (hit.isLaw || hit.role === 'target' || hit.quest || hit.storyNpc)) ? 'player' : 'npc', 'gun');
+      if (hit !== this.player && hit.kind === 'npc' && !hit.dead) Juice.flinch(hit, Math.atan2(dy, dx), dmg / 35);   // isabet tepkisi: vuruş yönünde sarsılır
       if (hit.kind === 'npc' || hit.kind === 'animal' || hit === this.player) Audio_.play('hit_flesh', { x: ex, y: ey, vol: hit === this.player ? 1.2 : 0.8 });
       else if (hit.kind === 'wagon') Audio_.play('hit_wood', { x: ex, y: ey });
       // vuruşun hissi: ölümde savrulma ve uçan şapka; oyuncunun isabetinde mikro duraklama
@@ -1528,6 +1531,29 @@ const GameSystems = {
       return [px, py];
     }
     return [x, y];
+  },
+  /* Atı bir varlık olmayan NPC (koruma, Sully) ata biner. Gözü önündeyse oyuncunun binişi gibi: atı arkadan tırısla gelir
+     (js/juice.js ghostHorse), kendisi yanından eyere sıçrar; uzaktaysa hemen atlıdır. */
+  npcMount(e, look) {
+    if (e.mounted || e.dead) return;
+    e.mounted = look;
+    if (e.hop || e.rise || e.fall || !this.onScreen(e.x, e.y, 30)) return;
+    const ha = e.ang, sx = e.x, sy = e.y, sd = Math.random() < 0.5 ? 1 : -1;
+    const bx = e.x + Math.cos(ha + sd * Math.PI / 2) * 9, by = e.y + Math.sin(ha + sd * Math.PI / 2) * 9;
+    const sp = this.horseFree(bx, by, ha) ? [bx, by] : this.horseDrop(e.x, e.y, ha);
+    e.x = sp[0]; e.y = sp[1]; e.hAng = ha;
+    Juice.hop(e, true, { sx, sy, hx: sp[0], hy: sp[1], ha, ghost: true, look });
+  },
+  /* İner: gözü önündeyse eyerden yana sıçrar, atı öne doğru uzaklaşıp gözden kaybolur; uzaktaysa hemen yayadır */
+  npcDismount(e) {
+    const look = e.mounted;
+    if (!look) return;
+    const ha = e.hAng === undefined ? e.ang : e.hAng, hx = e.x, hy = e.y;
+    e.mounted = null; e.hAng = undefined;
+    if (e.dead || e.fall || e.hop || !this.onScreen(hx, hy, 30)) return;
+    const land = this.fallSpot(hx, hy, ha + (Math.random() < 0.5 ? 1 : -1) * Math.PI / 2, 10);
+    e.x = land[0]; e.y = land[1];
+    Juice.hop(e, false, { hx, hy, ha, ghost: true, look });
   },
   /* Binicisinden ayrılan (kementle, zorla indirilen, ölen binicinin) atın yeri: binicinin yanında boş bir yer (duvara, çite,
      ağaca gömülmesin; oyuncu atı alıp binerse sıkışmasın), yoksa binicinin yeri */
@@ -2159,7 +2185,7 @@ const GameSystems = {
       }
       if (e.kind === 'camp') { add(e.x, e.y, Tr('Kamp'), [{ n: Tr('Kamp Menüsü'), fn: () => UI.openCamp() }], 4); continue; }
       // efsanenin izi: incelenince arama çemberi daralır (js/legends.js)
-      if (e.kind === 'prop' && e.lgClue) { add(e.x, e.y, e.label, [{ n: Tr('İzi İncele'), hold: 0.8, fn: () => this.legendClue(e) }], 1); continue; }
+      if (e.kind === 'prop' && e.lgClue) { add(e.x, e.y, e.label, [{ n: Tr('İzi İncele'), hold: 0.8, kneel: 'look', fn: () => this.legendClue(e) }], 1); continue; }
       // hikâyenin yerleştirdiği nesneler (kaya, sandık vb.)
       if (e.kind === 'prop' && e.storyAct) { const acts = this.storyPropActions(e); if (acts.length) add(e.x, e.y, e.label || e.type, acts, e.big ? 1 : 4); continue; }
       if (e.kind === 'wagon') { this.wagonActions(e, add); continue; }
@@ -2176,10 +2202,10 @@ const GameSystems = {
     for (let i = 0; i < this.lostItems.length; i++) {
       const L = this.lostItems[i];
       ck = L;
-      if (dist2(P.x, P.y, L.x, L.y) < (R || 26) * (R || 26)) add(L.x, L.y, Tr('Yerde bir şey parlıyor'), [{ n: Tr('Al'), fn: () => { P.addItem(L.item); this.lostItems.splice(i, 1); } }]);
+      if (dist2(P.x, P.y, L.x, L.y) < (R || 26) * (R || 26)) add(L.x, L.y, Tr('Yerde bir şey parlıyor'), [{ n: Tr('Al'), dip: true, fn: () => { P.addItem(L.item); this.lostItems.splice(i, 1); } }]);
     }
     // olay arabası
-    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < (R || 30) * (R || 30) && (ck = ev)) add(ev.wagon.x, ev.wagon.y, Tr('Kırık Araba'), [{ n: Tr('Tekerleği Tamir Et'), hold: 3, fn: () => { ev.done = true; this.earn(rnd(0.25, 1), Tr('Tamir')); this.addHonor(4); this.stat('helped', 1); UI.subtitle(Tr('Yolcu'), Tr('Allah razı olsun dostum!'), 3); this.skillXp('strength', 5); } }]);
+    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < (R || 30) * (R || 30) && (ck = ev)) add(ev.wagon.x, ev.wagon.y, Tr('Kırık Araba'), [{ n: Tr('Tekerleği Tamir Et'), hold: 3, kneel: 'work', fn: () => { ev.done = true; this.earn(rnd(0.25, 1), Tr('Tamir')); this.addHonor(4); this.stat('helped', 1); UI.subtitle(Tr('Yolcu'), Tr('Allah razı olsun dostum!'), 3); this.skillXp('strength', 5); } }]);
     // nesneler
     const tRad = R ? Math.ceil(R / TS) : 1, tx0 = (P.x >> 4) - tRad, ty0 = (P.y >> 4) - tRad;
     for (let ty = ty0; ty <= ty0 + tRad * 2; ty++) for (let tx = tx0; tx <= tx0 + tRad * 2; tx++) {
@@ -2194,17 +2220,17 @@ const GameSystems = {
       if (H) {
         const hv = W.harvested.get(i);
         if (hv !== undefined && hv > this.day) continue;
-        if (o === O.ARTIFACT) { add(ox, oy, Tr('Parlayan Bir Şey'), [{ n: Tr('İncele'), hold: 0.5, fn: () => this.pickArtifact(i) }]); continue; }
+        if (o === O.ARTIFACT) { add(ox, oy, Tr('Parlayan Bir Şey'), [{ n: Tr('İncele'), hold: 0.5, kneel: 'look', fn: () => this.pickArtifact(i) }]); continue; }
         if (H.tool && !P.has(H.tool)) { add(ox, oy, Tr('Cevher Kayası'), [{ n: Tr('Kazma gerekli'), fn: () => UI.feed(Tr('Cevher kazmak için bir kazmaya ihtiyacın var.'), 'warn') }]); continue; }
-        add(ox, oy, H.label.split(' ')[0], [{ n: H.label, hold: H.tool ? 2 : 0.6, fn: () => this.harvest(i, o) }]);
+        add(ox, oy, H.label.split(' ')[0], [{ n: H.label, hold: H.tool ? 2 : 0.6, kneel: isHerbO(o) ? 'work' : null, fn: () => this.harvest(i, o) }]);
         continue;
       }
       switch (o) {
         case O.FOUNTAIN:
-          add(ox, oy, Tr('Çeşme'), [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }, { n: Tr('Bozuk Para At'), fn: () => { if (this.spend(0.01)) { P.deCore = Math.min(100, (P.deCore || 0) + 5); UI.feed(Tr('Bir dilek tuttun. İçin biraz ferahladı.')); } } }]);
+          add(ox, oy, Tr('Çeşme'), [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { Juice.act(P, 'scoop'); P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }, { n: Tr('Bozuk Para At'), fn: () => { if (this.spend(0.01)) { P.deCore = Math.min(100, (P.deCore || 0) + 5); UI.feed(Tr('Bir dilek tuttun. İçin biraz ferahladı.')); } } }]);
           break;
         case O.WELL: case O.PUMP: case O.TROUGH:
-          { const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }];
+          { const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { Juice.act(P, 'scoop'); P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }];
             const hm = o === O.TROUGH ? this.homeAtIdx(i) : null;
             if (hm && this.horse && !this.horse.dead && dist(this.horse.x, this.horse.y, ox, oy) < 90) acts.unshift({ n: Tr('Atını Besle ve Dinlendir'), fn: () => this.homeRestHorse(hm) });
             add(ox, oy, o === O.TROUGH ? (hm ? Tr('Yemlik') : Tr('Yalak')) : Tr('Kuyu'), acts); }
@@ -2213,11 +2239,11 @@ const GameSystems = {
           const c = W.chests.get(i);
           const op = this.chestsOpened[i];
           if (op !== undefined && this.day - op < 7) break;
-          add(ox, oy, Tr('Sandık'), [{ n: Tr('Sandığı Aç'), hold: 0.9, fn: () => this.openChest(i, c) }]);
+          add(ox, oy, Tr('Sandık'), [{ n: Tr('Sandığı Aç'), hold: 0.9, kneel: 'work', fn: () => this.openChest(i, c) }]);
           break;
         }
         case O.GRAVE: case O.CROSS:
-          if (!this.graves[i]) add(ox, oy, Tr('Mezar'), [{ n: Tr('Saygı Göster'), hold: 1, fn: () => { this.graves[i] = 1; this.addHonor(1); UI.feed(Tr('Ölüye saygı gösterdin. Huzur içinde yatsın.')); } }]);
+          if (!this.graves[i]) add(ox, oy, Tr('Mezar'), [{ n: Tr('Saygı Göster'), hold: 1, kneel: 'pray', fn: () => { this.graves[i] = 1; this.addHonor(1); UI.feed(Tr('Ölüye saygı gösterdin. Huzur içinde yatsın.')); } }]);
           break;
         case O.SIGN: { const hm = this.homes.find(h => h.sign === i); if (hm) { add(ox, oy, this.homeSignLabel(hm), this.homeSignActs(hm)); break; } }
           add(ox, oy, Tr('Yol Tabelası'), [{ n: Tr('Tabelayı Oku'), fn: () => UI.showSign(ox, oy) }]); break;
@@ -2246,9 +2272,9 @@ const GameSystems = {
     let wx = null, wy = null;
     for (const [dx, dy] of [[0, 0], [10, 0], [-10, 0], [0, 10], [0, -10]]) { const t = W.tileAtPx(P.x + dx, P.y + dy); if (t === T.WATER || t === T.DEEP) { wx = P.x + dx; wy = P.y + dy; break; } if (t === T.HOTWATER) { add(P.x + dx, P.y + dy, Tr('Sıcak Kaynak'), [{ n: Tr('Kaplıcada Dinlen'), fn: () => this.hotSpring() }]); break; } }
     if (wx !== null) {
-      const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(false) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yıkan'), hold: 1.5, fn: () => this.wash() }];
+      const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(false) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yıkan'), hold: 1.5, kneel: 'mouth', fn: () => this.wash() }];
       if (P.has('fishing_rod')) acts.push({ n: Tr('Balık Tut'), fn: () => UI.startFishing() });
-      if (P.has('gold_pan')) acts.push({ n: Tr('Altın Ele'), hold: 3, fn: () => this.panGold() });
+      if (P.has('gold_pan')) acts.push({ n: Tr('Altın Ele'), hold: 3, kneel: 'work', fn: () => this.panGold() });
       add(wx, wy, onT === T.WATER ? Tr('Nehir') : Tr('Su Kenarı'), acts, -6);
     }
     // binalar: kapılar
@@ -2260,7 +2286,7 @@ const GameSystems = {
       if (this.bizOf(b) && this.deliverables(b).some(it => it.from !== 'p')) add(b.door.x, b.door.y, b.name, [{ n: Tr`Malı Boşalt (${this.deliverables(b).length})`, fn: () => this.deliverGoods(b) }], 6);
       if (!b.enter) {
         if (b.def.svc && b.def.svc.length) add(b.door.x, b.door.y, b.name, [{ n: Tr('Gir'), fn: () => UI.openBuilding(b) }], 5);
-        else if (b.type === 'ruin') add(b.door.x, b.door.y, b.name, [{ n: Tr('Harabeyi Ara'), hold: 1.2, fn: () => this.searchRuin(b) }], 5);
+        else if (b.type === 'ruin') add(b.door.x, b.door.y, b.name, [{ n: Tr('Harabeyi Ara'), hold: 1.2, kneel: 'work', fn: () => this.searchRuin(b) }], 5);
         else if (b.type === 'mineentrance') add(b.door.x, b.door.y, b.name, [{ n: Tr('Madene Gir'), hold: 1, fn: () => this.exploreMine(b) }], 5);
         else if (b.type === 'lighthouse') add(b.door.x, b.door.y, b.name, [{ n: Tr('Fenere Tırman'), hold: 1, fn: () => this.climbLighthouse(b) }], 5);
         continue;
@@ -2459,8 +2485,8 @@ const GameSystems = {
      yoksa (sende olan boş ya da mermisiz silah) eylem yoktur, yakındaki cesedin eylemlerini kapatmaz. */
   gunPickAction(g) {
     const W = WEAPONS[g.w];
-    if (!this.player.weapons.has(g.w)) return { n: Tr('Silahı Al'), fn: () => this.pickGun(g) };
-    if (W.ammo && g.n > 0) return { n: Tr`Mermilerini Al (${g.n})`, fn: () => this.pickGun(g) };
+    if (!this.player.weapons.has(g.w)) return { n: Tr('Silahı Al'), dip: true, fn: () => this.pickGun(g) };
+    if (W.ammo && g.n > 0) return { n: Tr`Mermilerini Al (${g.n})`, dip: true, fn: () => this.pickGun(g) };
     return null;
   },
   pickGun(g) {
@@ -2619,6 +2645,7 @@ const GameSystems = {
   drinkWater(clean) {
     const P = this.player;
     P.thirst = Math.min(100, P.thirst + 40);
+    Juice.act(P, 'scoop');   // diz çöküp avuçla içer
     this.coolDown();
     if (!Audio_.play('drink')) Audio_.tone(400, 0.2, 'sine', 0.05, null, 0, 250);
     if (!clean) {
@@ -2879,6 +2906,7 @@ const GameSystems = {
     const d = town ? dist(P.x, P.y, town.cx, town.cy) : Infinity;
     const help = this.law.level > 0 || !doc ? 0 : d < 2500 ? 0.75 : d < 7000 ? 0.5 : 0.3;
     this.state = 'play';
+    Juice.rise(P, 1.25, 0.45);   // ekran açılınca bir an yatar, sonra doğrulup kalkar
     let msg;
     if (roll < help) {
       // yoldan geçen biri doktora götürür: doktor ayıltır, zehri ve hastalığı tedavi eder

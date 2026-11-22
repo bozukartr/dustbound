@@ -853,7 +853,7 @@ const G = {
           if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { done = true; break; }
           for (const e of this.ents) {
             if (e.dead || e === p.owner || e === this.player.riding || e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' || e === this.horse || this.floorHid(e)) continue;
-            if (dist2(e.x, e.y, p.x, p.y) < (e.r + 2) * (e.r + 2)) { e.hurt(p.dmg, 'player', 'arrow'); done = true; break; }
+            if (dist2(e.x, e.y, p.x, p.y) < (e.r + 2) * (e.r + 2)) { e.hurt(p.dmg, 'player', 'arrow'); if (e.kind === 'npc' && !e.dead) Juice.flinch(e, Math.atan2(p.vy, p.vx), 0.9); done = true; break; }
           }
         }
         if (done || p.life <= 0) L.splice(i, 1);
@@ -1110,7 +1110,9 @@ const G = {
     for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !this.floorHid(e)) vis.push(e);
     if (P.riding) vis.push(P.riding);
     vis.push(P);
-    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : 0;   // yerde yatanlar altta çizilir
+    for (const g of Juice.ghosts) if (g.x > x0 - 40 && g.x < x1 + 40 && g.y > y0 - 40 && g.y < y1 + 40) vis.push(g);   // binerken gelen, inince giden at
+    // yerde yatanlar altta; eyerden sıçrayan ya da düşen atın üstünde çizilir
+    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : e.hop || e.fall ? 24 : 0;
     vis.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     // her varlık kamerayla aynı piksel ızgarasına oturur: kayarken kenarları titremez
     let sdx = 0, sdy = 0;

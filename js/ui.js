@@ -701,6 +701,7 @@ const UI = {
         this.holdT += dt;
         if (a0.hold) {
           holdPct = Math.min(1, this.holdT / a0.hold);
+          if (a0.kneel) P.kneelAt(a0.kneel, tgt.x, tgt.y, 0.2);   // yerdeki işte diz çöker (bağlama, arama, deri yüzme...)
           // live: koşul basılı tutarken de sürmeli (ör. gizlice bayıltırken haydut dönüp seni görürse yarıda kalır)
           if (a0.live && a0.check && !a0.check()) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; holdPct = 0; if (a0.fail) a0.fail(); }
           else if (this.holdT >= a0.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a0.check || a0.check()) a0.fn(); else if (a0.fail) a0.fail(); else this.feed(Tr`Önce çömelerek (${I.glyph('crouch')}) sakince yaklaş.`, 'warn'); }
@@ -710,7 +711,7 @@ const UI = {
         }
       } else if (I.released('interact')) {
         this.holdTarget = null;
-        if (!a0.hold && !this.menuOpened) { a0.fn(); this.curInteract = null; this._scanT = 0.05; }
+        if (!a0.hold && !this.menuOpened) { if (a0.dip) P.kneelAt('work', tgt.x, tgt.y, 0.42); a0.fn(); this.curInteract = null; this._scanT = 0.05; }
         // ilk eylem basılı tutmalıysa kısa basış seçenekleri açar (ör. Teslim Ol basılı tutulur, Parayla Kurtul seçeneklerde)
         else if (a0.hold && ea.length > 1 && this.holdT < 0.25) this.contextMenu(tgt);
       }
@@ -753,7 +754,7 @@ const UI = {
       title: it.label, cls: 'context', items: this.eActs(it).map((a, i) => ({
         label: a.n, qe: a.qe, qn: a.qn, cls: i === pi ? 'pref' : '', fn: () => {
           this.pop();
-          if (a.hold) { this.fade(() => a.fn(), ''); } else a.fn();
+          if (a.hold) { this.fade(() => a.fn(), ''); } else { if (a.dip) G.player.kneelAt('work', it.x, it.y, 0.42); a.fn(); }
         },
       })),
     });

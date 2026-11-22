@@ -305,18 +305,18 @@ const CarrySystems = {
     if (e.kind === 'pelt' || e.kind === 'crate') { add(e.x, e.y, e.kind === 'crate' ? GOODS[e.g].n : e.name, [take]); return true; }
     if (e.kind === 'animal' && !e.dead && e.state === 'lassoed') {
       const acts = [];
-      if (this.canTieAnimal(e)) acts.push({ n: Tr('Bağla'), hold: 1, fn: () => this.hogtieAnimal(e) });
+      if (this.canTieAnimal(e)) acts.push({ n: Tr('Bağla'), hold: 1, kneel: 'work', fn: () => this.hogtieAnimal(e) });
       if (e.def.tame) acts.push({ n: Tr('Sakinleştir ve Evcilleştir'), hold: 2, fn: () => this.tameHorse(e, true) });
       if (!acts.length) return false;
       add(e.x, e.y, e.def.n, acts, 2);
       return true;
     }
     if (e.kind === 'animal' && !e.dead && e.state === 'tied') {
-      add(e.x, e.y, Tr`${e.def.n} (bağlı)`, [{ n: Tr('Kes'), hold: 0.8, fn: () => e.hurt(9999, 'player', 'knife') }, { n: Tr('Serbest Bırak'), hold: 0.6, fn: () => e.freeUp() }], 2, take);
+      add(e.x, e.y, Tr`${e.def.n} (bağlı)`, [{ n: Tr('Kes'), hold: 0.8, kneel: 'work', fn: () => e.hurt(9999, 'player', 'knife') }, { n: Tr('Serbest Bırak'), hold: 0.6, kneel: 'work', fn: () => e.freeUp() }], 2, take);
       return true;
     }
     if (e.kind === 'animal' && e.dead && !e.skinned) {
-      const acts = [{ n: Tr('Derisini Yüz'), hold: 1.3, fn: () => this.skin(e) }];
+      const acts = [{ n: Tr('Derisini Yüz'), hold: 1.3, kneel: 'work', fn: () => this.skin(e) }];
       add(e.x, e.y, e.def.n + Tr(' Leşi'), acts, 0, this.heavyCarcass(e) ? null : take);
       return true;
     }
@@ -327,19 +327,19 @@ const CarrySystems = {
     // Kızıl Jack: tapuyu üstünden alma eylemi öbür seçeneklerin başına eklenir
     if (e.quest === 'rival') { const ja = this.rivalActions(e); if (ja.length) { const add0 = add; add = (x, y, l, acts, p, tk) => add0(x, y, l, ja.concat(acts), p, tk); } }
     if (e.dead) {
-      if (!e.looted) add(e.x, e.y, e.name, [{ n: Tr('Cesedi Ara'), hold: 0.8, fn: () => this.lootBody(e) }], 0, take);
+      if (!e.looted) add(e.x, e.y, e.name, [{ n: Tr('Cesedi Ara'), hold: 0.8, kneel: 'work', fn: () => this.lootBody(e) }], 0, take);
       else {
         const acts = [take];
-        if (P.has('shovel')) acts.push({ n: Tr('Göm'), hold: 3, fn: () => this.buryBody(e) });
+        if (P.has('shovel')) acts.push({ n: Tr('Göm'), hold: 3, kneel: 'work', fn: () => this.buryBody(e) });
         add(e.x, e.y, e.name, acts);
       }
       return true;
     }
-    if (e.state === 'lassoed') { add(e.x, e.y, e.name, [{ n: Tr('Bağla'), hold: 1, fn: () => this.hogtie(e) }], 2); return true; }
-    if (e.state === 'surrender') { add(e.x, e.y, Tr`${e.name} (teslim oldu)`, [{ n: Tr('Bağla'), hold: 1, fn: () => this.hogtie(e) }], 2); return true; }
-    if (e.state === 'downed') { add(e.x, e.y, Tr`${e.name} (yaralı)`, [{ n: Tr('Bağla'), hold: 1, fn: () => this.hogtie(e) }], 2, take); return true; }
+    if (e.state === 'lassoed') { add(e.x, e.y, e.name, [{ n: Tr('Bağla'), hold: 1, kneel: 'work', fn: () => this.hogtie(e) }], 2); return true; }
+    if (e.state === 'surrender') { add(e.x, e.y, Tr`${e.name} (teslim oldu)`, [{ n: Tr('Bağla'), hold: 1, kneel: 'work', fn: () => this.hogtie(e) }], 2); return true; }
+    if (e.state === 'downed') { add(e.x, e.y, Tr`${e.name} (yaralı)`, [{ n: Tr('Bağla'), hold: 1, kneel: 'work', fn: () => this.hogtie(e) }], 2, take); return true; }
     if (e.state === 'tied') {
-      const acts = [take, { n: Tr('Serbest Bırak'), hold: 0.8, fn: () => this.untie(e) }];
+      const acts = [take, { n: Tr('Serbest Bırak'), hold: 0.8, kneel: 'work', fn: () => this.untie(e) }];
       if (!e.robbed && !e.hostile && e.role !== 'bandit' && e.role !== 'target') acts.push({ n: Tr('Soy'), fn: () => this.robNpc(e) });
       add(e.x, e.y, Tr`${e.name} (bağlı)`, acts, 2);
       return true;

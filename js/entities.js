@@ -453,6 +453,7 @@ class Player extends Ent {
     this.hp -= dmg;
     if (!inner) {
       this.hurtT = 0.4;
+      if (by && by.x !== undefined && this.hp > 0) Juice.flinch(this, Math.atan2(this.y - by.y, this.x - by.x), dmg / 25);   // isabet tepkisi
       G.fx.flash = Math.min(0.6, G.fx.flash + dmg / 40);
       G.fx.shake = Math.min(6, G.fx.shake + dmg / 8);
       G.parts.burst('blood', this.x, this.y, 4 + dmg / 6, 30, 0.5, 1.4);
@@ -494,6 +495,26 @@ class Player extends Ent {
   }
   /* zehrin gücü (0-1): kalan süre ilk sokmanınkine eşit ya da fazlaysa tam */
   get poisonK() { return this.poison > 0 ? Math.min(1, this.poison / SURV.POISON_MIN) : 0; }
+  /* Diz çök: k duruş ('work', 'look', 'pray', 'mouth'), (x, y) hedef; ttl saniye içinde tazelenmezse kalkar */
+  kneelAt(k, x, y, ttl) {
+    if (this.riding || this.carry) return;
+    if (this.kneel && this.kneel.k === k) { this.kneel.x = x; this.kneel.y = y; this.kneel.hold = Math.max(this.kneel.hold, ttl); }
+    else this.kneel = { k, x, y, t: 0, hold: ttl };
+  }
+  /* Doldururken çizilecek duruş (js/juice.js reloadSt); yoksa null */
+  reloadPose() { return this.reloadT > 0 && !this.swing ? Juice.reloadSt(this, this.weapon, this.reloadDur) : null; }
+  /* Diz çökmüş duruş: basılı tutulan yer işi (bağlama, arama, deri yüzme...), yerden alma ya da avuçla su; hedefe döner.
+     Yürürken ya da atlıyken yoktur. Dönen nesne her çağrıda yeni değil (tek nesne). */
+  kneelPose() {
+    if (this.riding || this.carry || this.mv > 0.15) return null;
+    const K = this.kneel, A = this.act && this.act.k === 'scoop' ? this.act : null;
+    if (!K && !A) return null;
+    const o = this._kp || (this._kp = { ang: 0, st: { kneel: '', kneelT: 0, kneelQ: 0 } });
+    if (A) { o.ang = this.ang; o.st.kneel = 'mouth'; o.st.kneelQ = A.q; o.st.kneelT = A.t; return o; }
+    o.ang = dist2(K.x, K.y, this.x, this.y) > 4 ? Math.atan2(K.y - this.y, K.x - this.x) : this.ang;
+    o.st.kneel = K.k; o.st.kneelT = K.t; o.st.kneelQ = K.k === 'mouth' ? Math.abs(Math.sin(K.t * Math.PI * 1.4)) : 0;
+    return o;
+  }
   /* öğürürken gövdenin öne kasılması (çizimde bakış yönüne kayma, px) */
   get heave() {
     const r = this.retchT > 0 ? Math.abs(Math.sin((1 - this.retchT / Player.RETCH) * Math.PI * 2)) * 1.3 : 0;
@@ -516,6 +537,11 @@ class Player extends Ent {
     if (this.passenger) { this.vx = this.vy = 0; this.mv = 0; this.aiming = false; return; }   // faytonda yolcu: konumu G.rideTick verir
     if (this.mountAnim) { if (this.mountAnim.on && (!this.riding || this.riding.dead)) this.mountAnim = null; else { this.mountAnimUpdate(dt); return; } }
     if (this.yank) { if ((this.yank.t += dt) >= this.yank.dur || this.riding) this.yank = null; else { this.mv = 0; this.ang = this.yank.ang; return; } }
+    if (this.rise) { Juice.riseTick(this, dt); this.vx = this.vy = 0; this.aiming = false; return; }   // bayıldıktan sonra yerden kalkıyor
+    if (this.act) Juice.actTick(this, dt);   // yiyor, içiyor (js/juice.js)
+    // basılı tutulan yer işinde diz çöker (UI her karede tazeler); anlık yerden almada kısa bir eğilme
+    if (this.kneel && ((this.kneel.hold -= dt) <= 0 || this.riding || this.carry)) this.kneel = null;
+    if (this.kneel) this.kneel.t += dt;
     if (this.swing > 0) this.swing = Math.max(0, this.swing - dt * 4);
     // yeniden doldurma
     if (this.reloadT > 0) {
@@ -531,7 +557,7 @@ class Player extends Ent {
     this.steadyUpdate(dt);
     if (this.riding) this.updateRiding(dt, mv);
     else this.updateFoot(dt, mv, age);
-    Juice.idle(this, dt, !!this.riding || mv.m > 0.1 || this.reloadT > 0 || this.swing > 0 || this.fireCd > -1.5 || this.crouch);
+    Juice.idle(this, dt, !!this.riding || mv.m > 0.1 || this.reloadT > 0 || this.swing > 0 || this.fireCd > -1.5 || this.crouch || !!this.act || !!this.kneel);
     this.ropeUpdate(dt);
     // saldırılar
     if (!G.uiBlocksMove && !G.wheelOpen) this.updateCombat(dt);
@@ -876,7 +902,7 @@ class Player extends Ent {
     G.qEvent('reload', this.weapon);
     if ((this.clip[this.weapon] || 0) >= Wp.clip || have <= 0) return;
     let t = Wp.reload * (G.hasPerk('gunslinger') ? 0.75 : 1);
-    this.reloadT = t;
+    this.reloadT = t; this.reloadDur = t;
     Audio_.play('reload_' + (this.weapon === 'shotgun' ? 'shotgun' : Wp.kind === 'long' ? 'repeater' : 'pistol'), { rate: Math.min(1.4, Wp.reload / t) });
     if (Wp.kind === 'pistol' || Wp.clip <= 2) {
       const spent = Math.min(6, (this.spent && this.spent[this.weapon]) || 0);
@@ -1003,6 +1029,7 @@ class Player extends Ent {
       const da = Math.abs(angDiff(ang, Math.atan2(e.y - this.y, e.x - this.x)));
       if (da > 1.1 || !G.los(this.x, this.y, e.x, e.y)) continue;   // duvarın ardındakine bıçak da yumruk da değmez
       if (e.hurt) e.hurt(dmg, 'player', this.weapon === 'knife' && !bash ? 'knife' : this.weapon === 'fists' && !bash ? 'fist' : 'melee');
+      if (e.kind === 'npc' && !e.dead) Juice.flinch(e, ang, bash ? 1.1 : 0.9);
       e.x += Math.cos(ang) * 5; e.y += Math.sin(ang) * 5;
       hitAny = true;
       break;
@@ -1018,6 +1045,7 @@ class Player extends Ent {
   }
   drawBody(ctx) {
     const A = this.mountAnim;
+    if (this.rise) { const p = Juice.risePose(this); Spr.human(ctx, this.x, this.y, p.ang, this.lookNow(), Juice.riseSt(p)); return; }
     if (A) {
       // sıçrarken yerden yükselir; eyere yaklaşınca binici duruşuna geçer
       const k = Math.min(1, A.t / A.dur), hop = Math.sin(k * Math.PI) * (A.on ? 6 : 5), seated = A.on ? k > 0.7 : k < 0.3;
@@ -1028,13 +1056,16 @@ class Player extends Ent {
       return;
     }
     if (this.riding) {
-      const rb = 1 + Juice.rearK(this.riding) * 3;   // şahlanınca binici geriye yaslanır
-      Spr.human(ctx, this.x - Math.cos(this.riding.ang) * rb, this.y - Math.sin(this.riding.ang) * rb, this.ang, this.lookNow(), { riding: true, aim: this.aiming, wk: this.aimKind(), draw: this.draw_ });
+      const rb = 1 + Juice.rearK(this.riding) * 3, fo = Juice.flinchOff(this), rl = this.reloadPose();   // şahlanınca binici geriye yaslanır
+      Spr.human(ctx, this.x - Math.cos(this.riding.ang) * rb + (fo ? fo[0] : 0), this.y - Math.sin(this.riding.ang) * rb + (fo ? fo[1] : 0), this.ang + (fo ? fo[2] : 0), this.lookNow(), { riding: true, aim: !rl && this.aiming, wk: this.aimKind(), draw: this.draw_, reload: rl, act: this.act });
       return;
     }
-    const hv = this.heave, Y = this.yank, yk = Y ? Player.yankArm(Math.min(1, Y.t / Y.dur)) : 0;
-    Spr.human(ctx, this.x + Math.cos(this.ang) * hv, this.y + Math.sin(this.ang) * hv, this.ang, this.lookNow(), {
-      walk: this.phase, mv: Math.min(1, this.mv), aim: Y ? true : this.aiming || this.swing > 0.2, wk: Y ? 'fists' : this.aimKind(), crouch: this.crouch || this.retchT > 0, swing: Y ? yk : this.swing, draw: this.draw_, head: this.idleA || 0, hatK: this.hatK || 0,
+    const kn = this.kneelPose();
+    if (kn) { Spr.human(ctx, this.x, this.y, kn.ang, this.lookNow(), kn.st); return; }
+    const hv = this.heave, Y = this.yank, yk = Y ? Player.yankArm(Math.min(1, Y.t / Y.dur)) : 0, fo = Juice.flinchOff(this), rl = !Y && this.reloadPose();
+    Spr.human(ctx, this.x + Math.cos(this.ang) * hv + (fo ? fo[0] : 0), this.y + Math.sin(this.ang) * hv + (fo ? fo[1] : 0), this.ang + (fo ? fo[2] : 0), this.lookNow(), {
+      walk: this.phase, mv: Math.min(1, this.mv), aim: Y ? true : !rl && (this.aiming || this.swing > 0.2), wk: Y ? 'fists' : this.aimKind(), crouch: this.crouch || this.retchT > 0, swing: Y ? yk : this.swing, draw: this.draw_, head: this.idleA || 0, hatK: this.hatK || 0,
+      reload: rl || null, act: !Y && !rl ? this.act : null,
       hasGun: this.weapons.has('cattleman') || this.weapons.has('schofield'), backGun: this.weapons.has('repeater') || this.weapons.has('winchester') || this.weapons.has('rifle') || this.weapons.has('shotgun'),
     });
     // omuzdaki yük omuz hattı boyunca yatar
@@ -1262,19 +1293,19 @@ class NPC extends Ent {
   get len() { return this.mounted ? 10 : 0; }
   /* Atlının atının başı ya da sağrısı (a yönünde) bir binanın içinde mi */
   noseIn(a) { const W = G.world, c = Math.cos(a) * this.len, s = Math.sin(a) * this.len; return W.indoorPx(this.x + c, this.y + s) || W.indoorPx(this.x - c * 0.8, this.y - s * 0.8); }
-  /* Atından in: at bir adım arkasında kalır (önünde durup yolunu kesmesin), kendisi yürüyerek devam eder */
+  /* Atından in: at olduğu yerde kalır, kendisi kovaladığı oyuncunun tarafına (atın yanından, önünü kesmeden) yere
+     sıçrar (js/juice.js hop), sonra yürüyerek devam eder */
   alight() {
     if (!this.mounted) return;
-    const W = G.world, P = G.player, a = Math.atan2(P.y - this.y, P.x - this.x);   // kovaladığı oyuncuya doğru gidecek
-    let hx = this.x, hy = this.y;
-    for (const off of [Math.PI, Math.PI * 0.7, -Math.PI * 0.7, Math.PI / 2, -Math.PI / 2]) {
-      const x = this.x + Math.cos(a + off) * 12, y = this.y + Math.sin(a + off) * 12;
-      if (!W.blocked(x, y, 5) && !W.indoorPx(x, y) && !W.isWaterPx(x, y)) { hx = x; hy = y; break; }
-    }
-    const h = new Horse(hx, hy, 'mustang', { look: this.mounted, owner: 'npc' });
-    h.ang = this.hAng === undefined ? this.ang : this.hAng; h.state = 'idle'; h.t = rnd(20, 40);
+    const P = G.player, a = Math.atan2(P.y - this.y, P.x - this.x), ha = this.hAng === undefined ? this.ang : this.hAng;
+    const hp = G.horseFree(this.x, this.y, ha) ? [this.x, this.y] : G.horseDrop(this.x, this.y, ha);
+    const h = new Horse(hp[0], hp[1], 'mustang', { look: this.mounted, owner: 'npc' });
+    h.ang = ha; h.state = 'idle'; h.t = rnd(20, 40);
     G.addEnt(h);
+    const side = ha + (Math.cos(a - ha - Math.PI / 2) >= 0 ? Math.PI / 2 : -Math.PI / 2), land = G.fallSpot(hp[0], hp[1], side, 11);
     this.mounted = null; this.hAng = undefined; this.wspd = 0; this.stuck = 0;
+    this.x = land[0]; this.y = land[1];
+    Juice.hop(this, false, { hx: hp[0], hy: hp[1] });
   }
   /* Kementte, bağlı ya da yaralı yerde: savaşamaz, kaçamaz, tanıklık edemez */
   get bound() { return this.state === 'lassoed' || this.state === 'tied' || this.state === 'downed'; }
@@ -1307,7 +1338,7 @@ class NPC extends Ent {
       // vurulan binici eyerden düşer: vuruşun geldiği yönün tersine savrulur (bir anda yerde belirmez)
       const src = by === 'player' ? G.player : by && by.x !== undefined ? by : null;
       const a = src ? Math.atan2(hp[1] - src.y, hp[0] - src.x) : Math.random() * TAU, land = G.fallSpot(hp[0], hp[1], a, 14);
-      Juice.fall(this, { x0: hp[0], y0: hp[1], x1: land[0], y1: land[1], dur: 0.45, peak: 5 });
+      Juice.fall(this, { x0: hp[0], y0: hp[1], x1: land[0], y1: land[1], dur: 0.45, peak: 5, then: (n) => { if (!n.dead && !n.bound) Juice.rise(n, 0.8); } });
     }
     // yumrukla bayılır; ödül hedefi ağır yaralanınca çoğunlukla ölmez, yere yığılır (canlı yakalanabilsin)
     if (this.hp <= 0 && by === 'player') {
@@ -1337,6 +1368,8 @@ class NPC extends Ent {
   /* Kementten, iplerden ya da baygınlıktan kurtulunca */
   recover() {
     this.wrig = 0;
+    // yerde yatıyordu (kement, ip, baygınlık): doğrulup kalkar (js/juice.js rise)
+    if (!this.dead && (this.state === 'lassoed' || this.state === 'tied' || this.state === 'downed')) Juice.rise(this);
     if (this.role === 'bandit' || this.role === 'target' || this.isLaw && this.hostile) { this.state = 'idle'; this.hostile = true; this.aggro = true; }
     else if (this.brawl && this.brawl.fought && !this.brawl.crime && this.state === 'downed') { this.brawl.yielded = true; this.state = 'glare'; this.t = 5; this.say(pick([Tr('Başım... Neyle vurdun sen?'), Tr('Tamam, kazandın.')]), 2); }
     else { this.state = 'flee'; this.t = 10; this.say(pick(LINES.flee), 2); }
@@ -1393,6 +1426,8 @@ class NPC extends Ent {
   }
   update(dt) {
     if (this.fall) { Juice.fallTick(this, dt); return; }   // eyerden ya da koltuktan düşüyor (js/juice.js)
+    if (this.rise) { if (this.dead || this.bound) this.rise = null; else { Juice.riseTick(this, dt); return; } }   // yerden kalkıyor
+    if (this.hop) { if (this.dead || this.bound) this.hop = null; else { Juice.hopTick(this, dt); return; } }   // ata biniyor ya da iniyor
     if (this.dead) { this.deadT = (this.deadT || 0) + dt; this.waterTick(dt); return; }
     if (this.bound) { this.boundUpdate(dt); if (!this.dead) this.waterTick(dt); return; }
     if (this.hide) { if (this.job) G.jobUpdate(this, dt); return; }   // dükkânın içinde (sandık taşıyor)
@@ -1578,7 +1613,7 @@ class NPC extends Ent {
     this.spare = this.isLaw ? 8 : this.role === 'hunter' || this.role === 'target' ? 5 : rndi(2, 4);
   }
   npcReload(W) {
-    this.reloadT = (W.reload || 2) * rnd(1.15, 1.6);
+    this.reloadT = this.reloadDur = (W.reload || 2) * rnd(1.15, 1.6);
     Audio_.play('reload_' + (this.weapon === 'shotgun' ? 'shotgun' : W.kind === 'long' ? 'repeater' : 'pistol'), { x: this.x, y: this.y, vol: 0.9 });
     if (chance(0.6)) this.say(pick([Tr('Şarjör!'), Tr('Doldurmam lazım!'), Tr('Örtün beni!'), Tr('Mermi!')]), 1.6);
   }
@@ -1684,9 +1719,13 @@ class NPC extends Ent {
   draw(ctx) {
     if (this.hide) return;
     if (this.fall) { Juice.fallDraw(ctx, this); return; }
+    if (this.rise && !this.dead) { const p = Juice.risePose(this); Spr.human(ctx, this.x, this.y, p.ang, this.look, Juice.riseSt(p)); return; }
+    if (this.hop && !this.dead) { Juice.hopDraw(ctx, this); return; }
+    const fo = Juice.flinchOff(this), fx = fo ? fo[0] : 0, fy = fo ? fo[1] : 0, fa = fo ? fo[2] : 0;
+    const rl = this.weapon && this.reloadT > 0 && !this.dead ? Juice.reloadSt(this, this.weapon, this.reloadDur) : null;
     if (this.mounted && !this.dead) {
       Spr.horse(ctx, this.x, this.y, this.hAng === undefined ? this.ang : this.hAng, this.mounted, { phase: this.phase, mv: this.mv, saddle: true });
-      Spr.human(ctx, this.x, this.y, this.ang, this.look, { riding: true, aim: this.hostile && (this.isLaw || !!this.aggro), wk: this.weapon ? WEAPONS[this.weapon].kind : null });
+      Spr.human(ctx, this.x + fx, this.y + fy, this.ang + fa, this.look, { riding: true, aim: !rl && this.hostile && (this.isLaw || !!this.aggro), wk: this.weapon ? WEAPONS[this.weapon].kind : null, reload: rl });
       return;
     }
     if (this.state === 'hurt' && !this.dead) {
@@ -1699,11 +1738,11 @@ class NPC extends Ent {
       if (this.state === 'downed' && this.downT > 0 && Math.sin(G.t * 3) > 0.6) { ctx.fillStyle = 'rgba(240,230,200,0.7)'; ctx.fillRect(this.x - 0.6, this.y - 9, 1.2, 1.2); ctx.fillRect(this.x + 2, this.y - 10, 1, 1); }
       return;
     }
-    Spr.human(ctx, this.x, this.y, this.ang, this.look, {
-      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held || (this.anim && this.anim.k === 'tie') || (this.cov && this.cov.st === 'hide' && !this.dead),
+    Spr.human(ctx, this.x + fx, this.y + fy, this.ang + fa, this.look, {
+      walk: this.phase, mv: Math.min(1, this.mv), dead: this.dead, reload: rl, noPool: this.inWater, pool: this.dead ? Math.min(1, (this.deadT || 0) / 6) : 0, soak: this.dead ? Juice.soak(this) : 0, crouch: this.state === 'cower' || this.state === 'sit' || this.state === 'sleep' || this.held || (this.anim && this.anim.k === 'tie') || (this.cov && this.cov.st === 'hide' && !this.dead),
       anim: this.anim && !this.dead ? this.anim.k : null, animT: this.anim ? this.anim.t : 0, gait: this.walkStyle || (this.gt && this.gt.style),
       hatK: this.anim && this.anim.k === 'tiphat' ? Math.sin(Math.min(1, this.anim.t / this.anim.dur) * Math.PI) : 0,
-      aim: (this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing' || !!this.gAim, wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
+      aim: !rl && ((this.hostile && (this.aggro || this.isLaw) && !!this.weapon) || this.state === 'robbing' || !!this.gAim), wk: this.weapon ? WEAPONS[this.weapon].kind : (this.state === 'fightFist' ? 'fists' : null),
       swing: this.swing > 0 ? this.swing : 0, hasGun: !!this.weapon, hold: this.state === 'flee' || this.state === 'report' ? null : this.carry2,
       head: this.lookAt != null && !this.dead ? clamp(angDiff(this.ang, this.lookAt), -1.2, 1.2) : 0,
     });

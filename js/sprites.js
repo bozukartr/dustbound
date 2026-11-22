@@ -2182,6 +2182,7 @@ const Spr = {
       ctx.restore();
       return;
     }
+    if (st.sit !== undefined || st.kneel) { this.humanLow(ctx, ang, look, st); ctx.restore(); return; }
     const [sdx, sl] = Juice.sun(6);
     this.shadow(ctx, 1 + sdx, 2.5, 6 * sl, 3.8, 0.3);
     ctx.rotate(ang);
@@ -2210,7 +2211,9 @@ const Spr = {
     this.ell(ctx, 0, 0, 3.4, 5.3, look.coat);
     ctx.fillStyle = look.shirt; ctx.beginPath(); ctx.ellipse(1.8, 0, 1.3, 1.9, 0, 0, TAU); ctx.fill();
     const wk = st.wk;
-    if (st.aim && wk) {
+    if (st.reload) this.reloadArms(ctx, look, st, sw);
+    else if (st.act) this.actArms(ctx, look, st, sw, 0);
+    else if (st.aim && wk) {
       ctx.strokeStyle = look.coat; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
       if (wk === 'long') {
         ctx.beginPath(); ctx.moveTo(0, -4.2); ctx.lineTo(7, -0.5); ctx.moveTo(0, 4.2); ctx.lineTo(3, 1.5); ctx.stroke();
@@ -2272,7 +2275,12 @@ const Spr = {
         ctx.fillStyle = '#8a8478'; ctx.fillRect(-1.8, 5.2, 3.8, 0.4); ctx.fillRect(-1.8, 6, 3.8, 0.4);
       }
     }
-    // kafa (boşta etrafa bakarken gövdeden bağımsız döner)
+    this.headDraw(ctx, look, st, sw);
+    if (st.act && !st.reload) this.actArms(ctx, look, st, sw, 1);   // ağza götürülen el başın üstünde
+    ctx.restore();
+  },
+  /* Baş: saç, maske, şapka (st.head: boşta etrafa bakarken gövdeden bağımsız döner) ve jestlerin başın üstündeki katmanı */
+  headDraw(ctx, look, st, sw) {
     if (st.head) ctx.rotate(st.head);
     const hc = look.hairNow || look.hair;
     const mk = look.mask;
@@ -2296,7 +2304,6 @@ const Spr = {
       if (mk === 'bandana') { this.ell(ctx, 2.2, 0, 1, 2.1, '#a8281f'); ctx.fillStyle = '#e8d8c0'; ctx.fillRect(2.4, -1, 0.6, 0.6); ctx.fillRect(2.4, 0.6, 0.6, 0.6); }
     }
     if (st.anim && !st.hold) this.gesture(ctx, look, st, sw, 1);   // yüze götürülen el, şapkadaki el
-    ctx.restore();
   },
   /* Başın arkasında/omuzda kalan saç (üstten): uzun saç, at kuyruğu, ense topuzu, örgüler */
   hairTop(ctx, look, hc) {
@@ -2329,6 +2336,162 @@ const Spr = {
     if (hat === 'cowboy' || hat === 'wide' || hat === 'straw') { ctx.fillStyle = shadeHex(c, 0.25); ctx.fillRect(-0.8, -2.4, 1, 4.8); }
     if (hat === 'straw') { ctx.strokeStyle = shadeHex(c, -0.25); ctx.lineWidth = 0.3; ctx.beginPath(); ctx.ellipse(0, 0, br * 0.75, br * 0.72, 0, 0, TAU); ctx.stroke(); }
     if (hat === 'fedora') { ctx.fillStyle = shadeHex(c, -0.55); ctx.fillRect(-1.6, -0.35, 2.8, 0.7); }   // fötrün boyuna tepe çukuru
+  },
+  /* Omuzdan (sd: -1 sol, 1 sağ) ele kol; dirsek verilirse oradan kırılır */
+  armTo(ctx, look, sd, hx, hy, ex, ey) {
+    ctx.strokeStyle = look.coat; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(0, sd * 4); if (ex !== undefined) ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+    this.circ(ctx, hx, hy, 1.1, look.skin);
+  },
+  /* Yere yakın duruşlar (gövde çerçevesi: x yüzün baktığı yön).
+     sit (0-1): yerde oturuş; kalkarken sırtüstü yatıştan doğrulur (0 yatık, 1 dik), bacaklar önde, eller geride yere dayalı.
+     kneel: diz çökmüş; 'work' iki el önde yerde çalışır, 'look' bir el yerde (iz, toprak), 'mouth' avuçla su (kneelQ: elin
+     ağza yakınlığı), 'rise' bir el dizde bir el yerde (kalkarken), 'pray' eller göğüste, baş eğik. kneelT el hareketinin zamanı */
+  humanLow(ctx, ang, look, st) {
+    const C = look.coat, S = look.skin, boot = '#231710';
+    const [sdx, sl] = Juice.sun(6);
+    if (st.sit !== undefined) {
+      const q = clamp(st.sit, 0, 1);
+      this.shadow(ctx, 1 + sdx * 0.6, 2, 6.6 * sl, 3.6, 0.24);
+      ctx.rotate(ang);
+      ctx.fillStyle = look.pants; ctx.fillRect(3.4, -2.4, 5.2, 1.8); ctx.fillRect(3.4, 0.6, 5.2, 1.8);
+      ctx.fillStyle = boot; ctx.fillRect(8.2, -2.5, 1.7, 2); ctx.fillRect(8.2, 0.5, 1.7, 2);
+      if (look.coatLen) this.ell(ctx, lerp(-1, -0.6, q), 0, lerp(5.4, 3.6, q) + look.coatLen, lerp(3.3, 4.6, q), shadeHex(C, -0.12));
+      // eller kalçanın gerisinde yere dayanır, gövde doğruldukça öne gelir
+      this.circ(ctx, lerp(-3.4, -1.6, q), -4.7, 1.1, S); this.circ(ctx, lerp(-3.4, -1.6, q), 4.7, 1.1, S);
+      this.ell(ctx, lerp(0, 1, q), 0, lerp(5.5, 3.4, q), lerp(3.2, 5, q), C);
+      if (q > 0.55) this.ell(ctx, 2.6, 0, 1.2, 1.7, look.shirt);
+      ctx.translate(lerp(-5.5, 0.9, q), 0);
+      if (q < 0.45) this.circ(ctx, 0, 0, 2.6, look.hat === 'none' ? look.hair : S);
+      else this.headDraw(ctx, look, {}, 0);
+      return;
+    }
+    const K = st.kneel, t = st.kneelT || 0;
+    this.shadow(ctx, 1 + sdx * 0.7, 2.2, 5.6 * sl, 3.6, 0.27);
+    ctx.rotate(ang);
+    ctx.scale(0.94, 0.94);
+    // diz çökmüş: çizmeler arkada, uyluklar gövdenin altından öne, dizler önde
+    ctx.fillStyle = boot; ctx.fillRect(-6.4, -3.2, 2.4, 1.9); ctx.fillRect(-6.4, 1.3, 2.4, 1.9);
+    ctx.fillStyle = look.pants; ctx.fillRect(-4.4, -3.3, 7.4, 2.3); ctx.fillRect(-4.4, 1, 7.4, 2.3);
+    this.ell(ctx, 3.1, -2.15, 1.3, 1.25, shadeHex(look.pants, 0.1)); this.ell(ctx, 3.1, 2.15, 1.3, 1.25, shadeHex(look.pants, 0.1));
+    if (look.coatLen) this.ell(ctx, -2.6, 0, 2.6 + look.coatLen * 1.2, 4.4, shadeHex(C, -0.12));
+    const lean = K === 'work' || K === 'mouth' ? 1 : K === 'pray' ? 0.6 : 0.3;
+    this.ell(ctx, -0.4 + lean * 0.5, 0, 3.3, 5, C);
+    this.ell(ctx, 1.4 + lean * 0.5, 0, 1.2, 1.8, look.shirt);
+    let mouth = null;
+    if (K === 'work') {
+      const j = Math.sin(t * 9) * 0.9;
+      this.armTo(ctx, look, -1, 6.9 + j, -2, 3.4, -4.3); this.armTo(ctx, look, 1, 6.9 - j, 2, 3.4, 4.3);
+    } else if (K === 'look') {
+      this.armTo(ctx, look, -1, 3.2, -2.7); this.armTo(ctx, look, 1, 7.3 + Math.sin(t * 3) * 0.4, 1.3, 3.6, 4.2);
+    } else if (K === 'mouth') {
+      const q = clamp(st.kneelQ || 0, 0, 1), hx = lerp(7, 4.4, q);
+      if (q < 0.55) { this.armTo(ctx, look, -1, hx, -0.9, 3, -4.3); this.armTo(ctx, look, 1, hx, 0.9, 3, 4.3); }
+      else mouth = hx;
+    } else if (K === 'pray') {
+      this.armTo(ctx, look, -1, 4.4, -0.7, 2.4, -3.6); this.armTo(ctx, look, 1, 4.4, 0.7, 2.4, 3.6);
+    } else {
+      // kalkarken: bir el yerde iter, öbürü dizde
+      this.armTo(ctx, look, -1, 1.4, -6.2); this.armTo(ctx, look, 1, 3.3, 2.5);
+    }
+    ctx.translate(0.6 + lean * 1.1, 0);
+    this.headDraw(ctx, look, {}, 0);
+    if (mouth !== null) {
+      // avuçlar ağızda (başın üstünde kalır)
+      ctx.translate(-0.6 - lean * 1.1, 0);
+      this.armTo(ctx, look, -1, mouth, -0.8, 3, -4.3); this.armTo(ctx, look, 1, mouth, 0.8, 3, 4.3);
+      ctx.fillStyle = 'rgba(170,205,225,0.8)'; ctx.fillRect(mouth - 0.3, -0.6, 1, 1.2);
+    }
+  },
+  /* Yeme, içme, matara, sigara (st.act = { k, q, item, t }): sağ el aşağıdan ağza gelir (q: 0 aşağıda, 1 ağızda), sol el
+     yürürken sallanır (atlıyken dizgindedir). layer 0: kollar; layer 1: ağızdaki el ve elindeki (başın üstünde kalır). */
+  actArms(ctx, look, st, sw, layer) {
+    const A = st.act, q = clamp(A.q, 0, 1), S = look.skin, k = A.k;
+    if (k === 'bandage' || k === 'rub') {
+      if (layer === 1) return;
+      // iki el sol kolda: sargı sarar ya da merhemi omza sürer
+      const a = A.t * 11;
+      if (k === 'bandage') {
+        this.armTo(ctx, look, -1, 4.6, -2.9, 2.4, -4.6);
+        ctx.fillStyle = '#e8e4d8'; ctx.fillRect(2.6, -4.2, 2.2, 1.5);
+        this.armTo(ctx, look, 1, 3.6 + Math.cos(a) * 0.9, -2.5 + Math.sin(a) * 0.7, 2.4, 2.4);
+      } else {
+        this.circ(ctx, -sw * 0.7, -4.8, 1.7, look.coat); this.circ(ctx, -sw * 0.7 + 0.8, -5.2, 1, S);
+        this.armTo(ctx, look, 1, 0.9 + Math.cos(a) * 0.6, -3.4 + Math.sin(a) * 0.5, 3, 1.5);
+      }
+      return;
+    }
+    const hx = lerp(1.6, 4.3, q), hy = lerp(5, 0.9, q), up = q >= 0.4;
+    if (layer === 0) {
+      if (st.riding) { this.circ(ctx, 3.5, -3.3, 1.5, look.coat); this.circ(ctx, 5, -2.5, 1.1, S); }
+      else { this.circ(ctx, -sw * 0.7, -4.8, 1.7, look.coat); this.circ(ctx, -sw * 0.7 + 0.8, -5.2, 1, S); }
+      if (up) return;
+      this.armTo(ctx, look, 1, hx, hy);
+    } else {
+      if (!up) { this.actItem(ctx, A, hx, hy, false); return; }
+      this.armTo(ctx, look, 1, hx, hy);
+    }
+    this.actItem(ctx, A, hx, hy, up);
+  },
+  /* Eldeki: şişe, matara, tas, yiyecek, sigara, hap, koku şişesi. atMouth: ağza dayalı (şişe yüzden öne uzanır) */
+  actItem(ctx, A, hx, hy, atMouth) {
+    const k = A.k, col = A.col || '#4a5a3a';
+    if (k === 'drink') {
+      if (atMouth) { ctx.fillStyle = col; ctx.fillRect(hx - 0.2, hy - 0.8, 3.6, 1.6); ctx.fillStyle = shadeHex(col, 0.35); ctx.fillRect(hx + 0.4, hy - 0.6, 2.2, 0.5); ctx.fillStyle = '#c8a870'; ctx.fillRect(hx + 3.3, hy - 0.5, 0.7, 1); }
+      else { this.circ(ctx, hx + 0.4, hy + 0.3, 1.2, col); this.circ(ctx, hx + 0.4, hy + 0.3, 0.45, '#c8a870'); }
+    } else if (k === 'canteen') {
+      this.circ(ctx, hx + (atMouth ? 1.4 : 0.5), hy + 0.2, 1.7, '#7a6a4a'); this.circ(ctx, hx + (atMouth ? 1.4 : 0.5), hy + 0.2, 1.1, '#9a9aa0');
+      if (atMouth) { ctx.fillStyle = '#5a5a60'; ctx.fillRect(hx + 2.9, hy - 0.3, 0.8, 0.6); }
+    } else if (k === 'cup') {
+      this.circ(ctx, hx + (atMouth ? 1 : 0.4), hy + 0.2, 1.2, '#7a7a82'); this.circ(ctx, hx + (atMouth ? 1 : 0.4), hy + 0.2, 0.75, '#3a2010');
+    } else if (k === 'eat') {
+      if (!atMouth || A.q < 0.85) { ctx.fillStyle = col; ctx.fillRect(hx + 0.2, hy - 0.7, 2, 1.5); ctx.fillStyle = shadeHex(col, -0.25); ctx.fillRect(hx + 0.2, hy + 0.4, 2, 0.4); }
+    } else if (k === 'smoke') {
+      ctx.fillStyle = '#e8e0d0'; ctx.fillRect(hx + 0.6, hy - 0.3, 1.8, 0.6);
+      ctx.fillStyle = A.q > 0.8 ? '#ffb040' : '#d0602a'; ctx.fillRect(hx + 2.3, hy - 0.35, 0.7, 0.7);
+    } else if (k === 'pill') {
+      if (A.q < 0.9) { ctx.fillStyle = '#f0ece0'; ctx.fillRect(hx + 0.5, hy - 0.4, 0.8, 0.8); }
+    } else if (k === 'salts') {
+      ctx.fillStyle = '#d8e0e8'; ctx.fillRect(hx + 0.4, hy - 0.6, 1.4, 1.2); ctx.fillStyle = '#6a7a8a'; ctx.fillRect(hx + 1.7, hy - 0.4, 0.5, 0.8);
+    }
+  },
+  /* Silah doldurma (st.reload = { wk, q, n }): q ilerleme 0-1, n el gidiş-gelişi. pistol: tabanca sol elde göğüs
+     önünde, tambur açık; sağ el kemerden tambura fişek taşır. long: tüfek gövdenin önünden çaprazlama, sağ el kemerden
+     yan kapağa; single: tek atımlık, bir kez; shotgun: namlular kırık, iki fişek; bow: sağ el sırttaki ok kılıfından kirişe. */
+  reloadArms(ctx, look, st, sw) {
+    const R = st.reload, S = look.skin, n = R.n || 1, q = clamp(R.q, 0, 1);
+    const u = 0.5 - 0.5 * Math.cos(q * n * TAU);   // 0 kemerde, 1 silahta
+    const iron = '#2a2a2e', wood = '#5a3e26';
+    if (st.riding) { this.circ(ctx, 3.5, -3.3, 1.5, look.coat); }
+    if (R.wk === 'bow') {
+      ctx.strokeStyle = '#6a4a28'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(2.6, -2.4, 5.2, -1.6, 0.2); ctx.stroke();
+      this.armTo(ctx, look, -1, 6.2, -3.6, 3, -5);
+      const hx = lerp(-3.6, 4.4, u), hy = lerp(3.2, -1.6, u);
+      this.armTo(ctx, look, 1, hx, hy, lerp(-1.5, 2.4, u), lerp(5.4, 3, u));
+      ctx.strokeStyle = '#c8b080'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + 5.5 * u + 1, hy - 2.2 * u - 0.5); ctx.stroke();
+      return;
+    }
+    if (R.wk === 'pistol') {
+      // tabanca göğüs önünde, namlu sola yukarı; açık tambur
+      ctx.save(); ctx.translate(4.3, -1.3); ctx.rotate(-0.7);
+      ctx.fillStyle = iron; ctx.fillRect(-0.6, -0.55, 4.4, 1.1); ctx.fillStyle = wood; ctx.fillRect(-2.2, -0.4, 1.8, 1.4);
+      ctx.restore();
+      this.circ(ctx, 4.9, 0.1, 0.95, '#3a3a40'); this.circ(ctx, 4.9, 0.1, 0.4, '#8a8a90');
+      this.armTo(ctx, look, -1, 3.8, -1.5, 2, -4.4);
+    } else {
+      const broke = R.wk === 'shotgun';
+      // tüfek gövdenin önünden çaprazlama (dipçik sağ kalçada, namlu sol öne)
+      ctx.strokeStyle = wood; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-2.4, 3.8); ctx.lineTo(1.8, 1.2); ctx.stroke();
+      ctx.strokeStyle = R.wk === 'long' ? '#b0903e' : '#4a4a52'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(1.6, 1.3); ctx.lineTo(3, 0.4); ctx.stroke();
+      ctx.strokeStyle = iron; ctx.lineWidth = broke ? 1.5 : 1.1; ctx.beginPath(); ctx.moveTo(3, 0.4); ctx.lineTo(broke ? 6.6 : 9.4, broke ? -0.4 : -3.6); ctx.stroke();
+      this.armTo(ctx, look, -1, broke ? 5.6 : 6, broke ? -0.3 : -2.4, 3, -4.6);
+    }
+    // sağ el: kemerdeki fişeklikten silaha
+    const bx = 0.6, by = 5, gx = R.wk === 'pistol' ? 4.7 : 2.6, gy = R.wk === 'pistol' ? 0.6 : 1.3;
+    const hx = lerp(bx, gx, u), hy = lerp(by, gy, u);
+    this.armTo(ctx, look, 1, hx, hy, lerp(-0.6, 2, u), lerp(5.6, 4, u));
+    if (u > 0.25 && u < 0.97) { ctx.fillStyle = R.wk === 'shotgun' ? '#a83a2a' : '#c8a040'; ctx.fillRect(hx + 0.3, hy - 0.35, 1.1, 0.7); }
   },
   /* NPC jestleri, üstten görünüş (gövde çerçevesi: x ileri, y sağ).
      layer 0: kollar ve eldekiler (true dönerse varsayılan kollar çizilmez); layer 1: başın üstünde kalanlar */

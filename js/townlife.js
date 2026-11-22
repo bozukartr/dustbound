@@ -389,7 +389,7 @@ class Wagon extends Ent {
     const n = new NPC(x, y, 'traveler', { look: d.look, name: d.name, money: this.stage ? rnd(1, 4) : rnd(0.3, 2) });
     n.ang = this.ang;
     G.addEnt(n);
-    Juice.fall(n, { x0: st.x, y0: st.y, x1: x, y1: y, dur: 0.5, peak: 7 });
+    Juice.fall(n, { x0: st.x, y0: st.y, x1: x, y1: y, dur: 0.5, peak: 7, then: (e) => { if (!e.dead && !e.bound) Juice.rise(e, 0.75); } });
     return n;
   }
   /* Yolun sonu bir kasabaysa içeri girer: dükkânın önünde durur, sonra geri döner */
