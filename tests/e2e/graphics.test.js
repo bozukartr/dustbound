@@ -238,7 +238,9 @@ module.exports = {
 
     await t.step('Melez yarım çözünürlük: tuval dünya pikseli başına 1, kamera tam piksel; aynı sahne çizilir', async () => {
       const shot = () => g.evaluate(() => { const c = G.ctx.getImageData(0, 0, G.canvas.width, G.canvas.height).data; let s = 0, n = 0; for (let i = 0; i < c.length; i += 16) { s += c[i] + c[i + 1] + c[i + 2]; n++; } return { mean: s / n / 3, cw: G.canvas.width, vw: G.vw, ds: G.ds, hy: G.hy, D: HY.stat.D, f: HY.stat.frames }; });
-      const full = await shot();
+      // yük altında ayar değişikliğinden sonraki ilk kare gecikebilir: tuval dolana dek bekle (boş tuval ölçülmez)
+      let full = await shot();
+      for (let i = 0; i < 30 && !(full.mean > 0); i++) { await t.sleep(100); full = await shot(); }
       await g.evaluate(() => { G.settings.hyRes = 1; G.settings.gfxPreset = GFX.presetOf(G.settings); G.applySettings(); });
       await t.sleep(1200);
       const half = await shot();

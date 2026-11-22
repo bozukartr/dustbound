@@ -59,7 +59,9 @@ module.exports = {
         await p.evaluate((i) => { const q = G.story.trk[i]; TH.goto(q.x, q.y); G.player.crouch = true; }, i);
         await p.waitForFunction((i) => G.story.ti > i, i, { timeout: 4000 });
       }
-      await waitStep(1, 0, 20000);
+      // bölüm 2'nin ilk adımı (sürüye 240 px'ten yakın ol): son iz sürüye ~100-140 px uzaklıkta olduğundan adım hemen
+      // biter; yük altında test 1.0'ı görmeden 1.1'e geçilebilir, ikisi de doğru
+      await p.waitForFunction(() => G.story && G.story.ch === 1 && G.story.st <= 1 && !G.story.wait, null, { timeout: 20000 });
     });
 
     await t.step('bölüm 2: sürüye yaklaş, yayla avla (tüfekle olmaz), derisini yüz', async () => {
@@ -95,7 +97,8 @@ module.exports = {
       t.eq(await p.evaluate(() => G.player.coat), 'coat_fur', 'manto üstünde');
       await p.evaluate(() => { const N = G.story.north; TH.goto(N.x, N.y + 20); });
       await waitStep(3, 3);
-      await p.evaluate(() => { for (const e of G.ents) if (e.hostile || (e.kind === 'animal' && e.state === 'attack')) e.remove = true; G.law.level = 0; G.setupCamp(); if (!G.camp) { const o = TH.openSpot(G.player.x, G.player.y, 40); TH.goto(o[0], o[1]); G.setupCamp(); } UI.closeAll(); });
+      // kaldırılan saldırganlar kare bitmeden listeden çıkarılır: setupCamp'in tehlike denetimi onları hâlâ görmesin
+      await p.evaluate(() => { for (const e of G.ents) if (e.hostile || (e.kind === 'animal' && e.state === 'attack')) e.remove = true; G.ents = G.ents.filter(e => !e.remove); G.law.level = 0; G.setupCamp(); if (!G.camp) { const o = TH.openSpot(G.player.x, G.player.y, 40); TH.goto(o[0], o[1]); G.setupCamp(); } UI.closeAll(); });
       await waitStep(3, 4);
       const ok2 = await p.evaluate(() => { UI.closeAll(); UI.openCook(); const R = RECIPES.find(r => r.id === 'cook_game'); return TH.clickItem(new RegExp(R.n)); });
       t.ok(ok2, 'et pişti');

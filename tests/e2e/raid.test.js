@@ -118,7 +118,8 @@ module.exports = {
       t.eq(r.horse, 0, 'bağlı at artık Jack\'in altında');
       t.ok(!r.surr, 'teslim olmadı');
       t.ok(/Kaçan Jack/.test(r.t), 'hedef yazısı kovalamaca', r.t);
-      await t.sleep(2500);
+      // en az 60 px yol alana dek (yük altında kareler yavaşlar: sabit 2,5 sn bazen 55 px'te kalıyordu, en çok 10 sn)
+      await p.waitForFunction(() => { const S = G.story, j = G.jackEnt(); return !j || j.remove || dist(j.x, j.y, S.jHideTo.x, S.jHideTo.y) < window.__hd0 - 60; }, null, { timeout: 10000 }).catch(() => {});
       const q = await p.evaluate(() => { const S = G.story, j = G.jackEnt(); return { ok: !!j && !j.remove, d: dist(j.x, j.y, S.jHideTo.x, S.jHideTo.y), d0: window.__hd0, mark: G.questMark() === j }; });
       t.ok(q.ok && q.d < q.d0 - 60, 'saklanacağı yere doğru sürüyor', q);
       t.ok(q.mark, 'görev işareti Jack\'in üstünde');

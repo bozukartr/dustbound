@@ -112,7 +112,7 @@ STORIES.trapper = {
     if (e.trKey && e.trKey.startsWith('clue') && st && st.ev === 'clue' && !S.wait) {
       const i = e.ci;
       if ((S.clues || []).includes(i)) return [];
-      return [{ n: Tr('İncele'), hold: 1, fn: () => {
+      return [{ n: Tr('İncele'), hold: 1, kneel: 'look', fn: () => {
         (S.clues = S.clues || []).push(i);
         Audio_.ui('pick');
         const txt = [

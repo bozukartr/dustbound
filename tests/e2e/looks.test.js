@@ -53,7 +53,8 @@ module.exports = {
     await t.step('moda dönemi başlayınca durgun kasabanın sakinleri de dönemin kıyafetine geçer', async () => {
       const r = await p.evaluate(() => {
         const T = TH.town('millbrook') || G.world.towns[0], S = G.dev.towns[T.id], st = { tier: S.tier, prog: 0.1, ghost: false, pk: S.pk || S.tier };
-        const s0 = TH.openSpot(300 * TS, 300 * TS) || [300 * TS, 300 * TS]; TH.goto(s0[0], s0[1]);
+        // kuzeybatısı dağ ya da deniz olan dünyada orada boş yer yoksa oyuncu dağın içine değil, bulunduğu yerin yakınına
+        const s0 = TH.openSpot(300 * TS, 300 * TS) || TH.openSpot() || [G.player.x, G.player.y]; TH.goto(s0[0], s0[1]);
         LK.year(1909); T._res = null; const a = G.residents(T);
         LK.year(1910); G.devTownYear(T, 1910, st); const b = G.residents(T);   // 1910: yeni moda
         // kalan sakinler (gelişim gereği gidenler hariç) aynı ad ve yüzle kalır

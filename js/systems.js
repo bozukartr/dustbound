@@ -313,6 +313,7 @@ const GameSystems = {
     if (id === 'treasure_map') { UI.showTreasureMap(); return true; }
     if (!it.e) { UI.feed(Tr('Bu eşya kullanılamaz.'), 'warn'); return false; }
     P.removeItem(id, 1);
+    { const [k, col] = Juice.actOf(id, it); Juice.act(P, k, col); }   // eli ağzına götürür (js/juice.js)
     const mult = it.c === 'food' && this.hasPerk('eater') ? 1.2 : 1;
     if (e.hunger) P.hunger = clamp(P.hunger + e.hunger * mult, 0, 100);
     if (e.thirst) P.thirst = clamp(P.thirst + e.thirst * mult, 0, 100);
@@ -354,6 +355,7 @@ const GameSystems = {
     if (!P.has('canteen')) { UI.feed(Tr('Mataran yok.'), 'warn'); return; }
     if (P.canteen <= 0) { UI.feed(Tr('Matara boş. Bir kuyu ya da nehirde doldur.'), 'warn'); return; }
     P.canteen--; P.thirst = Math.min(100, P.thirst + 32);
+    Juice.act(P, 'canteen');
     this.coolDown();
     if (!Audio_.play('drink')) Audio_.tone(500, 0.1, 'sine', 0.05, null, 0, 300);
     UI.feed(Tr`🫗 Matara: ${P.canteen}/5`);
@@ -946,7 +948,7 @@ const GameSystems = {
           UI.closeAll();
           UI.fade(() => {
             finish(false);
-            if (office) { P.x = office.door.x; P.y = office.door.y + 10; if (G.horse && !G.horse.dead) { G.horse.x = P.x + 24; G.horse.y = P.y + 14; } }
+            if (office) { P.x = office.door.x; P.y = office.door.y + 10; if (G.horse && !G.horse.dead) this.horseBeside(G.horse, P.x, P.y + 6); }
             this.advanceClock(days * 1440);
             P.hunger = Math.max(P.hunger, 45); P.thirst = Math.max(P.thirst, 45); P.energy = 80; P.clean = Math.max(0, P.clean - 25);
             this.addHonor(2);
@@ -1208,6 +1210,7 @@ const GameSystems = {
       // korumanın (js/guards.js) vurduğu kanun adamı senin suçun; ödül hedefi ve hikâye kişileri de senin vurduğun gibi
       // yere yığılabilir (canlı yakalanabilsin, hikâye bozulmasın)
       else hit.hurt(dmg, owner === this.player || (opts.guard && (hit.isLaw || hit.role === 'target' || hit.quest || hit.storyNpc)) ? 'player' : 'npc', 'gun');
+      if (hit !== this.player && hit.kind === 'npc' && !hit.dead) Juice.flinch(hit, Math.atan2(dy, dx), dmg / 35);   // isabet tepkisi: vuruş yönünde sarsılır
       if (hit.kind === 'npc' || hit.kind === 'animal' || hit === this.player) Audio_.play('hit_flesh', { x: ex, y: ey, vol: hit === this.player ? 1.2 : 0.8 });
       else if (hit.kind === 'wagon') Audio_.play('hit_wood', { x: ex, y: ey });
       // vuruşun hissi: ölümde savrulma ve uçan şapka; oyuncunun isabetinde mikro duraklama
@@ -1390,9 +1393,11 @@ const GameSystems = {
     if (!h) { UI.feed(Tr('Bir atın yok. Ahırdan satın alabilir ya da yabani bir atı evcilleştirebilirsin.'), 'warn'); return; }
     if (h.dead) { UI.feed(Tr`${h.name} yaralı yatıyor. At Diriltici gerekli.`, 'warn'); return; }
     const d = dist(P.x, P.y, h.x, h.y);
+    h.cnav = null; h._doorB = null;   // yeni çağrı: rota (ve oyuncu içerideyse kapıdaki bekleme yeri) baştan
     if (d > 1100) {
-      const pos = this.findSpawnPos(P.x, P.y, 200, 280, true);
-      if (pos) { h.x = pos[0]; h.y = pos[1]; }
+      // çok uzaktaysa oyuncunun yakınında, ekranın hemen dışında belirir (gövdesi boş bir yerde, tercihen oyuncuya yolu açık)
+      const pos = this.horseNear(P, h);
+      if (pos) { h.x = pos[0]; h.y = pos[1]; h.ang = pos[2]; h.spd = 0; }
     }
     // at çağrıya kişneyerek karşılık verir; ama 10 sn içinde bir kez (ıslık tekrarında kişneme yığılmaz)
     if (d > 26) { h.state = 'come'; h.t = 30; if (this.t - (h._neighT === undefined ? -99 : h._neighT) > 10) { h._neighT = this.t; setTimeout(() => Audio_.neigh(h.x, h.y), 500); } }
@@ -1423,6 +1428,190 @@ const GameSystems = {
       return [x, y];
     }
     return null;
+  },
+
+  /* ================= BOŞ YER: atın ve araçların duracağı, sıkışmayacağı yer =================
+     Satın alınan, getirilen ya da çağrılan at ve araçlar sabit bir noktaya konmaz: gövdenin tamamı (atın burnu ve sağrısı,
+     aracın önü, ortası ve arkası) duvara, nesneye (lamba, elektrik direği, çit, bağlama direği, ağaç, fıçı), suya, bina
+     içine ve başka bir araca değmeyen bir yer aranır. Yıllar içinde kasabaya dikilen direk ve lambalar sabit noktayı
+     kapatabiliyor, araç ya da at içinde doğup kıpırdayamıyordu. */
+  /* (x, y, r) bir aracın (oyuncununki, yoldaki, park etmiş) gövdesine giriyor mu (self hariç) */
+  vehAt(x, y, r, self) {
+    const E = this.ents;
+    for (let i = 0; i < E.length; i++) {
+      const o = E[i];
+      if (o.kind !== 'wagon' || o === self || o.remove || o.hide || o.bx === undefined || Math.abs(o.x - x) > 44 || Math.abs(o.y - y) > 44) continue;
+      if (o.penAt(x, y, r) > 0) return o;
+    }
+    return null;
+  },
+  /* At (x, y)'de ang yönüne bakarak durabilir mi: gövde, burun ve sağrı */
+  horseFree(x, y, ang, self) {
+    const W = this.world, c = Math.cos(ang), s = Math.sin(ang);
+    if (x < 40 || y < 40 || x > WW * TS - 40 || y > WH * TS - 40) return false;
+    if (W.blocked(x, y, 6) || W.indoorPx(x, y) || W.isWaterPx(x, y) || this.vehAt(x, y, 6, self) || this.trainBlock(x, y, 6)) return false;
+    for (let k = 0; k < 2; k++) { const d = k ? -9 : 11, px = x + c * d, py = y + s * d; if (W.blocked(px, py, 3) || W.indoorPx(px, py)) return false; }
+    return true;
+  },
+  /* Araç (otomobil ya da atlı araba) ön noktası (x, y), ang yönüne bakarak durabilir mi: boyunca sıralı noktalar (ön
+     uç, ön nokta, orta, arka) payla boşta; önü ya da arkası açık (sürülüp çıkılabilir) */
+  VEH_PTS: { car: [[3, 6], [-5, 7], [-14, 7], [-22, 7]], wagon: [[9, 5], [0, 7], [-10, 6], [-19, 7], [-26, 6]] },
+  vehFree(x, y, ang, car, self) {
+    const W = this.world, c = Math.cos(ang), s = Math.sin(ang), L = this.VEH_PTS[car ? 'car' : 'wagon'];
+    if (x < 60 || y < 60 || x > WW * TS - 60 || y > WH * TS - 60) return false;
+    for (let k = 0; k < L.length; k++) {
+      const px = x + c * L[k][0], py = y + s * L[k][0], r = L[k][1];
+      if (W.blocked(px, py, r) || W.indoorPx(px, py) || W.isWaterPx(px, py) || this.vehAt(px, py, r - 1, self) || this.trainBlock(px, py, r)) return false;
+    }
+    const open = (d) => { const px = x + c * d, py = y + s * d; return !W.blocked(px, py, 6) && !W.indoorPx(px, py) && !W.isWaterPx(px, py); };
+    return open(18) || open(L[L.length - 1][0] - 16);
+  },
+  /* (x, y) çevresinde test(x, y) sağlanan en yakın yer: içten dışa halkalar (6 px adım, en çok R). test bir sonuç
+     (ör. [x, y, ang]) ya da null döner. */
+  spiralFree(x, y, R, test) {
+    for (let d = 0; d <= R; d += 6) {
+      const n = d ? Math.max(8, Math.round(d * TAU / 9)) : 1, a0 = (d * 0.37) % TAU;
+      for (let k = 0; k < n; k++) {
+        const a = a0 + k / n * TAU, r = test(x + Math.cos(a) * d, y + Math.sin(a) * d);
+        if (r) return r;
+      }
+    }
+    return null;
+  },
+  /* Ahırın (ya da başka bir binanın) önünde aracın bekleyeceği yer. side: tercih edilen yan (otomobil kapının solunda
+     -1, yük arabası sağında 1). Arama tercih edilen noktadan başlar ve sokak boyunca genişler; kapının önü boş kalır.
+     Döner: { x, y, ang } (ön nokta ve yön) */
+  vehSpot(b, car, side, self) {
+    const y0 = b.curbY || b.door.y + 26, dx0 = side * 30, dX = b.door.x, dY = b.door.y + 6;
+    const half = car ? 9 : 11;   // ön noktanın gövde ortasına uzaklığı (yaklaşık)
+    const C = this._vsc || (this._vsc = []);
+    C.length = 0;
+    for (const dy of [0, 8, -6, 16, 26, 38, 52]) for (let k = 0; k <= 14; k++) for (let sg = 1; sg >= -1; sg -= 2) {
+      if (!k && sg < 0) continue;
+      for (let q = 0; q < 2; q++) C.push([dX + dx0 + sg * k * 9, y0 + dy, q * Math.PI, Math.abs(dy) * 1.7 + k * 9 + q * 7]);
+    }
+    C.sort((p, q) => p[3] - q[3]);
+    for (const [cx, cy, ang] of C) {
+      const c = Math.cos(ang), s = Math.sin(ang), x = cx + c * half, y = cy + s * half;
+      // kapının önü boş kalsın: aracın ekseni kapı noktasına 16 px'ten yaklaşmaz
+      const ex = x - c * 2 * half, ey = y - s * 2 * half, vx = ex - x, vy = ey - y;
+      const t = clamp(((dX - x) * vx + (dY - y) * vy) / (vx * vx + vy * vy || 1), 0, 1);
+      if (Math.hypot(dX - x - vx * t, dY - y - vy * t) < 16) continue;
+      if (this.vehFree(x, y, ang, car, self)) return { x, y, ang };
+    }
+    // sokakta yer yok: kapının çevresinde daha geniş arama
+    const f = this.spiralFree(dX, dY + 40, 260, (x, y) => this.vehFree(x, y, 0, car, self) ? [x, y, 0] : this.vehFree(x, y, Math.PI, car, self) ? [x, y, Math.PI] : null);
+    return f ? { x: f[0], y: f[1], ang: f[2] } : { x: dX + dx0, y: y0, ang: 0 };
+  },
+  /* Çağrılan atın oyuncunun yakınında belireceği yer (uzaktaysa ya da yolu yoksa): tercihen ekranın hemen dışında,
+     oyuncuya düz yolu açık bir yer; olmazsa ekran dışında herhangi bir boş yer, o da olmazsa yakında boş bir yer.
+     Döner: [x, y, oyuncuya bakan yön] ya da null */
+  horseNear(P, h) {
+    const vw = (this.vw || 900) / 2, vh = (this.vh || 600) / 2;
+    for (let pass = 0; pass < 3; pass++) {
+      for (let k = 0; k < 36; k++) {
+        const a = Math.random() * TAU, c = Math.cos(a), s = Math.sin(a);
+        const r = pass < 2 ? clamp(Math.min(vw / Math.max(0.05, Math.abs(c)), vh / Math.max(0.05, Math.abs(s))) + rnd(30, 90), 140, 460) : rnd(50, 180);
+        const x = P.x + c * r, y = P.y + s * r, ang = a + Math.PI;
+        if (!this.horseFree(x, y, ang, h)) continue;
+        if (pass === 0 && !TownPath.walkable([x, y], [P.x, P.y], 5)) continue;
+        return [x, y, ang];
+      }
+    }
+    return null;
+  },
+  /* Eyerden ya da koltuktan düşen kişinin ineceği yer: (x, y)'den ang yönünde d uzaklıkta (olmazsa yanlara doğru açılarak)
+     boş, suya ve bina içine düşmeyen, oraya düz yolu açık bir yer; avoid (oyuncu) varsa onun üstüne düşmez */
+  fallSpot(x, y, ang, d, avoid) {
+    const W = this.world;
+    for (const da of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, Math.PI]) for (const k of [1, 0.7]) {
+      const px = x + Math.cos(ang + da) * d * k, py = y + Math.sin(ang + da) * d * k;
+      if (W.blocked(px, py, 4) || W.indoorPx(px, py) || W.isWaterPx(px, py) || !TownPath.walkable([x, y], [px, py], 2)) continue;
+      if (avoid && dist2(px, py, avoid.x, avoid.y) < 12 * 12) continue;
+      return [px, py];
+    }
+    return [x, y];
+  },
+  /* Atı bir varlık olmayan NPC (koruma, Sully) ata biner. Gözü önündeyse oyuncunun binişi gibi: atı arkadan tırısla gelir
+     (js/juice.js ghostHorse), kendisi yanından eyere sıçrar; uzaktaysa hemen atlıdır. */
+  npcMount(e, look) {
+    if (e.mounted || e.dead) return;
+    e.mounted = look;
+    if (e.hop || e.rise || e.fall || !this.onScreen(e.x, e.y, 30)) return;
+    const ha = e.ang, sx = e.x, sy = e.y, sd = Math.random() < 0.5 ? 1 : -1;
+    const bx = e.x + Math.cos(ha + sd * Math.PI / 2) * 9, by = e.y + Math.sin(ha + sd * Math.PI / 2) * 9;
+    const sp = this.horseFree(bx, by, ha) ? [bx, by] : this.horseDrop(e.x, e.y, ha);
+    e.x = sp[0]; e.y = sp[1]; e.hAng = ha;
+    Juice.hop(e, true, { sx, sy, hx: sp[0], hy: sp[1], ha, ghost: true, look });
+  },
+  /* İner: gözü önündeyse eyerden yana sıçrar, atı öne doğru uzaklaşıp gözden kaybolur; uzaktaysa hemen yayadır */
+  npcDismount(e) {
+    const look = e.mounted;
+    if (!look) return;
+    const ha = e.hAng === undefined ? e.ang : e.hAng, hx = e.x, hy = e.y;
+    e.mounted = null; e.hAng = undefined;
+    if (e.dead || e.fall || e.hop || !this.onScreen(hx, hy, 30)) return;
+    const land = this.fallSpot(hx, hy, ha + (Math.random() < 0.5 ? 1 : -1) * Math.PI / 2, 10);
+    e.x = land[0]; e.y = land[1];
+    Juice.hop(e, false, { hx, hy, ha, ghost: true, look });
+  },
+  /* Binicisinden ayrılan (kementle, zorla indirilen, ölen binicinin) atın yeri: binicinin yanında boş bir yer (duvara, çite,
+     ağaca gömülmesin; oyuncu atı alıp binerse sıkışmasın), yoksa binicinin yeri */
+  horseDrop(x, y, ang) {
+    return this.spiralFree(x + 6, y, 60, (px, py) => this.horseFree(px, py, ang) ? [px, py] : null) || [x, y];
+  },
+  /* Yolculuktan (tren, posta arabası), hapisten sonra at oyuncunun yanında boş bir yerde bekler (lamba, direk, bağlama
+     direği, fıçı üstünde değil) */
+  horseBeside(h, x, y) {
+    const f = this.spiralFree(x + 24, y + 8, 120, (px, py) => this.horseFree(px, py, Math.PI / 2, h) ? [px, py] : null);
+    h.x = f ? f[0] : x + 24; h.y = f ? f[1] : y + 8; h.ang = Math.PI / 2; h.spd = 0; h.cnav = null;
+  },
+  /* Ahırdan alınan ya da çıkarılan atın duracağı yer: kapının sağ önü, olmazsa yakında boş bir yer (kapının önü boş kalır) */
+  horseSpot(b, self) {
+    const dX = b.door.x, dY = b.door.y + 6;
+    const ok = (x, y, a) => dist2(x, y, dX, dY) >= 14 * 14 && this.horseFree(x, y, a, self);
+    for (const dy of [14, 22, 30, 8, 40, 52]) for (let k = 0; k <= 10; k++) for (let sg = 1; sg >= -1; sg -= 2) {
+      if (!k && sg < 0) continue;
+      const x = dX + 20 + sg * k * 8, y = dY + dy;
+      for (const a of [Math.PI / 2, 0, Math.PI]) if (ok(x, y, a)) return { x, y, ang: a };
+    }
+    const f = this.spiralFree(dX + 20, dY + 20, 220, (x, y) => ok(x, y, Math.PI / 2) ? [x, y, Math.PI / 2] : ok(x, y, 0) ? [x, y, 0] : null);
+    return f ? { x: f[0], y: f[1], ang: f[2] } : { x: dX + 20, y: dY + 14, ang: Math.PI / 2 };
+  },
+  /* Katının içinde kalmış oyuncu atını, araçlarını ve oyuncuyu en yakın boş yere alır. Hareket katıya girmeye izin
+     vermediği için bu yalnız dışarıdan gelen değişiklikte olur: yıllar içinde kasabaya dikilen direk, lamba, bağlama
+     direği ya da yeni bina, eski kayıt. Oyuncu ancak iki denetim üst üste gömülü kalırsa taşınır (kapı kapanırken
+     eşikte duruyorsa bir an gömülü görünebilir). */
+  unstickOwned() {
+    const W = this.world, P = this.player;
+    if (!W || !P || this.state !== 'play') return 0;
+    let n = 0;
+    const m = P.riding;
+    for (const h of [this.horse, m && m.kind === 'horse' && m !== this.horse ? m : null]) {
+      if (!h || h.dead || h.remove || (h.rider && h.rider !== P) || (!W.blocked(h.x, h.y, h.r) && !W.indoorPx(h.x, h.y))) continue;
+      const a0 = h.ang, f = this.spiralFree(h.x, h.y, 200, (x, y) => this.horseFree(x, y, a0, h) ? [x, y, a0] : this.horseFree(x, y, a0 + Math.PI, h) ? [x, y, a0 + Math.PI] : null);
+      if (!f) continue;
+      h.x = f[0]; h.y = f[1]; h.ang = f[2]; h.spd = 0; h.cnav = null; n++;
+      if (h.rider === P) { P.x = h.x; P.y = h.y; }
+    }
+    for (const w of [this.myCar, this.myWagon, m && m.kind === 'wagon' && m !== this.myCar && m !== this.myWagon ? m : null]) {
+      if (!w || w.remove || (w.rider && w.rider !== P) || (!W.blocked(w.x, w.y, w.r) && !W.indoorPx(w.x, w.y)) || !this.ents.includes(w)) continue;
+      const car = !!w.motor, a0 = w.ang;
+      const f = this.spiralFree(w.x, w.y, 240, (x, y) => this.vehFree(x, y, a0, car, w) ? [x, y, a0] : this.vehFree(x, y, a0 + Math.PI, car, w) ? [x, y, a0 + Math.PI] : null);
+      if (!f) continue;
+      w.x = f[0]; w.y = f[1]; w.ang = f[2]; w.spd = 0; w.acc = 0; w.bx = undefined; w.trail(true);
+      if (w.rider === P) { P.x = w.x; P.y = w.y; }
+      n++;
+    }
+    if (!P.riding && !P.mountAnim && W.blocked(P.x, P.y, P.r)) {
+      if (this._pStuck) {
+        const ind = W.indoorPx(P.x, P.y);
+        const f = this.spiralFree(P.x, P.y, 120, (x, y) => !W.blocked(x, y, P.r + 1) && W.indoorPx(x, y) === ind && !W.isWaterPx(x, y) ? [x, y] : null);
+        if (f) { P.x = f[0]; P.y = f[1]; n++; }
+        this._pStuck = false;
+      } else this._pStuck = true;
+    } else this._pStuck = false;
+    return n;
   },
   spawnTick() {
     const P = this.player, W = this.world;
@@ -1966,7 +2155,7 @@ const GameSystems = {
     // varlıklar
     for (const e of this.ents) {
       if (e.hide || this.floorHid(e)) continue;
-      if (e.remove) continue;
+      if (e.remove || e.fall) continue;   // eyerden düşen kişiyle o yarım saniyede etkileşim yok
       const d = e.kind === 'wagon' ? Math.min(dist(P.x, P.y, e.x, e.y), dist(P.x, P.y, e.bx, e.by)) : dist(P.x, P.y, e.x, e.y);   // arabanın gövdesi atların arkasında
       if (d > (R || (e.held ? 50 : e.mounted ? 40 : 30))) continue;   // atlının atı uzun: yanındaki yayaya biraz daha uzaktan yetişir
       ck = e;
@@ -1996,7 +2185,7 @@ const GameSystems = {
       }
       if (e.kind === 'camp') { add(e.x, e.y, Tr('Kamp'), [{ n: Tr('Kamp Menüsü'), fn: () => UI.openCamp() }], 4); continue; }
       // efsanenin izi: incelenince arama çemberi daralır (js/legends.js)
-      if (e.kind === 'prop' && e.lgClue) { add(e.x, e.y, e.label, [{ n: Tr('İzi İncele'), hold: 0.8, fn: () => this.legendClue(e) }], 1); continue; }
+      if (e.kind === 'prop' && e.lgClue) { add(e.x, e.y, e.label, [{ n: Tr('İzi İncele'), hold: 0.8, kneel: 'look', fn: () => this.legendClue(e) }], 1); continue; }
       // hikâyenin yerleştirdiği nesneler (kaya, sandık vb.)
       if (e.kind === 'prop' && e.storyAct) { const acts = this.storyPropActions(e); if (acts.length) add(e.x, e.y, e.label || e.type, acts, e.big ? 1 : 4); continue; }
       if (e.kind === 'wagon') { this.wagonActions(e, add); continue; }
@@ -2013,10 +2202,10 @@ const GameSystems = {
     for (let i = 0; i < this.lostItems.length; i++) {
       const L = this.lostItems[i];
       ck = L;
-      if (dist2(P.x, P.y, L.x, L.y) < (R || 26) * (R || 26)) add(L.x, L.y, Tr('Yerde bir şey parlıyor'), [{ n: Tr('Al'), fn: () => { P.addItem(L.item); this.lostItems.splice(i, 1); } }]);
+      if (dist2(P.x, P.y, L.x, L.y) < (R || 26) * (R || 26)) add(L.x, L.y, Tr('Yerde bir şey parlıyor'), [{ n: Tr('Al'), dip: true, fn: () => { P.addItem(L.item); this.lostItems.splice(i, 1); } }]);
     }
     // olay arabası
-    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < (R || 30) * (R || 30) && (ck = ev)) add(ev.wagon.x, ev.wagon.y, Tr('Kırık Araba'), [{ n: Tr('Tekerleği Tamir Et'), hold: 3, fn: () => { ev.done = true; this.earn(rnd(0.25, 1), Tr('Tamir')); this.addHonor(4); this.stat('helped', 1); UI.subtitle(Tr('Yolcu'), Tr('Allah razı olsun dostum!'), 3); this.skillXp('strength', 5); } }]);
+    for (const ev of this.events) if (ev.wagon && !ev.done && dist2(P.x, P.y, ev.wagon.x, ev.wagon.y) < (R || 30) * (R || 30) && (ck = ev)) add(ev.wagon.x, ev.wagon.y, Tr('Kırık Araba'), [{ n: Tr('Tekerleği Tamir Et'), hold: 3, kneel: 'work', fn: () => { ev.done = true; this.earn(rnd(0.25, 1), Tr('Tamir')); this.addHonor(4); this.stat('helped', 1); UI.subtitle(Tr('Yolcu'), Tr('Allah razı olsun dostum!'), 3); this.skillXp('strength', 5); } }]);
     // nesneler
     const tRad = R ? Math.ceil(R / TS) : 1, tx0 = (P.x >> 4) - tRad, ty0 = (P.y >> 4) - tRad;
     for (let ty = ty0; ty <= ty0 + tRad * 2; ty++) for (let tx = tx0; tx <= tx0 + tRad * 2; tx++) {
@@ -2031,17 +2220,17 @@ const GameSystems = {
       if (H) {
         const hv = W.harvested.get(i);
         if (hv !== undefined && hv > this.day) continue;
-        if (o === O.ARTIFACT) { add(ox, oy, Tr('Parlayan Bir Şey'), [{ n: Tr('İncele'), hold: 0.5, fn: () => this.pickArtifact(i) }]); continue; }
+        if (o === O.ARTIFACT) { add(ox, oy, Tr('Parlayan Bir Şey'), [{ n: Tr('İncele'), hold: 0.5, kneel: 'look', fn: () => this.pickArtifact(i) }]); continue; }
         if (H.tool && !P.has(H.tool)) { add(ox, oy, Tr('Cevher Kayası'), [{ n: Tr('Kazma gerekli'), fn: () => UI.feed(Tr('Cevher kazmak için bir kazmaya ihtiyacın var.'), 'warn') }]); continue; }
-        add(ox, oy, H.label.split(' ')[0], [{ n: H.label, hold: H.tool ? 2 : 0.6, fn: () => this.harvest(i, o) }]);
+        add(ox, oy, H.label.split(' ')[0], [{ n: H.label, hold: H.tool ? 2 : 0.6, kneel: isHerbO(o) ? 'work' : null, fn: () => this.harvest(i, o) }]);
         continue;
       }
       switch (o) {
         case O.FOUNTAIN:
-          add(ox, oy, Tr('Çeşme'), [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }, { n: Tr('Bozuk Para At'), fn: () => { if (this.spend(0.01)) { P.deCore = Math.min(100, (P.deCore || 0) + 5); UI.feed(Tr('Bir dilek tuttun. İçin biraz ferahladı.')); } } }]);
+          add(ox, oy, Tr('Çeşme'), [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { Juice.act(P, 'scoop'); P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }, { n: Tr('Bozuk Para At'), fn: () => { if (this.spend(0.01)) { P.deCore = Math.min(100, (P.deCore || 0) + 5); UI.feed(Tr('Bir dilek tuttun. İçin biraz ferahladı.')); } } }]);
           break;
         case O.WELL: case O.PUMP: case O.TROUGH:
-          { const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }];
+          { const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(true) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yüzünü Yıka'), fn: () => { Juice.act(P, 'scoop'); P.clean = Math.min(100, P.clean + 25); UI.feed(Tr('Biraz temizlendin.')); } }];
             const hm = o === O.TROUGH ? this.homeAtIdx(i) : null;
             if (hm && this.horse && !this.horse.dead && dist(this.horse.x, this.horse.y, ox, oy) < 90) acts.unshift({ n: Tr('Atını Besle ve Dinlendir'), fn: () => this.homeRestHorse(hm) });
             add(ox, oy, o === O.TROUGH ? (hm ? Tr('Yemlik') : Tr('Yalak')) : Tr('Kuyu'), acts); }
@@ -2050,11 +2239,11 @@ const GameSystems = {
           const c = W.chests.get(i);
           const op = this.chestsOpened[i];
           if (op !== undefined && this.day - op < 7) break;
-          add(ox, oy, Tr('Sandık'), [{ n: Tr('Sandığı Aç'), hold: 0.9, fn: () => this.openChest(i, c) }]);
+          add(ox, oy, Tr('Sandık'), [{ n: Tr('Sandığı Aç'), hold: 0.9, kneel: 'work', fn: () => this.openChest(i, c) }]);
           break;
         }
         case O.GRAVE: case O.CROSS:
-          if (!this.graves[i]) add(ox, oy, Tr('Mezar'), [{ n: Tr('Saygı Göster'), hold: 1, fn: () => { this.graves[i] = 1; this.addHonor(1); UI.feed(Tr('Ölüye saygı gösterdin. Huzur içinde yatsın.')); } }]);
+          if (!this.graves[i]) add(ox, oy, Tr('Mezar'), [{ n: Tr('Saygı Göster'), hold: 1, kneel: 'pray', fn: () => { this.graves[i] = 1; this.addHonor(1); UI.feed(Tr('Ölüye saygı gösterdin. Huzur içinde yatsın.')); } }]);
           break;
         case O.SIGN: { const hm = this.homes.find(h => h.sign === i); if (hm) { add(ox, oy, this.homeSignLabel(hm), this.homeSignActs(hm)); break; } }
           add(ox, oy, Tr('Yol Tabelası'), [{ n: Tr('Tabelayı Oku'), fn: () => UI.showSign(ox, oy) }]); break;
@@ -2083,9 +2272,9 @@ const GameSystems = {
     let wx = null, wy = null;
     for (const [dx, dy] of [[0, 0], [10, 0], [-10, 0], [0, 10], [0, -10]]) { const t = W.tileAtPx(P.x + dx, P.y + dy); if (t === T.WATER || t === T.DEEP) { wx = P.x + dx; wy = P.y + dy; break; } if (t === T.HOTWATER) { add(P.x + dx, P.y + dy, Tr('Sıcak Kaynak'), [{ n: Tr('Kaplıcada Dinlen'), fn: () => this.hotSpring() }]); break; } }
     if (wx !== null) {
-      const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(false) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yıkan'), hold: 1.5, fn: () => this.wash() }];
+      const acts = [{ n: Tr('Su İç'), fn: () => this.drinkWater(false) }, { n: Tr('Matarayı Doldur'), fn: () => this.fillCanteen() }, { n: Tr('Yıkan'), hold: 1.5, kneel: 'mouth', fn: () => this.wash() }];
       if (P.has('fishing_rod')) acts.push({ n: Tr('Balık Tut'), fn: () => UI.startFishing() });
-      if (P.has('gold_pan')) acts.push({ n: Tr('Altın Ele'), hold: 3, fn: () => this.panGold() });
+      if (P.has('gold_pan')) acts.push({ n: Tr('Altın Ele'), hold: 3, kneel: 'work', fn: () => this.panGold() });
       add(wx, wy, onT === T.WATER ? Tr('Nehir') : Tr('Su Kenarı'), acts, -6);
     }
     // binalar: kapılar
@@ -2097,7 +2286,7 @@ const GameSystems = {
       if (this.bizOf(b) && this.deliverables(b).some(it => it.from !== 'p')) add(b.door.x, b.door.y, b.name, [{ n: Tr`Malı Boşalt (${this.deliverables(b).length})`, fn: () => this.deliverGoods(b) }], 6);
       if (!b.enter) {
         if (b.def.svc && b.def.svc.length) add(b.door.x, b.door.y, b.name, [{ n: Tr('Gir'), fn: () => UI.openBuilding(b) }], 5);
-        else if (b.type === 'ruin') add(b.door.x, b.door.y, b.name, [{ n: Tr('Harabeyi Ara'), hold: 1.2, fn: () => this.searchRuin(b) }], 5);
+        else if (b.type === 'ruin') add(b.door.x, b.door.y, b.name, [{ n: Tr('Harabeyi Ara'), hold: 1.2, kneel: 'work', fn: () => this.searchRuin(b) }], 5);
         else if (b.type === 'mineentrance') add(b.door.x, b.door.y, b.name, [{ n: Tr('Madene Gir'), hold: 1, fn: () => this.exploreMine(b) }], 5);
         else if (b.type === 'lighthouse') add(b.door.x, b.door.y, b.name, [{ n: Tr('Fenere Tırman'), hold: 1, fn: () => this.climbLighthouse(b) }], 5);
         continue;
@@ -2296,8 +2485,8 @@ const GameSystems = {
      yoksa (sende olan boş ya da mermisiz silah) eylem yoktur, yakındaki cesedin eylemlerini kapatmaz. */
   gunPickAction(g) {
     const W = WEAPONS[g.w];
-    if (!this.player.weapons.has(g.w)) return { n: Tr('Silahı Al'), fn: () => this.pickGun(g) };
-    if (W.ammo && g.n > 0) return { n: Tr`Mermilerini Al (${g.n})`, fn: () => this.pickGun(g) };
+    if (!this.player.weapons.has(g.w)) return { n: Tr('Silahı Al'), dip: true, fn: () => this.pickGun(g) };
+    if (W.ammo && g.n > 0) return { n: Tr`Mermilerini Al (${g.n})`, dip: true, fn: () => this.pickGun(g) };
     return null;
   },
   pickGun(g) {
@@ -2456,6 +2645,7 @@ const GameSystems = {
   drinkWater(clean) {
     const P = this.player;
     P.thirst = Math.min(100, P.thirst + 40);
+    Juice.act(P, 'scoop');   // diz çöküp avuçla içer
     this.coolDown();
     if (!Audio_.play('drink')) Audio_.tone(400, 0.2, 'sine', 0.05, null, 0, 250);
     if (!clean) {
@@ -2716,6 +2906,7 @@ const GameSystems = {
     const d = town ? dist(P.x, P.y, town.cx, town.cy) : Infinity;
     const help = this.law.level > 0 || !doc ? 0 : d < 2500 ? 0.75 : d < 7000 ? 0.5 : 0.3;
     this.state = 'play';
+    Juice.rise(P, 1.25, 0.45);   // ekran açılınca bir an yatar, sonra doğrulup kalkar
     let msg;
     if (roll < help) {
       // yoldan geçen biri doktora götürür: doktor ayıltır, zehri ve hastalığı tedavi eder

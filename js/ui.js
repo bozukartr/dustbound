@@ -701,6 +701,7 @@ const UI = {
         this.holdT += dt;
         if (a0.hold) {
           holdPct = Math.min(1, this.holdT / a0.hold);
+          if (a0.kneel) P.kneelAt(a0.kneel, tgt.x, tgt.y, 0.2);   // yerdeki işte diz çöker (bağlama, arama, deri yüzme...)
           // live: koşul basılı tutarken de sürmeli (ör. gizlice bayıltırken haydut dönüp seni görürse yarıda kalır)
           if (a0.live && a0.check && !a0.check()) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; holdPct = 0; if (a0.fail) a0.fail(); }
           else if (this.holdT >= a0.hold) { this.holdTarget = null; this.curInteract = null; this._scanT = 0; if (!a0.check || a0.check()) a0.fn(); else if (a0.fail) a0.fail(); else this.feed(Tr`Önce çömelerek (${I.glyph('crouch')}) sakince yaklaş.`, 'warn'); }
@@ -710,7 +711,7 @@ const UI = {
         }
       } else if (I.released('interact')) {
         this.holdTarget = null;
-        if (!a0.hold && !this.menuOpened) { a0.fn(); this.curInteract = null; this._scanT = 0.05; }
+        if (!a0.hold && !this.menuOpened) { if (a0.dip) P.kneelAt('work', tgt.x, tgt.y, 0.42); a0.fn(); this.curInteract = null; this._scanT = 0.05; }
         // ilk eylem basılı tutmalıysa kısa basış seçenekleri açar (ör. Teslim Ol basılı tutulur, Parayla Kurtul seçeneklerde)
         else if (a0.hold && ea.length > 1 && this.holdT < 0.25) this.contextMenu(tgt);
       }
@@ -753,7 +754,7 @@ const UI = {
       title: it.label, cls: 'context', items: this.eActs(it).map((a, i) => ({
         label: a.n, qe: a.qe, qn: a.qn, cls: i === pi ? 'pref' : '', fn: () => {
           this.pop();
-          if (a.hold) { this.fade(() => a.fn(), ''); } else a.fn();
+          if (a.hold) { this.fade(() => a.fn(), ''); } else { if (a.dip) G.player.kneelAt('work', it.x, it.y, 0.42); a.fn(); }
         },
       })),
     });
@@ -2826,7 +2827,7 @@ const UI = {
             stats: [[Tr('Hız'), Math.round(B.spd * 100), B.spd / 1.3], [Tr('Dayanıklılık'), B.sta, B.sta / 170], [Tr('Sağlık'), B.hp, B.hp / 190]],
             rows: [[Tr('Fiyat'), fmtMoney(pr), poor ? 'no' : '']], note: poor ? Tr('Yeterli paran yok.') : '', bad: poor,
           }),
-          fn: () => { if (G.spend(pr)) { const h = new Horse(b.door.x + 20, b.door.y + 20, k, { owner: 'player' }); h.ang = Math.PI / 2; G.setHorse(h); this.toast(Tr('Yeni At'), Tr`${h.name} (${B.n}) artık senin.`, 'horse'); Audio_.neigh(); G.qEvent('horse', h); } },
+          fn: () => { if (G.spend(pr)) { const sp = G.horseSpot(b), h = new Horse(sp.x, sp.y, k, { owner: 'player' }); h.ang = sp.ang; G.setHorse(h); this.toast(Tr('Yeni At'), Tr`${h.name} (${B.n}) artık senin.`, 'horse'); Audio_.neigh(); G.qEvent('horse', h); } },
         };
       }),
     });
@@ -2834,7 +2835,7 @@ const UI = {
   openStable(b) {
     this.menu({
       title: Tr('Ahırdaki Atların'), cls: 'small',
-      build: () => G.stable.map((s, i) => ({ icon: '🐴', label: `${s.name} (${HORSE_BREEDS[s.breed].n})`, fn: () => { G.stable.splice(i, 1); const h = new Horse(b.door.x + 20, b.door.y + 20, s.breed, { owner: 'player', name: s.name, look: s.look, bond: s.bond }); G.setHorse(h); this.feed(Tr`🐴 ${h.name} ahırdan çıkarıldı.`); this.pop(); } })),
+      build: () => G.stable.map((s, i) => ({ icon: '🐴', label: `${s.name} (${HORSE_BREEDS[s.breed].n})`, fn: () => { G.stable.splice(i, 1); const sp = G.horseSpot(b, G.horse), h = new Horse(sp.x, sp.y, s.breed, { owner: 'player', name: s.name, look: s.look, bond: s.bond }); h.ang = sp.ang; G.setHorse(h); this.feed(Tr`🐴 ${h.name} ahırdan çıkarıldı.`); this.pop(); } })),
     });
   },
   /* Banka: solda yatırma, sağda çekme sütunu; başlıkta hesap ve cüzdan yan yana */
@@ -2876,7 +2877,7 @@ const UI = {
             const st = t.station;
             if (P.riding) P.dismount();
             P.x = st.door.x; P.y = st.door.y + 12;
-            if (G.horse && !G.horse.dead) { G.horse.x = P.x + 24; G.horse.y = P.y + 8; G.horse.state = 'idle'; }
+            if (G.horse && !G.horse.dead) { G.horseBeside(G.horse, P.x, P.y); G.horse.state = 'idle'; }
             G.cam.x = P.x; G.cam.y = P.y;
             G.stat('trainRides', 1);
             G.prefetch(true);
@@ -2910,7 +2911,7 @@ const UI = {
             if (P.riding) P.dismount();
             const st = t.buildings.find(x => x.type === 'post') || t.buildings.find(x => x.type === 'stable');
             if (st) { P.x = st.door.x; P.y = st.door.y + 14; } else { P.x = t.spawn.x; P.y = t.spawn.y; }
-            if (G.horse && !G.horse.dead) { G.horse.x = P.x + 24; G.horse.y = P.y + 8; G.horse.state = 'idle'; }
+            if (G.horse && !G.horse.dead) { G.horseBeside(G.horse, P.x, P.y); G.horse.state = 'idle'; }
             G.cam.x = P.x; G.cam.y = P.y;
             G.stat('stageRides', 1);
             G.prefetch(true);
@@ -3452,14 +3453,18 @@ const UI = {
       else body = `<div class="f-msg big">${st.msg}</div><div class="f-msg">${Tr`${Input.glyph('confirm')} Tekrar &nbsp; ${Input.glyph('back')} Bitir`}</div>`;
       el.innerHTML = `<div class="f-inner"><div class="p-title">${Tr`Balık Tutma`}</div>${body}<div class="p-foot">${Tr`${Input.glyph('back')} Bırak`}</div></div>`;
     };
-    const m = this.makeModal(el, { customInput: true, transparent: true });
+    // dünyada olta (js/juice.js fishDraw): oyuncu suya döner; panel kapanınca biter
+    G.fishing = { st, vt: 0, ph: st.phase, p0: 0, caught: false };
+    if (!P.riding) Juice.fishFace(P);
+    const m = this.makeModal(el, { customInput: true, transparent: true, onClose: () => { G.fishing = null; } });
     m.update = (dt) => {
       const I = Input;
+      if (G.fishing) Juice.fishTick(G.fishing, dt);
       if (m.born >= this.frame - 1) return;
       if (I.pressed('back')) { this.pop(m); return; }
       if (st.phase === 'cast') {
         if (I.down('confirm')) st.power = Math.min(1, st.power + dt * 1.2);
-        if (I.released('confirm') && st.power > 0.1) { st.phase = 'wait'; st.t = 0; Audio_.tone(900, 0.2, 'sine', 0.05, null, 0, 400); G.parts.add('splash', P.x + Math.cos(P.ang) * 30 * st.power, P.y + Math.sin(P.ang) * 30 * st.power, 0, 0, 0.8, 5); }
+        if (I.released('confirm') && st.power > 0.1) { st.phase = 'wait'; st.t = 0; Audio_.tone(900, 0.2, 'sine', 0.05, null, 0, 400); G.parts.add('splash', P.x + Math.cos(P.ang) * Juice.fishDist(st.power), P.y + Math.sin(P.ang) * Juice.fishDist(st.power), 0, 0, 0.8, 5); }
       } else if (st.phase === 'wait') {
         st.t += dt;
         G.advanceClock(dt * MIN_PER_SEC * 3);

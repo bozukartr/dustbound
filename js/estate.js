@@ -280,12 +280,9 @@ const EstateSystems = {
   },
   /* Faytonun binanın önünde duracağı yer: kaldırım kenarı (şehirde) ya da kapının önü */
   curbSpot(b) {
-    const W = this.world, y0 = b.curbY || b.door.y + 26;
-    for (const dx of [34, -34, 60, -60, 86, -86, 0]) {
-      const x = b.door.x + dx;
-      if (!W.blocked(x, y0, 9) && !W.blocked(x - 22, y0, 7) && !W.indoorPx(x, y0)) return { x, y: y0 };
-    }
-    return { x: b.door.x + 34, y: y0 };
+    // gövdenin tamamı (atlar, kasa) boşta: lamba, direk, çit ya da başka bir araç varsa sokak boyunca boş bir yer (vehSpot)
+    const p = this.vehSpot(b, false, 1, this.coach);
+    return { x: p.x, y: p.y, ang: p.ang };
   },
   coachCall(b, e) {
     const C = this.carriage;
@@ -295,11 +292,11 @@ const EstateSystems = {
     const p = this.curbSpot(b);
     let w = this.coach;
     if (!w || w.remove || !this.ents.includes(w)) {
-      w = new Wagon(null, 0, 1, false, { x: p.x, y: p.y, ang: 0 });
+      w = new Wagon(null, 0, 1, false, { x: p.x, y: p.y, ang: p.ang || 0 });
       Object.assign(w, { cab: true, coach: true, keep: true, owner: 'player', cargo: false, max: 0 });
       this.addEnt(w); this.coach = w;
     }
-    Object.assign(w, { x: p.x, y: p.y, ang: 0, spd: 0, mv: 0, driver: C.driver, body: C.body, hc: C.hc, name: Tr('Özel Faytonun'), remove: false });
+    Object.assign(w, { x: p.x, y: p.y, ang: p.ang || 0, spd: 0, mv: 0, driver: C.driver, body: C.body, hc: C.hc, name: Tr('Özel Faytonun'), remove: false });
     w.bx = undefined; w.trail(true);
     if (e) e.say(Tr('Faytonunuz kapıda, efendim.'), 3);
     UI.feed(Tr('🐴 Faytonun kapının önünde seni bekliyor.'));

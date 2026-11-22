@@ -390,7 +390,7 @@ const Story = {
       if (g.ride && d > 300 && pd > 450 && !this.onScreen(e.x, e.y, 40)) { const a = this.sAhead(g), s = this.sSpot(a.x, a.y, 0, 30); e.x = s[0]; e.y = s[1]; e.nav = null; e.rr = null; e.mounted = e.mounted || Object.assign({}, MH); return true; }
       if (!g.ride && d > 220 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; e.rr = null; e.mv = 0; e.mounted = g.ride ? e.mounted || Object.assign({}, MH) : null; return true; }
       if (g.ride) {
-        e.mounted = e.mounted || Object.assign({}, MH);
+        if (!e.mounted) this.npcMount(e, Object.assign({}, MH));   // gözü önündeyse atı gelir, eyere sıçrar
         if (d < 400 && !this.onScreen(e.x, e.y, 40) && !this.onScreen(g.x, g.y, 40)) { e.x = g.x; e.y = g.y; e.nav = null; e.rr = null; return true; }
         // oyuncu geride kalırsa bekler
         if (pd > 380 && dist(P.x, P.y, g.x, g.y) > d) { e.mv = 0; e.spd = 0; e.ang = turnTo(e.ang, Math.atan2(P.y - e.y, P.x - e.x), dt * 2); return true; }
@@ -405,7 +405,7 @@ const Story = {
       return true;
     }
     e.mv = 0; e.spd = 0;
-    if (!g.ride && e.mounted) e.mounted = null;
+    if (!g.ride && e.mounted) this.npcDismount(e);   // gözü önündeyse eyerden sıçrar, atı uzaklaşır
     if (pd < 80) e.ang = turnTo(e.ang, Math.atan2(P.y - e.y, P.x - e.x), dt * 3);
     else if (g.ang !== undefined) e.ang = turnTo(e.ang, g.ang, dt * 2);
     else this.standTick(e, dt, 0.25);
@@ -1518,9 +1518,12 @@ Object.assign(Story, {
           if (this.navStep(e, h.x, h.y, dt, 84, { near: 16 }) === 'fail') { e.ang = turnTo(e.ang, Math.atan2(h.y - e.y, h.x - e.x), dt * 6); e.walk(dt, 84); }
           return true;
         }
-        // atına atladı
+        // atına atladı: yanından eyere sıçrar (js/juice.js hop), sıçrama bitince kaçar
+        const sx = e.x, sy = e.y;
         e.mounted = { col: h.look.col, mane: h.look.mane, blanket: h.look.blanket || '#5a4a3a' };
-        e.ang = h.ang; h.remove = true; e.fleeHorse = null; e.horseT = 0; e.rideT = 0; e.rr = null; e.fleeing = 'ride';
+        e.ang = h.ang; e.hAng = h.ang; h.remove = true; e.fleeHorse = null; e.horseT = 0; e.rideT = 0; e.rr = null; e.fleeing = 'ride';
+        e.x = h.x; e.y = h.y;
+        Juice.hop(e, true, { sx, sy, hx: h.x, hy: h.y, ha: h.ang });
         if (!S.jHideTo) S.jHideTo = this.rivalHideSpot(S);
         Audio_.neigh();
         if (dist2(e.x, e.y, P.x, P.y) < 700 * 700) {
@@ -1585,7 +1588,7 @@ Object.assign(Story, {
     if (!S.supOn) return false;
     const g = S.sully;
     if (!g || dist2(e.x, e.y, g.x, g.y) > 20 * 20) return false;
-    if (g.ride) { g.ride = false; e.mounted = null; }
+    if (g.ride) { g.ride = false; this.npcDismount(e); }
     e.mv = 0; e.spd = 0; e.weapon = 'repeater';
     const tg = e.supFoe;
     if (!tg || tg.dead || tg.remove || tg.bound || tg.state === 'surrender') { e.gAim = false; if (g.ang !== undefined) e.ang = turnTo(e.ang, g.ang, dt * 2); return true; }

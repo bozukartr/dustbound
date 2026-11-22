@@ -243,7 +243,9 @@ const G = {
     const hat = profile.look.hat;
     if (hat !== 'none') P.inv['hat_' + hat] = 1;
     if (BG.horse) {
-      const h = new Horse(sx + 20, sy + 10, BG.horse, { owner: 'player', name: pick(HORSE_NAMES) });
+      // başlangıç atı oyuncunun yanında boş bir yerde (lamba, çit, fıçı, kaya, ağaç üstünde değil)
+      const f = this.spiralFree(sx + 20, sy + 10, 160, (x, y) => this.horseFree(x, y, 0) ? [x, y] : null) || [sx + 20, sy + 10];
+      const h = new Horse(f[0], f[1], BG.horse, { owner: 'player', name: pick(HORSE_NAMES) });
       this.setHorse(h, true);
     }
     this.initRomances();
@@ -315,6 +317,7 @@ const G = {
     this.prefetch(true);
     Audio_.playMusic('explore');
     this.curTown = null;
+    this.unstickOwned();   // kayıttaki yerinde sonradan dikilen bir direk, lamba ya da bina varsa at ve araçlar boş bir yere
   },
 
   /* ---------------- Kayıt ---------------- */
@@ -622,6 +625,7 @@ const G = {
     const T_ = this.timers;
     T_.spawn -= dt; if (T_.spawn <= 0) { T_.spawn = 1; this.spawnTick(); }
     T_.dev -= dt; if (T_.dev <= 0) { T_.dev = 0.5; this.devTick(); }
+    if ((T_.stk = (T_.stk || 0) - dt) <= 0) { T_.stk = 1; this.unstickOwned(); }   // katının içinde kalan at, araç ya da oyuncu (js/systems.js)
     T_.leg -= dt; if (T_.leg <= 0) { T_.leg = 0.5; this.legendTick(); }   // efsaneler ve siparişler (js/legends.js)   // görüş alanından çıkan kasabanın bekleyen gelişimi
     T_.disc -= dt; if (T_.disc <= 0) { T_.disc = 0.4; this.discoverUpdate(); }
     T_.ach -= dt; if (T_.ach <= 0) { T_.ach = 1; this.checkAchievements(); }
@@ -849,7 +853,7 @@ const G = {
           if (this.world.isSolidPx(p.x, p.y) && !this.world.isWaterPx(p.x, p.y)) { done = true; break; }
           for (const e of this.ents) {
             if (e.dead || e === p.owner || e === this.player.riding || e.kind === 'camp' || e.kind === 'prop' || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' || e === this.horse || this.floorHid(e)) continue;
-            if (dist2(e.x, e.y, p.x, p.y) < (e.r + 2) * (e.r + 2)) { e.hurt(p.dmg, 'player', 'arrow'); done = true; break; }
+            if (dist2(e.x, e.y, p.x, p.y) < (e.r + 2) * (e.r + 2)) { e.hurt(p.dmg, 'player', 'arrow'); if (e.kind === 'npc' && !e.dead) Juice.flinch(e, Math.atan2(p.vy, p.vx), 0.9); done = true; break; }
           }
         }
         if (done || p.life <= 0) L.splice(i, 1);
@@ -1103,10 +1107,12 @@ const G = {
     // varlıklar
     Juice.sunOn = !this.insideB && this.settings.shadows > 0;   // varlık gölgeleri güneşe göre (Ayarlar → Grafik → Güneş Gölgeleri)
     const vis = [];
-    for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !this.floorHid(e)) vis.push(e);
+    for (const e of this.ents) if (e.x > x0 - 40 && e.x < x1 + 40 && e.y > y0 - 40 && e.y < y1 + 40 && !(e.rider === P) && !this.floorHid(e) && !Juice.lowerHid(e)) vis.push(e);
     if (P.riding) vis.push(P.riding);
     vis.push(P);
-    const flat = (e) => e.dead || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : 0;   // yerde yatanlar altta çizilir
+    for (const g of Juice.ghosts) if (g.x > x0 - 40 && g.x < x1 + 40 && g.y > y0 - 40 && g.y < y1 + 40) vis.push(g);   // binerken gelen, inince giden at
+    // yerde yatanlar altta; eyerden sıçrayan ya da düşen atın üstünde çizilir
+    const flat = (e) => (e.dead && !e.die) || e.bound || e.kind === 'pelt' || e.kind === 'crate' || e.kind === 'gun' ? -20 : e.hop || e.fall ? 24 : 0;
     vis.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     // her varlık kamerayla aynı piksel ızgarasına oturur: kayarken kenarları titremez
     let sdx = 0, sdy = 0;

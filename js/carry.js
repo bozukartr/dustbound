@@ -33,7 +33,8 @@ const CarrySystems = {
     if (P.rope === e) P.rope = null;
     const i = this.ents.indexOf(e);
     if (i >= 0) this.ents.splice(i, 1);
-    P.carry = e; P.crouch = false;
+    P.carry = e; P.crouch = false; e.die = null;
+    Juice.lift(P, e);   // eğilip kaldırır, omzuna alır (js/juice.js)
     Audio_.thud(0.25);
     this.hintOnce('carry', Tr`Yük taşırken koşamaz ve silah kullanamazsın. ${Input.glyph('interact')} ile yere bırakabilir, atının yanındayken <b>eyere yükleyebilirsin</b>. Aranan suçluları şerif ofisine, postları ve leşleri kasap ya da tuzakçıya götür.`, 10);
   },
@@ -48,16 +49,18 @@ const CarrySystems = {
   dropCarry(silent) {
     const P = this.player, e = P.carry;
     if (!e) return;
-    P.carry = null;
+    const h0 = P.lift ? Juice.liftH(P) : 1;   // kaldırırken bırakılırsa o yükseklikten iner
+    P.carry = null; P.lift = null;
     this.placeDown(e);
-    if (!silent) Audio_.thud(0.2);
+    if (!silent && !P.riding) Juice.lower(P, e, h0);   // omuzdan indirip önüne koyar (yere değince tok ses)
+    else if (!silent) Audio_.thud(0.2);
   },
   stowOnHorse(h) {
     const P = this.player, e = P.carry;
     if (!e) return true;
     if (!h || h.dead || h !== this.horse) { UI.feed(Tr('Yükü yalnızca kendi atına yükleyebilirsin.'), 'warn'); return false; }
     if (this.loadWeight(h.load) + this.carryWeight(e) > this.horseCap()) { UI.feed(Tr`${h.name} daha fazla taşıyamaz. Önce bir yükü indir.`, 'warn'); return false; }
-    P.carry = null;
+    P.carry = null; P.lift = null;
     h.load.push(e);
     Audio_.thud(0.2);
     UI.feed(Tr`${this.carryName(e)} eyere yüklendi.`);
@@ -115,11 +118,15 @@ const CarrySystems = {
   lassoHit(e) {
     const P = this.player;
     if (e.mounted) {
-      // at binicisiz kalır ve olduğu yerde durur: çalınabilir
-      const h = new Horse(e.x + 6, e.y, 'mustang', { look: e.mounted, owner: 'npc' });
-      h.ang = e.hAng === undefined ? e.ang : e.hAng; h.spd = 30;
-      this.addEnt(h);
+      // at binicisiz kalır ve olduğu yerde durur (ürküp şahlanır): çalınabilir
+      const ha = e.hAng === undefined ? e.ang : e.hAng, hp = this.horseFree(e.x, e.y, ha) ? [e.x, e.y] : this.horseDrop(e.x, e.y, ha);
+      const h = new Horse(hp[0], hp[1], 'mustang', { look: e.mounted, owner: 'npc' });
+      h.ang = ha; h.spd = 30;
+      this.addEnt(h); Juice.rear(h);
       e.mounted = null;
+      // ip binicisini eyerden çeker: oyuncuya doğru savrulup düşer, sonra yerde kementli kalır
+      const a = Math.atan2(P.y - hp[1], P.x - hp[0]), land = this.fallSpot(hp[0], hp[1], a, 14, P);
+      Juice.fall(e, { x0: hp[0], y0: hp[1], x1: land[0], y1: land[1], dur: 0.42, peak: 6 });
     }
     const outlaw = e.role === 'bandit' || e.role === 'target';
     // hikâyenin hedef kişisine (ör. atından düşürülen Kızıl Jack) inip bağlamak için biraz daha zaman
@@ -153,17 +160,25 @@ const CarrySystems = {
     this.skillXp('hunting', 2);
   },
   /* Atlı birini eyerden çek: yere düşer, atı olduğu yerde kalır */
+  /* Oyuncu uzanıp yakalar, eyerden çeker: binici kalkıp havada yay çizerek oyuncunun yanına düşer, toz kalkar, yere
+     inince sersemler (bağlanabilir). At ürküp şahlanır ve olduğu yerde kalır (çalınabilir). */
   pullOffHorse(e) {
     if (!e.mounted) return;
-    const h = new Horse(e.x + 7, e.y, 'mustang', { look: e.mounted, owner: 'npc' });
-    h.ang = e.hAng === undefined ? e.ang : e.hAng;
-    this.addEnt(h);
+    const P = this.player, ha = e.hAng === undefined ? e.ang : e.hAng, hp = this.horseFree(e.x, e.y, ha) ? [e.x, e.y] : this.horseDrop(e.x, e.y, ha);
+    const h = new Horse(hp[0], hp[1], 'mustang', { look: e.mounted, owner: 'npc' });
+    h.ang = ha;
+    this.addEnt(h); Juice.rear(h);
     e.mounted = null; e.path = null;
-    Audio_.thud(0.4);
+    Audio_.thud(0.22);
     const outlaw = e.role === 'bandit' || e.role === 'target';
     if (e.isLaw) e.hostile = true;
     if (!e.hostile && !outlaw && !e.assaulted) { e.assaulted = true; this.crime(e.isLaw ? 'assaultLaw' : 'assault', e.x, e.y, e); }
-    e.down(rnd(3, 5), true);
+    // oyuncunun yan çaprazına düşer (üstüne değil): çekiş yönünden bir yana sapar
+    const a = Math.atan2(hp[1] - P.y, hp[0] - P.x), sd = chance(0.5) ? 1 : -1;
+    const land = this.fallSpot(hp[0], hp[1], a + Math.PI + sd * 0.95, 17, P);
+    P.startYank(a);
+    Juice.fall(e, { x0: hp[0], y0: hp[1], x1: land[0], y1: land[1], delay: 0.1, dur: 0.48, peak: 7, avoid: P, then: (n) => { if (!n.dead && !n.bound) n.down(rnd(3, 5), true); } });   // havadayken ölmüş ya da bağlanmışsa olduğu gibi kalır
+    if (chance(0.5)) Juice.hatOff(e, a + Math.PI, 45);
     this.skillXp('strength', 2);
   },
   hogtie(e) {
@@ -293,18 +308,18 @@ const CarrySystems = {
     if (e.kind === 'pelt' || e.kind === 'crate') { add(e.x, e.y, e.kind === 'crate' ? GOODS[e.g].n : e.name, [take]); return true; }
     if (e.kind === 'animal' && !e.dead && e.state === 'lassoed') {
       const acts = [];
-      if (this.canTieAnimal(e)) acts.push({ n: Tr('Bağla'), hold: 1, fn: () => this.hogtieAnimal(e) });
+      if (this.canTieAnimal(e)) acts.push({ n: Tr('Bağla'), hold: 1, kneel: 'work', fn: () => this.hogtieAnimal(e) });
       if (e.def.tame) acts.push({ n: Tr('Sakinleştir ve Evcilleştir'), hold: 2, fn: () => this.tameHorse(e, true) });
       if (!acts.length) return false;
       add(e.x, e.y, e.def.n, acts, 2);
       return true;
     }
     if (e.kind === 'animal' && !e.dead && e.state === 'tied') {
-      add(e.x, e.y, Tr`${e.def.n} (bağlı)`, [{ n: Tr('Kes'), hold: 0.8, fn: () => e.hurt(9999, 'player', 'knife') }, { n: Tr('Serbest Bırak'), hold: 0.6, fn: () => e.freeUp() }], 2, take);
+      add(e.x, e.y, Tr`${e.def.n} (bağlı)`, [{ n: Tr('Kes'), hold: 0.8, kneel: 'work', fn: () => e.hurt(9999, 'player', 'knife') }, { n: Tr('Serbest Bırak'), hold: 0.6, kneel: 'work', fn: () => e.freeUp() }], 2, take);
       return true;
     }
     if (e.kind === 'animal' && e.dead && !e.skinned) {
-      const acts = [{ n: Tr('Derisini Yüz'), hold: 1.3, fn: () => this.skin(e) }];
+      const acts = [{ n: Tr('Derisini Yüz'), hold: 1.3, kneel: 'work', fn: () => this.skin(e) }];
       add(e.x, e.y, e.def.n + Tr(' Leşi'), acts, 0, this.heavyCarcass(e) ? null : take);
       return true;
     }
@@ -315,19 +330,19 @@ const CarrySystems = {
     // Kızıl Jack: tapuyu üstünden alma eylemi öbür seçeneklerin başına eklenir
     if (e.quest === 'rival') { const ja = this.rivalActions(e); if (ja.length) { const add0 = add; add = (x, y, l, acts, p, tk) => add0(x, y, l, ja.concat(acts), p, tk); } }
     if (e.dead) {
-      if (!e.looted) add(e.x, e.y, e.name, [{ n: Tr('Cesedi Ara'), hold: 0.8, fn: () => this.lootBody(e) }], 0, take);
+      if (!e.looted) add(e.x, e.y, e.name, [{ n: Tr('Cesedi Ara'), hold: 0.8, kneel: 'work', fn: () => this.lootBody(e) }], 0, take);
       else {
         const acts = [take];
-        if (P.has('shovel')) acts.push({ n: Tr('Göm'), hold: 3, fn: () => this.buryBody(e) });
+        if (P.has('shovel')) acts.push({ n: Tr('Göm'), hold: 3, kneel: 'work', fn: () => this.buryBody(e) });
         add(e.x, e.y, e.name, acts);
       }
       return true;
     }
-    if (e.state === 'lassoed') { add(e.x, e.y, e.name, [{ n: Tr('Bağla'), hold: 1, fn: () => this.hogtie(e) }], 2); return true; }
-    if (e.state === 'surrender') { add(e.x, e.y, Tr`${e.name} (teslim oldu)`, [{ n: Tr('Bağla'), hold: 1, fn: () => this.hogtie(e) }], 2); return true; }
-    if (e.state === 'downed') { add(e.x, e.y, Tr`${e.name} (yaralı)`, [{ n: Tr('Bağla'), hold: 1, fn: () => this.hogtie(e) }], 2, take); return true; }
+    if (e.state === 'lassoed') { add(e.x, e.y, e.name, [{ n: Tr('Bağla'), hold: 1, kneel: 'work', fn: () => this.hogtie(e) }], 2); return true; }
+    if (e.state === 'surrender') { add(e.x, e.y, Tr`${e.name} (teslim oldu)`, [{ n: Tr('Bağla'), hold: 1, kneel: 'work', fn: () => this.hogtie(e) }], 2); return true; }
+    if (e.state === 'downed') { add(e.x, e.y, Tr`${e.name} (yaralı)`, [{ n: Tr('Bağla'), hold: 1, kneel: 'work', fn: () => this.hogtie(e) }], 2, take); return true; }
     if (e.state === 'tied') {
-      const acts = [take, { n: Tr('Serbest Bırak'), hold: 0.8, fn: () => this.untie(e) }];
+      const acts = [take, { n: Tr('Serbest Bırak'), hold: 0.8, kneel: 'work', fn: () => this.untie(e) }];
       if (!e.robbed && !e.hostile && e.role !== 'bandit' && e.role !== 'target') acts.push({ n: Tr('Soy'), fn: () => this.robNpc(e) });
       add(e.x, e.y, Tr`${e.name} (bağlı)`, acts, 2);
       return true;
