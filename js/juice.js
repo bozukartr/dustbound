@@ -711,16 +711,7 @@ const Juice = {
       ctx.restore();
     }
   },
-  /* Su karosu: güneşte parıltı (render döngüsü her görünür su karosu için çağırır) */
-  water(ctx, tx, ty, t) {
-    if (G.daylight < 0.55) return;
-    const h = hash2(tx, ty, 57);
-    const s = Math.sin(t * (1.6 + h) + h * 60);
-    if (s < 0.965) return;
-    ctx.globalAlpha = (s - 0.965) * 22; ctx.fillStyle = '#fffcec';
-    ctx.fillRect(tx * TS + 2 + h * 11, ty * TS + 3 + hash2(tx, ty, 58) * 10, 2, 1);
-    ctx.globalAlpha = 1;
-  },
+
   /* Varlıkların üstünde, cephelerden sonra: salınan saloon kapıları ve sıçrayan balık */
   drawAfterCovers(ctx, x0, y0, x1, y1, dt) {
     for (let i = 0; i < this.fish.length; i++) {

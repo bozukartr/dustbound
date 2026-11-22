@@ -2337,6 +2337,14 @@ class World {
       World.JY[k] = Math.round((ny.fbm(x / 8, y / 8, 2) - 0.5) * 16);
       World.DET[k] = (nd.v(x / 2, y / 2) - 0.5) * 1.4 + (hash2(x, y, 9) - 0.5) * 0.8;
     }
+    // kıyı, kumsal ve çimen öbekleri için yumuşak gürültü: 256 pikselde kendini tekrarlayan fbm (64, 32, 16, 8 px oktav), 0-1.
+    // Farklı ölçeklerde örneklenir (iki ölçeğin toplamı tekrarı gizler)
+    const N = 256, WN = World.WN = new Float32Array(N * N), oc = [0, 1, 2, 3].map(o => new Noise(seed + 511 + o, 4 << o));
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      let a = 0.5, sm = 0, nn = 0;
+      for (let o = 0; o < 4; o++) { const c = 64 >> o; sm += oc[o].v(x / c, y / c) * a; nn += a; a *= 0.5; }
+      WN[y * N + x] = sm / nn;
+    }
   }
   getChunk(cx, cy, sync) {
     const key = cy * CN + cx;
@@ -2438,8 +2446,8 @@ class World {
     return r.value;
   }
   *chunkJob(cx, cy) {
-    const g = makeCanvas(CPX, CPX), gc = g.getContext('2d');
-    yield* this.chunkGround(cx, cy, gc);
+    const g = makeCanvas(CPX, CPX), gc = g.getContext('2d'), w = { x0: cx * CPX, y0: cy * CPX, x1: cx * CPX + CPX, y1: cy * CPX + CPX };
+    yield* this.chunkGround(cx, cy, gc, w);
     const ox = cx * CPX, oy = cy * CPX;
     const o = makeCanvas(CPX, CPX), oc = o.getContext('2d');
     gc.save(); oc.save();
@@ -2468,16 +2476,122 @@ class World {
       if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
     }
     gc.restore(); oc.restore();
-    return { g, o };
+    return { g, o, w: w.n || (w.dash && w.dash.length) ? w : null };   // w: kıyı canlandırması (FX.water)
   }
-  *chunkGround(cx, cy, gc) {
+  *chunkGround(cx, cy, gc, wout) {
     // 1 MB'lık piksel dizisi her parçada yeniden açılmaz (yürürken sık çöp toplama); groundPixels her pikseli yazar,
     // putImageData veriyi kopyalar. Yarıda kalan pişirmenin dizisi havuza dönmez, çöpe gider.
     const pool = World.IMGP || (World.IMGP = []), img = pool.pop() || gc.createImageData(CPX, CPX);
-    yield* this.groundPixels(cx * CPX, cy * CPX, CPX, CPX, img.data, null);
+    yield* this.groundPixels(cx * CPX, cy * CPX, CPX, CPX, img.data, null, null, wout);
     gc.putImageData(img, 0, 0);
     if (pool.length < 3) pool.push(img);
     yield 0;
+  }
+  /* Görünen kıyı (yalnız görüntü: çarpışma ve yüzey karoda kalır). Suyun sınırı, ıslak karo merkezlerinin çift doğrusal
+     (smoothstep) ağırlığına iki ölçekte gürültü eklenerek çizilir: kıyı karo karo basamak yapmaz, doğal kıvrılır, köşeler
+     yuvarlanır, karo kenarından en çok birkaç piksel sapar. Kıyıya uzaklık (3-4 pah dönüşümü, her taraf kendi içinde)
+     suyun derinlik tonunu, kumsalın genişliğini, köpüğü ve ışık ağlarını belirler. MG kenar payıyla bölgede su yoksa null.
+     WT: görünen su, D: kıyıya uzaklık x3, LT: karosu su ama görüntüsü kara olan pikselin kara türü, OP: karo başına 5x5
+     komşulukta su karosu sayısı (göl ve denizde geniş kumsal, derede dar kıyı), TT: bölgenin karoları */
+  *shorePrep(ox, oy, PW, PH) {
+    const MG = 32, RW = PW + 2 * MG, RH = PH + 2 * MG, x0 = ox - MG, y0 = oy - MG, tile = this.tile;
+    const tx0 = (x0 >> 4) - 3, ty0 = (y0 >> 4) - 3, TW = ((x0 + RW - 1) >> 4) - tx0 + 4, TH = ((y0 + RH - 1) >> 4) - ty0 + 4;
+    const WETT = World.WETT || (World.WETT = new Uint8Array(TINFO.map((t, i) => (i === T.WATER || i === T.DEEP || i === T.BRIDGE ? 1 : 0))));
+    const tl = (x, y) => (x < 0 || y < 0 || x >= WW || y >= WH) ? T.DEEP : tile[y * WW + x];
+    const TG = new Uint8Array(TW * TH), TT = new Uint8Array(TW * TH);
+    let any = 0, dry = 0;
+    for (let j = 0; j < TH; j++) for (let i = 0; i < TW; i++) {
+      const x = tx0 + i, y = ty0 + j, t = tl(x, y);
+      let w = WETT[t];
+      // suya uzanan iskele suyun parçası sayılır: altından su geçer, yanında kumsal olmaz (kasabadaki veranda sayılmaz)
+      if (t === T.PLANK) w = (WETT[tl(x - 1, y)] + WETT[tl(x + 1, y)] + WETT[tl(x, y - 1)] + WETT[tl(x, y + 1)]) >= 2 ? 1 : 0;
+      TG[j * TW + i] = w; TT[j * TW + i] = t; any |= w; dry |= 1 - w;
+    }
+    if (!any) return null;
+    const n = RW * RH, WT = new Uint8Array(n), LT = new Uint8Array(n).fill(255), D = new Uint16Array(n), WN = World.WN;
+    let tY = performance.now();
+    for (let y = 0; y < RH; y++) {
+      const wy = y0 + y, v = (wy + 0.5 - 8) / 16 - ty0, j0 = Math.floor(v), fv = v - j0, sv = fv * fv * (3 - 2 * fv), oj = ((wy >> 4) - ty0) * TW;
+      for (let x = 0; x < RW; x++) {
+        const wx = x0 + x, u = (wx + 0.5 - 8) / 16 - tx0, i0 = Math.floor(u), k = j0 * TW + i0;
+        const a = TG[k], b = TG[k + 1], c = TG[k + TW], d = TG[k + TW + 1], ri = y * RW + x;
+        if (a === b && b === c && c === d) { WT[ri] = a; continue; }
+        const fu = u - i0, su = fu * fu * (3 - 2 * fu), wa = (1 - su) * (1 - sv), wb = su * (1 - sv), wc = (1 - su) * sv, wd = su * sv;
+        const bil = a * wa + b * wb + c * wc + d * wd;
+        let w = 0;
+        if (bil > 0.9) w = 1;
+        else if (bil >= 0.1) {
+          const nz = (WN[(((wy * 2.67) | 0) & 255) << 8 | (((wx * 2.67) | 0) & 255)] * 0.7 + WN[(((wy * 0.71 + 97) | 0) & 255) << 8 | (((wx * 0.71 + 41) | 0) & 255)] * 0.3 - 0.5) * 0.62
+            + (WN[(((wy * 10.7 + 13) | 0) & 255) << 8 | (((wx * 10.7 + 7) | 0) & 255)] - 0.5) * 0.18;
+          w = bil + nz > 0.5 ? 1 : 0;
+        }
+        WT[ri] = w;
+        // karosu su ama görüntüsü kara: en ağır kuru komşunun türü
+        if (!w && TG[oj + (wx >> 4) - tx0]) {
+          let bt = 255, bw = -1;
+          if (!a && wa > bw) { bw = wa; bt = TT[k]; } if (!b && wb > bw) { bw = wb; bt = TT[k + 1]; } if (!c && wc > bw) { bw = wc; bt = TT[k + TW]; } if (!d && wd > bw) bt = TT[k + TW + 1];
+          LT[ri] = bt;
+        }
+      }
+      if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
+    }
+    // kıyıya uzaklık (x3): karşı türe komşu pikseller tohum (3), pah ağırlıkları 3 (yan) ve 4 (çapraz), kendi türünde yayılır
+    if (!dry) D.fill(65535);
+    else {
+      for (let y = 0, i = 0; y < RH; y++) for (let x = 0; x < RW; x++, i++) {
+        const w = WT[i];
+        D[i] = (x > 0 && WT[i - 1] !== w) || (x < RW - 1 && WT[i + 1] !== w) || (y > 0 && WT[i - RW] !== w) || (y < RH - 1 && WT[i + RW] !== w) ? 3 : 65535;
+      }
+      for (let y = 0; y < RH; y++) {
+        for (let x = 0, i = y * RW; x < RW; x++, i++) {
+          let m = D[i]; if (m === 3) continue;
+          const w = WT[i];
+          if (x > 0 && WT[i - 1] === w && D[i - 1] + 3 < m) m = D[i - 1] + 3;
+          if (y > 0) {
+            const j = i - RW;
+            if (WT[j] === w && D[j] + 3 < m) m = D[j] + 3;
+            if (x > 0 && WT[j - 1] === w && D[j - 1] + 4 < m) m = D[j - 1] + 4;
+            if (x < RW - 1 && WT[j + 1] === w && D[j + 1] + 4 < m) m = D[j + 1] + 4;
+          }
+          D[i] = m;
+        }
+        if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
+      }
+      for (let y = RH - 1; y >= 0; y--) {
+        for (let x = RW - 1, i = y * RW + RW - 1; x >= 0; x--, i--) {
+          let m = D[i]; if (m === 3) continue;
+          const w = WT[i];
+          if (x < RW - 1 && WT[i + 1] === w && D[i + 1] + 3 < m) m = D[i + 1] + 3;
+          if (y < RH - 1) {
+            const j = i + RW;
+            if (WT[j] === w && D[j] + 3 < m) m = D[j] + 3;
+            if (x < RW - 1 && WT[j + 1] === w && D[j + 1] + 4 < m) m = D[j + 1] + 4;
+            if (x > 0 && WT[j - 1] === w && D[j - 1] + 4 < m) m = D[j - 1] + 4;
+          }
+          D[i] = m;
+        }
+        if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
+      }
+    }
+    const OP = new Uint8Array(TW * TH);
+    for (let j = 2; j < TH - 2; j++) for (let i = 2; i < TW - 2; i++) { let c = 0; for (let yy = -2; yy <= 2; yy++) for (let xx = -2; xx <= 2; xx++) c += TG[(j + yy) * TW + i + xx]; OP[j * TW + i] = c; }
+    return { MG, RW, RH, x0, y0, tx0, ty0, TW, WT, D, LT, OP, TT };
+  }
+  /* Zemin tonları (piksel sanatı: az sayıda seçilmiş ton, sınırlar sıralı titreşimli): su derinliği, kum, ıslak kum ve çamur,
+     çimen ve kuru çimen. Zemin paletinden türetilir (doğal/canlı ton ve mevsim renklerini izler); renk dizisine göre önbellekli */
+  static ramp(kind, c) {
+    const M = World.RMP || (World.RMP = new WeakMap());
+    let R = M.get(c); if (!R) M.set(c, R = {});
+    if (R[kind]) return R[kind];
+    const mx = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    let r;
+    if (kind === 'water') { const S0 = [134, 201, 182], D = TPAL[T.DEEP]; r = [mx(c, S0, 0.78), mx(c, S0, 0.52), mx(c, S0, 0.26), c, mx(c, D, 0.5), D]; }
+    else if (kind === 'sand') { const dk = [110, 85, 50]; r = [mx(c, dk, 0.3), mx(c, dk, 0.13), c, mx(c, [245, 235, 200], 0.3)]; }
+    else if (kind === 'wet') { const dk = [90, 70, 45]; r = [mx(c, dk, 0.55), mx(c, dk, 0.45)]; }
+    else if (kind === 'mud') { const dk = [40, 32, 22]; r = [mx(c, dk, 0.35), mx(c, dk, 0.2)]; }
+    else if (kind === 'grass') { const GD = [36, 54, 31], GL = [184, 196, 106]; r = [mx(c, GD, 0.55), mx(c, GD, 0.32), mx(c, GD, 0.1), mx(c, GL, 0.12), mx(c, GL, 0.28), mx(c, GL, 0.45)]; }
+    else if (kind === 'dry') { r = [mx(c, [70, 64, 30], 0.35), mx(c, [70, 64, 30], 0.15), c, mx(c, [225, 215, 150], 0.2)]; }
+    return (R[kind] = r);
   }
   /* Zemin pikselleri (karo rengi, gürültü, kenar titreşimi, mevsim, kabartma) bir dikdörtgen için: 2D chunk'lar ve
      melez çizici (js/hybrid.js) kullanır. ox, oy karo sınırında olmalı. cls verilirse her pikselin (titreşimli) karo
@@ -2486,7 +2600,7 @@ class World {
      Kabartma: uçurumun güney kenarı CFACE piksel boyunda dikey kaya yüzüdür (katmanlar, çatlaklar, üst kenarda ışık,
      dibinde gölge), yaylanın yan ve kuzey kenarları belirgindir; yamaçlar yükselti eğimine göre ışık alır (dağda daha
      belirgin), kayalık yükseklerde kesik kesik teras çizgileri vardır; yükseldikçe renk hafifçe açılır ve soğur. */
-  *groundPixels(ox, oy, PW, PH, d, cls, rel) {
+  *groundPixels(ox, oy, PW, PH, d, cls, rel, wout) {
     const tx0 = ox >> 4, ty0 = oy >> 4;
     const tile = this.tile, JX = World.JX, JY = World.JY, DET = World.DET, heat = this.heat, season = this.season;
     const TV = World.TV || (World.TV = new Float32Array(TINFO.map(t => t.v)));
@@ -2594,6 +2708,21 @@ class World {
       const sh = 1 + (-gx * l * LX - gy * l * LY + l * LZ - LZ) * 1.5;
       GNX[i] = -gx * l; GNY[i] = -gy * l; GSH[i] = sh < 0.74 ? 0.74 : sh > 1.22 ? 1.22 : sh;
     }
+    // görünen kıyı (su yoksa null) ve zemin tonları; WS: canlandırma için su (1) ve ıslak kum (2) pikselleri
+    const SH = yield* this.shorePrep(ox, oy, PW, PH), WN = World.WN;
+    const WR = World.ramp('water', TPAL[T.WATER]), SR = World.ramp('sand', TPAL[T.SAND]), WR2 = World.ramp('wet', TPAL[T.SAND]), MR = World.ramp('mud', TPAL[T.MUD]);
+    const BAY = World.BAY4 || (World.BAY4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(q => (q + 0.5) / 16));
+    const dpick = (pal, q, x, y) => { let i = Math.floor(q); if (q - i > BAY[((y & 3) << 2) | (x & 3)]) i++; return pal[i < 0 ? 0 : i >= pal.length ? pal.length - 1 : i]; };
+    const SHN = World.SHNF || (World.SHNF = new Uint8Array(TINFO.map((t, i) => ([T.GRASS, T.FOREST, T.DRY, T.DESERT, T.SAND, T.SWAMP, T.MUD, T.ROCK, T.SNOW, T.REDROCK].includes(i) ? 1 : 0))));
+    const SOFT = World.SOFTF || (World.SOFTF = new Uint8Array(TINFO.map((t, i) => ([T.GRASS, T.FOREST, T.DRY, T.DESERT, T.SAND, T.SWAMP, T.MUD].includes(i) ? 1 : 0))));
+    const WS = SH && wout ? new Uint8Array(PW * PH) : null;
+    const deepAt = (wx, wy) => {
+      const u = (wx + 0.5 - 8) / 16 - SH.tx0, q = (wy + 0.5 - 8) / 16 - SH.ty0, i0 = Math.floor(u), j0 = Math.floor(q), fu = u - i0, fq = q - j0;
+      const su = fu * fu * (3 - 2 * fu), sq = fq * fq * (3 - 2 * fq), kk = j0 * SH.TW + i0, TT = SH.TT, D0 = T.DEEP;
+      return ((TT[kk] === D0 ? 1 : 0) * (1 - su) + (TT[kk + 1] === D0 ? 1 : 0) * su) * (1 - sq) + ((TT[kk + SH.TW] === D0 ? 1 : 0) * (1 - su) + (TT[kk + SH.TW + 1] === D0 ? 1 : 0) * su) * sq;
+    };
+    const dryCol = season === 2 ? AUT[T.DRY] : season === 1 ? SUM[T.DRY] : TPAL[T.DRY];
+    let gC = null, gR = null;
     let tY = performance.now();
     // uçurum maskesi parça başına bir kez (yüz, kenar ve gölge denetimleri için kenar payıyla); uçuruma uzak karolar 0.
     // Karo merkezleri arasında çift doğrusal (titreşimli örnekle): köşeler yuvarlanır, karo karo basamaklı çapraz kenar
@@ -2686,6 +2815,13 @@ class World {
         const nc = nearCliff[ncRow + ((wx >> 4) - tx0) + 2];
         const mb = mrow + px;   // maskede bu piksel
         if (nc && base !== T.BRIDGE && base !== T.PLANK && base !== T.COBBLE && base !== T.PAVE && base !== T.ASPHALT && MK[mb] !== CL[t] && MT[mb] !== 255) t = MT[mb];
+        // görünen kıyı: su pikseli (wpx) gürültülü alana göre; doğal kara suya, su karosunun kara görünen kenarı komşu karaya döner
+        let wpx = 0, sdist = 99, nb = 0;
+        if (SH && !FXF[t] && !CL[t] && t !== T.HOTWATER) {
+          const sri = (py + SH.MG) * SH.RW + px + SH.MG; sdist = SH.D[sri] * (1 / 3);
+          if (SH.WT[sri]) { if (WA[t] || SHN[t]) { wpx = 1; if (!WA[t]) t = T.WATER; } }
+          else if (WA[t]) { const lt = SH.LT[sri]; t = lt !== 255 && !WA[lt] ? lt : !WA[base] && !FXF[base] ? base : T.SAND; }   // titreşimli örnek suya düşse de kara
+        }
         let col = TPAL[t];
         let v = DET[k] * TV[t];
         let mul = 1;
@@ -2702,6 +2838,29 @@ class World {
           } else if (season === 2 && LEAFY[t]) {
             if (t === T.FOREST && DET[k] > 0.72) col = LEAF2; else col = AUT[t];
           } else if (season === 1 && LEAFY[t]) col = SUM[t];
+        }
+        if (wpx) {
+          // su: kıyıdan uzaklaştıkça ve derin karoda koyulaşır (sığda kumlu turkuaz); büyük dalga deseni tonu kaydırır. Buz kalır
+          if (col !== ICE) { col = dpick(WR, sdist / 6.5 + deepAt(wx, wy) * 1.6 + (WN[(((wy * 4.6 + 31) | 0) & 255) << 8 | (((wx * 4.6 + 77) | 0) & 255)] - 0.5) * 0.8, wx, wy); v = 0; if (WS) WS[py * PW + px] = 1; }
+        } else if (sdist < 12 && SOFT[t] && col !== SNOWC && col !== SNOWM) {
+          // kumsal: genişliği kıyı boyunca değişir, göl ve denizde geniş, derede dar; suya en yakın şerit ıslak kum (bataklıkta çamur)
+          const tj = ((wy >> 4) - SH.ty0) * SH.TW + (wx >> 4) - SH.tx0, open = SH.OP[tj] <= 5 ? 0 : SH.OP[tj] >= 12 ? 1 : (SH.OP[tj] - 5) / 7;
+          const f = WN[(((wy * 7.1 + 5) | 0) & 255) << 8 | (((wx * 7.1 + 3) | 0) & 255)], bw = (2 + f * 3.5) * (1 + open), wet = 1.6 + f * 1.2 + open * 0.6;
+          const mud = t === T.SWAMP || t === T.MUD;
+          if (sdist < wet) { col = dpick(mud ? MR : WR2, (WN[(((wy * 9.3) | 0) & 255) << 8 | (((wx * 9.3) | 0) & 255)] - 0.3) * 2.2, wx, wy); v = DET[k] * 2; t = mud ? T.MUD : T.SAND; if (WS && !mud) WS[py * PW + px] = 2; }
+          else if (sdist < bw && !mud) {
+            col = dpick(SR, 1.2 + (sdist / bw) * 1.4 + (WN[(((wy * 6.3 + 9) | 0) & 255) << 8 | (((wx * 6.3 + 17) | 0) & 255)] - 0.5) * 2.4, wx, wy); v = DET[k] * 2; t = T.SAND;
+            if (hash2(wx, wy, 64) > 0.985) col = SR[0];   // kum taneleri
+          } else nb = sdist - bw < 6 ? 1 - (sdist - bw) / 6 : 0;   // çimen kumsala yakın açılır
+        }
+        if ((t === T.GRASS || t === T.FOREST) && (col === TPAL[t] || col === SUM[t] || col === AUT[t])) {
+          // çimen: elle seçilmiş tonlar; büyük öbekler, orta kümeler ve ince taneler; çimende kuru lekeler, orman tabanı sakin
+          if (col !== gC) { gC = col; gR = World.ramp('grass', col); }
+          const fo = t === T.FOREST ? 0.6 : 1;
+          const gv = 2.4 + ((WN[((wy & 255) << 8) | (wx & 255)] - 0.5) * 3.4 + (WN[((((wy << 2) + 77) & 255) << 8) | (((wx << 2) + 31) & 255)] - 0.5) * 1.8) * fo + DET[k] * 0.55 + nb * 0.9;
+          if (t === T.GRASS && (WN[(((((wy * 0.7) | 0) + 113) & 255) << 8) | ((((wx * 0.7) | 0) + 59) & 255)] - 0.63) * 16 > BAY[(((wy + 2) & 3) << 2) | ((wx + 1) & 3)]) col = dpick(World.ramp('dry', dryCol), gv * 0.7, wx, wy);
+          else col = dpick(gR, gv, wx, wy);
+          v = 0;
         }
         // ---- kabartma: yükselti, eğimden yüzey normali (yükseldikçe abartılı) ----
         const ri0 = (px + 24) >> 4, ru = ((px + 24) & 15) * 0.0625, nat = NAT[t];
@@ -2757,7 +2916,7 @@ class World {
             }
           }
         }
-        if (WA[t]) {
+        if (WA[t] && !wpx) {
           if (t !== T.BRIDGE) {
             if (!WA[tAt(wx, wy - 4)]) mul *= 0.8;
             else if (((wy * 2 + (wx >> 2) + ((wx * 7) >> 5)) % 11) === 0) v += 10;
@@ -2818,6 +2977,59 @@ class World {
       // adım süresi dolunca (World.STEP) sıra kareye döner: yüksek tazelemede de kare bütçesini aşmaz
       if (performance.now() - tY > World.STEP) { yield 0; tY = performance.now(); }
     }
+    // ot öbekleri ve kır çiçekleri: 9 piksellik titreşimli ızgarada, dünya konumundan seçilir (iki parçanın kesiştiği öbek iki
+    // yanda aynı çizilir: ek yeri görünmez). Çimen ve orman karosunda; yol kenarında, kumsalda ve kuru lekede yok; kışın kar örter
+    if (season !== 3) {
+      const put = (x, y, c) => { x -= ox; y -= oy; if (x < 0 || y < 0 || x >= PW || y >= PH) return; const i = (y * PW + x) << 2; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; };
+      const gcol = (tt) => season === 2 ? AUT[tt] : season === 1 ? SUM[tt] : TPAL[tt];
+      const FC = World.FLC || (World.FLC = ['#f3efe2', '#ecc94b', '#a98ad0', '#e48a6a'].map(hexToRgb));
+      const gx0 = Math.floor((ox - 2) / 9), gy0 = Math.floor(oy / 9), gx1 = Math.floor((ox + PW + 2) / 9), gy1 = Math.floor((oy + PH + 5) / 9);
+      for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+        const bx = gx * 9 + Math.floor(hash2(gx, gy, 81) * 9), bY = gy * 9 + Math.floor(hash2(gx, gy, 82) * 9);
+        if (bx < 0 || bY < 0 || bx > MAXP || bY > MAXP) continue;
+        const bt = tile[(bY >> 4) * WW + (bx >> 4)];
+        if (bt !== T.GRASS && bt !== T.FOREST) continue;
+        if (RS[(((bY >> 4) - ty0) + 2) * TW + ((bx >> 4) - tx0) + 2]) continue;
+        if (SH) { const sx = bx - SH.x0, sy = bY - SH.y0; if (sx >= 0 && sy >= 0 && sx < SH.RW && sy < SH.RH) { const si = sy * SH.RW + sx; if (SH.WT[si] || SH.D[si] < 42) continue; } }
+        if (bt === T.GRASS && WN[(((((bY * 0.7) | 0) + 113) & 255) << 8) | ((((bx * 0.7) | 0) + 59) & 255)] > 0.64) continue;
+        const r = hash2(gx, gy, 83), R = World.ramp('grass', gcol(bt));
+        if (r < (bt === T.FOREST ? 0.25 : 0.45)) {
+          // üç yaprak: dipte koyu, uçta açık; yanlardaki dışa eğik
+          const h = 2 + Math.floor(hash2(gx, gy, 84) * 3);
+          for (let b = -1; b <= 1; b++) for (let q = 0; q < h; q++) put(bx + b + (q === h - 1 ? b : 0), bY - q, q === 0 ? R[1] : q === h - 1 ? R[4] : q === 1 ? R[2] : R[3]);
+        } else if (r > 0.93 && bt === T.GRASS && season < 2) {
+          const c = FC[Math.floor(hash2(gx, gy, 86) * 4)];
+          put(bx, bY + 1, R[0]); put(bx, bY, c); put(bx + 1, bY, c); put(bx, bY - 1, [c[0] + (255 - c[0]) * 0.3, c[1] + (255 - c[1]) * 0.3, c[2] + (255 - c[2]) * 0.3]);
+        }
+      }
+    }
+    if (WS) this.waterAnimData(SH, WS, ox, oy, PW, PH, wout);
+  }
+  /* Kıyı canlandırmasının verisi (js/fx.js water çizer): kıyıya yakın su (köpük, yalayan dalga, ışık ağları) ve ıslak kum
+     (suyun çekilip geldiği şerit) pikselleri satır sırasıyla; açık suda dalga çizgisi ve pırıltı noktaları. Yalnız
+     çağıranın alanı (wout.x0..x1, y0..y1; melezde parçanın kenar payı dışarıda kalır). G: dalga evresi öbeği (0-5, kıyı
+     boyunca değişir: köpük kıyı boyunca ilerler) | köpük deliği (8) | ıslak kum (16). X, Y alanın köşesine göre */
+  waterAnimData(SH, WS, ox, oy, PW, PH, wout) {
+    const bx0 = Math.max(0, wout.x0 - ox), bx1 = Math.min(PW, wout.x1 - ox), by0 = Math.max(0, wout.y0 - oy), by1 = Math.min(PH, wout.y1 - oy), WN = World.WN;
+    const sd = (px, py) => SH.D[(py + SH.MG) * SH.RW + px + SH.MG] * (1 / 3);
+    let n = 0, nd = 0;
+    for (let py = by0; py < by1; py++) for (let px = bx0; px < bx1; px++) {
+      const w = WS[py * PW + px]; if (!w) continue;
+      const q = sd(px, py);
+      if (w === 1 ? q < 9.6 : q < 2.4) n++;
+      else if (w === 1 && q > 6 && hash2(ox + px, oy + py, 71) < 1 / 240) nd++;
+    }
+    const X = new Int16Array(n), Y = new Int16Array(n), Q = new Uint8Array(n), G = new Uint8Array(n), DS = new Float32Array(nd * 4);
+    let i = 0, j = 0;
+    for (let py = by0; py < by1; py++) for (let px = bx0; px < bx1; px++) {
+      const w = WS[py * PW + px]; if (!w) continue;
+      const q = sd(px, py), wx = ox + px, wy = oy + py;
+      if (w === 1 ? q < 9.6 : q < 2.4) {
+        const ph = WN[(((wy * 1.9 + 51) | 0) & 255) << 8 | (((wx * 1.9 + 23) | 0) & 255)], g = Math.max(0, Math.min(5, Math.floor((ph - 0.5) * 18 + 3)));
+        X[i] = wx - wout.x0; Y[i] = wy - wout.y0; Q[i] = Math.min(255, q * 16); G[i] = g | (hash2(wx, wy, 92) < 0.28 ? 8 : 0) | (w === 2 ? 16 : 0); i++;
+      } else if (w === 1 && q > 6 && hash2(wx, wy, 71) < 1 / 240) { DS[j++] = wx; DS[j++] = wy; DS[j++] = 2 + Math.floor(hash2(wx, wy, 72) * 4); DS[j++] = hash2(wx, wy, 73) * 60; }
+    }
+    wout.n = n; wout.X = X; wout.Y = Y; wout.Q = Q; wout.G = G; wout.dash = DS;
   }
   drawRail(ctx, r, ox, oy) {
     const x0 = ox - 20, y0 = oy - 20, x1 = ox + CPX + 20, y1 = oy + CPX + 20;

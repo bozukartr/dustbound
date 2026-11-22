@@ -141,11 +141,11 @@ const HY = (() => {
   }
 
   /* ---------------- zemin (parça) ---------------- */
-  function* ground(W, ox, oy, base) {
+  function* ground(W, ox, oy, base, wout) {
     // groundPixels her pikseli yazar: havuzdan gelen tamponun sıfırlanması gerekmez
     const M = 16, ww = HC + 2 * M, img = take(Uint8ClampedArray, ww * ww * 4), cls = take(Int16Array, ww * ww), rel = take(Float32Array, ww * ww * 3);
     // rel: kabartma (yüzey normali ve yükseklik; uçurum yüzü, yayla, yamaç, teras) ışık geçişine gider
-    yield* W.groundPixels(ox - M, oy - M, ww, ww, img, cls, rel);
+    yield* W.groundPixels(ox - M, oy - M, ww, ww, img, cls, rel, wout);
     const at = (x, y) => (Math.max(0, Math.min(ww - 1, y)) * ww + Math.max(0, Math.min(ww - 1, x))), step = pacer(null);
     for (let y = 0; y < HB; y++) {
       for (let x = 0; x < HB; x++) {
@@ -887,7 +887,8 @@ const HY = (() => {
     const ox = cx * HC, oy = cy * HC, n = HB * HB * 4;
     // alt katman zeminle baştan sona yazılır; üst katman boş (saydam) başlar
     const base = { c: take(Uint8ClampedArray, n), g: take(Uint8ClampedArray, n) }, over = { c: take(Uint8ClampedArray, n, true), g: take(Uint8ClampedArray, n, true) };
-    yield* ground(W, ox, oy, base);
+    const wout = { x0: ox, y0: oy, x1: ox + HC, y1: oy + HC };   // kıyı canlandırması (FX.water)
+    yield* ground(W, ox, oy, base, wout);
     // raylar ve yassı süsler (ot, çiçek, ekin, kemik...) 2D çizimle, iki kat ölçekte; geçici tuval havuzdan (yol sıfırlanır,
     // çizim durumu save/restore ile hep varsayılana döner, pikseller putImageData ile baştan yazılır)
     const cv = CVP.pop() || makeCanvas(HB, HB), gc = cv.getContext('2d', { willReadFrequently: true });
@@ -948,7 +949,7 @@ const HY = (() => {
     const oc = any ? mk(over.c) : null; if (any) yield 0;
     const og = any ? mk(over.g) : null;
     give(base.c); give(base.g); give(over.c); give(over.g);
-    return { bc, bg, oc, og, used: 0 };
+    return { bc, bg, oc, og, used: 0, w: wout.n || (wout.dash && wout.dash.length) ? wout : null };
   }
   const chunks = new Map(), jobs = new Map();
   let world = null;
@@ -1028,68 +1029,137 @@ const HY = (() => {
     SPR.clear(); sprCount = 0;
   }
 
-  /* ---------------- canlılar: şekil değerlendirici, önbellekli sprite ---------------- */
-  // parça: { e: [cx, cy, rx, ry] elips | c: [x0, y0, x1, y1, r] kapsül, col, h, dome } (yerel: x ileri, y sağ)
-  function sprite(parts, ang, outline = true) {
-    let R = 0; for (const p of parts) { const q = p.e ? Math.hypot(p.e[0], p.e[1]) + Math.max(p.e[2], p.e[3]) : Math.max(Math.hypot(p.c[0], p.c[1]), Math.hypot(p.c[2], p.c[3])) + p.c[4]; R = Math.max(R, q); }
-    const half = Math.ceil((R + 1.5) * S), size = half * 2, ca = Math.cos(ang), sa = Math.sin(ang);
-    const cv = makeCanvas(size, size), g = cv.getContext('2d'), img = g.createImageData(size, size), d = img.data, mask = new Uint8Array(size * size);
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-      const wx = (x + 0.5 - half) / S, wy = (y + 0.5 - half) / S, lx = wx * ca + wy * sa, ly = -wx * sa + wy * ca;
-      // piksel başına dizi açılmaz: en üstteki parçanın normali yerel değişkenlerde
-      let best = null, bh = -1, n0 = 0, n1 = 0, n2 = 0;
-      for (let pi = 0; pi < parts.length; pi++) {
-        const p = parts[pi];
-        let dd, nx, ny;
-        if (p.e) { const E = p.e, ex = E[0], ey = E[1], rx = E[2], ry = E[3]; const ux = (lx - ex) / rx, uy = (ly - ey) / ry; dd = ux * ux + uy * uy; if (dd > 1) continue; nx = ux; ny = uy; }
-        else { const K = p.c, ax = K[0], ay = K[1], bx2 = K[2], by2 = K[3], r = K[4]; const vx = bx2 - ax, vy = by2 - ay, t = clamp01(((lx - ax) * vx + (ly - ay) * vy) / (vx * vx + vy * vy || 1)); const qx = lx - ax - vx * t, qy = ly - ay - vy * t; dd = (qx * qx + qy * qy) / (r * r); if (dd > 1) continue; nx = qx / r; ny = qy / r; }
-        const hh = p.h - (p.dome || 0) * dd;
-        if (hh > bh) { bh = hh; best = p; n0 = nx * ca - ny * sa; n1 = nx * sa + ny * ca; n2 = Math.sqrt(Math.max(0.05, 1 - Math.min(1, dd))); }
+  /* ---------------- canlılar: şekil değerlendirici, önbellekli sprite ----------------
+     parça: { e: [cx, cy, rx, ry] elips | c: [x0, y0, x1, y1, r] kapsül, col (renk ya da (lx, ly) => renk), h, dome,
+     tex ((lx, ly) => ışık sapması) } (yerel: x ileri, y sağ). Her pikselde en üstteki parça; normali sol üstten gelen ışıkla
+     5 tonlu basamağa dökülür (gölge mora, ışık sarıya kayar; sınırlar sıralı titreşimli), daha yüksek parçanın gölgesi
+     alttakine düşer, belirgin yükseklik farkında iç çizgi (baş omuzdan, kol gövdeden ayrı okunur), dış hat siyah değil
+     komşu rengin koyusu. dens: dünya pikseli başına piksel (Melez 2, Klasik 1); inner: iç çizginin yükseklik eşiği. */
+  const SHD = [46 / 255, 36 / 255, 66 / 255], HIL = [1, 244 / 255, 210 / 255], INK = [16 / 255, 10 / 255, 8 / 255];
+  const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
+  const SLX = -0.45, SLY = -0.585, SLZ = 0.675;
+  let LO = false;
+  // değer gürültüsü (yumuşak, 0-1): giysi dokusu, saç telleri
+  const vn = (x, y, s) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = hs(xi, yi, s), b = hs(xi + 1, yi, s), c = hs(xi, yi + 1, s), d = hs(xi + 1, yi + 1, s);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  };
+  // rengin k'inci tonu (0 en koyu, 2 kendisi, 4 en açık) d'ye yazılır; ink > 0 ise mürekkeple karışır (çizgiler)
+  function toneTo(d, o, r, g, b, k, ink) {
+    if (k !== 2) {
+      const lum = 0.3 * r + 0.59 * g + 0.11 * b;
+      if (k < 2) {
+        const t = k ? 0.16 : 0.42;
+        let R = r + (SHD[0] - r) * t, Gr = g + (SHD[1] - g) * t, B = b + (SHD[2] - b) * t;
+        const l2 = 0.3 * R + 0.59 * Gr + 0.11 * B, lim = lum * (k ? 0.93 : 0.8);
+        if (l2 > lim) { const f = l2 > 0 ? lim / l2 : 0; R *= f; Gr *= f; B *= f; }   // koyu renkte de gölge koyu kalır
+        r = R; g = Gr; b = B;
+      } else {
+        const t = (k === 3 ? 0.2 : 0.42) * (0.55 + 0.45 * Math.min(1, lum * 1.6));   // koyu renkte ışık ölçülü
+        r += (HIL[0] - r) * t; g += (HIL[1] - g) * t; b += (HIL[2] - b) * t;
       }
-      if (!best) continue;
-      let c = typeof best.col === 'function' ? best.col(lx, ly) : best.col;
-      // sabit üst-sol ışıkla hacim (dünya ışığı sonra GPU'da eklenir)
-      const lit = -n0 * 0.35 - n1 * 0.45 + n2 * 0.25;
-      c = shT(c, lit > 0.25 ? 0.1 : lit < -0.15 ? -0.16 : 0);
-      const i = (y * size + x) * 4; d[i] = c[0] * 255; d[i + 1] = c[1] * 255; d[i + 2] = c[2] * 255; d[i + 3] = 255; mask[y * size + x] = 1;
     }
-    if (outline) for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-      if (mask[y * size + x]) continue;
-      if ((x > 0 && mask[y * size + x - 1]) || (x < size - 1 && mask[y * size + x + 1]) || (y > 0 && mask[(y - 1) * size + x]) || (y < size - 1 && mask[(y + 1) * size + x])) { const i = (y * size + x) * 4; d[i] = 26; d[i + 1] = 18; d[i + 2] = 12; d[i + 3] = 150; }
+    if (ink) { r += (INK[0] - r) * ink; g += (INK[1] - g) * ink; b += (INK[2] - b) * ink; }
+    d[o] = r * 255; d[o + 1] = g * 255; d[o + 2] = b * 255; d[o + 3] = 255;
+  }
+  function sprite(parts, ang, dens = S, inner = 2.2) {
+    let R = 0; for (const p of parts) { const q = p.e ? Math.hypot(p.e[0], p.e[1]) + Math.max(p.e[2], p.e[3]) : p.b ? Math.hypot(p.b[0], p.b[1]) + Math.hypot(p.b[2], p.b[3]) : Math.max(Math.hypot(p.c[0], p.c[1]), Math.hypot(p.c[2], p.c[3])) + p.c[4]; R = Math.max(R, q); }
+    const half = Math.ceil((R + 1.5) * dens), size = half * 2, n = size * size, ca = Math.cos(ang), sa = Math.sin(ang), texK = dens < 2 ? 0.35 : 1;
+    if (dens < 2) inner = Math.max(inner, 4.5);   // 1x'te kol-gövde çizgisi kalın düşer: yalnız baş ve şapka omuzdan ayrılır
+    const id = new Int16Array(n).fill(-1), hh = new Float32Array(n), NX = new Float32Array(n), NY = new Float32Array(n), DD = new Float32Array(n);
+    // parça parça tarama: her parça yalnız kendi sınır kutusundaki pikselleri dener (yükseklik tamponu; eşitlikte önceki
+    // parça kalır). Piksel başına bütün parçaları denemekten kat kat hızlı: atın 30 parçası çoğunlukla küçük.
+    for (let pi = 0; pi < parts.length; pi++) {
+      const p = parts[pi], dome = p.dome || 0;
+      let ax0, ax1, ay0, ay1;
+      if (p.e) { ax0 = p.e[0] - p.e[2]; ax1 = p.e[0] + p.e[2]; ay0 = p.e[1] - p.e[3]; ay1 = p.e[1] + p.e[3]; }
+      else if (p.b) { ax0 = p.b[0] - p.b[2]; ax1 = p.b[0] + p.b[2]; ay0 = p.b[1] - p.b[3]; ay1 = p.b[1] + p.b[3]; }
+      else { const K = p.c; ax0 = Math.min(K[0], K[2]) - K[4]; ax1 = Math.max(K[0], K[2]) + K[4]; ay0 = Math.min(K[1], K[3]) - K[4]; ay1 = Math.max(K[1], K[3]) + K[4]; }
+      // yerel kutunun köşeleri sprite eksenine (dünya = döndürülmüş yerel)
+      let X0 = 1e9, X1 = -1e9, Y0 = 1e9, Y1 = -1e9;
+      for (let k = 0; k < 4; k++) { const lx = k & 1 ? ax1 : ax0, ly = k & 2 ? ay1 : ay0, wx = lx * ca - ly * sa, wy = lx * sa + ly * ca; if (wx < X0) X0 = wx; if (wx > X1) X1 = wx; if (wy < Y0) Y0 = wy; if (wy > Y1) Y1 = wy; }
+      const px0 = Math.max(0, Math.floor(X0 * dens + half - 0.5)), px1 = Math.min(size - 1, Math.ceil(X1 * dens + half - 0.5));
+      const py0 = Math.max(0, Math.floor(Y0 * dens + half - 0.5)), py1 = Math.min(size - 1, Math.ceil(Y1 * dens + half - 0.5));
+      for (let y = py0; y <= py1; y++) {
+        const wy = (y + 0.5 - half) / dens;
+        for (let x = px0; x <= px1; x++) {
+          const wx = (x + 0.5 - half) / dens, lx = wx * ca + wy * sa, ly = -wx * sa + wy * ca;
+          let dd, nx, ny;
+          if (p.e) { const E = p.e, ux = (lx - E[0]) / E[2], uy = (ly - E[1]) / E[3]; dd = ux * ux + uy * uy; if (dd > 1) continue; nx = ux; ny = uy; }
+          else if (p.b) {   // kutu (sandık, kâğıt): düz üst, kenarda pah
+            const B = p.b, ux = (lx - B[0]) / B[2], uy = (ly - B[1]) / B[3], ax = Math.abs(ux), ay = Math.abs(uy); if (ax > 1 || ay > 1) continue;
+            dd = Math.max(ax, ay) ** 6; nx = ax >= ay ? Math.sign(ux) * dd : 0; ny = ay > ax ? Math.sign(uy) * dd : 0;
+          }
+          else { const K = p.c, kx = K[0], ky = K[1], vx = K[2] - kx, vy = K[3] - ky, r = K[4], t = clamp01(((lx - kx) * vx + (ly - ky) * vy) / (vx * vx + vy * vy || 1)), qx = lx - kx - vx * t, qy = ly - ky - vy * t; dd = (qx * qx + qy * qy) / (r * r); if (dd > 1) continue; nx = qx / r; ny = qy / r; }
+          const h = p.h - dome * dd, i = y * size + x;
+          if (id[i] >= 0 && h <= hh[i]) continue;
+          id[i] = pi; hh[i] = h; NX[i] = nx; NY[i] = ny; DD[i] = dd;
+        }
+      }
+    }
+    // ışık ve renk: yalnız kazanan parçanın normali ve rengi
+    const lit = new Float32Array(n), col = new Float32Array(n * 3);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const i = y * size + x, pi = id[i]; if (pi < 0) continue;
+      const p = parts[pi], wx = (x + 0.5 - half) / dens, wy = (y + 0.5 - half) / dens, lx = wx * ca + wy * sa, ly = -wx * sa + wy * ca;
+      const s = Math.min(1.1, Math.max(0.12, (p.dome || 0) / 2.6)), nz = Math.sqrt(Math.max(0.04, 1 - DD[i])), nx = NX[i] * s, ny = NY[i] * s, nl = Math.hypot(nx, ny, nz);
+      let L = ((nx * ca - ny * sa) * SLX + (nx * sa + ny * ca) * SLY + nz * SLZ) / nl;
+      if (p.tex) L += p.tex(lx, ly) * texK;
+      const c = typeof p.col === 'function' ? p.col(lx, ly) : p.col;
+      lit[i] = L; col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
+    }
+    const cv = makeCanvas(size, size), g = cv.getContext('2d'), img = g.createImageData(size, size), d = img.data;
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const i = y * size + x, o = i * 4, me = id[i];
+      if (me < 0) {
+        // seçici dış hat: komşu parçanın en koyu tonu
+        const nb = x + 1 < size && id[i + 1] >= 0 ? i + 1 : x > 0 && id[i - 1] >= 0 ? i - 1 : y + 1 < size && id[i + size] >= 0 ? i + size : y > 0 && id[i - size] >= 0 ? i - size : -1;
+        if (nb >= 0) toneTo(d, o, col[nb * 3], col[nb * 3 + 1], col[nb * 3 + 2], 0, 0.55);
+        continue;
+      }
+      const lo = hh[i] - inner;
+      if ((x + 1 < size && id[i + 1] >= 0 && id[i + 1] !== me && hh[i + 1] < lo) || (x > 0 && id[i - 1] >= 0 && id[i - 1] !== me && hh[i - 1] < lo) ||
+        (y + 1 < size && id[i + size] >= 0 && id[i + size] !== me && hh[i + size] < lo) || (y > 0 && id[i - size] >= 0 && id[i - size] !== me && hh[i - size] < lo)) {
+        toneTo(d, o, col[i * 3], col[i * 3 + 1], col[i * 3 + 2], 0, 0.35); continue;
+      }
+      let L = lit[i] + (BAY[((y & 3) << 2) | (x & 3)] - 0.5) * 0.04;
+      // daha yüksek komşu parçanın sol üstten düşen gölgesi
+      if (x > 0 && y > 0) { const u = i - size - 1; if (id[u] >= 0 && id[u] !== me && hh[u] > hh[i] + 1.1) L -= 0.32; }
+      toneTo(d, o, col[i * 3], col[i * 3 + 1], col[i * 3 + 2], L < 0.12 ? 0 : L < 0.36 ? 1 : L < 0.72 ? 2 : L < 0.88 ? 3 : 4, 0);
     }
     g.putImageData(img, 0, 0);
-    return { c: cv, h: half };
+    return { c: cv, h: half, d: dens };
   }
+  // ışık sapması dokuları: giysi, saç telleri, kıvırcık, at kuyruğu ve yelesi
+  const cloth = (lx, ly) => (vn(lx * 1.2 + 40, ly * 1.2 + 40, 7) - 0.5) * 0.07;
+  const strands = (lx, ly) => Math.sin(ly * 2.6 + vn(lx * 2 + 40, ly * 2 + 40, 5) * 3) * 0.16;
+  const curls = (lx, ly) => (vn(lx * 1.9 + 40, ly * 1.9 + 40, 3) - 0.5) * 0.42;
+  const HNOSE = rgb('#1a100a'), HEYE = rgb('#140c08'), HWHITE = rgb('#efe9dc');
+  const BOOT = rgb('#3b2818'), LEATHER = rgb('#5c3c24'), GRIP = rgb('#2c2018'), IRON = rgb('#2a2a2e'), WOOD = rgb('#5a3e26'), ROPE = rgb('#c8a870'), RED = rgb('#a8281f');
+  const armCol = (coat) => mix(coat, SHD, 0.06);
   function humanParts(L, st) {
-    const coat = rgb(L.coat), pants = rgb(L.pants), skin = rgb(L.skin), shirt = rgb(L.shirt), hair = rgb(L.hairNow || L.hair), boot = rgb('#231710');
+    const coat = rgb(L.coat), pants = rgb(L.pants), skin = rgb(L.skin), shirt = rgb(L.shirt);
     if (st.sit !== undefined || st.kneel) return lowParts(L, st);
-    const mv = st.riding ? 0 : st.mv, sw = Math.sin(st.walk || 0) * 2.8 * mv, P = [];
-    if (st.lying) {
-      P.push({ e: [0, 0, 5.5, 3.2], col: coat, h: 4, dome: 2 }); P.push({ c: [-4, -1.4, -9, -1.4, 0.9], col: pants, h: 3 }); P.push({ c: [-4, 1.4, -9, 1.4, 0.9], col: pants, h: 3 });
-      P.push({ e: [5.5, 0, 2.6, 2.6], col: L.hat === 'none' ? hair : skin, h: 5, dome: 1.5 });
-      if (st.tied) { P.push({ e: [-7.6, 0, 0.6, 2.8], col: rgb('#c8a870'), h: 3.5 }); P.push({ e: [-0.6, 0, 0.6, 3.5], col: rgb('#c8a870'), h: 4.5 }); }
-      if (st.sleep !== undefined) {
-        // uyku: başı eyerde, battaniye ayaklardan göğse (göğüs nefesle kabarır), şapka yüzünde
-        const bc = rgb(st.blanket || '#6a3a2a'), bd = sh(bc, -0.22), b = st.sleep;
-        P.push({ e: [8.2, 0, 1.9, 3.4], col: (x) => x > 7.8 ? rgb('#7a5430') : rgb('#5a3a20'), h: 3.5, dome: 1.5 });
-        P.push({ e: [-4, 0, 6.6, 4.1], col: (x) => (Math.abs(x + 7) < 0.45 || Math.abs(x + 3) < 0.45) ? bd : bc, h: 6, dome: 2.5 });
-        P.push({ e: [0.6, 0, 2.6 + b * 0.25, 3.7 + b * 0.3], col: sh(bc, 0.08), h: 6.4 + b * 0.6, dome: 2 });
-        if (L.hat && L.hat !== 'none') { const hc = rgb(hatColor(L.hat, L.hatCol)); P.push({ e: [6, 0, 2.3, 3.2], col: (x, y) => Math.hypot((x - 6.2) / 1.3, y / 1.9) < 1 ? sh(hc, -0.15) : hc, h: 6.8, dome: 1.2 }); }
-      }
-      return P;
+    if (st.lying) return lyingParts(L, st);
+    const mv = st.riding ? 0 : st.mv, sw = Math.sin(st.walk || 0) * 2.7 * mv, P = [];
+    // bacaklar ve çizmeler: yürürken öne arkaya
+    if (!st.riding) for (const sd of [-1, 1]) {
+      const f = -sd * sw;
+      P.push({ c: [-0.6, sd * 1.65, f + 0.4, sd * 1.85, 1.05], col: pants, h: 7, dome: 1.2, tex: cloth });
+      P.push({ e: [f + 1.3, sd * 1.85, 1.35, 0.95], col: BOOT, h: 8, dome: 1 });
     }
-    if (!st.riding) { P.push({ e: [0.5 + sw, -2.2, 2.2, 1.3], col: (x) => x > 1.6 + sw ? boot : pants, h: 6, dome: 2 }); P.push({ e: [0.5 - sw, 2.2, 2.2, 1.3], col: (x) => x > 1.6 - sw ? boot : pants, h: 6, dome: 2 }); }
-    if (L.coatLen) P.push({ e: [-2.2, 0, 2.6 + L.coatLen * 1.6, 4.6], col: sh(coat, -0.15), h: 14, dome: 3 });
-    P.push({ e: [0, 0, 3.4, 5.3], col: (x, y) => (Math.abs(y) < 0.4 && x > 0) ? shT(coat, -0.25) : coat, h: 20, dome: 5 });
-    P.push({ e: [1.9, 0, 1.3, 1.9], col: shirt, h: 20.5, dome: 1 });
-    if (st.backGun) P.push({ c: [-4, -4, -1, 5, 0.7], col: rgb('#3a2618'), h: 21 });
+    if (L.coatLen) P.push({ e: [-2.4, 0, 2.6 + L.coatLen * 1.6, 4.3], col: sh(coat, -0.08), h: 13, dome: 2.4, tex: cloth });
+    // gövde: geniş omuzlar; önde açık ceketin arasından gömlek
+    P.push({ e: [-0.3, 0, 2.8, 4.4], col: (x, y) => (x > 0.9 && Math.abs(y) < 0.75 + (x - 0.9) * 0.4) ? shirt : coat, h: 18, dome: 3.2, tex: cloth });
+    if (st.backGun) P.push({ c: [-3.4, -3.4, -1.3, 4.2, 0.62], col: rgb('#4a3020'), h: 18.4, dome: 0.5 });   // sırtta tüfek
     if (st.reload) reloadParts(P, L, st, coat, skin);
     else if (st.act) actParts(P, L, st, coat, skin, sw);
     else if (st.aim && (st.wk === 'fists' || st.wk === 'knife')) {
       // yumruk ya da bıçakla saldırı duruşu: iki el önde (silah yok), vuruşta öndeki el uzanır
       const s3 = st.swing > 0.2 ? 3 : 0;
       armPart(P, coat, skin, -1, 4.5 + s3, -2, 19); armPart(P, coat, skin, 1, 4.5, 2.5, 19);
-      if (st.wk === 'knife') P.push({ c: [5.4 + s3, -2.1, 9 + s3, -2.1, 0.5], col: rgb('#c8ccd0'), h: 19.8 });
+      if (st.wk === 'knife') P.push({ c: [5.4 + s3, -2.1, 9 + s3, -2.1, 0.5], col: rgb('#c8ccd0'), h: 19.8, dome: 0.3 });
     } else if (st.aim && (st.wk === 'throw' || st.wk === 'lasso') && st.thr !== undefined) {
       // fırlatış: kol arkadan (kementte baş üstünden) öne savrulur
       const [hx, hy] = Juice.throwHand(st.wk, st.thr);
@@ -1099,75 +1169,170 @@ const HY = (() => {
       armPart(P, coat, skin, 1, 1.2, 2.4, 30); downArm(P, coat, skin, -1, 0);
     } else if (st.aim && st.wk === 'throw') {
       // dinamit: kol geride, elde fitili yanan çubuk (kıvılcım çizimde ayrı)
-      armPart(P, coat, skin, 1, -2, 7, 18);
-      P.push({ c: [-3, 7.7, 0, 7.7, 0.7], col: rgb('#c03020'), h: 18.6 });
+      armPart(P, coat, skin, 1, -2, 7, 18.6); downArm(P, coat, skin, -1, 0);
+      P.push({ c: [-3, 7.7, 0, 7.7, 0.7], col: rgb('#c03020'), h: 19.2, dome: 0.5 });
     } else if (st.aim && st.wk) {   // Klasik'teki gibi: silahsız doğrultma (soygun) kolları değiştirmez
       const lng = st.wk === 'long', bow = st.wk === 'bow';
-      P.push({ c: [0, -4.2, lng ? 7 : 6.5, lng ? -0.5 : -0.2, 1.15], col: coat, h: 19, dome: 1 }); P.push({ c: [0, 4.2, lng ? 3 : 6.5, lng ? 1.5 : 0.3, 1.15], col: coat, h: 19, dome: 1 });
-      P.push({ e: [lng ? 7.2 : 6.8, 0.1, 1.3, 1.3], col: skin, h: 19.5, dome: 0.5 });
       if (bow) {
-        // yay yayı ve geriye çekilen kiriş (klasikteki draw)
-        const d = st.draw || 0;
-        P.push({ c: [7.6, -5.6, 8.8, -2.4, 0.6], col: rgb('#6a4a28'), h: 19.8 }); P.push({ c: [8.8, -2.4, 8.8, 2.4, 0.6], col: rgb('#6a4a28'), h: 19.8 }); P.push({ c: [8.8, 2.4, 7.6, 5.6, 0.6], col: rgb('#6a4a28'), h: 19.8 });
+        // yay yayı ve geriye çekilen kiriş
+        const d = st.draw || 0, bw = rgb('#6a4a28');
+        armPart(P, coat, skin, -1, 7.8, -0.2, 19); armPart(P, coat, skin, 1, 2 - d * 2, 0.6, 19.2);
+        P.push({ c: [7.6, -5.6, 8.8, -2.4, 0.6], col: bw, h: 19.8, dome: 0.4 }); P.push({ c: [8.8, -2.4, 8.8, 2.4, 0.6], col: bw, h: 19.8, dome: 0.4 }); P.push({ c: [8.8, 2.4, 7.6, 5.6, 0.6], col: bw, h: 19.8, dome: 0.4 });
         P.push({ c: [7.6, -5.4, 2 - d * 2, 0, 0.25], col: rgb('#d8d0c0'), h: 20 }); P.push({ c: [7.6, 5.4, 2 - d * 2, 0, 0.25], col: rgb('#d8d0c0'), h: 20 });
-      } else P.push({ c: [lng ? 4 : 7, 0, lng ? 15 : 12, 0, 0.75], col: rgb('#2a2a2e'), h: 19.8 });
+      } else if (lng) {
+        // tüfek omuzda: dipçik sağ omuzda, sol el namluda
+        armPart(P, coat, skin, -1, 7.2, -0.2, 19.2); armPart(P, coat, skin, 1, 3.4, 1.6, 19.2, 1.8, 4.6);
+        P.push({ c: [-0.6, 1.1, 6.2, 0.8, 1.0], col: WOOD, h: 19.6, dome: 0.6 }); P.push({ c: [6, 0.8, 15, 0.8, 0.55], col: IRON, h: 20.2, dome: 0.4 });
+      } else {
+        // tabanca iki elle önde
+        armPart(P, coat, skin, -1, 6.4, -0.5, 19); armPart(P, coat, skin, 1, 6.4, 0.5, 19);
+        P.push({ c: [7.2, 0, 11.8, 0, 0.62], col: IRON, h: 19.9, dome: 0.4 }); P.push({ e: [8, 0, 0.95, 0.85], col: rgb('#3a3a40'), h: 20.1, dome: 0.5 });
+      }
     } else if (st.riding) {
-      P.push({ e: [3.5, -3.3, 1.5, 1.5], col: coat, h: 18, dome: 1 }); P.push({ e: [3.5, 3.3, 1.5, 1.5], col: coat, h: 18, dome: 1 });
-      P.push({ e: [5, -2.5, 1.1, 1.1], col: skin, h: 18.4 }); P.push({ e: [5, 2.5, 1.1, 1.1], col: skin, h: 18.4 });
+      // dizginler önde iki elde
+      armPart(P, coat, skin, -1, 4.8, -2.4, 18.6); armPart(P, coat, skin, 1, 4.8, 2.4, 18.6);
     } else {
       const swg = st.swing || 0;
       if (!swg && !st.hold && st.anim && gestureParts(P, st, coat, skin, sw)) { /* jest (Klasik'te de elinde yük varken jest yok) */ }
       else if (!swg && !st.hold && st.gait === 'cane') {
         // baston: sol kol sallanır, sağ el önde bastona dayanır
-        downArm(P, coat, skin, -1, sw);
+        hangArm(P, coat, skin, -1, sw);
         const tip = 6.2 + Math.max(0, sw) * 0.6;
-        P.push({ e: [1.6, 4.9, 1.6, 1.6], col: coat, h: 17, dome: 2 }); P.push({ e: [3, 5.2, 1, 1], col: skin, h: 17.4 });
-        P.push({ c: [3, 5.2, tip, 6.2, 0.45], col: rgb('#4a3220'), h: 9 });
+        armPart(P, coat, skin, 1, 3, 5.2, 18.2);
+        P.push({ c: [3, 5.2, tip, 6.2, 0.45], col: rgb('#4a3220'), h: 9, dome: 0.3 });
       } else if (st.hold === 'rod') {
         // olta: iki eli önde, sap sağ elde (kamış ve misina dünyada, Juice.fishDraw)
-        armPart(P, coat, skin, -1, 4.6, -0.6, 18); armPart(P, coat, skin, 1, 5.8, 1.4, 18);
+        armPart(P, coat, skin, -1, 4.6, -0.6, 18.6); armPart(P, coat, skin, 1, 5.8, 1.4, 18.6);
+      } else if (st.hold === 'crate') {
+        // iki eliyle önünde sandık taşır
+        armPart(P, coat, skin, -1, 3.7, -3.3, 18.6); armPart(P, coat, skin, 1, 3.7, 3.3, 18.6);
+        P.push({ b: [6.1, 0, 2.7, 3.6], col: (x, y) => Math.abs(y) < 0.35 || Math.abs(x - 6.1) < 0.3 ? rgb('#6a4626') : rgb('#9a6e40'), h: 21, dome: 0.8 });
       } else {
-        P.push({ e: [-sw * 0.7, -4.9, 1.8, 1.7], col: coat, h: 17, dome: 2 }); P.push({ e: [sw * 0.7 + swg * 4, 4.9 - swg * 2, 1.8, 1.7], col: coat, h: 17, dome: 2 });
-        P.push({ e: [-sw * 0.7 + 1.2, -5.1, 1, 1], col: skin, h: 17.2, dome: 1 }); P.push({ e: [sw * 0.7 + 1.2 + swg * 4, 5.1 - swg * 2, 1, 1], col: skin, h: 17.2, dome: 1 });
-        if (swg && st.wk === 'knife') { const hx = sw * 0.7 + 1.2 + swg * 4, hy = 5.1 - swg * 2; P.push({ c: [hx + 0.6, hy - 0.4, hx + 4.4, hy - 0.4, 0.5], col: rgb('#c8ccd0'), h: 17.8 }); }
-        if (st.hasGun) P.push({ e: [-0.5, 4.4, 1.5, 0.8], col: rgb('#2a1c14'), h: 20.6 });
-        if (st.hold === 'crate') P.push({ e: [5.5, 0, 2.8, 3.6], col: rgb('#9a6e40'), h: 21 });
-        else if (st.hold === 'broom') { P.push({ c: [sw * 0.7 + 1.2, 5.1, 9, 7, 0.45], col: rgb('#8a6a44'), h: 9 }); P.push({ e: [9.6, 7.2, 1.4, 2.4], col: rgb('#c8a860'), h: 8 }); }
-        else if (st.hold === 'paper') P.push({ e: [0.1, 5.7, 2.3, 1.3], col: (x, y) => Math.abs(y - 5.5) < 0.2 || Math.abs(y - 6.3) < 0.2 ? rgb('#8a8478') : rgb('#d8d0bc'), h: 17.6 });
+        hangArm(P, coat, skin, -1, sw);
+        if (swg) {
+          // vuruş: sağ kol öne uzanır (bıçakla kesik)
+          const hx = 5.2 + swg * 2.2, hy = 1.3;
+          armPart(P, coat, skin, 1, hx, hy, 18.8);
+          if (st.wk === 'knife') P.push({ c: [hx + 0.6, hy - 0.4, hx + 4.4, hy - 0.4, 0.5], col: rgb('#c8ccd0'), h: 19.6, dome: 0.3 });
+        } else hangArm(P, coat, skin, 1, sw);
+        if (st.hasGun) { P.push({ e: [-0.7, 4.25, 1.5, 0.85], col: LEATHER, h: 16.4, dome: 0.8 }); P.push({ e: [0.35, 4.35, 0.62, 0.5], col: GRIP, h: 17, dome: 0.4 }); }   // belde kılıf
+        if (st.hold === 'broom') { P.push({ c: [1.9, 3.9, 9, 7, 0.45], col: rgb('#8a6a44'), h: 9, dome: 0.3 }); P.push({ e: [9.6, 7.2, 1.4, 2.4], col: rgb('#c8a860'), h: 8, dome: 0.8, tex: strands }); }
+        else if (st.hold === 'paper') P.push({ b: [0.4, 5.6, 2.3, 1.3], col: (x, y) => Math.abs(y - 5.35) < 0.18 || Math.abs(y - 6.0) < 0.18 ? rgb('#8a8478') : rgb('#d8d0bc'), h: 19.2, dome: 0.3 });
       }
     }
     headParts(P, L, 0, st);
     return P;
   }
-  /* Baş: maske, şapka ya da saç; hx başın gövdeye göre öne/arkaya kayması (diz çökerken öne eğik, otururken doğrulan) */
+  /* Yerde yatan beden (ölü, yaralı, bağlı, uyuyan): gövde, bacaklar ve çizmeler, kollar yanda, baş */
+  function lyingParts(L, st) {
+    const coat = rgb(L.coat), pants = rgb(L.pants), skin = rgb(L.skin), shirt = rgb(L.shirt), hair = rgb(L.hairNow || L.hair), P = [];
+    for (const sd of [-1, 1]) {
+      P.push({ c: [-3.6, sd * 1.45, -8.2, sd * 1.7, 1.0], col: pants, h: 3, dome: 1, tex: cloth });
+      P.push({ e: [-9, sd * 1.75, 1.0, 0.95], col: BOOT, h: 3.6, dome: 0.8 });
+      P.push({ c: [2.4, sd * 3.5, -1.2, sd * 4.5, 0.95], col: armCol(coat), h: 4.6, dome: 0.9, tex: cloth });
+      P.push({ e: [-1.8, sd * 4.65, 0.8, 0.78], col: skin, h: 4.8, dome: 0.6 });
+    }
+    P.push({ e: [0, 0, 5.2, 3.3], col: (x, y) => (x > 1.4 && Math.abs(y) < 0.7 + (x - 1.4) * 0.25) ? shirt : coat, h: 5, dome: 2.2, tex: cloth });
+    // başın arkası saç, yüzü yukarı (şapkası düşmüş)
+    P.push({ e: [5.7, 0, 2.3, 2.25], col: (x, y) => x > 6.7 - Math.abs(y) * 0.45 || Math.abs(y) > 1.75 ? hair : skin, h: 5.6, dome: 1.6, tex: (x, y) => x > 6.7 - Math.abs(y) * 0.45 ? strands(x, y) : 0 });
+    P.push({ e: [5.5, 0, 0.45, 0.4], col: mix(skin, SHD, 0.1), h: 7.3, dome: 0.3 });
+    if (st.tied) { P.push({ e: [-7.6, 0, 0.6, 2.8], col: ROPE, h: 4, dome: 0.4 }); P.push({ e: [-0.6, 0, 0.6, 3.5], col: ROPE, h: 5.6, dome: 0.4 }); }
+    if (st.sleep !== undefined) {
+      // uyku: başı eyerde, battaniye ayaklardan göğse (göğüs nefesle kabarır), şapka yüzünde
+      const bc = rgb(st.blanket || '#6a3a2a'), bd = sh(bc, -0.22), b = st.sleep;
+      P.push({ e: [8.2, 0, 1.9, 3.4], col: (x) => x > 7.8 ? rgb('#7a5430') : rgb('#5a3a20'), h: 3.5, dome: 1.5 });
+      P.push({ e: [-4, 0, 6.6, 4.1], col: (x) => (Math.abs(x + 7) < 0.45 || Math.abs(x + 3) < 0.45) ? bd : bc, h: 6, dome: 2.5, tex: cloth });
+      P.push({ e: [0.6, 0, 2.6 + b * 0.25, 3.7 + b * 0.3], col: sh(bc, 0.08), h: 6.4 + b * 0.6, dome: 2, tex: cloth });
+      if (L.hat && L.hat !== 'none') { const hc = rgb(hatColor(L.hat, L.hatCol)); P.push({ e: [6, 0, 2.3, 3.2], col: (x, y) => Math.hypot((x - 6.2) / 1.3, y / 1.9) < 1 ? sh(hc, -0.15) : hc, h: 6.8, dome: 1.2 }); }
+    }
+    return P;
+  }
+  /* Baş: maske, şapka ya da saç (tel tel, kıvırcık; uzun saç, at kuyruğu, topuz, örgü), kulak, burun, sakal. hx başın
+     gövdeye göre öne/arkaya kayması (diz çökerken öne eğik, otururken doğrulan); st.head baş çevirme, st.hatK şapka düzeltme */
   function headParts(P, L, hx, st) {
     const skin = rgb(L.skin), hair = rgb(L.hairNow || L.hair), hk = (st && st.hatK) || 0, hr = (st && st.head) || 0;
     // baş, gövdeden bağımsız döner (boşta etrafa bakma, birine bakma): başın yerel noktası gövdeye, gövde noktası başa
     const cr = Math.cos(hr), sr = Math.sin(hr);
     const R = (x, y) => [hx + x * cr - y * sr, x * sr + y * cr];
     const loc = (x, y) => { const X = x - hx; return [X * cr + y * sr, -X * sr + y * cr]; };
-    if (L.mask === 'sack') P.push({ e: [hx, 0, 3.2, 3.2], col: rgb('#c8a870'), h: 27, dome: 2 });
-    else if (L.hat && L.hat !== 'none') {
-      const Sx = LOOKS.hatShape[L.hat] || LOOKS.hatShape.cowboy, hc = rgb(hatColor(L.hat, L.hatCol));
-      if (L.hat === 'bonnet') { const a = R(-0.8, 0), b = R(1.4, 0); P.push({ e: [a[0], a[1], 3.6, 3.3], col: hc, h: 27, dome: 2 }); P.push({ e: [b[0], b[1], 1.3, 2.9], col: sh(hc, 0.18), h: 27.5 }); }
-      else {
-        // şapkayı düzeltirken/selam verirken kenarı kalkar (büyür, öne kayar), el kenarda
-        const br = Sx.br * (1 + hk * 0.14), bc = R(0.2 + hk * 0.8, 0), cc = R(-0.2, 0);
-        P.push({ e: [bc[0], bc[1], br, br * 0.95], col: (x, y) => Math.hypot(x - bc[0], y - bc[1]) > br - 0.6 ? shT(hc, -0.22) : hc, h: 26 + hk * 1.5, dome: 0.6 });
-        P.push({ e: [cc[0], cc[1], 2.6, 2.4], col: (x, y) => { const q = loc(x, y), X = q[0], Y = q[1]; return Math.abs(Math.hypot(X + 0.2, Y) - 2.2) < 0.35 ? rgb('#2a1a10') : (L.hat === 'cowboy' || L.hat === 'wide' || L.hat === 'straw') && Math.abs(Y) < 0.45 ? shT(hc, 0.22) : L.hat === 'fedora' && Math.abs(Y) < 0.4 && X > -1.6 && X < 1.2 ? shT(hc, -0.42) : shT(hc, -0.12); }, h: (L.hat === 'top' ? 31 : 29) + hk * 1.5, dome: 2.5 });
-        if (hk > 0.15) { const hp = R(2.4, -3.2); P.push({ e: [hp[0], hp[1], 1.1, 1.1], col: skin, h: 32.5, dome: 0.5 }); }
+    const F = (f) => typeof f === 'function' ? (x, y) => { const q = loc(x, y); return f(q[0], q[1]); } : f;
+    const E = (x, y, rx, ry, col, h, dome, tex) => { const a = R(x, y); P.push({ e: [a[0], a[1], rx, ry], col: F(col), h, dome, tex: tex ? F(tex) : null }); };
+    const hs = L.hairStyle | 0, fem = L.sex === 'f', dk = sh(hair, -0.18), lift = hk * 1.5;
+    const long = fem ? [0, 1, 4, 5, 7].includes(hs) : [1, 4, 7].includes(hs);
+    if (L.mask !== 'sack') {
+      // başın arkasında ve omuzda kalan saç: uzun saç, at kuyruğu, ense topuzu, örgüler (şapkanın altından da görünür)
+      if (long) E(fem ? -2.5 : -2.1, 0, fem ? 2.3 : 1.9, fem ? 2.6 : 2.4, hair, 22.6, 1.2, strands);
+      if (!fem && hs === 2) E(-3.4, 0, 1.3, 0.8, dk, 22.2, 0.8, strands);
+      if (fem && hs === 3) E(-3, 0, 1.3, 1.3, dk, 23.4, 1, curls);
+      const brd = hs === 8 ? [-1] : fem && hs === 9 ? [-1, 1] : [];
+      for (const k of brd) for (let i = 0; i < 3; i++) E(-1.6 + i * 1.3, k * (2.4 + i * 0.5), 0.8, 0.8, i % 2 ? dk : hair, 19.6 - i * 0.2, 0.7);
+    }
+    if (L.mask === 'sack') {
+      // çuval: arkada bağı, önde göz delikleri, dikişler
+      E(-4.2, 0, 1.7, 1.0, rgb('#b89860'), 24.6, 0.8);
+      E(0, 0, 3.3, 3.3, (x, y) => (x > 1.5 && x < 2.9 && Math.abs(Math.abs(y) - 1.15) < 0.55) ? rgb('#1a1008') : (Math.abs(x + 1.4) < 0.28 && Math.abs(y) < 1.2) || (Math.abs(y + 1.6) < 0.28 && Math.abs(x) < 0.6) ? rgb('#9a7a48') : rgb('#c8a870'), 26.8, 2.2, curls);
+    } else if (L.hat && L.hat !== 'none') {
+      const hat = L.hat, Sx = LOOKS.hatShape[hat] || LOOKS.hatShape.cowboy, hc = rgb(hatColor(hat, L.hatCol));
+      const band = hat === 'straw' ? rgb('#8a3a2a') : mix(hc, INK, 0.55), weave = hat === 'straw' && !LO ? (x, y) => (((Math.floor(x * 2.2) + Math.floor(y * 2.2)) & 1) ? 0.07 : -0.07) : null;
+      if (L.mask === 'bandana') E(3, 0, 1.7, 2.1, RED, 23.8, 0.6);   // mendil burnun altından öne sarkar
+      if (hat === 'bonnet') { E(-0.8, 0, 3.6, 3.3, hc, 27, 2, cloth); E(1.4, 0, 1.3, 2.9, sh(hc, 0.18), 27.5, 0.6); }
+      else if (hat === 'cloche') {
+        // çan şapka: dar kenar, başa oturan yuvarlak tepe, yanda kurdele fiyonku
+        E(0.3 + hk * 0.8, 0, 3.3 * (1 + hk * 0.14), 3.15 * (1 + hk * 0.14), sh(hc, -0.18), 25.4 + lift, 0.5);
+        E(-0.2, 0, 2.9, 2.75, hc, 27.4 + lift, 1.8, cloth); E(0.4, 2.3, 0.9, 0.55, sh(hc, -0.42), 27.7 + lift, 0.4);
+      } else if (hat === 'flat') {
+        // kasket: yumuşak tepe, önde siper
+        E(-0.3, 0, 2.9, 2.75, hc, 26.4 + lift, 1.4, cloth); E(2.3 + hk * 0.6, 0, 1.7, 2.4, sh(hc, -0.2), 25.6 + lift, 0.4);
+      } else if (hat === 'fur') {
+        // kürk başlık: kabarık tepe, çevresinde tüy demetleri
+        E(-0.2, 0, 3.0, 2.9, sh(hc, 0.12), 27 + lift, 1.6, curls);
+        for (let i = 0; i < 9; i++) { const a = i / 9 * TAU; E(Math.cos(a) * 2.85 - 0.2, Math.sin(a) * 2.75, 0.8, 0.8, i % 2 ? sh(hc, -0.2) : sh(hc, 0.1), 26.2 + lift, 0.6); }
+      } else {
+        // kenarlı şapka: kenar ucu açık, tepede bant ve çukur (kovboy, ova, geniş kenar, hasır, fötr, melon, silindir)
+        const br = Sx.br * 0.86 * (1 + hk * 0.14), bx = 0.1 + hk * 0.8, top = hat === 'top', bowl = hat === 'bowler', cw = hat === 'cowboy' || hat === 'wide' || hat === 'straw' || hat === 'boss';
+        const crR = top ? 2.45 : bowl ? 2.55 : hat === 'boss' ? 2.5 : 2.4;
+        E(bx, 0, br, br * 0.96, (x, y) => Math.hypot(x - bx, y) > br * 0.86 ? mix(hc, HIL, 0.12) : hc, 25 + lift, 0.5, weave);
+        E(-0.2, 0, crR, crR * 0.94, (x, y) => {
+          if (LO) return hc;
+          const r = Math.hypot(x + 0.2, y);
+          if (r > crR - (top ? 0.45 : 0.55)) return band;
+          if (cw && Math.abs(y) < 0.25 && x > -1.6 && x < 1.2) return mix(hc, SHD, 0.25);
+          if (hat === 'fedora' && Math.abs(y) < 0.3 && x > -1.7 && x < 1.3) return mix(hc, SHD, 0.4);
+          return hc;
+        }, (top ? 30.5 : 27.6) + lift, top ? 0.6 : bowl ? 2.2 : 1.3, weave);
       }
+      if (hk > 0.15) { const hp = R(2.4, -3.2); P.push({ e: [hp[0], hp[1], 1.0, 0.95], col: skin, h: 32.5, dome: 0.6 }); }   // şapkayı düzelten el
     } else {
-      const f = R(1.9, 0), hh = R(-0.3, 0);
-      P.push({ e: [f[0], f[1], 1.3, 1.9], col: L.mask === 'bandana' ? rgb('#a8281f') : skin, h: 25, dome: 1 });
-      P.push({ e: [hh[0], hh[1], 2.9, 2.9], col: (x, y) => { const q = loc(x, y); return ((Math.floor((q[0] + q[1] * 0.4) * 2.5) % 2) ? shT(hair, 0.12) : hair); }, h: 27, dome: 2.5 });
+      // açık baş: saç arkada ve tepede (tel tel ya da kıvırcık), alın ve burun önde, kulaklar; mendil yüzü örter
+      const curly = hs === 7, fx0 = hs === 9 && !fem ? 0.7 : 1.4, face = (x, y) => x > fx0 + Math.abs(y) * 0.3;
+      const fc = L.mask === 'bandana' ? (x, y) => x > fx0 + 0.7 + Math.abs(y) * 0.3 ? ((Math.floor(x * 2.4) + Math.floor(y * 2.4)) % 3 === 0 ? rgb('#e8d8c0') : RED) : skin : () => skin;
+      if (L.mask === 'bandana') E(3, 0, 1.7, 2.1, RED, 23.8, 0.6);
+      if (curly) for (let i = 0; i < 7; i++) { const a = i / 7 * TAU + 0.45; if (Math.cos(a) < 0.45) E(Math.cos(a) * 2.25 + 0.1, Math.sin(a) * 2.2, 0.95, 0.95, i % 2 ? dk : hair, 24.3, 0.8, curls); }
+      E(0.3, 0, 2.4, 2.3, (x, y) => face(x, y) ? fc(x, y) : hair, 25, 2.2, (x, y) => face(x, y) ? 0 : curly ? curls(x, y) : strands(x, y));
+      if (fem && (hs === 2 || hs === 6)) E(-0.4, 0, hs === 6 ? 1.6 : 1.3, hs === 6 ? 1.6 : 1.3, dk, 26.6, 1, curls);   // tepede topuz
+      if (!(fem && long)) for (const sd of [-1, 1]) E(0.35, sd * 2.35, 0.55, 0.45, skin, 23.6, 0.5);
+      E(2.65, 0, 0.5, 0.48, mix(skin, SHD, 0.1), 25.2, 0.4);   // burun ucu
+      const bd = L.beard | 0, bc = sh(hair, -0.1);
+      if (bd && !L.mask) {
+        if (bd === 1 || bd === 6) E(2.75, 0, 0.35, bd === 6 ? 1.3 : 1.0, bc, 24.9, 0.3);   // bıyık
+        else if (bd === 5) for (const sd of [-1, 1]) E(1.3, sd * 2.1, 0.7, 0.4, bc, 24.4, 0.4);   // favori
+        else E(2.3, 0, 1.0, bd === 3 ? 1.7 : 1.5, bd === 3 ? mix(bc, skin, 0.45) : bc, 23.7, 0.6);   // sakal
+      }
     }
   }
-  /* Kol: omuzdan (sd -1 sol, 1 sağ) ele kapsül, elde ten rengi; h kolun yüksekliği (ağza giden el başın üstünde kalır) */
+  /* Kol: omuzdan (sd -1 sol, 1 sağ) ele kapsül, dirsek verilirse oradan kırılır; elde ten rengi; h kolun yüksekliği
+     (ağza giden el başın üstünde kalır) */
   function armPart(P, coat, skin, sd, hx, hy, h, ex, ey) {
-    if (ex !== undefined) { P.push({ c: [0, sd * 4.2, ex, ey, 1.15], col: coat, h, dome: 1 }); P.push({ c: [ex, ey, hx, hy, 1.1], col: coat, h, dome: 1 }); }
-    else P.push({ c: [0, sd * 4.2, hx, hy, 1.15], col: coat, h, dome: 1 });
-    P.push({ e: [hx, hy, 1.1, 1.1], col: skin, h: h + 0.4, dome: 0.5 });
+    const ac = armCol(coat);
+    if (ex !== undefined) { P.push({ c: [-0.2, sd * 3.7, ex, ey, 1.05], col: ac, h, dome: 1.1, tex: cloth }); P.push({ c: [ex, ey, hx, hy, 1.0], col: ac, h, dome: 1.1, tex: cloth }); }
+    else P.push({ c: [-0.2, sd * 3.7, hx, hy, 1.05], col: ac, h, dome: 1.1, tex: cloth });
+    P.push({ e: [hx, hy, 0.9, 0.86], col: skin, h: h + 0.4, dome: 0.7 });
+  }
+  /* Yanda sarkan kol: omuzdan gövdeye yaslanıp iner, el yanda biraz önde; yürürken adımın tersine salınır */
+  function hangArm(P, coat, skin, sd, sw) {
+    const a = sd * sw * 0.55, hx = 1.1 + a, hy = sd * 3.95;
+    P.push({ c: [-0.4, sd * 3.6, hx, hy, 1.0], col: armCol(coat), h: 18.5, dome: 1.2, tex: cloth });
+    P.push({ e: [hx + 0.75, hy, 0.8, 0.78], col: skin, h: 18.9, dome: 0.7 });
   }
   /* Eklenen parçaları x'te kaydırır (oturan gövdenin omzu biraz önde); renk işlevleri de kayar */
   function shiftParts(P, from, dx) {
@@ -1195,7 +1360,7 @@ const HY = (() => {
     }
   }
   /* Kolu aşağıda sallanan (jestte kullanılmayan) yan */
-  function downArm(P, coat, skin, sd, sw) { P.push({ e: [sd * sw * 0.7, sd * 4.9, 1.8, 1.7], col: coat, h: 17, dome: 2 }); P.push({ e: [sd * sw * 0.7 + 1.2, sd * 5.1, 1, 1], col: skin, h: 17.2, dome: 1 }); }
+  function downArm(P, coat, skin, sd, sw) { hangArm(P, coat, skin, sd, sw); }
   /* Jest kolları ve elindekiler; çizildiyse true (yoksa olağan kollar) */
   function gestureParts(P, st, coat, skin, sw) {
     const f = st.animF, up = 27.5;
@@ -1235,22 +1400,23 @@ const HY = (() => {
   }
   /* Yere yakın duruşlar (klasikteki Spr.humanLow'un eşi): sit (0-1) yerde oturuş, kneel diz çökmüş */
   function lowParts(L, st) {
-    const coat = rgb(L.coat), pants = rgb(L.pants), skin = rgb(L.skin), shirt = rgb(L.shirt), hair = rgb(L.hairNow || L.hair), boot = rgb('#231710'), P = [];
+    const coat = rgb(L.coat), pants = rgb(L.pants), skin = rgb(L.skin), shirt = rgb(L.shirt), hair = rgb(L.hairNow || L.hair), boot = BOOT, P = [];
     if (st.sit !== undefined) {
       const q = clamp01(st.sit), lr = (a, b) => a + (b - a) * q, ch = st.chair && q > 0.8, gs = q > 0.8 && !!st.anim;
       // bankta ya da sandalyede dizler kırık (uyluklar öne, baldırlar aşağıda): oturak yüksekliğinde
       if (ch) for (const sd of [-1, 1]) { P.push({ c: [2.6, sd * 1.55, 6.4, sd * 1.55, 0.95], col: pants, h: 9, dome: 1 }); P.push({ e: [6.9, sd * 1.55, 0.8, 0.95], col: boot, h: 8, dome: 1 }); }
       else for (const sd of [-1, 1]) { P.push({ c: [3.4, sd * 1.5, 8.6, sd * 1.5, 0.95], col: pants, h: 3, dome: 1 }); P.push({ e: [9.1, sd * 1.5, 0.95, 1], col: boot, h: 3.5, dome: 1 }); }
       if (L.coatLen) P.push({ e: [lr(-1, -0.6), 0, lr(5.4, 3.6) + L.coatLen, lr(3.3, 4.6)], col: sh(coat, -0.15), h: lr(3.5, 9), dome: 2 });
-      if (!ch && !gs) for (const sd of [-1, 1]) P.push({ e: [lr(-3.4, -1.6), sd * 4.7, 1.1, 1.1], col: skin, h: 4, dome: 0.5 });
-      P.push({ e: [lr(0, 1), 0, lr(5.5, 3.4), lr(3.2, 5)], col: coat, h: lr(4, 15), dome: lr(2, 4.5) });
-      if (q > 0.55) P.push({ e: [2.6, 0, 1.2, 1.7], col: shirt, h: 15.5, dome: 1 });
+      // eller geride yere dayalı (kollar omuzdan iner)
+      const backArms = () => { for (const sd of [-1, 1]) { P.push({ c: [lr(-0.6, 0.5), sd * 3.4, lr(-3.4, -1.6), sd * 4.7, 0.95], col: armCol(coat), h: lr(4.4, 13.5), dome: 0.9, tex: cloth }); P.push({ e: [lr(-3.4, -1.6), sd * 4.7, 0.9, 0.86], col: skin, h: lr(4.8, 13.9), dome: 0.6 }); } };
+      if (!ch && !gs) backArms();
+      P.push({ e: [lr(0, 1), 0, lr(5.5, 3.1), lr(3.2, 4.5)], col: (x, y) => q > 0.55 && x > 2.1 && Math.abs(y) < 0.75 + (x - 2.1) * 0.4 ? shirt : coat, h: lr(4, 15), dome: lr(2, 4), tex: cloth });
       let gd = false;
       if (gs) { const n0 = P.length; gd = gestureParts(P, st, coat, skin, 0); if (gd) shiftParts(P, n0, 0.9); }
       if (!gd && ch) { armPart(P, coat, skin, -1, 4.6, -2.3, 14); armPart(P, coat, skin, 1, 4.6, 2.3, 14); }   // eller dizlerde
-      else if (!gd && gs) for (const sd of [-1, 1]) P.push({ e: [lr(-3.4, -1.6), sd * 4.7, 1.1, 1.1], col: skin, h: 4, dome: 0.5 });
+      else if (!gd && gs) backArms();
       const hx = lr(-5.5, 0.9);
-      if (q < 0.45) P.push({ e: [hx, 0, 2.6, 2.6], col: L.hat === 'none' ? hair : skin, h: 5, dome: 1.5 });
+      if (q < 0.45) P.push({ e: [hx, 0, 2.3, 2.25], col: (x, y) => x < hx - 0.7 + Math.abs(y) * 0.3 ? hair : skin, h: 5, dome: 1.6 });   // sırtüstü: yüz yukarı
       else headParts(P, L, hx, { head: st.head });
       return P;
     }
@@ -1261,8 +1427,8 @@ const HY = (() => {
       P.push({ e: [3.1, sd * 2.15, 1.3, 1.25], col: sh(pants, 0.1), h: 7, dome: 1 });
     }
     if (L.coatLen) P.push({ e: [-2.6, 0, 2.6 + L.coatLen * 1.2, 4.4], col: sh(coat, -0.15), h: 10, dome: 2.5 });
-    P.push({ e: [-0.4 + lean * 0.5, 0, 3.3, 5], col: coat, h: 16, dome: 4.5 });
-    P.push({ e: [1.4 + lean * 0.5, 0, 1.2, 1.8], col: shirt, h: 16.5, dome: 1 });
+    const tx = -0.4 + lean * 0.5;
+    P.push({ e: [tx, 0, 3.0, 4.5], col: (x, y) => x > tx + 1.2 && Math.abs(y) < 0.75 + (x - tx - 1.2) * 0.4 ? shirt : coat, h: 16, dome: 3.6, tex: cloth });
     if (K === 'work') { const j = st.kneelJ || 0; armPart(P, coat, skin, -1, 6.9 + j, -2, 14, 3.4, -4.3); armPart(P, coat, skin, 1, 6.9 - j, 2, 14, 3.4, 4.3); }
     else if (K === 'look') { armPart(P, coat, skin, -1, 3.2, -2.7, 14); armPart(P, coat, skin, 1, 7.3, 1.3, 14, 3.6, 4.2); }
     else if (K === 'mouth') { const q = clamp01(st.kneelQ || 0), hx = 7 + (4.4 - 7) * q; armPart(P, coat, skin, -1, hx, -0.9, q > 0.5 ? 27.5 : 14, 3, -4.3); armPart(P, coat, skin, 1, hx, 0.9, q > 0.5 ? 27.5 : 14, 3, 4.3); }
@@ -1278,12 +1444,12 @@ const HY = (() => {
     const A = st.act, k = A.k, q = clamp01(A.q);
     if (k === 'bandage' || k === 'rub') {
       if (k === 'bandage') { armPart(P, coat, skin, -1, 4.6, -2.9, 19, 2.4, -4.6); P.push({ e: [3.7, -3.5, 1.2, 0.8], col: rgb('#e8e4d8'), h: 20 }); armPart(P, coat, skin, 1, 3.8, -2.2, 20.5, 2.4, 2.4); }
-      else { P.push({ e: [-sw * 0.7, -4.9, 1.8, 1.7], col: coat, h: 17, dome: 2 }); armPart(P, coat, skin, 1, 1, -3.3, 21, 3, 1.5); }
+      else { hangArm(P, coat, skin, -1, sw); armPart(P, coat, skin, 1, 1, -3.3, 21, 3, 1.5); }
       return;
     }
-    if (st.riding) { P.push({ e: [3.5, -3.3, 1.5, 1.5], col: coat, h: 18, dome: 1 }); P.push({ e: [5, -2.5, 1.1, 1.1], col: skin, h: 18.4 }); }
-    else { P.push({ e: [-sw * 0.7, -4.9, 1.8, 1.7], col: coat, h: 17, dome: 2 }); P.push({ e: [-sw * 0.7 + 1.2, -5.1, 1, 1], col: skin, h: 17.2, dome: 1 }); }
-    const hx = 1.6 + (4.3 - 1.6) * q, hy = 5 + (0.9 - 5) * q, up = q >= 0.4, h = up ? 27.5 : 18;
+    if (st.riding) armPart(P, coat, skin, -1, 4.8, -2.4, 18.6);
+    else hangArm(P, coat, skin, -1, sw);
+    const hx = 1.6 + (4.3 - 1.6) * q, hy = 5 + (0.9 - 5) * q, up = q >= 0.4, h = up ? 27.5 : 18.6;
     armPart(P, coat, skin, 1, hx, hy, h);
     const col = rgb(A.col || '#4a5a3a');
     if (k === 'drink') { if (up) P.push({ c: [hx + 0.2, hy, hx + 3.4, hy, 0.8], col, h: h + 0.5, dome: 0.5 }); else P.push({ e: [hx + 0.4, hy + 0.3, 1.2, 1.2], col, h: h + 0.6 }); }
@@ -1294,8 +1460,7 @@ const HY = (() => {
     else if (k === 'salts') P.push({ e: [hx + 1.1, hy, 0.8, 0.7], col: rgb('#d8e0e8'), h: h + 0.6 });
   }
   function reloadParts(P, L, st, coat, skin) {
-    const R = st.reload, u = st.reloadU || 0, iron = rgb('#2a2a2e'), wood = rgb('#5a3e26');
-    if (st.riding) P.push({ e: [3.5, -3.3, 1.5, 1.5], col: coat, h: 18, dome: 1 });
+    const R = st.reload, u = st.reloadU || 0, iron = IRON, wood = WOOD;
     if (R.wk === 'bow') {
       P.push({ c: [4, -7.2, 6.6, -3.4, 0.6], col: rgb('#6a4a28'), h: 20 }); P.push({ c: [6.6, -3.4, 6.4, 1.4, 0.6], col: rgb('#6a4a28'), h: 20 });
       armPart(P, coat, skin, -1, 6.2, -3.6, 19, 3, -5);
@@ -1317,31 +1482,74 @@ const HY = (() => {
     armPart(P, coat, skin, 1, hx, hy, 21.8, -0.6 + 2.6 * u, 5.6 - 1.6 * u);
     if (u > 0.25 && u < 0.97) P.push({ e: [hx + 0.8, hy, 0.6, 0.4], col: rgb(R.wk === 'shotgun' ? '#a83a2a' : '#c8a040'), h: 22.5 });
   }
+  /* At: göğüs, gövde ve sağrı ayrı kas hatları; boyun başa doğru incelir; başta akıtma, burun delikleri, gözler, sivri
+     kulaklar ve perçem; yele boyun sırtında bir yana düşer, kuyruk sallanır. Eyer: desenli örtü, yan kayışlar, oturak,
+     kaş, arka kaş, üzengi ve dizgin. st: phase/mv adım, saddle, bags heybe, graze otlama, nod baş sallama, tail kuyruk
+     savruluşu (-1..1), rear şahlanma, dead */
+  const tailTex = (lx, ly) => Math.sin(ly * 9 + lx * 1.5) * 0.14, maneTex = (lx) => Math.sin(lx * 7) * 0.16;
   function horseParts(L, st) {
-    const c = rgb(L.col), mane = rgb(L.mane || '#1a1410'), lc = sh(c, -0.35), p = st.phase || 0, m = st.mv, P = [];
-    if (st.dead) { P.push({ e: [0, 0, 10, 5], col: c, h: 6, dome: 3 }); P.push({ e: [11, 2, 4, 2], col: c, h: 5 }); for (let k = 0; k < 4; k++) P.push({ c: [-6 + k * 4, 4, -6 + k * 4, 9, 0.8], col: lc, h: 3 }); return P; }
-    for (const [lx, ly, ph] of [[6, -3.4, 0], [6, 3.4, Math.PI], [-6, -3.4, Math.PI * 0.6], [-6, 3.4, Math.PI * 1.6]]) P.push({ e: [lx + Math.sin(p + ph) * 3.2 * m, ly, 2, 1.3], col: lc, h: 5, dome: 2 });
-    P.push({ c: [-9.5, 0, -15, Math.sin(p) * 1.5 * m, 1.3], col: mane, h: 12, dome: 1 });
-    P.push({ e: [0, 0, 10.5, 4.6], col: (x, y) => y < -1.8 ? shT(c, 0.12) : c, h: 16, dome: 4 });
-    const nk = st.graze ? 2 : 0, hy = st.nod || 0;   // hy: baş sallama (yana)
-    P.push({ e: [8.6, hy * 0.3, 4.2, 2.7], col: c, h: 17, dome: 2 });
-    P.push({ e: [12.8 + nk, hy, 3.6, 2], col: c, h: 16.5 - nk * 3, dome: 1.5 });
-    P.push({ e: [15.4 + nk, hy * 1.2, 1.6, 1.6], col: sh(c, -0.25), h: 16 - nk * 3, dome: 1 });
-    if (L.blaze) P.push({ c: [12 + nk, hy, 16 + nk, hy, 0.5], col: rgb('#f0ece4'), h: 16.8 - nk * 3 });
-    P.push({ c: [4.5, 0, 11, hy * 0.3, 0.9], col: mane, h: 17.5, dome: 0.5 });
-    P.push({ e: [10.3, -1.6, 0.8, 0.6], col: sh(c, -0.2), h: 18 }); P.push({ e: [10.3, 1.6, 0.8, 0.6], col: sh(c, -0.2), h: 18 });
-    if (st.saddle) {
-      P.push({ e: [-0.5, 0, 4.6, 4.8], col: rgb(L.blanket || '#8a2a20'), h: 17, dome: 0.5 }); P.push({ e: [-0.5, 0, 3.6, 3.6], col: (x, y) => Math.hypot(x + 0.5, y) > 3 ? rgb('#3a2412') : rgb('#6a4424'), h: 18.5, dome: 1 });
-      if (st.bags) { P.push({ e: [-5.5, -4.6, 1.6, 1.2], col: rgb('#6a4424'), h: 17.5 }); P.push({ e: [-5.5, 4.6, 1.6, 1.2], col: rgb('#6a4424'), h: 17.5 }); }
+    const col = rgb(L.col), mane = rgb(L.mane || '#1a1410'), pts = mix(col, [0.094, 0.055, 0.04], 0.62), muz = mix(col, [0.14, 0.094, 0.07], 0.5), hoof = rgb('#2a2018');
+    const p = st.phase || 0, m = st.mv || 0, P = [];
+    if (st.dead) {
+      // yan yatmış: bacaklar bir yana uzanır, boyun ve baş yerde
+      for (let k = 0; k < 4; k++) { const x = k < 2 ? 5.4 - k * 1.8 : -4.6 - (k - 2) * 1.8; P.push({ c: [x, 3, x + 1.4, 9.2, 1.0], col: pts, h: 2.4, dome: 0.8 }); P.push({ e: [x + 1.5, 9.7, 0.9, 0.8], col: hoof, h: 2.6, dome: 0.5 }); }
+      P.push({ c: [-10, 0.4, -15.4, 2.2, 1.4], col: mane, h: 4, dome: 1, tex: tailTex });
+      P.push({ e: [-0.6, 0, 9.8, 4.8], col, h: 6, dome: 3 });
+      P.push({ c: [7.4, 0.8, 11.2, 2.2, 2.3], col, h: 5.4, dome: 2 });
+      P.push({ c: [6.4, -0.8, 11.2, 0.6, 0.85], col: mane, h: 6.2, dome: 0.5, tex: maneTex });
+      P.push({ e: [13.4, 2.6, 3.2, 2.0], col: (x) => x > 15 ? muz : col, h: 5, dome: 1.6 });
+      return P;
     }
-    // şahlanma: ön taraf yükselir (üstten bakınca kısalıp genişler), ön ayaklar havada (Klasik'teki dönüşümün aynısı)
+    // bacaklar: yürürken öne arkaya; alt bacaklar koyu, toynaklar (fl: şahlanınca havaya kalkan ön bacak)
+    for (const [x, y, ph] of [[6.1, -3.0, 0], [6.1, 3.0, Math.PI], [-6.4, -3.1, Math.PI * 0.6], [-6.4, 3.1, Math.PI * 1.6]]) {
+      const f = x > 0 ? 1 : -1, o = Math.sin(p + ph) * 3.2 * m, fl = x > 0 ? 1 : 0;
+      P.push({ c: [x, y, x + f * 0.9 + o, y * 1.1, 1.05], col: pts, h: 4, dome: 1, fl });
+      P.push({ e: [x + f * 1.3 + o, y * 1.12, 0.85, 0.8], col: hoof, h: 2.5, dome: 0.5, fl });
+    }
+    // kuyruk: yürürken adımla, dururken ara ara savrulur
+    const ty = Math.sin(p) * 1.5 * m + (st.tail || 0) * 1.4;
+    P.push({ c: [-9.8, 0, -13.8, ty * 0.8, 1.7], col: mane, h: 10.6, dome: 1.4, tex: tailTex });
+    P.push({ c: [-13.8, ty * 0.8, -16.2, ty * 1.7, 1.15], col: mane, h: 9.4, dome: 1.1, tex: tailTex });
+    // kas hatları: sağrı ve omuz gövdeden biraz yüksek (aralarında yumuşak gölge)
+    P.push({ e: [-6.0, 0, 5.0, 4.6], col, h: 11.6, dome: 3.8 });
+    P.push({ e: [-0.4, 0, 7.6, 4.15], col, h: 10.6, dome: 3.6 });
+    P.push({ e: [5.1, 0, 4.1, 4.3], col, h: 11.4, dome: 3.6 });
+    // boyun ve baş: otlarken boyun öne uzanır, baş yere iner; baş sallarken yana
+    const gz = st.graze ? 1 : 0, hy0 = (st.nod || 0) * 1.2, hx0 = 13.8 + gz * 2.4, hh0 = 13.7 - gz * 5;
+    P.push({ c: [6.8, 0, 9.4 + gz * 0.8, hy0 * 0.4, 2.6], col, h: 12.4 - gz * 1.5, dome: 2.4 });
+    P.push({ c: [9.0 + gz * 0.8, hy0 * 0.4, 11.4 + gz * 2, hy0 * 0.75, 2.05], col, h: 12.9 - gz * 3.5, dome: 2.0 });
+    P.push({ e: [hx0, hy0, 3.4, 2.1], col: (x, y) => {
+      const yy = y - hy0, w = 2.1 * Math.sqrt(Math.max(0, 1 - ((x - hx0) / 3.4) ** 2));
+      if (x > hx0 + 2.9 && Math.abs(Math.abs(yy) - 0.6) < 0.3) return HNOSE;   // burun delikleri
+      if (Math.abs(yy) > w - 0.55 && x > hx0 - 1.2 && x < hx0 - 0.2) return HEYE;   // gözler
+      if (L.blaze && Math.abs(yy) < 0.45 && x > hx0 - 1.4 && x < hx0 + 2.5) return HWHITE;   // akıtma
+      return x > hx0 + 1.8 ? muz : col;
+    }, h: hh0, dome: 1.7 });
+    for (const sd of [-1, 1]) P.push({ c: [hx0 - 1.3, hy0 + sd * 1.05, hx0 - 2.5, hy0 + sd * 1.6, 0.62], col: (x) => x < hx0 - 2 ? sh(pts, -0.2) : pts, h: hh0 + 2.5, dome: 0.4 });   // sivri kulaklar
+    P.push({ e: [hx0 - 0.9, hy0, 0.85, 0.7], col: mane, h: hh0 + 1.3, dome: 0.5, tex: tailTex });   // perçem
+    P.push({ c: [6.4, -0.7, 11.8 + gz * 2, hy0 * 0.75 - 0.6, 0.9], col: mane, h: 13.9 - gz * 3, dome: 0.6, tex: maneTex });   // yele bir yana düşer
+    if (st.saddle) {
+      const bl = rgb(L.blanket || '#8a2a20'), cream = rgb('#e6dcc4'), edge = sh(bl, -0.35), lc = rgb('#5a3820'), lh = rgb('#86603a');
+      P.push({ e: [0.3, 0, 4.4, 4.85], col: (x, y) => { const r = Math.hypot((x - 0.3) / 4.4, y / 4.85); return LO ? (r > 0.8 ? cream : bl) : r > 0.88 ? cream : r > 0.78 ? edge : r > 0.7 ? cream : bl; }, h: 11.9, dome: 0.7 });   // desenli örtü
+      for (const sd of [-1, 1]) P.push({ e: [0.5, sd * 3.15, 2.3, 1.35], col: sh(lc, -0.12), h: 12.3, dome: 0.6 });   // yan kayışlar
+      P.push({ e: [0.4, 0, 3.0, 2.6], col: (x, y) => Math.hypot((x - 0.4) / 3.0, y / 2.6) < 0.62 ? lh : lc, h: 12.9, dome: 1.0 });   // oturak
+      P.push({ e: [3.3, 0, 0.8, 0.75], col: lh, h: 14.2, dome: 0.6 });   // eyer kaşı
+      P.push({ c: [-1.9, -1.8, -1.9, 1.8, 0.75], col: lc, h: 13.7, dome: 0.5 });   // arka kaş
+      for (const sd of [-1, 1]) P.push({ e: [0.6, sd * 4.7, 0.65, 0.48], col: rgb('#3a2a1c'), h: 10, dome: 0.4 });   // üzengi
+      if (!LO) for (const sd of [-1, 1]) P.push({ c: [hx0 + 0.8, hy0 + sd * 1.55, 3.4, sd * 0.4, 0.28], col: rgb('#2a1c12'), h: 14.6 });   // dizgin
+      if (st.bags) for (const sd of [-1, 1]) P.push({ e: [-4.6, sd * 4.5, 1.7, 1.2], col: (x) => x > -4.3 ? rgb('#7a5430') : rgb('#6a4424'), h: 12.6, dome: 0.8 });   // heybe
+    }
+    // şahlanma: ön taraf yükselir (üstten bakınca kısalıp genişler), ön ayaklar havada
     const rk = st.rear || 0;
     if (rk) {
       const sx = 1 + 0.08 * rk, sy = 1 + 0.2 * rk, T = (x, y) => [(x + 9 + 2 * rk) * sx - 9, y * sy];
       for (const q of P) {
-        if (q.e) { const leg = q.h === 5 && q.e[0] > 2; const a = T(q.e[0] + (leg ? rk * 2.5 : 0), q.e[1]); q.e = [a[0], a[1], q.e[2] * sx, q.e[3] * sy]; if (leg) q.h = 8; }
-        else { const a = T(q.c[0], q.c[1]), b = T(q.c[2], q.c[3]); q.c = [a[0], a[1], b[0], b[1], q.c[4] * (sx + sy) / 2]; }
+        const lf = q.fl ? rk * 2.5 : 0;
+        if (q.e) { const a = T(q.e[0] + lf, q.e[1]); q.e = [a[0], a[1], q.e[2] * sx, q.e[3] * sy]; }
+        else { const a = T(q.c[0] + lf, q.c[1]), b = T(q.c[2] + lf, q.c[3]); q.c = [a[0], a[1], b[0], b[1], q.c[4] * (sx + sy) / 2]; }
+        if (q.fl) q.h += 6;
         if (typeof q.col === 'function') { const f = q.col; q.col = (x, y) => f((x + 9) / sx - 9 - 2 * rk, y / sy); }
+        if (q.tex) { const f = q.tex; q.tex = (x, y) => f((x + 9) / sx - 9 - 2 * rk, y / sy); }
       }
     }
     return P;
@@ -1360,15 +1568,17 @@ const HY = (() => {
     if (d.tail || !d.bear) P.push({ c: [-Ln * 0.48, 0, -Ln * (d.tail ? 0.85 : 0.6), Math.sin(p) * m, Math.max(0.5, Wd * 0.12)], col: c, h: Wd + 3 });
     return P;
   }
-  // önbellek: görünüm nesnesi → (açı/adım/duruş anahtarı → sprite)
+  // önbellek: görünüm nesnesi → (tür, yoğunluk, açı, adım ve duruş anahtarı → sprite)
   const SPR = new Map();
   let sprCount = 0, sprTick = 0;
-  function cached(owner, kind, ang, key, mk) {
+  // LO: parçalar düşük yoğunluk (Klasik, 1x) için kuruluyor: piksel altı ayrıntılar (şapka bandı, hasır örgüsü, eyer
+  // örtüsünün iç halkaları, dizgin) dağınık noktalara dönüşeceği için çizilmez
+  function cached(owner, kind, ang, key, mk, dens = S) {
     let m = SPR.get(owner); if (!m) { m = new Map(); SPR.set(owner, m); }
     m.t = sprTick;
-    const ab = Math.round(((ang % TAU) + TAU) % TAU / TAU * 32) % 32, k = kind + ab + key;
+    const ab = Math.round(((ang % TAU) + TAU) % TAU / TAU * 32) % 32, k = kind + dens + ':' + ab + key;
     let s = m.get(k);
-    if (!s) { if (sprCount > 6000) sprTrim(); s = sprite(mk(), ab / 32 * TAU); m.set(k, s); sprCount++; }
+    if (!s) { if (sprCount > 6000) sprTrim(); LO = dens < 2; s = sprite(mk(), ab / 32 * TAU, dens, kind === 'h' ? 2.2 : 1.4); LO = false; m.set(k, s); sprCount++; }
     return s;
   }
   /* Sınır aşılınca en uzun süredir çizilmeyen görünümlerin sprite'ları atılır. Eskiden hepsi birden atılıyordu: ekrandaki
@@ -1379,6 +1589,72 @@ const HY = (() => {
   }
   const walkKey = (phase, mv) => mv < 0.08 ? 'i' : 'w' + (Math.round(((phase % TAU) + TAU) % TAU / TAU * 8) % 8) + (mv > 0.6 ? 'f' : 's');
   const phaseOf = (key) => key[0] === 'i' ? 0 : (+key[1]) / 8 * TAU;
+
+  /* ---------------- canlı çizimi (Melez ve Klasik ortak) ----------------
+     Melez kendi tuvaline dünya pikseli başına 2 pikselle (S), Klasik 1 pikselle çizer: aynı parçalar, aynı gölgelendirme.
+     Klasik'te sprite kameraya göre tam piksele oturur (zeminle aynı ızgara: kayarken titremez). */
+  function blitS(ctx, s, x, y, sc) {
+    const d = s.d, w = s.c.width / d, h = s.c.height / d;
+    if (sc !== 1) { ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.drawImage(s.c, -s.h / d, -s.h / d, w, h); ctx.restore(); return; }
+    let X = x - s.h / d, Y = y - s.h / d;
+    if (d === 1 && typeof G !== 'undefined' && G.cam) { X = Math.round(X - G.cam.ox) + G.cam.ox; Y = Math.round(Y - G.cam.oy) + G.cam.oy; }
+    ctx.drawImage(s.c, X, Y, w, h);
+  }
+  /* İnsan: st duruş (yürüyüş, nişan, binicilik, jest, doldurma, yeme-içme, oturma, diz çökme, yatış...), z yerden yükseklik
+     (sıçrama, düşüş), sc ölçek (çocuk) */
+  function drawHuman(ctx, x, y, ang, L, st, z = 0, sc = 1, dens = S) {
+    const wk = st.walkKey || walkKey(st.walk || 0, Math.min(1, st.mv || 0));
+    let key = wk + (st.aim && st.wk ? 'a' + st.wk : '') + (st.riding ? 'r' : '') + (st.lying ? 'l' + (st.tied ? 't' : '') : '') + (st.hasGun ? 'g' : '') + (st.backGun ? 'b' : '') + (st.hold || '') + (st.swing > 0.2 ? 's' : '');
+    // yeni duruşlar birkaç kareye nicemlenir (her kare ayrı önbellek sprite'ı)
+    const ex = {};
+    if (st.sit !== undefined) { const qs = st.sit < 0.3 ? 0.15 : st.sit < 0.65 ? 0.5 : 0.9; ex.sit = qs; key += 'S' + qs + (st.chair && qs > 0.8 ? 'h' : ''); }
+    if (st.sleep !== undefined) { const b = st.sleep > 0 ? 1 : 0; ex.sleep = b; key += 'z' + b + (st.blanket || ''); }
+    if (st.kneel) {
+      key += 'K' + st.kneel;
+      if (st.kneel === 'work') { const j = Math.sin((st.kneelT || 0) * 9) > 0 ? 0.9 : -0.9; ex.kneelJ = j; key += j > 0 ? 1 : 0; }
+      if (st.kneel === 'mouth') { const qm = (st.kneelQ || 0) < 0.33 ? 0 : (st.kneelQ || 0) < 0.67 ? 0.5 : 1; ex.kneelQ = qm; key += qm; }
+    }
+    if (st.act) { const A = st.act, qa = A.q < 0.33 ? 0 : A.q < 0.67 ? 0.5 : 1; ex.act = { k: A.k, q: qa, col: A.col }; key += 'E' + A.k + qa + (A.col || ''); }
+    if (st.reload) { const R = st.reload, uu = 0.5 - 0.5 * Math.cos(clamp01(R.q) * (R.n || 1) * TAU), ul = uu < 0.33 ? 0 : uu < 0.67 ? 0.5 : 1; ex.reloadU = ul; key += 'R' + R.wk + ul; }
+    // jestler, şapka düzeltme/selam, baş çevirme, baston, bıçak, yay kirişi
+    if (st.anim && GEST.has(st.anim) && !st.hold && !st.aim && !st.riding) { const gf = gestFrame(st.anim, st.animT || 0); ex.animF = gf; key += 'G' + st.anim + gf; }
+    else ex.anim = null;   // jest çizilmeyecekse önbellek anahtarı da ayrılmasın
+    { const hk = (st.hatK || 0) <= 0.15 ? 0 : st.hatK < 0.6 ? 0.5 : 1; ex.hatK = hk; if (hk) key += 'T' + hk; }
+    { const hr = st.head ? Math.round(clamp(st.head, -1.2, 1.2) / 0.3) * 0.3 : 0; ex.head = hr; if (hr) key += 'D' + hr.toFixed(1); }
+    if (st.gait === 'cane') key += 'C';
+    if (st.wk === 'knife' && (st.aim || st.swing > 0.2)) key += 'n';
+    if (st.aim && (st.wk === 'throw' || st.wk === 'lasso') && st.swing > 0) { const k = 1 - clamp01(st.swing), q = k < 0.33 ? 0.15 : k < 0.67 ? 0.5 : 0.9; ex.thr = q; key += 'Q' + q; }
+    if (st.aim && st.wk === 'bow') { const dl = (st.draw || 0) < 0.33 ? 0 : st.draw < 0.67 ? 0.5 : 1; ex.draw = dl; key += 'W' + dl; }
+    // yürürken omuz salınımı (sarhoş sendeler, çocuk seker), gülerken gövde sarsılır, çömelen küçülür: çizimde
+    const mvk = st.riding || st.lying || st.sit !== undefined || st.kneel ? 0 : Math.min(1, st.mv || 0);
+    if (mvk > 0.05) {
+      const ph = st.walk || 0, gs = st.gait;
+      ang += Math.sin(ph) * 0.06 * mvk * (gs === 'drunk' ? 3.5 : gs === 'kid' ? 1.5 : gs === 'cane' ? 1.4 : 1);
+      if (gs === 'kid') sc *= 1 + Math.abs(Math.sin(ph)) * 0.06 * mvk;
+      else if (gs === 'drunk') { const o = Math.sin(ph * 0.5) * 1.3 * mvk; x -= Math.sin(ang) * o; y += Math.cos(ang) * o; }
+    }
+    if (st.anim === 'laugh') sc *= 1 + Math.abs(Math.sin((st.animT || 0) * 16)) * 0.05;
+    if (st.crouch && !st.riding && !st.lying && st.sit === undefined && !st.kneel) sc *= 0.88;
+    const s = cached(L, 'h', ang, key, () => humanParts(L, Object.assign({}, st, { walk: phaseOf(wk), mv: wk[0] === 'i' ? 0 : wk[2] === 'f' ? 1 : 0.5, swing: st.swing > 0.2 ? 1 : 0 }, ex)), dens);
+    blitS(ctx, s, x, y - z, sc);
+  }
+  // atın görünümü içerikle tekilleşir: her karede yeni nesneyle çizilen atlar (araba atı, yabani at) önbelleği şişirmez,
+  // aynı renkteki atlar sprite'larını paylaşır; tp: dururken kuyruk savurmanın evresi
+  const HLK = new Map();
+  function horseOwner(L) {
+    const k = L.col + '|' + (L.mane || '') + '|' + (L.blaze ? 1 : 0) + '|' + (L.blanket || '');
+    let o = HLK.get(k);
+    if (!o) { let h = 0; for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0; o = { col: L.col, mane: L.mane, blaze: L.blaze, blanket: L.blanket, tp: (h >>> 0) % 1000 / 100 }; HLK.set(k, o); }
+    return o;
+  }
+  function drawHorse(ctx, x, y, ang, L, st, dens = S) {
+    const O = horseOwner(L), wk = walkKey(st.phase || 0, Math.min(1, st.mv || 0));
+    const rq = !st.rear ? 0 : st.rear < 0.35 ? 0.3 : st.rear < 0.7 ? 0.65 : 1, nq = st.nod ? Math.round(clamp(st.nod, -1.6, 1.6) / 0.8) * 0.8 : 0;
+    let tw = 0;
+    if (wk === 'i' && !st.dead && !rq && typeof G !== 'undefined') { const q = Math.sin(G.t * 1.3 + O.tp * 7) * Math.sin(G.t * 0.37 + O.tp); tw = q > 0.45 ? 1 : q < -0.45 ? -1 : 0; }
+    const key = wk + (st.saddle ? 's' : '') + (st.bags ? 'b' : '') + (st.graze ? 'g' : '') + (st.dead ? 'd' : '') + (rq ? 'R' + rq : '') + (nq ? 'N' + nq.toFixed(1) : '') + (tw ? 'T' + tw : '');
+    blitS(ctx, cached(O, 'H', ang, key, () => horseParts(O, Object.assign({}, st, { phase: phaseOf(wk), mv: wk[0] === 'i' ? 0 : wk[2] === 'f' ? 1 : 0.5, rear: rq, nod: nq, tail: tw })), dens), x, y, 1);
+  }
 
   /* ---------------- WebGL ışık geçişi ---------------- */
   const NL = 16, NW = 8, NTN = 14;   // NTN: son geçişte uygulanan renk tonu sayısı (FX.tints)
@@ -1783,10 +2059,11 @@ const HY = (() => {
     if (gd) { FX.drawGround(fc); Juice.drawGround(fc, x0, y0, x1, y1); }
     const fires = [], tile = W.tile, obj = W.obj, day = G.day, t = G.t, amb = !!G.settings.ambient;
     const tx0 = Math.max(0, (x0 >> 4) - 1), ty0 = Math.max(0, (y0 >> 4) - 1), tx1 = Math.min(WW - 1, (x1 >> 4) + 1), ty1 = Math.min(WH - 1, (y1 >> 4) + 1);
+    // kıyı köpüğü, ışık ağları, dalga çizgileri (parçanın pişirme verisi)
+    if (gd) for (let cy = Math.floor(y0 / HC); cy <= Math.floor(y1 / HC); cy++) for (let cx = Math.floor(x0 / HC); cx <= Math.floor(x1 / HC); cx++) { const c = chunks.get(cy * 1024 + cx); if (c && c.w) FX.water(fc, c.w, t, x0, y0, x1, y1, amb); }
     for (let ty = ty0; ty <= ty1; ty++) {
       const row = ty * WW;
       for (let tx = tx0; tx <= tx1; tx++) {
-        if (gd && tile[row + tx] === T.WATER) { FX.foam(fc, tx, ty, t); if (amb) Juice.water(fc, tx, ty, t); }
         const o = obj[row + tx];
         if (!o) continue;
         if (o >= 20 && o <= 28) {
@@ -1816,48 +2093,8 @@ const HY = (() => {
     vis2.sort((a, b) => (a.y + flat(a)) - (b.y + flat(b)));
     const shk = (S0.day ? 1 : 0.35) * (G.insideB ? 0.4 : 1);
     const blit = (s, x, y) => fc.drawImage(s.c, x - s.h / S, y - s.h / S, s.c.width / S, s.c.height / S);
-    const human = (x, y, ang, L, st, owner, z = 0, sc = 1) => {
-      const wk = st.walkKey || walkKey(st.walk || 0, Math.min(1, st.mv || 0));
-      let key = wk + (st.aim && st.wk ? 'a' + st.wk : '') + (st.riding ? 'r' : '') + (st.crouch ? 'c' : '') + (st.lying ? 'l' + (st.tied ? 't' : '') : '') + (st.hasGun ? 'g' : '') + (st.backGun ? 'b' : '') + (st.hold || '') + (st.swing > 0.2 ? 's' : '');
-      // yeni duruşlar birkaç kareye nicemlenir (her kare ayrı önbellek sprite'ı)
-      const ex = {};
-      if (st.sit !== undefined) { const qs = st.sit < 0.3 ? 0.15 : st.sit < 0.65 ? 0.5 : 0.9; ex.sit = qs; key += 'S' + qs + (st.chair && qs > 0.8 ? 'h' : ''); }
-      if (st.sleep !== undefined) { const b = st.sleep > 0 ? 1 : 0; ex.sleep = b; key += 'z' + b + (st.blanket || ''); }
-      if (st.kneel) {
-        key += 'K' + st.kneel;
-        if (st.kneel === 'work') { const j = Math.sin((st.kneelT || 0) * 9) > 0 ? 0.9 : -0.9; ex.kneelJ = j; key += j > 0 ? 1 : 0; }
-        if (st.kneel === 'mouth') { const qm = (st.kneelQ || 0) < 0.33 ? 0 : (st.kneelQ || 0) < 0.67 ? 0.5 : 1; ex.kneelQ = qm; key += qm; }
-      }
-      if (st.act) { const A = st.act, qa = A.q < 0.33 ? 0 : A.q < 0.67 ? 0.5 : 1; ex.act = { k: A.k, q: qa, col: A.col }; key += 'E' + A.k + qa + (A.col || ''); }
-      if (st.reload) { const R = st.reload, uu = 0.5 - 0.5 * Math.cos(clamp01(R.q) * (R.n || 1) * TAU), ul = uu < 0.33 ? 0 : uu < 0.67 ? 0.5 : 1; ex.reloadU = ul; key += 'R' + R.wk + ul; }
-      // Klasik'teki jestler, şapka düzeltme/selam, baş çevirme, baston, bıçak, yay kirişi
-      if (st.anim && GEST.has(st.anim) && !st.hold && !st.aim && !st.riding) { const gf = gestFrame(st.anim, st.animT || 0); ex.animF = gf; key += 'G' + st.anim + gf; }
-      else ex.anim = null;   // jest çizilmeyecekse önbellek anahtarı da ayrılmasın
-      { const hk = (st.hatK || 0) <= 0.15 ? 0 : st.hatK < 0.6 ? 0.5 : 1; ex.hatK = hk; if (hk) key += 'T' + hk; }
-      { const hr = st.head ? Math.round(clamp(st.head, -1.2, 1.2) / 0.3) * 0.3 : 0; ex.head = hr; if (hr) key += 'D' + hr.toFixed(1); }
-      if (st.gait === 'cane') key += 'C';
-      if (st.wk === 'knife' && (st.aim || st.swing > 0.2)) key += 'n';
-      if (st.aim && (st.wk === 'throw' || st.wk === 'lasso') && st.swing > 0) { const k = 1 - clamp01(st.swing), q = k < 0.33 ? 0.15 : k < 0.67 ? 0.5 : 0.9; ex.thr = q; key += 'Q' + q; }
-      if (st.aim && st.wk === 'bow') { const dl = (st.draw || 0) < 0.33 ? 0 : st.draw < 0.67 ? 0.5 : 1; ex.draw = dl; key += 'W' + dl; }
-      // yürürken omuz salınımı (sarhoş sendeler, çocuk seker), gülerken gövde sarsılır: çizimde
-      const mvk = st.riding || st.lying || st.sit !== undefined || st.kneel ? 0 : Math.min(1, st.mv || 0);
-      if (mvk > 0.05) {
-        const ph = st.walk || 0, gs = st.gait;
-        ang += Math.sin(ph) * 0.06 * mvk * (gs === 'drunk' ? 3.5 : gs === 'kid' ? 1.5 : gs === 'cane' ? 1.4 : 1);
-        if (gs === 'kid') sc *= 1 + Math.abs(Math.sin(ph)) * 0.06 * mvk;
-        else if (gs === 'drunk') { const o = Math.sin(ph * 0.5) * 1.3 * mvk; x -= Math.sin(ang) * o; y += Math.cos(ang) * o; }
-      }
-      if (st.anim === 'laugh') sc *= 1 + Math.abs(Math.sin((st.animT || 0) * 16)) * 0.05;
-      const s = cached(L, 'h', ang, key, () => humanParts(L, Object.assign({}, st, { walk: phaseOf(wk), mv: wk[0] === 'i' ? 0 : wk[2] === 'f' ? 1 : 0.5, swing: st.swing > 0.2 ? 1 : 0 }, ex)));
-      if (sc !== 1) { fc.save(); fc.translate(x, y - z); fc.scale(sc, sc); fc.drawImage(s.c, -s.h / S, -s.h / S, s.c.width / S, s.c.height / S); fc.restore(); }
-      else blit(s, x, y - z);
-    };
-    const horse = (x, y, ang, L, st) => {
-      const wk = walkKey(st.phase || 0, Math.min(1, st.mv || 0));
-      const rq = !st.rear ? 0 : st.rear < 0.35 ? 0.3 : st.rear < 0.7 ? 0.65 : 1, nq = st.nod ? Math.round(clamp(st.nod, -1.6, 1.6) / 0.8) * 0.8 : 0;
-      const key = wk + (st.saddle ? 's' : '') + (st.bags ? 'b' : '') + (st.graze ? 'g' : '') + (st.dead ? 'd' : '') + (rq ? 'R' + rq : '') + (nq ? 'N' + nq.toFixed(1) : '');
-      blit(cached(L, 'H', ang, key, () => horseParts(L, Object.assign({}, st, { phase: phaseOf(wk), mv: wk[0] === 'i' ? 0 : wk[2] === 'f' ? 1 : 0.5, rear: rq, nod: nq }))), x, y);
-    };
+    const human = (x, y, ang, L, st, owner, z = 0, sc = 1) => drawHuman(fc, x, y, ang, L, st, z, sc, S);
+    const horse = (x, y, ang, L, st) => drawHorse(fc, x, y, ang, L, st, S);
     // eyerin arkasına yüklenmiş cesetler, leşler ve postlar (Klasik'teki Horse.draw gibi)
     const horseLoad = (h) => {
       if (!h.load || !h.load.length || h.dead) return;
@@ -2147,6 +2384,8 @@ const HY = (() => {
 
   return {
     render, stat, reset, flush: (W) => flush(W || world),
+    // canlı sprite'ları Klasik çizici de kullanır (Spr.human / Spr.horse, yoğunluk 1); beat: Klasik'in her karesi (önbellek yaşı)
+    drawHuman, drawHorse, beat() { sprTick++; },
     // testler için: bir noktanın parçasını ve bir binanın örtüsünü hemen pişir; bekleyen işleri yürüt, örtü sırada mı
     _bake(W, x, y) { return chunk(W, Math.floor(x / HC), Math.floor(y / HC), true); }, _cover(b, W) { return cover(b, W); },
     _jobs(ms) { runJobs(ms, queue(-1e9, -1e9, 1e9, 1e9)); return { chunks: jobs.size, covers: coverJobs.size }; }, _coverQueued(b) { return coverJobs.has(b); },
