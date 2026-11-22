@@ -1123,6 +1123,9 @@ const HY = (() => {
         const tip = 6.2 + Math.max(0, sw) * 0.6;
         P.push({ e: [1.6, 4.9, 1.6, 1.6], col: coat, h: 17, dome: 2 }); P.push({ e: [3, 5.2, 1, 1], col: skin, h: 17.4 });
         P.push({ c: [3, 5.2, tip, 6.2, 0.45], col: rgb('#4a3220'), h: 9 });
+      } else if (st.hold === 'rod') {
+        // olta: iki eli önde, sap sağ elde (kamış ve misina dünyada, Juice.fishDraw)
+        armPart(P, coat, skin, -1, 4.6, -0.6, 18); armPart(P, coat, skin, 1, 5.8, 1.4, 18);
       } else {
         P.push({ e: [-sw * 0.7, -4.9, 1.8, 1.7], col: coat, h: 17, dome: 2 }); P.push({ e: [sw * 0.7 + swg * 4, 4.9 - swg * 2, 1.8, 1.7], col: coat, h: 17, dome: 2 });
         P.push({ e: [-sw * 0.7 + 1.2, -5.1, 1, 1], col: skin, h: 17.2, dome: 1 }); P.push({ e: [sw * 0.7 + 1.2 + swg * 4, 5.1 - swg * 2, 1, 1], col: skin, h: 17.2, dome: 1 });
@@ -1885,10 +1888,11 @@ const HY = (() => {
         creatureShadow(fc, P.x, P.y, 2.8, 2.4, kn ? 14 : 22, sd, shk);
         if (kn) { human(P.x, P.y, kn.ang, P.lookNow(), kn.st, P); continue; }   // yer işinde diz çökmüş
         const hv = P.heave, Y = P.yank, yk = Y ? Player.yankArm(Math.min(1, Y.t / Y.dur)) : 0, fo = Juice.flinchOff(P), rl = !Y && P.reloadPose();   // öğürürken gövde öne kasılır; atlıyı çekerken uzanıp asılır
-        const ak = Y ? 'fists' : P.aimKind(), thr = ak === 'throw' || ak === 'lasso', aim = Y ? true : !rl && (P.aiming || P.swing > (thr ? 0 : 0.2));
+        const ak = Y ? 'fists' : P.aimKind(), thr = ak === 'throw' || ak === 'lasso', aim = Y ? true : !rl && (P.aiming || P.swing > (thr ? 0 : 0.2)), fish = G.fishing && !P.carry;
         const bx = P.x + Math.cos(P.ang) * hv + (fo ? fo[0] : 0), by = P.y + Math.sin(P.ang) * hv + (fo ? fo[1] : 0), ba = P.ang + (fo ? fo[2] : 0);
-        human(bx, by, ba, P.lookNow(), { reload: rl || null, act: !Y && !rl ? P.act : null, walk: P.phase, mv: Math.min(1, P.mv), aim, wk: ak, crouch: P.crouch || P.retchT > 0, swing: Y ? yk : P.swing, draw: P.draw_, head: P.idleA || 0, hatK: P.hatK || 0, hasGun: P.weapons.has('cattleman') || P.weapons.has('schofield'), backGun: P.weapons.has('repeater') || P.weapons.has('winchester') || P.weapons.has('rifle') || P.weapons.has('shotgun') }, P);
+        human(bx, by, ba, P.lookNow(), { reload: rl || null, act: !Y && !rl ? P.act : null, walk: P.phase, mv: Math.min(1, P.mv), aim, wk: ak, crouch: P.crouch || P.retchT > 0, swing: Y ? yk : P.swing, draw: P.draw_, head: P.idleA || 0, hatK: P.hatK || 0, hold: fish ? 'rod' : null, hasGun: P.weapons.has('cattleman') || P.weapons.has('schofield'), backGun: P.weapons.has('repeater') || P.weapons.has('winchester') || P.weapons.has('rifle') || P.weapons.has('shotgun') }, P);
         if (thr && aim && !P.carry) Juice.throwOver(fc, bx, by, ba, ak, P.swing);   // dönen ilmek, yanan fitil
+        if (fish) Juice.fishDraw(fc, P, G.fishing);   // kamış, misina, şamandıra
         if (P.carry) Spr.carried(fc, P.carry, P.x - Math.cos(P.ang) * 0.8, P.y - Math.sin(P.ang) * 0.8, P.ang + Math.PI / 2, P.carry.kind === 'pelt' ? 0.9 : 0.8);
         continue;
       }

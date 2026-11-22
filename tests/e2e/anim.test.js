@@ -307,5 +307,45 @@ module.exports = {
       t.ok(r.h0 === r.hl && r.hl > 0 && r.hl < 1, 'kaldırırken bırakılan o yükseklikten iner', r);
       t.ok(!r.silent, 'sessiz bırakmada (bayılma) animasyon yok');
     });
+
+    await t.step('balık tutarken dünyada olta: suya döner, şamandıra atış noktasında; panel kapanınca biter (iki çizici)', async () => {
+      await setup();
+      const r = await p.evaluate(async () => {
+        const W = G.world, P = G.player, tw = W.towns[0];
+        const wet = (x, y) => { const q = W.tileAtPx(x, y); return q === T.WATER || q === T.DEEP; };
+        // kasabaya yakın kıyı: doğusunda üç karo su
+        let best = null;
+        for (let rr = 2; rr < 200 && !best; rr++) for (let dy = -rr; dy <= rr && !best; dy++) for (let dx = -rr; dx <= rr && !best; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== rr) continue;
+          const x = (tw.cx / TS | 0) + dx, y = (tw.cy / TS | 0) + dy;
+          if (!W.inb(x, y) || wet(x * TS + 8, y * TS + 8) || W.blocked(x * TS + 8, y * TS + 8, 4)) continue;
+          if (wet(x * TS + 24, y * TS + 8) && wet(x * TS + 40, y * TS + 8) && wet(x * TS + 56, y * TS + 8)) best = [x * TS + 8, y * TS + 8];
+        }
+        if (!best) return { none: true };
+        TH.goto(best[0], best[1]); P.ang = Math.PI; P.addItem('fishing_rod', 1);
+        UI.startFishing();
+        const F = G.fishing, open = !!F, faced = wet(P.x + Math.cos(P.ang) * 24, P.y + Math.sin(P.ang) * 24);
+        const errs = []; const on = (e) => errs.push(e.message); window.addEventListener('error', on);
+        const m = UI.top(), up = m.update; m.update = () => {};   // aşamalar elle
+        for (const g of [1, 0]) {
+          if (!g) window.__hySoft = true; G.settings.gfx = g; G.applySettings();
+          for (const o of [{ phase: 'cast', power: 0.6 }, { phase: 'wait', power: 0.6 }, { phase: 'bite' }, { phase: 'reel', tension: 0.8, dist: 0.5 }, { phase: 'end', dist: 0, tension: 0.3, fish: 'fish_trout' }]) {
+            Object.assign(F.st, o); Juice.fishTick(F, 0.2);
+            await new Promise(q => requestAnimationFrame(() => requestAnimationFrame(q)));
+          }
+        }
+        window.removeEventListener('error', on); m.update = up;
+        const caught = F.caught;
+        UI.closeAll();
+        G.settings.gfx = 1; G.applySettings();
+        return { open, faced, errs, caught, closed: G.fishing == null, dist: Juice.fishDist(1) };
+      });
+      if (r.none) { t.ok(true, 'bu dünyada kasabaya yakın kıyı yok (atlandı)'); return; }
+      t.ok(r.open && r.faced, 'panel açılınca oyuncu suya döner', r);
+      t.ok(r.caught, 'tutulan balık misinanın ucunda (çizim durumu)');
+      t.eq(r.errs, [], 'Klasik ve Melez çizimde hata yok');
+      t.ok(r.closed, 'panel kapanınca olta kalkar');
+      t.eq(r.dist, 40, 'en uzun atış 40 piksel (sıçrama da orada)');
+    });
   },
 };

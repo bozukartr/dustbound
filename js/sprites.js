@@ -2276,6 +2276,11 @@ const Spr = {
       ctx.fillStyle = '#9a6e40'; ctx.fillRect(3.8, -3.2, 4.6, 6.4);
       ctx.fillStyle = '#6a4626'; ctx.fillRect(3.8, -0.4, 4.6, 0.8); ctx.fillRect(5.8, -3.2, 0.7, 6.4);
       this.circ(ctx, 3.6, -3.8, 1, look.skin); this.circ(ctx, 3.6, 3.8, 1, look.skin);
+    } else if (st.hold === 'rod') {
+      // olta: iki eli önde, sap sağ elde (kamış ve misina dünyada ayrı çizilir)
+      ctx.strokeStyle = look.coat; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, -4.2); ctx.lineTo(4.4, -0.6); ctx.moveTo(0, 4.2); ctx.lineTo(5.6, 1.4); ctx.stroke(); ctx.lineCap = 'butt';
+      this.circ(ctx, 4.6, -0.6, 1.1, look.skin); this.circ(ctx, 5.8, 1.4, 1.1, look.skin);
     } else if (st.anim && this.gesture(ctx, look, st, sw, 0)) {
       // jest çizildi
     } else if (gs === 'cane' && !st.hold) {

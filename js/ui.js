@@ -3453,14 +3453,18 @@ const UI = {
       else body = `<div class="f-msg big">${st.msg}</div><div class="f-msg">${Tr`${Input.glyph('confirm')} Tekrar &nbsp; ${Input.glyph('back')} Bitir`}</div>`;
       el.innerHTML = `<div class="f-inner"><div class="p-title">${Tr`Balık Tutma`}</div>${body}<div class="p-foot">${Tr`${Input.glyph('back')} Bırak`}</div></div>`;
     };
-    const m = this.makeModal(el, { customInput: true, transparent: true });
+    // dünyada olta (js/juice.js fishDraw): oyuncu suya döner; panel kapanınca biter
+    G.fishing = { st, vt: 0, ph: st.phase, p0: 0, caught: false };
+    if (!P.riding) Juice.fishFace(P);
+    const m = this.makeModal(el, { customInput: true, transparent: true, onClose: () => { G.fishing = null; } });
     m.update = (dt) => {
       const I = Input;
+      if (G.fishing) Juice.fishTick(G.fishing, dt);
       if (m.born >= this.frame - 1) return;
       if (I.pressed('back')) { this.pop(m); return; }
       if (st.phase === 'cast') {
         if (I.down('confirm')) st.power = Math.min(1, st.power + dt * 1.2);
-        if (I.released('confirm') && st.power > 0.1) { st.phase = 'wait'; st.t = 0; Audio_.tone(900, 0.2, 'sine', 0.05, null, 0, 400); G.parts.add('splash', P.x + Math.cos(P.ang) * 30 * st.power, P.y + Math.sin(P.ang) * 30 * st.power, 0, 0, 0.8, 5); }
+        if (I.released('confirm') && st.power > 0.1) { st.phase = 'wait'; st.t = 0; Audio_.tone(900, 0.2, 'sine', 0.05, null, 0, 400); G.parts.add('splash', P.x + Math.cos(P.ang) * Juice.fishDist(st.power), P.y + Math.sin(P.ang) * Juice.fishDist(st.power), 0, 0, 0.8, 5); }
       } else if (st.phase === 'wait') {
         st.t += dt;
         G.advanceClock(dt * MIN_PER_SEC * 3);

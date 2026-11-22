@@ -195,6 +195,92 @@ const Juice = {
     Spr.carried(ctx, e, x, y, ga + angDiff(ga, ta) * h, 1 + ((e.kind === 'pelt' ? 0.9 : 0.8) - 1) * h);
   },
 
+  /* ================= balık tutarken olta =================
+     Balık tutma paneli açıkken dünyada: oyuncu suya döner, oltayı iki eliyle tutar. Atış için gerilirken kamış geriye
+     kalkar, bırakınca öne savrulur, şamandıra yay çizip suya iner; bekleyişte halkalarla yüzer, vurunca batıp çıkar,
+     sararken kamış gerginlikle eğilir ve şamandıra köpük izi bırakarak yaklaşır (gergin misina düz, gevşek misina
+     sarkık); tutunca misinanın ucunda balık çırpınır. Panel açıkken dünya durduğundan zaman panelin saatidir (F.vt). */
+  fishFace(P) {
+    const W = G.world; let best = null, bn = 0;
+    for (let i = 0; i < 24; i++) {
+      const a = i / 24 * TAU; let n = 0;
+      for (let d = 8; d <= 40; d += 4) { const t = W.tileAtPx(P.x + Math.cos(a) * d, P.y + Math.sin(a) * d); if (t === T.WATER || t === T.DEEP) n++; }
+      if (n > bn || (n === bn && n > 0 && Math.abs(angDiff(P.ang, a)) < Math.abs(angDiff(P.ang, best)))) { bn = n; best = a; }
+    }
+    if (best !== null) P.ang = best;
+  },
+  fishDist(pw) { return 14 + 26 * pw; },   // şamandıranın düştüğü yer (atış gücüyle; sıçrama da orada)
+  fishTick(F, dt) {
+    const st = F.st;
+    F.vt += dt;
+    if (F.ph !== st.phase) {
+      F.ph = st.phase; F.p0 = F.vt;
+      if (st.phase === 'end') F.caught = !!st.fish && st.dist <= 0 && st.tension < 1;
+      else if (st.phase === 'cast') F.caught = false;
+    }
+  },
+  fishDraw(ctx, P, F) {
+    const st = F.st, ph = st.phase, u = F.vt - F.p0, c = Math.cos(P.ang), s = Math.sin(P.ang), pw = Math.max(0.15, st.power || 0);
+    const [bx, by] = this.locPt(P.x, P.y, P.ang, 5.8, 1.4);   // sap sağ elde
+    // kamışın açısı (gövdeye göre) ve izdüşüm boyu: geriye kalkınca kısalır; sararken gerginlikle eğilir
+    let ra = 0.15, len = 12;
+    if (ph === 'cast') { ra = 0.15 + pw * 2.5; len = 12 - pw * 5; }
+    else if (ph === 'wait' && u < 0.25) { const k = 1 - u / 0.25; ra = 0.15 + k * pw * 2.5; len = 12 - k * pw * 5; }
+    else if (ph === 'bite') ra = 0.15 + Math.sin(u * 30) * 0.07;
+    // şamandıra: atış noktası; sararken oyuncuya yaklaşır, balık sağa sola kaçar (kamışın ucu misinaya doğru eğilir)
+    const dk = ph === 'reel' ? clamp(st.dist, 0, 1.2) : 1, D = Math.max(9, this.fishDist(pw) * dk), sw = ph === 'reel' ? Math.sin(F.vt * 1.3) * 7 * Math.min(1, dk + 0.2) : 0;
+    const fx = P.x + c * D - s * sw, fy = P.y + s * D + c * sw;
+    const bend = ph === 'reel' ? clamp(st.tension, 0, 1) : ph === 'bite' ? 0.25 : 0;
+    let A = P.ang + ra;
+    if (bend) A += angDiff(A, Math.atan2(fy - by, fx - bx)) * 0.7 * bend;
+    const L = len * (1 - 0.18 * bend), tx = bx + Math.cos(A) * L, ty = by + Math.sin(A) * L - bend * 1.5;
+    const mx = bx + Math.cos(P.ang + ra) * L * 0.55, my = by + Math.sin(P.ang + ra) * L * 0.55;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#4a3018'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, (mx + tx) / 2, (my + ty) / 2); ctx.stroke();
+    ctx.strokeStyle = '#7a5a34'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo((mx + tx) / 2, (my + ty) / 2); ctx.quadraticCurveTo(mx + (tx - mx) * 0.75, my + (ty - my) * 0.75, tx, ty); ctx.stroke();
+    ctx.lineCap = 'butt';
+    const line = (x, y, sag) => { ctx.strokeStyle = 'rgba(235,235,225,0.75)'; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo((tx + x) / 2, (ty + y) / 2 + sag, x, y); ctx.stroke(); };
+    const ring = (x, y, r, a) => { ctx.strokeStyle = `rgba(230,240,245,${a})`; ctx.lineWidth = 0.45; ctx.beginPath(); ctx.ellipse(x, y + 0.4, r, r * 0.55, 0, 0, TAU); ctx.stroke(); };
+    const bob = (x, y, sub) => {
+      if (sub < 0.9) { ctx.fillStyle = '#f0ece0'; ctx.beginPath(); ctx.arc(x, y, 1.1 * (1 - sub), 0, TAU); ctx.fill(); }
+      ctx.fillStyle = '#c8302a'; ctx.beginPath(); ctx.arc(x, y - 0.3, 0.85 * (1 - sub * 0.5), Math.PI, 0); ctx.fill();
+    };
+    if (ph === 'cast') { const k = Math.sin(F.vt * 3) * 0.4; line(tx + k, ty + 3, 0); bob(tx + k, ty + 3, 0); return; }   // şamandıra kamışın ucunda sallanır
+    if (ph === 'wait' && u < 0.5) {
+      // şamandıra yay çizip suya iner
+      const k = clamp((u - 0.1) / 0.4, 0, 1), x = tx + (fx - tx) * k, y = ty + (fy - ty) * k - Math.sin(k * Math.PI) * 9;
+      line(x, y, 0); bob(x, y, 0);
+      if (k >= 1) ring(fx, fy, 1.5 + (u - 0.5) * 6, 0.6);
+      return;
+    }
+    if (ph === 'end') {
+      if (!F.caught) return;   // misina sarıldı ya da koptu
+      // misinanın ucunda balık çırpınır
+      const sw = Math.sin(F.vt * 9) * 0.5, x = tx + Math.sin(F.vt * 2.4) * 0.6, y = ty + 5;
+      line(x, y - 1.4, 0);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 2 + sw);
+      ctx.fillStyle = '#b8c4c8'; ctx.beginPath(); ctx.ellipse(0, 0, 2.4, 0.95, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#8a9aa0'; ctx.beginPath(); ctx.moveTo(2.2, 0); ctx.lineTo(3.4, -0.9); ctx.lineTo(3.4, 0.9); ctx.fill();
+      ctx.restore();
+      return;
+    }
+    if (ph === 'reel') {
+      const tn = clamp(st.tension, 0, 1);
+      line(fx, fy, (1 - tn) * 4);
+      // çekilen şamandıranın ardında köpük izi
+      ctx.strokeStyle = 'rgba(235,242,245,0.55)'; ctx.lineWidth = 0.5;
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx + c * 3.2 - s * sd * 1.6, fy + s * 3.2 + c * sd * 1.6); ctx.stroke(); }
+      bob(fx + Math.sin(F.vt * 11) * 0.3, fy, 0.45);
+      return;
+    }
+    // bekleyiş ve vuruş: yüzer, vurunca batıp çıkar
+    const dip = ph === 'bite' ? (Math.sin(u * 14) > -0.2 ? 0.85 : 0.2) : 0, y = fy + Math.sin(F.vt * 2.2) * 0.35;
+    line(fx, y, 3);
+    const rp = (F.vt % 1.8) / 1.8; ring(fx, fy, 1.4 + rp * 3, 0.45 * (1 - rp));
+    if (ph === 'bite') ring(fx, fy, 1.6 + ((u * 3) % 1) * 3.4, 0.7 * (1 - (u * 3) % 1));
+    bob(fx, y, dip);
+  },
+
   /* ================= ölürken yığılma =================
      Ayakta vurulan sendeler (savrulma kayması sürer), dizlerinin üstüne çöker (eller karnında), sırtüstü yığılır; oturan
      oturduğu yerden geriye yığılır. Kalkmanın tersi; yalnız görünüş (ceset ilk andan ceset sayılır). Patlamada savrulur,
