@@ -306,6 +306,7 @@ layout(location=3) in vec4 aAux;
 uniform mat4 uVP, uLVP;
 uniform mat4 uBones[24];
 uniform float uTime, uCutOn, uCutH, uShadowPass, uWind;
+uniform vec2 uCamH;       // yatayda sahneden kameraya doğru yön (dünya x, z)
 out vec3 vPos; out vec3 vNor; out vec4 vCol; out vec4 vAux; out vec4 vLS;
 void main(){
   int bi = int(aAux.x * 255.0 + 0.5);
@@ -325,9 +326,9 @@ void main(){
   } else if (uCutOn > 0.5) {
     if ((fl & 4) != 0) hide = true;
     if ((fl & 3) != 0) {
-      // kameraya (güneye) bakan duvar ve süs: kesitte alçalır ya da gizlenir
+      // kameraya bakan duvar ve süs: kesitte alçalır ya da gizlenir
       float a = aAux.w * 6.2831853;
-      bool faces = sin(a) > 0.25;
+      bool faces = dot(vec2(cos(a), sin(a)), uCamH) > 0.25;
       if (faces) {
         if ((fl & 2) != 0) hide = true;
         else wp.y = min(wp.y, uCutH);
@@ -790,7 +791,10 @@ void main(){
       m[5] = ay * K; m[6] = -1 / (s * dr);
       m[9] = -ay; m[10] = -K / (s * dr);
       m[12] = -ax * v.x0 - 1; m[13] = 1 + ay * v.y0; m[14] = dc / dr; m[15] = 1;
-      return m;
+      if (!v.yaw) return m;
+      // dönen kamera: zemin görüş merkezi çevresinde döner (ekranda yer yine bire bir, yalnızca döndürülmüş)
+      const cx = v.x0 + v.lw / v.ds / 2, cz = v.y0 + v.lh / v.ds / 2;
+      return M4.mul(m, M4.mul(M4.translate(cx, 0, cz), M4.mul(M4.rotY(-v.yaw), M4.translate(-cx, 0, -cz))));
     }
     /* noktanın (yerel birim) ekran pikseli ve pencere derinliği */
     project(VP, p) {
@@ -805,9 +809,18 @@ void main(){
       this.DR = 1400;
       const VP = this.viewProj(view);
       this.VP = VP;
-      // görünen dünya dikdörtgeni (yerel birim) ve ayıklama
+      // görünen dünya dikdörtgeni (yerel birim) ve ayıklama: kutunun köşeleri ekrana izdüşürülür
       const vx0 = view.x0, vx1 = view.x0 + lw / view.ds, vy0 = view.y0, vy1 = view.y0 + lh / view.ds;
-      const visible = (bb, pad) => bb[3] > vx0 - pad && bb[0] < vx1 + pad && bb[5] - view.K * bb[1] > vy0 - pad && bb[2] - view.K * bb[4] < vy1 + pad;
+      const visible = (bb, pad) => {
+        let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+        for (let i = 0; i < 8; i++) {
+          const X = i & 1 ? bb[3] : bb[0], Y = i & 2 ? bb[4] : bb[1], Z = i & 4 ? bb[5] : bb[2];
+          const cx = VP[0] * X + VP[4] * Y + VP[8] * Z + VP[12], cy = VP[1] * X + VP[5] * Y + VP[9] * Z + VP[13];
+          if (cx < x0) x0 = cx; if (cx > x1) x1 = cx; if (cy < y0) y0 = cy; if (cy > y1) y1 = cy;
+        }
+        const px = pad * view.ds * 2 / lw, py = pad * view.ds * 2 / lh;
+        return x1 > -1 - px && x0 < 1 + px && y1 > -1 - py && y0 < 1 + py;
+      };
       // güneş: gölge kutusu görünen alanı (ve gölgesi içeri düşebilecek uzun nesneleri) kapsar, texel ızgarasına oturur
       const sd = V3.norm(env.sunDir);
       const cx = (vx0 + vx1) / 2, cz = (vy0 + vy1) / 2 + 30;
@@ -847,6 +860,7 @@ void main(){
         gl.uniform1f(U.uTime, t);
         gl.uniform1f(U.uWind, env.wind === undefined ? 1 : env.wind);
         gl.uniform1f(U.uShadowPass, shadowPass ? 1 : 0);
+        gl.uniform2f(U.uCamH, Math.sin(view.yaw || 0), Math.cos(view.yaw || 0));
       };
       // 1) gölge
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFB);

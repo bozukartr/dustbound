@@ -8,6 +8,8 @@
      - Çiftçi Çocuğu geçmişiyle Harlow'da başlanır; hikâye, açılış sinematiği ve hoş geldin rehberi yok
      - Oyuncu kasabanın ortasındaki sınırlı bir alanda kalır (binalar alanın ya tam içinde ya tam dışında)
      - Dünya 3B çizilir; oyunun 2D arayüzü, fare nişanı ve işaretleri olduğu gibi üstüne oturur
+     - Kamera oyuncunun çevresinde döner (Z / X basılı, orta tuşla sürükle, N kuzeye döndürür); yürüyüş kameraya göre,
+       fare nişanı dönmüş zeminde doğru yere gider; 2D çizimler ve işaretler dönen görüntüye yeniden yerleşir
      - F3: 3B ↔ 2D, [ ve ]: saati bir saat geri/ileri al
      - Kayıtlar ve ayarlar tam oyununkilerden ve demo paketinden ayrı tutulur
    ===================================================================== */
@@ -17,7 +19,10 @@
   const K = 0.8;                 // yükseklik ekranda K kat yukarı (eğim ~51°)
   const AREA_W = 62, AREA_H = 46;   // sınırlı alan (karo), binalara göre genişler ya da daralır
   const MARGIN = 22;             // alanın çevresinde 3B kurulan pay (karo)
-  const S = D3.state = { on: true, ok: true, scene: null, area: null, err: null, cap: [], pool: [], meshes: new Map(), skels: new Map(), lastWarn: -99, ms: 0, frames: 0 };
+  const S = D3.state = { on: true, ok: true, scene: null, area: null, err: null, cap: [], pool: [], meshes: new Map(), skels: new Map(), lastWarn: -99, ms: 0, frames: 0,
+    yaw: 0, yawT: 0, rotL: false, rotR: false, drag: null };
+  // dönen kamera etkin mi (3B açık ve görüntü dönmüş): yürüyüş, nişan ve 2D katmanlar buna göre döner
+  const rot3D = () => S.on && S.ok && !!S.area && S.yaw !== 0;
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const lerp = (a, b, t) => a + (b - a) * t;
   const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
@@ -114,11 +119,65 @@
     return {
       ctx: proxy, log,
       begin(x0, y0) { log.length = 0; real.setTransform(1, 0, 0, 1, -x0, -y0); real.globalAlpha = 1; real.globalCompositeOperation = 'source-over'; },
-      replay(ctx) {
-        for (const L of log) { try { if (L[0] === '=') ctx[L[1]] = L[2]; else ctx[L[0]](...L[1]); } catch (e) { /* başka bağlamda geçersiz çağrı: atla */ } }
+      mark(e) { log.push(['@', e]); },
+      // onMark: hangi varlığın ekleri çiziliyor (dönen kamerada ekler o varlıkla birlikte kayar)
+      replay(ctx, onMark) {
+        for (const L of log) {
+          if (L[0] === '@') { if (onMark) onMark(L[1]); continue; }
+          try { if (L[0] === '=') ctx[L[1]] = L[2]; else ctx[L[0]](...L[1]); } catch (e) { /* başka bağlamda geçersiz çağrı: atla */ }
+        }
       },
     };
   })();
+  /* ---------------- yeniden izdüşüren 2D bağlam ----------------
+     Dönen kamerada zemin ekranda görüş merkezi çevresinde döner, yükseklik yine yukarıdır. Oyunun dünya koordinatlı 2D
+     çizimleri (mermi, parçacık, nişangâh, varlık ekleri) bu bağlamdan geçer: her çağrının dayanak noktası döndürülür ve
+     şekil oraya kaydırılır (yazı ve simgeler dik kalır); çizgi noktaları tek tek döner (mermi izi doğru yöne bakar).
+     st.base verilirse (bir varlığın ayak noktası) bütün çağrılar onunla kayar: başın üstündeki işaret yine başın üstünde. */
+  const RP = (() => {
+    const sh = document.createElement('canvas').getContext('2d');   // oyunun dönüşüm yığını (gölge)
+    let real = null;
+    const st = { base: null, cx: 0, cy: 0, c: 1, s: 0 };
+    const place = (x, y) => {
+      const M = sh.getTransform();
+      let sx, sy;
+      if (st.base) { sx = st.base[0]; sy = st.base[1]; } else { sx = M.a * x + M.c * y + M.e; sy = M.b * x + M.d * y + M.f; }
+      const dx = sx - st.cx, dy = sy - st.cy;
+      real.setTransform(M.a, M.b, M.c, M.d, M.e + st.cx + dx * st.c - dy * st.s - sx, M.f + st.cy + dx * st.s + dy * st.c - sy);
+    };
+    const XF = new Set(['translate', 'rotate', 'scale', 'transform', 'setTransform', 'resetTransform']);
+    const PT = { moveTo: 0, lineTo: 0, quadraticCurveTo: 2, bezierCurveTo: 4, arcTo: 2, arc: 0, ellipse: 0, fillText: 1, strokeText: 1 };
+    const RECT = new Set(['rect', 'roundRect', 'fillRect', 'strokeRect', 'clearRect']);
+    const ctx = new Proxy({}, {
+      get(_, k) {
+        const v = real[k];
+        if (typeof v !== 'function') return v;
+        if (k === 'save' || k === 'restore') return () => { sh[k](); real[k](); };
+        if (XF.has(k)) return (...a) => { sh[k](...a); };
+        if (k === 'getTransform') return () => sh.getTransform();
+        if (k in PT) return (...a) => { const i = PT[k]; place(a[i], a[i + 1]); return v.apply(real, a); };
+        if (RECT.has(k)) return (...a) => { place(a[0] + (a[2] || 0) / 2, a[1] + (a[3] || 0) / 2); return v.apply(real, a); };
+        if (k === 'drawImage') return (...a) => {
+          const n = a.length, im = a[0];
+          if (n === 3) place(a[1] + (im.width || 0) / 2, a[2] + (im.height || 0) / 2);
+          else if (n === 5) place(a[1] + a[3] / 2, a[2] + a[4] / 2);
+          else place(a[5] + a[7] / 2, a[6] + a[8] / 2);
+          return v.apply(real, a);
+        };
+        return v.bind(real);
+      },
+      set(_, k, val) { real[k] = val; return true; },
+    });
+    return {
+      ctx, st,
+      // c: gerçek 2D bağlam; dönüş merkezi tuvalin ortası (tuval pikseli)
+      begin(c, yaw, cx, cy) { real = c; sh.setTransform(c.getTransform()); st.base = null; st.cx = cx; st.cy = cy; st.c = Math.cos(yaw); st.s = Math.sin(yaw); },
+      end() { if (real) real.setTransform(sh.getTransform()); real = null; st.base = null; },
+    };
+  })();
+  // düz (2D) tuval noktası ↔ dönmüş tuval noktası (görüş merkezi çevresinde)
+  const rotPt = (x, y, a, cx, cy) => { const c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };
+
   const ORIG = {};
   function hook(on) {
     if (!on) { for (const k in ORIG) Spr[k] = ORIG[k]; return; }
@@ -138,6 +197,7 @@
       for (const e of vis) {
         if (e === P && P.riding) continue;
         S.curEnt = e;
+        rec.mark(e);
         const mark = rec.log.length;
         try {
           if (e.rider === P) { e.draw(ctx); if (e.kind === 'horse' || P.mountAnim) { S.curEnt = P; P.draw(ctx); } }
@@ -147,6 +207,7 @@
         // araba: gövdesi 3B çizilir, 2D gövde çizimi atılır (atlar ve sürücü yakalandı)
         if (e.kind === 'wagon' && !e.motor && e.bx !== undefined) { rec.log.length = mark; S.cap.push({ k: 'wagon', M: null, x: e.bx, y: e.by, ang: e.bang, col: e.body, stage: e.stage, cab: e.cab }); }
       }
+      rec.mark(null);
     } finally { hook(false); S.curEnt = null; }
   }
 
@@ -285,9 +346,10 @@
   }
   function lightsOf(g, sc, x0, y0, vw, vh, S0) {
     const out = [], W = g.world, P = g.player, night = S0.dark > 0.35, nk = clamp(S0.dark * 1.4, 0, 1), IB = g.insideB;
-    const inView = (x, y, r) => x + r > x0 && x - r < x0 + vw && y + r > y0 - 40 && y - r < y0 + vh + 80;
+    const mx = x0 + vw / 2, my = y0 + vh / 2, VR = Math.hypot(vw, vh) / 2 + 60;
+    const inView = (x, y, r) => (x - mx) ** 2 + (y - my) ** 2 < (VR + r) ** 2;
     const add = (x, y, z, r, c, k, inner) => { if (k > 0.01 && inView(x, y, r)) out.push({ p: [x - sc.OX, z, y - sc.OZ], r, c, k, inner: inner ? 1 : 0, x, y }); };
-    for (const L of W.lightsIn(x0, y0 - 40, x0 + vw, y0 + vh + 80)) {
+    for (const L of W.lightsIn(mx - VR, my - VR, mx + VR, my + VR)) {
       if (L.type === 'window') { if (night && Juice.windowLit(L)) add(L.x, L.y + 16, 9, L.r * 1.5, [1.0, 0.75, 0.42], 0.9 * nk); }
       else if (L.type === 'lamp') { if (night && !L.off) { if (L.el) add(L.x, L.y + 4, 30, 110, [0.94, 0.95, 1.0], 1.5 * nk); else add(L.x, L.y + 4, 21, 92 * Juice.flicker(L.x + L.y, g.t * 0.6, 0.035), [1.0, 0.72, 0.42], 1.5 * nk); } }
       else if (L.type === 'inner') { if (IB && IB.id === L.b) add(L.x, L.y, 30, L.r * 1.7, [1.0, 0.8, 0.52], night ? 1.25 : 0.32, true); }
@@ -309,8 +371,9 @@
     for (const part of sc.bparts.values()) {
       const b = part.b, bx = b.x * 16, by = b.y * 16, bw = b.w * 16;
       part.cut = !!(IB && IB.id === b.id);
-      // oyuncu binanın arkasında (kuzeyinde) kalınca bina oyuncunun çevresinde delinir (2D'de çatı saydamlaşır)
-      part.holeAll = !part.cut && P.x > bx - 8 && P.x < bx + bw + 8 && P.y > by - (b.def.tall ? 48 : 38) && P.y < by + 10;
+      // bina oyuncunun önüne geçerse (kamera hangi yönde olursa olsun) oyuncunun çevresinde delinir: delik yalnızca
+      // ekranda oyuncunun çevresinde ve oyuncudan kameraya yakın parçaları atar (2D'de çatı saydamlaşır)
+      part.holeAll = !part.cut && Math.abs(P.x - (bx + bw / 2)) < bw / 2 + 90 && Math.abs(P.y - (by + b.h * 8)) < b.h * 8 + 90;
       part.winLit = night && part.wins.some(L => Juice.windowLit(L));
     }
   }
@@ -365,15 +428,17 @@
     const x0 = Cm.ox, y0 = Cm.oy, x1 = x0 + vw, y1 = y0 + vh;
     const lw = g.canvas.width, lh = g.canvas.height, ds = lw / vw;
     S.x0 = x0; S.y0 = y0;
+    cameraStep();
     HY.beat();
     FX.beginFrame();
     const sc = sceneFor(g);
-    // varlıklar (oyunun kendi seçimi: görünenler, binicili at, oyuncu, giden/gelen at)
-    const vis = [];
-    for (const e of g.ents) if (e.x > x0 - 60 && e.x < x1 + 60 && e.y > y0 - 40 && e.y < y1 + 100 && !(e.rider === P) && !g.floorHid(e) && !Juice.lowerHid(e)) vis.push(e);
+    // varlıklar: dönen görüntünün köşeleri de görünsün diye görüş merkezi çevresindeki çemberde
+    const vis = [], mx = x0 + vw / 2, my = y0 + vh / 2, VR = Math.hypot(vw, vh) / 2 + 70;
+    const near = (e) => Math.abs(e.x - mx) < VR && Math.abs(e.y - my) < VR && (e.x - mx) ** 2 + (e.y - my) ** 2 < VR * VR;
+    for (const e of g.ents) if (near(e) && !(e.rider === P) && !g.floorHid(e) && !Juice.lowerHid(e)) vis.push(e);
     if (P.riding) vis.push(P.riding);
     vis.push(P);
-    for (const gh of Juice.ghosts || []) if (gh.x > x0 - 60 && gh.x < x1 + 60 && gh.y > y0 - 40 && gh.y < y1 + 100) vis.push(gh);
+    for (const gh of Juice.ghosts || []) if (near(gh)) vis.push(gh);
     capture(g, vis, x0, y0);
     const act = actors(g, sc, g.t);
     const S0 = sunState(g), env = envOf(g, S0);
@@ -381,29 +446,205 @@
     const lights = lightsOf(g, sc, x0, y0, vw, vh, S0);
     const IB = g.insideB, ip = IB && sc.bparts.get(IB.id);
     const indoor = ip ? [IB.x * 16 - sc.OX + 3, IB.y * 16 - sc.OZ + 12, (IB.x + IB.w) * 16 - sc.OX - 3, (IB.y + IB.h) * 16 - sc.OZ - 2, ip.Hw - 1] : null;
-    const view = { x0: x0 - sc.OX, y0: y0 - sc.OZ, lw, lh, ds, K, indoor, hole: { p: [P.x - sc.OX, 13, P.y - sc.OZ], r: 22 } };
+    const view = { x0: x0 - sc.OX, y0: y0 - sc.OZ, lw, lh, ds, K, yaw: S.yaw, indoor, hole: { p: [P.x - sc.OX, 13, P.y - sc.OZ], r: 22 } };
     D3.renderer.render(sc, view, act, lights, env, g.t);
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(D3.renderer.cv, 0, 0);
     ctx.restore();
-    // 2D: varlıkların ek çizimleri, mermiler, parçacıklar (dünya koordinatında)
+    // 2D: varlıkların ek çizimleri, mermiler, parçacıklar (dünya koordinatında; dönen kamerada yeniden izdüşürülür)
     ctx.save();
     ctx.translate(-x0, -y0);
-    rec.replay(ctx);
-    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-    g.drawProjs(ctx);
-    g.parts.draw(ctx, x0, y0, x1, y1);
+    if (rot3D()) {
+      const pad = VR - Math.min(vw, vh) / 2;
+      RP.begin(ctx, S.yaw, vw / 2, vh / 2);
+      try {
+        rec.replay(RP.ctx, (e) => { RP.st.base = e ? [e.x - x0, e.y - y0] : null; });
+        RP.st.base = null;
+        RP.ctx.globalAlpha = 1; RP.ctx.globalCompositeOperation = 'source-over';
+        g.drawProjs(RP.ctx);
+        g.parts.draw(RP.ctx, x0 - pad, y0 - pad, x1 + pad, y1 + pad);
+      } finally { RP.end(); }
+    } else {
+      rec.replay(ctx);
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      g.drawProjs(ctx);
+      g.parts.draw(ctx, x0, y0, x1, y1);
+    }
     ctx.restore();
-    // oyunun üst katmanı: arayüz, hava, parıltı (2D ışık ve teller 3B'de)
+    // oyunun üst katmanı: arayüz, hava, parıltı (2D ışık ve teller 3B'de). Dönen kamerada dünyaya bağlı çizimler
+    // yeniden izdüşüren bağlamla, nişangâh ve işaretler dayanak noktasıyla çizilir; ekran efektleri olduğu gibi
     FX.glTint = true;
-    const dw = g.drawWires;
-    g.drawWires = () => {};
-    try { g.renderTail(ctx, dt, x0, y0, x1, y1, [], false); } finally { g.drawWires = dw; }
+    const swaps = [];
+    const swap = (obj, k, fn) => { swaps.push([obj, k, obj[k]]); obj[k] = fn; };
+    swap(g, 'drawWires', () => {});
+    if (rot3D()) {
+      const viaRP = (orig) => function (c, ...a) { RP.begin(c, S.yaw, vw / 2, vh / 2); try { return orig.call(this, RP.ctx, ...a); } finally { RP.end(); } };
+      swap(FX, 'drawHigh', viaRP(FX.drawHigh));
+      swap(Juice, 'drawHigh', viaRP(Juice.drawHigh));
+      swap(g, 'drawBirds', viaRP(g.drawBirds));
+      swap(g, 'drawFlies', viaRP(g.drawFlies));
+      swap(g, 'drawWorldUI', function (c, dt2) { worldUI(this, c, dt2); });
+      swap(Juice, 'drawGlow', () => {});
+    }
+    try { g.renderTail(ctx, dt, x0, y0, x1, y1, [], false); } finally { for (let i = swaps.length - 1; i >= 0; i--) { const [o, k, f] = swaps[i]; o[k] = f; } }
     S.frames++;
     sweepMeshes();
     S.ms = S.ms * 0.9 + (performance.now() - t0) * 0.1;
+  }
+
+  /* ---------------- dönen kamera ----------------
+     Z / X basılıyken döner, orta tuşla sürüklenir, N kuzeye (2D'nin açısına) döndürür. Açı yumuşakça hedefe gider. */
+  const TAU2 = Math.PI * 2;
+  let camT = 0;
+  // gerçek zamanla (oyun yavaşlasa da dönüş hızı aynı)
+  function cameraStep() {
+    const now = performance.now(), dt = camT ? Math.min(0.2, (now - camT) / 1000) : 0;
+    camT = now;
+    if (S.rotL) S.yawT -= dt * 1.9;
+    if (S.rotR) S.yawT += dt * 1.9;
+    const d = S.yawT - S.yaw;
+    S.yaw = Math.abs(d) < 1e-3 ? S.yawT : S.yaw + d * Math.min(1, dt * 12);
+    // açıyı (-π, π] aralığında tut (hedefle birlikte kaydır)
+    if (S.yaw > Math.PI) { S.yaw -= TAU2; S.yawT -= TAU2; } else if (S.yaw <= -Math.PI) { S.yaw += TAU2; S.yawT += TAU2; }
+    if (Math.abs(S.yaw) < 1e-4 && Math.abs(S.yawT) < 1e-4) S.yaw = S.yawT = 0;
+  }
+  const playing = () => typeof G !== 'undefined' && G.state === 'play' && S.on && S.ok && !(UI.isModal && UI.isModal());
+  window.addEventListener('keyup', (ev) => { if (ev.code === 'KeyZ') S.rotL = false; else if (ev.code === 'KeyX') S.rotR = false; }, true);
+  window.addEventListener('blur', () => { S.rotL = S.rotR = false; S.drag = null; });
+  window.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 1 || !playing()) return;
+    ev.preventDefault();   // tarayıcının orta tuşla kaydırması açılmasın
+    S.drag = { x: ev.clientX };
+  }, true);
+  window.addEventListener('mousemove', (ev) => {
+    if (!S.drag) return;
+    S.yawT += (ev.clientX - S.drag.x) * 0.008; S.drag.x = ev.clientX;
+  }, true);
+  window.addEventListener('mouseup', (ev) => { if (ev.button === 1) S.drag = null; }, true);
+  window.addEventListener('auxclick', (ev) => { if (ev.button === 1 && G.state === 'play') ev.preventDefault(); }, true);
+
+  /* yürüyüş kameraya göre: W ekranda yukarı, yani kameranın baktığı yön (atta ve arabada sürüş zaten atın yönüne göre) */
+  const rotVec = (v, a) => { const c = Math.cos(a), s = Math.sin(a); return Object.assign({}, v, { x: v.x * c - v.y * s, y: v.x * s + v.y * c }); };
+  const updFoot = Player.prototype.updateFoot;
+  Player.prototype.updateFoot = function (dt, mv, ...a) {
+    if (rot3D() && this === G.player && mv && mv.m > 0) mv = rotVec(mv, -S.yaw);
+    return updFoot.call(this, dt, mv, ...a);
+  };
+  /* fare nişanı: fare ekranda dönmüş zemine bakar; oyunun hesabına ters dönmüş (düz 2D) konumu verilir. Kolun sağ
+     çubuğu da kameraya göre döner. */
+  const updAim = Player.prototype.updateAim;
+  Player.prototype.updateAim = function (dt, mv) {
+    if (!rot3D() || this !== G.player) return updAim.call(this, dt, mv);
+    const I = Input, m = I.mouse, ox = m.x, oy = m.y, av = I.aimVec;
+    const r = G.canvasRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    [m.x, m.y] = rotPt(ox, oy, -S.yaw, cx, cy);
+    I.aimVec = function () { return rotVec(av.call(this), -S.yaw); };
+    try { return updAim.call(this, dt, mv); } finally { m.x = ox; m.y = oy; I.aimVec = av; }
+  };
+
+  /* dünya arayüzü (G.drawWorldUI'nin dönen kamera hâli): nişangâh dönmüş zemindeki yerinde, etkileşim ve hikâye
+     işaretleri hedefin başının üstünde, yapı önizlemesi dönmüş dikdörtgen */
+  function worldUI(g, c, dt) {
+    const P = g.player, x0 = g.cam.ox, y0 = g.cam.oy, vw = g.vw, vh = g.vh;
+    RP.begin(c, S.yaw, vw / 2, vh / 2);
+    const X = RP.ctx, base = (x, y) => { RP.st.base = x === null ? null : [x - x0, y - y0]; };
+    const onView = (x, y, pad) => Math.hypot(x - (x0 + vw / 2), y - (y0 + vh / 2)) < Math.hypot(vw, vh) / 2 + pad;
+    try {
+      const it = UI.curInteract;
+      if (it && !it.riding) {
+        const bb = Math.sin(g.t * 5) * 1.5;
+        base(it.x, it.y);
+        X.fillStyle = 'rgba(255,255,255,0.9)';
+        X.beginPath(); X.moveTo(it.x - 3, it.y - 16 + bb); X.lineTo(it.x + 3, it.y - 16 + bb); X.lineTo(it.x, it.y - 12 + bb); X.fill();
+        base(null);
+      }
+      if (P.aiming || (P.rsAim && P.isArmed) || (Input.device === 'kb' && P.isArmed && g.state === 'play' && !UI.isModal())) {
+        const d = (P.aiming || P.rsAim) ? P.aimDist : Math.min(P.aimDist, 60);
+        const rx = P.x + Math.cos(P.aimAng) * d, ry = P.y + Math.sin(P.aimAng) * d;
+        let enemy = false;
+        for (const e of g.ents) if (!e.dead && (e.kind === 'animal' || e.kind === 'npc') && (e.x - rx) ** 2 + (e.y - ry) ** 2 < 64) { enemy = true; break; }
+        const L = P.lockTarget;
+        if (L && !L.dead && (P.aiming || P.rsAim)) {
+          const hostile = P.targetClass(L) >= 2.5, r = (L.r || 4) + 4 + Math.sin(g.t * 8) * 0.6;
+          base(L.x, L.y);
+          X.fillStyle = hostile ? '#ff4a3a' : 'rgba(255,255,255,0.95)';
+          for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { X.fillRect(L.x + sx * r - (sx > 0 ? 2 : 0), L.y + sy * r - (sy > 0 ? 0.6 : 0), 2.6, 0.9); X.fillRect(L.x + sx * r - (sx > 0 ? 0.6 : 0), L.y + sy * r - (sy > 0 ? 2 : 0), 0.9, 2.6); }
+          enemy = hostile;
+        }
+        base(rx, ry);
+        X.fillStyle = P.deadeye ? '#e03020' : enemy ? '#ff5040' : 'rgba(255,255,255,0.9)';
+        if (P.aiming || P.rsAim) {
+          const sp = P.W && P.W.spread ? P.W.spread * d * (P.deadeye ? 0.2 : 1) * (P.aiming ? 1 : 1.7) * (1 - 0.45 * clamp((P.aimSteady || 0) / 0.7, 0, 1)) + 2 : 3;
+          X.fillRect(rx - 0.5, ry - 0.5, 1, 1);
+          X.fillRect(rx - sp - 2, ry - 0.5, 2, 1); X.fillRect(rx + sp, ry - 0.5, 2, 1);
+          X.fillRect(rx - 0.5, ry - sp - 2, 1, 2); X.fillRect(rx - 0.5, ry + sp, 1, 2);
+          if (P.weapon === 'dynamite') { base(null); X.strokeStyle = 'rgba(255,200,100,0.6)'; X.beginPath(); for (let k = 0; k <= 24; k++) { const a = k / 24 * TAU2; X[k ? 'lineTo' : 'moveTo'](rx + Math.cos(a) * 20, ry + Math.sin(a) * 20); } X.stroke(); }
+        } else { X.globalAlpha = 0.5; X.fillRect(rx - 0.5, ry - 0.5, 1, 1); X.globalAlpha = 1; }
+        base(null);
+      }
+      const HP = g.homePreview;
+      if (HP) {
+        if (HP.t !== undefined && (HP.t -= dt) <= 0) g.homePreview = null;
+        X.strokeStyle = HP.bad ? 'rgba(230,80,60,0.9)' : 'rgba(240,220,140,0.9)'; X.lineWidth = 1; X.setLineDash([3, 2]);
+        const ax = HP.tx * TS + 0.5, ay = HP.ty * TS + 0.5, bx = ax + HOME_FW * TS - 1, by = ay + HOME_FH * TS - 1;
+        X.beginPath(); X.moveTo(ax, ay); X.lineTo(bx, ay); X.lineTo(bx, by); X.lineTo(ax, by); X.closePath(); X.stroke(); X.setLineDash([]);
+      }
+      const qm = g.questMark && g.questMark();
+      if (qm && !g.storyTalking() && onView(qm.x, qm.y, 10)) {
+        const bb = Math.sin(g.t * 4) * 1.5, y = qm.y - (qm.kind ? 20 : 12) + bb;
+        base(qm.x, qm.y);
+        X.fillStyle = 'rgba(0,0,0,0.5)'; X.beginPath(); X.moveTo(qm.x, y - 5); X.lineTo(qm.x + 4.5, y); X.lineTo(qm.x, y + 5); X.lineTo(qm.x - 4.5, y); X.fill();
+        X.fillStyle = '#f0c040'; X.beginPath(); X.moveTo(qm.x, y - 4); X.lineTo(qm.x + 3.5, y); X.lineTo(qm.x, y + 4); X.lineTo(qm.x - 3.5, y); X.fill();
+        base(null);
+      }
+      const wp = g.waypoint;
+      if (wp && onView(wp.x, wp.y, 0)) {
+        base(wp.x, wp.y);
+        X.fillStyle = '#e8c860'; X.beginPath(); X.moveTo(wp.x, wp.y); X.lineTo(wp.x - 4, wp.y - 8); X.lineTo(wp.x + 4, wp.y - 8); X.fill();
+        base(null);
+      }
+    } finally { RP.end(); }
+  }
+
+  /* DOM işaretleri (etkileşim belirteci, fark edilme işareti, konuşma balonu): modül konumunu düz 2D'ye göre yazar;
+     dönen kamerada her işaret, bağlı olduğu varlığın ayak noktasının dönmüş yerine kaydırılır (başın üstündeki pay
+     korunur). Modül bir karede konumu yeniden yazmadıysa son kaydırma tekrar uygulanmaz. */
+  function shiftEl(el, bx, by) {
+    if (!el) return;
+    const cur = el.style.transform;
+    const orig = el._d3 && cur === el._d3.out ? el._d3.orig : cur;
+    const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(orig);
+    if (!m) return;
+    const r = G.canvasRect(), k = r.width / G.vw, fx = bx - G.cam.ox, fy = by - G.cam.oy;
+    const [rx, ry] = rotPt(fx, fy, S.yaw, G.vw / 2, G.vh / 2);
+    const out = orig.replace(m[0], `translate(${(+m[1] + (rx - fx) * k).toFixed(1)}px, ${(+m[2] + (ry - fy) * k).toFixed(1)}px)`);
+    el._d3 = { orig, out };
+    if (cur !== out) el.style.transform = out;
+  }
+  const after = (obj, k, fn) => { if (!obj || typeof obj[k] !== 'function') return; const o = obj[k]; obj[k] = function (...a) { const r = o.apply(this, a); try { if (rot3D()) fn.call(this); } catch (e) {} return r; }; };
+  if (typeof InteractMarks !== 'undefined') after(InteractMarks, 'update', function () {
+    for (const sm of this.st.values()) {
+      if (!sm.el) continue;
+      const kk = sm.c && sm.c.key;
+      const [bx, by] = kk && kk.kind ? [kk.x, kk.y] : kk && kk.door ? [kk.door.x, kk.door.y] : [sm.c.x, sm.c.y];
+      shiftEl(sm.el, bx, by);
+    }
+  });
+  if (typeof AwareMarks !== 'undefined') after(AwareMarks, 'update', function () { for (const [e, mk] of this.map) shiftEl(mk.el, e.x, e.y); });
+  if (typeof Bubbles !== 'undefined') after(Bubbles, 'update', function () { for (const bl of this.list) shiftEl(bl.el, bl.e.x, bl.e.y); });
+  // ekran kenarı okları: hedef noktaları kısa süre dönmüş yerlerine konur, ok o yöne bakar
+  if (typeof Nav !== 'undefined' && typeof Nav.edge === 'function') {
+    const edge = Nav.edge;
+    Nav.edge = function (...a) {
+      if (!rot3D()) return edge.apply(this, a);
+      const cx = G.cam.ox + G.vw / 2, cy = G.cam.oy + G.vh / 2, keep = [];
+      const put = (o, kx, ky) => { if (!o || o[kx] === undefined) return; keep.push([o, kx, ky, o[kx], o[ky]]); [o[kx], o[ky]] = rotPt(o[kx], o[ky], S.yaw, cx, cy); };
+      put(G.waypoint, 'x', 'y');
+      if (this.q) { put(this.q, 'tx', 'ty'); put(this.q, 'tx2', 'ty2'); }
+      try { return edge.apply(this, a); } finally { for (const [o, kx, ky, vx, vy] of keep) { o[kx] = vx; o[ky] = vy; } }
+    };
   }
 
   /* ---------------- tuşlar ve işaret ---------------- */
@@ -416,6 +657,10 @@
   window.addEventListener('keydown', (ev) => {
     if (typeof G === 'undefined' || G.state !== 'play') return;
     if (ev.code === 'F3') { ev.preventDefault(); ev.stopPropagation(); if (!ev.repeat) toggle(); }
+    else if ((ev.code === 'KeyZ' || ev.code === 'KeyX' || ev.code === 'KeyN') && playing()) {
+      if (ev.code === 'KeyZ') S.rotL = true; else if (ev.code === 'KeyX') S.rotR = true;
+      else if (!ev.repeat) { S.yawT = 0; }
+    }
     else if ((ev.code === 'BracketRight' || ev.code === 'BracketLeft') && !(UI.isModal && UI.isModal())) {
       ev.preventDefault();
       if (ev.code === 'BracketRight') G.advanceClock(60); else G.clock = Math.max(0, G.clock - 60);
@@ -430,7 +675,9 @@
       badgeEl.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:40;pointer-events:none;font:12px/1.4 var(--serif, serif);color:#f3e3bd;background:rgba(26,16,10,0.62);border:1px solid rgba(201,164,92,0.5);padding:2px 10px;letter-spacing:0.04em;white-space:nowrap';
       document.body.appendChild(badgeEl);
     }
-    badgeEl.textContent = (S.on && S.ok ? T_('3B TEST', '3D TEST') : T_('2D', '2D')) + '  ·  F3 ' + T_('3B/2D', '3D/2D') + '  ·  [ ] ' + T_('saat', 'time');
+    const kl = (c) => (typeof KEY_LABEL !== 'undefined' && KEY_LABEL[c]) || c;
+    badgeEl.textContent = (S.on && S.ok ? T_('3B TEST', '3D TEST') + '  ·  Z X ' + T_('/ orta tık: kamera', '/ middle drag: camera') + '  ·  N ' + T_('kuzey', 'north') : T_('2D', '2D'))
+      + '  ·  F3 ' + T_('3B/2D', '3D/2D') + '  ·  ' + kl('BracketLeft') + ' ' + kl('BracketRight') + ' ' + T_('saat', 'time');
     badgeEl.style.display = G.state === 'play' ? '' : 'none';
   }
   const uiUpdate = UI.update;

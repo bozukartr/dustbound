@@ -58,13 +58,13 @@
       m.box((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2, col, { top: top || capC });
     };
     // arka duvar: ilk karo sırası (çarpışmada dolu); içi oda tarafında
-    wallBox(X0, X1, Z0 + 0.5, Z0 + 12, 0, Hw, extMat, wallC, 0, SIDE.n);
-    wallBox(X0 + 5, X1 - 5, Z0 + 12, Z0 + 15.5, 0, Hw, enter ? inMat : extMat, enter ? inC : wallC, 0, SIDE.n);
+    wallBox(X0, X1, Z0 + 0.5, Z0 + 12, 0, Hw, extMat, wallC, F.CUT, SIDE.n);
+    wallBox(X0 + 5, X1 - 5, Z0 + 12, Z0 + 15.5, 0, Hw, enter ? inMat : extMat, enter ? inC : wallC, F.CUT, SIDE.n);
     // yan duvarlar (5 px)
-    wallBox(X0, X0 + 3, Z0, Z1, 0, Hw, extMat, wallC, 0, SIDE.w);
-    wallBox(X0 + 3, X0 + 5, Z0 + 12, Z1 - 4, 0, Hw, enter ? inMat : extMat, enter ? inC : wallC, 0, SIDE.w);
-    wallBox(X1 - 3, X1, Z0, Z1, 0, Hw, extMat, wallC, 0, SIDE.e);
-    wallBox(X1 - 5, X1 - 3, Z0 + 12, Z1 - 4, 0, Hw, enter ? inMat : extMat, enter ? inC : wallC, 0, SIDE.e);
+    wallBox(X0, X0 + 3, Z0, Z1, 0, Hw, extMat, wallC, F.CUT, SIDE.w);
+    wallBox(X0 + 3, X0 + 5, Z0 + 12, Z1 - 4, 0, Hw, enter ? inMat : extMat, enter ? inC : wallC, F.CUT, SIDE.w);
+    wallBox(X1 - 3, X1, Z0, Z1, 0, Hw, extMat, wallC, F.CUT, SIDE.e);
+    wallBox(X1 - 5, X1 - 3, Z0 + 12, Z1 - 4, 0, Hw, enter ? inMat : extMat, enter ? inC : wallC, F.CUT, SIDE.e);
     // ön duvar: kapı ve pencere açıklıkları; kesitte alçalır
     const dx = b.door.x - OX, DW = type === 'stable' || type === 'barn' ? 9 : 7, DH = type === 'stable' || type === 'barn' ? 30 : 27;
     const nWin = Math.max(1, Math.floor(b.w / 3)), wins = [];

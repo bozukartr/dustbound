@@ -1,7 +1,8 @@
 'use strict';
 /* 3B test paketi (npm run build:demo3d): paket kurulur, tarayıcıda hatasız açılır; Çiftçi Çocuğu ile Harlow'da
    hikâyesiz başlanır, dünya 3B çizilir (2D arayüz üstünde), oyuncu sınırlı alanda kalır, F3 3B ile 2D arasında
-   geçer, [ ve ] saati değiştirir, oyuncu binaya girince bina kesitlenir, kayıtlar ayrı tutulur.
+   geçer, [ ve ] saati değiştirir, kamera döner (fare nişanı, yürüyüş ve işaretler dönmüş görüntüye uyar), oyuncu
+   binaya girince bina kesitlenir, kayıtlar ayrı tutulur.
    Depodaki tam oyun bu testten etkilenmez. */
 const path = require('path'), fs = require('fs'), { execFileSync } = require('child_process');
 const ROOT = path.join(__dirname, '..', '..');
@@ -71,6 +72,58 @@ module.exports = {
       await p.keyboard.press('BracketLeft'); await t.sleep(200);
       const h2 = await p.evaluate(() => G.hour);
       t.ok(Math.abs(((h1 - h0 + 24) % 24) - 1) < 0.1 && Math.abs(((h1 - h2 + 24) % 24) - 1) < 0.1, 'saat bir saat ileri ve geri', [h0, h1, h2]);
+    });
+
+    await t.step('dönen kamera: X döndürür, N kuzeye çevirir', async () => {
+      await p.keyboard.down('KeyX'); await t.sleep(700); await p.keyboard.up('KeyX');
+      await t.sleep(300);
+      const y1 = await p.evaluate(() => D3.state.yaw);
+      t.ok(y1 > 0.3, 'X basılıyken kamera döndü', y1);
+      await p.keyboard.press('KeyN');
+      await p.waitForFunction(() => Math.abs(D3.state.yaw) < 0.01, null, { timeout: 30000 });
+      t.ok(true, 'N ile kuzeye döndü');
+    });
+
+    await t.step('dönen kamerada fare nişanı, yürüyüş ve işaretler dönmüş görüntüye uyar', async () => {
+      // 90°: ekranın sağı dünyada kuzey, ekranın yukarısı dünyada batı
+      await p.evaluate(() => { D3.state.yaw = D3.state.yawT = Math.PI / 2; });
+      const f0 = await p.evaluate(() => D3.state.frames);
+      await frames(f0 + 2);
+      const aim = await p.evaluate(() => {
+        const r = G.canvasRect(), P = G.player, k = r.width / G.vw, a = D3.state.yaw, cx = G.vw / 2, cy = G.vh / 2;
+        const fx = P.x - G.cam.ox, fy = P.y - G.cam.oy;
+        const sx = cx + (fx - cx) * Math.cos(a) - (fy - cy) * Math.sin(a), sy = cy + (fx - cx) * Math.sin(a) + (fy - cy) * Math.cos(a);
+        const mx = Input.mouse.x, my = Input.mouse.y;
+        Input.mouse.x = r.left + (sx + 60) * k; Input.mouse.y = r.top + sy * k;
+        P.updateAim(0.016, { x: 0, y: 0, m: 0 });
+        const ang = P.aimAng;
+        Input.mouse.x = mx; Input.mouse.y = my;
+        return ang;
+      });
+      t.ok(Math.abs(aim + Math.PI / 2) < 0.05, 'fare ekranda sağda → nişan dünyada kuzeye', aim);
+      const q0 = await p.evaluate(() => [G.player.x, G.player.y]);
+      await p.keyboard.down('KeyW'); await t.sleep(700); await p.keyboard.up('KeyW');
+      const q1 = await p.evaluate(() => [G.player.x, G.player.y]);
+      const dx = q1[0] - q0[0], dy = q1[1] - q0[1];
+      t.ok(dx < -1 && Math.abs(dy) < Math.abs(dx) / 3, 'W ekranda yukarı → dünyada batıya yürür', { dx, dy });
+      // atın üstündeki etkileşim belirteci atın dönmüş yerine kayar (başın üstündeki pay korunur)
+      await p.evaluate(() => { const P = G.player, h = G.horse; if (h) { h.x = P.x + 16; h.y = P.y; h.vx = h.vy = 0; } });
+      await p.waitForFunction(() => { for (const s of InteractMarks.st.values()) if (s.el && s.el._d3 && s.c && s.c.key === G.horse) return true; return false; }, null, { timeout: 30000 }).catch(() => {});
+      const mk = await p.evaluate(() => {
+        InteractMarks.update(0.016);   // konum ve kaydırma bu anın kamerası ve atıyla
+        for (const s of InteractMarks.st.values()) {
+          if (!s.el || !s.el._d3 || !s.c || s.c.key !== G.horse) continue;
+          const num = (tr) => { const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(tr); return m ? [+m[1], +m[2]] : null; };
+          const o = num(s.el._d3.orig), n = num(s.el._d3.out), r = G.canvasRect(), k = r.width / G.vw, a = D3.state.yaw, cx = G.vw / 2, cy = G.vh / 2;
+          const fx = G.horse.x - G.cam.ox, fy = G.horse.y - G.cam.oy;
+          const rx = cx + (fx - cx) * Math.cos(a) - (fy - cy) * Math.sin(a), ry = cy + (fx - cx) * Math.sin(a) + (fy - cy) * Math.cos(a);
+          return { d: [n[0] - o[0], n[1] - o[1]], want: [(rx - fx) * k, (ry - fy) * k] };
+        }
+        return null;
+      });
+      t.ok(mk && Math.abs(mk.d[0] - mk.want[0]) < 1.5 && Math.abs(mk.d[1] - mk.want[1]) < 1.5, 'belirteç atın dönmüş yerinde', mk);
+      await p.evaluate(() => { D3.state.yaw = D3.state.yawT = 0; });
+      t.eq(await p.evaluate(() => window.__errs), [], 'konsol hatası yok');
     });
 
     await t.step('sınırlı alan: oyuncu (ve bindiği at) alanın dışına çıkamaz', async () => {
