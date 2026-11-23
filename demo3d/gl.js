@@ -569,6 +569,7 @@ uniform highp sampler2D uDep;
 uniform mat4 uInvVP;
 uniform vec2 uRes;
 uniform float uNear, uFar, uTime, uNightMul, uOutline, uPx;
+uniform ivec2 uPixOff;      // kameranın piksele oturmuş kayması (mod 4): ton titreşimi yüzeyle birlikte kayar, ekrana yapışmaz
 uniform vec3 uSunCol, uSky, uGround, uBg;
 uniform float uSunK, uAmbK;
 uniform int uNL;
@@ -633,7 +634,8 @@ vec3 shade(ivec2 p, int mat, vec3 alb, int kf, float ink){
   lightAt(p, L, tint, lamp);
   if (mat == 3 || mat == 15) return kf >= 0 ? toneTo(alb, 1, 0.2) : alb;   // kendinden yanan
   if (mat == 21) return vec3(1.0, 0.98, 0.9);                               // su pırıltısı
-  float bay = (BAY[(p.y & 3) * 4 + (p.x & 3)] + 0.5) / 16.0;
+  ivec2 bp = (p + uPixOff) & 3;
+  float bay = (BAY[bp.y * 4 + bp.x] + 0.5) / 16.0;
   float Ld = L + (bay - 0.5) * 0.05;
   int k = kf >= 0 ? kf : (Ld < 0.12 ? 0 : Ld < 0.36 ? 1 : Ld < 0.72 ? 2 : Ld < 0.88 ? 3 : 4);
   return toneTo(alb, k, ink) * tint * mix(uNightMul, 1.0, lamp);
@@ -782,19 +784,21 @@ void main(){
       const gl = this.gl;
       return tex(gl, w, h, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, bytes);
     }
-    /* eğik izdüşüm matrisi: yer bire bir, yükseklik ekranda K kadar yukarı, derinlik (0, 1, K) yönünde */
+    /* gerçek dik (ortografik) kamera: yaw (zeminde dönüş) ve eğim (yerden yükseklik açısı θ). Ekranda yatayda dünya
+       birimi başına bir piksel; zeminin derinliği sinθ, yükseklik cosθ kadar kısalır. v.cam: c = cos yaw, s = sin yaw,
+       st = sinθ, ct = cosθ; u, w ekran merkezinin (piksele oturtulmuş) kamera eksenlerindeki yeri, zc derinlik merkezi
+       (hepsi yerel birim). Ekran x = genişlik/2 + c·X − s·Z − u, ekran y = yükseklik/2 + (s·X + c·Z)·st − w − Y·ct */
     viewProj(v) {
-      const K = v.K, s = Math.hypot(1, K), ax = 2 * v.ds / v.lw, ay = 2 * v.ds / v.lh;
-      const dc = (K * (v.y0 + v.lh / v.ds / 2)) / s, dr = this.DR;
+      const K = v.cam, ax = 2 * v.ds / v.lw, ay = 2 * v.ds / v.lh, dr = this.DR;
+      const c = K.c, s = K.s, st = K.st, ct = K.ct;
       const m = new Float32Array(16);
-      m[0] = ax;
-      m[5] = ay * K; m[6] = -1 / (s * dr);
-      m[9] = -ay; m[10] = -K / (s * dr);
-      m[12] = -ax * v.x0 - 1; m[13] = 1 + ay * v.y0; m[14] = dc / dr; m[15] = 1;
-      if (!v.yaw) return m;
-      // dönen kamera: zemin görüş merkezi çevresinde döner (ekranda yer yine bire bir, yalnızca döndürülmüş)
-      const cx = v.x0 + v.lw / v.ds / 2, cz = v.y0 + v.lh / v.ds / 2;
-      return M4.mul(m, M4.mul(M4.translate(cx, 0, cz), M4.mul(M4.rotY(-v.yaw), M4.translate(-cx, 0, -cz))));
+      m[0] = ax * c; m[1] = -ay * st * s; m[2] = -ct * s / dr;
+      m[5] = ay * ct; m[6] = -st / dr;
+      m[8] = -ax * s; m[9] = -ay * st * c; m[10] = -ct * c / dr;
+      // derinlik merkezi 64 birimlik ızgarada: kamera yürürken derinlik değerleri değişmez, birbirine çok yakın yüzeylerden
+      // (saçak, süs, duvar) hangisinin önde göründüğü kareden kareye oynamaz
+      m[12] = -ax * K.u; m[13] = ay * K.w; m[14] = ct * Math.round(K.zc / 64) * 64 / dr; m[15] = 1;
+      return m;
     }
     /* noktanın (yerel birim) ekran pikseli ve pencere derinliği */
     project(VP, p) {
@@ -809,8 +813,8 @@ void main(){
       this.DR = 1400;
       const VP = this.viewProj(view);
       this.VP = VP;
-      // görünen dünya dikdörtgeni (yerel birim) ve ayıklama: kutunun köşeleri ekrana izdüşürülür
-      const vx0 = view.x0, vx1 = view.x0 + lw / view.ds, vy0 = view.y0, vy1 = view.y0 + lh / view.ds;
+      // ayıklama: kutunun köşeleri ekrana izdüşürülür
+      const K = view.cam, vwU = lw / view.ds, vgU = lh / view.ds / K.st;   // görünen zemin: genişlik ve derinlik (birim)
       const visible = (bb, pad) => {
         let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
         for (let i = 0; i < 8; i++) {
@@ -823,8 +827,11 @@ void main(){
       };
       // güneş: gölge kutusu görünen alanı (ve gölgesi içeri düşebilecek uzun nesneleri) kapsar, texel ızgarasına oturur
       const sd = V3.norm(env.sunDir);
-      const cx = (vx0 + vx1) / 2, cz = (vy0 + vy1) / 2 + 30;
-      const R = Math.max(vx1 - vx0, vy1 - vy0) * 0.62 + 150;
+      // kutu görünen zemin dikdörtgeninin (dönmüş, derinliği uzamış) çevresini ve kameraya yakın uzun nesneleri kapsar.
+      // Merkez 32 birimlik ızgaraya oturur: kamera yürürken gölge haritası (derinlik payıyla birlikte) değişmez, gölge
+      // kenarları ve taçlardaki gölge benekleri kıpırdamaz
+      const cx = Math.round((K.cx + K.s * 20) / 32) * 32, cz = Math.round((K.cz + K.c * 20) / 32) * 32;
+      const R = Math.hypot(vwU, vgU) * 0.5 + 130;
       const lup = Math.abs(sd[1]) > 0.98 ? [0, 0, -1] : [0, 1, 0];
       let LV = M4.lookAt(V3.add([cx, 0, cz], V3.mul(sd, R * 2)), [cx, 0, cz], lup);
       const texel = 2 * R / this.SH;
@@ -860,7 +867,7 @@ void main(){
         gl.uniform1f(U.uTime, t);
         gl.uniform1f(U.uWind, env.wind === undefined ? 1 : env.wind);
         gl.uniform1f(U.uShadowPass, shadowPass ? 1 : 0);
-        gl.uniform2f(U.uCamH, Math.sin(view.yaw || 0), Math.cos(view.yaw || 0));
+        gl.uniform2f(U.uCamH, K.s, K.c);
       };
       // 1) gölge
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFB);
@@ -919,6 +926,7 @@ void main(){
       gl.uniform2f(UC.uRes, lw, lh);
       gl.uniform1f(UC.uNear, 0); gl.uniform1f(UC.uFar, 2 * this.DR);
       gl.uniform1f(UC.uPx, 1 / view.ds);
+      gl.uniform2i(UC.uPixOff, view.cam.px || 0, view.cam.py || 0);
       gl.uniform1f(UC.uTime, t);
       gl.uniform1f(UC.uNightMul, env.nightMul);
       gl.uniform1f(UC.uOutline, env.outline === false ? 0 : 1);
