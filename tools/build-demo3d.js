@@ -10,6 +10,7 @@
    masaüstü sürümü, demo paketi ve testler bu betikten etkilenmez.
      - Hikâye kapalı olduğundan seslendirme kayıtları pakete girmez
      - Geliştirici araçları (debug.js) pakete girmez; saat [ ve ] tuşlarıyla değişir
+     - Ayarlar > Kontroller'e 3B kameranın fare hassasiyeti satırı eklenir (paketteki js/ui.js kopyasında)
      - Kod küçültülmez: test sürümüdür
    ========================================================== */
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
@@ -53,8 +54,20 @@ html = html.replace('<script src="js/main.js"></script>', LAYER.map(f => `<scrip
 html = html.replace(/<title>([^<]*)<\/title>/, (m, t) => `<title>${t} — 3D Test</title>`);
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 
-/* ---- 3) sözdizimi denetimi ve zip ---- */
-for (const f of LAYER) { try { execFileSync(process.execPath, ['--check', path.join(OUT, 'demo3d', f)], { stdio: 'pipe' }); } catch (e) { fail(`demo3d/${f} sözdizimi hatası\n` + (e.stderr || '')); } }
+/* ---- 3) ayarlar: Kontroller sekmesine 3B kameranın fare hassasiyeti (yalnızca paketteki kopyada) ---- */
+{
+  const f = path.join(OUT, 'js', 'ui.js');
+  let ui = fs.readFileSync(f, 'utf8');
+  const rowAt = "['aimSens', Tr('Nişan Hassasiyeti (Kol)'), 'opt', Tr('Sağ analogla nişan alırken dönüş hızı.')],";
+  const defAt = 'aimAssist: 2, aimSens: 1,';
+  if (ui.split(rowAt).length !== 2 || ui.split(defAt).length !== 2) fail('js/ui.js içinde Kontroller ayar satırı bulunamadı');
+  const row = "\n        ['d3Sens', (I18N.lang === 'en' ? 'Mouse Sensitivity (3D Camera)' : 'Fare Hassasiyeti (3B Kamera)'), 'vol', (I18N.lang === 'en' ? 'How fast the 3D camera turns with the mouse. 50% is normal; lower turns slower, higher turns faster (up to four times).' : '3B kameranın fareyle dönme hızı. %50 normaldir; azaltınca daha yavaş, artırınca daha hızlı döner (dört katına kadar).')],";
+  ui = ui.replace(rowAt, rowAt + row).replace(defAt, defAt + ' d3Sens: 0.5,');
+  fs.writeFileSync(f, ui);
+}
+
+/* ---- 4) sözdizimi denetimi ve zip ---- */
+for (const f of [...LAYER.map(x => 'demo3d/' + x), 'js/ui.js']) { try { execFileSync(process.execPath, ['--check', path.join(OUT, f)], { stdio: 'pipe' }); } catch (e) { fail(`${f} sözdizimi hatası\n` + (e.stderr || '')); } }
 try { execFileSync('zip', ['-qr9X', ZIP, '.'], { cwd: OUT, stdio: 'pipe' }); }
 catch (e) { fail('zip oluşturulamadı (zip aracı kurulu mu?)\n' + (e.stderr || '')); }
 const mb = (fs.statSync(ZIP).size / 1048576).toFixed(1);

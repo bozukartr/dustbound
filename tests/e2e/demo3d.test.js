@@ -1,9 +1,11 @@
 'use strict';
 /* 3B test paketi (npm run build:demo3d): paket kurulur, tarayıcıda hatasız açılır; Çiftçi Çocuğu ile Harlow'da
    hikâyesiz başlanır, dünya 3B çizilir (2D arayüz üstünde), oyuncu sınırlı alanda kalır, F3 3B ile 2D arasında
-   geçer, [ ve ] saati değiştirir, tıklayınca fare kilitlenir (o tıklama ateş etmez) ve kamerayı döndürüp eğer, nişan
-   kameranın baktığı yöndedir, pencere açılınca kilit bırakılıp kapanınca geri gelir; kilitsizken nişan imlecin gösterdiği
-   yere gider, yürüyüş ve işaretler eğik görüntüye uyar; oyuncu binaya girince bina kesitlenir, kayıtlar ayrı tutulur.
+   geçer, [ ve ] saati değiştirir; üçüncü şahıs kamera: bir tuşa basınca fare kendiliğinden kilitlenir, fare kamerayı
+   sınırsız döndürür ve gökten yere eğer, hassasiyet ayarı (Ayarlar > Kontroller) dönüşü hızlandırır, nişan ekranın
+   ortasından giden ışının değdiği yerdedir, pencere açılınca kilit bırakılıp kapanınca geri gelir; kilitsizken nişan
+   imlecin gösterdiği yere gider, yürüyüş ve işaretler perspektif görüntüye uyar; oyuncu binaya girince bina kesitlenir,
+   kayıtlar ayrı tutulur.
    Depodaki tam oyun bu testten etkilenmez. */
 const path = require('path'), fs = require('fs'), { execFileSync } = require('child_process');
 const ROOT = path.join(__dirname, '..', '..');
@@ -75,38 +77,60 @@ module.exports = {
       t.ok(Math.abs(((h1 - h0 + 24) % 24) - 1) < 0.1 && Math.abs(((h1 - h2 + 24) % 24) - 1) < 0.1, 'saat bir saat ileri ve geri', [h0, h1, h2]);
     });
 
-    await t.step('fareyle bakış: tıklama fareyi kilitler (ateş etmez), fare kamerayı döndürür ve eğer, nişan baktığı yönde', async () => {
-      await p.evaluate(() => { window.__md = 0; window.addEventListener('mousedown', () => window.__md++); });
-      const r0 = await p.evaluate(() => { const r = G.canvasRect(); return { x: r.left + r.width / 2, y: r.top + r.height * 0.4 }; });
-      await p.mouse.click(r0.x, r0.y);
+    await t.step('üçüncü şahıs kamera: tuşa basınca fare kilitlenir, 360° döner, gökten yere eğilir, hassasiyet ayarı', async () => {
+      // oyuna girişte kilit kendiliğinden denenmiş olabilir: önce bırak
+      await p.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
+      await p.waitForFunction(() => !document.pointerLockElement && !D3.state.look, null, { timeout: 30000 });
+      await p.waitForTimeout(800);
+      await p.keyboard.press('KeyC');   // çömel (zararsız bir tuş): kilit bir sonraki karede istenir
       await p.waitForFunction(() => document.pointerLockElement === G.canvas && D3.state.look, null, { timeout: 30000 });
-      const c = await p.evaluate(() => ({ md: window.__md, b: Input.mouse.b.slice(), badge: document.getElementById('d3-badge').textContent }));
-      t.ok(c.md === 0 && !c.b[0], 'kilitleyen tıklama oyuna gitmez', c);
-      t.ok(/Esc/.test(c.badge), 'işaret kilitli hâli anlatır', c.badge);
+      await p.keyboard.press('KeyC');
+      t.ok(/Esc/.test(await p.evaluate(() => document.getElementById('d3-badge').textContent)), 'işaret kilitli hâli anlatır');
       // başsız tarayıcı kilitliyken fare hareketini olay olarak verir (movementX/Y)
       const mv = (dx, dy) => p.evaluate(([dx, dy]) => G.canvas.dispatchEvent(new MouseEvent('mousemove', { movementX: dx, movementY: dy, bubbles: true })), [dx, dy]);
-      const s0 = await p.evaluate(() => ({ yaw: D3.state.yaw, pitch: D3.state.pitch }));
-      await mv(150, 0);
-      const s1 = await p.evaluate(() => ({ yaw: D3.state.yaw, pitch: D3.state.pitch }));
-      t.ok(s1.yaw < s0.yaw - 0.3 && s1.pitch === s0.pitch, 'fare sağa: kamera sağa döner', { s0, s1 });
-      await mv(0, -300); await mv(0, -300);
-      const s2 = await p.evaluate(() => ({ pitch: D3.state.pitch, min: D3.P_MIN }));
-      t.ok(Math.abs(s2.pitch - s2.min) < 1e-6, 'fare ileri: kamera alçalır (en alçak eğimde durur)', s2);
-      await mv(0, 300); await mv(0, 300); await mv(0, 300);
-      const s3 = await p.evaluate(() => ({ pitch: D3.state.pitch, max: D3.P_MAX }));
-      t.ok(Math.abs(s3.pitch - s3.max) < 1e-6, 'fare geri: kamera dikleşir (en dik eğimde durur)', s3);
-      await mv(0, -250);
+      await p.evaluate(() => { G.settings.d3Sens = 0.5; D3.state.yaw = 0; D3.state.pitch = 0.3; });
+      await mv(100, 0);
+      const y1 = await p.evaluate(() => D3.state.yaw);
+      t.ok(y1 < -0.15, 'fare sağa: kamera sağa döner', y1);
+      // tam tur: 2π kadar sürükleyince başa döner (sınır yok)
+      const step = await p.evaluate(() => 0.0025 * D3.sensMul());
+      const full = Math.round(Math.PI * 2 / step);
+      let left = full - 100;
+      while (left > 0) { const d = Math.min(300, left); await mv(d, 0); left -= d; }
+      const y2 = await p.evaluate(() => D3.state.yaw);
+      t.ok(Math.abs(Math.atan2(Math.sin(y2), Math.cos(y2))) < 0.02, 'tam tur dönünce başa gelir (360°)', { y2, full });
+      // eğim: fare ileri → kamera alçalıp göğe bakar; geri → yukarıdan yere bakar
+      for (let i = 0; i < 6; i++) await mv(0, -300);
+      const lo = await p.evaluate(() => ({ p: D3.state.pitch, min: D3.P_MIN }));
+      t.ok(Math.abs(lo.p - lo.min) < 1e-6 && lo.min < -0.3, 'fare ileri: aşağıdan göğe bakış', lo);
       const f0 = await p.evaluate(() => D3.state.frames);
       await frames(f0 + 2);
-      // nişan kameranın baktığı yönde, önden bakış payı uzaklığında; kilitliyken oyunun fare konumu (clientX) yazılmaz
+      const sky = await p.evaluate(() => { const K = D3.state.cam, d = G.ctx.getImageData(Math.floor(G.vw / 2), 4, 1, 1).data; return { eyeBelow: K.E[1] < K.T[1], px: [d[0], d[1], d[2]] }; });
+      t.ok(sky.eyeBelow && sky.px[0] + sky.px[1] + sky.px[2] > 150, 'kamera hedefin altında, ekranın üstünde gök', sky);
+      for (let i = 0; i < 8; i++) await mv(0, 300);
+      const hi = await p.evaluate(() => ({ p: D3.state.pitch, max: D3.P_MAX }));
+      t.ok(Math.abs(hi.p - hi.max) < 1e-6 && hi.max > 1.2, 'fare geri: yukarıdan yere bakış', hi);
+      // hassasiyet: ayar en üstteyken aynı hareket dört kat döndürür
+      const sens = await p.evaluate(() => {
+        const mvYaw = (dx) => { const y0 = D3.state.yaw; G.canvas.dispatchEvent(new MouseEvent('mousemove', { movementX: dx, movementY: 0, bubbles: true })); return Math.abs(Math.atan2(Math.sin(D3.state.yaw - y0), Math.cos(D3.state.yaw - y0))); };
+        G.settings.d3Sens = 0.5; const a = mvYaw(40);
+        G.settings.d3Sens = 1; const b = mvYaw(40);
+        G.settings.d3Sens = 0.5;
+        return { a, b };
+      });
+      t.ok(Math.abs(sens.b / sens.a - 4) < 0.05, 'hassasiyet en üstte: dört kat hızlı', sens);
+      // nişan: ekranın ortasından giden ışının değdiği canlı ya da yer
+      await p.evaluate(() => { D3.state.pitch = 30 * Math.PI / 180; });
+      const f1 = await p.evaluate(() => D3.state.frames);
+      await frames(f1 + 2);
       const aim = await p.evaluate(() => {
         const P = G.player, K = D3.state.cam;
         P.updateAim(0.016, { x: 0, y: 0, m: 0 });
-        // oyun nişan uzaklığını silahın menziliyle sınırlar (yumrukta kısa)
-        return { ang: P.aimAng, want: Math.atan2(-K.c, -K.s), d: P.aimDist, wantD: Math.min(Math.max(K.laAim, 14), (P.W && P.W.range) || 200) };
+        const e = D3.state.aimEnt, want = e ? Math.atan2(e.y - P.y, e.x - P.x) : Math.atan2(K.f2[1], K.f2[0]);
+        return { ang: P.aimAng, want, ent: !!e };
       });
       const da = Math.abs(Math.atan2(Math.sin(aim.ang - aim.want), Math.cos(aim.ang - aim.want)));
-      t.ok(da < 0.02 && Math.abs(aim.d - aim.wantD) < 1, 'nişan kameranın baktığı yönde', aim);
+      t.ok(da < 0.05, 'nişan ekranın ortasından giden ışının yönünde', aim);
       // pencere (çanta) açılınca kilit bırakılır, kapanınca kendiliğinden geri gelir
       await p.keyboard.press('KeyI');
       await p.waitForFunction(() => UI.isModal() && !document.pointerLockElement && !D3.state.look, null, { timeout: 30000 });
@@ -114,34 +138,40 @@ module.exports = {
       await p.evaluate(() => UI.closeAll());
       await p.waitForFunction(() => !UI.isModal() && document.pointerLockElement === G.canvas && D3.state.look, null, { timeout: 30000 });
       t.ok(true, 'pencere kapanınca kilit geri geldi');
+      // ayarlar > Kontroller: fare hassasiyeti kaydırıcısı
+      const row = await p.evaluate(() => { UI.openSettings(4, 'd3Sens'); const r = document.querySelector('.st-row[data-k="d3Sens"]'); const out = r ? r.textContent : null; UI.closeAll(); return out; });
+      t.ok(row && /Hassasiyeti \(3B/.test(row), 'ayarlarda fare hassasiyeti satırı', row);
       await p.evaluate(() => document.exitPointerLock());
       await p.waitForFunction(() => !document.pointerLockElement && !D3.state.look, null, { timeout: 30000 });
       t.eq(await p.evaluate(() => window.__errs), [], 'konsol hatası yok');
     });
 
-    await t.step('kilitsiz: nişan imlecin gösterdiği yere gider; yürüyüş ve işaretler eğik görüntüye uyar', async () => {
-      // 90°: ekranın yukarısı dünyada batı, sağı kuzey
-      await p.evaluate(() => { D3.state.yaw = Math.PI / 2; D3.state.pitch = 38 * Math.PI / 180; });
+    await t.step('kilitsiz: nişan imlecin gösterdiği yere gider; yürüyüş ve işaretler perspektif görüntüye uyar', async () => {
+      // 90°: kamera batıya bakar (ekranın sağı kuzey)
+      await p.evaluate(() => { D3.state.yaw = Math.PI / 2; D3.state.pitch = 32 * Math.PI / 180; });
       const f0 = await p.evaluate(() => D3.state.frames);
-      await frames(f0 + 2);
+      await frames(f0 + 3);
       const aim = await p.evaluate(() => {
         const r = G.canvasRect(), P = G.player, k = r.width / G.vw;
-        const q = D3.w2s(P.x, P.y - 60, D3.AIM_H);   // oyuncunun 60 birim kuzeyi, gövde hizasında
+        const q = D3.w2s(P.x, P.y - 40, D3.AIM_H);   // oyuncunun 40 birim kuzeyi, gövde hizasında
         const mx = Input.mouse.x, my = Input.mouse.y;
         Input.mouse.x = r.left + q[0] * k; Input.mouse.y = r.top + q[1] * k;
         P.updateAim(0.016, { x: 0, y: 0, m: 0 });
-        const out = { ang: P.aimAng, d: P.aimDist, wantD: Math.min(60, (P.W && P.W.range) || 200), q, look: D3.state.look };
+        const e = D3.state.aimEnt, want = e ? Math.atan2(e.y - P.y, e.x - P.x) : -Math.PI / 2;
+        const out = { ang: P.aimAng, want, ent: !!e, q: [q[0], q[1]], look: D3.state.look };
         Input.mouse.x = mx; Input.mouse.y = my;
         return out;
       });
-      t.ok(!aim.look && Math.abs(aim.ang + Math.PI / 2) < 0.03 && Math.abs(aim.d - aim.wantD) < 1.5, 'imleç ekranda sağda (kuzey) → nişan dünyada kuzeye', aim);
+      const da = Math.abs(Math.atan2(Math.sin(aim.ang - aim.want), Math.cos(aim.ang - aim.want)));
+      t.ok(!aim.look && aim.q[0] > 0 && da < 0.05, 'imleç ekranda sağda (kuzey) → nişan dünyada kuzeye', aim);
       const q0 = await p.evaluate(() => [G.player.x, G.player.y]);
       await p.keyboard.down('KeyW'); await t.sleep(700); await p.keyboard.up('KeyW');
       const q1 = await p.evaluate(() => [G.player.x, G.player.y]);
       const dx = q1[0] - q0[0], dy = q1[1] - q0[1];
-      t.ok(dx < -1 && Math.abs(dy) < Math.abs(dx) / 3, 'W ekranda yukarı → dünyada batıya yürür', { dx, dy });
-      // atın üstündeki etkileşim belirteci atın görüntüdeki yerine kayar (başın üstündeki pay korunur)
-      await p.evaluate(() => { const P = G.player, h = G.horse; if (h) { h.x = P.x + 16; h.y = P.y; h.vx = h.vy = 0; } });
+      t.ok(dx < -1 && Math.abs(dy) < Math.abs(dx) / 3, 'W kameranın baktığı yöne (batıya) yürütür', { dx, dy });
+      await p.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
+      // atın üstündeki etkileşim belirteci atın başının görüntüdeki yerine kayar
+      await p.evaluate(() => { const P = G.player, h = G.horse; if (h) { h.x = P.x - 18; h.y = P.y; h.vx = h.vy = 0; } });
       await p.waitForFunction(() => { for (const s of InteractMarks.st.values()) if (s.el && s.el._d3 && s.c && s.c.key === G.horse) return true; return false; }, null, { timeout: 30000 }).catch(() => {});
       const mk = await p.evaluate(() => {
         InteractMarks.update(0.016);   // konum ve kaydırma bu anın kamerası ve atıyla
@@ -149,13 +179,13 @@ module.exports = {
           if (!s.el || !s.el._d3 || !s.c || s.c.key !== G.horse) continue;
           const num = (tr) => { const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(tr); return m ? [+m[1], +m[2]] : null; };
           const o = num(s.el._d3.orig), n = num(s.el._d3.out), r = G.canvasRect(), k = r.width / G.vw;
-          const fx = G.horse.x - G.cam.ox, fy = G.horse.y - G.cam.oy, q = D3.w2s(G.horse.x, G.horse.y);
-          return { d: [n[0] - o[0], n[1] - o[1]], want: [(q[0] - fx) * k, (q[1] - fy) * k] };
+          const fx = G.horse.x - G.cam.ox, fy = G.horse.y - G.cam.oy, q = D3.w2s(G.horse.x, G.horse.y, 30);
+          return { d: [n[0] - o[0], n[1] - o[1]], want: q ? [(q[0] - fx) * k, (q[1] - fy) * k] : null };
         }
         return null;
       });
-      t.ok(mk && Math.abs(mk.d[0] - mk.want[0]) < 1.5 && Math.abs(mk.d[1] - mk.want[1]) < 1.5, 'belirteç atın görüntüdeki yerinde', mk);
-      await p.evaluate(() => { D3.state.yaw = 0; });
+      t.ok(mk && mk.want && Math.abs(mk.d[0] - mk.want[0]) < 1.5 && Math.abs(mk.d[1] - mk.want[1]) < 1.5, 'belirteç atın başının görüntüdeki yerinde', mk);
+      await p.evaluate(() => { D3.state.yaw = 0; D3.state.pitch = 11 * Math.PI / 180; });
       t.eq(await p.evaluate(() => window.__errs), [], 'konsol hatası yok');
     });
 
@@ -184,7 +214,8 @@ module.exports = {
 
     await t.step('binaya girince bina kesitlenir (çatı gizli, ön duvar alçak); arkasında kalınca delinir', async () => {
       await p.evaluate(() => {
-        const P = G.player, b = G.world.buildings.find(b => b.enter && D3.state.scene.bparts.has(b.id) && b.x * 16 > D3.state.area.px0 && (b.x + b.w) * 16 < D3.state.area.px1);
+        // alanın tam içindeki bir bina (sahne alanın çevresindeki binaları da kurar; dışarıdakine giden oyuncu sınıra çekilir)
+        const A = D3.state.area, P = G.player, b = G.world.buildings.find(b => b.enter && D3.state.scene.bparts.has(b.id) && b.x * 16 > A.px0 && (b.x + b.w) * 16 < A.px1 && b.y * 16 - 24 > A.py0 && (b.y + b.h) * 16 < A.py1);
         if (P.riding && P.dismount) P.dismount(true);
         P.x = b.door.x; P.y = (b.y + b.h - 2) * 16 + 4; window.__b = b.id;
       });

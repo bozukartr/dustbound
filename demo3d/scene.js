@@ -379,10 +379,11 @@
   }
 
   /* ---------------- sahne ----------------
-     R: bölge (karo) {x0, y0, x1, y1}: binalar ve nesneler; zemin dokusu bunun G karo ötesine dek */
+     R: bölge (karo) {x0, y0, x1, y1}: binalar ve nesneler; zemin dokusu bunun G karo ötesine dek (üçüncü şahıs kamerada
+     ufka bakılır: zemin sisin içine kadar uzanır) */
   function build(gl, W, R) {
     const t0 = performance.now();
-    const OX = R.x0 * 16, OZ = R.y0 * 16, G = 40;
+    const OX = R.x0 * 16, OZ = R.y0 * 16, G = 120;
     const parts = [], bparts = new Map();
     // zemin: tek dörtgen (renk gölgelendiricide karo dokusundan)
     const gm = new Mesh(16);
