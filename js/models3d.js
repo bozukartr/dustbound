@@ -363,7 +363,7 @@
     m.ell(x - 1 * s, cy + 9 * s, z - 1 * s, 7 * s, 5 * s, 7 * s, cols[2], { nu: 10, nv: 6, amp: 0.15, seed: rng() * 50 });
     m.set({ wind: 0, flags: 0 });
   };
-  P3.pine = (m, x, y, z, s, rng) => {
+  P3.pine = (m, x, y, z, s, rng, snowy) => {
     m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0 });
     m.tube([x, y - 2, z], [x, y + 10 * s, z], 1.7 * s, 1.3 * s, C('#4a3322'), { seg: 6 });
     m.set({ mat: MAT.FOLIAGE, wind: 0.35, windBase: y + 6 * s, windH: 40 * s, flags: F.HOLE });
@@ -371,9 +371,25 @@
     for (let i = 0; i < 4; i++) {
       const t = i / 3, r = (12 - t * 7) * s, y0 = base + i * 9 * s, hgt = 16 * s - t * 3 * s, spikes = 9 + i, ph = rng() * 6;
       const P = (u, v) => { const th = u * Math.PI * 2, rr = r * (1 - v) * (1 + 0.16 * Math.sin(th * spikes + ph)); return [x + Math.cos(th) * rr, y0 + v * hgt - (v < 0.05 ? 1.5 * s : 0), z + Math.sin(th) * rr]; };
-      m.surf(18, 4, P, (p, n) => p[1] < y0 + hgt * 0.22 ? dark : (n[1] > 0.55 ? lt : mid), [x, y0 - 4 * s, z]);
+      const snw = C('#e4eaf0');
+      m.surf(18, 4, P, (p, n) => snowy && n[1] > 0.5 && p[1] > y0 + hgt * 0.3 ? snw : p[1] < y0 + hgt * 0.22 ? dark : (n[1] > 0.55 ? lt : mid), [x, y0 - 4 * s, z]);
     }
     m.set({ wind: 0, flags: 0 });
+  };
+  // kışın çıplak yaprak döken ağaç: gövde ve çatallanan dallar; karda dalların üstü beyaz
+  P3.bare = (m, x, y, z, s, rng, snowy) => {
+    const tr = C('#4e3826'), sn = C('#e8edf2');
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0 });
+    m.tube([x, y - 1, z], [x + 0.6 * s, y + 16 * s, z - 0.4 * s], 2.2 * s, 1.2 * s, tr, { seg: 7 });
+    const n = 5 + Math.floor(rng() * 2);
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2 + rng() * 0.6, h0 = (9 + rng() * 6) * s, L = (8 + rng() * 5) * s, up = (7 + rng() * 6) * s;
+      const p0 = [x + 0.3 * s, y + h0, z], p1 = [x + Math.cos(a) * L, y + h0 + up, z + Math.sin(a) * L * 0.8];
+      m.tube(p0, p1, 0.8 * s, 0.35 * s, tr, { seg: 4 });
+      const p2 = [p1[0] + Math.cos(a + 0.8) * 4 * s, p1[1] + 3 * s, p1[2] + Math.sin(a + 0.8) * 3 * s];
+      m.tube(p1, p2, 0.35 * s, 0.18 * s, tr, { seg: 3 });
+      if (snowy) { m.ell(p1[0], p1[1] + 0.4 * s, p1[2], 1.1 * s, 0.5 * s, 1.1 * s, sn, { nu: 6, nv: 3, ymin: 0 }); }
+    }
   };
   P3.dead = (m, x, y, z, s) => {
     const tr = C('#6a5a4a');
@@ -441,12 +457,15 @@
     m.set({ mat: MAT.SOLID, flags: 0 });
     if (!el) { m.cyl(x, y + 23.6, z, 1.9, 1.2, iron, { seg: 6, r2: 0.4 }); m.box(x, y + 19.9, z, 1.8, 0.3, 1.8, iron); }
   };
-  P3.pole = (m, x, y, z) => {
+  // direk: travers ve iki yalıtkan; dir: traversin yönü (elektrik direğinde tellere dik, js/scene3d.js poleDir)
+  P3.pole = (m, x, y, z, dir) => {
     const wood = C('#5a4430'), ins = C('#86a898');
     m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0 });
     m.tube([x, y - 1, z], [x, y + 36, z], 1.0, 0.8, wood, { seg: 6 });
-    m.box(x, y + 32, z, 6.5, 0.6, 0.7, wood);
-    m.box(x - 5.5, y + 33.2, z, 0.35, 0.6, 0.35, ins); m.box(x + 5.5, y + 33.2, z, 0.35, 0.6, 0.35, ins);
+    m.push(M4.mul(M4.translate(x, y, z), M4.rotY(dir ? -Math.atan2(dir[1], dir[0]) : 0)));
+    m.box(0, 32, 0, 6.5, 0.6, 0.7, wood);
+    m.box(-5.5, 33.2, 0, 0.35, 0.6, 0.35, ins); m.box(5.5, 33.2, 0, 0.35, 0.6, 0.35, ins);
+    m.pop();
   };
   // çit: karo boyunca iki kat kalas ve uç direkleri; yön: 'h' doğu-batı, 'v' kuzey-güney
   P3.fence = (m, x, y, z, dir, endA, endB) => {
@@ -514,9 +533,19 @@
     m.box(x, y + 7, z, 0.6, 7, 0.6, C('#5a3e26'));
     m.set({ mat: MAT.PLANKH }); m.box(x, y + 12, z + 0.6, 5.5, 3, 0.4, C(col || '#9a7a52'));
   };
-  P3.crop = (m, x, y, z, rng) => {
+  // ekin: yazın yeşil, sonbaharda olgun sarı başaklı; kışın kısa anız (karda soluk)
+  P3.crop = (m, x, y, z, rng, season, snowy) => {
+    if (season === 3) {
+      m.set({ mat: MAT.STRAW, wind: 0, flags: F.NOSHADOW, bone: 0 });
+      const c = C(snowy ? '#a8a090' : '#7a6a40');
+      for (let k = 0; k < 3; k++) m.tube([x - 4 + k * 4, y, z + (rng() - 0.5) * 3], [x - 4 + k * 4, y + 2.4, z + (rng() - 0.5) * 3], 0.35, 0.3, c, { seg: 3 });
+      m.set({ flags: 0 });
+      return;
+    }
+    const ripe = season === 2;
     m.set({ mat: MAT.FOLIAGE, wind: 0.6, windBase: y, windH: 8, flags: F.NOSHADOW, bone: 0 });
-    for (let k = 0; k < 4; k++) m.ell(x - 5 + k * 3.4, y + 3, z + (rng() - 0.5) * 3, 1.8, 3, 1.8, C(k % 2 ? '#6a8a3a' : '#7a9a44'), { nu: 6, nv: 4 });
+    for (let k = 0; k < 4; k++) m.ell(x - 5 + k * 3.4, y + 3, z + (rng() - 0.5) * 3, 1.8, 3, 1.8, C(ripe ? (k % 2 ? '#a8883a' : '#b89a44') : (k % 2 ? '#6a8a3a' : '#7a9a44')), { nu: 6, nv: 4 });
+    if (ripe) { m.set({ mat: MAT.STRAW }); for (let k = 0; k < 4; k++) m.ell(x - 5 + k * 3.4, y + 6.4, z + (rng() - 0.5) * 2, 0.9, 1.3, 0.9, C('#e0c050'), { nu: 5, nv: 3 }); }
     m.set({ wind: 0, flags: 0 });
   };
   // araba gövdesi: yük arabası açık kasa; posta arabası kapalı kabin (col: gövde rengi)
@@ -540,6 +569,274 @@
     }
     m.tube([12, 6, 0], [24, 5, 0], 0.5, 0.5, d, { seg: 4 });
     m.pop();
+  };
+
+  /* ---------------- otlar, maden, petrol, park süsleri, yaban yerleri (2D çizimlerinin ölçüleriyle) ---------------- */
+  // toplanabilir ot: türün 2D renkleri (HERB_COLS); mantar, böğürtlen çalısı ya da yaprak demeti ve çiçek başları
+  P3.herb = (m, x, y, z, type, rng) => {
+    const cols = (typeof HERB_COLS !== 'undefined' && HERB_COLS[type]) || ['#5a7a3a', '#ffffff'], c0 = C(cols[0]), c1 = C(cols[1]);
+    if (type === O.MUSHROOM) {
+      m.set({ mat: MAT.SOLID, wind: 0, flags: F.NOSHADOW, bone: 0 });
+      for (const [dx, dz, s] of [[0, 0, 1], [2.6, 1.4, 0.7]]) {
+        m.cyl(x + dx, y, z + dz, 0.7 * s, 2.8 * s, c0, { seg: 6 });
+        m.ell(x + dx, y + 2.6 * s, z + dz, 2.8 * s, 1.6 * s, 2.8 * s, c1, { nu: 10, nv: 4, ymin: 0 });
+        m.box(x + dx - 0.9 * s, y + 3.7 * s, z + dz - 0.5 * s, 0.35, 0.2, 0.35, C('#f4efe4'));
+      }
+      m.set({ flags: 0 });
+      return;
+    }
+    if (type === O.BERRY) {
+      m.set({ mat: MAT.FOLIAGE, wind: 0.5, windBase: y, windH: 7, flags: 0, bone: 0 });
+      for (const [dx, dz, c] of [[-2, 0.6, c0], [2, 0.6, c0], [0, -1.6, C('#4a6a30')]]) m.ell(x + dx, y + 2.4, z + dz, 3.2, 2.6, 3.2, c, { nu: 9, nv: 6, amp: 0.15, seed: rng() * 40, ymin: -0.6 });
+      m.set({ mat: MAT.SOLID });
+      for (let k = 0; k < 7; k++) { const a = k * 0.9 + rng() * 0.5; m.ell(x + Math.cos(a) * 3, y + 2.6 + rng() * 2.2, z + Math.sin(a) * 2.4 + 0.8, 0.75, 0.75, 0.75, c1, { nu: 5, nv: 4 }); }
+      m.set({ wind: 0 });
+      return;
+    }
+    m.set({ mat: MAT.FOLIAGE, wind: 0.9, windBase: y, windH: 6, flags: F.TWOSIDED | F.NOSHADOW, bone: 0 });
+    for (let k = 0; k < 5; k++) {
+      const a = (k - 2) * 0.45 + (rng() - 0.5) * 0.2, rot = rng() * Math.PI, ca = Math.cos(rot), sa = Math.sin(rot);
+      const tx = Math.sin(a) * 4.2, ty = Math.cos(a) * 5, nrm = [sa, 0.3, -ca];
+      m.tri([x - ca * 0.6, y - 0.2, z - sa * 0.6], [x + ca * 0.6, y - 0.2, z + sa * 0.6], [x + ca * tx, y + ty, z + sa * tx], nrm, nrm, nrm, c0);
+    }
+    m.set({ mat: MAT.SOLID, flags: F.NOSHADOW });
+    for (let k = 0; k < 3; k++) m.ell(x - 2.4 + k * 2.4, y + 4.4 + (k % 2) * 0.9, z + (rng() - 0.5) * 2, 0.85, 0.75, 0.85, c1, { nu: 5, nv: 4 });
+    m.set({ wind: 0, flags: 0 });
+  };
+  // maden damarı: koyu kaya, üstünde altın ya da gümüş parıltılı damar noktaları
+  P3.ore = (m, x, y, z, rng, gold) => {
+    P3.rock(m, x, y, z, 5.5, rng, '#6a625c');
+    m.set({ mat: MAT.EMIT, flags: F.NOSHADOW });
+    const fc = C(gold ? '#e8c858' : '#d0d8e0');
+    for (const [dx, dy, dz] of [[-2, 3.4, -1.2], [1.4, 3.8, 0.4], [0.2, 2.6, 2.8], [2.6, 2.4, -1.8], [-3, 2.2, 1.6]]) m.box(x + dx, y + dy, z + dz, 0.45, 0.45, 0.45, fc);
+    m.set({ mat: MAT.SOLID, flags: 0 });
+  };
+  // petrol sızıntısı: yere yayılmış kara birikinti, kenarında damlalar, yüzeyinde yanardöner yağ parlaması
+  P3.seep = (m, x, y, z, h) => {
+    const dx = (h - 0.5) * 3, flat = (cx, cz, rx, rz, yy, col) => m.ell(cx, y + yy, cz, rx, 0.12, rz, col, { nu: 12, nv: 3, ymin: 0 });
+    m.set({ mat: MAT.SOLID, wind: 0, flags: F.NOSHADOW | F.NOOUTLINE, bone: 0 });
+    flat(x + dx * 0.3, z + 0.6, 7.6, 4.6, 0.02, C('#5a4a34'));
+    flat(x, z, 5.8, 3.4, 0.06, C('#15110d'));
+    flat(x + 3.6 + dx, z + 2.2, 2.6, 1.5, 0.05, C('#1a1511'));
+    flat(x - 4 - dx * 0.5, z + 1.4, 1.6, 1, 0.05, C('#1a1511'));
+    flat(x - 1.4, z - 0.7, 2.6, 1.1, 0.1, C('#3c2c4c'));
+    flat(x + 1.4, z - 0.2, 1.9, 0.8, 0.1, C('#24423c'));
+    m.set({ flags: 0 });
+  };
+  // sondaj kulesi (kablolu sondaj): sivrilen ahşap kafes kule, tepede makara, solda buhar kazanı ve bacası, sağda sallanan kiriş
+  P3.derrick = (m, x, y, z, h) => {
+    const H = 46, wb = 7.6, wt = 2.2, lt = C('#866440'), dk = C('#5a4028'), mid = C('#6e5032');
+    const w = (yy) => wb + (wt - wb) * yy / H;
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0 });
+    // döşeme, kazan ve bacası
+    m.set({ mat: MAT.PLANKH }); m.box(x, y + 1, z, 9.5, 1, 9.5, C('#6a4a2e'), { top: C('#7e5a38') });
+    m.set({ mat: MAT.SOLID });
+    m.box(x - 12.3, y + 3.3, z - 2, 3.3, 3.3, 3.3, C('#2e2a26'), { top: C('#4c4642') });
+    m.tube([x - 13, y + 6.5, z - 2], [x - 13, y + 15, z - 2], 0.9, 0.9, C('#1e1a18'), { seg: 6 });
+    // dört ayak, kuşaklar ve çaprazlar
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) m.tube([x + sx * wb, y, z + sz * wb], [x + sx * wt, y + H, z + sz * wt], 0.65, 0.5, sx < 0 ? lt : dk, { seg: 4 });
+    let prev = 2;
+    for (const gy of [8, 16, 24, 32, 40, H]) {
+      const a = w(gy), b = w(prev);
+      for (const s of [-1, 1]) {
+        m.tube([x - a, y + gy, z + s * a], [x + a, y + gy, z + s * a], 0.35, 0.35, mid, { seg: 4, caps: false });
+        m.tube([x + s * a, y + gy, z - a], [x + s * a, y + gy, z + a], 0.35, 0.35, mid, { seg: 4, caps: false });
+        // çaprazlar (her yüzde X)
+        m.tube([x - b, y + prev, z + s * b], [x + a, y + gy, z + s * a], 0.22, 0.22, dk, { seg: 3, caps: false });
+        m.tube([x + b, y + prev, z + s * b], [x - a, y + gy, z + s * a], 0.22, 0.22, dk, { seg: 3, caps: false });
+        m.tube([x + s * b, y + prev, z - b], [x + s * a, y + gy, z + a], 0.22, 0.22, dk, { seg: 3, caps: false });
+        m.tube([x + s * b, y + prev, z + b], [x + s * a, y + gy, z - a], 0.22, 0.22, dk, { seg: 3, caps: false });
+      }
+      prev = gy;
+    }
+    // tepe makarası ve sondaj halatı
+    m.box(x, y + H + 1.6, z, 3.6, 1.6, 2.6, C('#4a3424'));
+    m.push(M4.mul(M4.translate(x, y + H + 3.4, z), M4.rotX(Math.PI / 2))); m.cyl(0, -0.6, 0, 1.7, 1.2, C('#2a2420'), { seg: 10, bottom: true }); m.pop();
+    m.tube([x + 0.3, y + H, z], [x + 0.3, y + 2, z], 0.15, 0.15, C('#26201a'), { seg: 3, caps: false });
+    // sallanan kiriş: direği ve eğik kirişi
+    const a = (h - 0.5) * 0.5;
+    m.box(x + 11.1, y + 5.5, z + 1, 1.1, 5.5, 1.1, C('#5a4028'));
+    m.tube([x + 3, y + 10 + a * 6, z + 1], [x + 17.5, y + 10 - a * 6, z + 1], 0.95, 0.95, C('#7a5a3a'), { seg: 4 });
+  };
+  // silindir depo: perçin kuşaklı pas kırmızısı sac, konik çatı, yan merdiven
+  P3.oilTank = (m, x, y, z, r, H, col) => {
+    const c = C(col || '#7a3a2a'), band = shade(c, -0.35), ir = C('#2a2a2a');
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0 });
+    m.cyl(x, y, z, r, H, c, { seg: 18, top: false });
+    for (const k of [1, 2]) m.cyl(x, y + H * k / 3 - 0.3, z, r + 0.12, 0.6, band, { seg: 18, top: false });
+    m.cyl(x, y + H, z, r + 0.2, r * 0.42, shade(c, -0.1), { seg: 18, r2: 0.3, topCol: shade(c, 0.25) });
+    // yan merdiven (güneydoğu yüzünde)
+    const a0 = Math.PI * 0.3, px = x + Math.cos(a0) * (r + 0.6), pz = z + Math.sin(a0) * (r + 0.6), tx = -Math.sin(a0), tz = Math.cos(a0);
+    for (const s of [-0.7, 0.7]) m.box(px + tx * s, y + H / 2, pz + tz * s, 0.15, H / 2, 0.15, ir);
+    for (let yy = 1.5; yy < H; yy += 2.4) m.tube([px - tx * 0.7, y + yy, pz - tz * 0.7], [px + tx * 0.7, y + yy, pz + tz * 0.7], 0.1, 0.1, ir, { seg: 3, caps: false });
+  };
+  // rafineri (3×3 karo): baca, ocaklı imbik ve kazanı, ayrıştırma kulesi (sahanlıklı, merdivenli), borular, iki depo
+  P3.refinery = (m, x, y, z, h) => {
+    m.set({ mat: MAT.BRICK, wind: 0, flags: F.HOLE, bone: 0 });
+    // baca: tuğla, yukarı doğru incelir; tepede kurum
+    m.cyl(x - 17.5, y, z - 8, 3.5, 50, C('#7a3e30'), { seg: 10, r2: 2.1, top: false });
+    m.set({ mat: MAT.SOLID }); m.cyl(x - 17.5, y + 50, z - 8, 2.6, 2, C('#1a1614'), { seg: 10 });
+    m.set({ flags: 0 });
+    // imbik: tuğla ocak (üç ateş ağzı), üstünde yatık kazan
+    m.set({ mat: MAT.BRICK }); m.box(x - 9.5, y + 2.6, z - 7, 12.5, 2.6, 4, C('#6e3a2c'));
+    m.set({ mat: MAT.EMIT, flags: F.NOSHADOW });
+    for (const fx of [-16.5, -8.5, -0.5]) m.box(x + fx, y + 1.8, z - 2.9, 1.4, 1.0, 0.1, C('#f08c3c'));
+    m.set({ mat: MAT.SOLID, flags: 0 });
+    m.push(M4.mul(M4.translate(x - 21, y + 9.6, z - 7), M4.rotZ(-Math.PI / 2)));   // yatık kazan: yerel y ekseni doğuya
+    m.cyl(0, 0, 0, 4.4, 23, (a) => Math.cos(a) < -0.5 ? C('#6c6a66') : C('#4a4846'), { seg: 14, bottom: true, topCol: C('#3a3836') });
+    m.pop();
+    // ayrıştırma kulesi: sahanlıklar ve yan merdiven, tepede borucuk
+    const kx = x + 9, kz = z - 8;
+    m.set({ flags: F.HOLE });
+    m.cyl(kx, y, kz, 4, 46, (a) => Math.cos(a) < -0.3 ? C('#7a7a76') : C('#5a5a58'), { seg: 12, topCol: C('#7a7a76') });
+    m.tube([kx, y + 46, kz], [kx, y + 51, kz], 0.6, 0.6, C('#3a3a38'), { seg: 5 });
+    for (const py of [14, 28, 40]) { m.cyl(kx, y + py - 0.35, kz, 6, 0.7, C('#2e2e2c'), { seg: 12, bottom: true }); for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; m.box(kx + Math.cos(a) * 5.7, y + py + 1.2, kz + Math.sin(a) * 5.7, 0.2, 1.2, 0.2, C('#4a4a48')); } }
+    for (const s of [-0.8, 0.8]) m.box(kx + 4.6, y + 25, kz + s, 0.15, 25, 0.15, C('#2a2a2a'));
+    for (let yy = 2; yy < 50; yy += 2.4) m.box(kx + 4.6, y + yy, kz, 0.1, 0.1, 0.8, C('#2a2a2a'));
+    m.set({ flags: 0 });
+    // borular: kazandan kuleye, kuleden depolara (yerde)
+    const pc = C('#3a3836');
+    m.tube([x + 2, y + 12, z - 7], [kx - 4, y + 12, kz], 0.8, 0.8, pc, { seg: 6 });
+    m.tube([kx, y + 1, kz + 4], [kx, y + 1, z + 1], 0.7, 0.7, pc, { seg: 6 });
+    m.tube([x - 12, y + 1, z - 3], [x - 12, y + 1, z + 2], 0.7, 0.7, pc, { seg: 6 });
+    m.tube([x - 12, y + 1, z - 3], [kx, y + 1, z - 3], 0.7, 0.7, pc, { seg: 6 });
+    P3.oilTank(m, x - 12, y, z + 9, 8, 13, '#6e3626');
+    P3.oilTank(m, x + 12, y, z + 10, 9, 15, '#7a3a2a');
+  };
+  // hayvan iskeleti (küçük): kaburga kemerleri ve kafatası
+  const bone = (m, pts, r, col) => { for (let i = 1; i < pts.length; i++) m.tube(pts[i - 1], pts[i], r, r, col, { seg: 4, caps: i === 1 || i === pts.length - 1 }); };
+  const ribArc = (m, x, y, z, r, col, rr) => { const pts = []; for (let k = 0; k <= 6; k++) { const t = Math.PI * (0.08 + 0.84 * k / 6); pts.push([x, y + Math.sin(t) * r, z + Math.cos(t) * r]); } bone(m, pts, rr, col); };
+  P3.bones = (m, x, y, z) => {
+    const c = C('#e8e0d0');
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0 });
+    m.tube([x - 5, y + 0.6, z], [x + 4, y + 0.8, z], 0.45, 0.45, c, { seg: 4 });
+    for (let k = 0; k < 4; k++) ribArc(m, x + (k - 1.5) * 2, y + 0.4, z, 2.8, c, 0.35);
+    m.ell(x + 5.2, y + 1.4, z + 0.4, 1.8, 1.4, 1.5, c, { nu: 8, nv: 5 });
+  };
+  // dev fosil iskelet: kavisli omurga, sekiz çift kaburga, kafatası ve göz çukuru
+  P3.bigBones = (m, x, y, z) => {
+    const c = C('#e4dccb'), sp = (t) => { const u = 1 - t; return [x + u * u * -26 + 2 * u * t * 0 + t * t * 22, y + 2 + Math.sin(t * Math.PI) * 4, z + u * u * 0 + 2 * u * t * -3 + t * t * 2]; };
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0 });
+    const pts = []; for (let k = 0; k <= 12; k++) pts.push(sp(k / 12));
+    bone(m, pts, 0.9, c);
+    for (let k = 0; k < 8; k++) { const px = x - 16 + k * 4.5, t = (px - (x - 26)) / 48, r = 7 - Math.abs(k - 3.5); ribArc(m, px, y + 0.2, sp(t)[2], r, c, 0.55); }
+    m.ell(x + 26, y + 3, z + 2, 6, 3.6, 4, c, { nu: 10, nv: 6 });
+    m.ell(x + 28.2, y + 4.4, z + 4.6, 1.2, 1.1, 0.6, C('#3a3028'), { nu: 6, nv: 4 });
+  };
+  // kaya kemeri: iki ayak ve kavisli kemer (kızıl kumtaşı, üstü açık tonlu); altından geçen oyuncu için delinir
+  P3.arch = (m, x, y, z, rng) => {
+    const dk = C('#8a4228'), md = C('#a8563a'), lt = C('#c0704e'), tp = C('#cf8460');
+    const col = (p, n) => n[1] > 0.6 ? tp : n[1] > 0.25 ? lt : n[1] < -0.35 ? dk : md;
+    m.set({ mat: MAT.STONE, wind: 0, flags: 0, bone: 0 });
+    // ayaklar: yerden yükselen, üst üste binmiş pürüzlü kaya kütleleri (2D: 14 piksel geniş, kemerin iki ucunda)
+    for (const s of [-1, 1]) {
+      m.ell(x + s * 39, y + 7, z, 8.5, 10, 7.5, col, { nu: 10, nv: 7, amp: 0.16, fr: 1.7, seed: rng() * 40, ymin: -0.7 });
+      m.ell(x + s * 39.5, y + 19, z + 0.5, 7.4, 9, 6.8, col, { nu: 10, nv: 6, amp: 0.15, fr: 1.9, seed: rng() * 40 });
+    }
+    // kemer: kemer çizgisi boyunca üst üste binen pürüzlü kaya öbekleri (iç ve dış kavisin ortası, kalınlığı aralarında)
+    m.set({ flags: F.HOLE });
+    const N = 13, q = (t, a, b, c2) => (1 - t) * (1 - t) * a + 2 * (1 - t) * t * b + t * t * c2;
+    for (let k = 0; k <= N; k++) {
+      const t = k / N, ox = q(t, -46, 0, 46), oy = q(t, 22, 76, 22), ix = q(t, -32, 0, 32), iy = q(t, 22, 55, 22);
+      const cx = (ox + ix) / 2, cy = (oy + iy) / 2, th = Math.max(4.4, Math.hypot(ox - ix, oy - iy) / 2);
+      m.ell(x + cx, y + cy - 2, z, 5.2 + th * 0.35, th, 6.2, col, { nu: 9, nv: 6, amp: 0.14, fr: 2.0, seed: rng() * 40 });
+    }
+    m.set({ flags: 0 });
+  };
+  // darağacı: tahta platform, direk ve kiriş, ilmekli ip
+  P3.gallows = (m, x, y, z) => {
+    m.set({ mat: MAT.PLANKH, wind: 0, flags: 0, bone: 0 });
+    m.box(x, y + 2, z, 10, 2, 6, C('#6a4a2e'), { top: C('#7a5836') });
+    m.set({ mat: MAT.SOLID });
+    const w = C('#4a3422');
+    m.box(x - 7, y + 4 + 11, z, 1, 11, 1, w);
+    m.box(x, y + 26, z, 8.5, 0.9, 0.9, w);
+    m.tube([x - 7, y + 19, z], [x - 3, y + 25.2, z], 0.4, 0.4, w, { seg: 4 });
+    const rope = C('#a89060');
+    m.tube([x + 5, y + 25.2, z], [x + 5, y + 16.6, z], 0.22, 0.22, rope, { seg: 4, caps: false });
+    const pts = []; for (let k = 0; k <= 8; k++) { const a = k / 8 * Math.PI * 2; pts.push([x + 5 + Math.sin(a) * 1.6, y + 15 - Math.cos(a) * 1.6 + 1.6 - 1.6, z]); }
+    bone(m, pts, 0.2, rope);
+  };
+  // batık gemi: yan yatmamış, kuma gömülü gövde (sivri pruva), güverte tahtaları, ambar ağzı, kırık eğik direk
+  P3.ship = (m, x, y, z) => {
+    m.push(M4.mul(M4.translate(x, y, z), M4.rotY(0.15)));
+    const L0 = -36, L1 = 38, D = 7, hw = (u) => 12 * Math.pow(Math.max(0, Math.sin(Math.PI * (0.18 + 0.82 * u))), 0.55);
+    const hull = C('#5a3e26'), deck = C('#7a5836'), line = C('#3a2818');
+    m.set({ mat: MAT.PLANKH, wind: 0, flags: 0, bone: 0 });
+    m.surf(16, 6, (u, v) => { const ph = Math.PI * v, w = hw(u); return [L0 + (L1 - L0) * u, D - D * Math.sin(ph) - 0.5, -w * Math.cos(ph)]; }, hull, [0, D * 0.5, 0], false);
+    // kıç aynası
+    const w0 = hw(0), pts = []; for (let k = 0; k <= 6; k++) { const ph = Math.PI * k / 6; pts.push([L0, D - D * Math.sin(ph) - 0.5, -w0 * Math.cos(ph)]); }
+    for (let k = 1; k < pts.length - 1; k++) m.tri([L0, D - 0.5, 0], pts[k], pts[k + 1], [-1, 0, 0], [-1, 0, 0], [-1, 0, 0], shade(hull, -0.2));
+    m.tri([L0, D - 0.5, 0], pts[0], pts[1], [-1, 0, 0], [-1, 0, 0], [-1, 0, 0], shade(hull, -0.2));
+    // güverte
+    m.set({ mat: MAT.SOLID });
+    m.surf(16, 2, (u, v) => { const w = hw(u) * 0.96; return [L0 + (L1 - L0) * u, D - 0.4, -w + 2 * w * v]; }, (p) => (((p[0] - L0) % 6) + 6) % 6 < 1 ? line : deck, [0, -10, 0], false);
+    m.box(-1.5, D - 0.2, 0.5, 4.5, 0.3, 3.5, C('#2a1c12'));
+    // kırık direk (doğuya eğik)
+    m.tube([2, D - 0.5, 0], [2 + Math.sin(0.5) * 30, D - 0.5 + Math.cos(0.5) * 30, 0], 1.4, 1.1, C('#4a3422'), { seg: 6 });
+    m.pop();
+  };
+  // budanmış çit: koyu yeşil gövde, üstü yuvarlak tümsekli; komşu çitlere doğru uzanır, karda üstü beyaz
+  P3.hedge = (m, x, y, z, rng, nb, snowy) => {
+    const x0 = x - (nb.w ? 8 : 6.5), x1 = x + (nb.e ? 8 : 6.5), z0 = z - (nb.n ? 8 : 5), z1 = z + (nb.s ? 8 : 5);
+    m.set({ mat: MAT.FOLIAGE, wind: 0.15, windBase: y, windH: 12, flags: 0, bone: 0 });
+    m.box((x0 + x1) / 2, y + 4.5, (z0 + z1) / 2, (x1 - x0) / 2, 4.5, (z1 - z0) / 2, C('#2e4a24'), { top: C('#3e6230') });
+    const n = 4;
+    for (let k = 0; k < n; k++) {
+      const u = (k + 0.5) / n, bx = x0 + (x1 - x0) * u, bz = z0 + (z1 - z0) * ((k * 0.37 + rng() * 0.3) % 1);
+      m.ell(bx, y + 9, (z0 + z1) / 2 + (bz - (z0 + z1) / 2) * 0.4, 3.4, 2.2, Math.min(4.5, (z1 - z0) / 2), k % 2 ? C('#3e6230') : C('#527a3c'), { nu: 8, nv: 5, amp: 0.15, seed: rng() * 30, ymin: 0 });
+    }
+    if (snowy) { m.set({ mat: MAT.SOLID, wind: 0 }); m.box((x0 + x1) / 2, y + 10.4, (z0 + z1) / 2, (x1 - x0) / 2, 0.8, (z1 - z0) / 2, C('#e8edf2')); }
+    m.set({ wind: 0 });
+  };
+  // çiçeklik: toprak yatak, çiçekler (mevsime göre renk; kışın ve karda boş)
+  P3.flowerbed = (m, x, y, z, h, season, snowy) => {
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0 });
+    m.cyl(x, y, z, 7, 1.1, C('#4a3220'), { seg: 14, topCol: C('#5a3e26') });
+    if (snowy || season === 3) return;
+    const cols = season === 2 ? ['#c87a2a', '#a85a20', '#e0aa3a'] : ['#e04a5a', '#f0d040', '#f0f0f0', '#b060d0', '#f08a3a'];
+    m.set({ mat: MAT.FOLIAGE, wind: 0.6, windBase: y + 1, windH: 3, flags: F.NOSHADOW });
+    for (let k = 0; k < 9; k++) {
+      const a = k * 2.4 + h * 7, r = 1.5 + (k % 3) * 1.5, fx = x + Math.cos(a) * r * 1.3, fz = z + Math.sin(a) * r * 1.1;
+      m.tube([fx, y + 1, fz], [fx, y + 2.6, fz], 0.18, 0.18, C('#4e7a34'), { seg: 3, caps: false });
+      m.ell(fx, y + 2.9, fz, 0.95, 0.6, 0.95, C(cols[(k + Math.floor(h * 5)) % cols.length]), { nu: 6, nv: 3 });
+    }
+    m.set({ wind: 0, flags: 0 });
+  };
+  // çeşme: taş havuz ve suyu, ortada kademeli sütun, üst çanak ve fışkıran su
+  P3.fountain = (m, x, y, z, snowy) => {
+    const st = C('#8a847a'), lt = C('#b4ada2'), wat = C('#3e6a80');
+    m.set({ mat: MAT.STONE, wind: 0, flags: 0, bone: 0 });
+    m.cyl(x, y, z, 12, 3.2, st, { seg: 22, topCol: lt });
+    m.set({ mat: MAT.SOLID, flags: F.NOSHADOW });
+    m.cyl(x, y + 3.25, z, 9.6, 0.05, wat, { seg: 22, topCol: wat });
+    m.set({ mat: MAT.STONE, flags: 0 });
+    m.cyl(x, y + 3, z, 1.6, 8.5, C('#a8a196'), { seg: 8 });
+    m.cyl(x, y + 10.2, z, 1.8, 1.6, lt, { seg: 14, r2: 4.6, topCol: lt });
+    m.set({ mat: MAT.SOLID, flags: F.NOSHADOW });
+    m.cyl(x, y + 11.85, z, 3.4, 0.05, C('#4e7a90'), { seg: 14, topCol: C('#4e7a90') });
+    m.set({ mat: MAT.EMIT });
+    const jet = C('#d2ebf5');
+    m.tube([x, y + 11.8, z], [x, y + 16.5, z], 0.45, 0.25, jet, { seg: 5 });
+    for (const s of [-1, 1]) for (const k of [0, 1, 2]) m.ell(x + s * (2.4 + k * 1.1), y + 11 - k * 2.6, z + 0.3, 0.35, 0.5, 0.35, jet, { nu: 4, nv: 3 });
+    if (snowy) { m.set({ mat: MAT.SOLID }); m.cyl(x, y + 11.9, z, 4.4, 0.6, C('#e8edf2'), { seg: 14 }); }
+    m.set({ mat: MAT.SOLID, flags: 0 });
+  };
+  // heykel: kaide ve sütun başı üstünde, elini doğuya uzatmış bronz kurucu
+  P3.statue = (m, x, y, z, snowy) => {
+    m.set({ mat: MAT.STONE, wind: 0, flags: 0, bone: 0 });
+    m.box(x, y + 1, z, 6, 1, 4.5, C('#8a847a'), { top: C('#a8a196') });
+    m.box(x, y + 6.5, z, 4, 4.5, 3.2, C('#9a948a'));
+    m.box(x, y + 11.6, z, 4.6, 0.7, 3.7, C('#b4ada2'));
+    m.set({ mat: MAT.SOLID });
+    const br = (p, n) => n[0] < -0.3 || n[1] > 0.6 ? C('#6a8a78') : C('#4e6a5a');
+    m.tube([x - 0.9, y + 12.3, z], [x - 0.7, y + 17, z], 0.8, 0.7, br, { seg: 6 });
+    m.tube([x + 0.9, y + 12.3, z], [x + 0.7, y + 17, z], 0.8, 0.7, br, { seg: 6 });
+    m.ell(x, y + 20, z, 2, 3.6, 1.5, br, { nu: 8, nv: 6 });
+    m.ell(x, y + 25, z, 1.6, 1.8, 1.6, br, { nu: 8, nv: 6 });
+    m.tube([x + 1.2, y + 22.4, z], [x + 6.4, y + 23.6, z + 0.4], 0.6, 0.5, br, { seg: 5 });
+    m.tube([x - 1.2, y + 22.4, z], [x - 2, y + 18.6, z + 0.4], 0.6, 0.5, br, { seg: 5 });
+    if (snowy) { m.box(x, y + 12.4, z, 4.6, 0.35, 3.7, C('#e8edf2')); m.ell(x, y + 26.6, z, 1.2, 0.5, 1.2, C('#e8edf2'), { nu: 6, nv: 3 }); }
   };
 
   /* ---------------- tren ----------------
@@ -963,6 +1260,29 @@
       m.box(rx, 9, z, 0.6, 0.45, 8, C('#3a2416'));
       for (let k = -6; k <= 6; k += 4) m.box(rx, 4.5, z + k, 0.3, 4.5, 0.3, C('#5a3a22'));
       if (p === n - 1) { m.box(rx, 5.5, z + 7, 0.9, 5.5, 0.9, C('#2a1a10')); m.box(rx, 11.3, z + 7, 1.0, 0.35, 1.0, BRASS); }
+    },
+    vat(m, x, z) {
+      // bakır mayşe kazanı: perçinli kuşaklı gövde, kubbe kapak, arka duvara giden boru, pirinç musluk
+      m.set({ mat: MAT.SOLID, flags: 0, bone: 0 });
+      const cu = C('#8a4a26'), hi = C('#c8783a');
+      m.cyl(x, 0, z, 6.8, 9, (a) => Math.cos(a) < -0.45 ? hi : cu, { seg: 16, top: false });
+      m.cyl(x, 4.4, z, 6.95, 0.7, C('#5a2e14'), { seg: 16, top: false });
+      for (let k = 0; k < 8; k++) { const a = Math.PI * (0.15 + k * 0.1); m.box(x + Math.cos(a) * 7, 4.75, z + Math.sin(a) * 7, 0.3, 0.3, 0.3, C('#e0a060')); }
+      m.ell(x, 9, z, 6.8, 3.4, 6.8, (p, n) => n[1] > 0.75 ? C('#c8803e') : C('#b0683a'), { nu: 16, nv: 5, ymin: 0 });
+      m.tube([x, 11.8, z], [x, 20, z], 0.8, 0.8, C('#a8602e'), { seg: 6 });
+      m.tube([x, 20, z], [x, 20, z - 9], 0.8, 0.8, C('#a8602e'), { seg: 6 });
+      m.box(x + 7.3, 3, z + 2, 1.3, 0.45, 0.45, BRASS); m.box(x + 8.3, 2.2, z + 2, 0.35, 0.9, 0.35, BRASS);
+    },
+    bust(m, x, z) {
+      // kaidede mermer büst: taban, sütun, sütun başı, omuzlar ve baş
+      m.set({ mat: MAT.STONE, flags: 0, bone: 0 });
+      const mb = C('#e4e0d8'), dk = C('#a8a49c');
+      m.box(x, 0.8, z, 3.2, 0.8, 2.8, dk);
+      m.box(x, 5.4, z, 2.4, 3.8, 2.2, mb);
+      m.box(x, 9.5, z, 3, 0.4, 2.6, dk);
+      m.ell(x, 11.2, z, 3.4, 1.6, 2.2, mb, { nu: 10, nv: 5, ymin: -0.2 });
+      m.ell(x, 14.2, z, 1.9, 2.5, 2.0, mb, { nu: 10, nv: 6 });
+      m.box(x, 16.2, z - 0.4, 1.5, 0.45, 1.5, dk);
     },
     roomDoor(m, x, z, open, back, plate) {
       // üst kattaki oda kapısı: duvar bandının boşluğunda kasa; kapalıyken kanat boşluğu kapatır, açıkken odaya doğru

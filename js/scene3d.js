@@ -337,6 +337,8 @@
           if (k >= 0) FURN.roomDoor(m, x, z, roomOpen(b, k), UP.rooms[k].side === 2, b.type === 'hotel');
           break;
         }
+        case O.VAT: FURN.vat(m, x, z); break;
+        case O.BUST: FURN.bust(m, x, z); break;
         case O.IBLOCK: case O.HOMECHEST: break;
         case O.BILLIARD: FURN.generic(m, x + 8, z, '#2e6a3a', 9); break;
         case O.ROULETTE: FURN.generic(m, x + 8, z, '#3a1a12', 9); break;
@@ -360,9 +362,31 @@
 
   /* ---------------- dış nesneler ---------------- */
   const OAKP = [C('#314d22'), C('#3f6129'), C('#557a35')], BIRCHP = [C('#4a6a2a'), C('#5e8436'), C('#7a9e48')], APPLEP = [C('#2e4a22'), C('#3e6028'), C('#527a32')];
+  /* elektrik direğinin traversi tellere diktir (direğe dokunan tellerin yönü çift açıyla ortalanır; teli yoksa doğu-batı).
+     Teller değişince (kasaba elektriklenince) yeniden hesaplanır */
+  const PD = new WeakMap();
+  function poleDir(W, tx, ty) {
+    const WS = W.wires;
+    let sig = '';
+    if (WS) for (const id in WS) sig += id + ':' + WS[id].length + ',';
+    let c0 = PD.get(W);
+    if (!c0 || c0.sig !== sig || c0.WS !== WS) {
+      const acc = new Map();
+      if (WS) for (const id in WS) for (const [ax, ay, bx, by] of WS[id]) {
+        const a = Math.atan2(by - ay, bx - ax), c2 = Math.cos(2 * a), s2 = Math.sin(2 * a);
+        for (const [px, py] of [[ax, ay], [bx, by]]) { const k = Math.floor(py / 16) * WW + Math.floor(px / 16), v = acc.get(k) || [0, 0]; v[0] += c2; v[1] += s2; acc.set(k, v); }
+      }
+      PD.set(W, c0 = { sig, WS, acc });
+    }
+    const v = c0.acc.get(ty * WW + tx);
+    if (!v || Math.hypot(v[0], v[1]) < 1e-6) return [1, 0];
+    const a = Math.atan2(v[1], v[0]) / 2 + Math.PI / 2;
+    return [Math.cos(a), Math.sin(a)];
+  }
   function objects(W, tx0, ty0, tx1, ty1, OX, OZ, out, info) {
     const rng = RNG(tx0 * 31 + ty0 * 17 + 3);
     const isF = (x, y, o) => x >= 0 && y >= 0 && x < WW && y < WH && W.obj[y * WW + x] === o;
+    const day = typeof G !== 'undefined' ? G.day : 0, snowy = (tx, ty) => W.season === 3 && W.snowyTile(tx, ty);
     for (let ty = ty0; ty < ty1; ty++) for (let tx = tx0; tx < tx1; tx++) {
       if (tx < 0 || ty < 0 || tx >= WW || ty >= WH) continue;
       const i = ty * WW + tx, o = W.obj[i];
@@ -370,16 +394,36 @@
       const x = tx * 16 + 8 - OX, z = ty * 16 + 8 - OZ, y = 0;
       const m = out;
       switch (o) {
-        case O.OAK: P3.oak(m, x, y, z + 3, 0.85, rng, OAKP); if (info) info.leafy.push([tx * 16 + 8, ty * 16 - 4, hash2(tx, ty, 78)]); break;
-        case O.APPLE: P3.oak(m, x, y, z + 3, 0.75, rng, APPLEP); if (info) info.leafy.push([tx * 16 + 8, ty * 16 - 4, hash2(tx, ty, 78)]); break;
-        case O.BIRCH: P3.oak(m, x, y, z + 3, 0.7, rng, BIRCHP); if (info) info.leafy.push([tx * 16 + 8, ty * 16 - 4, hash2(tx, ty, 78)]); break;
-        case O.PINE: case O.SNOWPINE: case O.CYPRESS: P3.pine(m, x, y, z + 3, 0.85, rng); break;
-        case O.SEQUOIA: P3.pine(m, x, y, z + 3, 1.3, rng); break;
+        // yaprak döken ağaçlar mevsime uyar (2D'deki gibi): sonbaharda yaprak renkleri, kışın soğuk yerde çıplak dallar
+        case O.OAK: case O.APPLE: case O.BIRCH: {
+          const sc = o === O.OAK ? 0.85 : o === O.APPLE ? 0.75 : 0.7;
+          if (W.bareTree(tx, ty)) { P3.bare(m, x, y, z + 3, sc, rng, snowy(tx, ty)); break; }
+          let pal = o === O.OAK ? OAKP : o === O.APPLE ? APPLEP : BIRCHP;
+          if (W.season === 2 && typeof AUTUMN_PAL !== 'undefined') pal = AUTUMN_PAL[Math.floor(hash2(tx, ty, 77) * AUTUMN_PAL.length)].map(c => C(c));
+          P3.oak(m, x, y, z + 3, sc, rng, pal);
+          if (info) info.leafy.push([tx * 16 + 8, ty * 16 - 4, hash2(tx, ty, 78)]);
+          break;
+        }
+        case O.PINE: case O.SNOWPINE: case O.CYPRESS: P3.pine(m, x, y, z + 3, 0.85, rng, o === O.SNOWPINE || snowy(tx, ty)); break;
+        case O.SEQUOIA: P3.pine(m, x, y, z + 3, 1.3, rng, snowy(tx, ty)); break;
         case O.DEAD: P3.dead(m, x, y, z + 3, 0.9); break;
-        case O.BUSH: P3.bush(m, x, y, z, 1.0, rng); break;
+        // çalı, ot öbeği, çiçek ve ekin mevsime uyar (2D'deki renkler): sonbaharda sararır, kışın solar; çiçekler kışın ve
+        // sonbaharda, ot öbekleri karda görünmez
+        case O.BUSH: {
+          const hh = hash2(tx, ty, 77);
+          const cs = W.season === 2 ? (hh > 0.5 ? ['#7a4a1e', '#9a6026', '#b87a30'] : ['#6a5a26', '#8a7230', '#a88a3a']) : W.season === 3 ? ['#4a4a36', '#5a5a42', '#6a6a50'] : null;
+          P3.bush(m, x, y, z, 1.0, rng, cs ? cs.map(c => C(c)) : null);
+          break;
+        }
         case O.DRYBUSH: P3.bush(m, x, y, z, 0.8, rng, [C('#6a6a3a'), C('#7a7442'), C('#8a8250')]); break;
-        case O.TUFT: case O.REED: P3.tuft(m, x, y, z, rng, [C('#4a6a2a'), C('#5e8436'), C('#6a8a3a')], o === O.REED ? 7 : 3.4); break;
-        case O.FLOWERS: case O.WFLOWER: P3.tuft(m, x, y, z, rng, [C('#c8a040'), C('#b84a6a'), C('#e8e0d0'), C('#5e8436')], 3); break;
+        case O.TUFT: {
+          if (snowy(tx, ty)) break;
+          const cs = W.season === 2 ? ['#8a6a2a', '#9a7a34', '#7a6a2e'] : W.season === 3 ? ['#6a6048', '#7a6e52', '#5e5640'] : ['#4a6a2a', '#5e8436', '#6a8a3a'];
+          P3.tuft(m, x, y, z, rng, cs.map(c => C(c)), 3.4);
+          break;
+        }
+        case O.REED: P3.tuft(m, x, y, z, rng, [C('#4a6a2a'), C('#5e8436'), C('#6a8a3a')], 7); break;
+        case O.FLOWERS: if (!snowy(tx, ty) && W.season !== 2 && W.season !== 3) P3.tuft(m, x, y, z, rng, [C('#c8a040'), C('#b84a6a'), C('#e8e0d0'), C('#5e8436')], 3); break;
         case O.ROCK: P3.rock(m, x, y, z, 4, rng); break;
         case O.BOULDER: P3.rock(m, x, y, z, 8, rng); break;
         case O.CACTUS: case O.SAGUARO: { m.set({ mat: MAT.FOLIAGE, flags: 0, wind: 0, bone: 0 }); const h = o === O.SAGUARO ? 30 : 12; m.cyl(x, y, z, 2.4, h, C('#4a6a3a'), { seg: 8, dome: 1.5 }); if (o === O.SAGUARO) { m.tube([x, y + 14, z], [x + 6, y + 16, z], 1.6, 1.6, C('#4a6a3a'), { seg: 6 }); m.tube([x + 6, y + 16, z], [x + 6, y + 24, z], 1.6, 1.6, C('#4a6a3a'), { seg: 6 }); } break; }
@@ -394,11 +438,11 @@
         case O.PUMP: P3.pump(m, x, y, z); break;
         case O.HAY: P3.haybale(m, x, y, z, 0); break;
         case O.SIGN: case O.LOTSIGN: P3.sign(m, x, y, z, o === O.LOTSIGN ? '#c8b070' : '#9a7a52'); break;
-        case O.POLE: case O.UPOLE: P3.pole(m, x, y, z); break;
+        case O.POLE: case O.UPOLE: P3.pole(m, x, y, z, o === O.UPOLE ? poleDir(W, tx, ty) : null); break;
         case O.HITCH: P3.hitch(m, x, y, z); break;
         case O.BENCH: P3.bench(m, x, y, z); break;
         case O.BOARD: P3.board(m, x, y, z); break;
-        case O.CROP: P3.crop(m, x, y, z, rng); break;
+        case O.CROP: P3.crop(m, x, y, z, rng, W.season, snowy(tx, ty)); break;
         case O.WAGON: P3.wagon(m, x + 6, y, z, 0.2); break;
         case O.CAMPFIRE: {
           if (info) info.fires.push([tx * 16 + 8, ty * 16 + 8]);
@@ -416,8 +460,34 @@
           for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; m.tube([x, y + 46, z + 2], [x + Math.cos(a) * 12, y + 46 + Math.sin(a) * 12, z + 2], 0.6, 0.3, C('#c8c0b0'), { seg: 4 }); }
           break;
         }
+        // maden ve petrol
+        case O.ORE: P3.ore(m, x, y, z, rng, hash2(tx, ty, 77) > 0.7); break;
+        case O.SEEP: P3.seep(m, x, y, z, hash2(tx, ty, 77)); break;
+        case O.DERRICK: P3.derrick(m, x, y, z, hash2(tx, ty, 77)); break;
+        case O.OILTANK: P3.oilTank(m, x, y, z + 1.5, 8.5, 15); break;
+        case O.REFINERY: P3.refinery(m, x, y, z, hash2(tx, ty, 77)); break;
+        // yaban yerleri
+        case O.BONES: P3.bones(m, x, y, z); break;
+        case O.BIGBONES: P3.bigBones(m, x, y, z); break;
+        case O.ARCH: P3.arch(m, x, y, z, rng); break;
+        case O.GALLOWS: P3.gallows(m, x, y, z); break;
+        case O.SHIP: P3.ship(m, x, y, z); break;
+        // zengin şehrin park ve meydan süsleri
+        case O.HEDGE: P3.hedge(m, x, y, z, rng, { n: isF(tx, ty - 1, o), s: isF(tx, ty + 1, o), w: isF(tx - 1, ty, o), e: isF(tx + 1, ty, o) }, snowy(tx, ty)); break;
+        case O.FLOWERBED: P3.flowerbed(m, x, y, z, hash2(tx, ty, 77), W.season, snowy(tx, ty)); break;
+        case O.FOUNTAIN: P3.fountain(m, x, y, z, snowy(tx, ty)); break;
+        case O.STATUE: P3.statue(m, x, y, z, snowy(tx, ty)); break;
+        // kazı yeri (parıltısı her karede, toplanınca söner) ve kaplıca (buharı her karede)
+        case O.ARTIFACT: if (info) info.arts.push([tx * 16 + 8, ty * 16 + 8, i]); break;
+        case O.STEAM: if (info) info.steam.push([tx * 16, ty * 16]); break;
         default:
-          if (o >= 20 && o <= 28) P3.tuft(m, x, y, z, rng, [C('#5e8436'), C('#7a9a44'), C('#c8a040')], 3);
+          // toplanabilir ot: toplanınca yeniden yeşerene dek, kışın karlı yerde görünmez (blok o gün yeniden kurulur)
+          if (isHerbO(o)) {
+            const hv = W.harvested.get(i);
+            if ((hv !== undefined && hv > day) || snowy(tx, ty)) { if (info && hv !== undefined) info.regrow = true; break; }
+            P3.herb(m, x, y, z, o, rng);
+            if (info) info.herbs.push([tx * 16 + 8, ty * 16 + 8, i]);
+          }
       }
     }
   }
@@ -428,8 +498,10 @@
     const bytes = new Uint8Array(w * h * 4);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const gx = tx0 + x, gy = ty0 + y, o = (y * w + x) * 4;
-      const t = gx < 0 || gy < 0 || gx >= WW || gy >= WH ? T.GRASS : W.tile[gy * WW + gx];
-      bytes[o] = t; bytes[o + 1] = 0; bytes[o + 2] = 0; bytes[o + 3] = 255;
+      const ib = gx >= 0 && gy >= 0 && gx < WW && gy < WH, t = ib ? W.tile[gy * WW + gx] : T.GRASS;
+      // kışın kar miktarı (oyunun snowyTile kuralı: karonun kendi payıyla 0.25 üstü karlı); suda kar yok
+      const sn = ib && W.season === 3 && !isWaterT(t) ? Math.max(0, Math.min(1, W.snowAmt(gy * WW + gx, (hash2(gx, gy, 71) - 0.5) * 0.8))) : 0;
+      bytes[o] = t; bytes[o + 1] = Math.round(sn * 255); bytes[o + 2] = 0; bytes[o + 3] = 255;
     }
     return bytes;
   }
@@ -515,9 +587,9 @@
   }
   // dış nesneler: [tx0, tx1) × [ty0, ty1) karoları; kamp ateşleri ve yaprak döken ağaçlar (efektler için) ayrıca
   function objectsPart(gl, W, tx0, ty0, tx1, ty1) {
-    const m = new Mesh(8192), info = { fires: [], leafy: [] };
+    const m = new Mesh(8192), info = { fires: [], leafy: [], herbs: [], arts: [], steam: [], regrow: false };
     objects(W, tx0, ty0, tx1, ty1, 0, 0, m, info);
-    return { mesh: m.count ? new GPUMesh(gl, m) : null, fires: info.fires, leafy: info.leafy };
+    return Object.assign(info, { mesh: m.count ? new GPUMesh(gl, m) : null });
   }
   // demiryolu: orta noktası [x0, x1) × [z0, z1) (piksel) içinde kalan traversler ve ray dilimleri
   function railsPart(gl, W, x0, z0, x1, z1) {
@@ -535,5 +607,5 @@
     return { mesh: new GPUMesh(gl, gm), ground: true, tex, rect: [tx0, ty0, tw, th] };
   }
 
-  Object.assign(D3, { STD, buildingPart, objectsPart, railsPart, terrainPart, palette });
+  Object.assign(D3, { STD, buildingPart, objectsPart, railsPart, terrainPart, palette, poleDir });
 })();

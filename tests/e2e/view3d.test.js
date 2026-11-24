@@ -160,6 +160,98 @@ module.exports = {
       t.ok(r.terr, 'zemin dokusu yenilendi', r);
     });
 
+    await t.step('3B modeli olmayan dış nesne kalmadı; mayşe kazanı ve büst iç mekânda', async () => {
+      const r = await p.evaluate(() => {
+        const W = G.world, gl = D3.renderer.gl, P = G.player;
+        const tx = Math.floor(P.x / 16) + 3, ty = Math.floor(P.y / 16) + 3, i = ty * WW + tx, o0 = W.obj[i], f0 = W.flags[i];
+        // iç mekân eşyaları binanın parçasında (js/scene3d.js interior) çizilir; kasa, fıçı, saman ve yalak dışarıda da durur
+        const outdoor = new Set([O.CRATE, O.BARREL, O.HAY, O.TROUGH]);
+        const inner = new Set([...Object.values(INT_KEY).filter(v => !outdoor.has(v)), O.STAIRS, O.STAIRSD, O.RDOOR]);
+        const skip = new Set([O.NONE, O.ARTIFACT, O.STEAM]);   // kazı yeri ve kaplıca: parıltı ve buhar her karede
+        const miss = [];
+        W.flags[i] = f0 & ~8;
+        for (const [k, v] of Object.entries(O)) {
+          if (skip.has(v) || inner.has(v)) continue;
+          W.obj[i] = v;
+          const part = D3.objectsPart(gl, W, tx, ty, tx + 1, ty + 1);
+          if (!part.mesh || part.mesh.count < 3) miss.push(k);
+          if (part.mesh) part.mesh.dispose();
+        }
+        W.obj[i] = o0; W.flags[i] = f0;
+        const m1 = new D3.Mesh(256); D3.FURN.vat(m1, 0, 0);
+        const m2 = new D3.Mesh(256); D3.FURN.bust(m2, 0, 0);
+        return { miss, vat: m1.count, bust: m2.count };
+      });
+      t.eq(r.miss, [], 'her dış nesne türü 3B çizilir');
+      t.ok(r.vat > 0 && r.bust > 0, 'mayşe kazanı ve büst', r);
+    });
+
+    await t.step('toplanan ot 3B\'de hemen kaybolur, yeniden yeşerince görünür; kazı yeri parıldar', async () => {
+      const r0 = await p.evaluate(() => {
+        const W = G.world, P = G.player, open = (dx, dy) => { const tx = Math.floor(P.x / 16) + dx, ty = Math.floor(P.y / 16) + dy; return ty * WW + tx; };
+        window.HI = open(2, 2); window.AI = open(-2, 2);
+        window.H0 = [W.obj[HI], W.obj[AI]];
+        W.obj[HI] = O.SAGE; W.obj[AI] = O.ARTIFACT; W.harvested.delete(HI); W.harvested.delete(AI);
+        W.invalidateChunkAt((HI % WW) * 16, Math.floor(HI / WW) * 16); W.invalidateChunkAt((AI % WW) * 16, Math.floor(AI / WW) * 16);
+        return true;
+      });
+      t.ok(r0, 'hazır');
+      const has = () => p.evaluate(() => ({ herb: D3.state.scene.herbs.some(h => h[2] === HI), art: D3.state.scene.arts.some(a => a[2] === AI) }));
+      await frames(3);
+      const a = await has();
+      t.ok(a.herb && a.art, 'ot ve kazı yeri sahnede', a);
+      await p.evaluate(() => { G.world.harvested.set(HI, G.day + 3); });
+      await frames(3);
+      t.ok(!(await has()).herb, 'toplanan ot kayboldu');
+      await p.evaluate(() => { G.clock += 1440 * 3; });
+      await frames(3);
+      t.ok((await has()).herb, 'günler geçince ot yeniden yeşerdi');
+      await p.evaluate(() => { const W = G.world; W.obj[HI] = H0[0]; W.obj[AI] = H0[1]; W.invalidateChunkAt((HI % WW) * 16, Math.floor(HI / WW) * 16); W.invalidateChunkAt((AI % WW) * 16, Math.floor(AI / WW) * 16); });
+    });
+
+    await t.step('kışın karlı yerde zemin ve çamlar karla örtülür; mevsim dönünce sahne yenilenir', async () => {
+      // karlı bir yer: kışın snowyTile olan, açık bir nokta
+      const at = await p.evaluate(() => {
+        const W = G.world, s0 = W.season;
+        W.season = 3;
+        let best = null;
+        // yalnızca kışın karlanan yer (kalıcı kar karosu değil): çevresinin çoğu kışın karlı, yazın değil
+        const sn = (x, y) => W.snowyTile(x, y) && W.tile[y * WW + x] !== T.SNOW && W.tile[y * WW + x] !== T.SNOWCLIFF && !isWaterT(W.tile[y * WW + x]);
+        for (let k = 0; k < 6000 && !best; k++) { const tx = 40 + Math.floor(Math.random() * (WW - 80)), ty = 40 + Math.floor(Math.random() * (WH - 80)); if (sn(tx, ty) && !W.blocked(tx * 16 + 8, ty * 16 + 8, 4)) { let n = 0; for (let dy = -6; dy <= 6; dy++) for (let dx = -8; dx <= 8; dx++) if (sn(tx + dx, ty + dy)) n++; if (n > 190) best = [tx * 16 + 8, ty * 16 + 8]; } }
+        W.season = s0;
+        if (best) TH.goto(best[0], best[1]);
+        return best;
+      });
+      t.ok(!!at, 'kışın karlı bir yer bulundu');
+      await frames(4);
+      const spring = await look();
+      await p.evaluate(() => { window.TR0 = D3.stream.terr; G.world.setSeason(3); });
+      await frames(2); await t.sleep(700); await frames(3);
+      const winter = await look(), rb = await p.evaluate(() => D3.stream.terr !== TR0);
+      t.ok(rb, 'zemin dokusu mevsimle yeniden kuruldu');
+      t.ok(winter.mean > spring.mean + 25, 'kar zemini aydınlattı', { spring: spring.mean, winter: winter.mean });
+      await p.evaluate(() => { G.world.setSeason(0); });
+      await frames(2); await t.sleep(700); await frames(2);
+    });
+
+    await t.step('elektrik telleri: direğin traversi tellere dik, teller sahnede tek çizgi ağı', async () => {
+      const r = await p.evaluate(() => {
+        const W = G.world, P = G.player, tx = Math.floor(P.x / 16), ty = Math.floor(P.y / 16) - 3;
+        window.W0 = W.wires; window.PO = [W.obj[ty * WW + tx - 4], W.obj[ty * WW + tx + 4]];
+        W.obj[ty * WW + tx - 4] = O.UPOLE; W.obj[ty * WW + tx + 4] = O.UPOLE;
+        W.wires = Object.assign({}, W.wires || {}, { __t: [[(tx - 4) * 16 + 8, ty * 16 + 8, (tx + 4) * 16 + 8, ty * 16 + 8]] });
+        W.invalidateChunkAt((tx - 4) * 16, ty * 16); W.invalidateChunkAt((tx + 4) * 16, ty * 16);
+        window.PT = [tx, ty];
+        return D3.poleDir(W, tx - 4, ty);
+      });
+      t.ok(Math.abs(r[0]) < 0.01 && Math.abs(Math.abs(r[1]) - 1) < 0.01, 'doğu-batı telinde travers kuzey-güney', r);
+      await frames(3);
+      const l = await p.evaluate(() => { const L = D3.state.scene.lines; return L ? L.count : 0; });
+      t.ok(l >= 40, 'teller çizgi ağında', l);
+      await p.evaluate(() => { const W = G.world, [tx, ty] = PT; W.obj[ty * WW + tx - 4] = PO[0]; W.obj[ty * WW + tx + 4] = PO[1]; W.wires = W0; W.invalidateChunkAt((tx - 4) * 16, ty * 16); W.invalidateChunkAt((tx + 4) * 16, ty * 16); });
+      await frames(2);
+    });
+
     await t.step('bina içi ve otelin üst katı: kesit, iç duvarlar, oda kapıları, kilitli odaların örtüsü; alt kattakiler gizli', async () => {
       await p.evaluate(() => {
         window.HB = G.world.buildings.find(x => x.type === 'hotel' && x.town === 'harlow' && isHotel2(x));

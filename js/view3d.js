@@ -414,6 +414,8 @@
     SC.jobs.clear(); SC.planned.clear(); SC.dirty.clear();
     SC.byChunk = null; SC.nB = -1; SC.list = null;
     if (SC.terr) { SC.terr.mesh.dispose(); D3.renderer.gl.deleteTexture(SC.terr.tex); SC.terr = null; }
+    if (SC.wires) { SC.wires.dispose(); SC.wires = null; }
+    SC.wireSig = null;
     SC.world = null;
   }
   function indexWorld(W) {
@@ -443,7 +445,10 @@
   function buildJob(gl, W, j) {
     const op = j.part, om = j.mesh;
     if (j.kind === 'b') j.part = D3.buildingPart(gl, W, j.b);
-    else if (j.kind === 'o') { const r = D3.objectsPart(gl, W, j.tx, j.ty, j.tx + BLK, j.ty + BLK); j.mesh = r.mesh; j.fires = r.fires; j.leafy = r.leafy; }
+    else if (j.kind === 'o') {
+      const r = D3.objectsPart(gl, W, j.tx, j.ty, j.tx + BLK, j.ty + BLK);
+      j.mesh = r.mesh; j.fires = r.fires; j.leafy = r.leafy; j.herbs = r.herbs; j.arts = r.arts; j.steam = r.steam; j.regrow = r.regrow;
+    }
     else j.mesh = D3.railsPart(gl, W, j.px, j.py, j.px + CH * 16, j.py + CH * 16);
     if (op && op !== j.part) op.mesh.dispose();
     if (om && om !== j.mesh) om.dispose();
@@ -456,11 +461,40 @@
       if (this === SC.world) { const k = Math.floor(px / 256) + ',' + Math.floor(py / 256); if (!SC.dirty.has(k)) SC.dirty.set(k, [px, py, null]); }
       return inv.call(this, px, py, keepCover);
     };
+    // mevsim değişti: nesneler (kışın karlı yerde otlar, çit ve süslerin karı) yeniden kurulur
+    const ss = World.prototype.setSeason;
+    World.prototype.setSeason = function (...a) {
+      const r = ss.apply(this, a);
+      if (r !== false && this === SC.world) { for (const j of SC.jobs.values()) if (j.kind === 'o') j.stale = true; SC.terrStale = true; }
+      return r;
+    };
     const bd = World.prototype.buildingDirty;
     World.prototype.buildingDirty = function (b) {
       if (this === SC.world) SC.dirty.set('b' + b.id, [0, 0, b]);
       return bd.call(this, b);
     };
+  }
+  /* elektrik telleri (elektrik gelen kasabalar, js/devworld.js: W.wires[kasaba] = direklerin dipleri): direk traversindeki
+     iki yalıtkan arasında iki sarkık tel, tek piksellik çizgi. Teller az olduğu için bütün dünyanınki tek ağda; kasaba
+     elektriklenince (tel listesi değişince) yeniden kurulur */
+  function wiresMesh(gl, W) {
+    const WS = W.wires;
+    let n = 0, sig = '';
+    if (WS) for (const id in WS) { n += WS[id].length; sig += id + ':' + WS[id].length + ','; }
+    if (SC.wireSig === sig && SC.wireW === WS) return SC.wires;
+    if (SC.wires) SC.wires.dispose();
+    SC.wires = null; SC.wireSig = sig; SC.wireW = WS;
+    if (!n) return null;
+    const m = new LineMesh(n * 44);
+    m.set({ mat: MAT.SOLID, flags: F.NOSHADOW, param: 0, wind: 0, bone: 0 });
+    const col = C('#1a1611');
+    for (const id in WS) for (const [ax, ay, bx, by] of WS[id]) {
+      const sag = clamp(Math.hypot(bx - ax, by - ay) * 0.05, 2, 7) * 1.4;
+      const da = D3.poleDir(W, Math.floor(ax / 16), Math.floor(ay / 16)), db = D3.poleDir(W, Math.floor(bx / 16), Math.floor(by / 16));
+      const f = da[0] * db[0] + da[1] * db[1] < 0 ? -1 : 1;   // iki ucun traversi ters yöndeyse teller çaprazlanmasın
+      for (const [s, k] of [[-1, 1], [1, 1.25]]) m.sag([ax + da[0] * 5.5 * s, 33.6, ay + da[1] * 5.5 * s], [bx + db[0] * 5.5 * s * f, 33.6, by + db[1] * 5.5 * s * f], sag * k, col, 10);
+    }
+    return (SC.wires = new GPUMesh(gl, m, gl.LINES));
   }
   function applyDirty() {
     for (const [px, py, b] of SC.dirty.values()) {
@@ -485,6 +519,13 @@
       SC.list = null;
     }
     if (SC.dirty.size) applyDirty();
+    // otlar: toplanan ot hemen kaybolur (bloğu yeniden kurulur); gün dönünce yeniden yeşeren otların blokları yenilenir
+    const day = g.day;
+    if (SC.day !== day) { if (SC.day !== undefined) for (const j of SC.jobs.values()) if (j.regrow) j.stale = true; SC.day = day; }
+    for (const j of SC.jobs.values()) {
+      if (!j.herbs || !j.herbs.length || j.stale || !j.ready) continue;
+      for (const h of j.herbs) { const hv = W.harvested.get(h[2]); if (hv !== undefined && hv > day) { j.stale = true; break; } }
+    }
     // görünen alan (gölge ve uzun nesneler için payla) değen parçalar planlanır, uzaklaşanlar atılır
     const R = VR + 320, P = CH * 16, NC = WW / CH;
     for (let cy = Math.floor((my - R) / P); cy <= Math.floor((my + R) / P); cy++) for (let cx = Math.floor((mx - R) / P); cx <= Math.floor((mx + R) / P); cx++) {
@@ -519,20 +560,25 @@
       if (T0) { T0.mesh.dispose(); gl.deleteTexture(T0.tex); }
     }
     if (!SC.list) {
-      const parts = [], bparts = new Map(), fires = [], leafy = [];
+      const parts = [], bparts = new Map(), fires = [], leafy = [], herbs = [], arts = [], steam = [];
       for (const j of SC.jobs.values()) {
         if (!j.ready) continue;
         if (j.kind === 'b') { if (j.part) { parts.push(j.part); bparts.set(j.b.id, j.part); } }
         else if (j.mesh) parts.push({ mesh: j.mesh, rails: j.kind === 'r' });
         if (j.fires) for (const f of j.fires) fires.push(f);
         if (j.leafy) for (const q of j.leafy) leafy.push(q);
+        if (j.herbs) for (const q of j.herbs) herbs.push(q);
+        if (j.arts) for (const q of j.arts) arts.push(q);
+        if (j.steam) for (const q of j.steam) steam.push(q);
       }
-      SC.list = { parts, bparts, fires, leafy };
+      SC.list = { parts, bparts, fires, leafy, herbs, arts, steam };
     }
     SC.stats.ms = performance.now() - now; SC.stats.jobs = SC.jobs.size; SC.stats.pend = pend.length;
     const sc = SC.scene || (SC.scene = { OX: 0, OZ: 0, lines: null });
     sc.parts = [SC.terr, ...SC.list.parts, ...(D3.extraParts || [])];
     sc.bparts = SC.list.bparts; sc.fires = SC.list.fires; sc.leafy = SC.list.leafy;
+    sc.herbs = SC.list.herbs; sc.arts = SC.list.arts; sc.steam = SC.list.steam;
+    sc.lines = wiresMesh(gl, W);
     sc.tiles = { tex: SC.terr.tex, rect: SC.terr.rect }; sc.pal = SC.pal;
     return (S.scene = sc);
   }
@@ -608,8 +654,26 @@
       FX.fireSource(f[0], f[1]);
     }
     if (g.world.season === 2 && g.settings.ambient) for (const q of sc.leafy) if (near(q[0], q[1], 0)) FX.leafTree(q[0], q[1], q[2]);
+    // kaplıca buharı (2D'deki sıklıkla)
+    for (const q of sc.steam) if (near(q[0] + 8, q[1] + 8, 60) && Math.random() < dt * 18) g.parts.add('steam', q[0] + rnd(-40, 56), q[1] + rnd(-40, 56), rnd(-4, 4), -6, 2.5, 3);
   }
   const inV = (x, y, mx, my, R) => (x - mx) ** 2 + (y - my) ** 2 < R * R;
+  // kazı yerinin parıltısı (toplanana dek) ve yakındaki otun ışıltısı (2D'deki gibi; yerde, görüntüdeki yerinde)
+  function marks3D(c, g, sc, mx, my, VR) {
+    const W = g.world, P = g.player, t = g.t, day = g.day;
+    for (const a of sc.arts) {
+      if (!inV(a[0], a[1], mx, my, VR) || W.harvested.get(a[2]) !== undefined) continue;
+      const q = w2s(a[0], a[1], 1.5);
+      Spr.sparkle(c, q[0], q[1], t + (a[2] % WW));
+    }
+    for (const h of sc.herbs) {
+      if ((h[0] - P.x) ** 2 + (h[1] - P.y) ** 2 > 3600) continue;
+      const hv = W.harvested.get(h[2]);
+      if (hv !== undefined && hv > day) continue;
+      const q = w2s(h[0], h[1], 0), r = 7 + Math.sin(t * 4);
+      c.fillStyle = 'rgba(255,240,180,0.25)'; c.beginPath(); c.ellipse(q[0], q[1], r, r * S.cam.st, 0, 0, TAU2); c.fill();
+    }
+  }
   // parçacıklar: oyunun 2D çizimiyle aynı biçimler, yerdeki noktasının üstünde yüksekliğiyle
   function parts3D(c, mx, my, VR) {
     const L = G.parts.list;
@@ -863,7 +927,7 @@
     try { projs3D(ctx, g); } finally { ctx.restore(); }
     // parçacıklar: yerdeki noktaları ve yükseklikleriyle (ekran pikseliyle çizilir)
     ctx.save(); ctx.setTransform(ds, 0, 0, ds, 0, 0);
-    try { parts3D(ctx, mx, my, VR); } finally { ctx.restore(); }
+    try { parts3D(ctx, mx, my, VR); marks3D(ctx, g, sc, mx, my, VR); } finally { ctx.restore(); }
     // oyunun üst katmanı: arayüz, hava (2D ışık, parıltı ve teller 3B'de). Dünyaya bağlı çizimler yeniden izdüşüren
     // bağlamla, nişangâh ve işaretler dayanak noktasıyla çizilir; ekran efektleri olduğu gibi
     FX.glTint = true;

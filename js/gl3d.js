@@ -388,10 +388,17 @@ int tileAt(vec2 q){
 bool isWater(int t){ return t == 0 || t == 1 || t == 20; }
 vec3 ramp(vec3 c, float k){ return k < 0.0 ? mix(c, vec3(0.16, 0.12, 0.09), -k) : mix(c, vec3(0.96, 0.92, 0.8), k); }
 // karo sınırını kır: örnek noktası gürültüyle birkaç piksel kayar (aynı kayma su ve zeminde)
-int tileJit(vec3 p){
+vec2 jitQ(vec3 p){
   vec2 q = floor(p.xz / uCell) * uCell;
   vec2 j = vec2(vnoise(q * 0.21 + 11.0), vnoise(q * 0.21 + 37.0)) - 0.5;
-  return tileAt(q + j * 7.0 + (bayer(p.xz / uCell) - 0.5) * 1.5);
+  return q + j * 7.0 + (bayer(p.xz / uCell) - 0.5) * 1.5;
+}
+int tileJit(vec3 p){ return tileAt(jitQ(p)); }
+// kışın karın örtüsü (dokunun yeşil kanalı: oyunun kar miktarı, 0.25 üstü karlı); karo sınırı zeminle aynı kırılır
+float snowAt(vec3 p){
+  vec2 t = floor(jitQ(p) / 16.0) - uTileRect.xy;
+  if (t.x < 0.0 || t.y < 0.0 || t.x >= uTileRect.z || t.y >= uTileRect.w) return 0.0;
+  return texelFetch(uTiles, ivec2(t), 0).g;
 }
 vec3 terrain(vec3 p, vec3 n, int t, out float matOut){
   vec2 q = floor(p.xz / uCell) * uCell;
@@ -483,7 +490,18 @@ void main(){
   if (mat == 4.0) {
     int tt = tileJit(vPos);
     if (isWater(tt)) { alb = waterCol(vPos, glint); mat = 2.0; n = vec3(0.0, 1.0, 0.0); }
-    else alb = terrain(vPos, n, tt, mat);
+    else {
+      alb = terrain(vPos, n, tt, mat);
+      float sn = snowAt(vPos);
+      if (sn > 0.0) {
+        vec2 qq = floor(vPos.xz / uCell) * uCell;
+        float b2 = bayer(vPos.xz / uCell), nn = vnoise(qq * 0.12 + 5.1), nf = vnoise(qq * 0.45 + 9.7);
+        float k = step(0.25, sn + (nn - 0.5) * 0.35 + (b2 - 0.5) * 0.12);
+        vec3 sc = nf > 0.66 ? vec3(0.97, 0.98, 1.0) : nf < 0.3 ? vec3(0.80, 0.85, 0.92) : vec3(0.90, 0.93, 0.97);
+        if (k > 0.5) { alb = sc; mat = 4.0; }
+        else if (sn + (nn - 0.5) * 0.35 > 0.12 && b2 > 0.7) alb = mix(alb, sc, 0.6);   // karın kenarında serpinti
+      }
+    }
     // zemin izleri: oyunun kendi 2D zemin çizimi (izler, birikintiler, yanık, sudaki halkalar) dünyaya oturan dokudan
     if (uDecalRect.z > 0.0) {
       ivec2 dp = ivec2(floor(vPos.xz - uDecalRect.xy));
