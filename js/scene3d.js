@@ -1,0 +1,637 @@
+'use strict';
+/* =====================================================================
+   3B ÇİZİM — oyun dünyasından durağan sahne parçaları
+   Binalar (duvarlar oyunun çarpışma düzenine oturur: arka duvar ilk karo sırası, yan duvarlar 5 px, ön duvar
+   4 px, kapı karosu açık; iç mekân eşyaları world.obj'tan), dış nesneler (16×16 karoluk bloklar), demiryolu ve
+   zemin penceresi ayrı ayrı kurulur: js/view3d.js bunları kameranın çevresinde akıtır (yakındakini kurar,
+   uzaklaşanı atar). Koordinatlar dünya pikseli (X = px, Z = py, Y yukarı); bina parçası yalnızca kendi
+   binasını, nesne bloğu yalnızca kendi karolarını, ray parçası orta noktası kendi alanında kalan ray
+   dilimlerini içerir: parçalar birbirine binmez, aralarında boşluk kalmaz.
+   ===================================================================== */
+(() => {
+  const { M4, C, shade, mixc, INK, MAT, F, SIDE, RNG, Mesh, GPUMesh, P3, FURN } = D3;
+
+  /* iç mekân tarzı (js/sprites.js içindeki STD tablosunun kopyası): [zemin, duvar] */
+  const STD = {
+    general: [['plank', '#7a5a3a'], ['paper', '#7e6044']], saloon: [['plank', '#5e4028'], ['paper', '#6a2a24']], sheriff: [['plank', '#6e5a40'], ['plankv', '#8a7a60']],
+    doctor: [['plank', '#a08a6a'], ['plaster', '#d8d0c0']], gunsmith: [['plank', '#6a4a30'], ['plankv', '#5e4e3e']], butcher: [['plank', '#8a6a4a'], ['plaster', '#bfae94']],
+    stable: [['straw', '#8a7250'], ['plankv', '#7a5a38']], barn: [['straw', '#8a7250'], ['plankv', '#7a2e22']], bank: [['checker', '#8a7a64'], ['paper', '#2e4234']],
+    station: [['plank', '#6a5a44'], ['paper', '#6a5e4a']], church: [['plank', '#9a7a52'], ['plaster', '#e8e0d0']], land: [['plank', '#7a5a3a'], ['paper', '#8a7a5a']],
+    barber: [['hex', '#dcd6c8'], ['paper', '#b8a890']], tailor: [['plank', '#7a5a3a'], ['paper', '#7a6078']], fence: [['plank', '#4e3a28'], ['plankv', '#4a3a2a']],
+    mine: [['plank', '#6a5a48'], ['plankv', '#5a5048']], lumber: [['plank', '#8a6a44'], ['plankv', '#7a5a34']], docks: [['plank', '#6a6258'], ['plankv', '#5a5a54']],
+    ranch: [['plank', '#7a5a3a'], ['log', '#7a5434']], house: [['plank', '#7a5a3a'], ['paper', '#8a7058']], property: [['plank', '#7a5a3a'], ['log', '#7a5434']],
+    cabin: [['plank', '#5a4430'], ['log', '#5a3a1e']], hs_shack: [['plank', '#6a5038'], ['plankv', '#6a4a2e']], hs_cabin: [['plank', '#6e5236'], ['log', '#6a4424']],
+    hs_house: [['plank', '#7a5a3a'], ['paper', '#9a8262']], bakery: [['brick', '#9a5a3a'], ['plaster', '#d8c8a8']], smith: [['stone', '#5a5550'], ['brick', '#6a3a2a']],
+    pharmacy: [['hex', '#e8e4da'], ['paper', '#3a5a4a']], laundry: [['plank', '#7a6c5c'], ['plaster', '#c8c8c0']], gambling: [['plank', '#4a3020'], ['paper', '#5a1a1a']],
+    brewery: [['brick', '#7a4a30'], ['brick', '#7a4a30']], mill: [['plank', '#9a8060'], ['plankv', '#8a7050']], county: [['plank', '#6e5232'], ['paper', '#8a8468']],
+    post: [['plank', '#7a5a3a'], ['paper', '#5a6a70']], warehouse: [['plank', '#7a6a50'], ['plankv', '#6a5a48']], cantina: [['hex', '#9e5a3c'], ['plaster', '#d8b888']],
+    hotel: [['plank', '#7a5434'], ['paper', '#6a4a3a']],
+  };
+  const FLOORMAT = { plank: MAT.FLOOR, straw: MAT.STRAW, checker: MAT.CHECK, hex: MAT.CHECK, brick: MAT.STONE, stone: MAT.STONE, parquet: MAT.FLOOR, ttile: MAT.CHECK, wide: MAT.FLOOR };
+  const WALLMAT = { paper: MAT.PAPER, plaster: MAT.PLASTER, plankv: MAT.PLANKV, log: MAT.LOG, brick: MAT.BRICK, stripe: MAT.PAPER, damask: MAT.PAPER, panel: MAT.PLANKV };
+  // yalancı cepheli dükkânlar (geri kalanlar beşik çatılı)
+  const GABLE = new Set(['house', 'church', 'stable', 'barn', 'cabin', 'ranch', 'hs_shack', 'hs_cabin', 'hs_house', 'property', 'ruin', 'hermit', 'mill', 'lumber', 'warehouse', 'docks', 'mine']);
+  const GABLE_Z = new Set(['church', 'stable', 'barn', 'mill']);   // alınlığı sokağa bakan
+  const LOGW = new Set(['cabin', 'hs_cabin', 'ranch']);
+  const BACKWALL_O = new Set([O.SHELF, O.BOOKCASE, O.CABINET, O.WARDROBE, O.DRESSER, O.GCLOCK, O.FIREPLACE, O.OVEN, O.ORGAN, O.RACK, O.WASHSTAND, O.SAFE]);
+  const HEARTHS = new Set([O.FIREPLACE, O.STOVE, O.FORGE, O.OVEN]);
+
+  /* ---------------- bina ---------------- */
+  function building(b, W, OX, OZ) {
+    const m = new Mesh(24000);
+    const d = b.def, type = b.type, rng = RNG(b.x * 977 + b.y * 131 + 7);
+    const X0 = b.x * 16 - OX, Z0 = b.y * 16 - OZ, Wd = b.w * 16, Hd = b.h * 16, X1 = X0 + Wd, Z1 = Z0 + Hd;
+    const gable = GABLE.has(type), gz = GABLE_Z.has(type);
+    const Hw = d.tall ? 52 : type === 'house' || type.startsWith('hs_') ? 34 : type === 'church' ? 44 : 38;
+    const wallC = C(d.wall || '#8a6a48'), roofC = C(d.roof || '#4a3424'), trim = mixc(wallC, C('#e8dcc0'), 0.55);
+    const extMat = d.brick ? MAT.BRICK : LOGW.has(type) ? MAT.LOG : type === 'stable' || type === 'barn' ? MAT.PLANKV : type === 'church' || type === 'doctor' ? MAT.PLASTER : MAT.PLANKH;
+    const S = STD[type] || [['plank', '#7a5a3a'], ['paper', '#8a7058']];
+    const flMat = FLOORMAT[S[0][0]] || MAT.FLOOR, flC = C(S[0][1]);
+    const inMat = WALLMAT[S[1][0]] || MAT.PAPER, inC = C(S[1][1]);
+    const capC = shade(wallC, -0.55);
+    const enter = b.enter;
+    // temel ve iç döşeme
+    m.set({ mat: MAT.STONE, flags: 0, param: 0, wind: 0, bone: 0 });
+    m.box(X0 + Wd / 2, -0.4, Z0 + Hd / 2, Wd / 2 + 0.6, 0.6, Hd / 2 + 0.6, C('#6a645c'));
+    if (enter) { m.set({ mat: flMat }); m.box(X0 + Wd / 2, 0.2, Z0 + 15 + (Hd - 19) / 2, Wd / 2 - 5, 0.2, (Hd - 19) / 2, flC); }
+    // duvar parçası: [u0,u1] boyunca, dış ve iç kat ayrı malzeme
+    const wallBox = (x0, x1, z0, z1, y0, y1, mat, col, flags, param, top) => {
+      if (x1 - x0 < 0.05 || z1 - z0 < 0.05 || y1 - y0 < 0.05) return;
+      m.set({ mat, flags, param });
+      m.box((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2, col, { top: top || capC });
+    };
+    // arka duvar: ilk karo sırası (çarpışmada dolu); içi oda tarafında
+    wallBox(X0, X1, Z0 + 0.5, Z0 + 12, 0, Hw, extMat, wallC, F.CUT, SIDE.n);
+    wallBox(X0 + 5, X1 - 5, Z0 + 12, Z0 + 15.5, 0, Hw, enter ? inMat : extMat, enter ? inC : wallC, F.CUT, SIDE.n);
+    // yan duvarlar (5 px)
+    wallBox(X0, X0 + 3, Z0, Z1, 0, Hw, extMat, wallC, F.CUT, SIDE.w);
+    wallBox(X0 + 3, X0 + 5, Z0 + 12, Z1 - 4, 0, Hw, enter ? inMat : extMat, enter ? inC : wallC, F.CUT, SIDE.w);
+    wallBox(X1 - 3, X1, Z0, Z1, 0, Hw, extMat, wallC, F.CUT, SIDE.e);
+    wallBox(X1 - 5, X1 - 3, Z0 + 12, Z1 - 4, 0, Hw, enter ? inMat : extMat, enter ? inC : wallC, F.CUT, SIDE.e);
+    // ön duvar: kapı ve pencere açıklıkları; kesitte alçalır
+    const dx = b.door.x - OX, DW = type === 'stable' || type === 'barn' ? 9 : 7, DH = type === 'stable' || type === 'barn' ? 30 : 27;
+    const nWin = Math.max(1, Math.floor(b.w / 3)), wins = [];
+    for (let k = 0; k < nWin; k++) { const cx = X0 + (k + 0.5) * Wd / nWin; if (Math.abs(cx - dx) >= 10) wins.push(cx); }
+    // iki katlı yapının üst katında (oyuncu yukarıdayken) ön duvarda kapı açıklığı yok (2D'deki gibi)
+    const up = b.floor === 1;
+    const ops = up ? [] : [{ u0: dx - DW, u1: dx + DW, y0: 0, y1: DH, door: true }];
+    const WY0 = 11, WY1 = 25, WW2 = 5;
+    for (const cx of wins) { ops.push({ u0: cx - WW2, u1: cx + WW2, y0: WY0, y1: WY1 }); if (d.tall) ops.push({ u0: cx - WW2, u1: cx + WW2, y0: 33, y1: 45 }); }
+    const cuts = [X0, X1];
+    for (const o of ops) cuts.push(o.u0, o.u1);
+    cuts.sort((a, c) => a - c);
+    for (let i = 1; i < cuts.length; i++) {
+      const u0 = cuts[i - 1], u1 = cuts[i];
+      if (u1 - u0 < 0.05) continue;
+      const um = (u0 + u1) / 2, hit = ops.filter(o => o.u0 <= um && o.u1 >= um).sort((a, c) => a.y0 - c.y0);
+      const spans = [];
+      let y = 0;
+      for (const o of hit) { if (o.y0 > y) spans.push([y, o.y0]); y = Math.max(y, o.y1); }
+      if (y < Hw) spans.push([y, Hw]);
+      for (const [ya, yb] of spans) {
+        wallBox(u0, u1, Z1 - 2, Z1, ya, yb, extMat, wallC, F.CUT, SIDE.s);
+        wallBox(Math.max(u0, X0 + 5), Math.min(u1, X1 - 5), Z1 - 4, Z1 - 2, ya, yb, enter ? inMat : extMat, enter ? inC : wallC, F.CUT, SIDE.s);
+      }
+    }
+    // pencereler: cam, çerçeve, pervaz (kesitte gizlenir)
+    for (const o of ops) {
+      if (o.door) continue;
+      const cx = (o.u0 + o.u1) / 2, hw = (o.u1 - o.u0) / 2, fy = (o.y0 + o.y1) / 2, fh = (o.y1 - o.y0) / 2;
+      m.set({ mat: MAT.GLASS, flags: F.HIDECUT | F.NOSHADOW, param: SIDE.s });
+      m.box(cx, fy, Z1 - 2, hw, fh, 0.2, C('#3a4a54'));
+      m.set({ mat: MAT.SOLID, flags: F.HIDECUT, param: SIDE.s });
+      m.box(cx, o.y1 + 0.5, Z1 + 0.3, hw + 1.0, 0.6, 0.35, trim);
+      m.box(cx, o.y0 - 0.4, Z1 + 0.3, hw + 1.0, 0.5, 0.35, trim);
+      m.box(cx - hw - 0.5, fy, Z1 + 0.3, 0.5, fh + 0.5, 0.35, trim);
+      m.box(cx + hw + 0.5, fy, Z1 + 0.3, 0.5, fh + 0.5, 0.35, trim);
+      m.box(cx, o.y0 - 0.8, Z1 + 0.9, hw + 1.4, 0.4, 1.0, trim);
+      m.box(cx, fy, Z1 - 1.6, 0.28, fh, 0.15, trim); m.box(cx, fy, Z1 - 1.6, hw, 0.28, 0.15, trim);
+    }
+    // kapı: kasa ve içe açık kanat (saloon: yarım kanatlı)
+    let swing = null;
+    if (!up) {
+      m.set({ mat: MAT.SOLID, flags: F.HIDECUT, param: SIDE.s });
+      m.box(dx, DH + 0.7, Z1 + 0.3, DW + 1.2, 0.7, 0.4, trim);
+      m.box(dx - DW - 0.6, DH / 2, Z1 + 0.3, 0.6, DH / 2, 0.4, trim); m.box(dx + DW + 0.6, DH / 2, Z1 + 0.3, 0.6, DH / 2, 0.4, trim);
+      m.set({ mat: MAT.PLANKV, flags: F.HIDECUT, param: SIDE.s });
+      const dc = C(type === 'stable' || type === 'barn' ? '#5a3a22' : '#5a3e26');
+      if (type === 'saloon' || type === 'cantina' || type === 'gambling') {
+        // yarım kanatlar ayrı çizilir: içinden geçen itince sallanır (js/view3d.js)
+        swing = [b.door.x, Z1 - 1 + OZ, DW];
+      } else if (type === 'stable' || type === 'barn') {
+        for (const sg of [-1, 1]) { m.push(M4.mul(M4.translate(dx + sg * DW, 0, Z1 - 1), M4.rotY(sg * 1.3))); m.box(-sg * DW / 2, DH / 2, 0, DW / 2, DH / 2, 0.5, dc); m.pop(); }
+      } else {
+        m.push(M4.mul(M4.translate(dx - DW, 0, Z1 - 3), M4.rotY(-1.25)));
+        m.box(DW, (DH - 0.5) / 2, 0, DW, (DH - 0.5) / 2, 0.45, dc); m.pop();
+      }
+    }
+    // veranda: döşeme, direkler, saçak (oyuncu altındayken delinir)
+    const porch = !d.ruin && type !== 'station' && type !== 'barn' && type !== 'hermit';
+    m.set({ mat: MAT.FLOOR, flags: 0, param: 0 });
+    m.box(X0 + Wd / 2, 0.45, Z1 + 8, Wd / 2, 0.45, 8, C(b.modern ? '#a89c88' : '#86663f'));
+    if (porch) {
+      // dar saçak: kapı ve pencerelerin üstünde kalır (yukarıdan bakışta cepheyi örtmez); uçlarda ince direk
+      const top = Math.min(Hw - 1, type === 'stable' ? DH + 5 : 34), PH = top - 2, AD = 6.5;
+      const posts = b.w >= 10 ? 3 : 2;
+      for (let i = 0; i < posts; i++) {
+        const x = X0 + 1.5 + i * (Wd - 3) / (posts - 1);
+        m.set({ mat: MAT.SOLID, flags: F.HIDECUT, param: SIDE.s });
+        m.box(x, PH / 2, Z1 + AD - 0.8, 0.7, PH / 2, 0.7, C('#4a3422'));
+      }
+      m.set({ mat: MAT.SHINGLE, flags: F.HIDECUT | F.HOLE | F.TWOSIDED, param: SIDE.s });
+      const ac = shade(roofC, -0.05);
+      m.quad([X0 - 1, PH, Z1 + AD], [X1 + 1, PH, Z1 + AD], [X1 + 1, top, Z1], [X0 - 1, top, Z1], ac);
+      m.set({ mat: MAT.SOLID }); m.box(X0 + Wd / 2, PH - 0.4, Z1 + AD, Wd / 2 + 1, 0.6, 0.35, shade(ac, -0.3));
+    }
+    // çatı (kesitte gizlenir, gölge düşürür) ve alınlıklar
+    const ov = 3;
+    m.set({ mat: MAT.SHINGLE, flags: F.ROOF | F.TWOSIDED, param: 0 });
+    if (!gable) {
+      // yalancı cepheli dükkân: kuzeye hafif eğik düz çatı
+      m.quad([X0 - 1, Hw + 1, Z1], [X1 + 1, Hw + 1, Z1], [X1 + 1, Hw - 3, Z0 - ov], [X0 - 1, Hw - 3, Z0 - ov], roofC);
+    } else if (!gz) {
+      const rise = 0.5 * Hd / 2, ym = Z0 + Hd / 2, e = ov * 0.5;
+      m.quad([X0 - ov, Hw - e, Z1 + ov], [X1 + ov, Hw - e, Z1 + ov], [X1 + ov, Hw + rise, ym], [X0 - ov, Hw + rise, ym], roofC);
+      m.quad([X1 + ov, Hw - e, Z0 - ov], [X0 - ov, Hw - e, Z0 - ov], [X0 - ov, Hw + rise, ym], [X1 + ov, Hw + rise, ym], roofC);
+      m.set({ mat: MAT.SOLID }); m.box(X0 + Wd / 2, Hw + rise + 0.3, ym, Wd / 2 + ov, 0.6, 0.9, shade(roofC, -0.25));
+      m.set({ mat: extMat, flags: F.ROOF });
+      m.tri([X0, Hw, Z0], [X0, Hw, Z1], [X0, Hw + rise - 0.5, ym], [-1, 0, 0], null, null, wallC);
+      m.tri([X1, Hw, Z0], [X1, Hw, Z1], [X1, Hw + rise - 0.5, ym], [1, 0, 0], null, null, wallC);
+    } else {
+      const rise = (type === 'church' ? 0.95 : 0.6) * Wd / 2, xm = X0 + Wd / 2, e = ov * 0.5;
+      m.quad([X0 - ov, Hw - e, Z0 - ov], [X0 - ov, Hw - e, Z1 + ov], [xm, Hw + rise, Z1 + ov], [xm, Hw + rise, Z0 - ov], roofC);
+      m.quad([X1 + ov, Hw - e, Z1 + ov], [X1 + ov, Hw - e, Z0 - ov], [xm, Hw + rise, Z0 - ov], [xm, Hw + rise, Z1 + ov], roofC);
+      m.set({ mat: MAT.SOLID }); m.box(xm, Hw + rise + 0.3, Z0 + Hd / 2, 0.9, 0.6, Hd / 2 + ov, shade(roofC, -0.25));
+      m.set({ mat: extMat, flags: F.ROOF, param: SIDE.s });
+      m.tri([X0, Hw, Z1], [X1, Hw, Z1], [xm, Hw + rise - 0.5, Z1], [0, 0, 1], null, null, wallC);
+      m.set({ param: SIDE.n });
+      m.tri([X0, Hw, Z0], [X1, Hw, Z0], [xm, Hw + rise - 0.5, Z0], [0, 0, -1], null, null, wallC);
+      if (type === 'stable' || type === 'barn') {   // samanlık kapağı
+        m.set({ mat: MAT.PLANKV, flags: F.ROOF, param: SIDE.s }); m.box(xm, Hw + rise * 0.4, Z1 + 0.6, 5, 5.5, 0.4, C('#3a2416'));
+      }
+      if (type === 'church') {
+        // çan kulesi: ön alınlığın üstünde, sivri külah ve haç
+        const tz = Z1 - 10, ty = Hw + rise * 0.55;
+        m.set({ mat: MAT.PLASTER, flags: F.ROOF, param: SIDE.s }); m.box(xm, ty + 10, tz, 7, 11, 7, wallC, { top: capC });
+        m.set({ mat: MAT.SOLID }); m.box(xm, ty + 14, tz + 7.05, 3, 4, 0.1, C('#1a1410'));
+        m.set({ mat: MAT.SHINGLE, flags: F.ROOF | F.TWOSIDED }); m.cyl(xm, ty + 21, tz, 8.5, 22, roofC, { seg: 4, r2: 0.2, a0: Math.PI / 4, a1: Math.PI / 4 + Math.PI * 2, top: false });
+        m.set({ mat: MAT.SOLID, flags: F.ROOF }); m.box(xm, ty + 46, tz, 0.5, 4, 0.5, C('#e0d8c0')); m.box(xm, ty + 47, tz, 2.4, 0.5, 0.5, C('#e0d8c0'));
+      }
+    }
+    // yalancı cephe ve tabela
+    if (!gable) {
+      const FF = d.tall ? 10 : 13, yt = Hw + FF;
+      m.set({ mat: extMat, flags: F.HIDECUT, param: SIDE.s });
+      m.box(X0 + Wd / 2, (Hw + yt) / 2, Z1 - 1.2, Wd / 2 + 1.5, FF / 2 + 0.6, 1.2, wallC, { top: capC });
+      m.set({ mat: MAT.SOLID });
+      m.box(X0 + Wd / 2, yt + 0.8, Z1 - 0.8, Wd / 2 + 2.6, 0.9, 2.2, shade(wallC, -0.32));
+      m.box(X0 + Wd / 2, Hw + 0.4, Z1 + 0.6, Wd / 2 + 1.5, 0.5, 0.8, shade(wallC, -0.25));
+    }
+    if (d.sign) {
+      const sc = C(d.sign), sy = gable ? (type === 'stable' || type === 'barn' ? DH + 5 : Hw - 6) : Hw + (d.tall ? 4.5 : 6.5), sw = gable ? Math.min(Wd * 0.3, 22) : Wd * 0.32, sh = gable ? 3.6 : (d.tall ? 4 : 5);
+      if (type !== 'church' && type !== 'house') {
+        m.set({ mat: MAT.SOLID, flags: F.HIDECUT, param: SIDE.s });
+        m.box(X0 + Wd / 2, sy, Z1 + 0.5, sw, sh, 0.45, mixc(sc, C('#3a2a1a'), 0.15));
+        m.box(X0 + Wd / 2, sy, Z1 + 0.75, sw - 1, sh - 1, 0.35, sc);
+        const ink = mixc(sc, INK, 0.75), nl = Math.max(4, Math.round(sw / 3.6));
+        for (let k = 0; k < nl; k++) m.box(X0 + Wd / 2 - sw + 2.4 + k * (2 * sw - 4.8) / Math.max(1, nl - 1), sy, Z1 + 1.15, 0.8 + rng() * 0.5, sh * 0.42, 0.12, ink);
+      }
+    }
+    // baca: ocaklı yapıda arka duvarda (duman bu tepeden çıkar)
+    const extra = {};
+    if (swing) extra.swing = swing;
+    let hearthX = null;
+    for (let ly = 1; ly < b.h - 1 && hearthX === null; ly++) for (let lx = 1; lx < b.w - 1; lx++) { if (HEARTHS.has(W.obj[(b.y + ly) * WW + b.x + lx])) { hearthX = X0 + lx * 16 + 8; break; } }
+    if (hearthX !== null) {
+      const top = Hw + (gable && !gz ? 0.5 * Hd / 2 : gz ? 10 : 4) + 9;
+      m.set({ mat: MAT.STONE, flags: F.ROOF, param: 0 });
+      m.box(hearthX, top / 2, Z0 + 6, 3.4, top / 2, 3.4, C('#6a5a4c'));
+      m.set({ mat: MAT.SOLID }); m.box(hearthX, top + 0.4, Z0 + 6, 4, 0.6, 4, C('#4a3e34'));
+      extra.chimney = [hearthX + OX, Z0 + 6 + OZ, top + 1.2];
+    }
+    // şerif, mahkeme, istasyon ve banka: çatıda bayrak direği (dalgalanan bayrak rüzgâra döner, js/view3d.js)
+    if (type === 'sheriff' || type === 'county' || type === 'station' || type === 'bank') {
+      let px = X0 + 10, pz, base;
+      if (!gable) { pz = Z1 - 1.2; base = Hw + (d.tall ? 10 : 13) + 1.7; }
+      else if (!gz) { pz = Z0 + Hd / 2; base = Hw + 0.5 * Hd / 2; }
+      else { px = X0 + Wd / 2; pz = Z1 - 4; base = Hw + 0.6 * Wd / 2 - 2; }
+      const H = 19;
+      m.set({ mat: MAT.SOLID, flags: F.ROOF, param: 0, wind: 0 });
+      m.tube([px, base - 1, pz], [px, base + H, pz], 0.5, 0.38, C('#3a2a1a'), { seg: 6 });
+      m.cyl(px, base + H, pz, 0.75, 0.9, BRASSC, { seg: 6, r2: 0.2 });
+      extra.flag = [px + OX, pz + OZ, base + H - 1.0, type === 'sheriff' || type === 'county' ? 'law' : 'blue'];
+    }
+    // çamaşırhane ve bazı evler: yan duvardan direğe gerilmiş ip, rüzgârda sallanan çamaşırlar
+    if (type === 'laundry' || (type === 'house' && hash2(b.x, b.y, 61) < 0.35)) {
+      const lx0 = X1 + 0.6, lx1 = X1 + 28, lz = Z1 - 10, lh = 12.5, sagAt = (x) => lh + 0.4 - Math.sin((x - lx0) / (lx1 - lx0) * Math.PI) * 1.6;
+      m.set({ mat: MAT.SOLID, flags: 0, param: 0, wind: 0 });
+      m.tube([lx1, -0.5, lz], [lx1, lh + 1.6, lz], 0.55, 0.45, C('#4a3624'), { seg: 6 });
+      let prev = [lx0, sagAt(lx0), lz];
+      for (let k = 1; k <= 8; k++) { const x = lx0 + (lx1 - lx0) * k / 8, q = [x, sagAt(x), lz]; m.tube(prev, q, 0.2, 0.2, C('#6a5a44'), { seg: 3, caps: false }); prev = q; }
+      const cols = ['#e8e4d8', '#b8c8d8', '#c8a878', '#e8d8d0', '#8a9aaa'];
+      for (let k = 0; k < 4; k++) {
+        const cx = lx0 + 5.4 + k * 5.6, top = sagAt(cx) - 0.2;
+        cloth(m, cx - 1.9, cx + 1.9, top, top - (4.6 + (k % 2) * 1.6), lz, C(cols[(k + b.x) % cols.length]));
+      }
+      extra.laundry = [lx0 + OX, lx1 + OX, lz + OZ];
+    }
+    if (enter) interior(m, b, W, OX, OZ, Hw, rng);
+    // iki katlı yapılar: o katın iç bölme duvarları (üst katta oda duvarları, kulübün zemin katında okuma odası; karo
+    // kenarındaki bantlar). Kesitte kamera hangi yönde olursa olsun alçalır. Üst katta kilitli odaların (otel) içi
+    // görünmez: üstleri alçalan duvarların hizasında karanlık bir tavanla örtülür
+    if (enter && typeof floorWalls === 'function') {
+      let n = 0;
+      for (const [lx, ly, v] of floorWalls(b)) {
+        const x = X0 + lx * 16, z = Z0 + ly * 16;
+        const r = v === 1 ? [x, x + 16, z, z + 5] : v === 2 ? [x, x + 16, z + 12, z + 16] : v === 4 ? [x, x + 5, z, z + 16] : [x + 11, x + 16, z, z + 16];
+        wallBox(r[0], r[1], r[2], r[3], 0, Hw, inMat, inC, F.CUT, SIDE.any);
+        n++;
+      }
+      extra.iw = n;
+      if (up && typeof hotelShut === 'function') {
+        m.set({ mat: MAT.PLANKH, flags: F.NOSHADOW, param: 0 });
+        for (const [x, y, w, h] of hotelShut(b)) { m.box(X0 + x + w / 2, 6.5, Z0 + y + h / 2, w / 2, 0.45, h / 2, C('#1c130d')); extra.shut = (extra.shut || 0) + 1; }
+        m.set({ flags: 0 });
+      }
+    }
+    return { m, Hw, extra };
+  }
+  /* asılı kumaş (çamaşır): ipten (üst kenar) aşağı sallanır; rüzgâr payı aşağıda büyür (F.CLOTH, gölgelendiricide dalga) */
+  function cloth(m, x0, x1, y0, y1, z, col) {
+    m.set({ mat: MAT.CLOTH, flags: F.CLOTH | F.TWOSIDED, param: 0, windH: 0 });
+    const NX = 2, NY = 3, P = (i, j) => [x0 + (x1 - x0) * i / NX, y0 + (y1 - y0) * j / NY, z], n = [0, 0, 1];
+    const v = (i, j) => { m.st.wind = j / NY; m.vw(P(i, j), n, col); };
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+      v(i, j); v(i + 1, j); v(i + 1, j + 1);
+      v(i, j); v(i + 1, j + 1); v(i, j + 1);
+    }
+    m.set({ wind: 0, flags: 0, mat: MAT.SOLID });
+  }
+
+  /* ---------------- iç mekân ---------------- */
+  function interior(m, b, W, OX, OZ, Hw, rng) {
+    const X0 = b.x * 16 - OX, Z0 = b.y * 16 - OZ, wallZ = Z0 + 15.5;
+    const at = (lx, ly) => (lx < 0 || ly < 0 || lx >= b.w || ly >= b.h) ? -1 : W.obj[(b.y + ly) * WW + b.x + lx];
+    const busyX = [];
+    const blanket = ['#8a2a2a', '#2a4a6a', '#6a5a2a', '#4a6a3a'];
+    let barX0 = 1e9, barX1 = -1e9, barRow = 99;
+    for (let ly = 1; ly < b.h - 1; ly++) for (let lx = 1; lx < b.w - 1; lx++) {
+      const o = at(lx, ly);
+      if (!o) continue;
+      const x = X0 + lx * 16 + 8, z = Z0 + ly * 16 + 8, back = ly === 1 && BACKWALL_O.has(o), wz = back ? wallZ : z - 6;
+      if (back) busyX.push(x);
+      const L = at(lx - 1, ly) === o, R = at(lx + 1, ly) === o;
+      switch (o) {
+        case O.COUNTER: FURN.counter(m, x, z, b.type === 'bank' ? 'bank' : 'counter', L, R); break;
+        case O.BAR: FURN.counter(m, x, z, 'bar', L, R); barX0 = Math.min(barX0, x); barX1 = Math.max(barX1, x); barRow = Math.min(barRow, ly); break;
+        case O.TICKET: FURN.counter(m, x, z, 'ticket', L, R); break;
+        case O.TABLE: case O.CARDTABLE: {
+          FURN.table(m, x, z, 6.5, o === O.CARDTABLE, rng);
+          const room = (xx) => xx >= 1 && xx <= b.w - 2 && !at(xx, ly) && !(xx === b.w >> 1 && ly >= b.h - 3);
+          if (room(lx - 1)) FURN.chair(m, x - 11, z, 0);
+          if (room(lx + 1)) FURN.chair(m, x + 11, z, Math.PI);
+          break;
+        }
+        case O.CHAIR: FURN.chair(m, x, z, at(lx, ly - 1) === O.DESK || at(lx - 1, ly - 1) === O.DESK ? -Math.PI / 2 : Math.PI / 2); break;
+        case O.STOOL: FURN.stool(m, x, z); break;
+        case O.PIANO: FURN.piano(m, x, z); break;
+        case O.BED: FURN.bed(m, x, z + 8, 28, blanket[Math.floor(rng() * blanket.length)]); break;
+        case O.STOVE: FURN.stove(m, x, z, Hw - 1); break;
+        case O.DESK: FURN.desk(m, x - 7, x + 22, z, rng); break;
+        case O.CELL: FURN.cell(m, x, z, L || R, at(lx, ly - 1) === o || at(lx, ly + 1) === o); break;
+        case O.PEW: FURN.pew(m, x, z, L, R); break;
+        case O.ALTAR: FURN.altar(m, x - 6, z); break;
+        case O.LECTERN: FURN.lectern(m, x, z); break;
+        case O.ORGAN: FURN.organ(m, x, wz); break;
+        case O.SAFE: FURN.safe(m, x, wz); break;
+        case O.TUB: FURN.tub(m, x, z); break;
+        case O.BCHAIR: FURN.bchair(m, x, z); break;
+        case O.RACK: FURN.rack(m, x, wz); break;
+        case O.WORKBENCH: FURN.workbench(m, x, z, b.type === 'butcher'); break;
+        case O.STALL: FURN.stall(m, x, z); break;
+        case O.SHELF: FURN.shelf(m, x, wz, rng); break;
+        case O.BOOKCASE: FURN.bookcase(m, x, wz, rng); break;
+        case O.CABINET: FURN.cabinet(m, x, wz); break;
+        case O.WARDROBE: FURN.wardrobe(m, x, wz); break;
+        case O.DRESSER: FURN.dresser(m, x, wz); break;
+        case O.GCLOCK: FURN.clock(m, x, wz); break;
+        case O.FIREPLACE: FURN.fireplace(m, x, wz); break;
+        case O.OVEN: FURN.oven(m, x, wz); break;
+        case O.WASHSTAND: FURN.washstand(m, x, wz); break;
+        case O.FORGE: FURN.forge(m, x, z); break;
+        case O.ANVIL: FURN.anvil(m, x, z); break;
+        case O.PLANT: case O.PALM: FURN.plant(m, x, z, rng); break;
+        case O.COATRACK: FURN.coatrack(m, x, z); break;
+        case O.SOFA: FURN.sofa(m, x, z, L, R); break;
+        case O.ARMCHAIR: FURN.armchair(m, x, z); break;
+        case O.MANNEQUIN: FURN.mannequin(m, x, z, rng); break;
+        case O.DISPLAY: FURN.display(m, x, z); break;
+        case O.SACKS: FURN.sacks(m, x, z, rng); break;
+        case O.SCALE: FURN.scale(m, x, z); break;
+        case O.TELEGRAPH: FURN.telegraph(m, x, z); break;
+        case O.SADDLE: FURN.saddle(m, x, z); break;
+        case O.STAIRS: { let n = 0; while (at(lx, ly - 1 - n) === O.STAIRS) n++; FURN.stairs(m, x, z, 2 - Math.min(2, n)); break; }
+        case O.STAIRSD: { let p = 0, n = 1; while (at(lx, ly - 1 - p) === o) p++; n += p; for (let q = ly + 1; at(lx, q) === o; q++) n++; FURN.stairsDown(m, x, z, lx < b.w / 2, p, n); break; }
+        case O.RDOOR: {
+          const UP = typeof upPlan === 'function' ? upPlan(b) : null, k = UP ? UP.rooms.findIndex(R => R.door[0] === lx && R.door[1] === ly) : -1;
+          if (k >= 0) FURN.roomDoor(m, x, z, roomOpen(b, k), UP.rooms[k].side === 2, b.type === 'hotel');
+          break;
+        }
+        case O.VAT: FURN.vat(m, x, z); break;
+        case O.BUST: FURN.bust(m, x, z); break;
+        case O.IBLOCK: case O.HOMECHEST: break;
+        case O.BILLIARD: FURN.generic(m, x + 8, z, '#2e6a3a', 9); break;
+        case O.ROULETTE: FURN.generic(m, x + 8, z, '#3a1a12', 9); break;
+        case O.LAMPSTAND: m.set({ mat: MAT.SOLID }); m.cyl(x, 0, z, 0.5, 14, C('#3a3a3a'), { seg: 5 }); m.set({ mat: MAT.EMIT }); m.cyl(x, 14, z, 2, 3, C('#ffd890'), { seg: 6, r2: 1 }); break;
+        default: FURN.generic(m, x, z);
+      }
+    }
+    // bar arkası: barın üstündeki arka duvarda raflar ve şişeler
+    if (barRow <= 3) for (let x = barX0; x <= barX1; x += 16) FURN.backbar(m, x, wallZ, rng);
+    // arka duvar süsleri: çerçeveler ve aplik (boş yerlerde)
+    const frames = Math.max(1, Math.floor(b.w / 4));
+    for (let k = 0; k < frames; k++) {
+      const x = X0 + (k + 0.5 + (rng() - 0.5) * 0.3) * b.w * 16 / frames;
+      if (x < X0 + 14 || x > X0 + b.w * 16 - 14 || busyX.some(q => Math.abs(q - x) < 14) || (barRow <= 3 && x > barX0 - 10 && x < barX1 + 10)) continue;
+      const fc = C(['#6a5a3a', '#5a6a4a', '#4a5a6a', '#7a4a3a'][Math.floor(rng() * 4)]), w = 3.5 + rng() * 2, h = 3 + rng() * 1.6, y = 19 + rng() * 4;
+      m.set({ mat: MAT.SOLID, flags: 0, param: 0 });
+      m.box(x, y, wallZ + 0.3, w, h, 0.3, C('#3a2416'));
+      m.box(x, y, wallZ + 0.55, w - 0.8, h - 0.8, 0.2, fc);
+    }
+  }
+
+  /* ---------------- dış nesneler ---------------- */
+  const OAKP = [C('#314d22'), C('#3f6129'), C('#557a35')], BIRCHP = [C('#4a6a2a'), C('#5e8436'), C('#7a9e48')], APPLEP = [C('#2e4a22'), C('#3e6028'), C('#527a32')];
+  /* elektrik direğinin traversi tellere diktir (direğe dokunan tellerin yönü çift açıyla ortalanır; teli yoksa doğu-batı).
+     Teller değişince (kasaba elektriklenince) yeniden hesaplanır */
+  const PD = new WeakMap();
+  function poleDir(W, tx, ty) {
+    const WS = W.wires;
+    let sig = '';
+    if (WS) for (const id in WS) sig += id + ':' + WS[id].length + ',';
+    let c0 = PD.get(W);
+    if (!c0 || c0.sig !== sig || c0.WS !== WS) {
+      const acc = new Map();
+      if (WS) for (const id in WS) for (const [ax, ay, bx, by] of WS[id]) {
+        const a = Math.atan2(by - ay, bx - ax), c2 = Math.cos(2 * a), s2 = Math.sin(2 * a);
+        for (const [px, py] of [[ax, ay], [bx, by]]) { const k = Math.floor(py / 16) * WW + Math.floor(px / 16), v = acc.get(k) || [0, 0]; v[0] += c2; v[1] += s2; acc.set(k, v); }
+      }
+      PD.set(W, c0 = { sig, WS, acc });
+    }
+    const v = c0.acc.get(ty * WW + tx);
+    if (!v || Math.hypot(v[0], v[1]) < 1e-6) return [1, 0];
+    const a = Math.atan2(v[1], v[0]) / 2 + Math.PI / 2;
+    return [Math.cos(a), Math.sin(a)];
+  }
+  /* uçurum (CLIFF, MESA, SNOWCLIFF; çarpışmada dolu): karo, 2D'deki kaya yüzü boyunda (World.CFACE) yükseltili yayladır.
+     Üstü zemin dokusundan (oyunun zemin gölgelendiricisi karonun türünü dünya konumundan okur), komşu uçurum değilse yanı
+     dikey katmanlı kaya. Köşeler karo köşesinin karmasıyla birkaç piksel oynar ve komşular aynı köşeyi paylaşır: kenarlar
+     düz çizgi olmaz, aralık kalmaz */
+  const CFH = (typeof World !== 'undefined' && World.CFACE) || 14;
+  const cornerJ = (cx, cy) => [(hash2(cx, cy, 91) - 0.5) * 5, (hash2(cx, cy, 93) - 0.5) * 5];
+  function cliffTile(W, m, tx, ty, OX, OZ) {
+    const t = W.tile[ty * WW + tx];
+    const isC = (x, y) => x < 0 || y < 0 || x >= WW || y >= WH || isCliffT(W.tile[y * WW + x]);
+    const P = (cx, cy, h) => { const j = cornerJ(cx, cy); return [cx * 16 + j[0] - OX, h, cy * 16 + j[1] - OZ]; };
+    const a = [tx, ty], b = [tx + 1, ty], c = [tx + 1, ty + 1], d = [tx, ty + 1];
+    m.set({ mat: MAT.TERRAIN, flags: 0, param: 0, wind: 0, bone: 0 });
+    m.quad(P(...a, CFH), P(...b, CFH), P(...c, CFH), P(...d, CFH), [0.4, 0.5, 0.3], [0, 1, 0]);
+    m.set({ mat: MAT.STRATA });
+    const col = C((typeof TINFO !== 'undefined' && TINFO[t] && TINFO[t].c) || '#5f564c');
+    for (const [p0, p1, nx, ny] of [[a, b, 0, -1], [b, c, 1, 0], [c, d, 0, 1], [d, a, -1, 0]]) {
+      if (isC(tx + nx, ty + ny)) continue;
+      m.quad(P(...p0, CFH), P(...p1, CFH), P(...p1, 0), P(...p0, 0), col, [nx, 0, ny]);
+    }
+  }
+  function objects(W, tx0, ty0, tx1, ty1, OX, OZ, out, info) {
+    const rng = RNG(tx0 * 31 + ty0 * 17 + 3);
+    const isF = (x, y, o) => x >= 0 && y >= 0 && x < WW && y < WH && W.obj[y * WW + x] === o;
+    const day = typeof G !== 'undefined' ? G.day : 0, snowy = (tx, ty) => W.season === 3 && W.snowyTile(tx, ty);
+    for (let ty = ty0; ty < ty1; ty++) for (let tx = tx0; tx < tx1; tx++) {
+      if (tx < 0 || ty < 0 || tx >= WW || ty >= WH) continue;
+      const i = ty * WW + tx, o = W.obj[i], cliff = isCliffT(W.tile[i]);
+      if (cliff) cliffTile(W, out, tx, ty, OX, OZ);
+      // köprü: suya bakan kenarlarında korkuluk
+      if (W.tile[i] === T.BRIDGE) for (const [nx, ny, a, b] of [[0, -1, [0, 0], [16, 0]], [0, 1, [0, 16], [16, 16]], [-1, 0, [0, 0], [0, 16]], [1, 0, [16, 0], [16, 16]]]) {
+        const q = tx + nx >= 0 && ty + ny >= 0 && tx + nx < WW && ty + ny < WH ? W.tile[(ty + ny) * WW + tx + nx] : T.WATER;
+        if (isWaterT(q)) P3.bridgeRail(out, [tx * 16 + a[0] - OX + (nx ? -nx * 0.8 : 0), ty * 16 + a[1] - OZ + (ny ? -ny * 0.8 : 0)], [tx * 16 + b[0] - OX + (nx ? -nx * 0.8 : 0), ty * 16 + b[1] - OZ + (ny ? -ny * 0.8 : 0)]);
+      }
+      if (!o || (W.flags[i] & 8)) continue;
+      const x = tx * 16 + 8 - OX, z = ty * 16 + 8 - OZ, y = cliff ? CFH : 0;
+      const m = out;
+      switch (o) {
+        // yaprak döken ağaçlar mevsime uyar (2D'deki gibi): sonbaharda yaprak renkleri, kışın soğuk yerde çıplak dallar
+        case O.OAK: case O.APPLE: case O.BIRCH: {
+          const sc = o === O.OAK ? 0.85 : o === O.APPLE ? 0.75 : 0.7;
+          if (W.bareTree(tx, ty)) { P3.bare(m, x, y, z + 3, sc, rng, snowy(tx, ty)); break; }
+          let pal = o === O.OAK ? OAKP : o === O.APPLE ? APPLEP : BIRCHP;
+          if (W.season === 2 && typeof AUTUMN_PAL !== 'undefined') pal = AUTUMN_PAL[Math.floor(hash2(tx, ty, 77) * AUTUMN_PAL.length)].map(c => C(c));
+          P3.oak(m, x, y, z + 3, sc, rng, pal);
+          if (info) info.leafy.push([tx * 16 + 8, ty * 16 - 4, hash2(tx, ty, 78)]);
+          break;
+        }
+        case O.PINE: case O.SNOWPINE: case O.CYPRESS: P3.pine(m, x, y, z + 3, 0.85, rng, o === O.SNOWPINE || snowy(tx, ty)); break;
+        case O.SEQUOIA: P3.pine(m, x, y, z + 3, 1.3, rng, snowy(tx, ty)); break;
+        case O.DEAD: P3.dead(m, x, y, z + 3, 0.9); break;
+        // çalı, ot öbeği, çiçek ve ekin mevsime uyar (2D'deki renkler): sonbaharda sararır, kışın solar; çiçekler kışın ve
+        // sonbaharda, ot öbekleri karda görünmez
+        case O.BUSH: {
+          const hh = hash2(tx, ty, 77);
+          const cs = W.season === 2 ? (hh > 0.5 ? ['#7a4a1e', '#9a6026', '#b87a30'] : ['#6a5a26', '#8a7230', '#a88a3a']) : W.season === 3 ? ['#4a4a36', '#5a5a42', '#6a6a50'] : null;
+          P3.bush(m, x, y, z, 1.0, rng, cs ? cs.map(c => C(c)) : null);
+          break;
+        }
+        case O.DRYBUSH: P3.bush(m, x, y, z, 0.8, rng, [C('#6a6a3a'), C('#7a7442'), C('#8a8250')]); break;
+        case O.TUFT: {
+          if (snowy(tx, ty)) break;
+          const cs = W.season === 2 ? ['#8a6a2a', '#9a7a34', '#7a6a2e'] : W.season === 3 ? ['#6a6048', '#7a6e52', '#5e5640'] : ['#4a6a2a', '#5e8436', '#6a8a3a'];
+          P3.tuft(m, x, y, z, rng, cs.map(c => C(c)), 3.4);
+          break;
+        }
+        case O.REED: P3.tuft(m, x, y, z, rng, [C('#4a6a2a'), C('#5e8436'), C('#6a8a3a')], 7); break;
+        case O.FLOWERS: if (!snowy(tx, ty) && W.season !== 2 && W.season !== 3) P3.tuft(m, x, y, z, rng, [C('#c8a040'), C('#b84a6a'), C('#e8e0d0'), C('#5e8436')], 3); break;
+        case O.ROCK: P3.rock(m, x, y, z, 4, rng); break;
+        case O.BOULDER: P3.rock(m, x, y, z, 8, rng); break;
+        case O.CACTUS: case O.SAGUARO: { m.set({ mat: MAT.FOLIAGE, flags: 0, wind: 0, bone: 0 }); const h = o === O.SAGUARO ? 30 : 12; m.cyl(x, y, z, 2.4, h, C('#4a6a3a'), { seg: 8, dome: 1.5 }); if (o === O.SAGUARO) { m.tube([x, y + 14, z], [x + 6, y + 16, z], 1.6, 1.6, C('#4a6a3a'), { seg: 6 }); m.tube([x + 6, y + 16, z], [x + 6, y + 24, z], 1.6, 1.6, C('#4a6a3a'), { seg: 6 }); } break; }
+        case O.FENCEH: P3.fence(m, x, y, z, 'h', !isF(tx - 1, ty, o), !isF(tx + 1, ty, o)); break;
+        case O.FENCEV: P3.fence(m, x, y, z, 'v', !isF(tx, ty - 1, o), !isF(tx, ty + 1, o)); break;
+        case O.CRATE: P3.crate(m, x, y, z, 5); break;
+        case O.BARREL: P3.barrel(m, x, y, z, 4.2, 11); break;
+        case O.LAMP: P3.lamp(m, x, y, z, false); break;
+        case O.ELAMP: P3.lamp(m, x, y, z, true); break;
+        case O.WELL: P3.well(m, x, y, z); break;
+        case O.TROUGH: P3.trough(m, x, y, z); break;
+        case O.PUMP: P3.pump(m, x, y, z); break;
+        case O.HAY: P3.haybale(m, x, y, z, 0); break;
+        case O.SIGN: case O.LOTSIGN: P3.sign(m, x, y, z, o === O.LOTSIGN ? '#c8b070' : '#9a7a52'); break;
+        case O.POLE: case O.UPOLE: P3.pole(m, x, y, z, o === O.UPOLE ? poleDir(W, tx, ty) : null); break;
+        case O.HITCH: P3.hitch(m, x, y, z); break;
+        case O.BENCH: P3.bench(m, x, y, z); break;
+        case O.BOARD: P3.board(m, x, y, z); break;
+        case O.CROP: P3.crop(m, x, y, z, rng, W.season, snowy(tx, ty)); break;
+        case O.WAGON: P3.wagon(m, x + 6, y, z, 0.2); break;
+        case O.CAMPFIRE: {
+          if (info) info.fires.push([tx * 16 + 8, ty * 16 + 8]);
+          m.set({ mat: MAT.STONE, flags: 0, wind: 0, bone: 0 });
+          for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; m.ell(x + Math.cos(a) * 5, y + 0.6, z + Math.sin(a) * 5, 1.5, 1.1, 1.3, C('#7a746c'), { nu: 6, nv: 4 }); }
+          m.set({ mat: MAT.FIRE, flags: F.NOSHADOW }); m.cyl(x, y + 1, z, 2.6, 5.5, C('#f0a030'), { seg: 7, r2: 0.3 }); m.set({ flags: 0 });
+          break;
+        }
+        case O.GRAVE: case O.CROSS: m.set({ mat: MAT.SOLID, flags: 0 }); m.box(x, y + 6, z, 0.7, 6, 0.6, C('#6a5a48')); m.box(x, y + 9, z, 3, 0.6, 0.6, C('#6a5a48')); break;
+        case O.TENT: m.set({ mat: MAT.CLOTH, flags: F.TWOSIDED }); m.cyl(x, y, z, 9, 14, C('#d8ccb0'), { seg: 4, r2: 0.2, a0: Math.PI / 4, a1: Math.PI / 4 + Math.PI * 2 }); m.set({ flags: 0 }); break;
+        case O.RUINWALL: m.set({ mat: MAT.STONE, flags: 0 }); m.box(x, y + 5, z, 8, 5 + rng() * 3, 2.5, C('#8a7a64')); break;
+        case O.CHEST: m.set({ mat: MAT.PLANKH, flags: 0 }); m.box(x, y + 3, z, 5, 3, 3.5, C('#6a4428')); m.set({ mat: MAT.SOLID }); m.box(x, y + 3, z + 3.55, 1, 1, 0.1, BRASSC); break;
+        case O.WINDMILL: {
+          m.set({ mat: MAT.SOLID, flags: 0 }); m.tube([x, y, z], [x, y + 46, z], 2.5, 1.2, C('#6a5a48'), { seg: 6 });
+          for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; m.tube([x, y + 46, z + 2], [x + Math.cos(a) * 12, y + 46 + Math.sin(a) * 12, z + 2], 0.6, 0.3, C('#c8c0b0'), { seg: 4 }); }
+          break;
+        }
+        // maden ve petrol
+        case O.ORE: P3.ore(m, x, y, z, rng, hash2(tx, ty, 77) > 0.7); break;
+        case O.SEEP: P3.seep(m, x, y, z, hash2(tx, ty, 77)); break;
+        case O.DERRICK: P3.derrick(m, x, y, z, hash2(tx, ty, 77)); break;
+        case O.OILTANK: P3.oilTank(m, x, y, z + 1.5, 8.5, 15); break;
+        case O.REFINERY: P3.refinery(m, x, y, z, hash2(tx, ty, 77)); break;
+        // yaban yerleri
+        case O.BONES: P3.bones(m, x, y, z); break;
+        case O.BIGBONES: P3.bigBones(m, x, y, z); break;
+        case O.ARCH: P3.arch(m, x, y, z, rng); break;
+        case O.GALLOWS: P3.gallows(m, x, y, z); break;
+        case O.SHIP: P3.ship(m, x, y, z); break;
+        // zengin şehrin park ve meydan süsleri
+        case O.HEDGE: P3.hedge(m, x, y, z, rng, { n: isF(tx, ty - 1, o), s: isF(tx, ty + 1, o), w: isF(tx - 1, ty, o), e: isF(tx + 1, ty, o) }, snowy(tx, ty)); break;
+        case O.FLOWERBED: P3.flowerbed(m, x, y, z, hash2(tx, ty, 77), W.season, snowy(tx, ty)); break;
+        case O.FOUNTAIN: P3.fountain(m, x, y, z, snowy(tx, ty)); break;
+        case O.STATUE: P3.statue(m, x, y, z, snowy(tx, ty)); break;
+        // kazı yeri (parıltısı her karede, toplanınca söner) ve kaplıca (buharı her karede)
+        case O.ARTIFACT: if (info) info.arts.push([tx * 16 + 8, ty * 16 + 8, i]); break;
+        case O.STEAM: if (info) info.steam.push([tx * 16, ty * 16]); break;
+        default:
+          // toplanabilir ot: toplanınca yeniden yeşerene dek, kışın karlı yerde görünmez (blok o gün yeniden kurulur)
+          if (isHerbO(o)) {
+            const hv = W.harvested.get(i);
+            if ((hv !== undefined && hv > day) || snowy(tx, ty)) { if (info && hv !== undefined) info.regrow = true; break; }
+            P3.herb(m, x, y, z, o, rng);
+            if (info) info.herbs.push([tx * 16 + 8, ty * 16 + 8, i]);
+          }
+      }
+    }
+  }
+  const BRASSC = C('#c8a040');
+
+  /* ---------------- zemin dokusu ---------------- */
+  function tileTex(W, tx0, ty0, w, h) {
+    const bytes = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const gx = tx0 + x, gy = ty0 + y, o = (y * w + x) * 4;
+      const ib = gx >= 0 && gy >= 0 && gx < WW && gy < WH, t = ib ? W.tile[gy * WW + gx] : T.GRASS;
+      // kışın kar miktarı (oyunun snowyTile kuralı: karonun kendi payıyla 0.25 üstü karlı); suda kar yok
+      const sn = ib && W.season === 3 && !isWaterT(t) ? Math.max(0, Math.min(1, W.snowAmt(gy * WW + gx, (hash2(gx, gy, 71) - 0.5) * 0.8))) : 0;
+      bytes[o] = t; bytes[o + 1] = Math.round(sn * 255); bytes[o + 2] = 0; bytes[o + 3] = 255;
+    }
+    return bytes;
+  }
+  // karo türlerinin taban rengi: oyunun doğal tonu (TONE_NAT), yoksa TINFO rengi
+  function palette() {
+    const tb = new Float32Array(25 * 3);
+    const names = Object.keys(T);
+    for (const k of names) {
+      const i = T[k];
+      if (i >= 25) continue;
+      const hex = (typeof TONE_NAT !== 'undefined' && TONE_NAT[k]) || (TINFO[i] && TINFO[i].c) || '#68874a';
+      tb.set(C(hex), i * 3);
+    }
+    const h = (s) => C(s).map(v => v * 255);
+    const mx = (a, b, t) => a.map((v, i) => (v + (b[i] - v) * t) / 255);
+    const G = h('#68874a'), GD = [36, 54, 31], GL = [184, 196, 106];
+    const grass = [mx(G, GD, 0.55), mx(G, GD, 0.32), mx(G, GD, 0.1), mx(G, GL, 0.12), mx(G, GL, 0.28), mx(G, GL, 0.45)];
+    const Wt = h('#436e78'), DEEP = h('#2e4a5a'), S0 = [134, 201, 182];
+    const water = [mx(Wt, S0, 0.78), mx(Wt, S0, 0.52), mx(Wt, S0, 0.26), mx(Wt, Wt, 0), mx(Wt, DEEP, 0.5), mx(DEEP, DEEP, 0)];
+    return { tb, grass: new Float32Array(grass.flat()), water: new Float32Array(water.flat()) };
+  }
+
+  /* ---------------- demiryolu ----------------
+     Oyunun ray çizgisi (world.rails, dünya pikseli): her 4 pikselde bir travers (çizgiye dik), iki yanda 3 piksel
+     uzakta çelik ray (çizginin ortalama normaline göre kaydırılmış noktalar arasında). Traversler yarı gömülü.
+     Travers ve ray dilimi, orta noktası [x0, x1) × [z0, z1) içindeyse bu parçaya girer (komşu parçalarla çakışmaz). */
+  function railMesh(m, r, x0, z0, x1, z1, OX, OZ) {
+    const tie = C('#4a3522'), tieTop = C('#5a4430'), steel = C('#6e6e72'), steelTop = C('#b4b4b8');
+    const own = (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1;
+    const near = (p) => p[0] > x0 - 32 && p[0] < x1 + 32 && p[1] > z0 - 32 && p[1] < z1 + 32;
+    const obox = (cx, cy, cz, ang, hl, hh, hw, col, top) => {
+      m.push(M4.mul(M4.translate(cx, cy, cz), M4.rotY(-ang)));
+      m.box(0, 0, 0, hl, hh, hw, col, { top, skip: ['bottom'] });
+      m.pop();
+    };
+    m.set({ mat: MAT.PLANKH, flags: 0, param: 0, wind: 0, bone: 0 });
+    let acc = 0;
+    for (let i = 0; i < r.length - 1; i++) {
+      const A = r[i], B = r[i + 1];
+      const L = Math.hypot(B[0] - A[0], B[1] - A[1]);
+      if (L < 1e-3) continue;
+      if (!near(A) && !near(B)) { acc += L; continue; }
+      const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L, na = Math.atan2(ux, -uz);
+      for (let s0 = (4 - (acc % 4)) % 4; s0 <= L; s0 += 4) {
+        const px = A[0] + ux * s0, pz = A[1] + uz * s0;
+        if (own(px, pz)) obox(px - OX, 0.35, pz - OZ, na, 5.2, 0.7, 0.85, tie, tieTop);
+      }
+      acc += L;
+    }
+    m.set({ mat: MAT.SOLID });
+    const offAt = (i, off) => {
+      const [ax, ay] = r[i], [bx, by] = r[Math.min(i + 1, r.length - 1)], [cx, cy] = r[Math.max(i - 1, 0)];
+      const L = Math.hypot(bx - cx, by - cy) || 1;
+      return [ax - (by - cy) / L * off, ay + (bx - cx) / L * off];
+    };
+    for (const off of [-3, 3]) {
+      for (let i = 1; i < r.length; i++) {
+        if (!near(r[i]) && !near(r[i - 1])) continue;
+        const p = offAt(i, off), q = offAt(i - 1, off);
+        if (!own((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)) continue;
+        const dx = p[0] - q[0], dz = p[1] - q[1], sl = Math.hypot(dx, dz);
+        if (sl > 0.01) obox((p[0] + q[0]) / 2 - OX, 1.25, (p[1] + q[1]) / 2 - OZ, Math.atan2(dz, dx), sl / 2 + 0.15, 0.45, 0.42, steel, steelTop);
+      }
+    }
+  }
+
+  /* ---------------- sahne parçaları (js/view3d.js akıtır) ---------------- */
+  // binanın pencere ışıkları (gece yanan pencereler): dünya başına bir kez kümelenir
+  const WINL = new WeakMap();
+  function winLights(W, id) {
+    let m = WINL.get(W);
+    if (!m || m.n !== W.lights.length) {
+      m = new Map(); m.n = W.lights.length;
+      for (const L of W.lights) if (L.type === 'window') { let a = m.get(L.b); if (!a) m.set(L.b, a = []); a.push(L); }
+      WINL.set(W, m);
+    }
+    return m.get(id) || [];
+  }
+  // bina: kendi parçası (kesit, delik ve gece penceresi bina başına); baca, bayrak, çamaşır ve saloon kanadı bilgisiyle
+  function buildingPart(gl, W, b) {
+    const { m, Hw, extra } = building(b, W, 0, 0);
+    return Object.assign({ mesh: new GPUMesh(gl, m), b, Hw, cut: false, cutH: 6, winLit: false, wins: winLights(W, b.id) }, extra);
+  }
+  // dış nesneler: [tx0, tx1) × [ty0, ty1) karoları; kamp ateşleri ve yaprak döken ağaçlar (efektler için) ayrıca
+  function objectsPart(gl, W, tx0, ty0, tx1, ty1) {
+    const m = new Mesh(8192), info = { fires: [], leafy: [], herbs: [], arts: [], steam: [], regrow: false };
+    objects(W, tx0, ty0, tx1, ty1, 0, 0, m, info);
+    return Object.assign(info, { mesh: m.count ? new GPUMesh(gl, m) : null });
+  }
+  // demiryolu: orta noktası [x0, x1) × [z0, z1) (piksel) içinde kalan traversler ve ray dilimleri
+  function railsPart(gl, W, x0, z0, x1, z1) {
+    const m = new Mesh(4096);
+    for (const r of W.rails || []) railMesh(m, r, x0, z0, x1, z1, 0, 0);
+    return m.count ? new GPUMesh(gl, m) : null;
+  }
+  // zemin penceresi: tek dörtgen; rengi gölgelendiricide karo dokusundan (karo türü), pencere kamerayla kayar
+  function terrainPart(gl, W, tx0, ty0, tw, th) {
+    const gm = new Mesh(16);
+    gm.set({ mat: MAT.TERRAIN, flags: 0, param: 0 });
+    const x0 = tx0 * 16, z0 = ty0 * 16, x1 = (tx0 + tw) * 16, z1 = (ty0 + th) * 16;
+    gm.quad([x0, 0, z0], [x1, 0, z0], [x1, 0, z1], [x0, 0, z1], [0.4, 0.5, 0.3], [0, 1, 0]);
+    const tex = D3.renderer.tileTexture(tileTex(W, tx0, ty0, tw, th), tw, th);
+    return { mesh: new GPUMesh(gl, gm), ground: true, tex, rect: [tx0, ty0, tw, th] };
+  }
+
+  Object.assign(D3, { STD, buildingPart, objectsPart, railsPart, terrainPart, palette, poleDir });
+})();

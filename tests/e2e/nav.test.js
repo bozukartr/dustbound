@@ -52,15 +52,18 @@ module.exports = {
 
     await t.step('radar: rota çizilir, altında kalan yol ve süre yazar; hıza göre uzaklaşır', async () => {
       const r = await p.evaluate(() => {
-        // radarın alt kısmındaki bilgi: rota çiziminden önce ve sonra o bölgedeki pikseller değişir
+        // radarın alt kısmındaki bilgi: plaka yarı saydam koyu olduğu için altındaki haritaya göre koyulaştırır; plakalı ve
+        // plakasız (radarInfo kapalı) çizim aynı yerde karşılaştırılır (açık renkli haritada mutlak eşik tutmaz)
         const c = UI.rctx;
-        UI.drawRadar();
-        const info = c.getImageData(224 - 60, (112 + 100 - 25) * 2 - 10, 120, 20).data;
-        let dark = 0; for (let i = 0; i < info.length; i += 4) if (info[i] < 60 && info[i + 1] < 45) dark++;
+        const dim = () => { UI.drawRadar(); const d = c.getImageData(224 - 60, (112 + 100 - 25) * 2 - 10, 120, 20).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; return s / (d.length / 4) / 3; };
+        const ri = Nav.radarInfo; Nav.radarInfo = () => {};
+        const plain = dim();
+        Nav.radarInfo = ri;
+        const lum = dim();
         const nt = Nav.nextTurn(Nav.wp);
-        return { dark, turns: Nav.wp.turns.length, nt: nt && Math.round(nt.d), eta: Nav.fmtEta(Nav.etaMin(Nav.left(Nav.wp))) };
+        return { plain: Math.round(plain), lum: Math.round(lum), turns: Nav.wp.turns.length, nt: nt && Math.round(nt.d), eta: Nav.fmtEta(Nav.etaMin(Nav.left(Nav.wp))) };
       });
-      t.ok(r.dark > 200, 'kalan yol ve süre plakası çizildi', r);
+      t.ok(r.lum < r.plain - 25, 'kalan yol ve süre plakası çizildi', r);
       t.ok(/dk|sa/.test(r.eta), 'süre yazısı', r);
       // dörtnala: radar uzaklaşır (karo başına piksel azalır), oyuncunun oku merkezin gerisine kayar
       const z = await p.evaluate(async () => {
