@@ -28,7 +28,7 @@ const G = {
   fx: { flash: 0, shake: 0, muzzle: 0, boom: 0, lightning: 0 },
   cam: { x: 0, y: 0, ox: 0, oy: 0, sx(x) { return x - G.cam.ox; }, sy(y) { return y - G.cam.oy; } },
   scale: 3, vw: 640, vh: 360,
-  settings: { awareMarks: true, imarks: true, master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, mapHide: [], gfx: 0, gpu: 0,
+  settings: { awareMarks: true, imarks: true, master: 0.7, music: 0.4, sfx: 0.7, amb: 0.5, mixV: 2, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, d3Sens: 0.5, tone: 0, lang: null, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, mapHide: [], gfx: 0, gpu: 0,
     // grafik (Ayarlar → Grafik): hazır seviye Yüksek, kare hızı sınırsız, parlaklık normal (js/fx.js GFX)
     gfxPreset: 2, fpsCap: 0, bright: 2, ...GFX_PRESETS[2] },
   timers: { spawn: 0, disc: 0, ach: 0, fire: 0, amb: 0, gps: 0, hud: 0, radar: 0, dev: 0, leg: 0 },
@@ -171,8 +171,8 @@ const G = {
   gpuPref() { return Platform.GPU_PREFS[this.settings.gpu] || 'auto'; },
   /* WebGL bağlamının güç tercihi: masaüstünde bu açılışın tercihi (kart süreç boyunca sabit), tarayıcıda ayar */
   gpuPower() { return (Platform.gpuLaunch || this.gpuPref()) === 'low' ? 'low-power' : 'high-performance'; },
-  /* Melez çizim açık mı: ayar Melez ve WebGL çalışıyor */
-  hybridOn() { return this.settings.gfx !== 1 && typeof HY !== 'undefined' && HY.available(); },
+  /* Melez çizim açık mı: ayar Melez ve WebGL çalışıyor (Çizim Yöntemi: 0 Melez, 1 Klasik, 2 3B — js/view3d.js) */
+  hybridOn() { return (this.settings.gfx || 0) === 0 && typeof HY !== 'undefined' && HY.available(); },
   /* Arayüz ölçeği: kullanıcının seçimi × ekran boyuna göre temel; kısa ekranda taşmasın diye sınırlanır */
   hudScaleApply() {
     const S = this.settings, w = innerWidth, h = innerHeight;

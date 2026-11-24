@@ -246,11 +246,12 @@ const Handbook = {
     const toc = T.map(t => `<a class="hb-toc-i${isNew(t) ? ' new' : ''}" data-hb="${t.id}">${Icons.glyph(t.ic, '#c9a45c')}${t.t}${isNew(t) ? `<em>${Tr('YENİ')}</em>` : ''}</a>`).join('');
     const body = T.map(t => `<section class="hb-sec" id="hb-${t.id}"><h3>${Icons.glyph(t.ic, '#c9a45c')}${t.t}${isNew(t) ? `<em class="hb-new">${Tr('YENİ')}</em>` : ''}</h3>${t.b()}</section>`).join('');
     for (const t of T) delete H['new:' + t.id];
-    return `<div class="guide"><p><button class="st-btn" onclick="UI.openWelcome()">${Icons.glyph('book', 'currentColor')} ${Tr`Hoş Geldin Rehberini Aç`}</button></p>
+    return `<div class="guide"><p><button class="st-btn" data-hbw>${Icons.glyph('book', 'currentColor')} ${Tr`Hoş Geldin Rehberini Aç`}</button></p>
       <div class="hb-toc">${toc}</div>${body}</div>`;
   },
-  /* içindekilerden konuya kaydır */
+  /* içindekilerden konuya kaydır; hoş geldin rehberi düğmesi (sayfanın güvenlik kuralı satır içi onclick'i çalıştırmaz) */
   bind(el) {
     $$('[data-hb]', el).forEach(a => (a.onclick = () => { const s = $('#hb-' + a.dataset.hb, el), sc = s && s.closest('.scroll'); if (s && sc) sc.scrollTop = s.offsetTop - sc.offsetTop - 6; }));
+    $$('[data-hbw]', el).forEach(b => (b.onclick = () => UI.openWelcome()));
   },
 };

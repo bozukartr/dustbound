@@ -1,18 +1,15 @@
 'use strict';
 /* =====================================================================
-   3B TEST DEMOSU — çizici (yalnızca dist-demo3d paketine girer; oyunun dosyalarına dokunmaz)
+   3B ÇİZİM — çizici (Ayarlar → Grafik → Çizim Yöntemi: 3B; sahne ve kamera js/view3d.js'te)
 
-   Önizlemedeki 3B piksel çizicinin oyuna uyarlanmış hâli. Görüntü oyunun kendi tuvaliyle aynı boyda,
-   oyunun kamerasıyla çizilir. İzdüşüm "yer düzlemini koruyan" eğik bakıştır:
-       ekran x = (X − x0) · ds,   ekran y = (Z − K·Y − y0) · ds
-   (X doğu, Y yukarı, Z güney; 1 birim = oyunun 1 dünya pikseli). Yer 2D ile bire bir örtüştüğü için
-   oyunun 2D arayüzü (adlar, çubuklar, mermiler, parçacıklar), fare nişanı ve DOM işaretleri hiç
-   değişmeden 3B görüntünün üstüne oturur. Bu, K = ctg(θ) eğimli dik bir kameranın dikeyde 1/sin(θ)
-   kadar gerilmiş hâline eşittir: derinlik (0, 1, K) yönündedir, ışık ve normaller dünyada doğrudur.
+   WebGL2 ile oyunun kendi tuvaliyle aynı boyda çizer; sonuç oyunun 2D tuvaline kopyalanır, oyunun 2D
+   üst katmanı (arayüz, adlar, işaretler) üstüne oturur. Kamera gerçek dik (ortografik) kameradır: eğim
+   sabit (38°), yön (yaw) fareyle döner. Dünyada X doğu, Y yukarı, Z güney; 1 birim = oyunun 1 dünya pikseli.
+   Ekrana izdüşüm (view3d.js w2s): x = vw/2 + c·X − s·Z − u,  y = vh/2 + (s·X + c·Z)·sin θ − w − Y·cos θ.
 
-   Üç geçiş: güneş gölge haritası (görünen alana oturtulur), G-tamponu (renk + malzeme, normal + güneş),
-   birleştirme (oyunun 5 tonlu rampası, Bayer titreşimi, seçici dış hat, iç çizgi, lambalar).
-   Her şey tek ad alanında (D3): oyunun genel adlarıyla çakışmaz.
+   Üç geçiş: güneş gölge haritası (görünen alana oturtulur), G-tamponu (renk + malzeme, normal + güneş,
+   bulut gölgesi, zemin izleri), birleştirme (oyunun 5 tonlu rampası, Bayer titreşimi, seçici dış hat,
+   iç çizgi, lambalar). Her şey tek ad alanında (D3): oyunun genel adlarıyla çakışmaz.
    ===================================================================== */
 const D3 = window.D3 = window.D3 || {};
 (() => {
@@ -100,7 +97,8 @@ const D3 = window.D3 = window.D3 || {};
   // HOLE oyuncunun önünü kapatınca oyuncunun çevresinde delinir (taç, saçak); CLOTH kumaş: rüzgârda dalgalanır (bayrak,
   // çamaşır; dalga genliği aux.y rüzgâr payıyla, direkten ya da ipten uzaklaştıkça artar)
   const F = { CUT: 1, HIDECUT: 2, ROOF: 4, NOSHADOW: 8, NOOUTLINE: 16, TWOSIDED: 32, HOLE: 64, CLOTH: 128 };
-  const SIDE = { e: 0, s: 0.25, w: 0.5, n: 0.75 };   // dış yön açısı / 2π (kesit için)
+  // dış yön açısı / 2π (kesit için); any: iç bölme duvarı, kesitte kamera hangi yönde olursa olsun alçalır
+  const SIDE = { e: 0, s: 0.25, w: 0.5, n: 0.75, any: 1 };
 
   /* ---------------- gürültü (JS) ---------------- */
   function hash3(x, y, z) { let h = (x * 374761393 + y * 668265263 + z * 1442695041) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
@@ -336,7 +334,7 @@ void main(){
     if ((fl & 3) != 0) {
       // kameraya bakan duvar ve süs: kesitte alçalır ya da gizlenir
       float a = aAux.w * 6.2831853;
-      bool faces = dot(vec2(cos(a), sin(a)), uCamH) > 0.25;
+      bool faces = aAux.w > 0.99 || dot(vec2(cos(a), sin(a)), uCamH) > 0.25;
       if (faces) {
         if ((fl & 2) != 0) hide = true;
         else wp.y = min(wp.y, uCutH);
@@ -770,8 +768,17 @@ void main(){
     constructor() {
       this.cv = document.createElement('canvas');
       this.cv.width = 2; this.cv.height = 2;
-      const gl = this.cv.getContext('webgl2', { antialias: false, alpha: false, depth: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
-      if (!gl) throw new Error('WebGL2 yok');
+      // ekran kartı yoksa (tarayıcı yazılımla çiziyor) 3B açılmaz: saniyede bir kareye düşer. Testler yazılımda zorla açar
+      // (window.__d3Soft). Ekran kartı tercihi (Ayarlar → Görüntü → Ekran Kartı) bağlamın güç tercihine geçer
+      const force = !!window.__d3Soft, soft = (m) => Object.assign(new Error(m), { soft: true });
+      const pw = typeof G !== 'undefined' && G.gpuPower ? G.gpuPower() : 'high-performance';
+      const gl = this.cv.getContext('webgl2', { antialias: false, alpha: false, depth: true, preserveDrawingBuffer: true, powerPreference: pw, failIfMajorPerformanceCaveat: !force });
+      if (!gl) { if (!force && document.createElement('canvas').getContext('webgl2')) throw soft('yazılım çizimi'); throw new Error('WebGL2 yok'); }
+      const ri = gl.getExtension('WEBGL_debug_renderer_info');
+      if (!force && ri && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(gl.getParameter(ri.UNMASKED_RENDERER_WEBGL))) {
+        try { const x = gl.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); } catch (e) {}
+        throw soft('yazılım çizimi');
+      }
       this.gl = gl;
       this.pMain = program(gl, VS_MAIN, FS_GBUF);
       this.pShadow = program(gl, VS_MAIN, FS_SHADOW);

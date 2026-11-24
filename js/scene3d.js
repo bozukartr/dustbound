@@ -1,9 +1,12 @@
 'use strict';
 /* =====================================================================
-   3B TEST DEMOSU — oyun dünyasından durağan sahne
-   Bölge (karo dikdörtgeni) içindeki zemin, binalar (duvarlar oyunun çarpışma düzenine oturur: arka duvar
-   ilk karo sırası, yan duvarlar 5 px, ön duvar 4 px, kapı karosu açık), iç mekân eşyaları (world.obj),
-   dış nesneler ve statik ışıklar. Yerel koordinat: X = px − OX, Z = py − OZ (sayılar küçük kalır).
+   3B ÇİZİM — oyun dünyasından durağan sahne parçaları
+   Binalar (duvarlar oyunun çarpışma düzenine oturur: arka duvar ilk karo sırası, yan duvarlar 5 px, ön duvar
+   4 px, kapı karosu açık; iç mekân eşyaları world.obj'tan), dış nesneler (16×16 karoluk bloklar), demiryolu ve
+   zemin penceresi ayrı ayrı kurulur: js/view3d.js bunları kameranın çevresinde akıtır (yakındakini kurar,
+   uzaklaşanı atar). Koordinatlar dünya pikseli (X = px, Z = py, Y yukarı); bina parçası yalnızca kendi
+   binasını, nesne bloğu yalnızca kendi karolarını, ray parçası orta noktası kendi alanında kalan ray
+   dilimlerini içerir: parçalar birbirine binmez, aralarında boşluk kalmaz.
    ===================================================================== */
 (() => {
   const { M4, C, shade, mixc, INK, MAT, F, SIDE, RNG, Mesh, GPUMesh, P3, FURN } = D3;
@@ -69,7 +72,9 @@
     const dx = b.door.x - OX, DW = type === 'stable' || type === 'barn' ? 9 : 7, DH = type === 'stable' || type === 'barn' ? 30 : 27;
     const nWin = Math.max(1, Math.floor(b.w / 3)), wins = [];
     for (let k = 0; k < nWin; k++) { const cx = X0 + (k + 0.5) * Wd / nWin; if (Math.abs(cx - dx) >= 10) wins.push(cx); }
-    const ops = [{ u0: dx - DW, u1: dx + DW, y0: 0, y1: DH, door: true }];
+    // iki katlı yapının üst katında (oyuncu yukarıdayken) ön duvarda kapı açıklığı yok (2D'deki gibi)
+    const up = b.floor === 1;
+    const ops = up ? [] : [{ u0: dx - DW, u1: dx + DW, y0: 0, y1: DH, door: true }];
     const WY0 = 11, WY1 = 25, WW2 = 5;
     for (const cx of wins) { ops.push({ u0: cx - WW2, u1: cx + WW2, y0: WY0, y1: WY1 }); if (d.tall) ops.push({ u0: cx - WW2, u1: cx + WW2, y0: 33, y1: 45 }); }
     const cuts = [X0, X1];
@@ -104,19 +109,21 @@
     }
     // kapı: kasa ve içe açık kanat (saloon: yarım kanatlı)
     let swing = null;
-    m.set({ mat: MAT.SOLID, flags: F.HIDECUT, param: SIDE.s });
-    m.box(dx, DH + 0.7, Z1 + 0.3, DW + 1.2, 0.7, 0.4, trim);
-    m.box(dx - DW - 0.6, DH / 2, Z1 + 0.3, 0.6, DH / 2, 0.4, trim); m.box(dx + DW + 0.6, DH / 2, Z1 + 0.3, 0.6, DH / 2, 0.4, trim);
-    m.set({ mat: MAT.PLANKV, flags: F.HIDECUT, param: SIDE.s });
-    const dc = C(type === 'stable' || type === 'barn' ? '#5a3a22' : '#5a3e26');
-    if (type === 'saloon' || type === 'cantina' || type === 'gambling') {
-      // yarım kanatlar ayrı çizilir: içinden geçen itince sallanır (js/demo3d.js)
-      swing = [b.door.x, Z1 - 1 + OZ, DW];
-    } else if (type === 'stable' || type === 'barn') {
-      for (const sg of [-1, 1]) { m.push(M4.mul(M4.translate(dx + sg * DW, 0, Z1 - 1), M4.rotY(sg * 1.3))); m.box(-sg * DW / 2, DH / 2, 0, DW / 2, DH / 2, 0.5, dc); m.pop(); }
-    } else {
-      m.push(M4.mul(M4.translate(dx - DW, 0, Z1 - 3), M4.rotY(-1.25)));
-      m.box(DW, (DH - 0.5) / 2, 0, DW, (DH - 0.5) / 2, 0.45, dc); m.pop();
+    if (!up) {
+      m.set({ mat: MAT.SOLID, flags: F.HIDECUT, param: SIDE.s });
+      m.box(dx, DH + 0.7, Z1 + 0.3, DW + 1.2, 0.7, 0.4, trim);
+      m.box(dx - DW - 0.6, DH / 2, Z1 + 0.3, 0.6, DH / 2, 0.4, trim); m.box(dx + DW + 0.6, DH / 2, Z1 + 0.3, 0.6, DH / 2, 0.4, trim);
+      m.set({ mat: MAT.PLANKV, flags: F.HIDECUT, param: SIDE.s });
+      const dc = C(type === 'stable' || type === 'barn' ? '#5a3a22' : '#5a3e26');
+      if (type === 'saloon' || type === 'cantina' || type === 'gambling') {
+        // yarım kanatlar ayrı çizilir: içinden geçen itince sallanır (js/view3d.js)
+        swing = [b.door.x, Z1 - 1 + OZ, DW];
+      } else if (type === 'stable' || type === 'barn') {
+        for (const sg of [-1, 1]) { m.push(M4.mul(M4.translate(dx + sg * DW, 0, Z1 - 1), M4.rotY(sg * 1.3))); m.box(-sg * DW / 2, DH / 2, 0, DW / 2, DH / 2, 0.5, dc); m.pop(); }
+      } else {
+        m.push(M4.mul(M4.translate(dx - DW, 0, Z1 - 3), M4.rotY(-1.25)));
+        m.box(DW, (DH - 0.5) / 2, 0, DW, (DH - 0.5) / 2, 0.45, dc); m.pop();
+      }
     }
     // veranda: döşeme, direkler, saçak (oyuncu altındayken delinir)
     const porch = !d.ruin && type !== 'station' && type !== 'barn' && type !== 'hermit';
@@ -202,7 +209,7 @@
       m.set({ mat: MAT.SOLID }); m.box(hearthX, top + 0.4, Z0 + 6, 4, 0.6, 4, C('#4a3e34'));
       extra.chimney = [hearthX + OX, Z0 + 6 + OZ, top + 1.2];
     }
-    // şerif, mahkeme, istasyon ve banka: çatıda bayrak direği (dalgalanan bayrak rüzgâra döner, js/demo3d.js)
+    // şerif, mahkeme, istasyon ve banka: çatıda bayrak direği (dalgalanan bayrak rüzgâra döner, js/view3d.js)
     if (type === 'sheriff' || type === 'county' || type === 'station' || type === 'bank') {
       let px = X0 + 10, pz, base;
       if (!gable) { pz = Z1 - 1.2; base = Hw + (d.tall ? 10 : 13) + 1.7; }
@@ -229,6 +236,24 @@
       extra.laundry = [lx0 + OX, lx1 + OX, lz + OZ];
     }
     if (enter) interior(m, b, W, OX, OZ, Hw, rng);
+    // iki katlı yapılar: o katın iç bölme duvarları (üst katta oda duvarları, kulübün zemin katında okuma odası; karo
+    // kenarındaki bantlar). Kesitte kamera hangi yönde olursa olsun alçalır. Üst katta kilitli odaların (otel) içi
+    // görünmez: üstleri alçalan duvarların hizasında karanlık bir tavanla örtülür
+    if (enter && typeof floorWalls === 'function') {
+      let n = 0;
+      for (const [lx, ly, v] of floorWalls(b)) {
+        const x = X0 + lx * 16, z = Z0 + ly * 16;
+        const r = v === 1 ? [x, x + 16, z, z + 5] : v === 2 ? [x, x + 16, z + 12, z + 16] : v === 4 ? [x, x + 5, z, z + 16] : [x + 11, x + 16, z, z + 16];
+        wallBox(r[0], r[1], r[2], r[3], 0, Hw, inMat, inC, F.CUT, SIDE.any);
+        n++;
+      }
+      extra.iw = n;
+      if (up && typeof hotelShut === 'function') {
+        m.set({ mat: MAT.PLANKH, flags: F.NOSHADOW, param: 0 });
+        for (const [x, y, w, h] of hotelShut(b)) { m.box(X0 + x + w / 2, 6.5, Z0 + y + h / 2, w / 2, 0.45, h / 2, C('#1c130d')); extra.shut = (extra.shut || 0) + 1; }
+        m.set({ flags: 0 });
+      }
+    }
     return { m, Hw, extra };
   }
   /* asılı kumaş (çamaşır): ipten (üst kenar) aşağı sallanır; rüzgâr payı aşağıda büyür (F.CLOTH, gölgelendiricide dalga) */
@@ -306,7 +331,13 @@
         case O.TELEGRAPH: FURN.telegraph(m, x, z); break;
         case O.SADDLE: FURN.saddle(m, x, z); break;
         case O.STAIRS: { let n = 0; while (at(lx, ly - 1 - n) === O.STAIRS) n++; FURN.stairs(m, x, z, 2 - Math.min(2, n)); break; }
-        case O.IBLOCK: case O.STAIRSD: case O.RDOOR: case O.HOMECHEST: break;
+        case O.STAIRSD: { let p = 0, n = 1; while (at(lx, ly - 1 - p) === o) p++; n += p; for (let q = ly + 1; at(lx, q) === o; q++) n++; FURN.stairsDown(m, x, z, lx < b.w / 2, p, n); break; }
+        case O.RDOOR: {
+          const UP = typeof upPlan === 'function' ? upPlan(b) : null, k = UP ? UP.rooms.findIndex(R => R.door[0] === lx && R.door[1] === ly) : -1;
+          if (k >= 0) FURN.roomDoor(m, x, z, roomOpen(b, k), UP.rooms[k].side === 2, b.type === 'hotel');
+          break;
+        }
+        case O.IBLOCK: case O.HOMECHEST: break;
         case O.BILLIARD: FURN.generic(m, x + 8, z, '#2e6a3a', 9); break;
         case O.ROULETTE: FURN.generic(m, x + 8, z, '#3a1a12', 9); break;
         case O.LAMPSTAND: m.set({ mat: MAT.SOLID }); m.cyl(x, 0, z, 0.5, 14, C('#3a3a3a'), { seg: 5 }); m.set({ mat: MAT.EMIT }); m.cyl(x, 14, z, 2, 3, C('#ffd890'), { seg: 6, r2: 1 }); break;
@@ -329,7 +360,7 @@
 
   /* ---------------- dış nesneler ---------------- */
   const OAKP = [C('#314d22'), C('#3f6129'), C('#557a35')], BIRCHP = [C('#4a6a2a'), C('#5e8436'), C('#7a9e48')], APPLEP = [C('#2e4a22'), C('#3e6028'), C('#527a32')];
-  function objects(W, tx0, ty0, tx1, ty1, OX, OZ, out, lights) {
+  function objects(W, tx0, ty0, tx1, ty1, OX, OZ, out, info) {
     const rng = RNG(tx0 * 31 + ty0 * 17 + 3);
     const isF = (x, y, o) => x >= 0 && y >= 0 && x < WW && y < WH && W.obj[y * WW + x] === o;
     for (let ty = ty0; ty < ty1; ty++) for (let tx = tx0; tx < tx1; tx++) {
@@ -339,9 +370,9 @@
       const x = tx * 16 + 8 - OX, z = ty * 16 + 8 - OZ, y = 0;
       const m = out;
       switch (o) {
-        case O.OAK: P3.oak(m, x, y, z + 3, 0.85, rng, OAKP); break;
-        case O.APPLE: P3.oak(m, x, y, z + 3, 0.75, rng, APPLEP); break;
-        case O.BIRCH: P3.oak(m, x, y, z + 3, 0.7, rng, BIRCHP); break;
+        case O.OAK: P3.oak(m, x, y, z + 3, 0.85, rng, OAKP); if (info) info.leafy.push([tx * 16 + 8, ty * 16 - 4, hash2(tx, ty, 78)]); break;
+        case O.APPLE: P3.oak(m, x, y, z + 3, 0.75, rng, APPLEP); if (info) info.leafy.push([tx * 16 + 8, ty * 16 - 4, hash2(tx, ty, 78)]); break;
+        case O.BIRCH: P3.oak(m, x, y, z + 3, 0.7, rng, BIRCHP); if (info) info.leafy.push([tx * 16 + 8, ty * 16 - 4, hash2(tx, ty, 78)]); break;
         case O.PINE: case O.SNOWPINE: case O.CYPRESS: P3.pine(m, x, y, z + 3, 0.85, rng); break;
         case O.SEQUOIA: P3.pine(m, x, y, z + 3, 1.3, rng); break;
         case O.DEAD: P3.dead(m, x, y, z + 3, 0.9); break;
@@ -370,6 +401,7 @@
         case O.CROP: P3.crop(m, x, y, z, rng); break;
         case O.WAGON: P3.wagon(m, x + 6, y, z, 0.2); break;
         case O.CAMPFIRE: {
+          if (info) info.fires.push([tx * 16 + 8, ty * 16 + 8]);
           m.set({ mat: MAT.STONE, flags: 0, wind: 0, bone: 0 });
           for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; m.ell(x + Math.cos(a) * 5, y + 0.6, z + Math.sin(a) * 5, 1.5, 1.1, 1.3, C('#7a746c'), { nu: 6, nv: 4 }); }
           m.set({ mat: MAT.FIRE, flags: F.NOSHADOW }); m.cyl(x, y + 1, z, 2.6, 5.5, C('#f0a030'), { seg: 7, r2: 0.3 }); m.set({ flags: 0 });
@@ -422,10 +454,12 @@
 
   /* ---------------- demiryolu ----------------
      Oyunun ray çizgisi (world.rails, dünya pikseli): her 4 pikselde bir travers (çizgiye dik), iki yanda 3 piksel
-     uzakta çelik ray (çizginin ortalama normaline göre kaydırılmış noktalar arasında). Traversler yarı gömülü. */
+     uzakta çelik ray (çizginin ortalama normaline göre kaydırılmış noktalar arasında). Traversler yarı gömülü.
+     Travers ve ray dilimi, orta noktası [x0, x1) × [z0, z1) içindeyse bu parçaya girer (komşu parçalarla çakışmaz). */
   function railMesh(m, r, x0, z0, x1, z1, OX, OZ) {
     const tie = C('#4a3522'), tieTop = C('#5a4430'), steel = C('#6e6e72'), steelTop = C('#b4b4b8');
-    const inb = (p) => p[0] > x0 && p[0] < x1 && p[1] > z0 && p[1] < z1;
+    const own = (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1;
+    const near = (p) => p[0] > x0 - 32 && p[0] < x1 + 32 && p[1] > z0 - 32 && p[1] < z1 + 32;
     const obox = (cx, cy, cz, ang, hl, hh, hw, col, top) => {
       m.push(M4.mul(M4.translate(cx, cy, cz), M4.rotY(-ang)));
       m.box(0, 0, 0, hl, hh, hw, col, { top, skip: ['bottom'] });
@@ -437,65 +471,69 @@
       const A = r[i], B = r[i + 1];
       const L = Math.hypot(B[0] - A[0], B[1] - A[1]);
       if (L < 1e-3) continue;
-      if (!inb(A) && !inb(B)) { acc += L; continue; }
+      if (!near(A) && !near(B)) { acc += L; continue; }
       const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L, na = Math.atan2(ux, -uz);
-      for (let s0 = (4 - (acc % 4)) % 4; s0 <= L; s0 += 4) obox(A[0] + ux * s0 - OX, 0.35, A[1] + uz * s0 - OZ, na, 5.2, 0.7, 0.85, tie, tieTop);
+      for (let s0 = (4 - (acc % 4)) % 4; s0 <= L; s0 += 4) {
+        const px = A[0] + ux * s0, pz = A[1] + uz * s0;
+        if (own(px, pz)) obox(px - OX, 0.35, pz - OZ, na, 5.2, 0.7, 0.85, tie, tieTop);
+      }
       acc += L;
     }
     m.set({ mat: MAT.SOLID });
+    const offAt = (i, off) => {
+      const [ax, ay] = r[i], [bx, by] = r[Math.min(i + 1, r.length - 1)], [cx, cy] = r[Math.max(i - 1, 0)];
+      const L = Math.hypot(bx - cx, by - cy) || 1;
+      return [ax - (by - cy) / L * off, ay + (bx - cx) / L * off];
+    };
     for (const off of [-3, 3]) {
-      let prev = null;
-      for (let i = 0; i < r.length; i++) {
-        const [ax, ay] = r[i], [bx, by] = r[Math.min(i + 1, r.length - 1)], [cx, cy] = r[Math.max(i - 1, 0)];
-        if (!inb(r[i])) { prev = null; continue; }
-        const L = Math.hypot(bx - cx, by - cy) || 1, nx = -(by - cy) / L, ny = (bx - cx) / L;
-        const p = [ax + nx * off - OX, ay + ny * off - OZ];
-        if (prev) {
-          const dx = p[0] - prev[0], dz = p[1] - prev[1], sl = Math.hypot(dx, dz);
-          if (sl > 0.01) obox((p[0] + prev[0]) / 2, 1.25, (p[1] + prev[1]) / 2, Math.atan2(dz, dx), sl / 2 + 0.15, 0.45, 0.42, steel, steelTop);
-        }
-        prev = p;
+      for (let i = 1; i < r.length; i++) {
+        if (!near(r[i]) && !near(r[i - 1])) continue;
+        const p = offAt(i, off), q = offAt(i - 1, off);
+        if (!own((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)) continue;
+        const dx = p[0] - q[0], dz = p[1] - q[1], sl = Math.hypot(dx, dz);
+        if (sl > 0.01) obox((p[0] + q[0]) / 2 - OX, 1.25, (p[1] + q[1]) / 2 - OZ, Math.atan2(dz, dx), sl / 2 + 0.15, 0.45, 0.42, steel, steelTop);
       }
     }
   }
 
-  /* ---------------- sahne ----------------
-     R: bölge (karo) {x0, y0, x1, y1}: binalar ve nesneler; zemin dokusu bunun G karo ötesine dek (üçüncü şahıs kamerada
-     ufka bakılır: zemin sisin içine kadar uzanır) */
-  function build(gl, W, R) {
-    const t0 = performance.now();
-    const OX = R.x0 * 16, OZ = R.y0 * 16, G = 120;
-    const parts = [], bparts = new Map();
-    // zemin: tek dörtgen (renk gölgelendiricide karo dokusundan)
+  /* ---------------- sahne parçaları (js/view3d.js akıtır) ---------------- */
+  // binanın pencere ışıkları (gece yanan pencereler): dünya başına bir kez kümelenir
+  const WINL = new WeakMap();
+  function winLights(W, id) {
+    let m = WINL.get(W);
+    if (!m || m.n !== W.lights.length) {
+      m = new Map(); m.n = W.lights.length;
+      for (const L of W.lights) if (L.type === 'window') { let a = m.get(L.b); if (!a) m.set(L.b, a = []); a.push(L); }
+      WINL.set(W, m);
+    }
+    return m.get(id) || [];
+  }
+  // bina: kendi parçası (kesit, delik ve gece penceresi bina başına); baca, bayrak, çamaşır ve saloon kanadı bilgisiyle
+  function buildingPart(gl, W, b) {
+    const { m, Hw, extra } = building(b, W, 0, 0);
+    return Object.assign({ mesh: new GPUMesh(gl, m), b, Hw, cut: false, cutH: 6, winLit: false, wins: winLights(W, b.id) }, extra);
+  }
+  // dış nesneler: [tx0, tx1) × [ty0, ty1) karoları; kamp ateşleri ve yaprak döken ağaçlar (efektler için) ayrıca
+  function objectsPart(gl, W, tx0, ty0, tx1, ty1) {
+    const m = new Mesh(8192), info = { fires: [], leafy: [] };
+    objects(W, tx0, ty0, tx1, ty1, 0, 0, m, info);
+    return { mesh: m.count ? new GPUMesh(gl, m) : null, fires: info.fires, leafy: info.leafy };
+  }
+  // demiryolu: orta noktası [x0, x1) × [z0, z1) (piksel) içinde kalan traversler ve ray dilimleri
+  function railsPart(gl, W, x0, z0, x1, z1) {
+    const m = new Mesh(4096);
+    for (const r of W.rails || []) railMesh(m, r, x0, z0, x1, z1, 0, 0);
+    return m.count ? new GPUMesh(gl, m) : null;
+  }
+  // zemin penceresi: tek dörtgen; rengi gölgelendiricide karo dokusundan (karo türü), pencere kamerayla kayar
+  function terrainPart(gl, W, tx0, ty0, tw, th) {
     const gm = new Mesh(16);
     gm.set({ mat: MAT.TERRAIN, flags: 0, param: 0 });
-    const gx0 = -G * 16, gz0 = -G * 16, gx1 = (R.x1 - R.x0 + G) * 16, gz1 = (R.y1 - R.y0 + G) * 16;
-    gm.quad([gx0, 0, gz0], [gx1, 0, gz0], [gx1, 0, gz1], [gx0, 0, gz1], [0.4, 0.5, 0.3], [0, 1, 0]);
-    parts.push({ mesh: new GPUMesh(gl, gm), ground: true });
-    // binalar: bölgeye değen her bina bütün olarak
-    for (const b of W.buildings) {
-      if (b.x + b.w < R.x0 || b.x > R.x1 || b.y + b.h + 1 < R.y0 || b.y > R.y1) continue;
-      const { m, Hw, extra } = building(b, W, OX, OZ);
-      const P = Object.assign({ mesh: new GPUMesh(gl, m), b, Hw, cut: false, cutH: 6, winLit: false, wins: W.lights.filter(L => L.type === 'window' && L.b === b.id) }, extra);
-      parts.push(P); bparts.set(b.id, P);
-    }
-    // dış nesneler: 16×16 karoluk parçalar (görünmeyen parça çizilmez)
-    for (let cy = R.y0; cy < R.y1; cy += 16) for (let cx = R.x0; cx < R.x1; cx += 16) {
-      const m = new Mesh(8192);
-      objects(W, cx, cy, Math.min(R.x1, cx + 16), Math.min(R.y1, cy + 16), OX, OZ, m);
-      if (m.count) parts.push({ mesh: new GPUMesh(gl, m) });
-    }
-    // demiryolu: bölgeye (ve payına) değen kısmı
-    const rm = new Mesh(16384);
-    for (const r of W.rails || []) railMesh(rm, r, (R.x0 - 6) * 16, (R.y0 - 6) * 16, (R.x1 + 6) * 16, (R.y1 + 6) * 16, OX, OZ);
-    if (rm.count) parts.push({ mesh: new GPUMesh(gl, rm), rails: true });
-    const tw = R.x1 - R.x0 + 2 * G, th = R.y1 - R.y0 + 2 * G;
-    const tex = D3.renderer.tileTexture(tileTex(W, R.x0 - G, R.y0 - G, tw, th), tw, th);
-    // karo dokusunun yerel karo ızgarasındaki köşesi: yerel (0,0) = bölgenin köşesi
-    const scene = { parts, bparts, OX, OZ, R, tiles: { tex, rect: [-G, -G, tw, th] }, pal: palette(), lines: null, ms: 0 };
-    scene.ms = performance.now() - t0;
-    return scene;
+    const x0 = tx0 * 16, z0 = ty0 * 16, x1 = (tx0 + tw) * 16, z1 = (ty0 + th) * 16;
+    gm.quad([x0, 0, z0], [x1, 0, z0], [x1, 0, z1], [x0, 0, z1], [0.4, 0.5, 0.3], [0, 1, 0]);
+    const tex = D3.renderer.tileTexture(tileTex(W, tx0, ty0, tw, th), tw, th);
+    return { mesh: new GPUMesh(gl, gm), ground: true, tex, rect: [tx0, ty0, tw, th] };
   }
 
-  Object.assign(D3, { buildScene: build, STD });
+  Object.assign(D3, { STD, buildingPart, objectsPart, railsPart, terrainPart, palette });
 })();

@@ -784,13 +784,18 @@ const UI = {
     c.save();
     c.beginPath(); c.arc(C, C, R, 0, TAU); c.clip();
     c.fillStyle = '#c9b48a'; c.fillRect(0, 0, L, L);
+    // 3B çizimde radar kamerayla birlikte döner (baktığın yön yukarıda): harita katmanı (zemin, yollar, sis, aranma
+    // alanı, rotalar) döner, simgeler yeni yerlerinde dik kalır, oyuncu oku ve yön harfleri dönüşe uyar (2D'de rot 0)
+    const rot = typeof D3 !== 'undefined' && D3.radarRot ? D3.radarRot() : 0, rc = Math.cos(rot), rs = Math.sin(rot);
+    c.save(); c.translate(C, C); c.rotate(rot); c.translate(-C, -C);
     c.imageSmoothingEnabled = z < 1.6;
     const span = 2 * R / z;
     // yürürken ve at sırtında yakın harita parçaları (karo başına 2x2 piksel), genişletilmiş radarda bütün dünyanın resmi
     W.drawMapRect(c, tx - span / 2, ty - span / 2, tx + span / 2, ty + span / 2, C - R, C - R, z, z >= 1.2);
     c.imageSmoothingEnabled = true;
     // dünya → radar: sonuç her çağrıda aynı diziye yazılır, çağıran değerleri hemen okur
-    const RP = [0, 0], toR = (wx, wy) => { RP[0] = C + (wx / TS - tx) * z; RP[1] = C + (wy / TS - ty) * z; return RP; };
+    const RP = [0, 0], toR0 = (wx, wy) => { RP[0] = C + (wx / TS - tx) * z; RP[1] = C + (wy / TS - ty) * z; return RP; };
+    const toR = (wx, wy) => { const dx = (wx / TS - tx) * z, dy = (wy / TS - ty) * z; RP[0] = C + rc * dx - rs * dy; RP[1] = C + rs * dx + rc * dy; return RP; };
     const pp = toR(P.x, P.y).slice();   // oyuncunun radardaki yeri (ileriyi gösterirken merkezde değil)
     // yollar ve demiryolu (vektörel); çizgiler 64 noktalık parçalara bölünür, radarın dışında kalan parça hiç dolaşılmaz
     const lim = span * TS * 0.75, bx0 = P.x - lim, bx1 = P.x + lim, by0 = P.y - lim, by1 = P.y + lim;
@@ -821,12 +826,13 @@ const UI = {
     if (night > 0.02) { c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.5 * night; c.fillStyle = '#5a6492'; c.fillRect(C - R, C - R, 2 * R, 2 * R); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
     // aranma alanı
     if (G.law.level > 0) {
-      const lp = toR(G.law.lastX, G.law.lastY), lx = lp[0], ly = lp[1];
+      const lp = toR0(G.law.lastX, G.law.lastY), lx = lp[0], ly = lp[1];
       c.fillStyle = 'rgba(180,20,20,0.22)'; c.strokeStyle = 'rgba(200,30,30,0.7)'; c.lineWidth = 1.5;
       c.beginPath(); c.arc(lx, ly, G.law.radius / TS * z, 0, TAU); c.fill(); c.stroke();
     }
     // rotalar: kişisel hedef (mor) ve görev (altın); gidiş yönünde kayan oklar, sıradaki dönüş (js/nav.js)
-    Nav.radar(c, toR, C, R, G.t);
+    Nav.radar(c, toR0, C, R, G.t);
+    c.restore();
     // simgeler; edge: daire dışındaysa kadran bandında gösterilir
     const edges = [];
     const icon = (wx, wy, g, col, bg, sz = 13, edge) => {
@@ -913,7 +919,7 @@ const UI = {
     // rota bilgisi: sıradaki dönüş, kalan yol ve süre (js/nav.js)
     Nav.radarInfo(c, C, R);
     // oyuncu: önündeki bakış konisi ve ok (ileriyi gösterirken merkezin gerisinde)
-    c.translate(pp[0], pp[1]); c.rotate(P.riding ? P.riding.ang : P.ang);
+    c.translate(pp[0], pp[1]); c.rotate((P.riding ? P.riding.ang : P.ang) + rot);
     let cone = this._rCone;
     if (!cone) { cone = this._rCone = c.createRadialGradient(0, 0, 3, 0, 0, 46); cone.addColorStop(0, 'rgba(255,248,226,0.5)'); cone.addColorStop(1, 'rgba(255,248,226,0)'); }
     c.fillStyle = cone; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 46, -0.5, 0.5); c.closePath(); c.fill();
@@ -942,7 +948,6 @@ const UI = {
     // çentikler: her 10°, her 30° uzun
     c.lineCap = 'round';
     for (let d = 0; d < 360; d += 10) {
-      if (d % 90 === 0) continue;
       const a = d * Math.PI / 180 - Math.PI / 2, long = d % 30 === 0, r0 = R + 3, r1 = R + (long ? 8.5 : 5.5);
       c.strokeStyle = long ? 'rgba(232,206,150,0.75)' : 'rgba(201,164,92,0.45)'; c.lineWidth = long ? 1.2 : 0.8;
       c.beginPath(); c.moveTo(C + Math.cos(a) * r0, C + Math.sin(a) * r0); c.lineTo(C + Math.cos(a) * r1, C + Math.sin(a) * r1); c.stroke();
@@ -953,13 +958,7 @@ const UI = {
     c.strokeStyle = mg; c.lineWidth = 2.4; c.beginPath(); c.arc(C, C, R2 - 0.9, 0, TAU); c.stroke();
     c.lineWidth = 1.5; c.beginPath(); c.arc(C, C, R + 0.6, 0, TAU); c.stroke();
     c.strokeStyle = 'rgba(0,0,0,0.8)'; c.lineWidth = 1; c.beginPath(); c.arc(C, C, R2 + 0.4, 0, TAU); c.stroke();
-    // yön harfleri
-    c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle';
-    lt.forEach((t, i) => {
-      const a = i * Math.PI / 2 - Math.PI / 2, x = C + Math.cos(a) * (R + 5.6), y = C + Math.sin(a) * (R + 5.6);
-      if (i === 0) { c.fillStyle = '#8e1b12'; c.beginPath(); c.arc(x, y, 5.6, 0, TAU); c.fill(); c.strokeStyle = 'rgba(240,212,135,0.9)'; c.lineWidth = 0.8; c.stroke(); }
-      c.fillStyle = i === 0 ? '#fff3d6' : 'rgba(236,216,172,0.92)'; c.fillText(t, x, y + 0.4);
-    });
+    // yön harfleri her çizimde (drawBezel): 3B'de kadranla birlikte döner
     this._bezel = { cv, key };
     return cv;
   },
@@ -995,6 +994,16 @@ const UI = {
   drawBezel(c, C, R, edges) {
     c.save();
     c.drawImage(this.bezelArt(C, R), 0, 0, 224, 224);
+    // yön harfleri: harfin altındaki çentikleri örten koyu (kuzeyde kırmızı) daire; 3B'de radarla birlikte döner
+    const rot = typeof D3 !== 'undefined' && D3.radarRot ? D3.radarRot() : 0;
+    const lt = [Tr('@pusula|K'), Tr('@pusula|D'), Tr('@pusula|G'), Tr('@pusula|B')];
+    c.font = 'bold 9px "IM Fell English SC", serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    lt.forEach((t, i) => {
+      const a = i * Math.PI / 2 - Math.PI / 2 + rot, x = C + Math.cos(a) * (R + 5.6), y = C + Math.sin(a) * (R + 5.6);
+      c.fillStyle = i === 0 ? '#8e1b12' : '#1d150e'; c.beginPath(); c.arc(x, y, 5.6, 0, TAU); c.fill();
+      if (i === 0) { c.strokeStyle = 'rgba(240,212,135,0.9)'; c.lineWidth = 0.8; c.stroke(); }
+      c.fillStyle = i === 0 ? '#fff3d6' : 'rgba(236,216,172,0.92)'; c.fillText(t, x, y + 0.4);
+    });
     // uzaktaki hedefler bandın üzerinde
     for (const e of edges) {
       const x = C + Math.cos(e.a) * (R + 5.6), y = C + Math.sin(e.a) * (R + 5.6), r = e.q ? 7 + Math.sin(G.t * 5) * 0.8 : 6.2;
@@ -2090,11 +2099,11 @@ const UI = {
      Sağda odaktaki ayarın açıklaması durur. ◀ ▶ değiştirir, Q/E sekme, Alt varsayılana döndürür. */
   openSettings(tab = 0, focusKey = null) {
     const S = G.settings;
-    const DEF = { awareMarks: true, imarks: true, master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0,
+    const DEF = { awareMarks: true, imarks: true, master: 0.8, music: 0.5, sfx: 0.8, amb: 0.6, zoom: 0, fps: false, shake: true, aimAssist: 2, aimSens: 1, d3Sens: 0.5, tone: 0, padGlyphs: 0, guideNew: true, hudScale: 2, meters: 0, gfx: 0, gpu: 0,
       gfxPreset: 2, fpsCap: 0, bright: 2, ...GFX_PRESETS[2] };
     const OPTL = {
       aimAssist: [Tr('Kapalı'), Tr('Hafif'), Tr('Standart'), Tr('Tam Kilit')], aimSens: [Tr('Düşük'), Tr('Normal'), Tr('Yüksek')],
-      padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], gfx: [Tr('Melez'), Tr('Klasik')], tone: [Tr('Doğal'), Tr('Canlı')],
+      padGlyphs: [Tr('Otomatik'), 'PlayStation', 'Xbox', 'Steam Deck'], gfx: [Tr('Melez'), Tr('Klasik'), Tr('3B')], tone: [Tr('Doğal'), Tr('Canlı')],
       zoom: [Tr('Otomatik'), '1x', '2x', '3x', '4x', '5x'],
       hudScale: HUD_SCALES.map(v => Math.round(v * 100) + '%'), meters: [Tr('Gerektiğinde'), Tr('Her Zaman')],
       gpu: this.gpuOpts(),
@@ -2127,7 +2136,7 @@ const UI = {
       { n: Tr('Grafik'), g: 'sun', rows: [
         ['gfxPreset', Tr('Hazır Ayar'), 'opt', Tr('Bütün grafik ayarlarını tek seçimle kurar. Düşük: zayıf bilgisayarlar ve tümleşik ekran kartları için; Melez yarım çözünürlükte, gölge, parlama, bulut ve süslemeler kapalı. Orta: yarım çözünürlük, sade gölge ve temel efektler. Yüksek: oyunun tam görünümü. Ultra: daha ince güneş gölgesi ve daha çok parçacık. Aşağıdan tek bir ayarı değiştirince seviye Özel olur.')],
         ['_hDraw', Tr('Çizim'), 'hdr'],
-        ['gfx', Tr('Çizim Yöntemi'), 'opt', Tr('Melez: iki kat piksel ayrıntısı, güneşe göre gölgeler, duvarda duran gece ışıkları, ışıyan pencereler ve fenerler. Klasik: eski düz çizim; zayıf bilgisayarlar için daha hafif. Ekran kartı bulunamazsa Klasik kullanılır.')],
+        ['gfx', Tr('Çizim Yöntemi'), 'opt', Tr('Melez: iki kat piksel ayrıntısı, güneşe göre gölgeler, duvarda duran gece ışıkları, ışıyan pencereler ve fenerler. Klasik: eski düz çizim; zayıf bilgisayarlar için daha hafif. 3B: dünya üç boyutlu çizilir; fare kamerayı döndürür ve nişanı taşır, radar kamerayla döner (geliştirme aşamasında). Ekran kartı bulunamazsa Klasik kullanılır.')],
         ['hyRes', Tr('Çözünürlük'), 'opt', Tr('Melez çizimin ekrana çizildiği yoğunluk. Tam: dünya pikseli başına 2x2 piksel; ışık ve gölge daha ince, kamera yarım piksel adımlarla kayar. Yarım: dünya pikseli başına 1 piksel; ekran kartının işi dörtte bire iner, kare sayısı en çok bu ayarla artar.'), 'hy'],
         ['fpsCap', Tr('Kare Hızı Sınırı'), 'opt', Tr('Saniyede en çok kaç kare çizileceği. Sınırsız: ekranın tazeleme hızı kadar. 60\'ı tutturamayan bilgisayarda 30 seçmek, 30 ile 50 arasında dalgalanan kare hızından daha akıcı görünür; dizüstünde pil ve ısı da azalır.')],
         ['gpu', Tr('Ekran Kartı'), 'opt', Tr('Oyunun çizileceği ekran kartı. Otomatik, varsa güçlü (harici) kartı kullanır. Dizüstünde tasarruflu (tümleşik) kart pili uzatır ama Melez çizimde kare sayısı düşer.')],
@@ -2155,6 +2164,7 @@ const UI = {
         ['padGlyphs', Tr('Kol Simgeleri'), 'opt', Tr('Ekranda gösterilecek oyun kolu tuş simgeleri. Otomatik, bağlı kolu tanır.')],
         ['aimAssist', Tr('Nişan Yardımı (Kol)'), 'opt', Tr('Kolla nişan alırken hedefe kilitlenme gücü. Tam Kilit, nişan tuşuna basınca en yakın hedefe kilitlenir.')],
         ['aimSens', Tr('Nişan Hassasiyeti (Kol)'), 'opt', Tr('Sağ analogla nişan alırken dönüş hızı.')],
+        ['d3Sens', Tr('Fare Hassasiyeti (3B Kamera)'), 'vol', Tr('Farenin 3B kamerayı döndürme ve nişanı ileri-geri taşıma hızı. %50 normaldir; azaltınca daha yavaş, artırınca daha hızlı (dört katına kadar).'), 'd3'],
         ['keys', Tr('Tuş Atamaları'), 'link', Tr('Klavye, fare ve oyun kolu tuşlarını değiştir.')],
       ] },
     ];
@@ -2177,11 +2187,13 @@ const UI = {
       if (t === 'opt') return `<div class="st-seg">${OPTL[k].map((o, i) => `<span class="${i === (v === undefined ? 1 : v) ? 'on' : ''}" data-v="${i}">${o}</span>`).join('')}</div>`;
       return `<span class="st-link">${Icons.glyph('pad', 'currentColor')} ›</span>`;
     };
-    // yalnızca Melez çizimde etkili ayar (satırın 5. öğesi 'hy'): Klasik'te soluk görünür, yan panel söyler
-    const hyOnly = (row) => row[4] === 'hy' && !G.hybridOn();
+    // yalnızca Melez (satırın 5. öğesi 'hy') ya da yalnızca 3B çizimde ('d3') etkili ayar: öbür çizimde soluk görünür,
+    // yan panel söyler
+    const hyOnly = (row) => (row[4] === 'hy' && !G.hybridOn()) || (row[4] === 'd3' && G.settings.gfx !== 2);
     const side = (row) => {
       const [k, n, t, d0] = row;
-      const d = d0 + (row[4] === 'hy' ? `<div class="st-hyn">${hyOnly(row) ? Tr('Bu ayar yalnızca Melez çizimde etkilidir; şu an Klasik çizim kullanılıyor.') : Tr('Yalnızca Melez çizimde etkilidir.')}</div>` : '');
+      const now = G.settings.gfx === 2 ? Tr('Bu ayar yalnızca Melez çizimde etkilidir; şu an 3B çizim kullanılıyor.') : Tr('Bu ayar yalnızca Melez çizimde etkilidir; şu an Klasik çizim kullanılıyor.');
+      const d = d0 + (row[4] === 'hy' ? `<div class="st-hyn">${hyOnly(row) ? now : Tr('Yalnızca Melez çizimde etkilidir.')}</div>` : row[4] === 'd3' ? `<div class="st-hyn">${hyOnly(row) ? Tr('Bu ayar yalnızca 3B çizimde etkilidir; Çizim Yöntemi şu an 3B değil.') : Tr('Yalnızca 3B çizimde etkilidir.')}</div>` : '');
       const T = TABS[m.tab];
       return `<div class="st-side-ic">${Icons.glyph(T.g, '#c9a45c')}</div><div class="ps-t">${n}</div>${t !== 'link' ? `<div class="st-side-v">${valTxt(k, t)}</div>` : ''}<div class="ps-d st-desc">${d}</div>${k === 'gpu' ? this.gpuSide() : ''}${k in DEF ? `<div class="st-def">${Tr`Varsayılan:`} ${t === 'vol' ? Math.round(DEF[k] * 100) + '%' : t === 'bool' || t === 'tog' ? (DEF[k] ? Tr('Açık') : Tr('Kapalı')) : OPTL[k][DEF[k]]}</div>` : ''}`;
     };
@@ -2237,7 +2249,7 @@ const UI = {
       const fk = m.focusEl ? m.focusEl.dataset.k : focusKey;
       el.innerHTML = `<div class="p-head st-head"><div class="p-title">${Tr`Ayarlar`}</div></div>
         <div class="p-tabs st-tabs">${Input.glyph('tabL')}${TABS.map((x, i) => `<span class="tab ${i === m.tab ? 'on' : ''}" data-tab="${i}">${Icons.glyph(x.g, 'currentColor')}${x.n}</span>`).join('')}${Input.glyph('tabR')}</div>
-        <div class="p-body st-body"><div class="p-list scroll st-list">${T.rows.map(r => r[2] === 'hdr' ? `<div class="st-hdr">${r[1]}</div>` : `<div class="p-item nav st-row${hyOnly(r) ? ' st-dim' : ''}" data-k="${r[0]}" data-t="${r[2]}" ${r[2] !== 'link' ? 'data-lr' : ''}><span class="pi-l">${r[1]}${r[4] === 'hy' ? `<i class="st-tag">${Tr('Melez')}</i>` : ''}</span><span class="st-ctl">${control(r[0], r[2])}</span></div>`).join('')}</div><div class="p-side st-side"></div></div>
+        <div class="p-body st-body"><div class="p-list scroll st-list">${T.rows.map(r => r[2] === 'hdr' ? `<div class="st-hdr">${r[1]}</div>` : `<div class="p-item nav st-row${hyOnly(r) ? ' st-dim' : ''}" data-k="${r[0]}" data-t="${r[2]}" ${r[2] !== 'link' ? 'data-lr' : ''}><span class="pi-l">${r[1]}${r[4] === 'hy' ? `<i class="st-tag">${Tr('Melez')}</i>` : r[4] === 'd3' ? `<i class="st-tag">${Tr('3B')}</i>` : ''}</span><span class="st-ctl">${control(r[0], r[2])}</span></div>`).join('')}</div><div class="p-side st-side"></div></div>
         <div class="p-foot st-foot"><span class="st-hint">${Tr`${Input.glyph('left')}${Input.glyph('right')} Değiştir &nbsp; ${Input.glyph('tabL')}${Input.glyph('tabR')} Sekme`}</span>
           <span class="st-btns"><button class="st-btn nav" data-act="reset">${Input.glyph('alt')} ${Tr`Sekmeyi Varsayılana Döndür`}</button><button class="st-btn nav pref" data-act="close">${Input.glyph('back')} ${Tr`Kaydet ve Kapat`}</button></span></div>`;
       $('[data-act="close"]', el).onclick = () => { Audio_.ui('ok'); m.onBack(); };

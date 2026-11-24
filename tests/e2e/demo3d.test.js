@@ -12,19 +12,20 @@ module.exports = {
   name: '3B test paketi',
   timeout: 420000,
   async run(t) {
-    const errInit = () => { window.__errs = []; const ce = console.error; console.error = (...a) => { window.__errs.push(String(a[0] && a[0].stack || a[0]).slice(0, 300)); ce(...a); }; };
+    const errInit = () => { window.__d3Soft = true; window.__errs = []; const ce = console.error; console.error = (...a) => { window.__errs.push(String(a[0] && a[0].stack || a[0]).slice(0, 300)); ce(...a); }; };
     let p;
     const frames = (n) => p.waitForFunction((n) => D3.state.frames >= n, n, { timeout: 60000 });
 
-    await t.step('paket kurulur: 3B katmanı main.js\'ten önce, geliştirici aracı yok, oyun dosyaları yerinde', async () => {
+    await t.step('paket kurulur: 3B çizim oyunda, demo katmanı main.js\'ten önce, geliştirici aracı yok', async () => {
       execFileSync(process.execPath, [path.join(ROOT, 'tools', 'build-demo3d.js')], { cwd: ROOT, stdio: 'pipe' });
       const D = path.join(ROOT, 'dist-demo3d');
       t.ok(fs.existsSync(path.join(ROOT, 'dist-demo3d.zip')), 'zip hazır');
       const html = fs.readFileSync(path.join(D, 'index.html'), 'utf8');
-      t.ok(/demo3d\/gl\.js[\s\S]*demo3d\/models\.js[\s\S]*demo3d\/scene\.js[\s\S]*demo3d\/demo3d\.js[\s\S]*js\/main\.js/.test(html), 'betik sırası', html.match(/<script[^>]*>/g).slice(-6));
+      t.ok(/js\/gl3d\.js[\s\S]*js\/models3d\.js[\s\S]*js\/scene3d\.js[\s\S]*js\/view3d\.js[\s\S]*demo3d\/demo\.js[\s\S]*js\/main\.js/.test(html), 'betik sırası', html.match(/<script[^>]*>/g).slice(-7));
       t.ok(!/debug\.js/.test(html) && !fs.existsSync(path.join(D, 'js', 'debug.js')), 'geliştirici aracı pakette yok');
       t.ok(/3D Test<\/title>/.test(html), 'pencere başlığı');
-      t.ok(fs.existsSync(path.join(ROOT, 'js', 'debug.js')) && !/demo3d/.test(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')), 'depodaki oyun değişmedi');
+      const rh = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+      t.ok(fs.existsSync(path.join(ROOT, 'js', 'debug.js')) && /js\/view3d\.js/.test(rh) && !/demo3d/.test(rh), 'depodaki oyun 3B çizimi yükler, demo katmanını yüklemez');
     });
 
     await t.step('ana menü: 3B TEST işareti, yalnızca Çiftçi Çocuğu', async () => {
@@ -41,7 +42,7 @@ module.exports = {
       await frames(3);
       const r = await p.evaluate(() => {
         const S = D3.state, A = S.area, P = G.player, sc = S.scene;
-        return { ok: S.ok, on: S.on, town: A && A.town, inside: A && P.x >= A.px0 && P.x <= A.px1 && P.y >= A.py0 && P.y <= A.py1, w: A && A.x1 - A.x0, h: A && A.y1 - A.y0,
+        return { ok: S.ok, on: G.settings.gfx === 2, town: A && A.town, inside: A && P.x >= A.px0 && P.x <= A.px1 && P.y >= A.py0 && P.y <= A.py1, w: A && A.x1 - A.x0, h: A && A.y1 - A.y0,
           hy: G.hy, cv: [G.canvas.width, G.canvas.height, G.vw, G.vh], parts: sc && sc.parts.length, bld: sc && sc.bparts.size, story: !!(G.story && G.story.on), errs: window.__errs };
       });
       t.ok(r.ok && r.on, '3B çizim açık', r);
@@ -61,13 +62,13 @@ module.exports = {
       await p.evaluate(() => { const h = document.querySelector('#help'); if (h) h.classList.add('hidden'); UI.closeAll(); });
       await p.keyboard.press('F3');
       await t.sleep(400);
-      const a = await p.evaluate(() => ({ on: D3.state.on, f: D3.state.frames }));
+      const a = await p.evaluate(() => ({ on: G.settings.gfx === 2, f: D3.state.frames }));
       await t.sleep(800);
       const a2 = await p.evaluate(() => D3.state.frames);
       t.ok(!a.on && a2 === a.f, '2D: 3B kareler durur', { a, a2 });
       await p.keyboard.press('F3');
       await frames(a2 + 2);
-      t.ok(await p.evaluate(() => D3.state.on && !G.hy), 'yeniden 3B');
+      t.ok(await p.evaluate(() => G.settings.gfx === 2 && !G.hy), 'yeniden 3B');
       const h0 = await p.evaluate(() => G.hour);
       await p.keyboard.press('BracketRight'); await t.sleep(200);
       const h1 = await p.evaluate(() => G.hour);
@@ -102,7 +103,8 @@ module.exports = {
       // nişan: fare ileri → ekranın tepesine kadar çıkar, kamera öne kayar (oyuncu ekranın altına iner)
       const la0 = await p.evaluate(() => D3.state.cam.la);
       for (let i = 0; i < 12; i++) await mv(0, -300);
-      await p.waitForTimeout(1200);
+      // kamera öne kayması yumuşak: yazılımla çizen (yavaş) tarayıcıda oturması birkaç saniye sürebilir
+      await p.waitForFunction(() => { const P = G.player, S = D3.state, K = S.cam, a = D3.w2s(P.x + K.fx * S.aim, P.y + K.fy * S.aim, 0); return Math.abs(a[1] / G.vh - 0.12) < 0.03; }, null, { timeout: 15000 }).catch(() => {});
       const top = await p.evaluate(() => {
         const P = G.player, S = D3.state, K = S.cam;
         const a = D3.w2s(P.x + K.fx * S.aim, P.y + K.fy * S.aim, 0), pl = D3.w2s(P.x, P.y, 0);
@@ -241,7 +243,6 @@ module.exports = {
         // alana en yakın ray noktası; test için alan oraya kadar genişletilir
         let best = null, bd = 1e9, li = 0;
         W.lines.forEach((L, k) => L.pts.forEach((q, i) => { const d = Math.hypot(q[0] - clamp(q[0], A.px0, A.px1), q[1] - clamp(q[1], A.py0, A.py1)); if (d < bd) { bd = d; best = [q[0], q[1], i]; li = k; } }));
-        const rails = S.scene.parts.some(q => q.rails);
         window.__A0 = Object.assign({}, A);
         A.px0 = Math.min(A.px0, best[0] - 200); A.px1 = Math.max(A.px1, best[0] + 200); A.py0 = Math.min(A.py0, best[1] - 200); A.py1 = Math.max(A.py1, best[1] + 200);
         const L = W.lines[li], pts = L.pts, q0 = pts[Math.max(0, best[2] - 4)], q1 = pts[Math.min(pts.length - 1, best[2] + 4)], ux = q1[0] - q0[0], uy = q1[1] - q0[1], ul = Math.hypot(ux, uy) || 1;
@@ -250,12 +251,14 @@ module.exports = {
         const tr = G.trains.find(x => x.line === L);
         tr.s = L.cum[best[2]] + 40; tr.wait = 60; tr.spd = 0; tr.dir = 1; tr.update(0.016);
         window.__tr = tr;
-        return { rails, bd };
+        return { bd };
       });
       if (r.none) { t.ok(true, 'dünyada demiryolu yok'); return; }
-      t.ok(r.rails, 'raylar sahnede', r);
       const f0 = await p.evaluate(() => D3.state.frames);
       await frames(f0 + 3);
+      // akışlı sahne: rayın parçası ışınlanınca kurulur
+      await p.waitForFunction(() => D3.state.scene.parts.some(q => q.rails), null, { timeout: 60000 });
+      t.ok(true, 'raylar sahnede');
       const tr = await p.evaluate(() => {
         const S = D3.state, tr = window.__tr, q = tr.pos[0], s = D3.w2s(q[0], q[1], 10);
         // duman: lokomotifin bacasından (yerden ~21 birim) yükselen parçacık

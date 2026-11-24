@@ -1,23 +1,22 @@
 'use strict';
 /* =====================================================================
-   FRONTIER'S END — 3B TEST DEMOSU (oyun katmanı)
+   FRONTIER'S END — 3B ÇİZİM (Ayarlar > Grafik > Çizim Yöntemi: 3B)
 
-   Bu dosya ve demo3d/ klasörü yalnızca 3B test paketine girer (npm run build:demo3d). Oyunun kendi
-   dosyalarında hiçbir değişiklik yoktur: 3B çizim, oyun yüklendikten sonra birkaç fonksiyonun etrafına
-   sarılan katmanlarla eklenir.
-     - Çiftçi Çocuğu geçmişiyle Harlow'da başlanır; hikâye, açılış sinematiği ve hoş geldin rehberi yok
-     - Oyuncu kasabanın ortasındaki sınırlı bir alanda kalır (binalar alanın ya tam içinde ya tam dışında)
-     - Dünya 3B çizilir; oyunun 2D arayüzü, fare nişanı ve işaretleri olduğu gibi üstüne oturur
-     - Fare kendiliğinden bakış yönüdür (tıklamak gerekmez): sağa-sola kamerayı oyuncunun çevresinde döndürür, ileri-geri
-       nişanı oyuncunun önünden ekranın tepesine kadar taşır (nişan uzaklaşınca kamera da öne kayar). İlk tuş ya da
-       tıklama fareyi kilitler (sınırsız dönüş), Esc bırakır; 3B oyunda imleç görünmez. Yürüyüş kameraya göre; 2D
-       çizimler ve işaretler eğik görüntüye yeniden yerleşir
-     - F3: 3B ↔ 2D, [ ve ]: saati bir saat geri/ileri al
-     - Kayıtlar ve ayarlar tam oyununkilerden ve demo paketinden ayrı tutulur
+   Oyunun dünyası WebGL2 ile 3B çizilir: js/gl3d.js çizici (G-tamponu, güneş gölgesi, oyunun 5 tonu, seçici
+   dış hat), js/models3d.js insan, at, hayvan ve nesne modelleri, js/scene3d.js dünyadan sahne parçaları. Bu
+   dosya oyunun birkaç fonksiyonunu sarar; 3B seçili değilse hepsi oyunun kendi yolunu izler.
+     - Gerçek dik (ortografik) kamera; fare kendiliğinden bakış yönüdür: sağa-sola kamerayı oyuncunun çevresinde
+       döndürür, ileri-geri nişanı oyuncunun önünden ekranın tepesine kadar taşır (nişan uzaklaşınca kamera öne
+       kayar). İlk tuş ya da tıklama fareyi kilitler, Esc duraklat menüsünü açar; 3B oyunda imleç görünmez
+     - Sahne akışlıdır: kameranın çevresindeki binalar, nesne blokları ve ray parçaları kare başına süre
+       bütçesiyle kurulur, uzaklaşanlar atılır; zemin dokusu penceresi kamerayla kayar; dünya değişince (inşaat,
+       gelişen kasaba, tahta perde) ilgili parça yeniden kurulur
+     - Canlılar oyunun kendi çizim çağrılarından 3B modellere aktarılır; oyunun 2D çizimleri (mermi, parçacık,
+       nişangâh, işaretler) 3B görüntüye yeniden izdüşürülür; duman, kuş, bayrak gibi efektler yükseklikleriyle
+     - Yürüyüş ve kolun sağ çubuğu kameraya göre; radar kamerayla döner (js/ui.js, D3.radarRot)
    ===================================================================== */
 (() => {
   const { M4, C, Renderer, GPUMesh, Mesh, LineMesh, MAT, F, buildHuman, buildHorse, buildAnimal, animalSkel, animalPose, skelPose, HUMAN_SK, HORSE_SK, POSE, HPOSE, armPose, P3 } = D3;
-  const T_ = (tr, en) => (typeof I18N !== 'undefined' && I18N.lang === 'en' ? en : tr);
   const DEG = Math.PI / 180;
   const PITCH = 38 * DEG;        // kamera eğimi (yerden yükseklik açısı)
   const LOOK_YAW = 0.0032;       // fare pikseli başına dönüş (radyan; hassasiyet ayarı ortadayken)
@@ -26,101 +25,17 @@
   const AHEAD = 0.13;            // oyuncu ekran merkezinin bu kadar (görüntü yüksekliği oranı) altında: önde daha çok yer
   const AIM_TOP = 0.12, P_LOW = 0.86;  // nişan ekranın tepesinden bu paydan yukarı çıkmaz; oyuncu bu çizgiden aşağı inmez
   const AIM_H = 11;              // nişan ve imleç bu yükseklikteki düzleme bakar (gövde hizası)
-  const AREA_W = 62, AREA_H = 46;   // sınırlı alan (karo), binalara göre genişler ya da daralır
-  const MARGIN = 46;             // alanın çevresinde nesneleriyle kurulan pay (karo): uzağa nişan alınınca görüş öne uzanır
-  const S = D3.state = { on: true, ok: true, scene: null, area: null, err: null, cap: [], pool: [], meshes: new Map(), skels: new Map(), lastWarn: -99, ms: 0, frames: 0,
+  const S = D3.state = { ok: true, scene: null, err: null, cap: [], pool: [], meshes: new Map(), skels: new Map(), ms: 0, frames: 0,
     yaw: 0, pitch: PITCH, aim: AIM_DEF, look: false, relock: false, vc: null, ahead: 1, la: null, wantLock: 0,
     cam: { c: 1, s: 0, st: Math.sin(PITCH), ct: Math.cos(PITCH), u: 0, w: 0, cx: 0, cy: 0, ox: 0, oy: 0, vw: 1, vh: 1, la: 0, ok: false } };
   // fare hassasiyeti (Ayarlar > Kontroller): 0..1, ortası 1×; çarpan 0,25× .. 4×
-  if (G.settings.d3Sens === undefined) G.settings.d3Sens = 0.5;
   const sensMul = () => { const v = +G.settings.d3Sens; return Math.pow(2, ((v >= 0 && v <= 1 ? v : 0.5) - 0.5) * 4); };
-  // 3B kamera etkin mi: yürüyüş, nişan ve 2D katmanlar onun izdüşümüne göre yerleşir
-  const on3D = () => S.on && S.ok && !!S.area && S.cam.ok;
+  // 3B seçili ve çizici çalışıyor; on3D: 3B kamera kuruldu (yürüyüş, nişan ve 2D katmanlar onun izdüşümüne göre)
+  const want3D = () => G.settings.gfx === 2 && S.ok;
+  const on3D = () => want3D() && S.cam.ok;
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const lerp = (a, b, t) => a + (b - a) * t;
   const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
-
-  /* ---------------- ayrı kayıt, Harlow başlangıcı, sinematiksiz ---------------- */
-  for (const k of ['get', 'set', 'remove']) { const f = Platform[k].bind(Platform); Platform[k] = (key, ...a) => f('d3_' + key, ...a); }
-  for (let i = BACKGROUNDS.length - 1; i >= 0; i--) if (BACKGROUNDS[i].id !== 'farm') BACKGROUNDS.splice(i, 1);
-  const reset = () => { S.scene = null; S.area = null; S.autoTried = false; S.la = null; };
-  const newGame = G.newGame;
-  G.newGame = function (profile) { reset(); S.skipWelcome = true; return newGame.call(this, Object.assign({}, profile, { bg: 'farm', story: false })); };
-  const loadGame = G.loadGame;
-  G.loadGame = function (...a) { reset(); return loadGame.apply(this, a); };
-  const cinePlay = Cinema.play.bind(Cinema);
-  Cinema.play = function (sc, o) { return BACKGROUNDS.some(b => b.id === sc) || sc === 'farm' ? Promise.resolve() : cinePlay(sc, o); };
-  const openWelcome = UI.openWelcome;
-  UI.openWelcome = function (cb, ...a) { if (S.skipWelcome) { S.skipWelcome = false; if (cb) setTimeout(cb, 0); return; } return openWelcome.call(this, cb, ...a); };
-  // 3B açıkken Melez kapalı: tuval dünya pikseli başına bir piksel (3B görüntü bu boyda çizilir)
-  const hybridOn = G.hybridOn;
-  G.hybridOn = function () { return S.on && S.ok ? false : hybridOn.call(this); };
-
-  /* ---------------- sınırlı alan ----------------
-     Kasaba merkezinde AREA_W × AREA_H karo; tren istasyonu yakındaysa alan istasyonu ve önündeki demiryolunu da kapsar
-     (peron, raylar ve gelip geçen tren). Alanın kenarına değen bina, merkezi içerideyse alana katılır, dışarıdaysa alan
-     onu dışarıda bırakacak kadar daralır (verandası ve bir karo payıyla). */
-  function computeArea(W, town, P) {
-    const cx = Math.round(town.cx / 16), cy = Math.round(town.cy / 16);
-    const R = { x0: cx - (AREA_W >> 1), x1: cx + (AREA_W >> 1), y0: cy - (AREA_H >> 1), y1: cy + (AREA_H >> 1) };
-    const gap = (b) => Math.max(0, R.x0 - (b.x + b.w), b.x - R.x1, R.y0 - (b.y + b.h), b.y - R.y1);
-    const st = W.buildings.filter(b => b.type === 'station' && gap(b) <= 48).sort((a, b) => gap(a) - gap(b))[0];
-    if (st && W.rails) {
-      let best = null, bd = 30 * 16;
-      for (const r of W.rails) for (const q of r) { const d = Math.hypot(q[0] - st.door.x, q[1] - st.door.y); if (d < bd) { bd = d; best = q; } }
-      R.x0 = Math.min(R.x0, st.x - 2); R.x1 = Math.max(R.x1, st.x + st.w + 2); R.y0 = Math.min(R.y0, st.y - 2); R.y1 = Math.max(R.y1, st.y + st.h + 3);
-      if (best) { const tx = Math.floor(best[0] / 16), ty = Math.floor(best[1] / 16); R.x0 = Math.min(R.x0, tx - 5); R.x1 = Math.max(R.x1, tx + 6); R.y0 = Math.min(R.y0, ty - 5); R.y1 = Math.max(R.y1, ty + 6); }
-    }
-    for (let it = 0; it < 8; it++) {
-      let changed = false;
-      for (const b of W.buildings) {
-        const bx0 = b.x - 1, bx1 = b.x + b.w + 1, by0 = b.y - 1, by1 = b.y + b.h + 2;
-        const inter = bx1 > R.x0 && bx0 < R.x1 && by1 > R.y0 && by0 < R.y1, inside = bx0 >= R.x0 && bx1 <= R.x1 && by0 >= R.y0 && by1 <= R.y1;
-        if (!inter || inside) continue;
-        const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
-        if (bcx >= R.x0 && bcx < R.x1 && bcy >= R.y0 && bcy < R.y1) { R.x0 = Math.min(R.x0, bx0); R.x1 = Math.max(R.x1, bx1); R.y0 = Math.min(R.y0, by0); R.y1 = Math.max(R.y1, by1); }
-        else {
-          // en az kayıpla dışarıda bırak
-          const opts = [];
-          if (bcx >= R.x1) opts.push(['x1', bx0, R.x1 - bx0]);
-          if (bcx < R.x0) opts.push(['x0', bx1, bx1 - R.x0]);
-          if (bcy >= R.y1) opts.push(['y1', by0, R.y1 - by0]);
-          if (bcy < R.y0) opts.push(['y0', by1, by1 - R.y0]);
-          opts.sort((a, c) => a[2] - c[2]);
-          if (opts.length) R[opts[0][0]] = opts[0][1];
-        }
-        changed = true;
-      }
-      if (!changed) break;
-    }
-    // oyuncunun başladığı yer alanın içinde olsun
-    const ptx = Math.floor(P.x / 16), pty = Math.floor(P.y / 16);
-    R.x0 = Math.min(R.x0, ptx - 2); R.x1 = Math.max(R.x1, ptx + 3); R.y0 = Math.min(R.y0, pty - 2); R.y1 = Math.max(R.y1, pty + 3);
-    return Object.assign(R, { px0: R.x0 * 16 + 6, px1: R.x1 * 16 - 6, py0: R.y0 * 16 + 6, py1: R.y1 * 16 - 6, town: town.id });
-  }
-  function setupArea(g) {
-    const W = g.world, P = g.player;
-    const town = W.towns.slice().sort((a, b) => Math.hypot(a.cx - P.x, a.cy - P.y) - Math.hypot(b.cx - P.x, b.cy - P.y))[0];
-    if (!town) return;
-    S.area = computeArea(W, town, P);
-  }
-  function clampToArea(g) {
-    const P = g.player, A = S.area;
-    if (!A || !P) return;
-    let hit = false;
-    for (const e of P.riding ? [P.riding, P] : [P]) {
-      const nx = clamp(e.x, A.px0, A.px1), ny = clamp(e.y, A.py0, A.py1);
-      if (nx !== e.x || ny !== e.y) { e.x = nx; e.y = ny; hit = true; }
-    }
-    if (hit && g.t - S.lastWarn > 5) { S.lastWarn = g.t; UI.feed(T_('Test alanının sınırı: 3B demo yalnızca bu bölgede oynanır.', 'Test area border: the 3D demo is played only in this area.')); }
-  }
-  const update = G.update;
-  G.update = function (dt) {
-    update.call(this, dt);
-    if (this.state !== 'play' || !this.world || !this.player) return;
-    if (!S.area) setupArea(this);
-    clampToArea(this);
-  };
 
   /* ---------------- 2D kayıt bağlamı ----------------
      Varlıkların draw() çağrıları bu bağlama yapılır: insan, at ve hayvan çizimleri yakalanıp 3B'ye aktarılır,
@@ -477,40 +392,149 @@
     }
   }
 
-  /* ---------------- sahne ---------------- */
-  function sceneFor(g) {
-    const W = g.world;
-    if (S.scene && S.sceneN === W.buildings.length) return S.scene;
-    if (S.scene) { for (const p of S.scene.parts) p.mesh.dispose(); D3.renderer.gl.deleteTexture(S.scene.tiles.tex); }
-    const A = S.area, R = { x0: A.x0 - MARGIN, y0: A.y0 - MARGIN, x1: A.x1 + MARGIN, y1: A.y1 + MARGIN };
-    const sc = D3.buildScene(D3.renderer.gl, W, R);
-    sc.parts.push({ mesh: borderMesh(W, A, sc) });
-    // kamp ateşleri (duman ve kıvılcım) ve sonbaharda yaprak döken ağaçlar: 2D'de zemin çiziminde üretilirler
-    sc.fires = []; sc.leafy = [];
-    for (let ty = R.y0; ty < R.y1; ty++) for (let tx = R.x0; tx < R.x1; tx++) {
-      const o = W.obj[ty * WW + tx];
-      if (o === O.CAMPFIRE) sc.fires.push([tx * 16 + 8, ty * 16 + 8]);
-      else if (o === O.OAK || o === O.APPLE || o === O.BIRCH) sc.leafy.push([tx * 16 + 8, ty * 16 - 4, hash2(tx, ty, 78)]);
-    }
-    S.scene = sc; S.sceneN = W.buildings.length;
-    return sc;
+  /* ---------------- akışlı sahne ----------------
+     Dünya 3072×3072 karo: sahne yalnızca kameranın çevresinde kurulur. Dünya 32×32 karoluk parçalara bölünür;
+     görünen alanın (ve gölge payının) değdiği her parça için işler planlanır: parçadaki her bina (merkezine göre),
+     16×16 karoluk nesne blokları ve parçanın ray dilimi. İşler kameraya yakından uzağa, karede birkaç
+     milisaniyelik bütçeyle kurulur; görünen alanda hiç hazır iş yoksa (yeni oyun, kayıt, ışınlanma) bütçe büyür,
+     dünya boş görünmez. Uzaklaşan parçaların işleri atılır. Zemin, kamerayı ortalayan 256×256 karoluk bir
+     dokudan okunur; kamera 64 karo kayınca ya da zemin değişince doku yeniden kurulur. Dünya değişince
+     (World.invalidateChunkAt, World.buildingDirty: inşaat, yıkım, gelişen kasaba, tahta perde) ilgili iş yeniden
+     kurulur; yenisi hazır olana dek eskisi çizilir. Koordinatlar dünya pikseli (sahne kökü 0). */
+  const CH = 32, BLK = 16, TWIN = 256, TSHIFT = 64;
+  const SC = { world: null, jobs: new Map(), planned: new Map(), byChunk: null, nB: -1, terr: null, terrT: 0, terrStale: false, pal: null, dirty: new Map(), list: null, scene: null, stats: { built: 0, ms: 0 } };
+  const ckey = (cx, cy) => cy * 4096 + cx;
+  function dropJob(j) {
+    if (j.part) j.part.mesh.dispose();
+    if (j.mesh) j.mesh.dispose();
+    j.part = j.mesh = null; j.ready = false;
   }
-  // alan sınırı: alçak direkler ve aralarında ip (bina ve dolu karolarda kesilir)
-  function borderMesh(W, A, sc) {
-    const m = new Mesh(4096), post = C('#6a4a2c'), cap = C('#c8b070');
-    const free = (px, py) => { const tx = Math.floor(px / 16), ty = Math.floor(py / 16); const i = ty * WW + tx; return !(W.flags[i] & 10) && !W.solid[i]; };   // bina ve demiryolu dışında
-    const edge = [];
-    const x0 = A.x0 * 16, x1 = A.x1 * 16, y0 = A.y0 * 16, y1 = A.y1 * 16;
-    for (let x = x0; x <= x1; x += 32) edge.push([x, y0], [x, y1]);
-    for (let y = y0 + 32; y < y1; y += 32) edge.push([x0, y], [x1, y]);
-    m.set({ mat: MAT.SOLID, flags: 0, param: 0, bone: 0 });
-    for (const [px, py] of edge) {
-      if (!free(Math.min(px, x1 - 1), Math.min(py, y1 - 1))) continue;
-      const X = px - sc.OX, Z = py - sc.OZ;
-      m.box(X, 4.5, Z, 0.8, 4.5, 0.8, post, { top: cap });
-      m.box(X, 7.6, Z, 1.4, 0.35, 1.4, cap);
+  function streamReset() {
+    for (const j of SC.jobs.values()) dropJob(j);
+    SC.jobs.clear(); SC.planned.clear(); SC.dirty.clear();
+    SC.byChunk = null; SC.nB = -1; SC.list = null;
+    if (SC.terr) { SC.terr.mesh.dispose(); D3.renderer.gl.deleteTexture(SC.terr.tex); SC.terr = null; }
+    SC.world = null;
+  }
+  function indexWorld(W) {
+    const by = new Map();
+    for (const b of W.buildings) { const k = ckey(Math.floor((b.x + b.w / 2) / CH), Math.floor((b.y + b.h / 2) / CH)); let a = by.get(k); if (!a) by.set(k, a = []); a.push(b); }
+    SC.byChunk = by; SC.nB = W.buildings.length;
+  }
+  function addJob(key, kind, x, y, extra, ck) {
+    if (SC.jobs.has(key)) return;
+    SC.jobs.set(key, Object.assign({ key, kind, x, y, ck, ready: false, stale: false, part: null, mesh: null }, extra));
+    SC.planned.get(ck).push(key);
+    SC.list = null;
+  }
+  function plan(W, cx, cy) {
+    const ck = ckey(cx, cy);
+    if (SC.planned.has(ck)) return;
+    SC.planned.set(ck, []);
+    const x0 = cx * CH, y0 = cy * CH;
+    for (const b of SC.byChunk.get(ck) || []) addJob('b' + b.id, 'b', (b.x + b.w / 2) * 16, (b.y + b.h / 2) * 16, { b }, ck);
+    for (let by = 0; by < CH; by += BLK) for (let bx = 0; bx < CH; bx += BLK) addJob('o' + (x0 + bx) + ',' + (y0 + by), 'o', (x0 + bx + BLK / 2) * 16, (y0 + by + BLK / 2) * 16, { tx: x0 + bx, ty: y0 + by }, ck);
+    if (W.rails && W.rails.length) addJob('r' + ck, 'r', (x0 + CH / 2) * 16, (y0 + CH / 2) * 16, { px: x0 * 16, py: y0 * 16 }, ck);
+  }
+  function unplan(ck) {
+    for (const key of SC.planned.get(ck) || []) { const j = SC.jobs.get(key); if (j) { dropJob(j); SC.jobs.delete(key); } }
+    SC.planned.delete(ck); SC.list = null;
+  }
+  function buildJob(gl, W, j) {
+    const op = j.part, om = j.mesh;
+    if (j.kind === 'b') j.part = D3.buildingPart(gl, W, j.b);
+    else if (j.kind === 'o') { const r = D3.objectsPart(gl, W, j.tx, j.ty, j.tx + BLK, j.ty + BLK); j.mesh = r.mesh; j.fires = r.fires; j.leafy = r.leafy; }
+    else j.mesh = D3.railsPart(gl, W, j.px, j.py, j.px + CH * 16, j.py + CH * 16);
+    if (op && op !== j.part) op.mesh.dispose();
+    if (om && om !== j.mesh) om.dispose();
+    j.ready = true; j.stale = false; SC.list = null; SC.stats.built++;
+  }
+  // dünya değişti: değişen yerin nesne bloğu, ray parçası ve (içine değiyorsa) binası yeniden kurulur, zemin dokusu yenilenir
+  if (typeof World !== 'undefined') {
+    const inv = World.prototype.invalidateChunkAt;
+    World.prototype.invalidateChunkAt = function (px, py, keepCover) {
+      if (this === SC.world) { const k = Math.floor(px / 256) + ',' + Math.floor(py / 256); if (!SC.dirty.has(k)) SC.dirty.set(k, [px, py, null]); }
+      return inv.call(this, px, py, keepCover);
+    };
+    const bd = World.prototype.buildingDirty;
+    World.prototype.buildingDirty = function (b) {
+      if (this === SC.world) SC.dirty.set('b' + b.id, [0, 0, b]);
+      return bd.call(this, b);
+    };
+  }
+  function applyDirty() {
+    for (const [px, py, b] of SC.dirty.values()) {
+      if (b) { const j = SC.jobs.get('b' + b.id); if (j) j.stale = true; continue; }
+      const tx = Math.floor(px / 16), ty = Math.floor(py / 16);
+      const oj = SC.jobs.get('o' + Math.floor(tx / BLK) * BLK + ',' + Math.floor(ty / BLK) * BLK); if (oj) oj.stale = true;
+      const ck = ckey(Math.floor(tx / CH), Math.floor(ty / CH)), rj = SC.jobs.get('r' + ck); if (rj) rj.stale = true;
+      for (const bb of (SC.byChunk && SC.byChunk.get(ck)) || []) if (tx >= bb.x - 2 && tx <= bb.x + bb.w + 2 && ty >= bb.y - 3 && ty <= bb.y + bb.h + 2) { const j = SC.jobs.get('b' + bb.id); if (j) j.stale = true; }
+      SC.terrStale = true;
     }
-    return new GPUMesh(D3.renderer.gl, m);
+    SC.dirty.clear();
+  }
+  function stream(g, mx, my, VR) {
+    const W = g.world, gl = D3.renderer.gl, now = performance.now();
+    if (SC.world !== W) { streamReset(); SC.world = W; if (!SC.pal) SC.pal = D3.palette(); }
+    // bina eklendi ya da yıkıldı: dizin yeniden kurulur, planlı parçalara yeni binaların işi eklenir
+    if (!SC.byChunk || SC.nB !== W.buildings.length) {
+      indexWorld(W);
+      const live = new Set(W.buildings);
+      for (const [key, j] of [...SC.jobs]) if (j.kind === 'b' && !live.has(j.b)) { dropJob(j); SC.jobs.delete(key); const a = SC.planned.get(j.ck); if (a) a.splice(a.indexOf(key), 1); }
+      for (const ck of SC.planned.keys()) for (const b of SC.byChunk.get(ck) || []) addJob('b' + b.id, 'b', (b.x + b.w / 2) * 16, (b.y + b.h / 2) * 16, { b }, ck);
+      SC.list = null;
+    }
+    if (SC.dirty.size) applyDirty();
+    // görünen alan (gölge ve uzun nesneler için payla) değen parçalar planlanır, uzaklaşanlar atılır
+    const R = VR + 320, P = CH * 16, NC = WW / CH;
+    for (let cy = Math.floor((my - R) / P); cy <= Math.floor((my + R) / P); cy++) for (let cx = Math.floor((mx - R) / P); cx <= Math.floor((mx + R) / P); cx++) {
+      if (cx < 0 || cy < 0 || cx >= NC || cy >= NC) continue;
+      const nx = clamp(mx, cx * P, (cx + 1) * P), ny = clamp(my, cy * P, (cy + 1) * P);
+      if ((nx - mx) ** 2 + (ny - my) ** 2 <= R * R) plan(W, cx, cy);
+    }
+    for (const ck of [...SC.planned.keys()]) {
+      const cx = ck % 4096, cy = Math.floor(ck / 4096), nx = clamp(mx, cx * P, (cx + 1) * P), ny = clamp(my, cy * P, (cy + 1) * P);
+      if ((nx - mx) ** 2 + (ny - my) ** 2 > (R + 640) ** 2) unplan(ck);
+    }
+    // kurulacak işler: yakından uzağa; görünen alanda hazır iş yoksa (dünya boş görünür) bütçe büyük
+    const pend = [];
+    let visReady = false;
+    for (const j of SC.jobs.values()) {
+      if (!j.ready || j.stale) pend.push(j);
+      else if (!visReady && inV(j.x, j.y, mx, my, VR)) visReady = true;
+    }
+    if (pend.length) {
+      pend.sort((a, b) => ((a.x - mx) ** 2 + (a.y - my) ** 2) - ((b.x - mx) ** 2 + (b.y - my) ** 2));
+      const budget = visReady ? (pend.some(j => !j.ready && inV(j.x, j.y, mx, my, VR + 120)) ? 14 : 5) : 600;
+      for (const j of pend) {
+        if (performance.now() - now > budget) break;
+        try { buildJob(gl, W, j); } catch (e) { j.ready = true; j.stale = false; if (!S.jobErr) { S.jobErr = true; console.warn('3B: sahne parçası kurulamadı', e); } }
+      }
+    }
+    // zemin dokusu penceresi: kamera 64 karo kayınca ya da zemin değişince (en sık yarım saniyede bir) yeniden kurulur
+    const ttx = Math.floor(mx / 16), tty = Math.floor(my / 16), T0 = SC.terr;
+    if (!T0 || Math.abs(ttx - (T0.rect[0] + TWIN / 2)) > TSHIFT || Math.abs(tty - (T0.rect[1] + TWIN / 2)) > TSHIFT || (SC.terrStale && now - SC.terrT > 500)) {
+      SC.terr = D3.terrainPart(gl, W, ttx - TWIN / 2, tty - TWIN / 2, TWIN, TWIN);
+      SC.terrT = now; SC.terrStale = false;
+      if (T0) { T0.mesh.dispose(); gl.deleteTexture(T0.tex); }
+    }
+    if (!SC.list) {
+      const parts = [], bparts = new Map(), fires = [], leafy = [];
+      for (const j of SC.jobs.values()) {
+        if (!j.ready) continue;
+        if (j.kind === 'b') { if (j.part) { parts.push(j.part); bparts.set(j.b.id, j.part); } }
+        else if (j.mesh) parts.push({ mesh: j.mesh, rails: j.kind === 'r' });
+        if (j.fires) for (const f of j.fires) fires.push(f);
+        if (j.leafy) for (const q of j.leafy) leafy.push(q);
+      }
+      SC.list = { parts, bparts, fires, leafy };
+    }
+    SC.stats.ms = performance.now() - now; SC.stats.jobs = SC.jobs.size; SC.stats.pend = pend.length;
+    const sc = SC.scene || (SC.scene = { OX: 0, OZ: 0, lines: null });
+    sc.parts = [SC.terr, ...SC.list.parts, ...(D3.extraParts || [])];
+    sc.bparts = SC.list.bparts; sc.fires = SC.list.fires; sc.leafy = SC.list.leafy;
+    sc.tiles = { tex: SC.terr.tex, rect: SC.terr.rect }; sc.pal = SC.pal;
+    return (S.scene = sc);
   }
 
   /* ---------------- yükseklikli efektler ----------------
@@ -742,17 +766,34 @@
   }
 
   /* ---------------- çizim ---------------- */
+  /* 3B açılamadı (WebGL2 yok, tarayıcı ekran kartı yerine yazılımla çiziyor, bağlam koptu ya da çizim hatası): ayar
+     Melez'e döner (o da açılamıyorsa oyun Klasik çizer), kaydedilir ve bildirilir. 3B yeniden seçilirse yine bildirilir. */
+  function fallback(g, e) {
+    console.warn('3B çizim açılamadı', e);
+    S.ok = false; S.soft = !!(e && e.soft); S.err = String((e && e.message) || e);
+    g.settings.gfx = 0;
+    try { g.saveSettings(); } catch (x) {}
+    const hy = g.hybridOn();
+    try { UI.toast(Tr('3B çizim kapatıldı'), hy ? Tr('Ekran kartı 3B çizimi desteklemiyor; oyun Melez çizimle sürüyor.') : Tr('Ekran kartı 3B çizimi desteklemiyor; oyun Klasik çizimle sürüyor.'), 'warn'); } catch (x) {}
+    g.resize();
+  }
   const render = G.render;
   G.render = function (dt) {
-    if (!S.on || !S.ok || !this.world || !S.area || !this.player) return render.call(this, dt);
+    if (this.settings.gfx === 2 && !S.ok) {
+      if (S.soft && window.__d3Soft) { S.ok = true; S.soft = false; }   // testler yazılım çizimini sonradan açtı
+      else fallback(this, S.err || '3B çizim yok');
+    }
+    if (!want3D() || !this.world || !this.player) return render.call(this, dt);
     try {
-      if (!D3.renderer) D3.renderer = new Renderer();
+      if (!D3.renderer) {
+        D3.renderer = new Renderer();
+        D3.renderer.cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); S.lost = true; });
+      }
+      if (S.lost) throw new Error('3B bağlamı koptu');
       draw(this, dt);
+      if (this.binoc) this.binocDraw();
     } catch (e) {
-      console.error('3B çizim hatası', e);
-      S.ok = false; S.err = String(e && e.message || e);
-      try { UI.toast(T_('3B çizim kapatıldı', '3D rendering disabled'), T_('Ekran kartı 3B çizimi desteklemiyor; oyun 2D sürüyor.', 'The graphics card cannot run the 3D renderer; the game continues in 2D.'), 'warn'); } catch (x) {}
-      this.resize();
+      fallback(this, e);
       return render.call(this, dt);
     }
   };
@@ -762,13 +803,15 @@
     const x0 = Cm.ox, y0 = Cm.oy, x1 = x0 + vw, y1 = y0 + vh;
     const lw = g.canvas.width, lh = g.canvas.height, ds = lw / vw;
     S.x0 = x0; S.y0 = y0;
+    // yeni dünya (yeni oyun, kayıt): sahne baştan kurulur; oyuna girişte fare kilidi bir kez kendiliğinden denenir
+    if (S.world !== g.world) { S.world = g.world; S.autoTried = false; S.la = null; }
     camFrame(g);
     const K = S.cam;
     HY.beat();
     FX.beginFrame();
-    const sc = sceneFor(g);
     // görünen alan: dönmüş ve derinliği uzamış zemin dikdörtgenini (ve kameraya yakın uzun canlıları) kapsayan çember
     const vis = [], mx = K.cx, my = K.cy, VR = Math.hypot(vw, vh / K.st) / 2 + 70;
+    const sc = stream(g, mx, my, VR);
     const near = (e) => Math.abs(e.x - mx) < VR && Math.abs(e.y - my) < VR && (e.x - mx) ** 2 + (e.y - my) ** 2 < VR * VR;
     for (const e of g.ents) if (near(e) && !(e.rider === P) && !g.floorHid(e) && !Juice.lowerHid(e)) vis.push(e);
     if (P.riding) vis.push(P.riding);
@@ -848,7 +891,9 @@
      sınırsızdır (imleç ekran kenarına dayanmaz). Esc kilidi bırakır; menü, harita ya da konuşma açılınca kilit bırakılır,
      kapanınca geri gelir. Silah çarkı açıkken fare çarka gider (ortadan başlayan sanal imleç). */
   const TAU2 = Math.PI * 2;
-  const playing = () => typeof G !== 'undefined' && G.state === 'play' && S.on && S.ok && !!S.area && !(UI.isModal && UI.isModal());
+  // hikâye sinematiği oynarken (js/cinema.js, #cinema.on) fare kamerayı döndürmez, kilit bırakılır; bitince geri gelir
+  const cineOn = () => { const e = document.getElementById('cinema'); return !!e && e.classList.contains('on') && !e.classList.contains('out'); };
+  const playing = () => typeof G !== 'undefined' && G.state === 'play' && want3D() && !!G.world && !(UI.isModal && UI.isModal()) && !cineOn();
   const locked = () => !!G.canvas && document.pointerLockElement === G.canvas;
   function lookBy(dx, dy) {
     const k = sensMul();
@@ -892,9 +937,9 @@
     // açılır (imleç orada görünür); menü kapanınca kilit geri gelir
     else if (was) S.lostN = 1;
     S.vc = null;
-    badge();
+    if (D3.onLock) D3.onLock();
   });
-  document.addEventListener('pointerlockerror', () => { S.look = false; S.relock = false; badge(); });
+  document.addEventListener('pointerlockerror', () => { S.look = false; S.relock = false; if (D3.onLock) D3.onLock(); });
   if (typeof UI.openWheel === 'function') {
     const openWheel = UI.openWheel;
     UI.openWheel = function (...a) { if (locked()) vcStart(); return openWheel.apply(this, a); };
@@ -1073,73 +1118,36 @@
     };
   }
 
-  /* ---------------- tuşlar ve işaret ---------------- */
-  function toggle() {
-    S.on = !S.on;
-    G.resize();
-    UI.feed(S.on ? T_('3B çizim açık (F3: 2D)', '3D rendering on (F3: 2D)') : T_('2D çizim (F3: 3B)', '2D rendering (F3: 3D)'));
-    badge();
-  }
-  window.addEventListener('keydown', (ev) => {
-    if (typeof G === 'undefined' || G.state !== 'play') return;
-    if (ev.code === 'F3') { ev.preventDefault(); ev.stopPropagation(); if (!ev.repeat) toggle(); }
-    else if ((ev.code === 'BracketRight' || ev.code === 'BracketLeft') && !(UI.isModal && UI.isModal())) {
-      ev.preventDefault();
-      if (ev.code === 'BracketRight') G.advanceClock(60); else G.clock = Math.max(0, G.clock - 60);
-      UI.feed(T_('Saat ', 'Time ') + G.timeStr());
-    }
-  }, true);
-  let badgeEl = null;
-  function badge() {
-    if (!badgeEl) {
-      badgeEl = document.createElement('div');
-      badgeEl.id = 'd3-badge';
-      badgeEl.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:40;pointer-events:none;font:12px/1.4 var(--serif, serif);color:#f3e3bd;background:rgba(26,16,10,0.62);border:1px solid rgba(201,164,92,0.5);padding:2px 10px;letter-spacing:0.04em;white-space:nowrap';
-      document.body.appendChild(badgeEl);
-    }
-    const kl = (c) => (typeof KEY_LABEL !== 'undefined' && KEY_LABEL[c]) || c;
-    const cam = T_('Fare: bakış ve nişan', 'Mouse: look and aim') + '  ·  Esc: ' + T_('duraklat', 'pause');
-    badgeEl.textContent = (S.on && S.ok ? T_('3B TEST', '3D TEST') + '  ·  ' + cam : T_('2D', '2D'))
-      + '  ·  F3 ' + T_('3B/2D', '3D/2D') + '  ·  ' + kl('BracketLeft') + ' ' + kl('BracketRight') + ' ' + T_('saat', 'time');
-    badgeEl.style.display = G.state === 'play' ? '' : 'none';
-  }
   const uiUpdate = UI.update;
   UI.update = function (...a) {
     const r = uiUpdate.apply(this, a);
     // fare kilidi: menü, harita, konuşma ya da 2D'de bırakılır; yalnız oyun içi pencere kapanınca kendiliğinden geri gelir
     if (S.look && !playing()) {
-      S.relock = G.state === 'play' && S.on && S.ok;
+      S.relock = G.state === 'play' && want3D();
       S.look = false;
       if (locked()) document.exitPointerLock();
     } else if (!S.look && S.lostN && !playing()) {
-      S.relock = G.state === 'play' && S.on && S.ok;
+      S.relock = G.state === 'play' && want3D();
       S.lostN = 0;
     } else if (!S.look && playing() && !document.pointerLockElement && performance.now() - (S.lockReqT || 0) > 700
       && (S.relock || (S.wantLock && performance.now() - S.wantLock < 4000) || !S.autoTried)) {
       // pencere kapandı, tuşa basıldı ya da tıklandı (oyuna ilk girişte de bir kez denenir: yeni oyun tıklaması sayılabilir)
       S.relock = false; S.wantLock = 0; S.autoTried = true; lockNow();
     }
-    if (!S.look && S.relock && (G.state !== 'play' || !S.on)) S.relock = false;
+    if (!S.look && S.relock && (G.state !== 'play' || !want3D())) S.relock = false;
     cursorState();
     if (S.lostN && ++S.lostN > 4) {
       S.lostN = 0;
       if (playing() && !locked()) { S.relock = true; try { UI.openPause(); } catch (e) {} }
     }
-    const want = G.state === 'play' ? '' : 'none';
-    if (!badgeEl || badgeEl.style.display !== want || badgeEl._on !== (S.on && S.ok) || badgeEl._look !== S.look) { badge(); badgeEl._on = S.on && S.ok; badgeEl._look = S.look; }
+    // 3B'ye ilk geçişte kontrollerin kısa hatırlatması (oturum başına bir kez)
+    if (playing() && S.cam.ok && !S.hinted) { S.hinted = true; try { UI.feed(Tr('3B: fare bakış yönü ve nişan · Esc duraklatır')); } catch (e) {} }
+    if (D3.onUiUpdate) D3.onUiUpdate();
     return r;
   };
 
-  Object.assign(D3, { w2s, s2w, lookBy, sensMul, AIM_H, AIM_MIN, LOOK_YAW, AIM_K, radarRot: () => (on3D() ? S.yaw : 0) });
 
-  /* ana menüde 3B TEST işareti */
-  const showMainMenu = UI.showMainMenu;
-  UI.showMainMenu = function (...a) {
-    const r = showMainMenu.apply(this, a);
-    const v = document.querySelector('#mm-foot .mm-ver'); if (v && !/3B|3D/.test(v.textContent)) v.textContent += T_(' · 3B TEST', ' · 3D TEST');
-    const s = document.querySelector('#mainmenu .mm-sub');
-    if (s && !document.getElementById('d3-tag')) s.insertAdjacentHTML('afterend', '<div id="d3-tag" class="mm-pre" style="margin-top:6px"></div>');
-    const tag = document.getElementById('d3-tag'); if (tag) tag.textContent = T_('3B test demosu — Harlow kasabasında sınırlı alan', '3D test demo — a bounded area of Harlow');
-    return r;
-  };
+  /* dünya arayüzü dışındaki bütün 2D katmanlarda (ayarlar, testler) kullanılanlar */
+  Object.assign(D3, { w2s, s2w, lookBy, sensMul, AIM_H, AIM_MIN, LOOK_YAW, AIM_K, want3D, on3D, streamReset, stream: SC,
+    radarRot: () => (on3D() ? S.yaw : 0) });
 })();

@@ -1,7 +1,7 @@
 'use strict';
 /* =====================================================================
-   3B TEST DEMOSU — modeller: insan, at, hayvan, dış nesneler, iç mekân eşyaları
-   Ölçüler önizlemeden (oyunun parça tanımlarından türetilmiş: omuz ±4.4, şapka tepesi ~27.6, at sırtı ~26).
+   3B ÇİZİM — modeller: insan, at, hayvan, dış nesneler, araçlar, iç mekân eşyaları
+   Ölçüler oyunun parça tanımlarından türetilmiş (omuz ±4.4, şapka tepesi ~27.6, at sırtı ~26).
    Yerel eksenler (canlılar): x ileri, y yukarı, z sağ. Kemikler dönme noktası etrafında döner.
    ===================================================================== */
 (() => {
@@ -945,6 +945,38 @@
       m.set({ mat: MAT.PLANKH, flags: 0, bone: 0 });
       const w = C('#6a4a2c');
       for (let k = 0; k < 4; k++) m.box(x, (n * 4 + k + 1) * 2.2 / 2, z + 6 - k * 4, 7, (n * 4 + k + 1) * 2.2 / 2, 2, shade(w, k % 2 ? 0 : 0.06));
+    },
+    stairsDown(m, x, z, left, p, n) {
+      // üst kattaki merdiven boşluğu (2D'deki gibi): basamaklar kuzeye doğru kararır (aşağı iner), dipte karanlık;
+      // iç kenarda korkuluk ve parmaklıklar, merdiven başında pirinç başlıklı dikme. p: bu karonun kuzeyindeki merdiven
+      // karosu sayısı, n: merdivenin karo boyu
+      m.set({ mat: MAT.PLANKH, flags: 0, bone: 0 });
+      const st = C('#8a6440');
+      for (let j = 0; j < 4; j++) {
+        const u = (p * 4 + j) / (n * 4 - 1);
+        m.box(x, 0.35, z - 6.5 + j * 4, 7, 0.15, 1.5, shade(st, -0.62 * (1 - u)));
+        m.box(x, 0.32, z - 4.5 + j * 4, 7, 0.12, 0.5, shade(C('#4a3020'), -0.4 * (1 - u)));
+      }
+      if (p === 0) m.box(x, 0.4, z - 6.5, 7, 0.15, 1.5, C('#120c08'));
+      const rx = left ? x + 7 : x - 7;
+      m.set({ mat: MAT.SOLID });
+      m.box(rx, 9, z, 0.6, 0.45, 8, C('#3a2416'));
+      for (let k = -6; k <= 6; k += 4) m.box(rx, 4.5, z + k, 0.3, 4.5, 0.3, C('#5a3a22'));
+      if (p === n - 1) { m.box(rx, 5.5, z + 7, 0.9, 5.5, 0.9, C('#2a1a10')); m.box(rx, 11.3, z + 7, 1.0, 0.35, 1.0, BRASS); }
+    },
+    roomDoor(m, x, z, open, back, plate) {
+      // üst kattaki oda kapısı: duvar bandının boşluğunda kasa; kapalıyken kanat boşluğu kapatır, açıkken odaya doğru
+      // açılmış durur. Otelde koridor yüzünde pirinç oda levhası. Kesitte bütün parçalar duvarlarla birlikte alçalır
+      const zc = back ? z + 6 : z - 5, hd = back ? 2 : 3, H = 27;
+      m.set({ mat: MAT.SOLID, flags: F.CUT, param: SIDE.any, bone: 0 });
+      m.box(x - 7, H / 2, zc, 1, H / 2, hd + 0.3, C('#2a1a10'));
+      m.box(x + 7, H / 2, zc, 1, H / 2, hd + 0.3, C('#2a1a10'));
+      m.set({ mat: MAT.PLANKV });
+      const dc = C('#7a5032');
+      if (!open) m.box(x, H / 2, zc, 6, H / 2, 0.8, dc);
+      else m.box(x - 5.2, H / 2, back ? zc - hd - 6 : zc + hd + 6, 0.6, H / 2, 6, dc);
+      if (plate) { m.set({ mat: MAT.SOLID }); m.box(x, 4.2, back ? zc + hd + 0.2 : zc - hd - 0.2, 2.6, 1.6, 0.2, BRASS); }
+      m.set({ flags: 0, param: 0 });
     },
     wardrobe(m, x, wallZ) { FURN.cabinet(m, x, wallZ, 28, '#4a2e1a'); },
     dresser(m, x, wallZ) {
