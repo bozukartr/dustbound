@@ -3037,19 +3037,20 @@ class World {
       for (let i = k * R; i < Math.min((k + 1) * R, r.length - 1); i++) {
         const [ax, ay] = r[i], [bx, by] = r[i + 1];
         if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(ay, by) < y0 || Math.min(ay, by) > y1) continue;
-        const L = dist(ax, ay, bx, by), ux = (bx - ax) / L, uy = (by - ay) / L, nx = -uy, ny = ux;
-        ctx.strokeStyle = '#4a3522'; ctx.lineWidth = 2;
-        const cnt = Math.floor(L / 4);
+        // traversler: TRAIN_K ile büyür (tren ve ray açıklığı, js/data.js)
+        const L = dist(ax, ay, bx, by), ux = (bx - ax) / L, uy = (by - ay) / L, nx = -uy, ny = ux, sp = 4 * TRAIN_K;
+        ctx.strokeStyle = '#4a3522'; ctx.lineWidth = 2 * TRAIN_K;
+        const cnt = Math.floor(L / sp);
         ctx.beginPath();
         for (let s = 0; s <= cnt; s++) {
-          const px = ax + ux * s * 4, py = ay + uy * s * 4;
-          ctx.moveTo(px + nx * 5, py + ny * 5); ctx.lineTo(px - nx * 5, py - ny * 5);
+          const px = ax + ux * s * sp, py = ay + uy * s * sp;
+          ctx.moveTo(px + nx * RAIL_TIE, py + ny * RAIL_TIE); ctx.lineTo(px - nx * RAIL_TIE, py - ny * RAIL_TIE);
         }
         ctx.stroke();
       }
     }
-    for (const off of [-3, 3]) {
-      ctx.strokeStyle = '#7d7d80'; ctx.lineWidth = 1.2;
+    for (const off of [-RAIL_GAUGE, RAIL_GAUGE]) {
+      ctx.strokeStyle = '#7d7d80'; ctx.lineWidth = 1.2 + 0.4 * (TRAIN_K - 1);
       ctx.beginPath();
       let started = false;
       for (let k = 0; k * R < r.length; k++) {

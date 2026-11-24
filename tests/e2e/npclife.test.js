@@ -43,7 +43,10 @@ module.exports = {
         TH.goto(spot[0], spot[1]); TH.clearNpcs();
         G.eventT = 1e9; G.travelT = 1e9;   // yol olayları (düello, soygun) testi bölmesin
         for (const e of G.ents) if (e.kind === 'wagon') e.remove = true; G.ents = G.ents.filter(e => !e.remove);
-        const ws = [new Wagon(road, 10, 1, false), new Wagon(road, 14, 1, true), new Wagon(road, 30, -1, false), new Wagon(road, 26, -1, true), new Wagon(road, 6, 1, true)];
+        // arabalar yol boyunca mesafeyle dizilir (aynı yöne gidenler arası bir araba boyundan fazla: gövde atların ~60 px gerisinde)
+        const cum = [0]; for (let i = 1; i < road.pts.length; i++) cum.push(cum[i - 1] + Math.hypot(road.pts[i][0] - road.pts[i - 1][0], road.pts[i][1] - road.pts[i - 1][1]));
+        const ix = (d) => { const D = cum[6] + d; let k = 0; while (k < cum.length - 2 && cum[k] < D) k++; return k; };
+        const ws = [new Wagon(road, ix(100), 1, false), new Wagon(road, ix(200), 1, true), new Wagon(road, ix(560), -1, false), new Wagon(road, ix(460), -1, true), new Wagon(road, ix(0), 1, true)];
         for (const w of ws) G.addEnt(w);
         const start = ws.map(w => [w.x, w.y]);
         let ov = 0;

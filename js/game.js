@@ -1381,7 +1381,7 @@ const G = {
     if (P.lantern && P.has('lantern')) lights.push([P.x + Math.cos(P.ang) * 6, P.y + Math.sin(P.ang) * 6, 100, 1]);
     else lights.push([P.x, P.y, 26, 0.35]);
     if (this.fx.muzzle > 0) lights.push([P.x, P.y, 90, this.fx.muzzle * 12]);
-    for (const tr of this.trains) if (tr.pos[0]) { const [x, y, a] = tr.pos[0]; if (inView(x, y, 120)) lights.push([x + Math.cos(a) * 50, y + Math.sin(a) * 50, 70, 0.9]); }
+    for (const tr of this.trains) if (tr.pos[0]) { const [x, y, a] = tr.pos[0]; if (inView(x, y, 120)) lights.push([x + Math.cos(a) * (37 + TRAIN_HL), y + Math.sin(a) * (37 + TRAIN_HL), 70, 0.9]); }
     // motorlu taşıtların farları (motoru çalışırken)
     if (night) for (const e of this.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt && inView(e.x, e.y, 90)) lights.push([e.x + Math.cos(e.ang) * 24, e.y + Math.sin(e.ang) * 24, 48, 0.85]);
     if (night) for (const e of this.ents) if (e.legend === 'ghost' && !e.dead && !e.remove && inView(e.x, e.y, 50)) lights.push([e.x, e.y, 42, 0.55]);   // Ak Hayalet: soluk ay ışığı

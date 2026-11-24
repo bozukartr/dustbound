@@ -374,7 +374,7 @@ const CitySystems = {
     for (const n of N) {
       const d2 = dist2(n.x, n.y, P.x, P.y);
       if (d2 < 280 * 280 || d2 > 950 * 950 || this.onScreen(n.x, n.y, 40)) continue;
-      if (this.ents.some(o => !o.remove && (o.kind === 'wagon' || o.cityRide) && dist2(o.x, o.y, n.x, n.y) < 70 * 70)) continue;
+      if (this.ents.some(o => !o.remove && (o.kind === 'wagon' || o.cityRide) && (dist2(o.x, o.y, n.x, n.y) < 70 * 70 || (o.kind === 'wagon' && dist2(o.bx, o.by, n.x, n.y) < 70 * 70)))) continue;   // arabanın gövdesi de
       cands.push(n);
     }
     return cands.length ? pick(cands) : null;
@@ -487,8 +487,8 @@ const CitySystems = {
     const chk = (x, y, r, o) => { const dx = x - e.x, dy = y - e.y, f = dx * c + dy * s; if (f < 2 || f > 34) return; if (Math.abs(-dx * s + dy * c) > r + 5) return; if (f < near) { near = f; still = (o.spd !== undefined ? o.spd : o.mv * 50 || 0) < 4; } };
     const P = this.player;
     for (const o of this.ents) {
-      if (o === e || o.remove || o.hide || Math.abs(o.x - e.x) > 50 || Math.abs(o.y - e.y) > 50) continue;
-      if (o.kind === 'wagon') { chk(o.x, o.y, 5.5, o); chk(o.bx, o.by, 7, o); }
+      if (o === e || o.remove || o.hide || Math.abs(o.x - e.x) > 110 || Math.abs(o.y - e.y) > 110) continue;
+      if (o.kind === 'wagon') { const C = o.circles(); for (let k = 0; k < 3; k++) chk(C[k][0], C[k][1], C[k][2], o); }
       else if ((o.kind === 'npc' || o.kind === 'horse') && !o.dead) chk(o.x, o.y, o.mounted || o.kind === 'horse' ? 6 : 3, o);
     }
     if (!P.riding || P.riding.kind === 'horse') chk(P.x, P.y, P.riding ? 6 : 3, { mv: P.riding ? (P.riding.spd || 0) / 50 : 1 });

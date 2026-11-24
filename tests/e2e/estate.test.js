@@ -250,10 +250,10 @@ module.exports = {
       t.ok(r.ride, 'yolculuk başladı');
       // yük altında oyun saati gerçek zamandan yavaş akar: fayton yeterince yol alana kadar beklenir
       await p.waitForFunction(() => Math.hypot(G.player.x - RX[0], G.player.y - RX[1]) > 66, null, { timeout: 15000 }).catch(() => {});   // denetim yuvarlanmış değerle (> 60)
-      const m = await p.evaluate(() => ({ moved: Math.round(Math.hypot(G.player.x - RX[0], G.player.y - RX[1])), acts: TH.actions(), horse: Math.round(Math.hypot(G.horse.x - G.coach.bx, G.horse.y - G.coach.by)), prompt: !!document.querySelector('.prompt') && /Yolu Atla/.test(document.body.innerHTML) }));
+      const m = await p.evaluate(() => ({ moved: Math.round(Math.hypot(G.player.x - RX[0], G.player.y - RX[1])), acts: TH.actions(), horse: Math.round(Math.hypot(G.horse.x - G.coach.bx, G.horse.y - G.coach.by)), hLim: WAGON_HL + 20, prompt: !!document.querySelector('.prompt') && /Yolu Atla/.test(document.body.innerHTML) }));
       t.ok(m.moved > 60, 'fayton yolu kendisi sürüyor', m.moved);
       t.ok(m.acts.includes('Faytondan İn'), 'yolcuyken inme seçeneği', m.acts);
-      t.ok(m.horse < 30, 'at faytonun arkasına bağlı', m.horse);
+      t.ok(m.horse < m.hLim, 'at faytonun arkasına bağlı (gövdenin hemen gerisinde)', m);
       t.ok(m.prompt, 'yolu atla istemi');
       // onay tuşunu basılı tut: halka dolar, yol atlanır
       // dolum oyun saatiyle (1 oyun saniyesi): halka dolmaya başlayınca bakılır, yol atlanana kadar basılı tutulur

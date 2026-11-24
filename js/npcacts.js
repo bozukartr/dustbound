@@ -204,7 +204,7 @@ const NpcActs = {
   wagonArrive(w) {
     if (!w.driver || w.hauler || w.mine || !w.stopT) return;
     const t = w.stopT, W = this.world, st = w.seat;
-    const at = (side) => { const a = w.bang + side * Math.PI / 2; return [st.x + Math.cos(a) * 11, st.y + Math.sin(a) * 11]; };
+    const at = (side) => { const a = w.bang + side * Math.PI / 2; return [st.x + Math.cos(a) * (WAGON_HW + 5), st.y + Math.sin(a) * (WAGON_HW + 5)]; };
     let [x, y] = at(1);
     if (W.blocked(x, y, 4) || W.indoorPx(x, y)) [x, y] = at(-1);
     const n = new NPC(x, y, 'teamster', { look: w.driver.look, name: w.driver.name, money: rnd(0.5, 3) });
@@ -262,7 +262,7 @@ const NpcActs = {
       case 'unload': {
         const B = J.to;
         if (J.trips <= 0 || !B) { J.phase = 'rest'; break; }
-        const rx = w.bx - c * 13, ry = w.by - s * 13;
+        const rx = w.bx - c * (WAGON_HL + 5), ry = w.by - s * (WAGON_HL + 5);   // arabanın arkası
         const r = this.navStep(e, rx, ry, dt, 32, { near: 7, straight: true, ignore: w });
         if (r === 'arrived' || r === 'fail') { J.phase = 'load'; J.t = rnd(0.8, 1.2); e.ang = Math.atan2(w.by - e.y, w.bx - e.x); this.setAnim(e, 'tie', J.t); }
         break;
@@ -307,8 +307,8 @@ const NpcActs = {
       }
       case 'return': {
         const st = w.seat, a = w.bang + Math.PI / 2;
-        let x = st.x + Math.cos(a) * 9, y = st.y + Math.sin(a) * 9;
-        if (this.world.blocked(x, y, 4)) { x = st.x - Math.cos(a) * 9; y = st.y - Math.sin(a) * 9; }
+        let x = st.x + Math.cos(a) * (WAGON_HW + 5), y = st.y + Math.sin(a) * (WAGON_HW + 5);
+        if (this.world.blocked(x, y, 4)) { x = st.x - Math.cos(a) * (WAGON_HW + 5); y = st.y - Math.sin(a) * (WAGON_HW + 5); }
         const r = this.navStep(e, x, y, dt, 34, { near: 6, straight: true, ignore: w });
         if (r !== 'moving') {
           // arabaya biner: yeniden sürücü koltuğunda

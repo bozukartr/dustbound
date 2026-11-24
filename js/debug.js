@@ -728,7 +728,7 @@ const Debug = {
         c.strokeStyle = col[e.kind] || '#fff'; c.globalAlpha = e.dead ? 0.35 : 0.9;
         c.beginPath(); c.arc(sx(e.x), sy(e.y), (e.r || 4) * k, 0, TAU); c.stroke();
         c.beginPath(); c.moveTo(sx(e.x), sy(e.y)); c.lineTo(sx(e.x + Math.cos(e.ang) * (e.r + 4)), sy(e.y + Math.sin(e.ang) * (e.r + 4))); c.stroke();
-        if (e.kind === 'wagon' && e.bx !== undefined) { c.beginPath(); c.arc(sx(e.bx), sy(e.by), 9 * k, 0, TAU); c.stroke(); }
+        if (e.kind === 'wagon' && e.bx !== undefined) for (const q of e.circles()) { c.beginPath(); c.arc(sx(q[0]), sy(q[1]), q[2] * k, 0, TAU); c.stroke(); }
       }
       c.globalAlpha = 1; c.strokeStyle = '#fff'; c.beginPath(); c.arc(sx(P.x), sy(P.y), P.r * k, 0, TAU); c.stroke();
     }
@@ -798,7 +798,7 @@ const Debug = {
         const pt = w.route ? w.route[w.ri] : w.path && w.path[w.pi + w.dir];
         c.strokeStyle = '#4dabf7'; c.lineWidth = 1.5;
         if (pt) { c.setLineDash([4, 4]); c.beginPath(); c.moveTo(sx(w.x), sy(w.y)); c.lineTo(sx(pt[0]), sy(pt[1])); c.stroke(); c.setLineDash([]); c.beginPath(); c.arc(sx(pt[0]), sy(pt[1]), 5, 0, TAU); c.stroke(); }
-        if (w.bx !== undefined) { c.beginPath(); c.moveTo(sx(w.x), sy(w.y)); c.lineTo(sx(w.x - Math.cos(w.ang) * 8), sy(w.y - Math.sin(w.ang) * 8)); c.lineTo(sx(w.bx), sy(w.by)); c.stroke(); }
+        if (w.bx !== undefined) { c.beginPath(); c.moveTo(sx(w.x), sy(w.y)); c.lineTo(sx(w.x - Math.cos(w.ang) * (w.motor ? 0 : WAGON_HITCH)), sy(w.y - Math.sin(w.ang) * (w.motor ? 0 : WAGON_HITCH))); c.lineTo(sx(w.bx), sy(w.by)); c.stroke(); }
         this.tag(c, sx(w.x), sy(w.y) - 22, `${w.stage ? 'stage' : 'freight'} ${Math.round(w.spd)}px/s ${w.parkT > 0 ? 'park ' + w.parkT.toFixed(0) : w.leg || ''}${w.driver ? '' : ' · no driver'}`, '#4dabf7');
       }
     }
