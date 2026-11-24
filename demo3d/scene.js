@@ -103,13 +103,15 @@
       m.box(cx, fy, Z1 - 1.6, 0.28, fh, 0.15, trim); m.box(cx, fy, Z1 - 1.6, hw, 0.28, 0.15, trim);
     }
     // kapı: kasa ve içe açık kanat (saloon: yarım kanatlı)
+    let swing = null;
     m.set({ mat: MAT.SOLID, flags: F.HIDECUT, param: SIDE.s });
     m.box(dx, DH + 0.7, Z1 + 0.3, DW + 1.2, 0.7, 0.4, trim);
     m.box(dx - DW - 0.6, DH / 2, Z1 + 0.3, 0.6, DH / 2, 0.4, trim); m.box(dx + DW + 0.6, DH / 2, Z1 + 0.3, 0.6, DH / 2, 0.4, trim);
     m.set({ mat: MAT.PLANKV, flags: F.HIDECUT, param: SIDE.s });
     const dc = C(type === 'stable' || type === 'barn' ? '#5a3a22' : '#5a3e26');
     if (type === 'saloon' || type === 'cantina' || type === 'gambling') {
-      for (const sg of [-1, 1]) m.box(dx + sg * DW / 2, 13, Z1 - 1, DW / 2 - 0.2, 6, 0.35, dc);
+      // yarım kanatlar ayrı çizilir: içinden geçen itince sallanır (js/demo3d.js)
+      swing = [b.door.x, Z1 - 1 + OZ, DW];
     } else if (type === 'stable' || type === 'barn') {
       for (const sg of [-1, 1]) { m.push(M4.mul(M4.translate(dx + sg * DW, 0, Z1 - 1), M4.rotY(sg * 1.3))); m.box(-sg * DW / 2, DH / 2, 0, DW / 2, DH / 2, 0.5, dc); m.pop(); }
     } else {
@@ -190,6 +192,7 @@
     }
     // baca: ocaklı yapıda arka duvarda (duman bu tepeden çıkar)
     const extra = {};
+    if (swing) extra.swing = swing;
     let hearthX = null;
     for (let ly = 1; ly < b.h - 1 && hearthX === null; ly++) for (let lx = 1; lx < b.w - 1; lx++) { if (HEARTHS.has(W.obj[(b.y + ly) * WW + b.x + lx])) { hearthX = X0 + lx * 16 + 8; break; } }
     if (hearthX !== null) {

@@ -616,6 +616,14 @@
     }
     m.set({ wind: 0, flags: 0, mat: MAT.SOLID });
   };
+  /* saloon kapısının yarım kanadı: menteşe yerel x = 0, kanat +x yönünde (genişlik w) */
+  P3.batwing = (m, w) => {
+    const c = C('#5e3c22'), trimC = C('#b08858');
+    m.set({ mat: MAT.PLANKV, wind: 0, flags: 0, bone: 0, param: 0 });
+    m.box(w / 2, 13, 0, w / 2 - 0.15, 6, 0.35, c);
+    m.set({ mat: MAT.SOLID });
+    m.box(w / 2, 18.6, 0, w / 2 - 0.15, 0.45, 0.42, trimC); m.box(w / 2, 8.2, 0, w / 2 - 0.15, 0.4, 0.42, trimC);
+  };
   /* yuvarlanan çalı: kuru dallardan top (merkez yerel 0, yarıçap r) */
   P3.tumble = (m, r) => {
     const rng = RNG(Math.round(r * 977));

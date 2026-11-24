@@ -398,6 +398,17 @@
       const B = bones(); B.set(M4.mul(M4.translate(f[0] - sc.OX, f[2], f[1] - sc.OZ), M4.rotY(-wa)), 0); next();
       out.push({ mesh, bones: B });
     }
+    // saloon kapısının yarım kanatları: içinden geçen itince sallanır (salınım oyunun kuralıyla, b.swing)
+    for (const part of sc.bparts.values()) {
+      const sw = part.swing;
+      if (!sw || part.cut || !near(sw[0], sw[1], 20)) continue;
+      const a = (part.b.swing && part.b.swing.a) || 0, w = sw[2];
+      const mesh = meshFor('batwing|' + w, () => { const m = new Mesh(160); P3.batwing(m, w); return m; });
+      for (const sg of [-1, 1]) {
+        const B = bones(); B.set(M4.mul(M4.translate(sw[0] + sg * w - sc.OX, 0, sw[1] - sc.OZ), M4.rotY(sg < 0 ? -a : Math.PI + a)), 0); next();
+        out.push({ mesh, bones: B });
+      }
+    }
     // yuvarlanan çalılar (kurak yerde rüzgârla gelir)
     for (const q of (g.amb && g.amb.tumbles) || []) {
       if (!near(q.x, q.y, 10)) continue;
@@ -608,6 +619,20 @@
       }
     }
   }
+  // ok (gövde hizasında uçar) ve atılan dinamit (havada yay çizer, gölgesi yerde)
+  function projs3D(c, g) {
+    for (const p of g.projs) {
+      if (p.type === 'arrow') {
+        const a = w2s(p.x, p.y, 10), b = w2s(p.x - Math.cos(p.ang) * 7, p.y - Math.sin(p.ang) * 7, 10);
+        c.strokeStyle = '#6a4a2a'; c.lineWidth = 1; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+        c.fillStyle = '#e8e0d0'; c.fillRect(b[0] - 1, b[1] - 1, 2, 2);
+      } else if (p.type === 'dynamite') {
+        const sh = w2s(p.x, p.y, 0), q = w2s(p.x, p.y, (p.z || 0) + 3);
+        c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(sh[0], sh[1], 3, 3 * S.cam.st, 0, 0, TAU2); c.fill();
+        c.save(); c.translate(q[0], q[1]); c.rotate(p.t * 12); c.fillStyle = '#b02a20'; c.fillRect(-3, -1, 6, 2.4); c.restore();
+      }
+    }
+  }
   // baca ve kamp dumanı, düşen yapraklar
   function fxHigh3D(c, mx, my, VR) {
     for (const p of FX.smoke) {
@@ -752,6 +777,10 @@
     capture(g, vis, x0, y0);
     S.nearFn = (x, y, pad) => inV(x, y, mx, my, VR + pad);
     sceneFx(g, sc, dt || 1 / 60, S.nearFn);
+    if (typeof Juice.drawAfterCovers === 'function') {
+      const dc = S.dummy || (S.dummy = document.createElement('canvas').getContext('2d'));
+      try { Juice.drawAfterCovers(dc, mx - VR, my - VR, mx + VR, my + VR, dt || 1 / 60); } catch (e) {}
+    }
     const act = actors(g, sc, g.t);
     const S0 = sunState(g), env = envOf(g, S0);
     buildingState(g, sc, env.night);
@@ -780,11 +809,15 @@
       rec.replay(RP.ctx, (e) => { RP.st.base = e ? [e.x - x0, e.y - y0] : null; });
       RP.st.base = null;
       RP.ctx.globalAlpha = 1; RP.ctx.globalCompositeOperation = 'source-over';
-      RP.st.h = 10;
-      g.drawProjs(RP.ctx);
+      // kement ve kementteki kişiye uzanan ip (ok ve dinamit aşağıda, yükseklikleriyle)
+      RP.st.h = 9;
+      const PJ = g.projs, keep = PJ.slice();
+      try { g.projs = keep.filter(q => q.type !== 'arrow' && q.type !== 'dynamite'); g.drawProjs(RP.ctx); } finally { g.projs = PJ; }
       RP.st.h = 0;
     } finally { RP.end(); }
     ctx.restore();
+    ctx.save(); ctx.setTransform(ds, 0, 0, ds, 0, 0);
+    try { projs3D(ctx, g); } finally { ctx.restore(); }
     // parçacıklar: yerdeki noktaları ve yükseklikleriyle (ekran pikseliyle çizilir)
     ctx.save(); ctx.setTransform(ds, 0, 0, ds, 0, 0);
     try { parts3D(ctx, mx, my, VR); } finally { ctx.restore(); }
