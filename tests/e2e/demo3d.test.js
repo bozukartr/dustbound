@@ -261,14 +261,14 @@ module.exports = {
       t.ok(true, 'raylar sahnede');
       const tr = await p.evaluate(() => {
         const S = D3.state, tr = window.__tr, q = tr.pos[0], s = D3.w2s(q[0], q[1], 10);
-        // duman: lokomotifin bacasından (yerden ~21 birim) yükselen parçacık
+        // duman: lokomotifin bacasından (modelde yerden ~21 birim, trenin ölçeğiyle TRAIN_K katı) yükselen parçacık
         tr.smokeT = 0; tr.update(0.016);
-        const sm = G.parts.list.filter(p => p.type === 'smoke' && p.h0 === 21);
-        return { mesh: ['loco', 'tender', 'pass', 'freight'].every(k => S.meshes.has('train|' + k)), on: s[0] > 0 && s[0] < G.vw && s[1] > 0 && s[1] < G.vh, smoke: sm.length, dy: sm[0] && sm[0].dy0 };
+        const sm = G.parts.list.filter(p => p.type === 'smoke' && p.h0 === 21 * TRAIN_K);
+        return { mesh: ['loco', 'tender', 'pass', 'freight'].every(k => S.meshes.has('train|' + k)), on: s[0] > 0 && s[0] < G.vw && s[1] > 0 && s[1] < G.vh, smoke: sm.length, dy: sm[0] && sm[0].dy0, K: TRAIN_K };
       });
       t.ok(tr.mesh, 'lokomotif, kömür, yolcu ve yük vagonu 3B', tr);
       t.ok(tr.on, 'lokomotif görüntüde', tr);
-      t.ok(tr.smoke > 0 && tr.dy === 6, 'duman bacanın yüksekliğinden çıkar', tr);
+      t.ok(tr.smoke > 0 && tr.dy === 6 * tr.K, 'duman bacanın yüksekliğinden çıkar', tr);
       await p.evaluate(() => { window.__tr.wait = 0; const A = Object.assign(D3.state.area, window.__A0), P = G.player; P.x = (A.px0 + A.px1) / 2; P.y = (A.py0 + A.py1) / 2; });   // alan eski hâline
       await frames(f0 + 6);
       t.eq(await p.evaluate(() => window.__errs), [], 'konsol hatası yok');

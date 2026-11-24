@@ -2501,11 +2501,11 @@ const Spr = {
      yanında pirinç fenerler; iki yanı açıkta kalan uzun ince kaput, gövdeden taşan çamurluklar, aralarında basamaklar;
      sürücü tentenin altındadır. w.steer ön tekerleklerin dönüşü */
   motor(ctx, w) {
-    const FA = 9.2, RA = -CAR_DIM.ra;   // ön ve arka dingil
+    const FA = 9.2, RA = -CAR_DIM.ra / CAR_K;   // ön ve arka dingil (çizim 26×12 px ölçüsünde; büyütme çağıranda: CAR_K)
     const blk = w.body || '#16161a', gloss = '#50505c', brass = '#c8a040', tire = '#0d0c0b';
     const R = (x, y, ww, hh, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, ww, hh); };
     const rr = (x, y, ww, hh, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x, y, ww, hh, r); ctx.fill(); };
-    this.shadow(ctx, 0.8, 1.6, CAR_DIM.len / 2 + 0.4, CAR_DIM.w / 2 + 0.6, 0.24);
+    this.shadow(ctx, 0.8, 1.6, CAR_DIM.len / CAR_K / 2 + 0.4, CAR_DIM.w / CAR_K / 2 + 0.6, 0.24);
     for (const sy of [-1, 1]) {
       const Y = (a, b) => Math.min(sy * a, sy * b);   // |y| a..b aralığının üst kenarı
       // ince, yüksek tekerlekler; dış yarıları çamurluğun dışında kalır. Ön tekerlekler direksiyonla döner (w.steer):

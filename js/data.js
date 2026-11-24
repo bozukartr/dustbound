@@ -369,6 +369,10 @@ const TOWNS = [
     b: ['mill', 'general', 'bakery', 'church', 'saloon', 'stable', 'smith', 'ranch', 'house', 'house', 'house'] },
 ];
 /* Demiryolu hatları (istasyon sırası) */
+/* Trenin ve rayın ölçeği: vagon çizimi (26×12 px, js/sprites.js trainCar) ve 3B modeli bu katla büyür; vagon aralığı,
+   çarpışma, tehlike koridoru (js/rails.js), ray açıklığı ve traversler de onunla. TRAIN_HL/HW: vagonun yarı boyu ve eni */
+const TRAIN_K = 2, TRAIN_HL = 13 * TRAIN_K, TRAIN_HW = 6 * TRAIN_K;
+const RAIL_GAUGE = 3 * TRAIN_K, RAIL_TIE = 5 * TRAIN_K;   // ray ekseninden çelik raya ve traversin ucuna
 const RAIL_LINES = [
   ['stclement', 'harlow', 'fortmercy', 'silverridge'],
   ['harlow', 'coyote', 'dustcreek'],

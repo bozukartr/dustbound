@@ -310,8 +310,14 @@ const Bubbles = {
    siyah, tenteli, uzun ince kaputlu, pirinç radyatörlü bir gezinti otomobili (motor: 'car'). Atsızdır, gövdesi katıdır
    (dorse gibi sürüklenmez); sürücü tentenin altındadır. */
 /* Otomobil ölçüleri: l ön noktanın (x, y) gövde ortasına (bx, by) uzaklığı, ra arka dingilin gövde ortasının arkasında
-   kalan uzaklığı, len boy, w en (kuşbakışı). Otomobil arkadan itişlidir: arka dingilin çevresinde döner (yana kaymaz) */
-const CAR_DIM = { l: 10, ra: 8.6, len: 26, w: 12 };
+   kalan uzaklığı, len boy, w en (kuşbakışı). Otomobil arkadan itişlidir: arka dingilin çevresinde döner (yana kaymaz).
+   CAR_K: çizimin (26×12 px'lik kuşbakışı otomobil, js/sprites.js motor) ve 3B modelin büyütme katı */
+const CAR_K = 1.75;
+const CAR_DIM = { l: 10 * CAR_K, ra: 8.6 * CAR_K, len: 26 * CAR_K, w: 12 * CAR_K };
+/* At arabası ölçüleri: WAGON_K gövdenin (2D çizim 19×11 px, 3B model 24×11) büyütme katı; WAGON_HITCH atların ortasından
+   çeki demirine (atların sağrısının hemen arkası), WAGON_OFF çeki demirinden gövde ortasına (3B gövdenin önü demirin
+   2 px gerisinde); WAGON_HL / WAGON_HW gövdenin yarı boyu ve yarı eni; WAGON_TEAM iki atın yan yana aralığının yarısı */
+const WAGON_K = 1.8, WAGON_HITCH = 16, WAGON_OFF = 12 * WAGON_K + 2, WAGON_HL = 9.5 * WAGON_K, WAGON_HW = 5.5 * WAGON_K, WAGON_TEAM = 5.6;
 class Wagon extends Ent {
   constructor(road, i, dir, stage, at) {
     super(road ? road.pts[i][0] : at.x, road ? road.pts[i][1] : at.y);
@@ -359,15 +365,15 @@ class Wagon extends Ent {
       this.bx = this.x - Math.cos(this.bang) * l; this.by = this.y - Math.sin(this.bang) * l;
       return;
     }
-    const hx = this.x - Math.cos(this.ang) * 8, hy = this.y - Math.sin(this.ang) * 8;
+    const hx = this.x - Math.cos(this.ang) * WAGON_HITCH, hy = this.y - Math.sin(this.ang) * WAGON_HITCH;
     if (init || this.bx === undefined) this.bang = this.ang;
     else this.bang = Math.atan2(hy - this.by, hx - this.bx);
-    this.bx = hx - Math.cos(this.bang) * 11; this.by = hy - Math.sin(this.bang) * 11;
+    this.bx = hx - Math.cos(this.bang) * WAGON_OFF; this.by = hy - Math.sin(this.bang) * WAGON_OFF;
   }
   get seat() {
     // otomobilde sürücü solda, ön koltukta
-    if (this.motor) { const c = Math.cos(this.bang), s = Math.sin(this.bang); return { x: this.bx + c * 0.5 + s * 2.2, y: this.by + s * 0.5 - c * 2.2 }; }
-    return { x: this.bx + Math.cos(this.bang) * 8, y: this.by + Math.sin(this.bang) * 8 };
+    if (this.motor) { const c = Math.cos(this.bang) * CAR_K, s = Math.sin(this.bang) * CAR_K; return { x: this.bx + c * 0.5 + s * 2.2, y: this.by + s * 0.5 - c * 2.2 }; }
+    return { x: this.bx + Math.cos(this.bang) * 8 * WAGON_K, y: this.by + Math.sin(this.bang) * 8 * WAGON_K };
   }
   /* Oyuncunun ateşi: sürücü isabet alabilir, almazsa atları kamçılayıp kaçar */
   hurt(dmg, by) {
@@ -385,7 +391,7 @@ class Wagon extends Ent {
     if (toward && Math.cos(Math.atan2(toward.y - st.y, toward.x - st.x) - side) < 0) side += Math.PI;
     this.driver = null; this.route = null; this.parkT = 0;
     // o yan kapalıysa (çit, duvar, su) çaprazlara, en son öbür yana düşer
-    const [x, y] = G.fallSpot(st.x, st.y, side, 14);
+    const [x, y] = G.fallSpot(st.x, st.y, side, this.motor ? CAR_DIM.w * 0.5 + 9 : WAGON_HW + 5);
     const n = new NPC(x, y, 'traveler', { look: d.look, name: d.name, money: this.stage ? rnd(1, 4) : rnd(0.3, 2) });
     n.ang = this.ang;
     G.addEnt(n);
@@ -396,44 +402,56 @@ class Wagon extends Ent {
   enterTown() {
     const t = G.world.townAt(this.x, this.y, 10);
     if (!t || this.stopT) return false;
-    // dükkân önlerindeki park yerlerinden boş olanı: iki araba aynı yere park etmez
+    // dükkân önlerindeki park yerlerinden boş olanı: iki araba aynı yere park etmez. Araba cepheye paralel durur, gövdesi
+    // geldiği yandadır; park yeri (atların yeri) arabanın arkası kapı hizasında kalacak biçimde seçilir: sürücü sandığı
+    // arkadan alıp kapıya gövdenin yanından yürür (gövde kapının önünü kesmez). Park yerleri arası arabanın boyu kadar
     const W = G.world, slots = [];
-    for (const ty of ['general', 'hotel', 'saloon', 'station', 'post', 'butcher', 'bakery']) for (const b of t.buildings) if (b.type === ty && !b.shut) for (const k of [0, 1, -1]) slots.push([b.door.x + 34 + k * 30, b.curbY || b.door.y + 34, b]);
-    const taken = (x, y) => G.ents.some(o => o !== this && o.kind === 'wagon' && ((o.slot && dist2(o.slot[0], o.slot[1], x, y) < 32 * 32) || dist2(o.x, o.y, x, y) < 26 * 26));
-    const slot = slots.find(([x, y]) => !taken(x, y) && !W.blocked(x, y, 9) && !W.blocked(x - 22, y, 7) && !W.indoorPx(x, y));
+    const len = this.motor ? CAR_DIM.l + CAR_DIM.len / 2 : WAGON_HITCH + WAGON_OFF + WAGON_HL, gap = len + 12;
+    for (const ty of ['general', 'hotel', 'saloon', 'station', 'post', 'butcher', 'bakery']) for (const b of t.buildings) if (b.type === ty && !b.shut) {
+      const sd = this.x < b.door.x ? 1 : -1;
+      for (const k of [0, 1, -1]) slots.push([b.door.x + sd * (len + k * gap), b.curbY || b.door.y + 34, b]);
+    }
+    const taken = (x, y) => G.ents.some(o => o !== this && o.kind === 'wagon' && ((o.slot && dist2(o.slot[0], o.slot[1], x, y) < (gap - 4) ** 2) || dist2(o.x, o.y, x, y) < (gap - 10) ** 2 || dist2(o.bx, o.by, x, y) < (WAGON_HL + 12) ** 2));
+    // gövde atların arkasında kalır: geldiği yana doğru (son yaklaşma cepheye paralel) boş olmalı
+    const back = (x) => (this.x < x ? -1 : 1) * (len - WAGON_HL);
+    const slot = slots.find(([x, y]) => !taken(x, y) && !W.blocked(x, y, 9) && !W.blocked(x + back(x) * 0.55, y, 7) && !W.blocked(x + back(x), y, 7) && !W.indoorPx(x, y));
     if (!slot) return false;
     const r = TownPath.find(t, this.x, this.y, slot[0], slot[1], 6);
     if (!r) return false;
     // son yaklaşma cepheye paralel: araba dükkânın önüne yan yana durur
-    const side = this.x < slot[0] ? -1 : 1, pre = [slot[0] + side * 30, slot[1]];
+    const side = this.x < slot[0] ? -1 : 1, pre = [slot[0] + side * 30 * WAGON_K, slot[1]];
     if (!W.blocked(pre[0], pre[1], 8) && !W.indoorPx(pre[0], pre[1]) && TownPath.walkable(pre, slot, 6)) r.splice(r.length - 1, 0, pre);
     this.stopT = t; this.route = r; this.ri = 0; this.leg = 'in'; this.exitPt = [this.x, this.y]; this.slot = slot; this.shop = slot[2];
     return true;
   }
-  /* Çarpışma çemberleri: önde atlar, arkada gövde */
+  /* Çarpışma çemberleri: önde atlar (otomobilde ön nokta), gövdenin önü ve arkası. [x, y, r] */
   circles() {   // her çağrıda aynı diziler yerinde güncellenir (çağıran hemen okur): kare başına çöp yok
-    const C = this._cc || (this._cc = [[0, 0, 5.5], [0, 0, 7]]);
-    C[0][0] = this.x; C[0][1] = this.y; C[1][0] = this.bx; C[1][1] = this.by;
+    const C = this._cc || (this._cc = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]), m = this.motor;
+    const c = Math.cos(this.bang || 0), s = Math.sin(this.bang || 0), o = m ? CAR_DIM.len * 0.2 : WAGON_HL * 0.5, rb = m ? CAR_DIM.w * 0.5 : WAGON_HW;
+    C[0][0] = this.x; C[0][1] = this.y; C[0][2] = m ? CAR_DIM.w * 0.4 : 6.5;
+    C[1][0] = this.bx + c * o; C[1][1] = this.by + s * o; C[1][2] = rb;
+    C[2][0] = this.bx - c * o; C[2][1] = this.by - s * o; C[2][2] = rb;
     return C;
   }
-  /* (x, y, r) arabaya ne kadar giriyor (> 0 içeride): iki çember ve aralarındaki oklar. Atlarla araba (otomobilde gövdenin
-     ortası) arasındaki boşluk 4 px yarıçaplı bir kapsül sayılır: hayvan ya da at aradan geçemez (hayvan ve at çarpışması) */
+  /* (x, y, r) arabaya ne kadar giriyor (> 0 içeride): çemberler ve atlarla gövde arasındaki ok. Atlarla gövdenin önü
+     arasındaki boşluk 4 px yarıçaplı bir kapsül sayılır: hayvan ya da at aradan geçemez (hayvan ve at çarpışması) */
   penAt(x, y, r) {
-    const ax = this.x, ay = this.y, bx = this.bx, by = this.by;
-    const m = Math.max(5.5 + r - Math.hypot(x - ax, y - ay), 7 + r - Math.hypot(x - bx, y - by));
-    const vx = bx - ax, vy = by - ay, t = clamp(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1), 0, 1);
+    const C = this.circles();
+    let m = -1e9;
+    for (let i = 0; i < 3; i++) m = Math.max(m, C[i][2] + r - Math.hypot(x - C[i][0], y - C[i][1]));
+    const ax = this.x, ay = this.y, vx = C[1][0] - ax, vy = C[1][1] - ay, t = clamp(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1), 0, 1);
     return Math.max(m, 4 + r - Math.hypot(x - ax - vx * t, y - ay - vy * t));
   }
   overlapWith(o) {
     const A = this.circles(), B = o.circles();
     let m = 0;
-    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { const v = A[i][2] + B[j][2] - Math.hypot(A[i][0] - B[j][0], A[i][1] - B[j][1]); if (v > m) m = v; }
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) { const v = A[i][2] + B[j][2] - Math.hypot(A[i][0] - B[j][0], A[i][1] - B[j][1]); if (v > m) m = v; }
     return m;
   }
   maxOverlap() {
-    const E = G.ents;
+    const E = G.ents, R = 2 * (WAGON_HITCH + WAGON_OFF + WAGON_HL) + 10;
     let m = 0;
-    for (let i = 0; i < E.length; i++) { const o = E[i]; if (o !== this && o.kind === 'wagon' && !o.remove && Math.abs(o.x - this.x) < 60 && Math.abs(o.y - this.y) < 60) m = Math.max(m, this.overlapWith(o)); }
+    for (let i = 0; i < E.length; i++) { const o = E[i]; if (o !== this && o.kind === 'wagon' && !o.remove && Math.abs(o.x - this.x) < R && Math.abs(o.y - this.y) < R) m = Math.max(m, this.overlapWith(o)); }
     return m;
   }
   /* Önündeki en yakın engel (araba, at, insan, oyuncu): mesafe ve kendisi. Her araba her karede çağırır: kapanış ve sonuç
@@ -443,20 +461,30 @@ class Wagon extends Ent {
     const dx = x - A.fx, dy = y - A.fy, fwd = dx * A.c + dy * A.s;
     if (fwd < -4 || fwd > reach) return;
     const lat = -dx * A.s + dy * A.c;
-    if (Math.abs(lat) > r + 6) return;
+    if (Math.abs(lat) > r + A.hw) return;   // kendi yarı eni kadar yan bant: yanından geçen gövdesine değmez
     if (fwd < A.d) { A.d = fwd; A.o = o; }
   }
+  /* Gövdenin yanına sokulmuş hayvan: araba kıpırdarsa (dönerken gövde yana savrulur) ona değer; durup ürkütür */
+  sideChk(A, o) {
+    const r = o.r || 3, dx = o.x - A.fx, dy = o.y - A.fy, fwd = dx * A.c + dy * A.s;
+    if (fwd >= -4 || fwd < -(A.len + 4)) return;
+    if (Math.abs(-dx * A.s + dy * A.c) < r + A.hw && A.d > 0) { A.d = 0; A.o = o; }
+  }
   scanAhead() {
-    const A = this._ah || (this._ah = { o: null, d: 99, c: 0, s: 0, fx: 0, fy: 0, outside: true }), P = G.player, E = G.ents;
-    A.c = Math.cos(this.ang); A.s = Math.sin(this.ang); A.fx = this.x + A.c * 5; A.fy = this.y + A.s * 5; A.o = null; A.d = 99;
+    const A = this._ah || (this._ah = { o: null, d: 99, c: 0, s: 0, fx: 0, fy: 0, hw: 6, outside: true }), P = G.player, E = G.ents;
+    // bakış noktası: otomobilin burnu ya da atların başı
+    const f = this.motor ? 5 : 10;
+    A.hw = (this.motor ? CAR_DIM.w * 0.5 : WAGON_HW) + 1; A.len = this.motor ? CAR_DIM.l + CAR_DIM.len * 0.5 + 5 : WAGON_HITCH + WAGON_OFF + WAGON_HL + 10;
+    A.c = Math.cos(this.ang); A.s = Math.sin(this.ang); A.fx = this.x + A.c * f; A.fy = this.y + A.s * f; A.o = null; A.d = 99;
     A.outside = !G.world.indoorPx(this.x, this.y);
+    const R = 70 + WAGON_HITCH + WAGON_OFF + WAGON_HL;
     for (let i = 0; i < E.length; i++) {
       const o = E[i];
-      if (o === this || o.remove || o.hide || (o === this.ignoreO && this.ignoreT > 0) || Math.abs(o.x - this.x) > 70 || Math.abs(o.y - this.y) > 70) continue;
-      if (o.kind === 'wagon') { this.aheadChk(A, o.x, o.y, 5.5, o, 46); this.aheadChk(A, o.bx, o.by, 7, o, 46); }
+      if (o === this || o.remove || o.hide || (o === this.ignoreO && this.ignoreT > 0) || Math.abs(o.x - this.x) > R || Math.abs(o.y - this.y) > R) continue;
+      if (o.kind === 'wagon') { const C = o.circles(); for (let k = 0; k < 3; k++) this.aheadChk(A, C[k][0], C[k][1], C[k][2], o, 46); }
       else if (o.kind === 'horse' && !o.dead) this.aheadChk(A, o.x, o.y, 5, o, 26);
       else if (o.kind === 'npc' && !o.dead) this.aheadChk(A, o.x, o.y, 3, o, 26);
-      else if (o.kind === 'animal' && !o.dead) this.aheadChk(A, o.x, o.y, o.r || 3, o, 26);
+      else if (o.kind === 'animal' && !o.dead) { this.aheadChk(A, o.x, o.y, o.r || 3, o, 26); this.sideChk(A, o); }
     }
     if (!P.riding || P.riding !== this) this.aheadChk(A, P.x, P.y, P.riding ? 6 : 3, P, 26);
     return A;
@@ -483,7 +511,7 @@ class Wagon extends Ent {
     if (this.driver && !this.rider) this.steer = (this.steer || 0) + (clamp(angDiff(this.bang, this.ang), -0.5, 0.5) - (this.steer || 0)) * Math.min(1, dt * 8);
     if (this.spd > 4 && Math.random() < dt * (2 + this.spd * 0.04) && G.onScreen(this.x, this.y, 40)) {
       const c = Math.cos(this.bang), s = Math.sin(this.bang), r = CAR_DIM.len / 2 + 1;
-      G.parts.add('smoke', this.bx - c * r + s * 3, this.by - s * r - c * 3, -c * 6 + rnd(-3, 3), -s * 6 + rnd(-3, 3), 1.1, 1.6, 'rgba(90,90,96,0.5)');
+      G.parts.add('smoke', this.bx - c * r + s * 3 * CAR_K, this.by - s * r - c * 3 * CAR_K, -c * 6 + rnd(-3, 3), -s * 6 + rnd(-3, 3), 1.1 * CAR_K, 1.6, 'rgba(90,90,96,0.5)');
     }
   }
   update(dt) {
@@ -493,7 +521,7 @@ class Wagon extends Ent {
     if (this.rider) {
       // oyuncu sürüyor: hareketi binicilik sistemi yapar, gövde arkadan izler
       this.trail();
-      if (this.spd > 40 && Math.random() < 0.15) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) G.parts.add('dust', this.bx - Math.cos(this.bang) * 12, this.by - Math.sin(this.bang) * 12, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
+      if (this.spd > 40 && Math.random() < 0.15) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) G.parts.add('dust', this.bx - Math.cos(this.bang) * (WAGON_HL + 2), this.by - Math.sin(this.bang) * (WAGON_HL + 2), rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
       return;
     }
     if (this.driverEnt) { this.spd = 0; this.mv = 0; G.wagonPark(this, dt); return; }   // sürücü inmiş: yük taşıyor ya da bekliyor
@@ -526,7 +554,8 @@ class Wagon extends Ent {
     // sağdan gidiş: hedef nokta yolun sağ şeridine kaydırılır; karşıdan gelene yol verirken daha da sağa,
     // duran bir arabayı sollarken sola geçer
     const sa = prev ? Math.atan2(pt[1] - prev[1], pt[0] - prev[0]) : Math.atan2(pt[1] - this.y, pt[0] - this.x);
-    const lane = this.passT > 0 ? -9 : (this.city ? 0 : this.route ? 3 : 7) + (this.shy || 0);   // şehir rotası noktaları zaten sağ şeritte
+    // şerit: arabanın yarı eni kadar sağda (karşıdan gelenle gövdeler değmez); sollarken öbür şeritte, öndekine değmeden
+    const lane = this.passT > 0 ? -(WAGON_HW + 6) : (this.city ? 0 : this.route ? 3 : WAGON_HW + 1) + (this.shy || 0);   // şehir rotası noktaları zaten sağ şeritte
     const tx = pt[0] - Math.sin(sa) * lane, ty = pt[1] + Math.cos(sa) * lane;
     const a = Math.atan2(ty - this.y, tx - this.x), da = Math.abs(angDiff(this.ang, a));
     const P = G.player;
@@ -596,11 +625,11 @@ class Wagon extends Ent {
       if (this.route) { if (this.city && pt[3] === 's') this.parkT = rnd(4, 9); this.ri++; }   // kaldırım kenarı durağı: yolcu iner, biner
       else this.pi += this.dir;
     }
-    if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) G.parts.add('dust', this.bx - Math.cos(this.bang) * 10, this.by - Math.sin(this.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
+    if (this.stage && this.spd > 30 && Math.random() < 0.2) { const t = G.world.tileAtPx(this.x, this.y); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) G.parts.add('dust', this.bx - Math.cos(this.bang) * WAGON_HL, this.by - Math.sin(this.bang) * WAGON_HL, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
   }
   draw(ctx) {
     if (this.motor) {
-      ctx.save(); ctx.translate(this.bx, this.by); ctx.rotate(this.bang);
+      ctx.save(); ctx.translate(this.bx, this.by); ctx.rotate(this.bang); ctx.scale(CAR_K, CAR_K);   // çizim 26×12 px ölçüsünde
       Spr.motor(ctx, this);
       ctx.restore();
       // sürücü tentenin altındadır; oyuncu nişan alırken yandan uzanır
@@ -610,9 +639,10 @@ class Wagon extends Ent {
     }
     const c = Math.cos(this.ang), s = Math.sin(this.ang);
     // çeki oku: gövdenin önünden atların arasına
-    const fx = this.bx + Math.cos(this.bang) * 9, fy = this.by + Math.sin(this.bang) * 9;
-    ctx.strokeStyle = '#3a2616'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(this.x + c * 4, this.y + s * 4); ctx.stroke();
-    ctx.save(); ctx.translate(this.bx, this.by); ctx.rotate(this.bang);
+    const fx = this.bx + Math.cos(this.bang) * 9 * WAGON_K, fy = this.by + Math.sin(this.bang) * 9 * WAGON_K;
+    ctx.strokeStyle = '#3a2616'; ctx.lineWidth = 1.2 * WAGON_K; ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(this.x + c * 4, this.y + s * 4); ctx.stroke();
+    // gövde çizimi 19×11 px ölçüsünde: WAGON_K katına büyütülür
+    ctx.save(); ctx.translate(this.bx, this.by); ctx.rotate(this.bang); ctx.scale(WAGON_K, WAGON_K);
     Spr.shadow(ctx, 1, 2, 14, 7, 0.28);
     // ön tekerlekler oka bağlı döner
     const steer = clamp(angDiff(this.bang, this.ang), -0.6, 0.6);
@@ -645,10 +675,10 @@ class Wagon extends Ent {
     }
     ctx.restore();
     // atlar önde, yan yana
-    for (const k of [-1, 1]) Spr.horse(ctx, this.x - s * k * 4.2, this.y + c * k * 4.2, this.ang, { col: this.hc[k < 0 ? 0 : 1], mane: '#1a1410' }, { phase: this.phase + (k > 0 ? 1.5 : 0), mv: this.mv });
+    for (const k of [-1, 1]) Spr.horse(ctx, this.x - s * k * WAGON_TEAM, this.y + c * k * WAGON_TEAM, this.ang, { col: this.hc[k < 0 ? 0 : 1], mane: '#1a1410' }, { phase: this.phase + (k > 0 ? 1.5 : 0), mv: this.mv });
     // sürücü önde oturur (oyuncu sürüyorsa oyuncu)
     const st = this.seat, P = G.player;
-    if (this.passenger === P) Spr.human(ctx, this.bx - Math.cos(this.bang) * 3, this.by - Math.sin(this.bang) * 3, this.bang, P.lookNow(), { riding: true });   // yolcu arka koltukta
+    if (this.passenger === P) Spr.human(ctx, this.bx - Math.cos(this.bang) * 3 * WAGON_K, this.by - Math.sin(this.bang) * 3 * WAGON_K, this.bang, P.lookNow(), { riding: true });   // yolcu arka koltukta
     if (this.rider === P && !P.mountAnim) { Spr.human(ctx, st.x, st.y, P.aiming || P.rsAim ? P.ang : this.bang, P.lookNow(), { riding: true, aim: P.aiming, wk: P.aimKind(), draw: P.draw_ }); if (P.aiming) Juice.throwOver(ctx, st.x, st.y, P.ang, P.aimKind(), P.swing, P.lookNow().skin); }
     else if (this.driver) Spr.human(ctx, st.x, st.y, this.bang, this.driver.look, { riding: true });
   }

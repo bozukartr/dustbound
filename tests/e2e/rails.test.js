@@ -35,8 +35,8 @@ module.exports = {
       }
       return { ok: false };
     }, k);
-    // her karede trenin gövdesine (vagon ekseninden 9 px) giren varlıkları say
-    const hook = `window.inBody = (e, r) => G.trains.some(tr => tr.pos.some(([x, y]) => dist2(x, y, e.x, e.y) < (r + 9) * (r + 9)));`;
+    // her karede trenin gövdesine (vagon kapsülü: eksenden TRAIN_HW, js/data.js) giren varlıkları say
+    const hook = `window.inBody = (e, r) => G.trains.some(tr => tr.pos.some((q, i) => !!tr.carNear(i, e.x, e.y, r)));`;
 
     await t.step('raydaki yaya ve geyik yaklaşan trenden kenara çekilir, sağ kalır', async () => {
       const s = await setup(0);
@@ -96,7 +96,7 @@ module.exports = {
         let overlap = 0, minD = 99, stoppedNear = 0, crossed = false;
         for (let f = 0; f < 30 * 18; f++) {
           G.update(1 / 30);
-          for (const tr of G.trains) for (const [cx, cy, cr] of w.circles()) for (const [tx, ty] of tr.circles || []) if (dist2(cx, cy, tx, ty) < (cr + 6) * (cr + 6)) overlap++;
+          for (const tr of G.trains) for (const [cx, cy, cr] of w.circles()) for (const [tx, ty] of tr.circles || []) if (dist2(cx, cy, tx, ty) < (cr + TRAIN_HW) * (cr + TRAIN_HW)) overlap++;
           const side = (w.x - R.x) * R.nx + (w.y - R.y) * R.ny;
           if (R.tr.s < R.s + 220 + 6 * R.tr.gap && w.spd < 1 && side > 0) { stoppedNear++; minD = Math.min(minD, side); }
           if ((w.bx - R.x) * R.nx + (w.by - R.y) * R.ny < -25) { crossed = true; break; }
@@ -120,7 +120,7 @@ module.exports = {
         const solo = () => { for (const o of G.ents) if (o.kind === 'wagon' && o !== w) o.remove = true; };
         for (let f = 0; f < 30 * 10; f++) {
           solo(); G.update(1 / 30);
-          for (const [cx, cy, cr] of w.circles()) for (const [tx, ty] of R.tr.circles || []) { const g = Math.hypot(cx - tx, cy - ty) - cr - 6; if (g < 0) overlap++; minGap = Math.min(minGap, g); }
+          for (const [cx, cy, cr] of w.circles()) for (const [tx, ty] of R.tr.circles || []) { const g = Math.hypot(cx - tx, cy - ty) - cr - TRAIN_HW; if (g < 0) overlap++; minGap = Math.min(minGap, g); }
         }
         const stopped = R.tr.spd < 1;
         // araba çekilir: tren yeniden hızlanır

@@ -345,7 +345,7 @@ const EstateSystems = {
   /* Yolcu arka koltukta, sürücünün arkasında */
   coachSeat() {
     const R = this.ride, P = this.player, w = R.w;
-    P.x = w.bx - Math.cos(w.bang) * 3; P.y = w.by - Math.sin(w.bang) * 3; P.ang = w.bang;
+    P.x = w.bx - Math.cos(w.bang) * 3 * WAGON_K; P.y = w.by - Math.sin(w.bang) * 3 * WAGON_K; P.ang = w.bang;
   },
   /* Rotada yolcunun önündeki bir nokta: yön buna bakar (köşelerde yumuşak döner) */
   routeAhead(R, ahead) {
@@ -386,7 +386,7 @@ const EstateSystems = {
     // at arkaya bağlı gelir
     const h = this.horse;
     if (R.horse && h && !h.dead && !h.rider) {
-      h.x = w.bx - Math.cos(w.bang) * 21; h.y = w.by - Math.sin(w.bang) * 21; h.ang = w.bang; h.state = 'idle';
+      h.x = w.bx - Math.cos(w.bang) * (WAGON_HL + 14); h.y = w.by - Math.sin(w.bang) * (WAGON_HL + 14); h.ang = w.bang; h.state = 'idle';
       h.mv = w.mv; h.phase = (h.phase || 0) + dt * sp * 0.15; h.spd = sp;
     }
     if (sp > 40 && Math.random() < 0.12) { const t = this.world.tileAtPx(w.bx, w.by); if (t === T.DESERT || t === T.DRY || t === T.ROAD || t === T.SAND || t === T.GRAVEL) this.parts.add('dust', w.bx - Math.cos(w.bang) * 10, w.by - Math.sin(w.bang) * 10, rnd(-8, 8), rnd(-8, 8), 0.8, 3); }
@@ -417,7 +417,7 @@ const EstateSystems = {
     // faytonun yanına iner (kaldırım tarafı önce)
     let ok = false;
     for (const a of [w.bang + Math.PI / 2, w.bang - Math.PI / 2, w.bang + Math.PI]) {
-      const x = w.bx + Math.cos(a) * 15, y = w.by + Math.sin(a) * 15;
+      const x = w.bx + Math.cos(a) * (WAGON_HW + 6), y = w.by + Math.sin(a) * (WAGON_HW + 6);
       if (!W.blocked(x, y, 4) && !W.indoorPx(x, y) && !W.isWaterPx(x, y)) { P.x = x; P.y = y; ok = true; break; }
     }
     if (!ok) { const s = this.findSpawnPos(w.x, w.y, 10, 60); if (s) { P.x = s[0]; P.y = s[1]; } }

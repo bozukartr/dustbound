@@ -419,7 +419,7 @@ class Player extends Ent {
     h.rider = null; this.riding = null;
     const side = (h.kind === 'wagon' ? h.bang : h.ang) + Math.PI / 2;
     const cx = h.kind === 'wagon' ? h.seat.x : h.x, cy = h.kind === 'wagon' ? h.seat.y : h.y;
-    const off = h.kind === 'wagon' ? 11 : 10, ox = Math.cos(side) * off, oy = Math.sin(side) * off;
+    const off = h.kind === 'wagon' ? (h.motor ? CAR_DIM.w * 0.5 + 9 : WAGON_HW + 6) : 10, ox = Math.cos(side) * off, oy = Math.sin(side) * off;
     const fx = this.x, fy = this.y;
     if (!G.world.blocked(cx + ox, cy + oy, this.r)) { this.x = cx + ox; this.y = cy + oy; }
     else if (!G.world.blocked(cx - ox, cy - oy, this.r)) { this.x = cx - ox; this.y = cy - oy; }
@@ -1801,7 +1801,7 @@ class Train {
     this.spd = 0;
     this.wait = rnd(2, 10);
     this.cars = ['loco', 'tender', 'pass', 'pass', 'freight', 'freight'];
-    this.gap = 29;
+    this.gap = 29 * TRAIN_K;   // vagon merkezleri arası (ray boyunca)
     this.smokeT = 0;
     this.pos = [];
     this.nextStop = null;
@@ -1853,7 +1853,7 @@ class Train {
       // rayda duran araba: düdük çalar, önünde duracak biçimde fren yapar; yol açılınca yeniden hızlanır
       const ob = near ? G.trainObstacle(this) : null;
       if (ob) {
-        this.spd = Math.min(this.spd, Math.sqrt(Math.max(0, 2 * 70 * (ob.d - 24))));
+        this.spd = Math.min(this.spd, Math.sqrt(Math.max(0, 2 * 70 * (ob.d - 19 * TRAIN_K - 5))));   // mahmuzun ucu engelden önce durur
         this.blockT = (this.blockT || 0) + dt;
         // uzun süre kıpırdamayan, görünmeyen NPC arabası: yoluna gitmiş sayılır (sonsuz bekleyiş olmasın)
         if (this.blockT > 25 && !ob.o.mine && !ob.o.keep && !ob.o.rider && !G.onScreen(ob.o.x, ob.o.y, 60)) { ob.o.remove = true; this.blockT = 0; }
@@ -1881,30 +1881,42 @@ class Train {
       this.smokeT = this.spd > 20 ? 0.08 : 0.35;
       const q = this.pos[0], x = q[0], y = q[1], a = q[2];
       const P = G.player;
-      if (Math.abs(x - P.x) < 700 && Math.abs(y - P.y) < 500) G.parts.add('smoke', x + Math.cos(a) * 9, y + Math.sin(a) * 9 - 6, rnd(-6, 6) - Math.cos(a) * this.spd * 0.3, -12 - Math.sin(a) * this.spd * 0.3, 2.2, 3, '60,58,56');
+      if (Math.abs(x - P.x) < 700 && Math.abs(y - P.y) < 500) G.parts.add('smoke', x + Math.cos(a) * 9 * TRAIN_K, y + Math.sin(a) * 9 * TRAIN_K - 6 * TRAIN_K, rnd(-6, 6) - Math.cos(a) * this.spd * 0.3, -12 - Math.sin(a) * this.spd * 0.3, 2.2 * TRAIN_K, 3, '60,58,56');
     }
-    // çarpışma (yalnız yakındaki tren; önce trenin sınır kutusuna bakılır, vagon vagon yalnız kutunun içindeki için)
+    // çarpışma (yalnız yakındaki tren; önce trenin sınır kutusuna bakılır, vagon vagon yalnız kutunun içindeki için).
+    // Vagon bir kapsüldür: ekseni boyunca yarı boyu TRAIN_HL, yarı eni TRAIN_HW
     if (this.spd > 15 && near) {
-      const P = G.player, E = G.ents, np = this.pos.length;
+      const P = G.player, E = G.ents, np = this.pos.length, m = TRAIN_HL + 8;
       let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
       for (let i = 0; i < np; i++) { const q = this.pos[i]; if (q[0] < bx0) bx0 = q[0]; if (q[0] > bx1) bx1 = q[0]; if (q[1] < by0) by0 = q[1]; if (q[1] > by1) by1 = q[1]; }
-      bx0 -= 13; by0 -= 13; bx1 += 13; by1 += 13;
+      bx0 -= m; by0 -= m; bx1 += m; by1 += m;
       if (P.x > bx0 && P.x < bx1 && P.y > by0 && P.y < by1) for (let i = 0; i < np; i++) {
-        const x = this.pos[i][0], y = this.pos[i][1];
-        if (dist2(x, y, P.x, P.y) < 13 * 13) { P.hurt(60, 'train'); const a = Math.atan2(P.y - y, P.x - x); P.x += Math.cos(a) * 20; P.y += Math.sin(a) * 20; if (P.riding) { P.riding.x = P.x; P.riding.y = P.y; } }
+        const c = this.carNear(i, P.x, P.y, 5);
+        if (c) { P.hurt(60, 'train'); const a = Math.atan2(P.y - c[1], P.x - c[0]); P.x = c[0] + Math.cos(a) * (TRAIN_HW + 14); P.y = c[1] + Math.sin(a) * (TRAIN_HW + 14); if (P.riding) { P.riding.x = P.x; P.riding.y = P.y; } break; }
       }
       for (let k = 0; k < E.length; k++) {
         const e = E[k];
         if (e.dead || !e.hurt || e.x < bx0 || e.x > bx1 || e.y < by0 || e.y > by1) continue;
-        for (let i = 0; i < np && !e.dead; i++) if (dist2(this.pos[i][0], this.pos[i][1], e.x, e.y) < 12 * 12) e.hurt(200, null);
+        for (let i = 0; i < np && !e.dead; i++) if (this.carNear(i, e.x, e.y, e.r || 4)) e.hurt(200, null);
       }
     }
   }
+  /* i. vagonun gövdesi (x, y, r) ile çakışıyor mu: çakışıyorsa eksendeki en yakın nokta (yeni dizi yaratmadan) */
+  carNear(i, x, y, r) {
+    const q = this.pos[i], c = Math.cos(q[2]), s = Math.sin(q[2]), dx = x - q[0], dy = y - q[1];
+    const u = clamp(dx * c + dy * s, -(TRAIN_HL - TRAIN_HW), TRAIN_HL - TRAIN_HW), px = q[0] + c * u, py = q[1] + s * u, lim = TRAIN_HW + r;
+    if ((x - px) * (x - px) + (y - py) * (y - py) >= lim * lim) return null;
+    const o = this._near || (this._near = [0, 0]); o[0] = px; o[1] = py; return o;
+  }
   draw(ctx, x0, y0, x1, y1) {
+    const m = TRAIN_HL + 20;
     for (let i = this.pos.length - 1; i >= 0; i--) {
       const q = this.pos[i], x = q[0], y = q[1], a = q[2];
-      if (x < x0 - 40 || x > x1 + 40 || y < y0 - 40 || y > y1 + 40) continue;
-      Spr.trainCar(ctx, x, y, a, this.cars[i], G.t);
+      if (x < x0 - m || x > x1 + m || y < y0 - m || y > y1 + m) continue;
+      // vagon çizimi 26×12 px ölçüsünde: TRAIN_K katına büyütülür
+      ctx.save(); ctx.translate(x, y); ctx.scale(TRAIN_K, TRAIN_K);
+      Spr.trainCar(ctx, 0, 0, a, this.cars[i], G.t);
+      ctx.restore();
     }
   }
 }

@@ -10,7 +10,8 @@
    Duran ya da giden trenin vagonları katıdır: kimse içinden geçemez.
    ========================================================== */
 const RAIL_WARN = 6;      // sn: bu sürede gelecek trene karşı davranılır
-const RAIL_HALF = 9;      // ray ekseninden vagon kenarına (yarı genişlik)
+const RAIL_HALF = TRAIN_HW + 3;   // ray ekseninden vagon kenarına (yarı genişlik ve pay; tren ölçeği js/data.js TRAIN_K)
+const TRAIN_CC = 5;       // vagon başına çarpışma çemberi (yarıçapı TRAIN_HW, vagon boyunca dizili)
 const RAIL_STEP = 6;      // koridor örnek aralığı (px)
 const RAIL_NEAR = 3000;   // tren oyuncuya bundan yakınsa (eksen başına px) koridoru, çemberleri ve çarpışması hesaplanır
 const RAIL_FAR_ENT = 900; // uzakta bırakılmış araba ya da at trene bu kadar yakınsa da hesaplanır
@@ -29,7 +30,7 @@ const RailSystems = {
       // kalkmak üzere olan tren de tehlikelidir; uzun süre duran trenin yalnızca gövdesi
       const moving = tr.wait <= 0, leaving = !moving && tr.wait < 2.5;
       const ahead = moving ? Math.max(50, tr.spd * RAIL_WARN) : leaving ? 70 : 0;
-      const sTail = tr.s - dir * ((tr.cars.length - 1) * tr.gap + 16), sHead = tr.s + dir * (16 + ahead);
+      const sTail = tr.s - dir * ((tr.cars.length - 1) * tr.gap + TRAIN_HL + 3), sHead = tr.s + dir * (TRAIN_HL + 3 + ahead);
       const a = Math.min(sTail, sHead), b = Math.max(sTail, sHead);
       const Z = tr.zone || (tr.zone = { tr, pts: [], x0: 0, y0: 0, x1: 0, y1: 0, moving: false }), pts = Z.pts;
       let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, n = 0;
@@ -43,18 +44,20 @@ const RailSystems = {
       }
       pts.length = n;
       if (n) { Z.x0 = x0; Z.y0 = y0; Z.x1 = x1; Z.y1 = y1; Z.moving = moving || leaving; zones.push(Z); }
-      // vagon çemberleri (vagon 26-28 px boyunda, 12 px eninde: üç çember) ve sınır kutusu
-      const cc = tr.circles || (tr.circles = []), np = tr.pos.length;
+      // vagon çemberleri (vagon 2·TRAIN_HL boyunda, 2·TRAIN_HW eninde: boyunca TRAIN_CC çember) ve sınır kutusu
+      const cc = tr.circles || (tr.circles = []), np = tr.pos.length, span = TRAIN_HL - TRAIN_HW;
       let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
       for (let i = 0; i < np; i++) {
-        const q = tr.pos[i], x = q[0], y = q[1], c = Math.cos(q[2]) * 8, s = Math.sin(q[2]) * 8;
-        const A = cc[3 * i] || (cc[3 * i] = [0, 0]), B = cc[3 * i + 1] || (cc[3 * i + 1] = [0, 0]), D = cc[3 * i + 2] || (cc[3 * i + 2] = [0, 0]);
-        A[0] = x + c; A[1] = y + s; B[0] = x; B[1] = y; D[0] = x - c; D[1] = y - s;
+        const q = tr.pos[i], x = q[0], y = q[1], c = Math.cos(q[2]), s = Math.sin(q[2]);
+        for (let j = 0; j < TRAIN_CC; j++) {
+          const A = cc[TRAIN_CC * i + j] || (cc[TRAIN_CC * i + j] = [0, 0]), u = (j / (TRAIN_CC - 1) * 2 - 1) * span;
+          A[0] = x + c * u; A[1] = y + s * u;
+        }
         bx0 = Math.min(bx0, x); by0 = Math.min(by0, y); bx1 = Math.max(bx1, x); by1 = Math.max(by1, y);
       }
-      cc.length = 3 * np;
-      const B = tr.box || (tr.box = [0, 0, 0, 0]);
-      B[0] = bx0 - 20; B[1] = by0 - 20; B[2] = bx1 + 20; B[3] = by1 + 20;
+      cc.length = TRAIN_CC * np;
+      const B = tr.box || (tr.box = [0, 0, 0, 0]), m = TRAIN_HL + 7;
+      B[0] = bx0 - m; B[1] = by0 - m; B[2] = bx1 + m; B[3] = by1 + m;
     }
     // katı arabalar: hayvanlar ve sahipsiz atlar içlerinden geçemez (yayalar ve oyuncu kasaba içinde
     // park etmiş arabaların arasından geçebilir; arabalar onlar için zaten durur, onlar da arabadan kaçar)
@@ -68,7 +71,7 @@ const RailSystems = {
     if (!L || !self || (self.kind !== 'animal' && self.kind !== 'horse')) return null;
     const P = this.player;
     for (const o of L) {
-      if (o === self || Math.abs(o.x - x) > 34 || Math.abs(o.y - y) > 34) continue;
+      if (o === self || Math.abs(o.x - x) > 80 || Math.abs(o.y - y) > 80) continue;
       if (self && (o.rider === self || self.riding === o || o.driverEnt === self || (self === P && P.riding === o))) continue;
       if (o.penAt(x, y, r) > 0) return o;   // gövde, atlar ve aralarındaki oklar
     }
@@ -108,7 +111,7 @@ const RailSystems = {
       const tr = TR[t], B = tr.box;
       if (!B || x < B[0] || x > B[2] || y < B[1] || y > B[3]) continue;
       const cc = tr.circles;
-      for (let i = 0; i < cc.length; i++) { const cx = cc[i][0], cy = cc[i][1], lim = r + 6; if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < lim * lim) return tr; }
+      for (let i = 0; i < cc.length; i++) { const cx = cc[i][0], cy = cc[i][1], lim = r + TRAIN_HW; if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < lim * lim) return tr; }
     }
     return null;
   },
@@ -177,12 +180,12 @@ const RailSystems = {
   /* Tren: önündeki rayda duran (ya da raya girmiş) araba var mı; varsa ona kalan yol */
   trainObstacle(tr) {
     // her kare çağrılır: dizi ve kapanış yaratmadan. Önünde araba yoksa (hemen her zaman) tek döngüde biter
-    const ahead = Math.max(60, tr.spd * tr.spd / (2 * 60) + 40), h = tr.pos[0] || tr.at(tr.s), hx = h[0], hy = h[1], lim = ahead + 40, E = this.ents;
+    const ahead = Math.max(60, tr.spd * tr.spd / (2 * 60) + 40), h = tr.pos[0] || tr.at(tr.s), hx = h[0], hy = h[1], lim = ahead + TRAIN_HL + 40, E = this.ents;
     let any = false;
     for (let i = 0; i < E.length; i++) { const o = E[i]; if (o.kind === 'wagon' && !o.remove && Math.abs(o.x - hx) < lim && Math.abs(o.y - hy) < lim) { any = true; break; } }
     if (!any) return null;
     const q = this._obQ || (this._obQ = [0, 0, 0]);
-    for (let d = 16; d <= ahead; d += 8) {
+    for (let d = TRAIN_HL + 3; d <= ahead + TRAIN_HL; d += 8) {
       tr.at(tr.s + tr.dir * d, q);
       const x = q[0], y = q[1];
       for (let i = 0; i < E.length; i++) {
@@ -202,11 +205,11 @@ const RailSystems = {
       const B = tr.box;
       if (!B || o.x < B[0] - 20 || o.x > B[2] + 20 || o.y < B[1] - 20 || o.y > B[3] + 20) continue;
       let hit = null;
-      for (const [cx, cy, cr] of o.circles()) for (const [tx, ty] of tr.circles) if (dist2(cx, cy, tx, ty) < (cr + 6) * (cr + 6)) hit = [tx, ty];
+      for (const [cx, cy, cr] of o.circles()) for (const [tx, ty] of tr.circles) if (dist2(cx, cy, tx, ty) < (cr + TRAIN_HW) * (cr + TRAIN_HW)) hit = [tx, ty];
       if (!hit) continue;
       const D = this.railDanger(o.x, o.y, 20) || { x: hit[0], y: hit[1], tang: tr.pos[0][2] };
       const a = this.railAway(o, D);
-      for (let k = 0; k < 6 && o.circles().some(([cx, cy, cr]) => tr.circles.some(([tx, ty]) => dist2(cx, cy, tx, ty) < (cr + 6) * (cr + 6))); k++) {
+      for (let k = 0; k < 6 + TRAIN_HW && o.circles().some(([cx, cy, cr]) => tr.circles.some(([tx, ty]) => dist2(cx, cy, tx, ty) < (cr + TRAIN_HW) * (cr + TRAIN_HW))); k++) {
         o.x += Math.cos(a) * 4; o.y += Math.sin(a) * 4; o.bx += Math.cos(a) * 4; o.by += Math.sin(a) * 4;
       }
       o.spd = 0;

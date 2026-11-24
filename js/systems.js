@@ -1440,7 +1440,7 @@ const GameSystems = {
     const E = this.ents;
     for (let i = 0; i < E.length; i++) {
       const o = E[i];
-      if (o.kind !== 'wagon' || o === self || o.remove || o.hide || o.bx === undefined || Math.abs(o.x - x) > 44 || Math.abs(o.y - y) > 44) continue;
+      if (o.kind !== 'wagon' || o === self || o.remove || o.hide || o.bx === undefined || Math.abs(o.x - x) > 80 || Math.abs(o.y - y) > 80) continue;
       if (o.penAt(x, y, r) > 0) return o;
     }
     return null;

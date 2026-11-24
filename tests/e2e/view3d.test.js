@@ -5,7 +5,8 @@
    ayar geri döner ve bildirilir. Sahne akışlıdır: kameranın çevresindeki parçalar kurulur, uzaklaşanlar atılır; dünya
    değişince ilgili parça yeniden kurulur. Her dış nesne türünün, uçurumun, köprünün ve otomobilin 3B modeli var; toplanan
    ot kaybolur, kışın zemin karlanır, elektrik telleri direklere bağlanır. Bina içi ve otelin üst katı (iç duvarlar, oda
-   kapıları, merdiven boşluğu, kilitli odaların örtüsü), dürbün, harita ve ölüm ekranı hatasız; kayıt yüklenince sahne
+   kapıları, merdiven boşluğu, kilitli odaların örtüsü), dürbün, harita ve ölüm ekranı hatasız; taşınan yük karakterin
+   elinde ya da omzunda (yerde sürüklenmez), eyerdeki yük atın sırtında, bırakılan sandık yerde; kayıt yüklenince sahne
    yeni dünyayla kurulur; Melez'e dönünce 3B çizim durur.
    Test tarayıcısı ekran kartsız (yazılımla) çizer: 3B kare orada yaklaşık bir saniye sürer, test bu yüzden az kare bekler. */
 module.exports = {
@@ -305,6 +306,41 @@ module.exports = {
       await p.evaluate(() => { G.setFloor(HB, 0); });
       await frames(3);
       t.eq(await p.evaluate(() => D3.state.scene.bparts.get(HB.id).iw || 0), 0, 'aşağı inince zemin katın parçası');
+    });
+
+    await t.step('taşınan yük elde ya da omuzda: sandık önde göğüs hizasında, ceset omuzda, eyerdeki yük atın sırtında, bırakılan sandık yerde', async () => {
+      await p.evaluate(() => { TH.goto(HOME[0], HOME[1]); G.player.ang = 0; });
+      const r = await p.evaluate(async () => {
+        const P = G.player, S = D3.state;
+        const fr = async (n) => { const f0 = S.frames; while (S.frames < f0 + n) await new Promise(r => requestAnimationFrame(r)); };
+        const at = (it) => S.loads.find(l => l.it === it);
+        const fwd = (l) => (l.x - P.x) * Math.cos(P.ang) + (l.y - P.y) * Math.sin(P.ang);
+        // sandık: kaldırırken yerden yükselir (kalkış yarı yolda tutulur), taşırken önde göğüs hizasında
+        const c = new Crate(P.x + 12, P.y, 'dry'); G.addEnt(c); G.pickUp(c);
+        const lt = Juice.liftTick; Juice.liftTick = () => {};
+        P.lift.t = Juice.LIFT_T * 0.6; await fr(2);
+        const mid = at(c) && at(c).h;
+        P.lift = null; Juice.liftTick = lt; await fr(2);
+        const L = at(c), held = L && { h: L.h, fwd: fwd(L), by: L.by === P };
+        // ceset omuzda (çizimin kökü: omuzdan sarkan bedenin ayak çerçevesi)
+        G.dropCarry(true); P.lower = null;
+        const n = new NPC(P.x + 12, P.y, 'bandit', {}); G.addEnt(n); n.dead = true; n.hp = 0; G.pickUp(n); P.lift = null; await fr(2);
+        const Bd = at(n), body = Bd && { h: Bd.h, by: Bd.by === P };
+        // eyerdeki yük atın sırtında
+        G.dropCarry(true); P.lower = null;
+        const h = G.horse; h.dead = false; h.x = P.x + 40; h.y = P.y + 30; const c2 = new Crate(0, 0, 'drink'); h.load = [c2]; await fr(2);
+        const H = at(c2), horse = H && { h: H.h, by: H.by === h };
+        h.load = [];
+        // bırakılan sandık yerde, 3B
+        const G1 = at(c), ground = G1 && { h: G1.h, by: G1.by };
+        return { mid, held, body, horse, ground };
+      });
+      t.ok(r.held && r.held.by && r.held.h > 10 && r.held.h < 18 && r.held.fwd > 3, 'sandık önde, göğüs hizasında (yerde sürüklenmez)', r);
+      t.ok(r.mid > 1 && r.mid < r.held.h, 'kaldırırken yerden yükselir', r);
+      t.ok(r.body && r.body.by && r.body.h > 9, 'ceset omuzda', r);
+      t.ok(r.horse && r.horse.by && r.horse.h > 24, 'eyerdeki yük atın sırtında', r);
+      t.ok(r.ground && !r.ground.by && r.ground.h < 6, 'bırakılan sandık yerde, 3B', r);
+      await p.evaluate(() => { G.ents = G.ents.filter(e => e.kind !== 'crate' && !(e.kind === 'npc' && e.dead)); });
     });
 
     await t.step('dürbün, harita ve ölüm ekranı 3B\'de hatasız', async () => {

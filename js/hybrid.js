@@ -1867,7 +1867,7 @@ const HY = (() => {
     if (P.lantern && P.has('lantern')) add(P.x + Math.cos(P.ang) * 6, P.y + Math.sin(P.ang) * 6, 16, 110, [1.0, 0.82, 0.52], 1.2 * Math.max(0.3, nk));
     else if (night && !IB) add(P.x, P.y, 18, 40, [0.75, 0.78, 0.95], 0.5 * nk);
     if (G.fx.muzzle > 0) add(P.x + Math.cos(P.aimAng || P.ang) * 10, P.y + Math.sin(P.aimAng || P.ang) * 10, 14, 90, [1.0, 0.9, 0.6], Math.min(1.6, G.fx.muzzle * 14));
-    for (const tr of G.trains) if (tr.pos[0] && night) { const [x, y, a] = tr.pos[0]; add(x + Math.cos(a) * 40, y + Math.sin(a) * 40, 10, 80, [1.0, 0.95, 0.8], 0.9); }
+    for (const tr of G.trains) if (tr.pos[0] && night) { const [x, y, a] = tr.pos[0]; add(x + Math.cos(a) * (27 + TRAIN_HL), y + Math.sin(a) * (27 + TRAIN_HL), 10, 80, [1.0, 0.95, 0.8], 0.9); }
     // motorlu taşıtların farları (motoru çalışırken)
     if (night) for (const e of G.ents) if (e.motor && (e.driver || e.rider) && !e.driverEnt) add(e.x + Math.cos(e.ang) * 22, e.y + Math.sin(e.ang) * 22, 8, 62, [1.0, 0.95, 0.82], 0.95 * nk);
     // elinde fenerli NPC (ör. Sully çakal gecesinde)

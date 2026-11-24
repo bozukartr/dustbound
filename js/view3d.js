@@ -16,7 +16,7 @@
      - Yürüyüş ve kolun sağ çubuğu kameraya göre; radar kamerayla döner (js/ui.js, D3.radarRot)
    ===================================================================== */
 (() => {
-  const { M4, C, Renderer, GPUMesh, Mesh, LineMesh, MAT, F, buildHuman, buildHorse, buildAnimal, animalSkel, animalPose, skelPose, HUMAN_SK, HORSE_SK, POSE, HPOSE, armPose, P3 } = D3;
+  const { M4, C, Renderer, GPUMesh, Mesh, LineMesh, MAT, F, buildHuman, buildHorse, buildAnimal, animalSkel, animalPose, skelPose, HUMAN_SK, HORSE_SK, POSE, HPOSE, armPose, reach, P3 } = D3;
   const DEG = Math.PI / 180;
   const PITCH = 38 * DEG;        // kamera eğimi (yerden yükseklik açısı)
   const LOOK_YAW = 0.0032;       // fare pikseli başına dönüş (radyan; hassasiyet ayarı ortadayken)
@@ -25,7 +25,7 @@
   const AHEAD = 0.13;            // oyuncu ekran merkezinin bu kadar (görüntü yüksekliği oranı) altında: önde daha çok yer
   const AIM_TOP = 0.12, P_LOW = 0.86;  // nişan ekranın tepesinden bu paydan yukarı çıkmaz; oyuncu bu çizgiden aşağı inmez
   const AIM_H = 11;              // nişan ve imleç bu yükseklikteki düzleme bakar (gövde hizası)
-  const S = D3.state = { ok: true, scene: null, err: null, cap: [], pool: [], meshes: new Map(), skels: new Map(), ms: 0, frames: 0,
+  const S = D3.state = { ok: true, scene: null, err: null, cap: [], pool: [], meshes: new Map(), skels: new Map(), ms: 0, frames: 0, loads: [],
     yaw: 0, pitch: PITCH, aim: AIM_DEF, look: false, relock: false, vc: null, ahead: 1, la: null, wantLock: 0,
     cam: { c: 1, s: 0, st: Math.sin(PITCH), ct: Math.cos(PITCH), u: 0, w: 0, cx: 0, cy: 0, ox: 0, oy: 0, vw: 1, vh: 1, la: 0, ok: false } };
   // fare hassasiyeti (Ayarlar > Kontroller): 0..1, ortası 1×; çarpan 0,25× .. 4×
@@ -159,8 +159,10 @@
   const ORIG = {};
   function hook(on) {
     if (!on) { for (const k in ORIG) Spr[k] = ORIG[k]; return; }
-    for (const k of ['human', 'horse', 'animal', 'motor', 'shadow']) ORIG[k] = Spr[k];
+    for (const k of ['human', 'horse', 'animal', 'motor', 'shadow', 'carried']) ORIG[k] = Spr[k];
     Spr.human = (ctx, x, y, ang, look, st) => { S.cap.push({ k: 'h', M: ctx.getTransform(), x, y, ang, look, st: Object.assign({}, st), e: S.curEnt }); };
+    // omuzdaki, eyerdeki yük: 2D çizimi yerine 3B model (taşıyanın kemiğine bağlı, actors())
+    Spr.carried = (ctx, it) => { S.cap.push({ k: 'load', M: null, it, by: S.curEnt }); };
     Spr.horse = (ctx, x, y, ang, look, st) => { S.cap.push({ k: 'horse', M: ctx.getTransform(), x, y, ang, look, st: Object.assign({}, st), e: S.curEnt }); };
     Spr.animal = (ctx, a) => { S.cap.push({ k: 'animal', M: ctx.getTransform(), x: a.x, y: a.y, ang: a.ang, a, e: S.curEnt }); };
     Spr.motor = () => {};
@@ -182,8 +184,13 @@
           else if (e.child) { ctx.save(); ctx.translate(e.x, e.y); ctx.scale(0.7, 0.7); ctx.translate(-e.x, -e.y); e.draw(ctx); ctx.restore(); }
           else e.draw(ctx);
         } catch (err) { if (!S.drawErr) { S.drawErr = true; console.warn('3B: varlık çizimi', err); } }
-        // araba: gövdesi 3B çizilir, 2D gövde çizimi atılır (atlar ve sürücü yakalandı)
-        if (e.kind === 'wagon' && !e.motor && e.bx !== undefined) { rec.log.length = mark; S.cap.push({ k: 'wagon', M: null, x: e.bx, y: e.by, ang: e.bang, col: e.body, stage: e.stage, cab: e.cab }); }
+        // araba: gövdesi 3B çizilir, 2D gövde çizimi atılır (atlar ve sürücü yakalandı); yük arabasındaki sandıklar kasada
+        if (e.kind === 'wagon' && !e.motor && e.bx !== undefined) {
+          rec.log.length = mark; S.cap.push({ k: 'wagon', M: null, x: e.bx, y: e.by, ang: e.bang, col: e.body, stage: e.stage, cab: e.cab });
+          if (e.crates) e.crates.forEach((g, k) => S.cap.push({ k: 'load', M: null, it: { kind: 'crate', g }, by: e, slot: k }));
+        }
+        // yerdeki mal sandığı ve post: 3B model
+        if (e.kind === 'crate' || e.kind === 'pelt') { rec.log.length = mark; S.cap.push({ k: 'load', M: null, it: e, by: null }); }
         // otomobil: gövdesi 3B; sürücü (2D'de tentenin altında gizli) ön koltukta oturur; oyuncu nişan alırken 2D çizim onu zaten verdi
         if (e.kind === 'wagon' && e.motor && e.bx !== undefined) {
           S.cap.push({ k: 'car', M: null, x: e.bx, y: e.by, ang: e.bang, col: e.body || '#16161a' });
@@ -204,7 +211,7 @@
       skin: L.skin || '#e0b48c', hair: L.hairNow || L.hair || '#3a2618', hat: L.hat || 'none', hatCol: hatCol(L), coat: L.coat || '#5a4a3a', coatLen: L.coatLen || 0,
       shirt: L.shirt || '#d8cdb4', pants: L.pants || '#3a3024', beard: L.beard | 0, mask: L.mask || null, fem,
       longHair: fem ? [0, 1, 4, 5, 7].includes(hs) : [1, 4, 7].includes(hs), bun: fem && (hs === 2 || hs === 6),
-      gun: !!st.hasGun, backGun: !!st.backGun, rod: st.hold === 'rod',
+      gun: !!st.hasGun, backGun: !!st.backGun, rod: st.hold === 'rod', broom: st.hold === 'broom', paper: st.hold === 'paper',
     };
   }
   // canlı ağları görünüşe göre önbellekte; uzun süre görünmeyenler atılır (kasabadan gelip geçenler birikmesin)
@@ -218,10 +225,172 @@
     if (S.frames % 600 !== 0) return;
     for (const [k, m] of S.meshes) if (S.frames - m.used > 1800) { m.dispose(); S.meshes.delete(k); S.skels.delete(k); }
   }
+  /* ---------------- taşınan yükler ----------------
+     Oyuncunun yükü gövde kemiğine bağlıdır (yürürken onunla sallanır): mal sandığı önde iki elde, ceset omza atılmış
+     (kalçadan bükük, gövdesi arkada, bacakları önde sol kolun içinde), büyük leş iki omzun üstünde (ayakları önde,
+     ellerde), küçük av sağ elde arka ayaklarından sarkar, post rulo hâlinde sırtta. Kaldırırken ve indirirken yük
+     yerdeki yerinden omzuna yay çizer (kalkış oranı Juice.liftH), kollar yüke uzanır (D3.reach). Kasabalının elindeki
+     sandık da böyle taşınır. Atın eyerindeki yükler sağrısında enine, yük arabasındaki sandıklar kasada, yerdeki sandık
+     ve post yerde durur. */
+  const NPC_CRATE = { it: { kind: 'crate', g: null }, h: 1, s: 0.85 };
+  const CAR_SEAT_Y = 2.4 + (CAR_K - 1) * 7.5;   // otomobil sürücüsünün kökü: koltuk CAR_K ile yükselir, şapka tentenin altında
+  const SLUNG_F = 1.9, SLUNG_S = 0.9, HORSE_F = 1.0, LIFT_ARC = 2.5;
+  const R_HANG = (() => { const m = M4.ident(); m[0] = 0; m[1] = -1; m[4] = -1; m[5] = 0; m[10] = -1; return m; })();   // x→-y, y→-x, z→-z
+  const YOKE = M4.mul(M4.rotY(-Math.PI / 2), M4.rotX(Math.PI / 2));   // yan yatmış hayvan: boyu enine, sırtı arkaya
+  const slungA = (x, y, z, yaw, f, s) => M4.mul(M4.translate(x, y, z), M4.mul(M4.rotY(yaw), M4.mul(M4.rotZ(-(Math.PI / 2 - f / 2)), M4.mul(M4.scale(s, s, s), M4.translate(0, -9.6, 0)))));
+  function playerLoad(P) {
+    if (P.lower) { const e = P.lower.e, h = Juice.liftH(P); return h > 0 ? { it: e, h, g: [e.x, e.y, e.ang || 0] } : null; }
+    if (!P.carry) return null;
+    if (P.lift) return { it: P.carry, h: Juice.liftH(P), g: [P.lift.x, P.lift.y, P.lift.a || 0] };
+    return { it: P.carry, h: 1 };
+  }
+  function loadStyle(it) {
+    if (it.kind === 'pelt') return 'back';
+    if (it.kind === 'npc') return 'slung';
+    if (it.kind === 'animal') { const d = it.def || {}; return (d.shape === 'small' || d.shape === 'bird') && d.len * 1.25 <= 8 ? 'hang' : 'yoke'; }
+    return 'front';
+  }
+  // hayvan ölçüleri (js/models3d.js buildAnimal ile aynı): boy, en, gövde merkezinin yüksekliği, gövde yarıçapı, bacak
+  function animalDims(d) {
+    const L = (d.len || 8) * 1.25, W = (d.wid || 3) * 0.85;
+    if (d.shape === 'bird') return { L, W, yb: L * 0.55, bodyR: L * 0.38, legH: L * 0.35 };
+    if (d.shape === 'snake') return { L, W: 2, yb: 0.9, bodyR: 1, legH: 0 };
+    const legH = Math.max(2.4, L * (d.shape === 'small' ? 0.18 : 0.42)), bodyR = Math.max(1.6, W * 0.55);
+    return { L, W, yb: legH + bodyR * 0.8, bodyR, legH };
+  }
+  function animalMesh(a) {
+    const d = a.def || (typeof ANIMALS !== 'undefined' && ANIMALS[a.type]) || { len: 8, wid: 3, col: '#8a7050' };
+    const col = a.skinned ? '#9a3a2a' : d.col, key = 'an|' + (a.type || '') + '|' + col + '|' + d.len + '|' + d.shape;
+    const mesh = meshFor(key, () => buildAnimal(Object.assign({}, d, { col }), a.type));
+    let sk = S.skels.get(key); if (!sk) { sk = animalSkel(d); S.skels.set(key, sk); }
+    return { mesh, sk, d };
+  }
+  // elde sarkan küçük av: bacaklar gergin (ön ayaklar öne, arkalar geriye), asıldığı nokta arka ayakların ucu
+  function hangRig(d, D) {
+    if (d.shape === 'bird') { const py = D.yb - D.L * 0.2; return { pose: { 3: [0, 0, -Math.PI / 2], 4: [0, 0, -Math.PI / 2] }, anchor: [-(py - 0.2), py, 0] }; }
+    const py = D.yb - D.bodyR * 0.3;
+    return { pose: { 3: [0, 0, Math.PI / 2], 4: [0, 0, Math.PI / 2], 5: [0, 0, -Math.PI / 2], 6: [0, 0, -Math.PI / 2] }, anchor: [-D.L * 0.3 - (py - 0.4), py, 0] };
+  }
+  // yükün 3B modeli (iskeletliyse duruşuyla); f: omuzdaki cesedin bükülmesi
+  function loadModel(it, style, f) {
+    if (it.kind === 'crate') return { mesh: meshFor('goods|' + P3.goodsLook(it.g) + (it.g === 'meds' ? '+' : ''), () => { const m = new Mesh(1500); P3.goods(m, it.g); return m; }) };
+    if (it.kind === 'pelt') return { mesh: meshFor('pelt|' + it.col + '|' + (it.big ? 1 : 0), () => { const m = new Mesh(800); P3.peltRoll(m, it.col, it.big); return m; }) };
+    if (it.kind === 'npc') { const L = humanLook(it.look || {}, {}); return { mesh: meshFor('h|' + JSON.stringify(L), () => buildHuman(L)), sk: HUMAN_SK, pose: POSE.slung(f) }; }
+    const am = animalMesh(it);
+    return { mesh: am.mesh, sk: am.sk, pose: style === 'hang' ? hangRig(am.d, animalDims(am.d)).pose : {} };
+  }
+  function emitLoad(K, md, M, it, by) {
+    const B = K.bones();
+    if (md.sk) skelPose(md.sk, md.pose, M, B); else B.set(M, 0);
+    K.next(); K.out.push({ mesh: md.mesh, bones: B });
+    // çizilen yükler (dünya pikseli ve yükseklik; sınama ve hata ayıklama için)
+    S.loads.push({ it, by, x: M[12] + K.sc.OX, y: M[14] + K.sc.OZ, h: M[13] });
+  }
+  // insan taşıyanın gövde çerçevesinde (dinlenme duruşu) yükün dönüşümü A, merkezi c ve ellerin hedefleri [sol, sağ]
+  function carryRig(it, style, s) {
+    if (style === 'front') {
+      const look = P3.goodsLook(it.g), [hx, hy, hz] = P3.goodsH(it.g).map(v => v * s), c = [2.55 + hx, 13.7, 0];
+      const hz2 = look === 'ties' ? 4.3 : Math.min(hz + 0.7, 5.8), hy2 = look === 'ties' ? c[1] - hy - 0.2 : c[1] - 0.3;
+      return { A: M4.mul(M4.translate(c[0], c[1], c[2]), M4.scale(s, s, s)), c, hands: [[c[0] - 0.4, hy2, -hz2], [c[0] - 0.4, hy2, hz2]] };
+    }
+    if (style === 'back') { const c = [-2.1 - P3.peltR(it.big), 18.0, 0]; return { A: M4.translate(c[0], c[1], c[2]), c, hands: null }; }
+    if (style === 'slung') {
+      const c = [-0.6, 18.3 + 2.3 * s, -5.0], th = (Math.PI - SLUNG_F) / 2;
+      return { A: slungA(c[0], c[1], c[2], Math.PI, SLUNG_F, s), c, hands: [[c[0] + 4.5 * s * Math.sin(th) + 1.0, c[1] - 4.5 * s * Math.cos(th), -4.6], null] };
+    }
+    const d = it.def || {}, D = animalDims(d);
+    if (style === 'hang') {
+      const c = [1.3, 9.4, 5.1], an = hangRig(d, D).anchor;
+      return { A: M4.mul(M4.translate(c[0], c[1], c[2]), M4.mul(R_HANG, M4.translate(-an[0], -an[1], -an[2]))), c, hands: [null, c] };
+    }
+    const c = [-2.4 - D.bodyR * 0.9, 18.3 + D.W * 0.5, 0];
+    const A = M4.mul(M4.translate(c[0], c[1], c[2]), M4.mul(YOKE, M4.translate(0, -D.yb, 0)));
+    if (d.shape === 'snake') return { A, c, hands: null };
+    const hx = Math.min(6.2, c[0] + D.yb - 0.4 - D.legH * 0.25), hz = Math.min(6, D.L * 0.3);
+    return { A, c, hands: [[hx, c[1], -hz], [hx, c[1], hz]] };
+  }
+  // taşıyanın kollarını yüke uzatır, yükü çizer. B: taşıyanın kemikleri (gövde: 2), ang: taşıyanın yönü
+  function carryOn(K, ld, pose, root, B, ang) {
+    const it = ld.it, style = loadStyle(it), h = ld.h, s = ld.s || (style === 'slung' ? SLUNG_S : 1);
+    const rig = carryRig(it, style, s);
+    let W2 = B.subarray(32, 48), M, f = SLUNG_F;
+    if (h >= 1) {
+      if (rig.hands) {
+        const key = style + '|' + (it.g || (it.def ? it.def.len + 'x' + it.def.wid : '')) + '|' + s;
+        rig.hands.forEach((T, i) => T && reach(pose, i ? 1 : -1, T, key));
+        skelPose(HUMAN_SK, pose, root, B); W2 = B.subarray(32, 48);
+      }
+      M = M4.mul(W2, rig.A);
+    } else {
+      // kaldırma ya da indirme: yük yerdeki yerinden taşıdığı yere yay çizer, dönüşü yerdekinden taşınana kayar
+      const g = ld.g, OX = K.sc.OX, OZ = K.sc.OZ, arc = Math.sin(h * Math.PI) * LIFT_ARC;
+      const att = M4.mul(W2, M4.translate(rig.c[0], rig.c[1], rig.c[2])), Pa = [att[12], att[13], att[14]];
+      const at = (Pg) => { const q = mix3(Pg, Pa, h); q[1] += arc; return q; };
+      let ctr;
+      if (style === 'slung') {
+        f = SLUNG_F * h;
+        ctr = at([g[0] - OX, 2.4 * s, g[1] - OZ]);
+        M = slungA(ctr[0], ctr[1], ctr[2], -(ang + Math.PI), f, s);
+      } else if (style === 'front') {
+        const k = lerp(1.2, s, h), yaw = g[2] + angDiff(g[2], ang) * h;
+        ctr = at([g[0] - OX, P3.goodsH(it.g)[1] * 1.2, g[1] - OZ]);
+        M = M4.mul(M4.translate(ctr[0], ctr[1], ctr[2]), M4.mul(M4.rotY(-yaw), M4.scale(k, k, k)));
+      } else if (style === 'back') {
+        const y0 = g[2] - Math.PI / 2, yaw = y0 + angDiff(y0, ang) * h;
+        ctr = at([g[0] - OX, P3.peltR(it.big), g[1] - OZ]);
+        M = M4.mul(M4.translate(ctr[0], ctr[1], ctr[2]), M4.rotY(-yaw));
+      } else {
+        // leş: yerde yan yatar (dünyadaki ölü hayvanla aynı yerde), omza enine kalkar
+        const D = animalDims(it.def || {}), ga = g[2], ya = ang + Math.PI / 2, yaw = ga + angDiff(ga, ya) * h;
+        ctr = at([g[0] - OX - Math.sin(ga) * D.yb, ((it.def && it.def.wid) || 3) * 0.45, g[1] - OZ + Math.cos(ga) * D.yb]);
+        M = M4.mul(M4.translate(ctr[0], ctr[1], ctr[2]), M4.mul(M4.rotY(-yaw), M4.mul(M4.rotX(Math.PI / 2), M4.translate(0, -D.yb, 0))));
+      }
+      // iki el yüke uzanır
+      const q = M4.xform(M4.invert(W2), ctr), hw = style === 'front' ? Math.min(P3.goodsH(it.g)[2] * lerp(1.2, s, h) + 0.7, 5.8) : 3;
+      reach(pose, -1, [q[0], q[1], q[2] - hw]); reach(pose, 1, [q[0], q[1], q[2] + hw]);
+      skelPose(HUMAN_SK, pose, root, B);
+    }
+    emitLoad(K, loadModel(it, h < 1 && style === 'hang' ? 'yoke' : style, f), M, it, G.player);
+  }
+  // atın eyerindeki yük (atın gövde kemiği çerçevesinde): sağrısında enine; xh: eyerin gerisinde sıra, yt: sırt yüksekliği
+  function horseLoadA(it, xh, yt) {
+    if (it.kind === 'crate') { const s = 0.8, hy = P3.goodsH(it.g)[1]; return M4.mul(M4.translate(xh, yt + hy * s, 0), M4.scale(s, s, s)); }
+    if (it.kind === 'pelt') return M4.translate(xh, yt + P3.peltR(it.big) * 0.9, 0);
+    if (it.kind === 'npc') return slungA(xh, yt + 2.3 * 0.85, 0, -Math.PI / 2, HORSE_F, 0.85);
+    const D = animalDims(it.def || {});
+    return M4.mul(M4.translate(xh, yt + D.W * 0.5, 0), M4.mul(YOKE, M4.translate(0, -D.yb, 0)));
+  }
+  // eyerdeki, yük arabasındaki ve yerdeki yükler (atların kemikleri actors() içinde bulundu)
+  function otherLoads(K, P) {
+    const sc = K.sc;
+    for (const c of S.cap) {
+      if (c.k !== 'load' || c.by === P) continue;
+      const it = c.it, by = c.by;
+      let M, style = loadStyle(it), f = SLUNG_F;
+      if (!by) {
+        const X = it.x - sc.OX, Z = it.y - sc.OZ;
+        if (it.kind === 'crate') M = M4.mul(M4.translate(X, P3.goodsH(it.g)[1] * 1.2, Z), M4.mul(M4.rotY(-(it.ang || 0)), M4.scale(1.2, 1.2, 1.2)));
+        else M = M4.mul(M4.translate(X, P3.peltR(it.big), Z), M4.rotY(Math.PI / 2 - (it.ang || 0)));
+      } else if (by.kind === 'wagon') {
+        const s = 0.7, k = c.slot;
+        M = M4.mul(M4.translate(by.bx - sc.OX, 0, by.by - sc.OZ), M4.mul(M4.rotY(-by.bang), M4.mul(M4.scale(WAGON_K, WAGON_K, WAGON_K), M4.mul(M4.translate(-8.85 + (k >> 1) * 5.9, 8 + P3.goodsH(it.g)[1] * s, k & 1 ? 2.35 : -2.35), M4.mul(M4.rotY(Math.PI / 2), M4.scale(s, s, s))))));
+      } else {
+        const HB = K.hb.get(by);
+        if (!HB) continue;
+        const k = Math.max(0, by.load ? by.load.indexOf(it) : 0), xh = -6.5 - k * 2.8, yt = 27.1 - Math.max(0, -xh - 7.4) ** 2 * 0.1;
+        M = M4.mul(HB, horseLoadA(it, xh, yt));
+        if (style === 'hang') style = 'yoke';
+        f = HORSE_F;
+      }
+      emitLoad(K, loadModel(it, style, f), M, it, by);
+    }
+  }
   function actors(g, sc, t) {
     const out = [], P = g.player, W = g.world;
     let pi = 0;
     const bones = () => S.pool[pi] || (S.pool[pi] = new Float32Array(24 * 16)), next = () => pi++;
+    const K = { out, bones, next, sc, hb: new Map() };
+    S.loads.length = 0;
     for (const c of S.cap) {
       let wx = c.x, wy = c.y, scl = 1, rot = 0;
       if (c.M) { const M = c.M; wx = M.a * c.x + M.c * c.y + M.e + S.x0; wy = M.b * c.x + M.d * c.y + M.f + S.y0; scl = Math.hypot(M.a, M.b) || 1; rot = Math.atan2(M.b, M.a); }
@@ -232,13 +401,13 @@
         const mesh = meshFor(key, () => buildHuman(L));
         const ph = ((c.e && c.e.id) || 0) * 1.7;
         let pose, y = 0, lie = false;
-        const carrier = c.e && c.e !== P && c.e.kind === 'horse' ? 'horse' : c.e === P && c.look !== P.look && c.look !== P.lookNow() ? 'player' : null;
         if (st.lying || st.dead) { pose = POSE.lie(); lie = true; }
-        else if (st.riding && (st.car || (c.e && c.e.motor))) { pose = POSE.sit(t, ph, 'table'); y = 2.4; }   // otomobilde koltukta, eller direksiyonda
+        else if (st.riding && (st.car || (c.e && c.e.motor))) { pose = POSE.sit(t, ph, 'table'); y = CAR_SEAT_Y; }   // otomobilde koltukta, eller direksiyonda
         else if (st.riding) {
           const veh = c.e && (c.e.kind === 'wagon' || c.e.cab || c.e.stage);
           const mv = c.e && c.e.kind === 'horse' ? c.e.mv || 0 : c.e && c.e.mounted ? c.e.mv || 0 : P.riding ? P.riding.mv || 0 : 0;
-          pose = POSE.ride(t, Math.min(1, mv), ph); y = veh ? 8.5 : 18.4;
+          // at arabasının sürücüsü önündeki oturakta (posta arabasında yüksek sürücü yerinde): model WAGON_K katı
+          pose = POSE.ride(t, Math.min(1, mv), ph); y = veh ? (c.e.stage ? 8.6 : 6.7) * WAGON_K : 18.4;
         } else if (st.sit !== undefined) {
           const an = st.anim, arms = an === 'drink' ? 'drink' : an === 'piano' ? 'piano' : an === 'eat' || an === 'cards' || an === 'read' ? 'table' : 'lap';
           pose = POSE.sit(t, ph, arms);
@@ -251,11 +420,12 @@
         if (st.crouch && !lie) { pose.t = pose.t || {}; const t1 = pose.t[1] || [0, 0, 0]; pose.t[1] = [t1[0], t1[1] - 2.4, t1[2]]; pose[8] = [0, 0, 0.9]; pose[9] = [0, 0, -1.4]; pose[10] = [0, 0, 0.9]; pose[11] = [0, 0, -1.4]; pose[2] = [0, 0, 0.25]; }
         if (st.head && !lie) pose[3] = [0, -st.head, 0];
         let root;
-        if (lie) {
-          const h = carrier === 'horse' ? 21 : carrier === 'player' ? 14 : 2.6;
-          root = M4.mul(M4.translate(X + Math.cos(ang) * 13 * scl, h * (carrier ? 1 : scl), Z + Math.sin(ang) * 13 * scl), M4.mul(M4.rotY(-ang), M4.mul(M4.rotZ(Math.PI / 2), M4.scale(scl, scl, scl))));
-        } else root = M4.mul(M4.translate(X, y * scl, Z), M4.mul(M4.rotY(-ang), M4.scale(scl, scl, scl)));
+        if (lie) root = M4.mul(M4.translate(X + Math.cos(ang) * 13 * scl, 2.6 * scl, Z + Math.sin(ang) * 13 * scl), M4.mul(M4.rotY(-ang), M4.mul(M4.rotZ(Math.PI / 2), M4.scale(scl, scl, scl))));
+        else root = M4.mul(M4.translate(X, y * scl, Z), M4.mul(M4.rotY(-ang), M4.scale(scl, scl, scl)));
         const B = bones(); skelPose(HUMAN_SK, pose, root, B); next();
+        // yük taşıyan: oyuncunun omzundaki ya da elindeki yük, kasabalının elindeki sandık
+        const ld = lie || !c.e ? null : c.e === P ? playerLoad(P) : st.hold === 'crate' ? NPC_CRATE : null;
+        if (ld) carryOn(K, ld, pose, root, B, ang);
         out.push({ mesh, bones: B });
       } else if (c.k === 'horse') {
         const st = c.st, L = c.look || {};
@@ -274,6 +444,7 @@
           root = M4.mul(M4.translate(X, 0, Z), M4.rotY(-ang));
         }
         const B = bones(); skelPose(HORSE_SK, pose, root, B); next();
+        if (c.e && c.e.kind === 'horse' && c.e.load && c.e.load.length) K.hb.set(c.e, B.subarray(16, 32));   // eyerdeki yükler gövdeye bağlı
         out.push({ mesh, bones: B });
       } else if (c.k === 'animal') {
         const a = c.a, d = a.def || (typeof ANIMALS !== 'undefined' && ANIMALS[a.type]) || { len: 8, wid: 3, col: '#8a7050' };
@@ -288,9 +459,7 @@
           out.push({ mesh, bones: B });
           continue;
         }
-        const col = a.skinned ? '#9a3a2a' : d.col, key = 'an|' + (a.type || '') + '|' + col + '|' + d.len + '|' + d.shape;
-        const mesh = meshFor(key, () => buildAnimal(Object.assign({}, d, { col }), a.type));
-        let sk = S.skels.get(key); if (!sk) { sk = animalSkel(d); S.skels.set(key, sk); }
+        const { mesh, sk } = animalMesh(a);
         let root;
         if (a.dead) root = M4.mul(M4.translate(X, 0, Z), M4.mul(M4.rotY(-ang), M4.mul(M4.translate(0, d.wid * 0.45, 0), M4.mul(M4.rotX(Math.PI / 2), M4.scale(scl, scl, scl)))));
         else root = M4.mul(M4.translate(X, 0, Z), M4.mul(M4.rotY(-ang), M4.scale(scl, scl, scl)));
@@ -303,17 +472,18 @@
       } else if (c.k === 'wagon') {
         const key = 'wagon|' + c.col + '|' + (c.stage ? 1 : 0) + (c.cab ? 1 : 0);
         const mesh = meshFor(key, () => { const m = new Mesh(4000); P3.wagon(m, 0, 0, 0, 0, c.col, c.stage); return m; });
-        const B = bones(); B.set(M4.mul(M4.translate(X, 0, Z), M4.rotY(-ang)), 0); next();
+        const B = bones(); B.set(M4.mul(M4.translate(X, 0, Z), M4.mul(M4.rotY(-ang), M4.scale(WAGON_K, WAGON_K, WAGON_K))), 0); next();
         out.push({ mesh, bones: B });
       }
     }
+    otherLoads(K, P);
     const near = S.nearFn || (() => true);
     // trenler: vagonlar oyunun ray üzerindeki konumlarından (lokomotif gidiş yönünde önde)
     for (const tr of g.trains || []) for (let i = 0; i < tr.pos.length; i++) {
       const q = tr.pos[i], kind = tr.cars[i];
-      if (!q || !near(q[0], q[1], 30)) continue;
+      if (!q || !near(q[0], q[1], 30 * TRAIN_K)) continue;
       const mesh = meshFor('train|' + kind, () => { const m = new Mesh(9000); P3.trainCar(m, kind); return m; });
-      const B = bones(); B.set(M4.mul(M4.translate(q[0] - sc.OX, 0, q[1] - sc.OZ), M4.rotY(-q[2])), 0); next();
+      const B = bones(); B.set(M4.mul(M4.translate(q[0] - sc.OX, 0, q[1] - sc.OZ), M4.mul(M4.rotY(-q[2]), M4.scale(TRAIN_K, TRAIN_K, TRAIN_K))), 0); next();
       out.push({ mesh, bones: B });
     }
     // çatı bayrakları: kumaş rüzgârın estiği yöne döner (direk binanın parçası)
@@ -601,7 +771,7 @@
      parçacığın doğduğu yükseklik (h0) ve yükselme hızı (rv) kaydedilir, yükselme ayrıca toplanır (ry). */
   const PH = { smoke: 9, steam: 1, dust: 1, breath: 14, ember: 4, flash: 10, ring: 0, spark: 6, blood: 8, debris: 3, feather: 6, splash: 0, tracer: 10, text: 22 };
   const RISE_ALL = { steam: 1, ember: 1 };
-  const TRAIN_SMOKE = { h: 21, dy: 6, rise: -12 };
+  const TRAIN_SMOKE = { h: 21 * TRAIN_K, dy: 6 * TRAIN_K, rise: -12 };   // lokomotif bacası (vagon modeli TRAIN_K katı)
   if (typeof Particles !== 'undefined') {
     const padd = Particles.prototype.add, pupd = Particles.prototype.update;
     Particles.prototype.add = function (type, x, y, vx, vy, ...a) {

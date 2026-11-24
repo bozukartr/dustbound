@@ -411,8 +411,8 @@
       if (tx < 0 || ty < 0 || tx >= WW || ty >= WH) continue;
       const i = ty * WW + tx, o = W.obj[i], cliff = isCliffT(W.tile[i]);
       if (cliff) cliffTile(W, out, tx, ty, OX, OZ);
-      // köprü: suya bakan kenarlarında korkuluk
-      if (W.tile[i] === T.BRIDGE) for (const [nx, ny, a, b] of [[0, -1, [0, 0], [16, 0]], [0, 1, [0, 16], [16, 16]], [-1, 0, [0, 0], [0, 16]], [1, 0, [16, 0], [16, 16]]]) {
+      // köprü: suya bakan kenarlarında korkuluk (demiryolu köprüsünde yok: vagon köprünün kenarından taşar)
+      if (W.tile[i] === T.BRIDGE && !(W.flags[i] & 2)) for (const [nx, ny, a, b] of [[0, -1, [0, 0], [16, 0]], [0, 1, [0, 16], [16, 16]], [-1, 0, [0, 0], [0, 16]], [1, 0, [16, 0], [16, 16]]]) {
         const q = tx + nx >= 0 && ty + ny >= 0 && tx + nx < WW && ty + ny < WH ? W.tile[(ty + ny) * WW + tx + nx] : T.WATER;
         if (isWaterT(q)) P3.bridgeRail(out, [tx * 16 + a[0] - OX + (nx ? -nx * 0.8 : 0), ty * 16 + a[1] - OZ + (ny ? -ny * 0.8 : 0)], [tx * 16 + b[0] - OX + (nx ? -nx * 0.8 : 0), ty * 16 + b[1] - OZ + (ny ? -ny * 0.8 : 0)]);
       }
@@ -551,9 +551,11 @@
   }
 
   /* ---------------- demiryolu ----------------
-     Oyunun ray çizgisi (world.rails, dünya pikseli): her 4 pikselde bir travers (çizgiye dik), iki yanda 3 piksel
-     uzakta çelik ray (çizginin ortalama normaline göre kaydırılmış noktalar arasında). Traversler yarı gömülü.
+     Oyunun ray çizgisi (world.rails, dünya pikseli): her TS_RAIL pikselde bir travers (çizgiye dik, yarı boyu RAIL_TIE),
+     iki yanda RAIL_GAUGE uzakta çelik ray (çizginin ortalama normaline göre kaydırılmış noktalar arasında); ölçüler
+     trenle büyür (TRAIN_K, js/data.js). Traversler yarı gömülü.
      Travers ve ray dilimi, orta noktası [x0, x1) × [z0, z1) içindeyse bu parçaya girer (komşu parçalarla çakışmaz). */
+  const TS_RAIL = 4 * TRAIN_K;
   function railMesh(m, r, x0, z0, x1, z1, OX, OZ) {
     const tie = C('#4a3522'), tieTop = C('#5a4430'), steel = C('#6e6e72'), steelTop = C('#b4b4b8');
     const own = (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1;
@@ -571,9 +573,9 @@
       if (L < 1e-3) continue;
       if (!near(A) && !near(B)) { acc += L; continue; }
       const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L, na = Math.atan2(ux, -uz);
-      for (let s0 = (4 - (acc % 4)) % 4; s0 <= L; s0 += 4) {
+      for (let s0 = (TS_RAIL - (acc % TS_RAIL)) % TS_RAIL; s0 <= L; s0 += TS_RAIL) {
         const px = A[0] + ux * s0, pz = A[1] + uz * s0;
-        if (own(px, pz)) obox(px - OX, 0.35, pz - OZ, na, 5.2, 0.7, 0.85, tie, tieTop);
+        if (own(px, pz)) obox(px - OX, 0.35, pz - OZ, na, RAIL_TIE + 0.2, 0.7, 0.85 * TRAIN_K, tie, tieTop);
       }
       acc += L;
     }
@@ -583,13 +585,13 @@
       const L = Math.hypot(bx - cx, by - cy) || 1;
       return [ax - (by - cy) / L * off, ay + (bx - cx) / L * off];
     };
-    for (const off of [-3, 3]) {
+    for (const off of [-RAIL_GAUGE, RAIL_GAUGE]) {
       for (let i = 1; i < r.length; i++) {
         if (!near(r[i]) && !near(r[i - 1])) continue;
         const p = offAt(i, off), q = offAt(i - 1, off);
         if (!own((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)) continue;
         const dx = p[0] - q[0], dz = p[1] - q[1], sl = Math.hypot(dx, dz);
-        if (sl > 0.01) obox((p[0] + q[0]) / 2 - OX, 1.25, (p[1] + q[1]) / 2 - OZ, Math.atan2(dz, dx), sl / 2 + 0.15, 0.45, 0.42, steel, steelTop);
+        if (sl > 0.01) obox((p[0] + q[0]) / 2 - OX, 1.35, (p[1] + q[1]) / 2 - OZ, Math.atan2(dz, dx), sl / 2 + 0.15, 0.55, 0.5, steel, steelTop);
       }
     }
   }
