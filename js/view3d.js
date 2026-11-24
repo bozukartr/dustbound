@@ -184,6 +184,13 @@
         } catch (err) { if (!S.drawErr) { S.drawErr = true; console.warn('3B: varlık çizimi', err); } }
         // araba: gövdesi 3B çizilir, 2D gövde çizimi atılır (atlar ve sürücü yakalandı)
         if (e.kind === 'wagon' && !e.motor && e.bx !== undefined) { rec.log.length = mark; S.cap.push({ k: 'wagon', M: null, x: e.bx, y: e.by, ang: e.bang, col: e.body, stage: e.stage, cab: e.cab }); }
+        // otomobil: gövdesi 3B; sürücü (2D'de tentenin altında gizli) ön koltukta oturur; oyuncu nişan alırken 2D çizim onu zaten verdi
+        if (e.kind === 'wagon' && e.motor && e.bx !== undefined) {
+          S.cap.push({ k: 'car', M: null, x: e.bx, y: e.by, ang: e.bang, col: e.body || '#16161a' });
+          const st = e.seat, aimP = e.rider === P && (P.aiming || P.rsAim);
+          const L = e.rider === P ? P.lookNow() : e.driver && e.driver.look;
+          if (L && !aimP && !(e.rider === P && P.mountAnim)) S.cap.push({ k: 'h', M: null, x: st.x, y: st.y, ang: e.bang, look: L, st: { riding: true, car: true }, e });
+        }
       }
       rec.mark(null);
     } finally { hook(false); S.curEnt = null; }
@@ -227,6 +234,7 @@
         let pose, y = 0, lie = false;
         const carrier = c.e && c.e !== P && c.e.kind === 'horse' ? 'horse' : c.e === P && c.look !== P.look && c.look !== P.lookNow() ? 'player' : null;
         if (st.lying || st.dead) { pose = POSE.lie(); lie = true; }
+        else if (st.riding && (st.car || (c.e && c.e.motor))) { pose = POSE.sit(t, ph, 'table'); y = 2.4; }   // otomobilde koltukta, eller direksiyonda
         else if (st.riding) {
           const veh = c.e && (c.e.kind === 'wagon' || c.e.cab || c.e.stage);
           const mv = c.e && c.e.kind === 'horse' ? c.e.mv || 0 : c.e && c.e.mounted ? c.e.mv || 0 : P.riding ? P.riding.mv || 0 : 0;
@@ -287,6 +295,10 @@
         if (a.dead) root = M4.mul(M4.translate(X, 0, Z), M4.mul(M4.rotY(-ang), M4.mul(M4.translate(0, d.wid * 0.45, 0), M4.mul(M4.rotX(Math.PI / 2), M4.scale(scl, scl, scl)))));
         else root = M4.mul(M4.translate(X, 0, Z), M4.mul(M4.rotY(-ang), M4.scale(scl, scl, scl)));
         const B = bones(); skelPose(sk, a.dead ? {} : animalPose(a, t), root, B); next();
+        out.push({ mesh, bones: B });
+      } else if (c.k === 'car') {
+        const mesh = meshFor('car|' + c.col, () => { const m = new Mesh(6000); P3.car(m, c.col); return m; });
+        const B = bones(); B.set(M4.mul(M4.translate(X, 0, Z), M4.rotY(-ang)), 0); next();
         out.push({ mesh, bones: B });
       } else if (c.k === 'wagon') {
         const key = 'wagon|' + c.col + '|' + (c.stage ? 1 : 0) + (c.cab ? 1 : 0);

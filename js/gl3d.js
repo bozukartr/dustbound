@@ -393,7 +393,11 @@ vec2 jitQ(vec3 p){
   vec2 j = vec2(vnoise(q * 0.21 + 11.0), vnoise(q * 0.21 + 37.0)) - 0.5;
   return q + j * 7.0 + (bayer(p.xz / uCell) - 0.5) * 1.5;
 }
-int tileJit(vec3 p){ return tileAt(jitQ(p)); }
+// köprü ve veranda tahtası biçimini korur (2D'deki gibi): ikisinin sınırında kenar kırılmaz
+int tileJit(vec3 p){
+  int t0 = tileAt(floor(p.xz / uCell) * uCell + 0.5 * uCell), t1 = tileAt(jitQ(p));
+  return (t0 == 15 || t0 == 19 || t1 == 15 || t1 == 19) ? t0 : t1;
+}
 // kışın karın örtüsü (dokunun yeşil kanalı: oyunun kar miktarı, 0.25 üstü karlı); karo sınırı zeminle aynı kırılır
 float snowAt(vec3 p){
   vec2 t = floor(jitQ(p) / 16.0) - uTileRect.xy;
@@ -440,6 +444,14 @@ vec3 terrain(vec3 p, vec3 n, int t, out float matOut){
     col = jn > 0.5 ? ramp(base, -0.25) : ramp(base, (hash12(floor(p.xz / 4.0)) - 0.5) * 0.12);
   } else if (t == 8) {
     col = ramp(base, n3 > 0.6 ? 0.06 : n3 < 0.3 ? -0.1 : 0.0);
+  } else if (t == 15) {                        // köprü (2D'deki gibi): 4 piksellik tahta derzleri, kenarlarda koyu kiriş
+    float ex = fract(p.x / 16.0);
+    col = (ex < 0.07 || ex > 0.93) ? base * 0.55 : fract(p.z / 4.0) < 0.25 ? base * 0.7 : ramp(base, (hash12(vec2(floor(p.z / 4.0), floor(p.x / 16.0))) - 0.5) * 0.12);
+    matOut = 9.0;
+  } else if (t == 24) {                        // asfalt: koyu, düzgün; ince kum dokusu, yer yer yama
+    col = ramp(base, (hash12(floor(p.xz)) - 0.5) * 0.06 - (hash12(floor(p.xz / 8.0) + 3.0) > 0.88 ? 0.05 : 0.0));
+  } else if (t == 11) {                        // kar: rüzgârın bıraktığı hafif dalgalar, mavimsi çukurlar
+    col = n3 > 0.66 ? ramp(base, 0.06) : n3 < 0.3 ? mix(base, vec3(0.78, 0.84, 0.92), 0.5) : base;
   }
   return col;
 }
@@ -560,6 +572,13 @@ void main(){
   } else if (mat == 15.0) {           // ateş: titrek, kendinden yanan
     float f = vnoise(vec2(ap.x * 0.8 + ap.z * 0.8, ap.y * 0.9 - uTime * 6.0));
     alb = f > 0.6 ? vec3(1.0, 0.86, 0.45) : f > 0.35 ? vec3(0.98, 0.55, 0.16) : vec3(0.8, 0.26, 0.08);
+  } else if (mat == 12.0) {           // uçurum yüzü: yatay kaya katmanları, çatlaklar, üst kenarda ışık, dipte gölge
+    float wv = vnoise(ap.xz * 0.08) * 1.5, lay = ap.y / 3.0 + wv;
+    float tone = hash12(vec2(floor(lay), floor((ap.x + ap.z) / 9.0)));
+    alb = tone > 0.7 ? shade3(alb, 0.08) : tone < 0.25 ? shade3(alb, -0.12) : alb;
+    if (fract(lay) < 0.18) alb = shade3(alb, -0.22);
+    if (hash12(floor(vec2(ap.x + ap.z, ap.y) / vec2(4.0, 2.0))) > 0.94) alb = shade3(alb, -0.3);
+    alb = shade3(alb, clamp((ap.y - 10.0) / 5.0, 0.0, 1.0) * 0.12 - clamp((2.5 - ap.y) / 2.5, 0.0, 1.0) * 0.22);
   } else if (mat == 16.0) {           // taş
     float t = vnoise(ap.xz * 0.35 + ap.y * 0.35);
     float t2 = hash12(floor(ap.xz / 1.5) + floor(ap.y / 1.5));

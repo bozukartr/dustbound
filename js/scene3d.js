@@ -383,15 +383,41 @@
     const a = Math.atan2(v[1], v[0]) / 2 + Math.PI / 2;
     return [Math.cos(a), Math.sin(a)];
   }
+  /* uçurum (CLIFF, MESA, SNOWCLIFF; çarpışmada dolu): karo, 2D'deki kaya yüzü boyunda (World.CFACE) yükseltili yayladır.
+     Üstü zemin dokusundan (oyunun zemin gölgelendiricisi karonun türünü dünya konumundan okur), komşu uçurum değilse yanı
+     dikey katmanlı kaya. Köşeler karo köşesinin karmasıyla birkaç piksel oynar ve komşular aynı köşeyi paylaşır: kenarlar
+     düz çizgi olmaz, aralık kalmaz */
+  const CFH = (typeof World !== 'undefined' && World.CFACE) || 14;
+  const cornerJ = (cx, cy) => [(hash2(cx, cy, 91) - 0.5) * 5, (hash2(cx, cy, 93) - 0.5) * 5];
+  function cliffTile(W, m, tx, ty, OX, OZ) {
+    const t = W.tile[ty * WW + tx];
+    const isC = (x, y) => x < 0 || y < 0 || x >= WW || y >= WH || isCliffT(W.tile[y * WW + x]);
+    const P = (cx, cy, h) => { const j = cornerJ(cx, cy); return [cx * 16 + j[0] - OX, h, cy * 16 + j[1] - OZ]; };
+    const a = [tx, ty], b = [tx + 1, ty], c = [tx + 1, ty + 1], d = [tx, ty + 1];
+    m.set({ mat: MAT.TERRAIN, flags: 0, param: 0, wind: 0, bone: 0 });
+    m.quad(P(...a, CFH), P(...b, CFH), P(...c, CFH), P(...d, CFH), [0.4, 0.5, 0.3], [0, 1, 0]);
+    m.set({ mat: MAT.STRATA });
+    const col = C((typeof TINFO !== 'undefined' && TINFO[t] && TINFO[t].c) || '#5f564c');
+    for (const [p0, p1, nx, ny] of [[a, b, 0, -1], [b, c, 1, 0], [c, d, 0, 1], [d, a, -1, 0]]) {
+      if (isC(tx + nx, ty + ny)) continue;
+      m.quad(P(...p0, CFH), P(...p1, CFH), P(...p1, 0), P(...p0, 0), col, [nx, 0, ny]);
+    }
+  }
   function objects(W, tx0, ty0, tx1, ty1, OX, OZ, out, info) {
     const rng = RNG(tx0 * 31 + ty0 * 17 + 3);
     const isF = (x, y, o) => x >= 0 && y >= 0 && x < WW && y < WH && W.obj[y * WW + x] === o;
     const day = typeof G !== 'undefined' ? G.day : 0, snowy = (tx, ty) => W.season === 3 && W.snowyTile(tx, ty);
     for (let ty = ty0; ty < ty1; ty++) for (let tx = tx0; tx < tx1; tx++) {
       if (tx < 0 || ty < 0 || tx >= WW || ty >= WH) continue;
-      const i = ty * WW + tx, o = W.obj[i];
+      const i = ty * WW + tx, o = W.obj[i], cliff = isCliffT(W.tile[i]);
+      if (cliff) cliffTile(W, out, tx, ty, OX, OZ);
+      // köprü: suya bakan kenarlarında korkuluk
+      if (W.tile[i] === T.BRIDGE) for (const [nx, ny, a, b] of [[0, -1, [0, 0], [16, 0]], [0, 1, [0, 16], [16, 16]], [-1, 0, [0, 0], [0, 16]], [1, 0, [16, 0], [16, 16]]]) {
+        const q = tx + nx >= 0 && ty + ny >= 0 && tx + nx < WW && ty + ny < WH ? W.tile[(ty + ny) * WW + tx + nx] : T.WATER;
+        if (isWaterT(q)) P3.bridgeRail(out, [tx * 16 + a[0] - OX + (nx ? -nx * 0.8 : 0), ty * 16 + a[1] - OZ + (ny ? -ny * 0.8 : 0)], [tx * 16 + b[0] - OX + (nx ? -nx * 0.8 : 0), ty * 16 + b[1] - OZ + (ny ? -ny * 0.8 : 0)]);
+      }
       if (!o || (W.flags[i] & 8)) continue;
-      const x = tx * 16 + 8 - OX, z = ty * 16 + 8 - OZ, y = 0;
+      const x = tx * 16 + 8 - OX, z = ty * 16 + 8 - OZ, y = cliff ? CFH : 0;
       const m = out;
       switch (o) {
         // yaprak döken ağaçlar mevsime uyar (2D'deki gibi): sonbaharda yaprak renkleri, kışın soğuk yerde çıplak dallar

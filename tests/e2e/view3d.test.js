@@ -3,9 +3,10 @@
    Klasik'in yanında 3B seçeneği; seçilince dünya 3B çizilir (tuval yoğunluğu 1, melez kapalı), Kontroller'deki 3B fare
    hassasiyeti satırı etkinleşir, radar kamerayla döner. Ekran kartı yoksa (tarayıcı yazılımla çiziyor) 3B açılmaz:
    ayar geri döner ve bildirilir. Sahne akışlıdır: kameranın çevresindeki parçalar kurulur, uzaklaşanlar atılır; dünya
-   değişince ilgili parça yeniden kurulur. Bina içi ve otelin üst katı (iç duvarlar, oda kapıları, merdiven boşluğu,
-   kilitli odaların örtüsü), dürbün, harita ve ölüm ekranı hatasız; kayıt yüklenince sahne yeni dünyayla kurulur;
-   Melez'e dönünce 3B çizim durur.
+   değişince ilgili parça yeniden kurulur. Her dış nesne türünün, uçurumun, köprünün ve otomobilin 3B modeli var; toplanan
+   ot kaybolur, kışın zemin karlanır, elektrik telleri direklere bağlanır. Bina içi ve otelin üst katı (iç duvarlar, oda
+   kapıları, merdiven boşluğu, kilitli odaların örtüsü), dürbün, harita ve ölüm ekranı hatasız; kayıt yüklenince sahne
+   yeni dünyayla kurulur; Melez'e dönünce 3B çizim durur.
    Test tarayıcısı ekran kartsız (yazılımla) çizer: 3B kare orada yaklaşık bir saniye sürer, test bu yüzden az kare bekler. */
 module.exports = {
   name: '3B çizim (tam oyun)',
@@ -160,7 +161,7 @@ module.exports = {
       t.ok(r.terr, 'zemin dokusu yenilendi', r);
     });
 
-    await t.step('3B modeli olmayan dış nesne kalmadı; mayşe kazanı ve büst iç mekânda', async () => {
+    await t.step('3B modeli olmayan dış nesne kalmadı; uçurum yükseltili, köprü korkuluklu; mayşe kazanı, büst ve otomobil', async () => {
       const r = await p.evaluate(() => {
         const W = G.world, gl = D3.renderer.gl, P = G.player;
         const tx = Math.floor(P.x / 16) + 3, ty = Math.floor(P.y / 16) + 3, i = ty * WW + tx, o0 = W.obj[i], f0 = W.flags[i];
@@ -177,13 +178,40 @@ module.exports = {
           if (!part.mesh || part.mesh.count < 3) miss.push(k);
           if (part.mesh) part.mesh.dispose();
         }
+        W.obj[i] = 0;
+        // uçurum karosu yükseltili kaya bloğu (yanları komşusu uçurum değilse), suya bakan köprü karosu korkuluklu
+        const t0 = W.tile[i], tE = W.tile[i + 1], cnt = () => { const q = D3.objectsPart(gl, W, tx, ty, tx + 1, ty + 1), n = q.mesh ? q.mesh.count : 0; if (q.mesh) q.mesh.dispose(); return n; };
+        const flat = cnt();
+        W.tile[i] = T.CLIFF; const cliff = cnt();
+        W.tile[i] = T.BRIDGE; W.tile[i + 1] = T.WATER; const bridge = cnt();
+        W.tile[i] = t0; W.tile[i + 1] = tE;
         W.obj[i] = o0; W.flags[i] = f0;
         const m1 = new D3.Mesh(256); D3.FURN.vat(m1, 0, 0);
         const m2 = new D3.Mesh(256); D3.FURN.bust(m2, 0, 0);
-        return { miss, vat: m1.count, bust: m2.count };
+        const m3 = new D3.Mesh(256); D3.P3.car(m3, '#16161a');
+        return { miss, vat: m1.count, bust: m2.count, car: m3.count, flat, cliff, bridge };
       });
       t.eq(r.miss, [], 'her dış nesne türü 3B çizilir');
-      t.ok(r.vat > 0 && r.bust > 0, 'mayşe kazanı ve büst', r);
+      t.ok(r.vat > 0 && r.bust > 0 && r.car > 300, 'mayşe kazanı, büst ve otomobil modelleri', r);
+      t.ok(r.flat === 0 && r.cliff >= 6 * 5 && r.bridge > 0, 'uçurum yükseltili, köprü korkuluklu', r);
+    });
+
+    await t.step('otomobil 3B gövdesiyle çizilir, sürücüsü ön koltukta oturur', async () => {
+      await p.evaluate(() => {
+        const P = G.player, road = G.world.roads.filter(r => !r.spur && r.pts.length > 10).sort((a, b) => Math.hypot(a.pts[0][0] - P.x, a.pts[0][1] - P.y) - Math.hypot(b.pts[0][0] - P.x, b.pts[0][1] - P.y))[0];
+        const w = G.motorize(new Wagon(road, 5, 1, false)); G.addEnt(w); window.CAR = w;
+        w.max = 0; w.spd = 0;
+        TH.goto(w.x + 30, w.y + 30);
+      });
+      await frames(4);
+      const r = await p.evaluate(() => {
+        const cap = D3.state.cap, car = cap.find(c => c.k === 'car'), drv = cap.find(c => c.k === 'h' && c.e === CAR && c.st && c.st.car);
+        const out = { car: !!car, driver: !!drv, hasDriver: !!CAR.driver };
+        CAR.remove = true; G.ents = G.ents.filter(e => e !== CAR);
+        return out;
+      });
+      t.ok(r.car, 'otomobil sahnede', r);
+      if (r.hasDriver) t.ok(r.driver, 'sürücü koltukta', r);
     });
 
     await t.step('toplanan ot 3B\'de hemen kaybolur, yeniden yeşerince görünür; kazı yeri parıldar', async () => {

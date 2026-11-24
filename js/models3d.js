@@ -839,6 +839,71 @@
     if (snowy) { m.box(x, y + 12.4, z, 4.6, 0.35, 3.7, C('#e8edf2')); m.ell(x, y + 26.6, z, 1.2, 0.5, 1.2, C('#e8edf2'), { nu: 6, nv: 3 }); }
   };
 
+  /* otomobil (2D'deki tenteli siyah gezinti otomobili; js/sprites.js Spr.motor ölçüleri): yerel x ileri, z sağ.
+     İnce yüksek tekerlekler köşelerde, uzun ince kaput, pirinç radyatör ve fenerler, çamurluklar ve aralarında basamak,
+     ön cam, iki sıra deri koltuk, dört kemerli kumaş tente; arkada kırmızı lamba */
+  P3.car = (m, col) => {
+    const blk = C(col || '#16161a'), gloss = C('#50505c'), brass = C('#c8a040'), tire = C('#0d0c0b'), hub = C('#3a342c');
+    const FA = 9.2, RA = -8.6, WR = 3.6;
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0, param: 0 });
+    // ince, yüksek tekerlekler (dingil boyunca yatık silindir), pirinç göbek
+    for (const [ax, sz] of [[FA, 5.75], [RA, 5.5]]) for (const sd of [-1, 1]) {
+      m.push(M4.mul(M4.translate(ax, WR, sd * sz), M4.rotX(Math.PI / 2)));
+      m.cyl(0, -0.65, 0, WR, 1.3, tire, { seg: 12, bottom: true, topCol: hub });
+      m.pop();
+      m.box(ax, WR, sd * (sz + 0.7), 0.55, 0.55, 0.1, brass);
+    }
+    // şasi, basamaklar, tekerleklerin üstünde kavisli çamurluklar
+    m.box(-1, 4.4, 0, 11.6, 0.6, 3.4, C('#1a1a1e'));
+    for (const sd of [-1, 1]) {
+      m.box(0.2, 4.1, sd * 4.65, 5.6, 0.35, 0.65, C('#4a443a'), { top: C('#8c8678') });
+      for (const [ax, hz] of [[FA, 4.6], [RA, 4.7]]) {
+        m.box(ax, WR * 2 + 0.6, sd * hz, 3.2, 0.3, 0.85, blk, { top: gloss });
+        m.box(ax + 3.4, WR + 2.2, sd * hz, 0.3, 2.4, 0.85, blk); m.box(ax - 3.4, WR + 2.2, sd * hz, 0.3, 2.4, 0.85, blk);
+      }
+    }
+    // gövde: arka kasa (yüksek yanlı), ön panel; kaput ve menteşe sırtı
+    m.box(-5.1, 8.2, 0, 7.9, 3.4, 4, blk, { top: C('#202027') });
+    m.box(6.8, 7.4, 0, 3.9, 2.4, 2.1, C('#202027'), { top: C('#26262e') });
+    m.box(6.8, 9.85, 0, 3.7, 0.1, 0.45, C('#5c5c6a'));
+    // pirinç radyatör (kapaklı) ve iki fener
+    m.box(11, 7.9, 0, 0.75, 3.1, 2.1, brass, { top: C('#f2d878') });
+    m.cyl(11, 11, 0, 0.5, 0.6, C('#efe0a0'), { seg: 6 });
+    for (const sd of [-1, 1]) {
+      m.push(M4.mul(M4.translate(11.6, 9.2, sd * 3.5), M4.rotZ(-Math.PI / 2)));
+      m.cyl(0, -0.6, 0, 0.95, 1.2, C('#b8892e'), { seg: 8, topCol: C('#f6eed6') });
+      m.pop();
+    }
+    // direksiyon ve ön cam
+    m.tube([2.2, 11.2, -2.2], [0.6, 13.6, -2.2], 0.2, 0.2, C('#2a2420'), { seg: 4 });
+    m.push(M4.mul(M4.translate(0.6, 13.8, -2.2), M4.rotZ(0.7))); m.cyl(0, -0.15, 0, 1.4, 0.3, C('#2a2420'), { seg: 10 }); m.pop();
+    m.set({ mat: MAT.GLASS, flags: F.NOSHADOW });
+    m.box(2.6, 14.4, 0, 0.15, 2.8, 3.7, C('#aabec6'));
+    m.set({ mat: MAT.SOLID, flags: 0 });
+    m.box(2.6, 17.3, 0, 0.3, 0.2, 3.9, brass);
+    // koltuklar (deri): ön ve arka sıra, oturak ve sırtlık
+    const lea = C('#3a2a1e');
+    for (const sx of [0.2, -8.2]) { m.box(sx - 0.8, 10.3, 0, 2.3, 0.7, 3.4, lea); m.box(sx - 3, 12.8, 0, 0.6, 2.8, 3.4, lea); }
+    // tente: dört kemer (dikme) ve kumaş üst (oturan kişinin başının üstünde)
+    for (const x of [1.6, -11]) for (const sd of [-1, 1]) m.box(x, 18.6, sd * 3.9, 0.25, 7.8, 0.25, C('#433e37'));
+    m.set({ mat: MAT.CLOTH, flags: F.TWOSIDED });
+    m.box(-4.6, 26.6, 0, 6.8, 0.3, 4.2, C('#2b2825'), { top: C('#2f2c28') });
+    m.set({ mat: MAT.SOLID, flags: 0 });
+    for (const x of [-9.6, -6.4, -3.2, 0]) m.box(x, 26.95, 0, 0.45, 0.08, 4.1, C('#433e37'));
+    // arka lamba
+    m.set({ mat: MAT.EMIT, flags: F.NOSHADOW }); m.box(-13.05, 8.6, -3, 0.1, 0.55, 0.55, C('#b8402a')); m.set({ mat: MAT.SOLID, flags: 0 });
+  };
+  // köprü korkuluğu: karonun su tarafındaki kenarı boyunca dikmeler ve tırabzan (a, b: kenarın iki ucu, yerel)
+  P3.bridgeRail = (m, a, b) => {
+    const w = C('#5a3e26'), lt = C('#7a5836');
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0, param: 0 });
+    for (const t of [0, 0.5, 1]) { const x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t; m.box(x, 3, z, 0.6, 3, 0.6, w, { top: lt }); }
+    m.set({ mat: MAT.PLANKH });
+    m.tube([a[0], 6, a[1]], [b[0], 6, b[1]], 0.45, 0.45, lt, { seg: 4, caps: false });
+    m.tube([a[0], 3.4, a[1]], [b[0], 3.4, b[1]], 0.3, 0.3, w, { seg: 4, caps: false });
+    m.set({ mat: MAT.SOLID });
+  };
+
   /* ---------------- tren ----------------
      Oyunun vagon çizimi (js/sprites.js trainCar) ölçüsünde: yerel x ileri (lokomotifin burnu +x), z yanlar, y yukarı;
      boy 28 (±14), en 12 (±6). Lokomotif: siyah kazan ve bantlar, önde baca ve buhar kubbesi, arkada kırmızı makinist
