@@ -188,7 +188,8 @@
         for (let k = 0; k < nl; k++) m.box(X0 + Wd / 2 - sw + 2.4 + k * (2 * sw - 4.8) / Math.max(1, nl - 1), sy, Z1 + 1.15, 0.8 + rng() * 0.5, sh * 0.42, 0.12, ink);
       }
     }
-    // baca: ocaklı yapıda arka duvarda
+    // baca: ocaklı yapıda arka duvarda (duman bu tepeden çıkar)
+    const extra = {};
     let hearthX = null;
     for (let ly = 1; ly < b.h - 1 && hearthX === null; ly++) for (let lx = 1; lx < b.w - 1; lx++) { if (HEARTHS.has(W.obj[(b.y + ly) * WW + b.x + lx])) { hearthX = X0 + lx * 16 + 8; break; } }
     if (hearthX !== null) {
@@ -196,9 +197,47 @@
       m.set({ mat: MAT.STONE, flags: F.ROOF, param: 0 });
       m.box(hearthX, top / 2, Z0 + 6, 3.4, top / 2, 3.4, C('#6a5a4c'));
       m.set({ mat: MAT.SOLID }); m.box(hearthX, top + 0.4, Z0 + 6, 4, 0.6, 4, C('#4a3e34'));
+      extra.chimney = [hearthX + OX, Z0 + 6 + OZ, top + 1.2];
+    }
+    // şerif, mahkeme, istasyon ve banka: çatıda bayrak direği (dalgalanan bayrak rüzgâra döner, js/demo3d.js)
+    if (type === 'sheriff' || type === 'county' || type === 'station' || type === 'bank') {
+      let px = X0 + 10, pz, base;
+      if (!gable) { pz = Z1 - 1.2; base = Hw + (d.tall ? 10 : 13) + 1.7; }
+      else if (!gz) { pz = Z0 + Hd / 2; base = Hw + 0.5 * Hd / 2; }
+      else { px = X0 + Wd / 2; pz = Z1 - 4; base = Hw + 0.6 * Wd / 2 - 2; }
+      const H = 19;
+      m.set({ mat: MAT.SOLID, flags: F.ROOF, param: 0, wind: 0 });
+      m.tube([px, base - 1, pz], [px, base + H, pz], 0.5, 0.38, C('#3a2a1a'), { seg: 6 });
+      m.cyl(px, base + H, pz, 0.75, 0.9, BRASSC, { seg: 6, r2: 0.2 });
+      extra.flag = [px + OX, pz + OZ, base + H - 1.0, type === 'sheriff' || type === 'county' ? 'law' : 'blue'];
+    }
+    // çamaşırhane ve bazı evler: yan duvardan direğe gerilmiş ip, rüzgârda sallanan çamaşırlar
+    if (type === 'laundry' || (type === 'house' && hash2(b.x, b.y, 61) < 0.35)) {
+      const lx0 = X1 + 0.6, lx1 = X1 + 28, lz = Z1 - 10, lh = 12.5, sagAt = (x) => lh + 0.4 - Math.sin((x - lx0) / (lx1 - lx0) * Math.PI) * 1.6;
+      m.set({ mat: MAT.SOLID, flags: 0, param: 0, wind: 0 });
+      m.tube([lx1, -0.5, lz], [lx1, lh + 1.6, lz], 0.55, 0.45, C('#4a3624'), { seg: 6 });
+      let prev = [lx0, sagAt(lx0), lz];
+      for (let k = 1; k <= 8; k++) { const x = lx0 + (lx1 - lx0) * k / 8, q = [x, sagAt(x), lz]; m.tube(prev, q, 0.2, 0.2, C('#6a5a44'), { seg: 3, caps: false }); prev = q; }
+      const cols = ['#e8e4d8', '#b8c8d8', '#c8a878', '#e8d8d0', '#8a9aaa'];
+      for (let k = 0; k < 4; k++) {
+        const cx = lx0 + 5.4 + k * 5.6, top = sagAt(cx) - 0.2;
+        cloth(m, cx - 1.9, cx + 1.9, top, top - (4.6 + (k % 2) * 1.6), lz, C(cols[(k + b.x) % cols.length]));
+      }
+      extra.laundry = [lx0 + OX, lx1 + OX, lz + OZ];
     }
     if (enter) interior(m, b, W, OX, OZ, Hw, rng);
-    return { m, Hw };
+    return { m, Hw, extra };
+  }
+  /* asılı kumaş (çamaşır): ipten (üst kenar) aşağı sallanır; rüzgâr payı aşağıda büyür (F.CLOTH, gölgelendiricide dalga) */
+  function cloth(m, x0, x1, y0, y1, z, col) {
+    m.set({ mat: MAT.CLOTH, flags: F.CLOTH | F.TWOSIDED, param: 0, windH: 0 });
+    const NX = 2, NY = 3, P = (i, j) => [x0 + (x1 - x0) * i / NX, y0 + (y1 - y0) * j / NY, z], n = [0, 0, 1];
+    const v = (i, j) => { m.st.wind = j / NY; m.vw(P(i, j), n, col); };
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+      v(i, j); v(i + 1, j); v(i + 1, j + 1);
+      v(i, j); v(i + 1, j + 1); v(i, j + 1);
+    }
+    m.set({ wind: 0, flags: 0, mat: MAT.SOLID });
   }
 
   /* ---------------- iç mekân ---------------- */
@@ -378,6 +417,45 @@
     return { tb, grass: new Float32Array(grass.flat()), water: new Float32Array(water.flat()) };
   }
 
+  /* ---------------- demiryolu ----------------
+     Oyunun ray çizgisi (world.rails, dünya pikseli): her 4 pikselde bir travers (çizgiye dik), iki yanda 3 piksel
+     uzakta çelik ray (çizginin ortalama normaline göre kaydırılmış noktalar arasında). Traversler yarı gömülü. */
+  function railMesh(m, r, x0, z0, x1, z1, OX, OZ) {
+    const tie = C('#4a3522'), tieTop = C('#5a4430'), steel = C('#6e6e72'), steelTop = C('#b4b4b8');
+    const inb = (p) => p[0] > x0 && p[0] < x1 && p[1] > z0 && p[1] < z1;
+    const obox = (cx, cy, cz, ang, hl, hh, hw, col, top) => {
+      m.push(M4.mul(M4.translate(cx, cy, cz), M4.rotY(-ang)));
+      m.box(0, 0, 0, hl, hh, hw, col, { top, skip: ['bottom'] });
+      m.pop();
+    };
+    m.set({ mat: MAT.PLANKH, flags: 0, param: 0, wind: 0, bone: 0 });
+    let acc = 0;
+    for (let i = 0; i < r.length - 1; i++) {
+      const A = r[i], B = r[i + 1];
+      const L = Math.hypot(B[0] - A[0], B[1] - A[1]);
+      if (L < 1e-3) continue;
+      if (!inb(A) && !inb(B)) { acc += L; continue; }
+      const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L, na = Math.atan2(ux, -uz);
+      for (let s0 = (4 - (acc % 4)) % 4; s0 <= L; s0 += 4) obox(A[0] + ux * s0 - OX, 0.35, A[1] + uz * s0 - OZ, na, 5.2, 0.7, 0.85, tie, tieTop);
+      acc += L;
+    }
+    m.set({ mat: MAT.SOLID });
+    for (const off of [-3, 3]) {
+      let prev = null;
+      for (let i = 0; i < r.length; i++) {
+        const [ax, ay] = r[i], [bx, by] = r[Math.min(i + 1, r.length - 1)], [cx, cy] = r[Math.max(i - 1, 0)];
+        if (!inb(r[i])) { prev = null; continue; }
+        const L = Math.hypot(bx - cx, by - cy) || 1, nx = -(by - cy) / L, ny = (bx - cx) / L;
+        const p = [ax + nx * off - OX, ay + ny * off - OZ];
+        if (prev) {
+          const dx = p[0] - prev[0], dz = p[1] - prev[1], sl = Math.hypot(dx, dz);
+          if (sl > 0.01) obox((p[0] + prev[0]) / 2, 1.25, (p[1] + prev[1]) / 2, Math.atan2(dz, dx), sl / 2 + 0.15, 0.45, 0.42, steel, steelTop);
+        }
+        prev = p;
+      }
+    }
+  }
+
   /* ---------------- sahne ----------------
      R: bölge (karo) {x0, y0, x1, y1}: binalar ve nesneler; zemin dokusu bunun G karo ötesine dek (üçüncü şahıs kamerada
      ufka bakılır: zemin sisin içine kadar uzanır) */
@@ -394,8 +472,8 @@
     // binalar: bölgeye değen her bina bütün olarak
     for (const b of W.buildings) {
       if (b.x + b.w < R.x0 || b.x > R.x1 || b.y + b.h + 1 < R.y0 || b.y > R.y1) continue;
-      const { m, Hw } = building(b, W, OX, OZ);
-      const P = { mesh: new GPUMesh(gl, m), b, Hw, cut: false, cutH: 6, winLit: false, wins: W.lights.filter(L => L.type === 'window' && L.b === b.id) };
+      const { m, Hw, extra } = building(b, W, OX, OZ);
+      const P = Object.assign({ mesh: new GPUMesh(gl, m), b, Hw, cut: false, cutH: 6, winLit: false, wins: W.lights.filter(L => L.type === 'window' && L.b === b.id) }, extra);
       parts.push(P); bparts.set(b.id, P);
     }
     // dış nesneler: 16×16 karoluk parçalar (görünmeyen parça çizilmez)
@@ -404,6 +482,10 @@
       objects(W, cx, cy, Math.min(R.x1, cx + 16), Math.min(R.y1, cy + 16), OX, OZ, m);
       if (m.count) parts.push({ mesh: new GPUMesh(gl, m) });
     }
+    // demiryolu: bölgeye (ve payına) değen kısmı
+    const rm = new Mesh(16384);
+    for (const r of W.rails || []) railMesh(rm, r, (R.x0 - 6) * 16, (R.y0 - 6) * 16, (R.x1 + 6) * 16, (R.y1 + 6) * 16, OX, OZ);
+    if (rm.count) parts.push({ mesh: new GPUMesh(gl, rm), rails: true });
     const tw = R.x1 - R.x0 + 2 * G, th = R.y1 - R.y0 + 2 * G;
     const tex = D3.renderer.tileTexture(tileTex(W, R.x0 - G, R.y0 - G, tw, th), tw, th);
     // karo dokusunun yerel karo ızgarasındaki köşesi: yerel (0,0) = bölgenin köşesi

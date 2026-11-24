@@ -542,6 +542,93 @@
     m.pop();
   };
 
+  /* ---------------- tren ----------------
+     Oyunun vagon çizimi (js/sprites.js trainCar) ölçüsünde: yerel x ileri (lokomotifin burnu +x), z yanlar, y yukarı;
+     boy 28 (±14), en 12 (±6). Lokomotif: siyah kazan ve bantlar, önde baca ve buhar kubbesi, arkada kırmızı makinist
+     kabini, önde kırmızı mahmuz ve fener; kömür vagonu; yeşil yolcu vagonu (sarı pencereler); kırmızı-kahve yük vagonu. */
+  P3.trainCar = (m, kind) => {
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0, param: 0 });
+    const iron = C('#1e1c1c'), dark = C('#2e2a2a'), wheelC = C('#141212'), rim = C('#3a3030');
+    // şasi ve tekerlekler (her yanda dört)
+    m.box(0, 3.6, 0, 13.6, 0.7, 5.2, dark, { top: C('#3a3434') });
+    for (const wx of [-10, -4.5, 4.5, 10]) for (const sd of [-1, 1]) {
+      m.push(M4.mul(M4.translate(wx, 2.5, sd * 5.1), M4.rotX(Math.PI / 2)));
+      m.cyl(0, -0.5, 0, 2.5, 1, wheelC, { seg: 10, bottom: true, topCol: rim });
+      m.pop();
+    }
+    if (kind === 'loco') {
+      const boiler = C('#24201f'), band = C('#c8a040'), red = C('#6a1a14');
+      m.box(0, 4.6, 0, 14, 0.5, 6, iron);   // yürüme sahanlığı
+      m.tube([-5, 10, 0], [12.6, 10, 0], 4.6, 4.6, boiler, { seg: 12, caps: false });
+      m.push(M4.mul(M4.translate(12.6, 10, 0), M4.rotZ(-Math.PI / 2)));
+      m.cyl(0, 0, 0, 4.7, 0.9, C('#141212'), { seg: 12, topCol: C('#2a2424') });
+      m.pop();
+      for (const bx of [-1.5, 3.5, 8.5]) m.tube([bx - 0.3, 10, 0], [bx + 0.3, 10, 0], 4.75, 4.75, band, { seg: 12, caps: false });
+      m.cyl(9.5, 14, 0, 1.5, 6.5, iron, { seg: 10, r2: 2.4, topCol: C('#0a0808') });      // baca
+      m.cyl(9.5, 20.5, 0, 2.4, 0.6, dark, { seg: 10 });
+      m.ell(3.5, 14.6, 0, 1.9, 1.6, 1.9, C('#c8a040'), { nu: 10, nv: 6, ymin: 0 });      // buhar kubbesi
+      // makinist kabini: kırmızı, koyu pencereler, siyah dam
+      m.set({ mat: MAT.PLANKV });
+      m.box(-9.5, 11.6, 0, 4.4, 6.6, 5.6, red, { top: red });
+      m.set({ mat: MAT.SOLID });
+      for (const sd of [-1, 1]) m.box(-9.5, 14.2, sd * 5.65, 2.6, 2.2, 0.1, C('#1a1414'));
+      m.box(-9.5, 18.6, 0, 5.4, 0.55, 6.4, C('#1a1616'));
+      // mahmuz (önde, kırmızı kama) ve fener
+      const cw = C('#b0302a');
+      m.tri([14, 5.0, -5.2], [14, 5.0, 5.2], [19, 1.0, 0], [0.62, 0.78, 0], null, null, cw);
+      m.tri([14, 1.0, 5.2], [19, 1.0, 0], [14, 5.0, 5.2], [0.3, 0, 0.95], null, null, cw);
+      m.tri([14, 1.0, -5.2], [14, 5.0, -5.2], [19, 1.0, 0], [0.3, 0, -0.95], null, null, cw);
+      m.set({ mat: MAT.EMIT, flags: F.NOSHADOW }); m.box(13.9, 15.2, 0, 0.6, 1.2, 1.3, C('#f0e0a0'));
+      m.set({ mat: MAT.SOLID, flags: 0 }); m.box(13.2, 15.2, 0, 0.8, 1.6, 1.7, C('#2a2420'));
+    } else if (kind === 'tender') {
+      m.set({ mat: MAT.PLANKV });
+      m.box(0, 8.4, 0, 12, 4.4, 5.8, C('#2a2424'), { top: C('#2a2424') });
+      m.set({ mat: MAT.STONE }); m.box(0, 12.9, 0, 10.6, 0.5, 4.6, C('#141010'));
+      m.set({ mat: MAT.SOLID });
+    } else {
+      const fr = kind === 'freight', body = C(fr ? '#6a3a24' : '#3a4a3a'), roof = C(fr ? '#7a4a30' : '#4a5a48');
+      m.set({ mat: fr ? MAT.PLANKV : MAT.PLANKH });
+      m.box(0, 10.4, 0, 13, 6.2, 5.8, body, { top: roof });
+      m.set({ mat: MAT.SOLID });
+      m.box(0, 16.9, 0, 13.6, 0.45, 6.3, shade(roof, -0.2));
+      if (!fr) {
+        m.box(0, 17.8, 0, 9.5, 0.6, 3.2, roof);   // tepe penceresi sırası
+        m.set({ mat: MAT.EMIT, flags: F.NOSHADOW });
+        for (let k = 0; k < 4; k++) for (const sd of [-1, 1]) m.box(-9 + k * 6, 12.4, sd * 5.85, 1.5, 1.6, 0.1, C('#e8d890'));
+        m.set({ mat: MAT.SOLID, flags: 0 });
+        for (const ex of [-13.3, 13.3]) m.box(ex, 10.4, 0, 0.3, 5.2, 2.2, C('#2a3428'));   // uç kapıları
+      } else {
+        for (const sd of [-1, 1]) { m.box(0, 10.2, sd * 5.85, 4.2, 5.2, 0.12, C('#4a2616')); m.box(0, 10.2, sd * 5.95, 0.25, 5.2, 0.1, C('#2a160c')); }
+      }
+    }
+  };
+  /* bayrak kumaşı: direk yerel x = 0'da, kumaş +x yönünde uzanır; rüzgâr payı direkten uzaklaştıkça artar (F.CLOTH) */
+  P3.flagCloth = (m, kind) => {
+    const L = 9, H = 5.4, NX = 6, NY = 2;
+    const cols = kind === 'law' ? [C('#a82a22'), C('#e8e0d0')] : [C('#2a4a7a'), C('#d8d0c0')];
+    m.set({ mat: MAT.CLOTH, flags: F.CLOTH | F.TWOSIDED | F.ROOF, param: 0, windH: 0, bone: 0 });
+    const n = [0, 0, 1];
+    const v = (i, j, col) => { m.st.wind = Math.pow(i / NX, 0.8); m.vw([0.4 + L * i / NX, -H * j / NY, 0], n, col); };
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+      const col = kind === 'law' ? cols[(j + (i >> 1)) % 2] : (j === 0 && i < 3 ? cols[0] : cols[(i + j) % 2]);
+      v(i, j, col); v(i + 1, j, col); v(i + 1, j + 1, col);
+      v(i, j, col); v(i + 1, j + 1, col); v(i, j + 1, col);
+    }
+    m.set({ wind: 0, flags: 0, mat: MAT.SOLID });
+  };
+  /* yuvarlanan çalı: kuru dallardan top (merkez yerel 0, yarıçap r) */
+  P3.tumble = (m, r) => {
+    const rng = RNG(Math.round(r * 977));
+    m.set({ mat: MAT.SOLID, wind: 0, flags: 0, bone: 0 });
+    const cols = [C('#9a7a4a'), C('#8a6a3c'), C('#b08c58')];
+    for (let k = 0; k < 14; k++) {
+      const a1 = rng() * Math.PI * 2, b1 = (rng() - 0.5) * Math.PI, a2 = a1 + 1.2 + rng() * 2, b2 = (rng() - 0.5) * Math.PI;
+      const P1 = [Math.cos(a1) * Math.cos(b1) * r, Math.sin(b1) * r, Math.sin(a1) * Math.cos(b1) * r];
+      const P2 = [Math.cos(a2) * Math.cos(b2) * r * 0.85, Math.sin(b2) * r * 0.85, Math.sin(a2) * Math.cos(b2) * r * 0.85];
+      m.tube(P1, P2, 0.28, 0.22, cols[k % 3], { seg: 3, caps: false });
+    }
+  };
+
   /* ---------------- iç mekân eşyaları ----------------
      (x, z): karonun merkezi; yer y = 0. o.back: arka duvar karosu; o.wallZ: arka duvarın iç yüzü */
   const FURN = {

@@ -54,8 +54,6 @@ const D3 = window.D3 = window.D3 || {};
       m[12] = -V3.dot(x, eye); m[13] = -V3.dot(y, eye); m[14] = -V3.dot(z, eye); m[15] = 1;
       return m;
     },
-    // perspektif: dikey görüş açısı fy, en-boy oranı, yakın ve uzak düzlem
-    persp(fy, asp, n, f) { const t = 1 / Math.tan(fy / 2), m = new Float32Array(16); m[0] = t / asp; m[5] = t; m[10] = (f + n) / (n - f); m[11] = -1; m[14] = 2 * f * n / (n - f); return m; },
     translate(x, y, z) { const m = M4.ident(); m[12] = x; m[13] = y; m[14] = z; return m; },
     scale(x, y, z) { const m = M4.ident(); m[0] = x; m[5] = y; m[10] = z; return m; },
     rotX(a) { const m = M4.ident(), c = Math.cos(a), s = Math.sin(a); m[5] = c; m[6] = s; m[9] = -s; m[10] = c; return m; },
@@ -99,8 +97,9 @@ const D3 = window.D3 = window.D3 || {};
     PAPER: 10, GLASS: 11, STRATA: 12, CLOTH: 13, HAIR: 14, FIRE: 15, STONE: 16, CHECK: 17, PLASTER: 18, BRICK: 19, STRAW: 20,
   };
   // aux.z: CUT kesitte kameraya bakan duvar alçalır; HIDECUT kesitte gizlenir (süs); ROOF kesitte gizlenir ama gölge düşürür;
-  // HOLE oyuncunun önünü kapatınca oyuncunun çevresinde delinir (taç, saçak)
-  const F = { CUT: 1, HIDECUT: 2, ROOF: 4, NOSHADOW: 8, NOOUTLINE: 16, TWOSIDED: 32, HOLE: 64 };
+  // HOLE oyuncunun önünü kapatınca oyuncunun çevresinde delinir (taç, saçak); CLOTH kumaş: rüzgârda dalgalanır (bayrak,
+  // çamaşır; dalga genliği aux.y rüzgâr payıyla, direkten ya da ipten uzaklaştıkça artar)
+  const F = { CUT: 1, HIDECUT: 2, ROOF: 4, NOSHADOW: 8, NOOUTLINE: 16, TWOSIDED: 32, HOLE: 64, CLOTH: 128 };
   const SIDE = { e: 0, s: 0.25, w: 0.5, n: 0.75 };   // dış yön açısı / 2π (kesit için)
 
   /* ---------------- gürültü (JS) ---------------- */
@@ -317,6 +316,13 @@ void main(){
   vec3 n = mat3(B) * aNor;
   int fl = int(aAux.z * 255.0 + 0.5);
   float w = aAux.y * uWind;
+  if ((fl & 128) != 0) {
+    // kumaş: yüzeyine dik dalga; dalga direkten (yerel x) ya da ipten (yerel y) uzaklaştıkça büyür
+    float ph = uTime * (5.0 + uWind * 2.5) - aPos.x * 0.85 + aPos.y * 0.35 + wp.x * 0.013 + wp.z * 0.017;
+    float wv = sin(ph) + 0.35 * sin(ph * 2.1 + 1.3);
+    wp.xyz += normalize(n) * wv * aAux.y * (0.9 + uWind * 0.9);
+    w = 0.0;
+  }
   if (w > 0.0) {
     float ph = uTime * 1.6 + wp.x * 0.045 + wp.z * 0.037;
     wp.x += (sin(ph) + 0.4 * sin(ph * 2.3 + 1.7)) * w * 0.7;
@@ -364,17 +370,17 @@ uniform vec4 uInRect;        // oyuncunun içinde olduğu bina (yerel x0, z0, x1
 uniform float uInH;
 uniform vec3 uHole;          // oyuncunun ekran konumu (piksel) ve derinliği: önündeki taç ve saçak delinir
 uniform float uHoleR, uHoleAll;
-uniform vec3 uEye;           // kamera (yerel): ona çok yaklaşan nesne titreşimli saydamlaşır (kamera içinden geçmez)
+uniform sampler2D uDecal;     // zemin izleri (ayak/toynak izi, birikinti, yanık): dünya pikseli başına bir doku pikseli
+uniform vec4 uDecalRect;      // yerel x0, z0, genişlik, yükseklik (birim); genişlik 0 ise yok
+uniform vec4 uCloud;          // bulut gölgesi: desen kayması (yerel x, z), güç (0 kapalı), örtü
 layout(location=0) out vec4 oAlb;
 layout(location=1) out vec4 oNor;
 ${NOISE_GLSL}
-// gölge kutusu kameranın önündeki zemini kapsar; kenarına doğru gölge yumuşakça söner (kesik çizgi kalmaz)
 float shadowVis(){
   vec3 p = vLS.xyz / vLS.w * 0.5 + 0.5;
   if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0 || p.z > 1.0) return 1.0;
   float d = texture(uShadow, p.xy).r;
-  float s = p.z - 0.0006 > d ? 0.0 : 1.0;
-  return mix(s, 1.0, smoothstep(0.8, 1.0, max(abs(p.x - 0.5), abs(p.y - 0.5)) * 2.0));
+  return p.z - 0.0006 > d ? 0.0 : 1.0;
 }
 int tileAt(vec2 q){
   vec2 t = floor(q / 16.0) - uTileRect.xy;
@@ -384,18 +390,15 @@ int tileAt(vec2 q){
 bool isWater(int t){ return t == 0 || t == 1 || t == 20; }
 vec3 ramp(vec3 c, float k){ return k < 0.0 ? mix(c, vec3(0.16, 0.12, 0.09), -k) : mix(c, vec3(0.96, 0.92, 0.8), k); }
 // karo sınırını kır: örnek noktası gürültüyle birkaç piksel kayar (aynı kayma su ve zeminde)
-int tileJit(vec3 p, float fw){
+int tileJit(vec3 p){
   vec2 q = floor(p.xz / uCell) * uCell;
   vec2 j = vec2(vnoise(q * 0.21 + 11.0), vnoise(q * 0.21 + 37.0)) - 0.5;
-  return tileAt(q + j * 7.0 + (mix(bayer(p.xz / uCell), 0.5, clamp((fw - 1.3) / 2.5, 0.0, 1.0)) - 0.5) * 1.5);
+  return tileAt(q + j * 7.0 + (bayer(p.xz / uCell) - 0.5) * 1.5);
 }
-// fw: pikselin zemindeki boyu (birim). Uzakta bir piksel birkaç birimi kaplar: ince desen (titreşim, tutam, çakıl)
-// ortalamasına söner, yoksa kamera kıpırdadıkça karıncalanır
-vec3 terrain(vec3 p, vec3 n, int t, out float matOut, float fw){
+vec3 terrain(vec3 p, vec3 n, int t, out float matOut){
   vec2 q = floor(p.xz / uCell) * uCell;
-  float f1 = clamp((fw - 1.3) / 2.5, 0.0, 1.0), f2 = clamp((fw - 4.0) / 8.0, 0.0, 1.0);
-  float b = mix(bayer(p.xz / uCell), 0.5, f1);
-  float n1 = vnoise(q * 0.031), n2 = mix(vnoise(q * 0.12 + 7.3), 0.5, f2), n3 = mix(vnoise(q * 0.45 + 3.1), 0.5, f1);
+  float b = bayer(p.xz / uCell);
+  float n1 = vnoise(q * 0.031), n2 = vnoise(q * 0.12 + 7.3), n3 = vnoise(q * 0.45 + 3.1);
   matOut = 4.0;
   vec3 base = uTB[t];
   vec3 col = base;
@@ -411,7 +414,7 @@ vec3 terrain(vec3 p, vec3 n, int t, out float matOut, float fw){
     float g = n2 * 0.55 + n3 * 0.45 + (b - 0.5) * 0.3;
     col = ramp(base, g < 0.32 ? -0.16 : g < 0.62 ? 0.0 : 0.1);
     if (n3 > 0.8 && b > 0.55) col = ramp(base, 0.22);
-    if (f1 < 0.5 && hash12(floor(q / 2.0)) > 0.985) col = ramp(base, -0.3);
+    if (hash12(floor(q / 2.0)) > 0.985) col = ramp(base, -0.3);
   } else if (t == 19) {                        // tahta döşeme (veranda)
     float row = floor(p.x / 3.0);
     float seam = step(0.86, fract(p.x / 3.0));
@@ -445,9 +448,9 @@ float waterDepth(vec2 q){
   }
   return d;
 }
-vec3 waterCol(vec3 p, out float glint, float fw){
+vec3 waterCol(vec3 p, out float glint){
   vec2 q = floor(p.xz / uCell) * uCell;
-  float b = mix(bayer(p.xz / uCell), 0.5, clamp((fw - 1.3) / 2.5, 0.0, 1.0));
+  float b = bayer(p.xz / uCell);
   float t = uTime;
   glint = 0.0;
   float d = clamp(waterDepth(q) + (vnoise(q * 0.08) - 0.5) * 0.2, 0.0, 1.0);
@@ -467,8 +470,6 @@ vec3 waterCol(vec3 p, out float glint, float fw){
   return col;
 }
 void main(){
-  // türevler dallanmadan önce (bütün piksel dörtlüsü aynı yoldayken)
-  float fw = max(length(dFdx(vPos.xz)), length(dFdy(vPos.xz)));
   int fl = int(vAux.z * 255.0 + 0.5);
   if (((fl & 64) != 0 || uHoleAll > 0.5) && uHoleR > 0.0) {
     // oyuncunun önündeki taç ve saçak: oyuncu çevresinde delik (kenarı titreşimli)
@@ -478,17 +479,21 @@ void main(){
   vec3 n = normalize(vNor);
   if (!gl_FrontFacing) n = -n;
   float mat = floor(vCol.a * 255.0 + 0.5);
-  if (mat != 4.0) {
-    float a = (length(vPos - uEye) - 5.0) / 9.0;
-    if (a < 1.0 && bayer(gl_FragCoord.xy) > a) discard;
-  }
   vec3 alb = vCol.rgb;
   float glint = 0.0;
   vec3 ap = vPos;
   if (mat == 4.0) {
-    int tt = tileJit(vPos, fw);
-    if (isWater(tt)) { alb = waterCol(vPos, glint, fw); mat = 2.0; n = vec3(0.0, 1.0, 0.0); }
-    else alb = terrain(vPos, n, tt, mat, fw);
+    int tt = tileJit(vPos);
+    if (isWater(tt)) { alb = waterCol(vPos, glint); mat = 2.0; n = vec3(0.0, 1.0, 0.0); }
+    else alb = terrain(vPos, n, tt, mat);
+    // zemin izleri: oyunun kendi 2D zemin çizimi (izler, birikintiler, yanık, sudaki halkalar) dünyaya oturan dokudan
+    if (uDecalRect.z > 0.0) {
+      ivec2 dp = ivec2(floor(vPos.xz - uDecalRect.xy));
+      if (dp.x >= 0 && dp.y >= 0 && float(dp.x) < uDecalRect.z && float(dp.y) < uDecalRect.w) {
+        vec4 dc = texelFetch(uDecal, dp, 0);
+        alb = mix(alb, dc.rgb, dc.a);
+      }
+    }
   } else if (mat == 5.0) {            // yatay tahta (dış cephe)
     float r = fract(ap.y / 3.0);
     float seam = step(0.86, r);
@@ -564,6 +569,14 @@ void main(){
   if (mat == 1.0) sun = clamp(dot(n, uSunDir) * 0.55 + 0.45, 0.0, 1.0);
   sun *= shadowVis();
   bool indoor = vPos.x > uInRect.x && vPos.x < uInRect.z && vPos.z > uInRect.y && vPos.z < uInRect.w && vPos.y < uInH;
+  // rüzgârla kayan bulut gölgeleri: dünyaya oturan desen (güneşe göre kayık), zemine, çatıya ve canlılara düşer
+  if (uCloud.z > 0.0 && !indoor) {
+    vec2 q = (vPos.xz - uCloud.xy - uSunDir.xz / max(uSunDir.y, 0.25) * vPos.y) / 300.0;
+    float cn = vnoise(q * 1.3) * 0.55 + vnoise(q * 2.9 + 5.1) * 0.3 + vnoise(q * 6.1 + 9.7) * 0.15;
+    float th = 0.69 - uCloud.w * 0.2;
+    float c = smoothstep(th - 0.025, th + 0.025, cn);
+    sun *= 1.0 - c * uCloud.z;
+  }
   oAlb = vec4(alb, mat / 255.0);
   oNor = vec4(n * 0.5 + 0.5, indoor ? sun * 0.49 : 0.51 + sun * 0.49);
   if (glint > 0.5) oAlb.a = 21.0 / 255.0;
@@ -582,22 +595,17 @@ uniform sampler2D uAlb, uNor;
 uniform highp sampler2D uDep;
 uniform mat4 uInvVP;
 uniform vec2 uRes;
-uniform float uNear, uFar, uTime, uNightMul, uOutline;
-uniform float uPxK;         // derinlik birimi başına piksel boyu (perspektif: uzaktaki piksel daha çok yer kaplar)
-uniform vec3 uSkyTop, uSkyHor, uSunGlow, uSunDir;   // gök: tepe ve ufuk rengi, güneş (ya da ay) parıltısı ve yönü
-uniform float uStars, uCloud, uMoon;
-uniform vec3 uCloudCol;     // bulutun aydınlık yüzü (gündüz beyaz, akşam sıcak, gece koyu)
-uniform vec2 uFog;          // sis başlangıcı ve tam sis (birim)
-uniform vec3 uSunCol, uSky, uGround;
+uniform float uNear, uFar, uTime, uNightMul, uOutline, uPx;
+uniform ivec2 uPixOff;      // kameranın piksele oturmuş kayması (mod 4): ton titreşimi yüzeyle birlikte kayar, ekrana yapışmaz
+uniform vec3 uSunCol, uSky, uGround, uBg;
 uniform float uSunK, uAmbK;
 uniform int uNL;
 uniform vec4 uLP[${NL}];   // xyz konum, w yarıçap
 uniform vec4 uLC[${NL}];   // rgb renk, a şiddet
 out vec4 o;
 const vec3 SHD = vec3(46.0, 36.0, 66.0) / 255.0, HIL = vec3(255.0, 244.0, 210.0) / 255.0, INK = vec3(16.0, 10.0, 8.0) / 255.0;
-${NOISE_GLSL}
+const float BAY[16] = float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);
 float lum(vec3 c){ return dot(c, vec3(0.3, 0.59, 0.11)); }
-float bayPx(ivec2 p){ return (BAY[(p.y & 3) * 4 + (p.x & 3)] + 0.5) / 16.0; }
 // oyunun toneTo'su (js/hybrid.js): 0 en koyu, 2 kendisi, 4 en açık; ink > 0 ise mürekkep karışır
 vec3 toneTo(vec3 c, int k, float ink){
   float l = lum(c);
@@ -653,49 +661,11 @@ vec3 shade(ivec2 p, int mat, vec3 alb, int kf, float ink){
   lightAt(p, L, tint, lamp);
   if (mat == 3 || mat == 15) return kf >= 0 ? toneTo(alb, 1, 0.2) : alb;   // kendinden yanan
   if (mat == 21) return vec3(1.0, 0.98, 0.9);                               // su pırıltısı
-  float bay = bayPx(p);
+  ivec2 bp = (p + uPixOff) & 3;
+  float bay = (BAY[bp.y * 4 + bp.x] + 0.5) / 16.0;
   float Ld = L + (bay - 0.5) * 0.05;
   int k = kf >= 0 ? kf : (Ld < 0.12 ? 0 : Ld < 0.36 ? 1 : Ld < 0.72 ? 2 : Ld < 0.88 ? 3 : 4);
   return toneTo(alb, k, ink) * tint * mix(uNightMul, 1.0, lamp);
-}
-// perspektif derinlik: pencere derinliği → kameradan uzaklık (doğrusal) ve onun pencere derinliğine göre türevi
-float linZ(float dz){ float z = dz * 2.0 - 1.0; return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear)); }
-float dLdz(float L){ return (uFar - uNear) * L * L / (uNear * uFar); }
-vec3 rayDir(ivec2 p){ return normalize(worldAt(p, 1.0) - worldAt(p, 0.0)); }
-// gök: ufuktan tepeye bantlı (aralar titreşimli) geçiş, güneşe doğru parıltı, güneş ya da ay, gece yıldızlar, bulut katmanı
-vec3 skyAt(vec3 d, ivec2 p){
-  float e = d.y, bay = bayPx(p);
-  float g = pow(clamp(e, 0.0, 1.0), 0.5);
-  vec3 col = mix(uSkyHor, uSkyTop, floor(g * 8.0 + bay) / 8.0);
-  float sd = max(dot(d, uSunDir), 0.0);
-  col += uSunGlow * (floor((pow(sd, 6.0) * 0.32 + pow(sd, 48.0) * 0.45) * 10.0 + bay) / 10.0);
-  if (e > 0.0 && sd > (uMoon > 0.5 ? 0.99975 : 0.99955)) col = uMoon > 0.5 ? vec3(0.86, 0.88, 0.95) : vec3(1.0, 0.97, 0.86);
-  if (uStars > 0.01 && e > 0.03) {
-    vec2 sq = floor(vec2(atan(d.z, d.x), asin(clamp(e, -1.0, 1.0))) * 170.0);
-    float h = hash12(sq);
-    if (h > 0.9963) col = mix(col, vec3(0.92, 0.93, 1.0), uStars * (0.6 + 0.4 * sin(uTime * 1.7 + h * 500.0)));
-  }
-  if (uCloud > 0.01 && e > 0.012) {
-    vec2 uv = d.xz / (e + 0.08) * 2.2 + vec2(uTime * 0.012, uTime * 0.005);
-    float n = vnoise(uv) * 0.58 + vnoise(uv * 2.3 + 3.1) * 0.3 + vnoise(uv * 5.1 + 7.7) * 0.12;
-    float th = 0.78 - uCloud * 0.42;
-    float m = n + (bay - 0.5) * 0.05;
-    if (m > th) {
-      vec3 cl = uCloudCol * (0.78 + 0.22 * step(th + 0.06, m));
-      col = mix(col, cl, clamp(e * 6.0, 0.0, 1.0) * 0.9);
-    }
-  }
-  return col;
-}
-// sis: uzaklık arttıkça ufuk rengine (güneşe doğru parıltılı) bantlı geçiş; sahnenin bittiği yer ufukta kaybolur
-vec3 fogged(vec3 c, float L, vec3 d, ivec2 p){
-  float f = clamp((L - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0);
-  if (f <= 0.0) return c;
-  f = f * f * (3.0 - 2.0 * f);
-  f = floor(f * 10.0 + bayPx(p)) / 10.0;
-  float sd = max(dot(d, uSunDir), 0.0);
-  vec3 fc = uSkyHor + uSunGlow * pow(sd, 6.0) * 0.32;
-  return mix(c, fc, f);
 }
 void main(){
   ivec2 p = ivec2(gl_FragCoord.xy);
@@ -704,8 +674,7 @@ void main(){
   vec4 A = texelFetch(uAlb, p, 0);
   int mat = int(A.a * 255.0 + 0.5);
   bool bg = dz >= 1.0;
-  float d0 = bg ? uFar : linZ(dz);
-  float pf = d0 * uPxK;                          // bu pikselin dünyadaki boyu
+  float d0 = uNear + dz * (uFar - uNear);
   bool tp = mat == 4 || mat == 12;
   float best = 1e9; ivec2 bq = p; bool inner = false;
   if (uOutline > 0.5) {
@@ -714,32 +683,28 @@ void main(){
       ivec2 q = clamp(p + off[i], ivec2(0), hi), r = clamp(p - off[i], ivec2(0), hi);
       float dqr = texelFetch(uDep, q, 0).r;
       if (dqr >= 1.0) continue;
-      float dq = linZ(dqr);
+      float dq = uNear + dqr * (uFar - uNear);
       int mq = matAt(q);
       bool tq = mq == 4 || mq == 12;
       if (mq == 2 || mq == 21 || mq == 22) continue;
       if (bg) { if (!tq && dq < best) { best = dq; bq = q; } continue; }
-      float drr = texelFetch(uDep, r, 0).r;
-      // düzlemde pencere derinliği ekranda doğrusaldır: ikinci fark ~0 (eğik zemin ve duvar çizgi almaz)
-      float second = ((dqr - dz) - (dz - drr)) * dLdz(d0);
-      float thr = ((tq && tp) ? 9.0 : 3.2) * pf;
+      float dr = uNear + texelFetch(uDep, r, 0).r * (uFar - uNear);
+      float second = (dq - d0) - (d0 - dr);          // düzlemde ~0: eğimli yüzey çizgi almaz
+      float thr = ((tq && tp) ? 9.0 : 3.2) * uPx;
       if (dq < d0 - thr && second < -thr && dq < best) { best = dq; bq = q; }
-      if (!tp && !tq && mat != 2 && mat != 21 && dq > d0 + 1.6 * pf && second > 1.6 * pf && dq < d0 + thr) inner = true;
+      if (!tp && !tq && mat != 2 && mat != 21 && dq > d0 + 1.6 * uPx && second > 1.6 * uPx && dq < d0 + thr) inner = true;
     }
   }
-  vec3 dir = rayDir(p);
   if (best < 1e8) {
     vec4 Aq = texelFetch(uAlb, bq, 0);
     int mq = int(Aq.a * 255.0 + 0.5);
-    o = vec4(fogged(shade(bq, mq, Aq.rgb, 0, 0.55), best, dir, p), 1.0);
+    o = vec4(shade(bq, mq, Aq.rgb, 0, 0.55), 1.0);
     return;
   }
-  if (bg) { o = vec4(skyAt(dir, p), 1.0); return; }
-  vec3 c;
-  if (mat == 22) c = shade(p, 0, A.rgb, 1, 0.0);
-  else if (inner) c = shade(p, mat, A.rgb, 0, 0.35);
-  else c = shade(p, mat, A.rgb, -1, 0.0);
-  o = vec4(fogged(c, d0, dir, p), 1.0);
+  if (bg) { o = vec4(uBg, 1.0); return; }
+  if (mat == 22) { o = vec4(shade(p, 0, A.rgb, 1, 0.0), 1.0); return; }
+  if (inner) { o = vec4(shade(p, mat, A.rgb, 0, 0.35), 1.0); return; }
+  o = vec4(shade(p, mat, A.rgb, -1, 0.0), 1.0);
 }`;
 
   /* ---------------- GL yardımcıları ---------------- */
@@ -776,24 +741,6 @@ void main(){
     return t;
   }
 
-  /* görüş hacminin (frustum) altı düzlemi (normal içe dönük, birim) ve kutunun hacimle kesişip kesişmediği (pay: birim) */
-  function frustum(m) {
-    const out = [];
-    for (let i = 0; i < 3; i++) for (const sg of [1, -1]) {
-      const a = m[3] + sg * m[i], b = m[7] + sg * m[4 + i], c = m[11] + sg * m[8 + i], d = m[15] + sg * m[12 + i];
-      const l = Math.hypot(a, b, c) || 1;
-      out.push([a / l, b / l, c / l, d / l]);
-    }
-    return out;
-  }
-  function boxIn(pl, bb, pad) {
-    for (const p of pl) {
-      const x = p[0] >= 0 ? bb[3] : bb[0], y = p[1] >= 0 ? bb[4] : bb[1], z = p[2] >= 0 ? bb[5] : bb[2];
-      if (p[0] * x + p[1] * y + p[2] * z + p[3] < -pad) return false;
-    }
-    return true;
-  }
-
   /* ---------------- GPU ağı ---------------- */
   class GPUMesh {
     constructor(gl, mesh, mode) {
@@ -817,7 +764,7 @@ void main(){
 
   /* ---------------- çizici ----------------
      scene: { parts: [{ mesh: GPUMesh, cut, cutH, winLit }], lines: GPUMesh, tiles: {tex, rect}, pal }
-     view:  { lw, lh (piksel), ds, cam: { eye, at (yerel), fov, near, far, yaw, sx, sz, sr (gölge kutusu), fog }, indoor, hole }
+     view:  { x0, y0 (yerel birim, ekranın sol üstü), lw, lh (piksel), ds (dünya pikseli başına piksel), K, hole }
      actors: [{ mesh: GPUMesh, bones: Float32Array }]   lights: [{p, r, c, k}]   env: güneş ve ortam */
   class Renderer {
     constructor() {
@@ -864,30 +811,68 @@ void main(){
       const gl = this.gl;
       return tex(gl, w, h, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, bytes);
     }
-    /* perspektif kamera (üçüncü şahıs): v.cam.eye ve v.cam.at yerel birimde, fov dikey görüş açısı */
-    viewProj(v) {
-      const c = v.cam;
-      return M4.mul(M4.persp(c.fov, v.lw / v.lh, c.near, c.far), M4.lookAt(c.eye, c.at, [0, 1, 0]));
+    /* zemin izleri dokusu: 2D tuvalden (dünya pikseli başına bir piksel) yüklenir */
+    decalUpload(cv) {
+      const gl = this.gl;
+      if (!this.decalTex || this.decalW !== cv.width || this.decalH !== cv.height) {
+        if (this.decalTex) gl.deleteTexture(this.decalTex);
+        this.decalTex = tex(gl, cv.width, cv.height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
+        this.decalW = cv.width; this.decalH = cv.height;
+      }
+      gl.activeTexture(gl.TEXTURE5);
+      gl.bindTexture(gl.TEXTURE_2D, this.decalTex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+      gl.bindTexture(gl.TEXTURE_2D, null);
     }
-    /* noktanın (yerel birim) ekran pikseli ve pencere derinliği; kameranın arkasındaysa ekran dışı */
+    /* gerçek dik (ortografik) kamera: yaw (zeminde dönüş) ve eğim (yerden yükseklik açısı θ). Ekranda yatayda dünya
+       birimi başına bir piksel; zeminin derinliği sinθ, yükseklik cosθ kadar kısalır. v.cam: c = cos yaw, s = sin yaw,
+       st = sinθ, ct = cosθ; u, w ekran merkezinin (piksele oturtulmuş) kamera eksenlerindeki yeri, zc derinlik merkezi
+       (hepsi yerel birim). Ekran x = genişlik/2 + c·X − s·Z − u, ekran y = yükseklik/2 + (s·X + c·Z)·st − w − Y·ct */
+    viewProj(v) {
+      const K = v.cam, ax = 2 * v.ds / v.lw, ay = 2 * v.ds / v.lh, dr = this.DR;
+      const c = K.c, s = K.s, st = K.st, ct = K.ct;
+      const m = new Float32Array(16);
+      m[0] = ax * c; m[1] = -ay * st * s; m[2] = -ct * s / dr;
+      m[5] = ay * ct; m[6] = -st / dr;
+      m[8] = -ax * s; m[9] = -ay * st * c; m[10] = -ct * c / dr;
+      // derinlik merkezi 64 birimlik ızgarada: kamera yürürken derinlik değerleri değişmez, birbirine çok yakın yüzeylerden
+      // (saçak, süs, duvar) hangisinin önde göründüğü kareden kareye oynamaz
+      m[12] = -ax * K.u; m[13] = ay * K.w; m[14] = ct * Math.round(K.zc / 64) * 64 / dr; m[15] = 1;
+      return m;
+    }
+    /* noktanın (yerel birim) ekran pikseli ve pencere derinliği */
     project(VP, p) {
-      const x = VP[0] * p[0] + VP[4] * p[1] + VP[8] * p[2] + VP[12], y = VP[1] * p[0] + VP[5] * p[1] + VP[9] * p[2] + VP[13];
-      const z = VP[2] * p[0] + VP[6] * p[1] + VP[10] * p[2] + VP[14], w = VP[3] * p[0] + VP[7] * p[1] + VP[11] * p[2] + VP[15];
-      if (w <= 1e-3) return [-1e4, -1e4, 0];
-      return [(x / w * 0.5 + 0.5) * this.lowW, (y / w * 0.5 + 0.5) * this.lowH, z / w * 0.5 + 0.5];
+      const c = M4.xform(VP, p);
+      return [(c[0] * 0.5 + 0.5) * this.lowW, (c[1] * 0.5 + 0.5) * this.lowH, c[2] * 0.5 + 0.5];
     }
     render(scene, view, actors, lights, env, t) {
       const gl = this.gl;
       const t0 = performance.now();
-      const lw = view.lw, lh = view.lh, K = view.cam;
+      const lw = view.lw, lh = view.lh;
       this.resizeLow(lw, lh);
+      this.DR = 1400;
       const VP = this.viewProj(view);
       this.VP = VP;
-      // ayıklama: kutu görüş hacminin (frustum) düzlemlerinden birinin tamamen dışındaysa çizilmez
-      const camPl = frustum(VP);
-      // güneş: gölge kutusu kameranın önündeki zemini kapsar (merkez kaba ızgarada), texel ızgarasına oturur
+      // ayıklama: kutunun köşeleri ekrana izdüşürülür
+      const K = view.cam, vwU = lw / view.ds, vgU = lh / view.ds / K.st;   // görünen zemin: genişlik ve derinlik (birim)
+      const visible = (bb, pad) => {
+        let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+        for (let i = 0; i < 8; i++) {
+          const X = i & 1 ? bb[3] : bb[0], Y = i & 2 ? bb[4] : bb[1], Z = i & 4 ? bb[5] : bb[2];
+          const cx = VP[0] * X + VP[4] * Y + VP[8] * Z + VP[12], cy = VP[1] * X + VP[5] * Y + VP[9] * Z + VP[13];
+          if (cx < x0) x0 = cx; if (cx > x1) x1 = cx; if (cy < y0) y0 = cy; if (cy > y1) y1 = cy;
+        }
+        const px = pad * view.ds * 2 / lw, py = pad * view.ds * 2 / lh;
+        return x1 > -1 - px && x0 < 1 + px && y1 > -1 - py && y0 < 1 + py;
+      };
+      // güneş: gölge kutusu görünen alanı (ve gölgesi içeri düşebilecek uzun nesneleri) kapsar, texel ızgarasına oturur
       const sd = V3.norm(env.sunDir);
-      const cx = K.sx, cz = K.sz, R = K.sr;
+      // kutu görünen zemin dikdörtgeninin (dönmüş, derinliği uzamış) çevresini ve kameraya yakın uzun nesneleri kapsar.
+      // Merkez 32 birimlik ızgaraya oturur: kamera yürürken gölge haritası (derinlik payıyla birlikte) değişmez, gölge
+      // kenarları ve taçlardaki gölge benekleri kıpırdamaz
+      const cx = Math.round((K.cx + K.s * 20) / 32) * 32, cz = Math.round((K.cz + K.c * 20) / 32) * 32;
+      const R = Math.hypot(vwU, vgU) * 0.5 + 130;
       const lup = Math.abs(sd[1]) > 0.98 ? [0, 0, -1] : [0, 1, 0];
       let LV = M4.lookAt(V3.add([cx, 0, cz], V3.mul(sd, R * 2)), [cx, 0, cz], lup);
       const texel = 2 * R / this.SH;
@@ -896,13 +881,12 @@ void main(){
       LV = M4.mul(snap, LV);
       const LP = M4.ortho(-R, R, -R, R, 1, R * 4);
       const LVP = M4.mul(LP, LV);
-      const lightPl = frustum(LVP);
       let draws = 0;
       const drawParts = (pr, shadowPass) => {
         const U = pr.U;
         gl.uniformMatrix4fv(U.uBones, false, this.identBones);
         for (const P of scene.parts) {
-          if (!boxIn(shadowPass ? lightPl : camPl, P.mesh.bb, shadowPass ? 4 : 8)) continue;
+          if (!visible(P.mesh.bb, shadowPass ? R * 0.9 : 8)) continue;
           gl.uniform1f(U.uCutOn, P.cut ? 1 : 0);
           gl.uniform1f(U.uCutH, P.cutH || 6);
           if (U.uWinLit) gl.uniform1f(U.uWinLit, P.winLit ? 1 : 0);
@@ -913,10 +897,8 @@ void main(){
         if (U.uHoleAll) gl.uniform1f(U.uHoleAll, 0);
         for (const a of actors) {
           gl.uniformMatrix4fv(U.uBones, false, a.bones);
-          if (U.uHoleAll) gl.uniform1f(U.uHoleAll, a.self ? 0 : 1);
           a.mesh.draw(); draws++;
         }
-        if (U.uHoleAll) gl.uniform1f(U.uHoleAll, 0);
         gl.uniformMatrix4fv(U.uBones, false, this.identBones);
       };
       const common = (pr, shadowPass) => {
@@ -926,7 +908,7 @@ void main(){
         gl.uniform1f(U.uTime, t);
         gl.uniform1f(U.uWind, env.wind === undefined ? 1 : env.wind);
         gl.uniform1f(U.uShadowPass, shadowPass ? 1 : 0);
-        gl.uniform2f(U.uCamH, Math.sin(K.yaw), Math.cos(K.yaw));
+        gl.uniform2f(U.uCamH, K.s, K.c);
       };
       // 1) gölge
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFB);
@@ -951,7 +933,11 @@ void main(){
       common(pm, false);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.shadowTex); gl.uniform1i(U.uShadow, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, scene.tiles.tex); gl.uniform1i(U.uTiles, 1);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, null);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.decalTex || null); gl.uniform1i(U.uDecal, 2);
+      const dr = view.decal;
+      if (dr && this.decalTex) gl.uniform4f(U.uDecalRect, dr[0], dr[1], dr[2], dr[3]); else gl.uniform4f(U.uDecalRect, 0, 0, 0, 0);
+      const cl = view.cloud;
+      if (cl) gl.uniform4f(U.uCloud, cl[0], cl[1], cl[2], cl[3]); else gl.uniform4f(U.uCloud, 0, 0, 0, 0);
       const tr = scene.tiles.rect;
       gl.uniform4f(U.uTileRect, tr[0], tr[1], tr[2], tr[3]);
       gl.uniform3fv(U.uSunDir, sd);
@@ -963,12 +949,11 @@ void main(){
       const ir = view.indoor;
       if (ir) { gl.uniform4f(U.uInRect, ir[0], ir[1], ir[2], ir[3]); gl.uniform1f(U.uInH, ir[4]); }
       else { gl.uniform4f(U.uInRect, 0, 1, 0, -1); gl.uniform1f(U.uInH, 0); }
-      gl.uniform3fv(U.uEye, K.eye);
       const hole = view.hole;
       if (hole) {
         const hp = this.project(VP, hole.p);
         gl.uniform3f(U.uHole, hp[0], hp[1], hp[2]);
-        gl.uniform1f(U.uHoleR, hole.rpx * view.ds);
+        gl.uniform1f(U.uHoleR, hole.r * view.ds);
       } else gl.uniform1f(U.uHoleR, 0);
       drawParts(pm, false);
       if (scene.lines) { gl.uniform1f(U.uCutOn, 0); scene.lines.draw(); draws++; }
@@ -984,19 +969,16 @@ void main(){
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.tDep); gl.uniform1i(UC.uDep, 2);
       gl.uniformMatrix4fv(UC.uInvVP, false, M4.invert(VP));
       gl.uniform2f(UC.uRes, lw, lh);
-      gl.uniform1f(UC.uNear, K.near); gl.uniform1f(UC.uFar, K.far);
-      gl.uniform1f(UC.uPxK, 2 * Math.tan(K.fov / 2) / lh);
-      gl.uniform2f(UC.uFog, K.fog[0], K.fog[1]);
-      gl.uniform3fv(UC.uSkyTop, env.skyTop); gl.uniform3fv(UC.uSkyHor, env.skyHor);
-      gl.uniform3fv(UC.uSunGlow, env.sunGlow); gl.uniform3fv(UC.uSunDir, sd);
-      gl.uniform1f(UC.uStars, env.stars); gl.uniform1f(UC.uCloud, env.cloud); gl.uniform1f(UC.uMoon, env.moon);
-      gl.uniform3fv(UC.uCloudCol, env.cloudCol);
+      gl.uniform1f(UC.uNear, 0); gl.uniform1f(UC.uFar, 2 * this.DR);
+      gl.uniform1f(UC.uPx, 1 / view.ds);
+      gl.uniform2i(UC.uPixOff, view.cam.px || 0, view.cam.py || 0);
       gl.uniform1f(UC.uTime, t);
       gl.uniform1f(UC.uNightMul, env.nightMul);
       gl.uniform1f(UC.uOutline, env.outline === false ? 0 : 1);
       gl.uniform3fv(UC.uSunCol, env.sunCol);
       gl.uniform3fv(UC.uSky, env.sky);
       gl.uniform3fv(UC.uGround, env.ground);
+      gl.uniform3fv(UC.uBg, [0.08, 0.07, 0.07]);
       gl.uniform1f(UC.uSunK, env.sunK);
       gl.uniform1f(UC.uAmbK, env.ambK);
       const n = Math.min(NL, lights.length), lp = this.lp, lcol = this.lc;

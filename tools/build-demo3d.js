@@ -10,7 +10,8 @@
    masaüstü sürümü, demo paketi ve testler bu betikten etkilenmez.
      - Hikâye kapalı olduğundan seslendirme kayıtları pakete girmez
      - Geliştirici araçları (debug.js) pakete girmez; saat [ ve ] tuşlarıyla değişir
-     - Ayarlar > Kontroller'e 3B kameranın fare hassasiyeti satırı eklenir (paketteki js/ui.js kopyasında)
+     - Ayarlar > Kontroller'e 3B kameranın fare hassasiyeti satırı eklenir, radar 3B kamerayla döner (paketteki
+       js/ui.js kopyasında)
      - Kod küçültülmez: test sürümüdür
    ========================================================== */
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
@@ -61,8 +62,38 @@ fs.writeFileSync(path.join(OUT, 'index.html'), html);
   const rowAt = "['aimSens', Tr('Nişan Hassasiyeti (Kol)'), 'opt', Tr('Sağ analogla nişan alırken dönüş hızı.')],";
   const defAt = 'aimAssist: 2, aimSens: 1,';
   if (ui.split(rowAt).length !== 2 || ui.split(defAt).length !== 2) fail('js/ui.js içinde Kontroller ayar satırı bulunamadı');
-  const row = "\n        ['d3Sens', (I18N.lang === 'en' ? 'Mouse Sensitivity (3D Camera)' : 'Fare Hassasiyeti (3B Kamera)'), 'vol', (I18N.lang === 'en' ? 'How fast the 3D camera turns with the mouse. 50% is normal; lower turns slower, higher turns faster (up to four times).' : '3B kameranın fareyle dönme hızı. %50 normaldir; azaltınca daha yavaş, artırınca daha hızlı döner (dört katına kadar).')],";
+  const row = "\n        ['d3Sens', (I18N.lang === 'en' ? 'Mouse Sensitivity (3D Camera)' : 'Fare Hassasiyeti (3B Kamera)'), 'vol', (I18N.lang === 'en' ? 'How fast the mouse turns the 3D camera and moves the aim forward and back. 50% is normal; lower is slower, higher is faster (up to four times).' : 'Farenin 3B kamerayı döndürme ve nişanı ileri-geri taşıma hızı. %50 normaldir; azaltınca daha yavaş, artırınca daha hızlı (dört katına kadar).')],";
   ui = ui.replace(rowAt, rowAt + row).replace(defAt, defAt + ' d3Sens: 0.5,');
+  // radar 3B kamerayla birlikte döner: kameranın baktığı yön yukarıda; harita katmanı (zemin, yollar, sis, rotalar)
+  // döner, simgeler yeni yerlerinde dik kalır, oyuncu oku ve yön harfleri dönüşe uyar (D3.radarRot: 2D'de 0)
+  const RADAR = [
+    ['    c.imageSmoothingEnabled = z < 1.6;\n    const span = 2 * R / z;',
+      '    const rot = typeof D3 !== \'undefined\' && D3.radarRot ? D3.radarRot() : 0, rc = Math.cos(rot), rs = Math.sin(rot);\n    c.save(); c.translate(C, C); c.rotate(rot); c.translate(-C, -C);\n    c.imageSmoothingEnabled = z < 1.6;\n    const span = 2 * R / z;'],
+    ['    const RP = [0, 0], toR = (wx, wy) => { RP[0] = C + (wx / TS - tx) * z; RP[1] = C + (wy / TS - ty) * z; return RP; };',
+      '    const RP = [0, 0], toR0 = (wx, wy) => { RP[0] = C + (wx / TS - tx) * z; RP[1] = C + (wy / TS - ty) * z; return RP; };\n    const toR = (wx, wy) => { const dx = (wx / TS - tx) * z, dy = (wy / TS - ty) * z; RP[0] = C + rc * dx - rs * dy; RP[1] = C + rs * dx + rc * dy; return RP; };'],
+    ['      const lp = toR(G.law.lastX, G.law.lastY), lx = lp[0], ly = lp[1];', '      const lp = toR0(G.law.lastX, G.law.lastY), lx = lp[0], ly = lp[1];'],
+    ['    Nav.radar(c, toR, C, R, G.t);', '    Nav.radar(c, toR0, C, R, G.t);\n    c.restore();'],
+    ['    c.translate(pp[0], pp[1]); c.rotate(P.riding ? P.riding.ang : P.ang);', '    c.translate(pp[0], pp[1]); c.rotate((P.riding ? P.riding.ang : P.ang) + rot);'],
+    ['      if (d % 90 === 0) continue;', '      if (d % 90 === 0 && typeof D3 === \'undefined\') continue;'],
+    ['    lt.forEach((t, i) => {\n      const a = i * Math.PI / 2 - Math.PI / 2, x = C + Math.cos(a) * (R + 5.6), y = C + Math.sin(a) * (R + 5.6);',
+      '    if (typeof D3 === \'undefined\') lt.forEach((t, i) => {\n      const a = i * Math.PI / 2 - Math.PI / 2, x = C + Math.cos(a) * (R + 5.6), y = C + Math.sin(a) * (R + 5.6);'],
+    ['    c.drawImage(this.bezelArt(C, R), 0, 0, 224, 224);',
+      '    c.drawImage(this.bezelArt(C, R), 0, 0, 224, 224);\n' +
+      '    if (typeof D3 !== \'undefined\') {\n' +
+      '      const rot = D3.radarRot ? D3.radarRot() : 0, lt = [Tr(\'@pusula|K\'), Tr(\'@pusula|D\'), Tr(\'@pusula|G\'), Tr(\'@pusula|B\')];\n' +
+      '      c.font = \'bold 9px "IM Fell English SC", serif\'; c.textAlign = \'center\'; c.textBaseline = \'middle\';\n' +
+      '      lt.forEach((t, i) => {\n' +
+      '        const a = i * Math.PI / 2 - Math.PI / 2 + rot, x = C + Math.cos(a) * (R + 5.6), y = C + Math.sin(a) * (R + 5.6);\n' +
+      '        c.fillStyle = i === 0 ? \'#8e1b12\' : \'#1d150e\'; c.beginPath(); c.arc(x, y, 5.6, 0, TAU); c.fill();\n' +
+      '        if (i === 0) { c.strokeStyle = \'rgba(240,212,135,0.9)\'; c.lineWidth = 0.8; c.stroke(); }\n' +
+      '        c.fillStyle = i === 0 ? \'#fff3d6\' : \'rgba(236,216,172,0.92)\'; c.fillText(t, x, y + 0.4);\n' +
+      '      });\n' +
+      '    }'],
+  ];
+  for (const [a, b] of RADAR) {
+    if (ui.split(a).length !== 2) fail('js/ui.js içinde radar satırı bulunamadı: ' + a.slice(0, 60));
+    ui = ui.replace(a, () => b);
+  }
   fs.writeFileSync(f, ui);
 }
 
